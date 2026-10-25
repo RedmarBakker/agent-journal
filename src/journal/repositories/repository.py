@@ -309,8 +309,11 @@ class Repository(Generic[M]):
 
     def dispatched(self, row: M, actor: Actor) -> M:
         for event in row.events:
-            self.bus.dispatch(event.placed(getattr(row, "environment_id", 0), row.creation_time.timestamp(), row.row_id, actor.stamp) if isinstance(event, RowEvent) else event)
+            self.bus.dispatch(self._placed_event(event, row, actor) if isinstance(event, RowEvent) else event)
         return row.without_events()
+
+    def _placed_event(self, event: RowEvent, row: M, actor: Actor) -> RowEvent:
+        return event.placed(getattr(row, "environment_id", 0), row.creation_time.timestamp(), row.row_id, actor.stamp)
 
     def stored(self) -> None:
         self.connection.changed(self.model.storage())

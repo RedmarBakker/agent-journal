@@ -856,6 +856,54 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         assert plans.checkpoint_plans(plan) is None and plans.started_task(plan).id == rows[2].id, "phase two begun"
 
 
+def test_a_hub_task_and_a_hub_plan_bound_to_an_environment_read_as_its_work_and_their_events_reach_its_agent_with_no_local_row(app: App):
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.phase import Phase
+    from journal.models.support.ref import Ref
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.phases import PHASE_TASK_LINK, Phases
+    from journal.repositories.scope import BOUND_LINK
+    from journal.repositories.tasks import PLAN_LINK
+
+    heard: list[TaskStarted] = []
+
+    class StartedTasks(Listener[TaskStarted]):
+        def handle(self, event: TaskStarted) -> None:
+            heard.append(event)
+
+    assert hook(app, "SessionStart")[0] == 200
+    environments, plans, tasks, phases, links, scope = (app.container.get(kind) for kind in (Environments, Plans, Tasks, Phases, Links, Scope))
+    actor = Actor.system()
+    main = environments.existing("main")
+    hub = environments.save(Environment.hub("k-acme", "acme"), actor)
+    with scope.environment(hub.row_id):
+        task = tasks.save(Task(environment_id=hub.row_id, title="the team's task"), actor)
+        plan = plans.save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), actor)
+        phase = phases.save(Phase(environment_id=hub.row_id, title="one"), actor)
+        planned = tasks.save(Task(environment_id=hub.row_id, title="in the team's plan"), actor)
+    links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
+    links.save(Link(source=Ref.build(planned), target=Ref.build(plan), kind=PLAN_LINK), actor)
+    local_rows = (len(tasks.global_matching(environment_id=main.row_id)), len(plans.global_matching(environment_id=main.row_id)), len(phases.global_matching(environment_id=main.row_id)))
+    with scope.environment(main.row_id):
+        assert not {task.id, planned.id} & {row.id for row in tasks.scoped()} and plan.id not in {row.id for row in plans.scoped()}, "a hub row is no environment's work until it is bound"
+    for row in (task, plan):
+        links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), main.row_id), kind=BOUND_LINK), actor)
+    with scope.environment(main.row_id):
+        assert {task.id, planned.id} <= {row.id for row in tasks.open_tasks()} and plan.id in {row.id for row in plans.scoped()}, "the bound task and plan read as the environment's work"
+        assert [row.id for row in plans.plan_phases(plan)] == [phase.id] and plans.remaining_count(plan) == 1 and plans.next_task(plan).id == planned.id, "and the bound plan's phases and tasks with it"
+    app.container.get(Bus).listen(TaskStarted, StartedTasks())
+    with scope.environment(main.row_id):
+        for row in (task, planned):
+            tasks.save(tasks.find(row.id).started(datetime.now(timezone.utc)), actor)
+    assert [(event.environment_id, event.bound_environment_ids) for event in heard] == [(hub.row_id, (main.row_id,))] * 2, "each event is the hub's, bound to the environment, the plan's task through its plan"
+    machine = app.container.get(StateMachine)
+    assert all("s1" in {agent.session for agent in machine.audience(event)} for event in heard), "and reaches the environment's agent"
+    assert {tasks.find(row.id).environment_id for row in (task, planned)} == {hub.row_id}, "the rows stay the hub's"
+    assert (len(tasks.global_matching(environment_id=main.row_id)), len(plans.global_matching(environment_id=main.row_id)), len(phases.global_matching(environment_id=main.row_id))) == local_rows, "and no local task, plan or phase is made"
+
+
 def test_the_models_carry_the_events_their_changes_mean():
     time = datetime(2026, 10, 20, 23, 0, tzinfo=timezone.utc)
     task = Task(id=7, environment_id=1, title="t", state=TaskState.STARTED)

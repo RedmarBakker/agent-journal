@@ -84,7 +84,8 @@ class Query:
     def filter_alternatives(self, *alternatives: "Query") -> "Query":
         terms = [alternative._joined() for alternative in alternatives]
         text = " OR ".join(term.text if len(alternative.conditions) == 1 else f"({term.text})" for term, alternative in zip(terms, alternatives))
-        return self._with(Condition(f"({text})", tuple(param for term in terms for param in term.params)))
+        alternated = self._with(Condition(f"({text})", tuple(param for term in terms for param in term.params)))
+        return replace(alternated, subquery_tables=(*self.subquery_tables, *(table for alternative in alternatives for table in alternative.subquery_tables)))
 
     def filter_absent(self, query: "Query") -> "Query":
         return self._matched("NOT EXISTS", query)

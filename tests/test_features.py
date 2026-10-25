@@ -12172,6 +12172,43 @@ def test_a_full_copy_after_an_upgrade_and_after_falling_behind_replaces_only_the
         assert kept(), "and keeps every row placed nowhere"
 
 
+def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_reaches_bobs_journal_with_no_row_made_on_hers(tmp_path, template_journal, monkeypatch):
+    from datetime import datetime, timezone
+    from journal.engine.state_machine import StateMachine
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.task_started import TaskStarted
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.task_state import TaskState
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.scope import BOUND_LINK
+    from journal.repositories.tasks import Tasks
+    heard: list[TaskStarted] = []
+
+    class StartedTasks(Listener[TaskStarted]):
+        def handle(self, event: TaskStarted) -> None:
+            heard.append(event)
+
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert hook(a, "SessionStart")[0] == 200
+        tasks, scope, main = a.container.get(Tasks), a.container.get(Scope), a.container.get(Environments).existing("main")
+        _, hub_task = ada_tasks(a)
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
+        own_rows = len(tasks.global_matching(environment_id=main.row_id))
+        a.container.get(Links).save(Link(source=Ref.build(hub_task), target=Ref(Environment.table(), main.row_id), kind=BOUND_LINK), Actor.user(1))
+        a.container.get(Bus).listen(TaskStarted, StartedTasks())
+        with scope.environment(main.row_id):
+            assert hub_task.id in {task.id for task in tasks.open_tasks()}, "bound, the hub task reads as the environment's work"
+            tasks.save(tasks.find(hub_task.id).started(datetime.now(timezone.utc)), Actor.user(1))
+        assert [event.bound_environment_ids for event in heard] == [(main.row_id,)] and "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "its start reaches the environment's agent"
+        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).state == TaskState.STARTED), "and arrives on Bob's journal with its next pull"
+        assert tasks.find(hub_task.id).environment_id != main.row_id and len(tasks.global_matching(environment_id=main.row_id)) == own_rows, "the task stays the hub's and no local task is made"
+        assert team.log.row("links", a.container.get(Links).all_matching(kind=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

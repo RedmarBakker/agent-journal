@@ -40,6 +40,7 @@ CLOSED_STATES = (TaskState.FINISHED, TaskState.CANCELLED)
 
 class Tasks(ScopedRepository[Task]):
     model = Task
+    member_links = (PLAN_LINK,)
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks) -> None:
         super().__init__(connection, bus, scope)

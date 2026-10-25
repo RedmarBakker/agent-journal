@@ -19,6 +19,7 @@ from journal.db.schema import Schema
 from journal.events.bus import Bus
 from journal.models.all_models import AllModels
 from journal.repositories.environments import Environments
+from journal.repositories.links import Links
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.models.setting import Setting
@@ -113,7 +114,7 @@ def copied(template: Path, root: Path) -> Path:
 
 @pytest.fixture
 def scope(connection: Connection, bus: Bus) -> Scope:
-    return Scope(Environments(connection, bus))
+    return Scope(Environments(connection, bus), Links(connection, bus))
 
 
 # the shard of a parallel suite this run is, as index/count, set by scripts/suite.py

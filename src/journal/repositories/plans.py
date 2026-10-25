@@ -11,7 +11,7 @@ from journal.support.rejection import Rejection
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.links import Links
-from journal.repositories.phases import Phases
+from journal.repositories.phases import PHASE_TASK_LINK, Phases
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PLAN_LINK, WAIT_LINK, WORKERS, Tasks
@@ -20,7 +20,6 @@ from journal.models.phase_states import PhaseStates
 from journal.models.support.ref import Ref
 
 
-PHASE_TASK_LINK = "phase_of"
 PHASE_LINK = "in_phase"
 
 
@@ -190,9 +189,9 @@ class Plans(ScopedRepository[Plan]):
         matching = candidates.filter(state=state)
         phases = [Ref.build(phase) for phase in self.plan_phases(plan)]
         for phase in phases:
-            found = self.first_link(self.links.query().filter(kind=PHASE_LINK, target=phase), matching)
-            if found is not None:
-                return found
+            task = self.first_link(self.links.query().filter(kind=PHASE_LINK, target=phase), matching)
+            if task is not None:
+                return task
         unphased = matching.filter_absent(self.links.query().filter(kind=PHASE_LINK).filter_listed("target", phases).filter_ref("source", self.tasks.query())) if phases else matching
         return self.first_link(self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)), unphased)
 

@@ -74,7 +74,7 @@ class StateMachine:
         return replies
 
     def audience(self, event: RowEvent) -> list[Agent]:
-        return self.agents.unended_scoped(event.environment_id) if event.environment_id else self.agents.unended()
+        return [agent for environment_id in event.environment_ids() for agent in self.agents.unended_scoped(environment_id)] if event.environment_id else self.agents.unended()
 
     def queue_lines(self, agent: Agent, lines: str) -> None:
         self.agents.save(self.agents.find(agent.row_id).queued(lines), Actor.system())

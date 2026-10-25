@@ -20,6 +20,10 @@ class Links(Repository[Link]):
     def of_kind(self, kind: str) -> list[Link]:
         return self.selected(self.query().filter(kind=kind).order("id"))
 
+    def unlisted_kind_links(self, kind: str) -> list[Link]:
+        with self.connection.unlisted():
+            return self.of_kind(kind)
+
     def targets(self, model: Model, kind: str) -> list[Ref]:
         return [link.target for link in self.selected(self.query().filter(source=Ref.build(model), kind=kind).order("id"))]
 

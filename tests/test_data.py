@@ -195,7 +195,7 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
         db.execute("INSERT INTO messages (environment_id, author, text, created_at, updated_at, creator, updater) VALUES (1, 'user', 'old', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'user:1', 'user:1')")
     Schema(old, AllModels.MODELS).create()
     bus = Bus()
-    scope = Scope(Environments(old, bus))
+    scope = Scope(Environments(old, bus), Links(old, bus))
     message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus)), Links(old, bus), EnvironmentOwners(Links(old, bus), Users(old, bus), Environments(old, bus)), Agents(old, bus, scope)).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
@@ -723,7 +723,7 @@ def team_journal(tmp_path, name: str):
     connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
     Schema(connection, AllModels.MODELS).create()
     bus = Bus()
-    scope = Scope(Environments(connection, bus))
+    scope = Scope(Environments(connection, bus), Links(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
     bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), Links(connection, bus), ServiceHooks()))
     bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
