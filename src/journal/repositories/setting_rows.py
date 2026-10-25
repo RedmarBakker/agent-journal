@@ -11,7 +11,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 
 
 class SettingRows(ScopedRepository[Setting]):
-    """Reads a key with the project's value over the environment's; writes to the scope requested. Each scope's values are cached until a setting is written, not cached when a write cleared them while they were being read, and bypassed on the thread whose write has not committed yet, so it reads what it wrote while other threads read what is committed."""
+    """Reads a key with the project's value over the environment's; writes to the scope requested, and writes nothing for a value it already holds. Each scope's values are cached until a setting is written, not cached when a write cleared them while they were being read, and kept apart on the thread whose write has not committed yet, until its next write, so it reads what it wrote while other threads read what is committed."""
 
     model = Setting
 
@@ -48,6 +48,8 @@ class SettingRows(ScopedRepository[Setting]):
 
     def set(self, key: str, value: object, actor) -> Setting:
         rows = [s for s in self.project_rows() if s.key == key]
+        if rows and rows[0].value == value:
+            return rows[0]
         return self.save((rows[0] if rows else Setting(environment_id=PROJECT, key=key)).with_value(value, self._time().timestamp()), actor)
 
     def with_line(self, option: Option, line: str, actor) -> Setting:
@@ -85,7 +87,7 @@ class SettingRows(ScopedRepository[Setting]):
 
     def values(self, environment_id: int) -> dict:
         if self.is_writing():
-            return self.read_values(environment_id)
+            return self.thread_values(self._writing.values, environment_id, self.read_values)
         if environment_id in self._values:
             return self._values[environment_id]
         clear_count = self._clear_count
@@ -103,7 +105,7 @@ class SettingRows(ScopedRepository[Setting]):
 
     def environment_rows(self, environment_id: int) -> list[Setting]:
         if self.is_writing():
-            return self.global_matching(environment_id=environment_id)
+            return self.thread_values(self._writing.rows, environment_id, lambda scope_id: self.global_matching(environment_id=scope_id))
         if environment_id in self._kept:
             return self._kept[environment_id]
         clear_count = self._clear_count
@@ -115,9 +117,15 @@ class SettingRows(ScopedRepository[Setting]):
     def is_writing(self) -> bool:
         return getattr(self._writing, "is_open", False)
 
+    @staticmethod
+    def thread_values(scope_values: dict, environment_id: int, read) -> object:
+        if environment_id not in scope_values:
+            scope_values[environment_id] = read(environment_id)
+        return scope_values[environment_id]
+
     def stored(self) -> None:
         super().stored()
-        self._writing.is_open = True
+        self._writing.is_open, self._writing.values, self._writing.rows = True, {}, {}
         self.clear_cache()
         self.connection.commit_callback(self.committed)
 

@@ -6,6 +6,7 @@ from journal.http.row_list import RowList
 from journal.db.query import Query
 from journal.http.listing import LISTING_ROW_LIMIT, Listing
 from journal.http.row_list_page import RowListPage
+from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.model import Model
@@ -15,10 +16,11 @@ S = TypeVar("S", bound=Model)
 
 
 class Controller(Generic[S]):
-    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. Its list is a query its repository pages, filters and counts in SQL: its own rows alone unless list_query says which, with what index_page adds of each row's own, and reads no relationship of them; a resource whose rows close names its open and its closed rows as filters of that query; one that shows more than its fields says what in shown_page; one whose rows are wide pages fewer of them at a time."""
+    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. Its list is a query its repository pages, filters and counts in SQL: its own rows alone unless list_query says which, with what index_page adds of each row's own, and reads no relationship of them; a resource whose rows close names its open and its closed rows as filters of that query; one that shows more than its fields says what in shown_page; one whose rows are wide pages fewer of them at a time, and lists them without the long fields it names, read whole by id."""
 
     repository: Repository[S]
     page_rows: int = LISTING_ROW_LIMIT
+    omitted_fields: tuple[str, ...] = ()
 
     def index(self, request: Request) -> Response:
         return Response.json(self.listed(Listing.query_listing(request.query)))
@@ -33,10 +35,11 @@ class Controller(Generic[S]):
             return RowList(rows=self.index_page(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(query))
 
     def list_page(self, listing: Listing, query: Query) -> RowListPage:
-        return listing.listed(self.repository, query, self.open_rows(query), self.closed_rows(query))
+        narrowed = query.without(*self.omitted_fields)
+        return listing.listed(self.repository, narrowed, self.open_rows(narrowed), self.closed_rows(narrowed))
 
     def index_page(self, rows: list[S]) -> list:
-        return list(rows)
+        return [{name: value for name, value in ModelFields.build(row).items() if name not in self.omitted_fields} for row in rows] if self.omitted_fields else list(rows)
 
     def list_query(self) -> Query:
         return self.repository.query()

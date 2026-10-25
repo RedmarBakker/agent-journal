@@ -1431,3 +1431,26 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
         changes = [entry.data["changed"] for entry in entries.all_matching(kind="updated")]
     assert [(load.model, load.rows) for load in loads.counts if load.rows] == [], f"the row as it was comes from the session read the cache holds: {loads.line()}"
     assert changes == [["tool_uses"]], "a save that changed nothing and a change of the load alone are no timeline entries"
+
+
+def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_of_the_write_reads_what_it_wrote(connection, bus, scope):
+    from journal.repositories.load_tally import LoadTally
+    from journal.repositories.setting_rows import SettingRows
+    settings = SettingRows(connection, bus, scope)
+
+    class ModeReader(Listener[Saved]):
+        def __init__(self) -> None:
+            self.seen = []
+
+        def handle(self, event: Saved) -> None:
+            self.seen.append(settings.get("workers.mode"))
+
+    settings.set("workers.mode", "builder", USER)
+    LoadTally.begin()
+    settings.set("workers.mode", "builder", USER)
+    loads = LoadTally.ended()
+    reader = ModeReader()
+    bus.listen(Saved, reader)
+    settings.set("workers.mode", "orchestrator", USER)
+    assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
+    assert reader.seen == ["orchestrator"] and settings.get("workers.mode") == "orchestrator", "a listener of the write reads the value written"

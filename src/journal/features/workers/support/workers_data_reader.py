@@ -53,7 +53,7 @@ class WorkersDataReader:
             "active_subagents": lambda: sum(1 for s in facts.session_subagent_rows if s.is_running()),
             "subagents": lambda: tuple(facts.session_subagent_rows),
             "worktrees_root": lambda: (self.config.home / "worktrees").resolve(),
-            "worktrees": lambda: tuple(WorkerWorktree(self.branch.folder(w).name, w.row_id, w.name) for w in self.workers.scoped()),
+            "worktrees": lambda: tuple(WorkerWorktree(self.branch.folder(w).name, w.row_id, w.name) for w in (*self.workers.open_workers(), *facts.idle_workers)),
             "session_workers": lambda: tuple(self.workers.session_worker(agent.session)) if agent.role.is_sent() else (),
             "delivered_workers": lambda: tuple(self.workers.checkable_workers()),
             "delivered_runs": lambda: tuple((output.row_id, worker.row_id) for worker in facts.delivered_workers if worker.worktree for output in self.outputs.ran_within(str(self.branch.folder(worker)))),

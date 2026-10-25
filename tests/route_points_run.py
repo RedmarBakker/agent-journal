@@ -1,4 +1,4 @@
-"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind as the agent orchestrates, the commands an agent runs on its plan and those it runs as its session starts are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read, a read the viewer polls, a list it reads whole as a page opens and a command run as a session starts."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind as the agent orchestrates, the commands an agent runs on its plan and those it runs as its session starts, and a settings save of a whole group, are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read, a read the viewer polls, a list it reads whole as a page opens and a command run as a session starts."""
 
 import json
 import math
@@ -29,6 +29,7 @@ from journal.support.actor import Actor
 from journal.support.hook_kind import HookKind
 from journal.support.response import Response
 from tests.full_project import unpacked
+from tests.in_process import got
 
 MAIN = {"X-Journal-Env": "main"}
 JSON, RAW = "application/json", "application/octet-stream"
@@ -99,6 +100,8 @@ OPENED = {"GET /journal/docs": "read when the library opens", "GET /journal/repo
           "GET /journal/reactions": "read when the chat opens, for the emoji on its messages"}
 # a shell call as the agent makes them, and what one prints; the viewer polls the timeline every second, so a turn of a few calls lies between two polls
 SHELL_CALL = {"tool_name": "Bash", "tool_input": {"command": "grep -rn parser src"}}
+# the worktree folder of a worker of the full project whose work was merged
+WORKTREE = "6-Worker-6"
 SHELL_OUTPUT = "\n".join(f"src/parser.py:{line}: the parser reads the header row of the table and the footer" for line in range(40))
 TURN_SHELL_CALLS = 3
 # the plan the full project has started, its first task in the agent's hand
@@ -235,10 +238,11 @@ def orchestrating(app: App) -> None:
     app.container.get(SettingRows).set(WorkersOptions.MODE.key, ORCHESTRATOR, Actor.user(1))
 
 
-def hook_cases() -> dict[str, tuple[HookKind, dict]]:
-    """Every hook kind with its body, and a shell call after the tool call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran."""
-    shell = {"hook PreToolUse shell": (HookKind.PRE_TOOL_USE, SHELL_CALL)}
-    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(shell if kind == HookKind.PRE_TOOL_USE else {})}.items()}
+def hook_cases(app: App) -> dict[str, tuple[HookKind, dict]]:
+    """Every hook kind with its body, and after the tool call a shell call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran, and an edit in a worker's worktree, which asks whose worktree it is."""
+    edit = {"tool_name": "Edit", "tool_input": {"file_path": str(app.config.home / "worktrees" / WORKTREE / "src" / "parser.py"), "old_string": "a", "new_string": "b"}}
+    followers = {"hook PreToolUse shell": (HookKind.PRE_TOOL_USE, SHELL_CALL), "hook PreToolUse worktree edit": (HookKind.PRE_TOOL_USE, edit)}
+    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(followers if kind == HookKind.PRE_TOOL_USE else {})}.items()}
 
 
 def hook_body(kind: HookKind, body: dict, try_name: str) -> tuple[str, bytes]:
@@ -247,7 +251,7 @@ def hook_body(kind: HookKind, body: dict, try_name: str) -> tuple[str, bytes]:
 
 def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent_orchestrates(full_project: App):
     orchestrating(full_project)
-    cases = hook_cases()
+    cases = hook_cases(full_project)
     for name, (kind, body) in cases.items():
         answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"warm {name}"))
     hooks = over(recorded({name: cold_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"counted {name}")) for name, (kind, body) in cases.items()}))
@@ -299,6 +303,12 @@ def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_bu
     spending = {f"POST /cli/{' '.join(argv)}": cold_command(full_project, *argv) for argv in (("environment", "overview"), ("check", "list"))}
     commands = over(recorded(spending))
     assert not commands, "\n".join(commands)
+
+
+def test_a_settings_save_of_a_whole_group_with_the_mode_changed_answers_within_its_budget(full_project: App):
+    group = {**got(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
+    saved = over(recorded({"POST /journal/settings a group": answer_loads(full_project, "POST", "/journal/settings", (JSON, json.dumps({"workers": group}).encode()))}))
+    assert not saved, "\n".join(saved)
 
 
 def test_a_route_made_heavy_on_purpose_is_reported_over_its_budget(full_project: App):

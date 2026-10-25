@@ -3,6 +3,7 @@
  "POST /cli/task complete": 55,
  "POST /journal/plans/1": 85,
  "POST /journal/tasks/1/finish": 65,
+ "hook PreToolUse worktree edit": 40,
  "hook SessionStart": 160,
  "hook Stop": 65,
  "hook StopFailure": 130,
