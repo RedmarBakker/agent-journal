@@ -6,6 +6,7 @@ from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
 from journal.features.workers.support.pool_worker_writes import PoolWorkerWrites
 from journal.features.workers.support.pool_runner_writes import PoolRunnerWrites
 from journal.features.workers.listeners.worker_task_changes import WorkerTaskChanges
+from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.arrival_command import ArrivalCommand
 from journal.features.workers.commands.todo_command import TodoCommand
 from journal.features.workers.commands.proof_command import ProofCommand
@@ -54,7 +55,7 @@ class Workers(Feature[WorkersData]):
     modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
     options = (WorkersOptions.BUILDER_HANDOVER_LIMIT, WorkersOptions.ORCHESTRATOR_LINE_LIMIT, WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, WorkersOptions.FITNESS_THRESHOLD, WorkersOptions.SOLO_DISPATCH_LIMIT, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.TESTING, WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TESTS_PER_RUN, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
-    commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
+    commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand, TestsCommand)
     seeds = (WorkersSeed, SubagentsSeed)
     jobs = (WorkerWatch,)
     process_cards = (WorkerProcessCard, SubagentProcessCard)

@@ -3783,6 +3783,86 @@ def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_l
     assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
 
 
+def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_else_waits_in_order_and_one_past_the_waiting_cap_is_refused(app: App, tmp_path):
+    import threading
+    import time
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    from journal.support.rejection import Rejection
+    settings = app.container.get(SettingRows)
+    started, gates, results, refused = [], {n: threading.Event() for n in (1, 2, 3)}, {}, []
+
+    class Runner:
+        def run(self, request, caller, environment):
+            started.append(request.cwd)
+            number = int(Path(request.cwd).name.removeprefix("wt"))
+            gates[number].wait(10)
+            yield f"FAILED tests/test_{number}.py::test_it\n".encode()
+
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs))
+
+    def worker(number):
+        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+
+    def ask(number):
+        with app.container.get(Scope).environment(1):
+            try:
+                results[number] = turns.take(worker(number), f"tests/test_{number}.py", SimpleNamespace())
+            except Rejection as refusal:
+                refused.append(str(refusal))
+
+    def until(test):
+        end = time.time() + 10
+        while not test() and time.time() < end:
+            time.sleep(0.05)
+        return test()
+
+    def asking(*numbers):
+        threads = [threading.Thread(target=ask, args=(number,)) for number in numbers]
+        for thread in threads:
+            thread.start()
+            time.sleep(0.4)
+        return threads
+
+    settings.set(WorkersOptions.TEST_RUNS.key, 2, Actor.user(1))
+    threads = asking(1, 2, 3)
+    assert until(lambda: len(started) == 2) and started == [str(tmp_path / "wt1"), str(tmp_path / "wt2")], "a budget of 2 starts two runs, each in its own worker's worktree"
+    time.sleep(0.5)
+    assert len(started) == 2, "and the third waits"
+    gates[1].set()
+    assert until(lambda: len(started) == 3) and started[2] == str(tmp_path / "wt3"), "until one ends, when it starts"
+    gates[2].set()
+    gates[3].set()
+    for thread in threads:
+        thread.join(10)
+    assert all(f"tests/test_{n}.py::test_it" in results[n] for n in (1, 2, 3)), "each worker is handed its own result"
+
+    started.clear(), results.clear()
+    gates.update({n: threading.Event() for n in (1, 2, 3)})
+    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    threads = asking(1, 2, 3)
+    assert until(lambda: len(started) == 1)
+    time.sleep(0.5)
+    assert len(started) == 1, "a budget of 1 runs one at a time"
+    for number in (1, 2, 3):
+        gates[number].set()
+        assert until(lambda: number in results), "and in turn"
+    assert [Path(cwd).name for cwd in started] == ["wt1", "wt2", "wt3"]
+
+    started.clear(), results.clear()
+    gates.update({n: threading.Event() for n in (1, 2, 3)})
+    settings.set(WorkersOptions.TEST_WAITING.key, "1", Actor.user(1))
+    threads = asking(1, 2, 3)
+    assert refused == ["1 turns already wait for a test run: ask again once one has run"], "a turn past the waiting cap is refused with one line"
+    for number in (1, 2):
+        gates[number].set()
+    for thread in threads:
+        thread.join(10)
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task

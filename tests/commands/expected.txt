@@ -2315,3 +2315,7 @@ no launch worktree: journal claude --worktree <name> makes one
 $ agent: journal worktree remove calm-river
 exit 1
 there is no worktree named calm-river at <root>/.claude/worktrees/calm-river
+
+$ agent: journal tests turn tests/x.py
+exit 1
+only a worker asks for a turn to run tests: the agent that sent it runs them itself

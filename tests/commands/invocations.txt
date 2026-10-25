@@ -298,3 +298,4 @@ agent setup project --help
 agent setup restart --help
 agent worktree list
 agent worktree remove calm-river
+agent tests turn tests/x.py
