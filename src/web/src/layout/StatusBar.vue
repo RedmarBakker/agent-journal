@@ -83,7 +83,8 @@ const modeOptions = computed(() =>
     }))
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
-const LOW_FITNESS = 70;
+const LOW_FITNESS = 75;
+const DANGER_FITNESS = 25;
 const fitnessTip = computed(
     () =>
         fitness.value &&
@@ -297,7 +298,7 @@ async function runBar(p) {
                 <template v-if="fitness">
                     <button
                         type="button"
-                        :class="['statusbar-fitness', {low: fitness.is_measured && fitness.score < LOW_FITNESS}]"
+                        :class="['statusbar-fitness', {low: fitness.is_measured && fitness.score < LOW_FITNESS, danger: fitness.is_measured && fitness.score < DANGER_FITNESS}]"
                         v-tip:fitness="fitnessTip"
                         :aria-expanded="fitnessOpen"
                         @click.stop="toggleFitness"
@@ -666,6 +667,10 @@ async function runBar(p) {
 
 .statusbar-fitness.low {
     background: color-mix(in srgb, var(--tone-warn) 22%, transparent);
+}
+
+.statusbar-fitness.danger {
+    background: color-mix(in srgb, var(--tone-bad) 24%, transparent);
 }
 
 .statusbar-load {

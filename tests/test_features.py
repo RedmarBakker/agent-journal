@@ -13016,6 +13016,9 @@ def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_
     with app.container.get(Scope).environment(MAIN):
         cards = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "fitness"]
     assert [m.text for m in cards] == ["Fitness fell 30 points to 70"] and "a job to do yourself" in cards[0].data["detail"], "the drop is written once as a card, by the listener on the event"
+    assert cards[0].data["outcome"] == "warned", "a score of 70 is orange, under 75 and not under 25"
+    from journal.features.workers.support.fitness_band import FitnessBand
+    assert (FitnessBand.outcome(17), FitnessBand.outcome(74), FitnessBand.outcome(75)) == ("failed", "warned", "passed"), "red under 25, orange under 75, green from 75"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
