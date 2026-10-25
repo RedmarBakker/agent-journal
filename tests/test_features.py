@@ -16709,7 +16709,7 @@ def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_n
     app.container.get(OutputLog).start("quiet", "go test ./...", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end", "--label", "Testing the packages"], AGENT).code == 0
     assert app.console().run(["output", "watch", "1", "--reader", "packages"], AGENT).code == 0
     started = outputs.find(1).creation_time.timestamp()
     outputs.save(outputs.find(1).ended_with(0, started + 45), Actor.system())
@@ -19049,10 +19049,10 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     from journal.features.shell.support.readers import Readers
     script = app.config.root / "counts.sh"
     script.write_text("grep -o 'done [0-9]*/[0-9]*' | tail -1; echo \"stage $JOURNAL_OUTPUT_STAGE\"\n")
-    made = app.console().run(["reader", "add", "counts", "--script", str(script), "--about", "how far the run is", "--label", "Counting", "--progress", r"(\d+)/(\d+)", "--commands", "make check", "--step", "[.F]", "--topic", r"--suite (\S+)"], AGENT)
+    made = app.console().run(["reader", "add", "counts", "--script", str(script), "--about", "how far the run is", "--label", "Counting the checks", "--progress", r"(\d+)/(\d+)", "--commands", "make check", "--step", "[.F]", "--topic", r"--suite (\S+)"], AGENT)
     assert made.code == 0, made.error
     reader = app.container.get(Readers).lookup("counts")
-    assert (reader.label, reader.commands.text(), reader.step_pattern, reader.subject) == ("Counting", "make check", "[.F]", "how far the run is"), "every setting is kept with the script"
+    assert (reader.label, reader.commands.text(), reader.step_pattern, reader.subject) == ("Counting the checks", "make check", "[.F]", "how far the run is"), "every setting is kept with the script"
     assert reader.topic("make check --suite fast") == "fast", "its topic is read off the command line"
     assert reader.progress(["done 3/12"]).fraction() == 0.25, "its progress is read on what the script prints"
     assert reader.variant("finished").card_lines(["done 12/12"]) == ["done 12/12", "stage finished"], "its script is told the stage"
@@ -19994,9 +19994,9 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
         outputs.save(outputs.find(output.id).ended_with(0, 1.0), Actor.system())
         return output.id
 
-    assert app.console().run(["reader", "add", "bare", "--pattern", "^running$", "--about", "the run"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "bare", "--pattern", "^running$", "--about", "the run", "--label", "Checking the run"], AGENT).code == 0
     bare = ended("bare", "running\n", "bare")
-    assert app.console().run(["reader", "add", "wordy", "--pattern", "^running tests$", "--about", "the run"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "wordy", "--pattern", "^running tests$", "--about", "the run", "--label", "Checking the run"], AGENT).code == 0
     wordy = ended("wordy", "running tests\n", "wordy")
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
