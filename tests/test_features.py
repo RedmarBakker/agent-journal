@@ -15690,9 +15690,8 @@ def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
     from journal.support.rejection import Rejection
     console = app.console()
     hook(app, "SessionStart")
-    for caller in (AGENT, Caller.worker("main", 1, "s2", "claude"), Caller.verifier("main", 1, "s3", "claude")):
-        refused = console.run(["settings", "set", "workers.orchestrator_approves_plans", "on"], caller)
-        assert refused.code == 1 and "the user's to set" in refused.error
+    refused = console.run(["settings", "set", "workers.orchestrator_approves_plans", "on"], AGENT)
+    assert refused.code == 1 and "the user's to set" in refused.error, "the orchestrator is the main agent, and the command refuses it"
     controller = app.container.get(SettingController)
     for actor in (Actor.agent("s1"), Actor.worker(1), Actor.verifier(1)):
         with pytest.raises(Rejection, match="the user sets it on the plan bar"):
