@@ -12,8 +12,8 @@ export function useCommenting(resource) {
     function comment(text) {
         const on = refOf(resource());
         notSaved.value = "";
-        const made = pendingRow("comments", {text, on: [on]}, {author: "user"});
-        optimistic("comments", made, () => scope.api.comment(on, text)).catch((e) => (notSaved.value = e.message));
+        const made = pendingRow("messages", {text, comments_on: [on]}, {author: "user"});
+        optimistic("messages", made, () => scope.api.comment(on, text)).catch((e) => (notSaved.value = e.message));
         return made;
     }
 

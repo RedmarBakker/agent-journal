@@ -35,7 +35,7 @@ const props = defineProps({
     run: {type: Function, default: async () => {}},
 });
 const emit = defineEmits(["back", "close", "open-subagent"]);
-const CHAT_TABLES = ["messages", "comments", "questions", "reactions", "notices"];
+const CHAT_TABLES = ["messages", "questions", "reactions", "notices"];
 const VIEWS = {
     chat: {title: "Chat", icon: "chat"},
     terminal: {title: "Terminal", icon: "terminal"},

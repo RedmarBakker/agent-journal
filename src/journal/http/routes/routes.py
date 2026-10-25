@@ -3,7 +3,6 @@ from journal.http.controllers.agents import AgentController
 from journal.http.controllers.attachments import AttachmentController
 from journal.http.controllers.checks import CheckController
 from journal.http.controllers.cli import CliController
-from journal.http.controllers.comments import CommentController
 from journal.http.controllers.docs import DocController
 from journal.http.controllers.dumps import DumpController
 from journal.http.controllers.entries import EntryController
@@ -208,7 +207,7 @@ class Routes:
 
     def chat(self, router: Router) -> None:
         get = self.container.get
-        messages, comments, notices = get(MessageController), get(CommentController), get(NoticeController)
+        messages, notices = get(MessageController), get(NoticeController)
         router.post(f"{API}/messages/read", messages.read_all)
         router.get(f"{API}/messages/sent/{{key}}", messages.sent)
         router.get(f"{API}/side-thread", messages.side_thread)
@@ -219,10 +218,6 @@ class Routes:
         self.acts(router, "messages", messages, "read", "reply", "delete", "react", "press", "dock", "undock")
         router.post(f"{API}/messages/{{id}}/files", messages.attach)
         router.get(f"{API}/chats/{{session}}", messages.agent_chat)
-        router.get(f"{API}/comments", comments.index)
-        router.post(f"{API}/comments", comments.store)
-        router.post(f"{API}/comments/{{id}}", comments.update)
-        self.acts(router, "comments", comments, "delete")
         router.get(f"{API}/reactions", get(ReactionController).index)
         router.get(f"{API}/nudges", get(NudgeController).index)
         self.listed(router, "notices", notices)

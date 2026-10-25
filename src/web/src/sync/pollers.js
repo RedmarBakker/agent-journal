@@ -41,7 +41,7 @@ function takePolled(fresh) {
 
 async function heldElsewhere({scope, table, id}) {
     await scope.holding(table, [id]);
-    await scope.recent("comments", PAGE);
+    await scope.recent("messages", PAGE);
 }
 
 // The workers a poll holds, per poll and environment: each round asks only for the rows changed since the newest it holds, as

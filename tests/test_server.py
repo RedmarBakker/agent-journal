@@ -855,7 +855,7 @@ def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_pat
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if n in (r["id"], r["reply_target"])]
         assert [(r["author"], r["reply_target"], r["text"]) for r in rows] == [("user", None, "hello"), ("agent", n, "Hello back.")]
         assert rows[0]["creator"].startswith("user") and rows[1]["creator"] == "agent:s1" and rows[1]["acknowledgement"] is False
-        assert call(server, "GET", "/journal/comments")[1]["rows"] == [], "a reply is no comment"
+        assert call(server, "GET", "/journal/messages?comments=1")[1]["rows"] == [], "a reply is no comment"
     finally:
         app.runtime().stop()
 
@@ -866,13 +866,13 @@ def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_
     server = app.server()
     try:
         first = call(server, "POST", "/journal/messages", {"text": "the header looks off"})[1]["id"]
-        status, reply = call(server, "POST", "/journal/comments", {"on": f"messages:{first}", "text": "and the footer too"})
+        status, reply = call(server, "POST", "/journal/messages", {"on": f"messages:{first}", "text": "and the footer too"})
         assert status == 201 and reply["reply_target"] == first, "a comment under a message is taken as the user's reply to it"
-        status, again = call(server, "POST", "/journal/comments", {"on": f"messages:{reply['id']}", "text": "both, please"})
+        status, again = call(server, "POST", "/journal/messages", {"on": f"messages:{reply['id']}", "text": "both, please"})
         assert status == 201 and again["reply_target"] == reply["id"], "and a comment under that reply is a reply to the reply"
-        under = call(server, "GET", f"/journal/comments?on=messages:{first}")[1]["rows"]
+        under = call(server, "GET", f"/journal/messages?on=messages:{first}")[1]["rows"]
         assert [c["text"] for c in under] == ["and the footer too"], "a message's comments are its replies"
-        assert call(server, "POST", "/journal/comments", {"on": "messages:99999", "text": "x"})[0] >= 400, "a message that is not there is refused"
+        assert call(server, "POST", "/journal/messages", {"on": "messages:99999", "text": "x"})[0] >= 400, "a message that is not there is refused"
     finally:
         app.runtime().stop()
 
@@ -885,13 +885,13 @@ def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_list
         report = call(server, "POST", "/journal/reports", {"title": "Findings", "body": "## One\n\nText"})[1]["id"]
         other = call(server, "POST", "/journal/reports", {"title": "Other", "body": "## Two\n\nText"})[1]["id"]
         for on, text in ((report, "first"), (report, "second"), (other, "elsewhere")):
-            call(server, "POST", "/journal/comments", {"on": f"reports:{on}", "text": text})
+            call(server, "POST", "/journal/messages", {"on": f"reports:{on}", "text": text})
         shown = call(server, "GET", f"/journal/reports?ids={report}")[1]["rows"][0]
         assert shown["comment_count"] == 2, "a report read by id says how many comments are under it"
         assert "comment_count" not in call(server, "GET", "/journal/reports")[1]["rows"][0], "the list of reports reads no counts"
-        under = call(server, "GET", f"/journal/comments?on=reports:{report}")[1]["rows"]
-        assert [c["text"] for c in under] == ["first", "second"] and all(c["on"] == [f"reports:{report}"] for c in under), "the comments under one row are listed on their own"
-        assert call(server, "GET", "/journal/comments?on=nothing:1")[0] >= 400, "a row that is not there is refused"
+        under = call(server, "GET", f"/journal/messages?on=reports:{report}")[1]["rows"]
+        assert [c["text"] for c in under] == ["first", "second"] and all(c["comments_on"] == [f"reports:{report}"] for c in under), "the comments under one row are listed on their own"
+        assert call(server, "GET", "/journal/messages?on=nothing:1")[0] >= 400, "a row that is not there is refused"
     finally:
         app.runtime().stop()
 
@@ -931,12 +931,12 @@ def test_the_board_is_off_and_stays_off(server):
 def test_a_comment_written_under_a_task_in_the_viewer_is_the_users_message_linked_to_it(server):
     from journal.support.caller import Caller
     call(server, "POST", "/journal/tasks", {"title": "the footer"})
-    status, produced = call(server, "POST", "/journal/comments", {"on": "tasks:1", "text": "please also check the header"})
-    assert status == 201 and produced["on"] == ["tasks:1"] and produced["text"] == "please also check the header"
-    assert [(r["on"], r["author"]) for r in whole_rows(server, "comments")] == [(["tasks:1"], "user")]
+    status, produced = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "please also check the header"})
+    assert status == 201 and produced["comments_on"] == ["tasks:1"] and produced["text"] == "please also check the header"
+    assert [(r["comments_on"], r["author"]) for r in call(server, "GET", "/journal/messages?comments=1")[1]["rows"]] == [(["tasks:1"], "user")]
     messages = call(server, "GET", "/journal/messages")[1]["rows"]
     assert messages[-1]["text"] == "please also check the header" and messages[-1]["comments_on"] == ["tasks:1"]
-    assert call(server, "POST", "/journal/comments", {"on": "nothing:1", "text": "x"})[0] == 409, "a comment is only written under a row that is there"
+    assert call(server, "POST", "/journal/messages", {"on": "nothing:1", "text": "x"})[0] == 409, "a comment is only written under a row that is there"
 
 def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_it(tmp_path: Path):
     from journal.repositories.setting_rows import SettingRows
@@ -1591,11 +1591,11 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
 
 def test_a_comment_is_deleted_from_its_column(server):
     call(server, "POST", "/journal/tasks", {"title": "the footer"})
-    status, produced = call(server, "POST", "/journal/comments", {"on": "tasks:1", "text": "a passing thought"})
+    status, produced = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "a passing thought"})
     assert status == 201, produced
-    status, missing = call(server, "POST", f"/journal/comments/{produced['id']}/delete", {})
+    status, missing = call(server, "POST", f"/journal/messages/{produced['id']}/delete", {})
     assert status == 200, missing
-    assert produced["id"] not in [c["id"] for c in call(server, "GET", "/journal/comments")[1]["rows"]], "the comment is gone from the column"
+    assert produced["id"] not in [c["id"] for c in call(server, "GET", "/journal/messages?comments=1")[1]["rows"]], "the comment is gone from the column"
 
 
 def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_is_talk(tmp_path: Path):
@@ -1606,16 +1606,16 @@ def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_i
     server = app.server()
     try:
         call(server, "POST", "/journal/tasks", {"title": "the footer"})
-        status, comment = call(server, "POST", "/journal/comments", {"on": "tasks:1", "text": "is the footer fixed?"})
-        status, reply = call(server, "POST", "/journal/comments", {"on": "tasks:1", "text": "and the header?", "reply_target": comment["id"]})
-        assert status == 201 and reply["reply_target"] == comment["id"] and reply["on"] == ["tasks:1"], "a reply written in the column hangs under its comment, on the same row"
+        status, comment = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "is the footer fixed?"})
+        status, reply = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "and the header?", "reply_target": comment["id"]})
+        assert status == 201 and reply["reply_target"] == comment["id"] and reply["comments_on"] == ["tasks:1"], "a reply written in the column hangs under its comment, on the same row"
         app.console().run(["message", "send", "Yes, both are fixed.", "--reply-to", str(comment["id"])], Caller.agent("main", "s1", "claude"))
         app.runtime().deferred.drain()
-        rows = whole_rows(server, "comments")
-        assert [(r["author"], r["reply_target"], r["on"]) for r in rows] == [("user", None, ["tasks:1"]), ("user", comment["id"], ["tasks:1"])], "the agent's reply in the chat is a plain reply, linked to the comment it answers and to no row"
+        rows = call(server, "GET", "/journal/messages?comments=1")[1]["rows"]
+        assert [(r["author"], r["reply_target"], r["comments_on"]) for r in rows] == [("user", None, ["tasks:1"]), ("user", comment["id"], ["tasks:1"])], "the agent's reply in the chat is a plain reply, linked to the comment it answers and to no row"
         answered = call(server, "POST", "/journal/messages", {"text": "Good, then the menu next.", "reply_target": comment["id"]})[1]
         assert answered["reply_target"] == comment["id"] and answered["comments_on"] == [] and not answered["text"].startswith(">"), "a word typed in the chat is a chat message whatever it replies to: no comment on the row, no passage carried over"
-        assert len(call(server, "GET", "/journal/comments")[1]["rows"]) == 2, "only the comment box files a comment"
+        assert len(call(server, "GET", "/journal/messages?comments=1")[1]["rows"]) == 2, "only the comment box files a comment"
     finally:
         app.runtime().stop()
 
@@ -1714,7 +1714,7 @@ def test_a_comment_on_a_documents_passage_names_the_section_and_lines_it_sits_on
     server.start()
     try:
         call(server, "POST", "/journal/docs", {"title": "Launch notes", "body": "# Launch notes\n\n## Why\nBecause it is time.\n\n## How\nFirst the tag.\nThen the push.\nThen the notes."})
-        comment = call(server, "POST", "/journal/comments", {"on": "docs:1", "text": "> Then the push.\n> Then the notes.\n\nThe push comes before the tag here."})[1]
+        comment = call(server, "POST", "/journal/messages", {"on": "docs:1", "text": "> Then the push.\n> Then the notes.\n\nThe push comes before the tag here."})[1]
         shown = app.console().run(["message", "read", str(comment["id"])], Caller.agent("main", "s1", "claude")).text
         assert "comments_on docs:1" in shown and "the passage sits in doc 1 at section 2, How, lines 8-9: `journal doc show 1 --section 2` or `--grep`" in shown, shown
     finally:

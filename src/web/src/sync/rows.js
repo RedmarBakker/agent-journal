@@ -117,9 +117,9 @@ function added(table, fresh) {
     store.paging.size[table] = store.rows[table].length;
 }
 
-// Every comment under one row, named as reports:12, read when its comments are shown and never with the row.
+// Every comment under one row, named as reports:12, read when its comments are shown and never with the row: messages like any other.
 export async function readComments(ref) {
-    added("comments", (await api.commentsOn(ref)).rows);
+    added("messages", (await api.commentsOn(ref)).rows);
 }
 
 watch(() => `${route.value.env}/${route.value.page}/${route.value.open ? route.value.open.table : ""}`, forget);
@@ -134,7 +134,7 @@ watch(
 );
 
 // A list may carry a document or report without its body, or a plan without its phases, tasks and reviews, a summary: one held whole stays whole while it has not changed.
-const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r)) || (r.table === "comments" && !("on" in r));
+const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r));
 
 // The rows `arriving` as the viewer keeps them against the rows it `held`: a row that has not changed is the very object it held, so
 // nothing drawn from it is drawn again, as when a reconnect or a refresh reads the chat's rows again; a summary of a row held whole,
@@ -289,8 +289,8 @@ async function counted(table) {
 }
 
 // The tables whose list rows are read whole once the list has named them: the plans still open, since the bar, the board and the inspector
-// draw from their phases, and every reaction and comment, since the message a reaction sits on and the row a comment is on come with the row read by id.
-const READ_WHOLE = new Set(["plans", "reactions", "comments"]);
+// draw from their phases, and every reaction, since the message a reaction sits on comes with the row read by id.
+const READ_WHOLE = new Set(["plans", "reactions"]);
 
 async function openWhole(table) {
     const ids = (store.rows[table] || []).filter((r) => isSummary(r) && (table !== "plans" || !isClosed(r))).map((r) => r.id);
@@ -415,9 +415,8 @@ export function recallEntries() {
 
 const ROW_CHANGES = ["created", "updated", "deleted"];
 
-// The tables a row's change touches in the viewer: a comment is a message read through its own table, so a message's change is a comment's
-// too; a plan is shown with its phases, so a phase's change is the plans' too.
-const SHOWN_AS = {messages: ["messages", "comments"], phases: ["phases", "plans"]};
+// The tables a row's change touches in the viewer: a plan is shown with its phases, so a phase's change is the plans' too.
+const SHOWN_AS = {phases: ["phases", "plans"]};
 export const tablesOf = (table) => SHOWN_AS[table] || [table];
 
 // The tables an entry tells the viewer to read again: a row's change names its table, a link's change the tables of the two rows it joins,

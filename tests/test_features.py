@@ -18151,17 +18151,17 @@ def test_every_tables_index_lists_its_own_rows_and_reads_no_relationship(app: Ap
     dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast"], AGENT)
     console.run(["message", "send", "the footer is broken"], USER)
     posted(app, f"/journal/messages/{app.container.get(Messages).all()[-1].id}/react", {"emoji": "👍"}, main)
-    posted(app, "/journal/comments", {"on": "tasks:1", "text": "and the header"}, main)
+    posted(app, "/journal/messages", {"on": "tasks:1", "text": "and the header"}, main)
     posted(app, "/journal/docs", {"title": "Notes", "body": "text"}, main)
     routes = app.container.get(Router).routes
     indexes = sorted(route.pattern for route in routes if route.method == "GET" and getattr(route.handler, "__name__", "") == "index" and isinstance(getattr(route.handler, "__self__", None), Controller))
-    assert {"/journal/tasks", "/journal/plans", "/journal/workers", "/journal/agents", "/journal/docs", "/journal/comments", "/journal/reactions", "/journal/shares"} <= set(indexes), indexes
+    assert {"/journal/tasks", "/journal/plans", "/journal/workers", "/journal/agents", "/journal/docs", "/journal/reactions", "/journal/shares"} <= set(indexes), indexes
     listed = {path: got(app, path, main) for path in indexes}
     assert all(status == 200 for status, _ in listed.values()), {path: body for path, (status, body) in listed.items() if status != 200}
-    assert all(listed[f"/journal/{table}"][1]["rows"] for table in ("tasks", "plans", "workers", "agents", "docs", "comments", "reactions")), "each index listed its rows, and no read of a relationship raised"
+    assert all(listed[f"/journal/{table}"][1]["rows"] for table in ("tasks", "plans", "workers", "agents", "docs", "reactions")), "each index listed its rows, and no read of a relationship raised"
     worker, task = listed["/journal/workers"][1]["rows"][0], listed["/journal/tasks"][1]["rows"][0]
     assert not {"task", "queue", "earlier_task", "agent", "report"} & set(worker) and not {"plan_id", "worker_id", "held_by", "waits", "work"} & set(task), "a list carries its rows' own fields"
-    assert "body" not in listed["/journal/docs"][1]["rows"][0] and "links" not in listed["/journal/docs"][1]["rows"][0] and "on" not in listed["/journal/comments"][1]["rows"][0]
+    assert "body" not in listed["/journal/docs"][1]["rows"][0] and "links" not in listed["/journal/docs"][1]["rows"][0]
 
 
 def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go_through(app: App):

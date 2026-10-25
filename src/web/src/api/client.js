@@ -254,14 +254,14 @@ export class ApiClient {
         return this.act("messages", id, "press", {pressed: labels});
     }
 
-    // comments: a message of the user's written under a row, named as tasks:12
+    // a comment: a message of the user's written under a row, named as tasks:12, or under a chat message as a reply to it
     comment(on, text) {
-        return this.create("comments", {on, text});
+        return this.create("messages", {on, text});
     }
 
-    // every comment under one row, named as reports:12
+    // every comment under one row, named as reports:12: the messages written under it
     commentsOn(on) {
-        return this.get(this.here(`/comments${query({on})}`), "comments.on");
+        return this.get(this.here(`/messages${query({on})}`), "messages.on");
     }
 
     // every row and conversation line here that holds all the words

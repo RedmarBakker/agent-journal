@@ -205,7 +205,7 @@ def memory(app: App, words: random.Random) -> None:
 
 def remarks(app: App, words: random.Random, tasks: list[int], messages: list[int]) -> None:
     for n in range(COMMENTS):
-        posted(app, "/journal/comments", {"on": f"tasks:{tasks[n % len(tasks)]}", "text": sentence(words)}, MAIN)
+        posted(app, "/journal/messages", {"on": f"tasks:{tasks[n % len(tasks)]}", "text": sentence(words)}, MAIN)
     for n in range(REACTIONS):
         posted(app, f"/journal/messages/{messages[n * 7 % len(messages)]}/react", {"emoji": words.choice(("👍", "👀", "✅"))}, MAIN)
 

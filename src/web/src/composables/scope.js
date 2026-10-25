@@ -48,7 +48,7 @@ export function scopeIn(env) {
     const hold = async (table, ids) => ids.length && keep(table, await there.list(table, {ids}));
     const recent = async (table, last) => keep(table, await there.list(table, {limit: last}));
     const recentAll = (tables, last) => Promise.all(tables.map((table) => recent(table, last)));
-    const commentsThere = async (ref) => keep("comments", await there.commentsOn(ref));
+    const commentsThere = async (ref) => keep("messages", await there.commentsOn(ref));
     const more = {};
 
     async function earlierThere(...tables) {

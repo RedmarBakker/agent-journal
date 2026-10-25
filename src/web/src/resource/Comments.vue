@@ -28,16 +28,18 @@ const discussion = inject("discussion", null);
 const scope = useScope();
 const list = ref(null);
 const on = computed(() => refOf(props.resource));
+// a message is a comment on the row its comments_on names, or, under a chat message, a reply to it
+const isCommentOn = (m, ref) => (m.comments_on || []).includes(ref) || (ref.startsWith("messages:") && m.reply_target === Number(ref.split(":")[1]));
 // the thread's comments are read when it is shown, never with the row, and kept while it stays open
 if (props.showThread) {
-    scope.keepRows("comments");
-    onUnmounted(() => scope.releaseRows("comments"));
+    scope.keepRows("messages");
+    onUnmounted(() => scope.releaseRows("messages"));
     watch(on, (row) => scope.readComments(row), {immediate: true});
 }
 const onRow = computed(() =>
     scope
-        .rows("comments")
-        .filter((c) => (c.on || []).includes(on.value))
+        .rows("messages")
+        .filter((c) => isCommentOn(c, on.value))
         .sort((a, b) => createdAt(a) - createdAt(b))
         .map((c) => ({...c, ...quoted(c.data?.visitor ? c.data.detail : c.text)}))
 );
@@ -55,7 +57,7 @@ async function sendReply() {
     if (!text) return;
     replying.error = "";
     try {
-        await scope.api.create("comments", {on: on.value, text, reply_target: replying.id});
+        await scope.api.create("messages", {on: on.value, text, reply_target: replying.id});
         Object.assign(replying, {id: 0, text: ""});
     } catch (e) {
         replying.error = e.message;
@@ -103,14 +105,14 @@ function edit(c) {
 async function save() {
     editing.error = "";
     try {
-        await scope.api.change("comments", editing.id, {text: editing.text.trim()});
+        await scope.api.change("messages", editing.id, {text: editing.text.trim()});
         editing.id = 0;
     } catch (e) {
         editing.error = e.message;
     }
 }
 
-const remove = (c) => scope.api.act("comments", c.id, "delete");
+const remove = (c) => scope.api.act("messages", c.id, "delete");
 const {notSaved, comment} = useCommenting(() => props.resource);
 const quick = (text) => comment(text);
 </script>

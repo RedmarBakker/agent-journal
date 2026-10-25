@@ -41,18 +41,6 @@ describe("reactions", () => {
     });
 });
 
-describe("comments", () => {
-    test("a comment listed without the row it is on is read whole by id, so the row counts and shows it", async () => {
-        const listed = {table: "comments", id: 4, text: "and the header", author: "user"};
-        api.list.mockImplementation(async (table, query) =>
-            query.ids ? {rows: [{...listed, on: ["docs:3"]}], is_last_page: true, counts: {}} : {rows: [listed], is_last_page: true, counts: {}}
-        );
-        await load("comments");
-        expect(api.list.mock.calls.map(([, query]) => query)).toEqual([{limit: PAGE}, {ids: [4]}]);
-        expect(store.rows.comments.filter((c) => c.on.includes("docs:3")).map((c) => c.id)).toEqual([4]);
-    });
-});
-
 describe("paging rows", () => {
     test("loading keeps a row that arrived while the page was in flight", async () => {
         store.rows.plans = [row(1, {table: "plans", task_ids: []})];
@@ -160,13 +148,6 @@ describe("entries", () => {
         expect(store.rows.tasks.map((r) => r.id)).toEqual([2]);
     });
 
-    test("a deleted message leaves the comments too, since a comment is a message read through its own table", () => {
-        store.rows.messages = [row(1), row(2)];
-        store.rows.comments = [row(1)];
-        takeEntries([{id: 1, kind: "deleted", data: {table: "messages", id: 1}}]);
-        expect(store.rows.messages.map((r) => r.id)).toEqual([2]);
-        expect(store.rows.comments).toEqual([]);
-    });
 
     test("a table that fails to read leaves the others read, and only it is asked again", async () => {
         store.rows.messages = [];

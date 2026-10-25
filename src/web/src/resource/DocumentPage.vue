@@ -25,7 +25,7 @@ const quote = ref("");
 const listedAlready = computed(() => [...props.linked, ...(props.resource.table === "plans" ? props.resource.task_ids || [] : []).map((id) => `tasks:${id}`)]);
 const scope = useScope();
 // the count the row was read with, until the comments read since hold more
-const count = computed(() => Math.max(props.resource.comment_count || 0, scope.rows("comments").filter((c) => (c.on || []).includes(refOf(props.resource))).length));
+const count = computed(() => Math.max(props.resource.comment_count || 0, scope.rows("messages").filter((c) => (c.comments_on || []).includes(refOf(props.resource))).length));
 const talking = ref(props.focus > 0);
 const slid = ref(talking.value);
 const panel = ref(talking.value);
