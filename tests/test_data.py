@@ -643,7 +643,9 @@ def outgoing_recorder(connection, bus, scope, config, changes):
 
     account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus), SharedTables(connection, bus)
     renumbering = RowRenumbering(connection, blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
-    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus), tables, renumbering, ServiceHooks())
+    from journal.repositories.environments import Environments
+    from journal.sync.team_accounts import TeamAccounts
+    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus), tables, renumbering, TeamAccounts(config, Environments(connection, bus)), ServiceHooks())
 
 
 def team_placement(connection, bus, scope, config):

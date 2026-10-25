@@ -14256,6 +14256,10 @@ def test_a_journal_joins_two_teams_each_writing_with_its_own_account_on_its_own_
         assert (creators[one["id"]], creators[two["id"]]) == (Actor.user(1), Actor.user(2)), "each team's write is stamped with this person's account in that team"
         assert synced(lambda: first.log.row("tasks", one["id"]) is not None and second.log.row("tasks", two["id"]) is not None), "each team's write reaches its own server, the second team's on a carrier of its own"
         assert first.log.row("tasks", two["id"]) is None and second.log.row("tasks", one["id"]) is None and one["id"] != two["id"], "and no other team's server, under a number no other team's row has"
+        filed = a.console().run(["task", "create", "filed by command", "--team", hub_two.name], USER)
+        assert filed.code == 0, filed.error
+        by_command = next(task for task in a.container.get(Tasks).global_matching(title="filed by command"))
+        assert synced(lambda: second.log.row("tasks", by_command.id) is not None and second.log.row("tasks", by_command.id).fields.get("creator") == "user:2" and set(second.log.row("tasks", by_command.id).writers.values()) == {2}), "a write into the second team from an environment of the first is sent with this person's account in the second team"
         blocks = lambda team: [(row["row_table"], row["first_number"], row["last_number"]) for row in team.store.all("SELECT row_table, first_number, last_number FROM id_blocks")]
         floors = {row["row_table"]: row["highest"] for row in second.store.all("SELECT row_table, highest FROM id_floors")}
         assert blocks(second) and all(first_number > floors.get(table, 0) and first_number > second.details.number() << 32 for table, first_number, _ in blocks(second)), "every block of the second team is above that team's floor, in its own number space"
