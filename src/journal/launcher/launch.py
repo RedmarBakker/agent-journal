@@ -35,14 +35,10 @@ WORKTREE = ("--worktree", "-w")
 MAIN_WORKTREE_REFUSAL = "main is the project's own checkout, never a worktree: give --worktree another name, or leave the name out for a made-up one"
 TEAM_WORKTREE_REFUSAL = "the worktree team is the Team chat's own, so no launch takes it: give --worktree another name, or open the Team chat from the menu"
 RESUMING = ("--resume", "-r")
-# the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row
+# the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row,
+# unless the Health and backups settings name other numbers
 JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
 from journal.engine.boot_notices import BOOT_NOTICE, BOOT_SECONDS
-
-# the agent's hooks count as dead when its terminal keeps moving and its hooks file has stood still this long, longer than a long tool use
-FRONT_STALE_SECONDS = 600.0
-DEAD_HOOKS_WARNING = "[journal] This session's hooks have stopped reaching the journal, so it holds your lines and the user's messages: quit this session and start it again from the project's root with journal."
-
 
 # the flags that name a conversation to carry on, whose environment and worktree a bare --worktree then takes
 RESUME_FLAGS = {"--resume", "-r", "--continue", "-c"}
@@ -232,6 +228,11 @@ class Launch:
         finally:
             path.unlink(missing_ok=True)
 
+    # the numbers the Health and backups settings give the supervisor's check of the journal, or none when the journal cannot say them
+    def health_numbers(self) -> dict:
+        answer = Menu(self.root, self.package / "journal.sh").journal("supervision", "health").strip()
+        return json.loads(answer) if answer.startswith("{") else {}
+
     def launch_file(self, choice: Choice, status: StatusLine) -> dict:
         launch = uuid.uuid4().hex
         environ = self.environ(choice, launch)
@@ -241,11 +242,10 @@ class Launch:
             Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
             self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
             self.provider.folder_trusted(self.root, folder)
-        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
-        front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}
+        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, **self.health_numbers(), "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
         return {
             "launch": launch,
-            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ, "health": front_health},
+            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
             "services": [] if self.journal_off else [journal],
             "socket": str(self.socket(choice.environment)),
             "owner": os.getpid(),

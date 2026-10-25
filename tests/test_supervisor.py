@@ -760,8 +760,8 @@ def test_a_health_url_must_answer_200_in_time_a_health_file_must_be_fresh_and_th
     launch = Launch.parse(["claude", "--env", "spike"], tmp_path).launch_file(Choice("spike", ""), StatusLine(tmp_path))
     journal_health = launch["services"][0]["health"]
     assert journal_health["url"] == "http://127.0.0.1:{port}/journal/health" and journal_health["port_file"] == str(tmp_path / ".journal" / "port") and journal_health["failures"] == 3, "the journal service is checked at its health URL, its port read from the project's port file"
-    assert launch["front"]["health"]["file"] == str(tmp_path / ".journal" / "runtime" / "hooks" / "spike.fired") and "start it again from the project's root with journal" in launch["front"]["health"]["warning"], "the agent's hooks are watched through the file the hook script writes, and the warning names the fix"
+    assert "health" not in launch["front"], "the agent in front is given no dead-hooks warning: an idle agent fires no hooks, and the journal's own typed lines move its terminal"
     path = tmp_path / "launch.json"
     path.write_text(json.dumps(launch))
     supervisor = LaunchFile.read(path).supervisor()
-    assert supervisor.services.service("journal").health == HealthCheck(**journal_health) and supervisor.front_health == FrontHealth(**launch["front"]["health"]), "the supervisor takes both checks as the launch file says them, knowing nothing of what they check"
+    assert supervisor.services.service("journal").health == HealthCheck(**journal_health) and supervisor.front_health is None, "the supervisor takes both checks as the launch file says them, knowing nothing of what they check"

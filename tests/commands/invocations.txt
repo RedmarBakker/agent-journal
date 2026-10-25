@@ -317,3 +317,4 @@ agent worktree remove calm-river
 agent tests turn tests/x.py
 agent tests load
 agent tests budget --help
+agent supervision health

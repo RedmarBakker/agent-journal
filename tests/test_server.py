@@ -1910,6 +1910,28 @@ def test_the_health_url_answers_unwell_while_an_environments_hooks_fire_without_
         arrivals.taken.update(taken)
 
 
+def test_the_health_url_answers_unwell_while_the_server_cannot_open_a_file(app: App, server):
+    port_file = app.config.port_file
+    aside = port_file.with_name("port.aside")
+    port_file.rename(aside)
+    try:
+        assert call(server, "GET", "/journal/health")[0] == 500, "a server that cannot open a file, as one out of descriptors, answers unwell, so its supervisor starts it again"
+    finally:
+        aside.rename(port_file)
+    assert call(server, "GET", "/journal/health")[0] == 200
+
+
+def test_the_database_is_copied_online_and_only_the_newest_two_copies_stay(app: App):
+    from journal.features.health.jobs.database_backup import DatabaseBackup
+    backup, now = app.container.get(DatabaseBackup), time.time()
+    backup.tick(now)
+    backup.tick(now + 60)
+    assert len(backup.copies()) == 1, "a copy younger than the set minutes is not copied again"
+    backup.tick(now + 16 * 60)
+    backup.tick(now + 32 * 60)
+    assert len(backup.copies()) == 2, "only the newest two copies stay"
+
+
 def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between_them(server, app: App):
     from journal.models.author import Author
     from journal.models.message import Message

@@ -13,6 +13,9 @@ class Environments(Repository[Environment]):
     def keyed(self, key: str) -> list[Environment]:
         return self.matching(key=key)
 
+    def total(self) -> int:
+        return self.counted(self.query())
+
     def working(self) -> list[Environment]:
         return self.selected(self.query().filter(kind=EnvironmentKind.LOCAL).order("id"))
 

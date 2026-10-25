@@ -1292,6 +1292,12 @@ updates.boot_seconds = 60
 suggestions.first_after = 15
 suggestions.every = 60
 record.kept = 10000
+health.check_seconds = 10
+health.answer_seconds = 5
+health.misses = 3
+health.boot_seconds = 60
+health.backup_minutes = 15
+health.backup_count = 2
 
 $ agent: journal settings show tasks.auto
 exit 0
@@ -2499,3 +2505,7 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+
+$ agent: journal supervision health
+exit 0
+{"interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3, "grace_seconds": 60.0}
