@@ -13,13 +13,13 @@ from journal.supervisor_link import SupervisorLink
 
 
 class Clock(Job):
-    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment, each listener heard on its own so one that fails stops no other, and one tick at a time, so what a tick decides and records is settled before the next reads it; what the machine says to a tick is typed in through the supervisor."""
+    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment, each listener heard on its own so one that fails stops no other, and one tick at a time, each at the moment it takes its turn, so what a tick decides and records is settled before the next reads it and no tick carries a moment older than one already heard; what the machine says to a tick is typed in through the supervisor."""
 
     interval_seconds = 5.0
 
     def __init__(self, agents: Agents, bus: Bus, supervisor: SupervisorLink, scope: Scope) -> None:
         self.agents, self.bus, self.supervisor, self.scope = agents, bus, supervisor, scope
-        self.tick_lock = threading.Lock()
+        self.tick_lock = threading.RLock()
 
     def time(self) -> float:
         return timing.time()
@@ -28,11 +28,12 @@ class Clock(Job):
         self.bus.dispatch_guarded(ClockTicked(time=time))
         for agent in self.agents.active_main_agents():
             with self.scope.environment(agent.environment_id):
-                self._tick(agent, time)
+                self._tick(agent)
 
-    def _tick(self, agent: Agent, time: float) -> None:
-        idle_seconds = time - agent.update_time.timestamp()
-        self.ticked(Ticked(session=agent.session, environment_id=agent.environment_id, time=time, silence_seconds=idle_seconds))
+    def _tick(self, agent: Agent) -> None:
+        with self.tick_lock:
+            time = self.time()
+            self.ticked(Ticked(session=agent.session, environment_id=agent.environment_id, time=time, silence_seconds=time - agent.update_time.timestamp()))
 
     def ticked(self, event: Ticked) -> list[object]:
         with self.tick_lock:

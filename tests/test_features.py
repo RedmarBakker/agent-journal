@@ -11971,6 +11971,29 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
     assert len([line for line in keystrokes if "quiet 40 min; split its job?" in line]) == 20, "and once at forty, however the two ticks fall"
 
 
+def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_takes_its_turn_so_it_names_no_worker_early(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
+    from journal.repositories.workers import Workers
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    drive_the_clock(app, monkeypatch)
+    hook(app, "SessionStart")
+    console, workers, clock = app.console(), app.container.get(Workers), app.container.get(Clock)
+    console.run(["environment", "overview"], AGENT)
+    dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    clock.tick(clock.held_at + 41 * 60)
+    app.runtime().deferred.drain()
+    assert quiet() == [] and not workers.find(1).silence.is_reported, "a tick runs at the moment it takes its turn, not the one its run began with"
+    worker = workers.find(1)
+    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, kind="ToolStarting", actor=Actor.agent(worker.session), data={"call": {"command": "python3 scripts/suite.py"}}), Actor.system())
+    tick_after(app, 21 * 60)
+    app.runtime().deferred.drain()
+    assert len(quiet()) == 1 and quiet()[0].endswith("worker 1 quiet 20 min; last: python3 scripts/suite.py"), "so the worker is named once it is quiet, with its last call"
+
+
 def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
