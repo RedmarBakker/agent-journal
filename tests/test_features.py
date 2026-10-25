@@ -10929,7 +10929,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--progress", r"\[ *(\d+)%\]", "--label", "Running the tests"], AGENT)
     assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
     seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert "output 1, which you watch" in seen and "unwatch" not in seen and "FAILED test_b" in seen and "Running the tests 40%" in seen and "test_a" not in seen, "the reader's lines and its progress come with the next tool use"
+    assert "output 1, pytest -q:" in seen and "which you watch" not in seen and "unwatch" not in seen and "FAILED test_b" in seen and "Running the tests 40%" in seen and "test_a" not in seen, "the reader's lines and its progress come with the next tool use"
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key("watch:1")[0]
     assert card.data["figure"] == "Running the tests 40%" and card.data["fraction"] == 0.4, "the chat card carries the bar"
@@ -10948,7 +10948,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     for _ in range(3):
         said.append(json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]))
         deferred.drain()
-    ended = [line for line in said if "which you watched, finished" in line]
+    ended = [line for line in said if "output 1, pytest -q, finished" in line]
     assert len(ended) == 1 and "the tests 100%" in ended[0], "the end is said once, with the last view"
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Messages).with_key("watch:1")[0].data["outcome"] == "passed", "its card turns green once the run finished"
@@ -12771,6 +12771,29 @@ def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_th
     console.run(["worker", "queue", "1", "4"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Agents).session_rows(AGENT.session)[0].report_use.drop_cause == "a quick report", "while another cause's drop recovers, the misfit adds none: one cause, one drop"
+
+
+def test_the_orchestrator_is_scored_on_queues_kept_full_and_draining_and_the_builder_is_not(app: App):
+    from journal.features.workers.support.queue_measure import EMPTY_ADVICE, PILING_ADVICE
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import STEADY_QUEUES, WorkersProfiles
+    from journal.models.support.queue_use import QueueUse
+    assert STEADY_QUEUES not in WorkersProfiles.BUILDER.measures and STEADY_QUEUES in WorkersProfiles.ORCHESTRATOR.measures, "only the orchestrator is scored on its queues"
+    counts = lambda use: ToolUseCounts(queue_use=use)
+    assert STEADY_QUEUES.closeness(counts(QueueUse())) is None, "with no worker that has merged, the measure is left out"
+    empty = counts(QueueUse(counted=2, empty=1))
+    assert STEADY_QUEUES.closeness(empty) == 0.5 and STEADY_QUEUES.gap(empty).advice == EMPTY_ADVICE, "an empty queue while tasks are open lowers the score and asks to queue more"
+    piling = counts(QueueUse(counted=2, piling=2))
+    assert STEADY_QUEUES.closeness(piling) == 0.0 and STEADY_QUEUES.gap(piling).advice == PILING_ADVICE, "a queue piling past what it drains lowers the score and asks to let it drain"
+
+
+def test_a_session_with_no_reports_and_no_queues_scores_as_it_did_before_the_new_measures(app: App):
+    from journal.features.workers.support.mode_profile import ModeProfile
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import FILE_EDIT_SHARE, RESEARCH_SHARE, WorkersProfiles
+    counts = ToolUseCounts(file_edits=6, handovers=4, research_count=5, subagent_dispatches=1, mode="builder", mode_uses=60)
+    before = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE)).scored(counts)
+    assert WorkersProfiles.BUILDER.scored(counts) == before, "a measure with no data is absent, so the score is unchanged"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):

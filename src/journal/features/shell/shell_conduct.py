@@ -43,8 +43,8 @@ class ShellConduct(Conduct):
         if not watch.is_watching():
             return unread_check(self, event, settings)
         if watch.ending:
-            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, ending=watch.ending, lines=watch.text()))
-        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, lines=watch.text()))
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()))
+        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return Transition.merged(self, [background_check(self, event, settings), ended_check(self, event, settings), unread_check(self, event, settings)])

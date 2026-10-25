@@ -14,6 +14,7 @@ from journal.events.rows.places_scaled import PlacesScaled
 from journal.models.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
 from journal.events.rows.quick_report_dropped import QuickReportDropped
+from journal.models.support.queue_use import QueueUse
 from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
 from journal.events.rows.waits_missing import WaitsMissing
@@ -72,6 +73,7 @@ class Agent(Scoped):
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     report_use: ReportUse = ReportUse()
+    queue_use: QueueUse = QueueUse()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))

@@ -1223,6 +1223,12 @@ workers.plenty_open_tasks = 3
 workers.quick_report_minutes = 1
 workers.quick_report_drop_points = 20
 workers.drop_recovery_minutes = 30
+workers.small_task_points = 2
+workers.large_task_points = 5
+workers.long_queue_tasks = 4
+workers.report_misfit_drop_points = 10
+workers.queue_window_minutes = 60
+workers.queue_drain_hours = 2
 workers.held_still_minutes = 60
 workers.held_share = 0.4
 workers.unordered_plan_tasks = 10
@@ -1588,7 +1594,7 @@ plans.plan_reopened  [plans]  plan {{n}} is open again: {{why}}. `journal plan s
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
 plans.review_write_up_waits  [plans]  your writes wait until plan {{n}} is readied. put the reviewers' findings into it and `journal plan ready {{n}} --changed "<what changed>"`
-plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{title}}): {{testing}}
+plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
@@ -1647,9 +1653,9 @@ shell.use_the_alias  [shell]  journal {{name}} runs this line: {{line}}. use `jo
 shell.use_the_reader  [shell]  reader {{reader}} already reads this: {{about}}. `journal output read N --reader {{reader}}`
 shell.watch_it_live  [shell]  watch it: `journal output watch {{n}}{{reader}} --title "<what it is doing>"`. or `journal await "<what>" --output {{n}}{{reader}}` to wait on it
 shell.watched_alias_output  [shell]  output {{n}}, the run of journal {{name}}, is watched{{reader}}
-shell.watched_output  [shell]  output {{n}}, which you watch:
+shell.watched_output  [shell]  output {{n}}, {{command}}:
 {{lines}}
-shell.watched_output_ended  [shell]  output {{n}}, which you watched, {{ending}}:
+shell.watched_output_ended  [shell]  output {{n}}, {{command}}, {{ending}}:
 {{lines}}
 shell.watched_reader_output  [shell]  output {{n}} ({{command}}) is in the background, watched through {{reader}}
 shell.write_held_until_read_through_a_reader  [shell]  no reader reads {{commands}}, run in the background. `journal reader add <name> --commands "<command>" --about '<what it picks>' --label '<what it does>' --pattern '<lines worth seeing>' --progress '<progress>'` before any other write
