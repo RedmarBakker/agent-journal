@@ -15822,8 +15822,12 @@ def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
     assert "a new reader says what it picks with --about" in app.console().run(["reader", "add", "fresh-one", "--pattern", "x"], USER).error, "a new reader still needs --about"
 
 
-def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_then_struck(app: App):
+def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_then_struck(app: App, monkeypatch):
     from datetime import datetime, timedelta
+
+    from journal.engine.clock import Clock
+
+    monkeypatch.setattr(Clock, "tick", lambda self, time: None)
 
     later = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
     earlier = (datetime.now() - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M")
