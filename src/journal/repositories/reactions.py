@@ -1,3 +1,4 @@
+from datetime import datetime
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.support.actor import Actor
@@ -22,6 +23,13 @@ class Reactions(ScopedRepository[Reaction]):
 
     def reactions(self, message: Message) -> list[Reaction]:
         return [self.find(ref.id) for ref in self.links.sources(message, REACTS)]
+
+    def agent_message_reactions(self, start_at: datetime) -> dict[int, float]:
+        message_reactions: dict[int, float] = {}
+        for reaction in self.selected(self.query().filter(author=Author.AGENT).filter_greater_equal("created_at", start_at).order("id")):
+            for ref in self.links.targets(reaction, REACTS):
+                message_reactions.setdefault(ref.id, reaction.creation_time.timestamp())
+        return message_reactions
 
     def authored(self, author: Author) -> int:
         return self.counted(self.query().filter(author=author))

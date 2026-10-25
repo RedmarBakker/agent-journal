@@ -2388,7 +2388,7 @@ def test_a_workers_moves_and_the_users_messages_are_the_items_its_load_counts():
     from types import SimpleNamespace
     from journal.features.workers.support.load_items import LoadItems
     from journal.models.support.worker_moves import WorkerMoves
-    reader = LoadItems(None, None, None, SimpleNamespace(decimal=lambda option: option.default))
+    reader = LoadItems(None, None, None, SimpleNamespace(decimal=lambda option: option.default), None)
     moves = WorkerMoves((("clocked in", 10.0), ("clocked out", 100.0), ("sent back", 160.0), ("clocked in", 170.0), ("clocked out", 400.0), ("merged", 460.0), ("sent a job", 470.0), ("ended without clocking out", 900.0)))
     items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves), 0.5)
     assert [(item.arrived_at, item.weight, item.cleared_at) for item in items] == [(100.0, 1.0, 160.0), (400.0, 1.5, 460.0), (900.0, 1.0, 0.0)], "a clock-out cleared by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"

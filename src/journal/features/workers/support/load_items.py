@@ -6,6 +6,7 @@ from journal.models.author import Author
 from journal.models.support.ref import Ref
 from journal.models.worker import DELIVERY_MOVE, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.messages import Messages
+from journal.repositories.reactions import Reactions
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
@@ -19,8 +20,8 @@ DISPATCHES = ("dispatched", "sent a job")
 class LoadItems:
     """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, its end without clocking out, and its idle place while a task is open, each cleared by its next send-back, merge, release, retirement, stop or job; a user's message, cleared by the agent's first reply to it; with the times the orchestrator dispatched or sent a job."""
 
-    def __init__(self, workers: Workers, messages: Messages, tasks: Tasks, settings: SettingRows) -> None:
-        self.workers, self.messages, self.tasks, self.settings = workers, messages, tasks, settings
+    def __init__(self, workers: Workers, messages: Messages, tasks: Tasks, settings: SettingRows, reactions: Reactions) -> None:
+        self.workers, self.messages, self.tasks, self.settings, self.reactions = workers, messages, tasks, settings, reactions
 
     def read(self, start: float) -> tuple[list[LoadItem], list[float]]:
         window_start = datetime.fromtimestamp(start, timezone.utc)
@@ -46,7 +47,7 @@ class LoadItems:
     def message_items(self, begin: datetime) -> list[LoadItem]:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)
         user_messages = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", begin).order("created_at").order("id"))
-        replied: dict[int, float] = {}
+        replied: dict[int, float] = dict(self.reactions.agent_message_reactions(begin))
         for reply in self.messages.recent_replies(begin):
-            replied.setdefault(reply.reply_target, reply.creation_time.timestamp())
+            replied[reply.reply_target] = min(replied.get(reply.reply_target, reply.creation_time.timestamp()), reply.creation_time.timestamp())
         return [LoadItem(str(Ref.build(message)), message.creation_time.timestamp(), weight, replied.get(message.row_id, 0.0)) for message in user_messages]

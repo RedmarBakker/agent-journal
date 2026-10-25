@@ -89,3 +89,23 @@ test("a message to or from another agent is a one-line card with its time, never
         expect(shown.header).toBe(false);
     }
 });
+
+test("a message to or from another agent offers Comment, React and Copy, and Comment quotes the card's title", async () => {
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+    const {default: TurnMessage} = await import("../src/chat/TurnMessage.vue");
+    const [, sent] = threadTurns(messages, []).turns;
+    const replies = [];
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h(TurnMessage, {turn: sent, onReply: (quote) => replies.push(quote)})});
+    app.provide("scope", scope);
+    app.directive("tip", {});
+    app.mount(host);
+    await nextTick();
+    const tools = [...host.querySelectorAll(".from-main-card .thread-tool")].map((button) => button.textContent.trim());
+    expect(tools).toEqual(["React", "Comment", "Copy"]);
+    [...host.querySelectorAll(".from-main-card .thread-tool")].find((button) => button.textContent.trim() === "Comment").click();
+    expect(replies).toEqual([{text: "Message 2 to Coco", ref: sent.key}]);
+    app.unmount();
+    host.remove();
+});

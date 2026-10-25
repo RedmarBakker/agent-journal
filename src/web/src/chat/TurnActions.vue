@@ -10,6 +10,8 @@ const props = defineProps({
     turn: {type: Object, required: true},
     text: {type: String, required: true},
     picking: {type: Boolean, default: false},
+    replyLabel: {type: String, default: "Reply"},
+    quote: {type: String, default: ""},
 });
 const emit = defineEmits(["reply", "delete", "react", "update:picking"]);
 const copied = ref(false);
@@ -40,7 +42,7 @@ function react(face) {
         </template>
         <template v-else>
             <button type="button" class="thread-tool" title="React to this" @click.stop="emit('update:picking', true)">React</button>
-            <ReplyTool @reply="emit('reply', {text, ref: turn.key})" />
+            <ReplyTool :label="replyLabel" :title="replyLabel === 'Reply' ? undefined : `${replyLabel} on this`" @reply="emit('reply', {text: quote || text, ref: turn.key})" />
             <button type="button" class="thread-tool" title="Copy the text" @click.stop="copy">
                 {{ copied ? "Copied" : "Copy" }}
             </button>

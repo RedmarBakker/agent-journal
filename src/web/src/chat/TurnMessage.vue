@@ -43,6 +43,7 @@ const {words, html} = useTurnText(() => (report.value ? {...props.turn, text: re
 const sent = computed(() => Boolean(props.turn.data?.sent_to));
 const received = computed(() => Boolean(props.turn.data?.peer || props.turn.data?.from_main));
 const fromMain = computed(() => sent.value || received.value);
+const fromMainQuote = computed(() => `Message ${props.turn.id} ${props.turn.data.sent_to ? `to ${props.turn.data.sent_to}` : `from ${props.turn.data.peer || "the main agent"}`}`);
 const opening = computed(() => Boolean(props.turn.data?.opening));
 const colleague = computed(() => colleagueColour(props.turn.creator, store.people));
 const mine = computed(() => props.turn.who === "user" && !colleague.value);
@@ -109,7 +110,19 @@ async function drop() {
             <TurnBriefMarker :time="turn.time" />
         </template>
         <template v-if="fromMain">
-            <TurnFromMain :data="turn.data" :text="turn.text" :time="turn.time" />
+            <div class="from-main-card">
+                <TurnFromMain :data="turn.data" :text="turn.text" :time="turn.time" />
+                <TurnActions
+                    :turn="turn"
+                    :text="turn.text"
+                    :picking="picking"
+                    reply-label="Comment"
+                    :quote="fromMainQuote"
+                    @update:picking="picking = $event"
+                    @reply="emit('reply', $event)"
+                    @react="react"
+                />
+            </div>
         </template>
         <template v-if="report">
             <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task-id="turn.data.task || reportedTask?.id || 0" :text="report.text" :time="turn.time" />
@@ -295,6 +308,11 @@ button.thread-pill:hover {
 .thread-turn.quoting .thread-bubble {
     min-width: 100%;
     box-sizing: border-box;
+}
+
+.from-main-card {
+    position: relative;
+    max-width: 560px;
 }
 
 .thread-turn:hover :deep(.thread-tools) {

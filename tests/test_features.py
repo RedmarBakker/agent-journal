@@ -2141,6 +2141,9 @@ def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_l
     waiting = {item.ref for item in app.container.get(LoadItems).message_items(since)}
     assert f"messages:{scheduled.row_id}" not in waiting and f"messages:{asked.row_id}" in waiting, f"the scheduled prompt is not a message waiting on the orchestrator: {waiting}"
     assert scheduled.row_id not in {message.row_id for message in messages.unanswered()}, "and it is never reminded as unanswered"
+    assert app.console().run(["message", "react", str(asked.row_id), "👍"], AGENT).code == 0
+    cleared = {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}
+    assert cleared[f"messages:{asked.row_id}"] > 0, "a face from the agent answers the message, so it no longer waits on the load"
 
 
 def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_scheduled_and_both_are_out_of_the_load_and_the_unanswered(app: App, monkeypatch):
