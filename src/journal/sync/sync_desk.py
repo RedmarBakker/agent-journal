@@ -1,4 +1,3 @@
-import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -143,21 +142,20 @@ class SyncDesk:
 
     @contextmanager
     def copy_window(self):
-        sys.stderr.write(f"the team asked for its full copy: this journal holds sequence {self.account.sequence()}\n")
         # nothing of this journal's goes out between the team's copy being taken and laid in place of its rows, or the copy would
         # wipe a change sent meanwhile, which no pull sends back, as a journal is never sent its own changes
         with self.locked(self.sending, "lay in the team's copy"), self.locked(self.applying, "lay in the team's copy"):
             yield
 
     def apply_copy(self, copy: FullCopy) -> bool:
-        if copy.head <= self.account.sequence():
+        if not self.account.is_joined() or copy.head <= self.account.sequence():
             return False
         with self.copy_window():
             self.copied(copy)
         return True
 
     def copied(self, copy: FullCopy) -> None:
-        self.copy.replace(copy.rows, self.outgoing.rows(), self.account)
+        self.copy.replace(copy, self.outgoing.rows(), self.account)
         self.account.record_sequence(copy.head)
 
     def is_upgrader(self) -> bool:

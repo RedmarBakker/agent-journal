@@ -1,9 +1,11 @@
+import sys
+import time
 from typing import Callable
 
 from journal.db.schema import Schema
 from journal.models.model import Model
 from journal.models.environment import Environment
-from journal.models.outgoing_change import DELETED, OutgoingChange
+from journal.models.outgoing_change import DELETED, WITHDRAWN, OutgoingChange
 from journal.models.setting import Setting
 from journal.repositories.shared_tables import SharedTables
 from journal.sync.setting_scopes import SettingScopes
@@ -11,6 +13,7 @@ from journal.sync.team_account import TeamAccount
 from journal.sync.team_placement import TeamPlacement
 from journal.support.actor import Actor
 from sync_server.copied_row import CopiedRow
+from sync_server.full_copy import FullCopy
 from sync_server.id_ranges import TEAM_NUMBER_SHIFT
 
 
@@ -41,16 +44,16 @@ class JournalCopy:
             return {}
         return {table: self.tables.highest_number(table, 1 << TEAM_NUMBER_SHIFT) for table in self.tables.names()}
 
-    def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange], account: TeamAccount) -> None:
+    def replace(self, copy: FullCopy, waiting: list[OutgoingChange], account: TeamAccount) -> None:
+        sys.stderr.write(f"the team at {account.address()} asked for its full copy, as it no longer keeps the changes past this journal's sequence {account.sequence()}: laying in {len(copy.rows)} rows at its head {copy.head} with {len(waiting)} writes waiting\n")
+        began = time.perf_counter()
         with self.tables.transaction():
-            self.rebuilt(rows, self.local_values(), account)
-            for change in waiting:
-                if self.tables.has(change.row_table):
-                    self.laid(change)
+            self.rebuilt(copy.rows, self.local_values(), account, waiting)
+        sys.stderr.write(f"the team's full copy took {time.perf_counter() - began:.1f} seconds to lay in\n")
 
     def replace_whole(self, rows: tuple[CopiedRow, ...]) -> None:
         with self.tables.transaction():
-            self.rebuilt(rows, {}, self.placement.account)
+            self.rebuilt(rows, {}, self.placement.account, [])
 
     def laid_beside(self, rows: tuple[CopiedRow, ...]) -> None:
         kept = {environment.key: environment.row_id for environment in self.tables.rows(Environment.table()).rows()}
@@ -79,16 +82,17 @@ class JournalCopy:
                 placed[end] = f"{table}:{same[int(number)]}"
         return placed
 
-    def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict], account: TeamAccount) -> None:
+    def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict], account: TeamAccount, waiting: list[OutgoingChange]) -> None:
         sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_sent_to(row, account)] for table in self.tables.names()}
         for table, numbers in sent.items():
             self.tables.rows(table).clear_numbers(numbers)
-        tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}
+        tables: dict[str, dict[int, dict]] = {table: {} for table in self.tables.names()}
         for row in rows:
             if row.row_table in tables and self.is_copied(row):
-                tables[row.row_table].append((row.row, {**row.fields, **local.get((row.row_table, row.row), {})}))
+                tables[row.row_table][row.row] = {**row.fields, **local.get((row.row_table, row.row), {})}
         for table, table_rows in tables.items():
-            self.tables.rows(table).restored(table_rows)
+            self.laid(table, table_rows, [change for change in waiting if change.row_table == table])
+            self.tables.rows(table).restored(list(table_rows.items()))
 
     def is_copied(self, row: CopiedRow) -> bool:
         return row.row_table != Setting.table() or self.scopes.is_team(row.fields.get("key", ""))
@@ -96,9 +100,22 @@ class JournalCopy:
     def local_values(self) -> dict[tuple[str, int], dict]:
         return {(table, row.row_id): values for table in self.tables.names() for row in self.tables.rows(table).rows() if (values := {name: value for name, value in Schema.stored_values(row, None).items() if name in row.local_fields})}
 
-    def laid(self, change: OutgoingChange) -> None:
-        rows = self.tables.rows(change.row_table)
-        if change.action == DELETED:
-            rows.pulled_deletion(change.row, Actor.system())
-        elif not rows.pulled_update(change.row, change.fields or {}, Actor.system()):
-            rows.pulled_creation(change.row, change.fields or {}, Actor.system())
+    # this machine's waiting writes laid on the rows about to be written, a row the copy lacks taken as this machine holds it, so none goes through the events of a pulled row
+    def laid(self, table: str, table_rows: dict[int, dict], changes: list[OutgoingChange]) -> None:
+        rows = self.tables.rows(table)
+        table_rows.update({row.row_id: Schema.stored_values(row, None) for row in rows.numbered({change.row for change in changes} - set(table_rows))})
+        deleted = set()
+        for change in changes:
+            if change.action == DELETED:
+                table_rows.pop(change.row, None)
+                deleted.add(change.row)
+            elif change.action != WITHDRAWN:
+                table_rows[change.row] = self.written(table_rows.get(change.row), change.fields or {}, rows.model.local_fields)
+                deleted.discard(change.row)
+        rows.clear_numbers(sorted(deleted))
+
+    @staticmethod
+    def written(held: dict | None, fields: dict, local_fields: tuple[str, ...]) -> dict:
+        if held is None:
+            return dict(fields)
+        return {**held, **{name: value for name, value in fields.items() if name not in local_fields}}

@@ -1069,6 +1069,41 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     assert tasks_b.find(901).state == TaskState.PAUSED, "a team row in a state's former name is read in its new one"
 
 
+def test_a_full_copy_of_thousands_of_rows_and_the_writes_waiting_on_it_is_laid_in_with_a_bounded_number_of_statements_and_no_events(tmp_path):
+    from journal.models.outgoing_change import CREATED, DELETED, UPDATED, OutgoingChange
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.journal_copy import JournalCopy
+    from journal.sync.team_account import TeamAccount
+    from sync_server.copied_row import CopiedRow
+    from sync_server.full_copy import FullCopy
+
+    class Heard(Listener[ModelEvent]):
+        def __init__(self):
+            self.events = []
+
+        def handle(self, event):
+            self.events.append(event)
+
+    bus, scope, tasks, _, _ = team_journal(tmp_path, "b")
+    config = Config(tmp_path / "b")
+    tables = SharedTables(tasks.connection, tasks.bus)
+    copy = JournalCopy(tables, team_scopes(tasks.connection, bus, scope), team_placement(tasks.connection, bus, scope, config))
+    rows = tuple(CopiedRow("tasks", number, {"environment_id": 1, "title": f"task {number}"}, {}) for number in range(1, 3001))
+    waiting = [
+        OutgoingChange(row_table="tasks", row=5, action=UPDATED, fields={"title": "renamed here"}),
+        OutgoingChange(row_table="tasks", row=7, action=DELETED, fields={}),
+        OutgoingChange(row_table="tasks", row=4000, action=CREATED, fields={"environment_id": 1, "title": "made here"}),
+    ]
+    heard = Heard()
+    bus.listen(ModelEvent, heard)
+    tasks.connection.queries.clear()
+    copy.replace(FullCopy(rows, 3000, 0.0), waiting, TeamAccount(config))
+    statements = sum(query.runs for query in tasks.connection.queries.statements.values())
+    assert statements <= 6 * len(tables.names()), f"a copy of 3000 rows takes a few statements per table, not one per row: {statements}"
+    assert heard.events == [], "no row of the copy or of the writes waiting on it goes through the events of a pulled row"
+    assert len(tasks.numbered(range(1, 4001))) == 3000 and tasks.find(5).title == "renamed here" and tasks.numbered([7]) == [] and tasks.find(4000).title == "made here", "the copy is laid in with this machine's waiting update, deletion and creation on top"
+
+
 def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_and_the_servers_backup_brings_the_earlier_rows_back(tmp_path):
     from journal.models.environment import Environment
     from journal.models.rule import Rule

@@ -51,9 +51,9 @@ class TeamDesk:
             return DeskAnswer(len(changes), False)
 
     def copied(self, copy: FullCopy) -> bool:
-        if copy.head <= self.account.sequence():
+        if not self.account.is_joined() or copy.head <= self.account.sequence():
             return False
         with self.applying:
-            self.copy.replace(copy.rows, self.outgoing.rows(), self.account)
+            self.copy.replace(copy, self.outgoing.rows(), self.account)
             self.account.record_sequence(copy.head)
         return True
