@@ -38,7 +38,7 @@ class PlansReady(Ready):
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         started = event.data.part(PlansPart).started
-        if started and event.task_id in started.tasks and event.task_id in event.data.part(TasksPart).agent_tasks:
+        if started and event.task_id in started.recent_tasks and event.task_id in event.data.part(TasksPart).agent_tasks:
             return self.push(self.plan_state(plan_id=started.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
         return super().on_task_started(event, settings)
 

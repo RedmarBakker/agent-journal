@@ -22,16 +22,17 @@ class PlanOutline:
 
     def open_outline(self, plan: Plan) -> dict:
         phased = self.plans.phase_states(plan)
-        phased_ids = list(dict.fromkeys(task_id for phase in phased for task_id in phase.task_ids))
+        members = self.plans.phase_task_ids([phase.phase for phase in phased])
+        phased_ids = list(dict.fromkeys(task_id for phase in phased for task_id in members[phase.phase.id]))
         task_ids = phased_ids + self.plans.unphased_task_ids(plan, phased_ids)
-        phases = [{**ModelFields.build(phase.phase), "task_ids": list(phase.task_ids)} for phase in phased]
+        phases = [{**ModelFields.build(phase.phase), "task_ids": members[phase.phase.id]} for phase in phased]
         checkpoint_pause = plan.state == PlanState.STARTED and plan.checkpoint_phase(phased) is not None
         return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, self.tasks.has_worker_holder(task_ids))
 
     def closed_outline(self, plan: Plan) -> dict:
         phases = self.plans.plan_phases(plan)
-        links = self.plans.phase_links(phases)
-        listed = [{**ModelFields.build(phase), "task_ids": [link.source.id for link in links if link.target.id == phase.id]} for phase in phases]
+        members = self.plans.phase_task_ids(phases)
+        listed = [{**ModelFields.build(phase), "task_ids": members[phase.id]} for phase in phases]
         return self.outline(plan, self.plans.plan_task_ids(plan), listed, len(phases) or 1, False, False)
 
     def outline(self, plan: Plan, task_ids: list[int], phases: list[dict], current_phase: int, checkpoint_pause: bool, is_delegated: bool) -> dict:

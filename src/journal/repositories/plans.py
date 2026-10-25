@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from journal.db.connection import Connection
+from journal.db.query import Query
 from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.models.link import Link
@@ -13,11 +14,9 @@ from journal.repositories.links import Links
 from journal.repositories.phases import Phases
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.repositories.tasks import PLAN_LINK, WAIT_LINK, Tasks
+from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PLAN_LINK, WAIT_LINK, WORKERS, Tasks
 from journal.repositories.workers import Workers
 from journal.models.phase_states import PhaseStates
-from journal.models.phase_tasks import PhaseTasks
-from journal.models.plan_tree import PlanTree
 from journal.models.support.ref import Ref
 
 
@@ -63,13 +62,23 @@ class Plans(ScopedRepository[Plan]):
         return [plan for ref in self.links.sources(model, WAIT_LINK) if ref.type == Plan.table() and (plan := self.find(ref.id)).is_blocked()]
 
     def is_stalled(self, plan: Plan) -> bool:
-        return plan.is_stalled(self.plan_tasks(plan))
+        return plan.is_stalled(self.remaining_count(plan), self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.BLOCKED)))
+
+    def remaining_count(self, plan: Plan) -> int:
+        return self.tasks.counted(self.plan_task_query(plan).filter_unlisted("state", list(CLOSED_STATES)))
+
+    def plan_task_query(self, plan: Plan) -> Query:
+        planned = self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)).filter_ref("source", self.tasks.query())
+        return self.tasks.query().filter_existing(planned)
 
     def plan_tasks(self, plan: Plan) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(plan, PLAN_LINK))
 
     def unphased_task_ids(self, plan: Plan, phased_ids: list[int]) -> list[int]:
         return [ref.id for ref in self.links.sources_except(plan, PLAN_LINK, [Ref(Task.table(), task_id) for task_id in phased_ids])]
+
+    def recent_task_ids(self, plan: Plan, count: int) -> list[int]:
+        return self.tasks.selected_ids(self.plan_task_query(plan).order_descending("updated_at").order_descending("id").limit(count))
 
     def plan_task_ids(self, plan: Plan) -> list[int]:
         return [ref.id for ref in self.links.sources(plan, PLAN_LINK)]
@@ -78,8 +87,11 @@ class Plans(ScopedRepository[Plan]):
         return self.links.model_links("target", phases, PHASE_LINK)
 
     def plan_phases(self, plan: Plan) -> list[Phase]:
+        return self.phases.selected(self.plan_phase_query(plan).order("id"))
+
+    def plan_phase_query(self, plan: Plan) -> Query:
         linked = self.links.query().filter(target=Ref.build(plan), kind=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
-        return self.phases.selected(self.phases.query().filter_existing(linked).order("id"))
+        return self.phases.query().filter_existing(linked)
 
     def phase_counts(self, plans: list[Plan]) -> dict[int, int]:
         return self.links.target_counts(plans, PHASE_TASK_LINK)
@@ -90,28 +102,18 @@ class Plans(ScopedRepository[Plan]):
     def phase_tasks(self, phase: Phase) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(phase, PHASE_LINK))
 
-    def phased(self, plan: Plan) -> list[PhaseTasks]:
-        return self.phased_among(plan, [])
-
-    def phased_among(self, plan: Plan, plan_tasks: list[Task]) -> list[PhaseTasks]:
-        phases = self.plan_phases(plan)
-        links = self.phase_links(phases)
-        task_index = {task.id: task for task in plan_tasks}
-        task_index.update((task.id, task) for task in self.tasks.numbered(link.source.id for link in links if link.source.id not in task_index))
-        return [PhaseTasks(number, phase, tuple(task_index[link.source.id] for link in links if link.target.id == phase.id and link.source.id in task_index)) for number, phase in enumerate(phases, 1)]
-
     def phase_states(self, plan: Plan) -> list[PhaseStates]:
-        phases = self.plan_phases(plan)
-        links = self.phase_links(phases)
-        members = {phase.id: tuple(link.source.id for link in links if link.target.id == phase.id) for phase in phases}
-        return [PhaseStates(number, phase, members[phase.id], self.tasks.state_counts(members[phase.id])) for number, phase in enumerate(phases, 1)]
+        return [PhaseStates(number, phase, self.phase_state_counts(phase)) for number, phase in enumerate(self.plan_phases(plan), 1)]
 
-    def tree(self, plan: Plan) -> PlanTree:
-        tasks = self.plan_tasks(plan)
-        return PlanTree(plan, tuple(tasks), tuple(self.phased_among(plan, tasks)))
+    def phase_state_counts(self, phase: Phase) -> dict[TaskState, int]:
+        members = self.links.query().filter(kind=PHASE_LINK, target=Ref.build(phase)).filter_ref("source", self.tasks.query())
+        return {TaskState(state): count for state, count in self.tasks.grouped_counts(self.tasks.query().filter_existing(members), "state").items()}
 
-    def ordered(self, plan: Plan) -> list[Task]:
-        return self.tree(plan).ordered
+    def phase_task_ids(self, phases: list[Phase]) -> dict[int, list[int]]:
+        members: dict[int, list[int]] = {phase.id: [] for phase in phases}
+        for link in self.phase_links(phases):
+            members[link.target.id].append(link.source.id)
+        return members
 
     def reviewing(self) -> list[Plan]:
         return self.matching(state=PlanState.REVIEWING)
@@ -162,48 +164,57 @@ class Plans(ScopedRepository[Plan]):
         return [t for t in open_tasks if t.id not in planned and t.id not in delegated]
 
     def finished(self, plan: Plan) -> bool:
-        return plan.is_finished(self.plan_tasks(plan))
-
-    def cannot_start(self, plan: Plan) -> set[int]:
-        return self.unstartable(self.tree(plan))
-
-    def unstartable(self, tree: PlanTree) -> set[int]:
-        return self.tasks.waiting_ids(list(tree.tasks)) | set(self.workers.containing({t.row_id for t in tree.tasks}))
+        return plan.is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
     def resumable(self, plan: Plan) -> Task | None:
-        return self.resumable_task(self.tree(plan))
-
-    def resumable_task(self, tree: PlanTree) -> Task | None:
-        return tree.plan.resumable_task(tree.ordered, self.unstartable(tree))
+        return self.first_task(plan, TaskState.PAUSED, self.tasks.query()) or self.next_task(plan)
 
     def started_task(self, plan: Plan) -> Task | None:
-        return next((task for task in self.plan_tasks(plan) if task.state == TaskState.STARTED), None)
+        started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id").limit(1))
+        return started[0] if started else None
 
     def next_task(self, plan: Plan) -> Task | None:
-        return self.open_task(self.tree(plan))
+        startable = self.tasks.query().filter(state=TaskState.OPEN).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+        return self.first_task(plan, TaskState.OPEN, startable)
 
     # the order a plan's work is taken up in: a paused task first, then a blocked one to check, then the next open one
-    def waiting_task(self, plan: Plan, state: TaskState) -> Task | None:
-        return next((task for task in self.ordered(plan) if task.state == state), None)
-
     def following_task(self, plan: Plan) -> Task | None:
-        paused = self.waiting_task(plan, TaskState.PAUSED)
-        if paused is not None or self.waiting_task(plan, TaskState.BLOCKED) is not None:
+        paused = self.first_task(plan, TaskState.PAUSED, self.tasks.query())
+        if paused is not None or self.first_task(plan, TaskState.BLOCKED, self.tasks.query()) is not None:
             return paused
         return self.next_task(plan)
 
-    def open_task(self, tree: PlanTree) -> Task | None:
-        return tree.plan.next_open_task(tree.ordered, self.unstartable(tree))
+    # the plan's first task in its order that is in the state and matches the candidates: its phases' tasks phase by phase, each in the order
+    # it joined its phase, then its tasks under no phase in the order they joined the plan; one link read a phase, never the plan's tasks' rows
+    def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
+        matching = candidates.filter(state=state)
+        phases = [Ref(Phase.table(), n) for n in self.phases.selected_ids(self.plan_phase_query(plan).order("id"))]
+        for phase in phases:
+            found = self.first_link(self.links.query().filter(kind=PHASE_LINK, target=phase), matching)
+            if found is not None:
+                return found
+        unphased = matching.filter_absent(self.links.query().filter(kind=PHASE_LINK).filter_listed("target", phases).filter_ref("source", self.tasks.query())) if phases else matching
+        return self.first_link(self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)), unphased)
+
+    def first_link(self, links: Query, tasks: Query) -> Task | None:
+        first = self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).order("id").limit(1))
+        return self.tasks.find(first[0].source.id) if first else None
+
+    def waiting_task_ids(self, plan: Plan) -> set[int]:
+        waits = self.links.query().filter(kind=WAIT_LINK)
+        return self.tasks.waiting_ids(self.tasks.selected(self.plan_task_query(plan).filter_existing(waits.filter_ref("source", self.tasks.query()))))
+
+    def worker_holdings(self) -> Query:
+        return self.links.query().filter(kind=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").filter_ref("target", self.tasks.query())
 
     def checkpoint_plans(self, plan: Plan) -> PhaseStates | None:
         return plan.checkpoint_phase(self.phase_states(plan))
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
-        tree = self.tree(plan)
-        if plan.startable().is_finished(list(tree.tasks)):
+        if plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan)):
             return self.save(plan.finished(time.timestamp()), actor)
-        task = self.resumable_task(tree)
+        task = self.resumable(plan)
         if task is None:
             return self.save(plan.started_without_task(time.timestamp()), actor)
         following = task.plan_started(time, plan.row_id)

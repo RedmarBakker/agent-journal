@@ -24,7 +24,7 @@ CLOSED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed())
 
 
 class PlanController(Controller[Plan]):
-    """Plans in outline, and the user's moves on one: approve, start, pause, finish and abandon."""
+    """Plans in outline, and the user's moves on one: review, approve, start, pause, finish and abandon, each answered with the plan's own fields, its outline read by id."""
 
     repository: Plans
 
@@ -58,16 +58,16 @@ class PlanController(Controller[Plan]):
         return Response.json(task, 201)
 
     def review(self, request: Request) -> Response:
-        return Response.json(self.shown(self.rounds.begin(self.repository.find(request.number("id")), request.actor)))
+        return self.answered(self.rounds.begin(self.repository.find(request.number("id")), request.actor))
 
     def approve(self, request: Request) -> Response:
-        return Response.json(self.shown(self.repository.approve(self.repository.find(request.number("id")), request.actor)))
+        return self.answered(self.repository.approve(self.repository.find(request.number("id")), request.actor))
 
     def start(self, request: Request) -> Response:
-        return Response.json(self.shown(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor)))
+        return self.answered(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor))
 
     def pause(self, request: Request) -> Response:
-        return Response.json(self.shown(self.repository.postpone(self.repository.find(request.number("id")), request.actor)))
+        return self.answered(self.repository.postpone(self.repository.find(request.number("id")), request.actor))
 
     def finish(self, request: Request) -> Response:
         return self.moved(request, lambda plan: plan.finished(datetime.now(timezone.utc).timestamp()))
@@ -83,7 +83,10 @@ class PlanController(Controller[Plan]):
     def abandon(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
         self.repository.cancel(plan, request.actor)
-        return Response.json(self.shown(self.repository.find(plan.row_id)))
+        return self.answered(self.repository.find(plan.row_id))
 
     def moved(self, request: Request, move) -> Response:
-        return Response.json(self.shown(self.repository.save(move(self.repository.find(request.number("id"))), request.actor)))
+        return self.answered(self.repository.save(move(self.repository.find(request.number("id"))), request.actor))
+
+    def answered(self, plan: Plan) -> Response:
+        return Response.json(ModelFields.build(plan))

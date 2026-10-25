@@ -25,7 +25,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.missing_row import MissingRow
 from journal.repositories.task_logs import TaskLogs
-from journal.repositories.plans import PLAN_LINK, Plans
+from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
 from journal.features.tasks.support.next_open_task import NextOpenTask
@@ -214,7 +214,8 @@ state: {task.state}
         if plan is None:
             return "plan: none"
         phases = self.plans.phase_states(plan)
-        phase = next((p for p in phases if task.id in p.task_ids), None)
+        held = {ref.id for ref in self.links.targets(task, PHASE_LINK)}
+        phase = next((p for p in phases if p.phase.id in held), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:

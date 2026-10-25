@@ -1,4 +1,5 @@
 from journal.engine.conduct import Conduct
+from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.plan_approved import PlanApproved
@@ -10,6 +11,7 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_part import PlansPart
+from journal.features.plans.support.started_plan import StartedPlan
 from journal.features.tasks.tasks_part import TasksPart
 
 
@@ -32,7 +34,7 @@ class PlansConduct(Conduct):
         started = event.data.part(PlansPart).started
         if started is None:
             return self.none()
-        testing = started.testing_lines(PlansNudges.PLAN_TESTING)
+        testing = testing_lines(started)
         if event.task_id or not started.remaining_tasks:
             return self.none(*testing)
         return self.none(*testing, PlansNudges.PLAN_STALLED.create(n=event.plan_id, left=started.remaining_tasks))
@@ -45,9 +47,13 @@ class PlansConduct(Conduct):
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         started = event.data.part(PlansPart).started
-        if started is None or event.task_id not in started.tasks:
+        if started is None or event.task_id not in started.recent_tasks:
             return self.none()
-        testing = started.testing_lines(PlansNudges.PLAN_TESTING)
+        testing = testing_lines(started)
         if started.started_task or started.next_task or started.checkpoint_pause or not started.remaining_tasks:
             return self.none(*testing)
         return self.none(*testing, PlansNudges.PLAN_STALLED.create(n=started.plan_id, left=started.remaining_tasks))
+
+
+def testing_lines(started: StartedPlan) -> tuple[Nudge, ...]:
+    return (PlansNudges.PLAN_TESTING.create(n=started.plan_id, testing=started.testing),) if started.testing else ()

@@ -814,7 +814,7 @@ def test_a_saved_started_plan_sends_plan_started_once_and_a_plain_edit_sends_non
         assert len(hearing.heard) == 1
 
 
-def test_a_plans_phase_in_hand_and_checkpoint_come_from_its_tasks_state_counts_and_its_tree_reads_each_task_once(app: App):
+def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one_link_a_phase_never_its_tasks_rows(app: App):
     from journal.db.connection import Connection
     from journal.models.link import Link
     from journal.models.phase import Phase
@@ -830,26 +830,30 @@ def test_a_plans_phase_in_hand_and_checkpoint_come_from_its_tasks_state_counts_a
         first, second = [phases.save(Phase(environment_id=1, title=title, checkpoint=title == "one"), actor) for title in ("one", "two")]
         for phase in (first, second):
             links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
-        rows = [tasks.save(Task(environment_id=1, title=title), actor) for title in ("a", "b", "c")]
-        for task, phase in zip(rows, (first, first, second)):
+        rows = [tasks.save(Task(environment_id=1, title=title), actor) for title in ("a", "b", "c", "loose")]
+        for task in rows:
             links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), actor)
+        for task, phase in ((rows[1], first), (rows[0], first), (rows[2], second)):
             links.save(Link(source=Ref.build(task), target=Ref.build(phase), kind=PHASE_LINK), actor)
         assert [phase.id for phase in plans.plan_phases(plan)] == [first.id, second.id], "in the order they were added"
         LoadTally.begin()
         states = plans.phase_states(plan)
         assert "tasks" not in {count.model for count in LoadTally.ended().counts}, "no task row is read"
-        assert states == [phase.states() for phase in plans.phased(plan)] and [state.task_ids for state in states] == [(rows[0].id, rows[1].id), (rows[2].id,)]
+        assert plans.phase_task_ids([first, second]) == {first.id: [rows[1].id, rows[0].id], second.id: [rows[2].id]}, "each phase's tasks in the order they joined it"
         assert plan.current_phase(states) == 1 and plan.checkpoint_phase(states) is None
+        app.container.get(Connection).cache.cleared()
+        LoadTally.begin()
+        assert plans.next_task(plan).id == rows[1].id, "the first open task of the first phase, in the order it joined the phase"
+        assert [count.rows for count in LoadTally.ended().counts if count.model == "tasks"] == [1], "only the task found is read"
         for task in rows[:2]:
             tasks.save(task.finished(datetime.now(timezone.utc), "done"), actor)
         states = plans.phase_states(plan)
         assert plan.current_phase(states) == 2 and plan.checkpoint_phase(states).number == 1, "phase one done and phase two not begun: the checkpoint"
+        assert plans.next_task(plan).id == rows[2].id and plans.remaining_count(plan) == 2 and not plans.is_stalled(plan)
+        tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)).paused("later", datetime.now(timezone.utc)), actor)
+        assert plans.resumable(plan).id == rows[2].id and plans.next_task(plan).id == rows[3].id, "a paused task is resumed before the open one under no phase"
         tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)), actor)
-        assert plans.checkpoint_plans(plan) is None, "phase two begun"
-        app.container.get(Connection).cache.cleared()
-        LoadTally.begin()
-        plans.tree(plan)
-        assert [count.rows for count in LoadTally.ended().counts if count.model == "tasks"] == [3], "each task is read once"
+        assert plans.checkpoint_plans(plan) is None and plans.started_task(plan).id == rows[2].id, "phase two begun"
 
 
 def test_the_models_carry_the_events_their_changes_mean():
@@ -959,7 +963,7 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
     from journal.events.rows.task_started import TaskStarted
     settings = SettingsValue({WorkersOptions.MODE.key: "builder"})
     from journal.features.plans.support.started_plan import StartedPlan
-    plans = PlansData(approved=(), started=StartedPlan(plan_id=5, next_task=0, started_task=7, started_task_briefing="it has no brief and nothing logged yet", tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing=""), review_plan=0)
+    plans = PlansData(approved=(), started=StartedPlan(plan_id=5, next_task=0, started_task=7, started_task_briefing="it has no brief and nothing logged yet", recent_tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing=""), review_plan=0)
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(7, 8))
     data = FeatureData({"plans": plans, "tasks": tasks})
     assert PlansReady().respond(SessionStarted(time=4.0).with_data(data), settings).pushed == FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=4.0)
@@ -1364,7 +1368,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     from journal.events.rows.task_started import TaskStarted
     auto, manual = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_LIMIT.key: 50, TasksOptions.FIRST_DELAY.key: 25, TasksOptions.TASK_REMINDER_INTERVAL.key: 25}), SettingsValue({TasksOptions.AUTO.key: False})
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(3, 7, 8))
-    plan = StartedPlan(plan_id=5, next_task=8, started_task=0, started_task_briefing="", tasks=(7, 8), remaining_tasks=1, checkpoint_pause=False, checkpoint_phase=0, testing="")
+    plan = StartedPlan(plan_id=5, next_task=8, started_task=0, started_task_briefing="", recent_tasks=(7, 8), remaining_tasks=1, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda started: FeatureData({"tasks": tasks, "plans": PlansData((), started, 0)})
     following = FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=10.0)
     assert following.on_push(auto) == () and isinstance(FollowingPlan(plan_id=5).on_push(auto), Block), "an unapproved plan is refused"
@@ -1404,7 +1408,7 @@ def test_following_plan_pops_when_the_plan_is_postponed_or_abandoned_and_on_resu
     from journal.events.rows.plan_postponed import PlanPostponed
     settings = SettingsValue({})
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
-    plan = StartedPlan(plan_id=5, next_task=8, started_task=7, started_task_briefing="", tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
+    plan = StartedPlan(plan_id=5, next_task=8, started_task=7, started_task_briefing="", recent_tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda started: FeatureData({"tasks": tasks, "plans": PlansData((), started, 0)})
     following = FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=10.0)
     user_origin = following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(of(None)), settings)

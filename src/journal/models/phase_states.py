@@ -6,11 +6,10 @@ from journal.models.task_state import TaskState
 
 @dataclass(frozen=True)
 class PhaseStates:
-    """A phase of a plan with its number from 1, its task numbers in order and how many of its tasks are in each state, which is all the plan asks of a phase to find the one in hand and a checkpoint."""
+    """A phase of a plan with its number from 1 and how many of its tasks are in each state, which is all the plan asks of a phase to find the one in hand and a checkpoint."""
 
     number: int
     phase: Phase
-    task_ids: tuple[int, ...]
     state_counts: dict[TaskState, int]
 
     def has_tasks(self) -> bool:

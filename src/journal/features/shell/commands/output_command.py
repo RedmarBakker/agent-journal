@@ -13,6 +13,8 @@ from journal.support.rejection import Rejection
 from journal.repositories.command_outputs import CommandOutputs
 
 END_LINES = 10
+# the outputs a list shows unless asked for more, each row carrying its stored summary
+LISTED_OUTPUTS = 10
 
 
 class OutputCommand(Command):
@@ -37,7 +39,7 @@ class OutputCommand(Command):
         status = self.verb(verbs, "status", "one line: running, finished, or failed with code C; with no number, the status of each background output of yours")
         status.add_argument("n", type=int, nargs="?")
         listed = self.verb(verbs, "list", "the newest outputs, one a line: number, how it ended, command")
-        listed.add_argument("--last", type=int, default=20)
+        listed.add_argument("--last", type=int, default=LISTED_OUTPUTS)
         watch = self.verb(verbs, "watch", "bind a running output to you: after every tool use you see its reader's lines, or its last lines, and a card in the chat shows them, until its command ends")
         watch.add_argument("n", type=int)
         watch.add_argument("--reader", default="", help="the reader whose lines are shown, by its name")

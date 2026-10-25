@@ -12,9 +12,7 @@ from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_started import PlanStarted
 from journal.models.scoped import Scoped
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.models.phase_states import PhaseStates
-from journal.models.phase_tasks import PhaseTasks
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
 from journal.support.rejection import Rejection
@@ -94,23 +92,11 @@ class Plan(Scoped):
             raise Rejection(f"plan {self.id} is {self.state} and cannot become {state}")
         return self.with_(state=state)
 
-    def is_finished(self, tasks: list[Task]) -> bool:
-        return bool(tasks) and all(task.is_closed() for task in tasks)
+    def is_finished(self, task_count: int, remaining_count: int) -> bool:
+        return bool(task_count) and not remaining_count
 
-    def is_stalled(self, tasks: list[Task]) -> bool:
-        remaining = [task for task in tasks if not task.is_closed()]
-        return bool(remaining) and all(task.state == TaskState.BLOCKED for task in remaining)
-
-    def ordered(self, phases: list[PhaseTasks], tasks: list[Task]) -> list[Task]:
-        phased = [task for phase in phases for task in phase.tasks]
-        ids = {task.id for task in phased}
-        return phased + [task for task in tasks if task.id not in ids]
-
-    def next_open_task(self, ordered: list[Task], cannot_start: set[int]) -> Task | None:
-        return next((task for task in ordered if task.state == TaskState.OPEN and task.id not in cannot_start), None)
-
-    def resumable_task(self, ordered: list[Task], cannot_start: set[int]) -> Task | None:
-        return next((task for task in ordered if task.state == TaskState.PAUSED), None) or self.next_open_task(ordered, cannot_start)
+    def is_stalled(self, remaining_count: int, blocked_count: int) -> bool:
+        return bool(remaining_count) and remaining_count == blocked_count
 
     def current_phase(self, phases: list[PhaseStates]) -> int:
         return next((phase.number for phase in phases if phase.has_open_work()), len(phases) or 1)

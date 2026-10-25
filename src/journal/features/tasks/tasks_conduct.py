@@ -44,8 +44,10 @@ class TasksConduct(Conduct):
 
 def polling_check(state: BaseState, event: ToolStarting) -> Transition:
     command = event.call.command
+    if not command:
+        return state.none()
     last = event.data.part(TasksPart).last_commands
-    if not command or len(last) < POLL_REPEAT_COMMANDS or any(older != command for older in last):
+    if len(last) < POLL_REPEAT_COMMANDS or any(older != command for older in last):
         return state.none()
     return state.none(TasksNudges.STOP_POLLING.create(times=POLL_REPEAT_COMMANDS, command=command))
 

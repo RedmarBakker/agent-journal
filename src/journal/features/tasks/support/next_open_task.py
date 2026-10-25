@@ -31,7 +31,7 @@ class NextOpenTask:
         if current is not None:
             return OpenTask(current.row_id, current.title, current.brief, plan.row_id)
         for state in (TaskState.PAUSED, TaskState.BLOCKED):
-            task = self.plans.waiting_task(plan, state)
+            task = self.plans.first_task(plan, state, self.tasks.query())
             if task is not None:
                 return OpenTask(task.row_id, task.title, task.brief, plan.row_id, state.value)
         task = self.plans.next_task(plan)

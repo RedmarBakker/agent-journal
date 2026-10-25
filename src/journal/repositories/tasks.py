@@ -102,9 +102,6 @@ class Tasks(ScopedRepository[Task]):
     def unclosed_query(self) -> Query:
         return self.query().filter_unlisted("state", list(CLOSED_STATES))
 
-    def state_counts(self, task_ids: tuple[int, ...]) -> dict[TaskState, int]:
-        return {TaskState(state): count for state, count in self.grouped_counts(self.query().filter_listed("id", list(task_ids)), "state").items()}
-
     def unfinished_ids(self, numbers: list[int]) -> list[int]:
         return [number for number in numbers if self.matching(id=number, state=TaskState.OPEN) or self.matching(id=number, state=TaskState.STARTED) or self.matching(id=number, state=TaskState.DELEGATED)]
 
