@@ -1,19 +1,18 @@
-from journal.events.agent.line_delivered import LineDelivered
+from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.features.workers.workers_nudges import WorkersNudges
 
 
-class SilentWorkerRecord(AgentListener[LineDelivered]):
-    """A silent worker reported to the agent is marked as reported on its row, and once more when it is still quiet at twice the span with the advice to split its job, so its silence is reported twice at most; its next send, notify or report starts a new span."""
+class SilentWorkerRecord(AgentListener[Ticked]):
+    """A silent worker named to its dispatcher on a tick is marked on its row in the same tick, right after the machine answered it, so the next tick sees it named however soon it comes; once at the span and once more at twice the span, its next send, notify or report starting a new span."""
+
+    blocking = True
 
     def __init__(self, workers: Workers) -> None:
         self.workers = workers
 
-    def handle(self, event: LineDelivered) -> None:
-        if event.nudge not in (WorkersNudges.SILENT_WORKER.key, WorkersNudges.SPLIT_ADVICE.key):
-            return
-        worker = self.workers.find(int(event.values["n"]))
-        silence = worker.silence.reported() if event.nudge == WorkersNudges.SILENT_WORKER.key else worker.silence.split_advised()
-        self.workers.touch(worker, Actor.system(), silence=silence)
+    def handle(self, event: Ticked) -> None:
+        for worker in self.workers.running_workers():
+            if worker.dispatcher == event.session and worker.is_silent(event.time):
+                self.workers.touch(worker, Actor.system(), silence=worker.silence.named(event.time))

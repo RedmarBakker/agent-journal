@@ -11855,6 +11855,36 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     assert len(quiet()) == 2, "and no more"
 
 
+def test_a_quiet_worker_is_named_once_when_two_ticks_come_before_the_worker_thread_runs(app: App, monkeypatch):
+    import threading
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.repositories.environments import Environments
+    from journal.repositories.workers import Workers
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    drive_the_clock(app, monkeypatch)
+    hook(app, "SessionStart")
+    console, workers = app.console(), app.container.get(Workers)
+    console.run(["environment", "overview"], AGENT)
+    dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    app.runtime().deferred.drain()
+    held = threading.Event()
+    app.runtime().deferred.add(held.wait)
+    clock, environment = app.container.get(Clock), app.container.get(Environments).lookup("main").id
+    clock.driven_at = clock.held_at + 21 * 60
+    try:
+        for _ in range(2):
+            app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=21 * 60))
+    finally:
+        clock.driven_at = clock.held_at
+        held.set()
+    app.runtime().deferred.drain()
+    quiet = [line for line in keystrokes if "quiet 20 min" in line]
+    assert len(quiet) == 1 and workers.find(1).silence.is_reported, "the second tick sees the worker named by the first, with the worker thread held"
+
+
 def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []

@@ -18,17 +18,14 @@ class WorkerSilence:
     def started(self, time: float) -> "WorkerSilence":
         return WorkerSilence(self.timeout.started(time))
 
-    def reported(self) -> "WorkerSilence":
-        return replace(self, is_reported=True)
+    def named(self, time: float) -> "WorkerSilence":
+        return replace(self, is_split_advised=True) if self.is_split_due(time) else replace(self, is_reported=True)
 
     def is_elapsed(self, time: float) -> bool:
         return not self.is_reported and self.timeout.is_elapsed(time)
 
     def is_split_due(self, time: float) -> bool:
         return self.is_reported and not self.is_split_advised and time - self.timeout.start >= 2 * self.timeout.amount
-
-    def split_advised(self) -> "WorkerSilence":
-        return replace(self, is_split_advised=True)
 
     def minutes(self) -> int:
         return int(self.timeout.amount // 60)
