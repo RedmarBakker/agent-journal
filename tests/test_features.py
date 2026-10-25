@@ -13076,7 +13076,7 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     reader = Reader("viewer-build", "the viewer", label="Building the viewer")
     same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
     mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
-    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs))
+    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None)
     assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
     found = judge(mixed).mixed_title(reader, mixed[0])
     assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
@@ -17890,6 +17890,32 @@ def test_an_alias_with_a_reader_piped_into_tail_head_or_cat_is_refused_and_its_c
     assert bash("journal tested ./cli/hooks/ 2>&1")[0] == 200 and bash("journal plain hi | tail -1")[0] == 200, "a whole run, or an alias with no reader, goes through"
     expanded = app.container.get(AliasLines).expanded("journal tested ./cli/hooks/ 2>&1 | tail -4")
     assert expanded == "sh -c 'echo one; echo two' ./cli/hooks/ 2>&1 --verbose | tail -4", expanded
+
+
+def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when_its_bar_counts_suites_not_tests():
+    from types import SimpleNamespace
+    from journal.features.shell.support.process_tree import ProcessTree
+    from journal.features.shell.support.reader_judge import SUITES_COUNTED, ReaderJudge
+    from journal.features.shell.support.run_processes import RunProcesses
+    from journal.features.shell.support.progress import Progress
+    shell = "100 1 /bin/bash scripts/tested\n"
+    cases = {
+        "one slow package": (shell + "101 100 go test ./pkg\n102 101 /tmp/go-build1/b001/pkg.test -test.v\n", Progress(0, 1), "go test ./pkg", 1),
+        "pytest shards": (shell + "101 100 make test\n102 101 python3 -m pytest tests/a\n103 101 python3 -m pytest tests/b\n104 101 python3 -m pytest tests/c\n", Progress(1, 3), "python3 -m pytest tests/a", 3),
+        "xdist workers": (shell + "101 100 python3 -m pytest -n 4\n" + "".join(f"{102 + n} 101 python -c import sys;exec(eval(sys.stdin.readline()))\n" for n in range(4)), Progress(50, 100), "python3 -m pytest -n 4", 5),
+        "docker exec around go test": (shell + "101 100 docker exec -w /src tester go test ./...\n102 101 go test ./...\n103 102 /tmp/a.test\n104 102 /tmp/b.test\n105 102 /tmp/c.test\n", Progress(1, 3), "go test ./...", 3),
+        "make around several runners": (shell + "101 100 make check\n102 101 go test ./...\n103 102 /tmp/a.test\n104 102 /tmp/b.test\n105 101 vitest run\n", Progress(2, 3), "go test ./...", 3),
+        "a run that counts tests": (shell + "101 100 go test -v ./pkg\n102 101 /tmp/pkg.test -test.v\n", Progress(40, 400), "go test -v ./pkg", 1),
+        "children that are no tests": (shell + "101 100 sleep 30\n102 100 node server.js\n", Progress(1, 3), "sleep 30", 0),
+    }
+    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses())
+    for number, (name, (listing, progress, inner, count)) in enumerate(cases.items(), 1):
+        processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100))
+        assert processes.test_count(number) == count and processes.inner_command(number) == inner, name
+        found = judge.counted_suites(SimpleNamespace(progress=lambda lines, progress=progress: progress), SimpleNamespace(row_id=number, command="scripts/tested"), [])
+        assert bool(found) == (name not in ("xdist workers", "a run that counts tests", "children that are no tests")), name
+        assert not found or (SUITES_COUNTED in found[0][0] and "on its own line with a count against the total" in found[0][1]), name
+    assert "go test -list" in judge.counted_suites(SimpleNamespace(progress=lambda lines: Progress(1, 3)), SimpleNamespace(row_id=4, command="scripts/tested"), [])[0][1], "for go test the fix names the list of the tests and the verbose output"
 
 
 def test_a_journal_command_that_hands_the_agent_its_next_step_is_refused_when_cut_and_one_not_declared_still_runs_piped(app: App):

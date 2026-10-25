@@ -1,9 +1,14 @@
+from pathlib import Path
+
 from journal.engine.job import Job
 from journal.events.announcer import Announcer
 from journal.events.moments.output_view_changed import OutputViewChanged
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.output_views import OutputViews
+from journal.features.shell.support.output_files import OutputFiles
+from journal.features.shell.support.process_tree import ProcessTree
 from journal.features.shell.support.progress_stalls import ProgressStalls
+from journal.features.shell.support.run_processes import RunProcesses
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.scope import Scope
 
@@ -13,11 +18,16 @@ class WatchRefresh(Job):
 
     interval_seconds = 1.0
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, announcer: Announcer, scope: Scope, stalls: ProgressStalls) -> None:
-        self.outputs, self.views, self.card, self.announcer, self.scope, self.stalls = outputs, views, card, announcer, scope, stalls
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, announcer: Announcer, scope: Scope, stalls: ProgressStalls, processes: RunProcesses) -> None:
+        self.outputs, self.views, self.card, self.announcer, self.scope, self.stalls, self.processes = outputs, views, card, announcer, scope, stalls, processes
 
     def tick(self, time: float) -> None:
-        for output in self.outputs.all_carded():
+        carded = self.outputs.all_carded()
+        shells = {output.row_id: OutputFiles(Path(output.folder)).shell_pid() for output in carded}
+        tree = ProcessTree.read() if any(shells.values()) else ProcessTree([])
+        for output in carded:
+            if shells[output.row_id]:
+                self.processes.sampled(output.row_id, tree.descendants(shells[output.row_id]))
             with self.scope.environment(output.environment_id):
                 view = self.views.view(output)
                 self.stalls.seen(output.row_id, view.fraction, time)

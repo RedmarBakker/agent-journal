@@ -1,4 +1,5 @@
 from journal.features.shell.support.activity_title import TITLE_RULE
+from journal.support.command_shape import CommandShape
 
 COUNTING = "count what has finished against the total and print it as N/M on each line that finishes one, such as each test against the number the run will run, as a suite run in shards counts every shard's finished tests; give the reader --progress '(\\d+)/(\\d+)' and a --label that is " + TITLE_RULE + ". A bar that counts suites or packages says little when each runs many tests: count the tests"
 DEFAULT_ADVICE = f"make the command print its steps as it goes, run it unbuffered (python -u), or {COUNTING}"
@@ -19,5 +20,6 @@ class StreamingForm:
 
     @staticmethod
     def advice(command: str) -> str:
-        program = command.split()[0] if command else ""
-        return FORMS.get(command) or FORMS.get(program) or ("run it unbuffered with python -u" if program.endswith(".py") else DEFAULT_ADVICE)
+        name = CommandShape.command_name(command)
+        program = name.split()[0] if name else ""
+        return FORMS.get(name) or FORMS.get(program) or ("run it unbuffered with python -u" if program.endswith(".py") else DEFAULT_ADVICE)

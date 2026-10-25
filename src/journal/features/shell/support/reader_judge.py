@@ -8,6 +8,7 @@ from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountFor
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.run_processes import RunProcesses
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
 from journal.models.command_output import ACTIVE, FAILED, FINISHED, CommandOutput
@@ -36,7 +37,8 @@ SINGLE_WORD = "the card showed a line of one word"
 SUMMARY_READER_MISSING = "its card had no summary reader"
 MIXED_TITLE = "its title was given to runs that do different things"
 TOTAL_MISSING = "the run prints a counter and no total"
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, TOTAL_MISSING)
+SUITES_COUNTED = "its progress counts suites, not tests"
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, TOTAL_MISSING, SUITES_COUNTED)
 # the newest runs of a reader looked through for one title given to different work
 MIXED_RUNS = 6
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
@@ -46,9 +48,9 @@ BUILD_LINE = re.compile(r"\bbuilt in\b|\bbuild (?:succeeded|complete|finished)\b
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses) -> None:
         self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
-        self.history = history
+        self.history, self.processes = history, processes
 
     def stored_runs(self, reader: Reader) -> list[CommandOutput]:
         return self.history.latest_accepted(NEWEST_RUNS, lambda run: reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored())
@@ -59,7 +61,7 @@ class ReaderJudge:
         if reader is None or reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
+        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
         kinds = self.dismissal_kinds(output.command, ended_at)
         shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
         if not shortfalls:
@@ -99,6 +101,14 @@ class ReaderJudge:
         if seconds <= STALL_SECONDS:
             return []
         return [(f"{PROGRESS_STALLED} {seconds:.0f} seconds while the run went on", "make the run print its progress as it goes, not only when a part of it ends, or give the reader a --progress pattern that picks a figure printed more often")]
+
+    def counted_suites(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
+        steps = reader.progress(lines).total
+        if not self.processes.counts_suites(output.row_id, steps):
+            return []
+        inner = self.processes.inner_command(output.row_id) or output.command
+        count = self.processes.test_count(output.row_id)
+        return [(f"{SUITES_COUNTED}: it shows {steps} steps, and {count} test processes ran beneath {inner}, each running many tests", f"split the output so each test, or each package, prints on its own line with a count against the total: {StreamingForm.advice(inner)}")]
 
     @staticmethod
     def has_progress(lines: list[str]) -> bool:
@@ -187,4 +197,4 @@ class ReaderJudge:
         form = CountForms.form(lines)
         if form is not None:
             return form.advice
-        return StreamingForm.advice(CommandShape.command_name(command))
+        return StreamingForm.advice(command)

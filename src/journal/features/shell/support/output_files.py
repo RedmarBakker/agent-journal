@@ -22,15 +22,18 @@ class OutputFiles:
     def shell_started(self, pid: int) -> None:
         (self.folder / "pid").write_text(str(pid))
 
-    def stop(self, reason: str) -> None:
+    def shell_pid(self) -> int:
         path = self.folder / "pid"
-        pid = int(path.read_text()) if path.is_file() and path.read_text().strip().isdigit() else 0
+        return int(path.read_text()) if path.is_file() and path.read_text().strip().isdigit() else 0
+
+    def stop(self, reason: str) -> None:
+        pid = self.shell_pid()
         if ProcessCheck.is_running(pid):
             os.killpg(pid, signal.SIGKILL)
         parts = self.recorded()
         if parts:
-            with (self.folder / f"{parts[-1]}.out").open("a") as out:
-                out.write(f"\n{reason}\n")
+            with (self.folder / f"{parts[-1]}.out").open("a") as stream:
+                stream.write(f"\n{reason}\n")
 
     def is_stored(self) -> bool:
         return (self.folder / "parts").is_file()
