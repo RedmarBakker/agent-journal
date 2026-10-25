@@ -119,7 +119,7 @@ class Reader:
 
     def script_lines(self, lines: list[str]) -> list[str]:
         try:
-            completed = subprocess.run(["sh", self.script], input="\n".join(lines) + "\n", env={**os.environ, STAGE_VARIABLE: self.stage}, capture_output=True, text=True, timeout=SCRIPT_SECONDS)
+            completed = subprocess.run(["sh", self.script], input="\n".join(lines) + "\n", env={**os.environ, STAGE_VARIABLE: self.stage}, capture_output=True, text=True, errors="replace", timeout=SCRIPT_SECONDS)
         except subprocess.TimeoutExpired as late:
             raise Rejection(f"reader {self.name} took more than {SCRIPT_SECONDS} seconds") from late
         if completed.returncode != 0:

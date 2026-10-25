@@ -30,13 +30,13 @@ async function drawn(turn) {
     app.directive("tip", {});
     app.mount(host);
     await nextTick();
-    const card = host.querySelector(".report-card");
+    const card = host.querySelector(".growing-card");
     const bubble = host.querySelector(".thread-bubble");
     const shown = {report: host.querySelector(".thread-turn").classList.contains("report"), card: card ? card.textContent : "", bubbleShown: bubble.style.display !== "none"};
     if (card) {
         card.click();
         await nextTick();
-        shown.expanded = host.querySelector(".report-card-report")?.textContent || "";
+        shown.expanded = host.querySelector(".growing-card-text")?.textContent || "";
     }
     app.unmount();
     host.remove();

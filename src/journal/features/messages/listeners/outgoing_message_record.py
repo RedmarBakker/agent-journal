@@ -3,17 +3,17 @@ from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
 from journal.models.message import Message
 from journal.repositories.messages import Messages
+from journal.repositories.subagents import Subagents
 from journal.support.peer_name import PeerName
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.support.agent_message import AgentMessage
 
 
-
 class OutgoingMessageRecord(AgentListener[ToolFinished]):
-    """A message the agent sent to another agent with Claude Code's own tool reaches the chat, named as sent to that agent, by its project's name when its address is a socket, or as failed with the tool's reason when the send did not arrive; one that only asks to be notified when the other is idle shows nothing and is left out."""
+    """A message the agent sent to another agent with Claude Code's own tool reaches the chat, named as sent to that agent, by its job when it is a subagent of the sender, by its project's name when its address is a socket, or as failed with the tool's reason when the send did not arrive; one that only asks to be notified when the other is idle shows nothing and is left out."""
 
-    def __init__(self, messages: Messages, names: PeerName) -> None:
-        self.messages, self.names = messages, names
+    def __init__(self, messages: Messages, names: PeerName, subagents: Subagents) -> None:
+        self.messages, self.names, self.subagents = messages, names, subagents
 
     def handle(self, event: ToolFinished) -> None:
         message = event.call.operation
@@ -22,6 +22,10 @@ class OutgoingMessageRecord(AgentListener[ToolFinished]):
         receiver, text = message.receiver, message.text.strip()
         answer = SubagentEntries.answered(event.response or event.output)
         if answer.get("success") is False:
-            self.messages.save(Message.send_failed(self.names.resolve(receiver), text, event.session, receiver, str(answer.get("message", "the send failed"))), Actor.agent(event.session))
+            self.messages.save(Message.send_failed(self.receiver_name(event.session, receiver), text, event.session, receiver, str(answer.get("message", "the send failed"))), Actor.agent(event.session))
             return
-        self.messages.save(Message.outgoing(self.names.resolve(receiver), text, event.session, receiver), Actor.agent(event.session))
+        self.messages.save(Message.outgoing(self.receiver_name(event.session, receiver), text, event.session, receiver), Actor.agent(event.session))
+
+    def receiver_name(self, session: str, receiver: str) -> str:
+        subagent = self.subagents.session_subagent(session, receiver)
+        return subagent[0].task if subagent and subagent[0].task else self.names.resolve(receiver)

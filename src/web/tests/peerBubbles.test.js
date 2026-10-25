@@ -35,11 +35,18 @@ async function drawn(turn) {
     await nextTick();
     await new Promise((r) => requestAnimationFrame(r));
     await nextTick();
+    const card = host.querySelector(".growing-card-wrap");
+    const collapsed = card.classList.contains("open");
+    host.querySelector(".growing-card").click();
+    await nextTick();
     const shown = {
         mine: host.querySelector(".thread-turn").classList.contains("mine"),
-        head: host.querySelector(".thread-bubble").textContent,
-        fold: host.querySelector(".fold")?.textContent,
-        red: Boolean(host.querySelector(".bubble-header.danger")),
+        head: host.querySelector(".growing-card-title").textContent,
+        time: host.querySelector(".growing-card-time")?.textContent,
+        collapsed: !collapsed,
+        expanded: card.classList.contains("open") && host.querySelector(".growing-card-text").textContent === turn.text,
+        bubble: host.querySelector(".thread-bubble").style.display !== "none",
+        red: card.classList.contains("bad"),
     };
     app.unmount();
     host.remove();
@@ -71,8 +78,12 @@ test("what the agent receives from another agent sits on the agents' side, left,
     expect(main.head).toContain("Message from the main agent");
 });
 
-test("a long message to or from another agent folds with Show more", async () => {
+test("a message to or from another agent is a one-line card with its time, never a bubble, and grows to its whole text on a click", async () => {
     const [received, sent] = threadTurns(messages, []).turns;
-    expect((await drawn(received)).fold).toBe("Show more");
-    expect((await drawn(sent)).fold).toBe("Show more");
+    for (const shown of [await drawn(received), await drawn(sent)]) {
+        expect(shown.collapsed).toBe(true);
+        expect(shown.expanded).toBe(true);
+        expect(shown.bubble).toBe(false);
+        expect(shown.time).toBeTruthy();
+    }
 });

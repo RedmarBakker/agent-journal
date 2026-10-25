@@ -10713,6 +10713,11 @@ def test_a_subagent_is_a_row_the_census_counts_retire_writes_and_one_from_before
     assert subagents.find(1).state == "retired", "it stays retired when it ends"
     hook(app, "PreToolUse", tool_name="SendMessage", tool_input={"to": "a1", "message": "one more"}, tool_use_id="t-4")
     assert subagents.find(1).state == "running", "until it is sent a message"
+    hook(app, "PostToolUse", tool_name="SendMessage", tool_input={"to": "a1", "message": "one more"}, tool_response={}, tool_use_id="t-4")
+    app.runtime().deferred.drain()
+    from journal.repositories.messages import Messages
+    sent = [m for m in app.container.get(Messages).all() if m.data.get("sent_to")][-1]
+    assert (sent.data["sent_to"], sent.data["address"]) == ("map the hooks", "a1"), "a message to a subagent is named by its job, its id kept as the address"
     for stored in subagents.scoped():
         subagents.delete(stored, Actor.system())
     app.container.get(SubagentsSeed).run()
@@ -18461,6 +18466,8 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     assert reader.progress(["done 3/12"]).fraction() == 0.25, "its progress is read on what the script prints"
     assert reader.variant("finished").card_lines(["done 12/12"]) == ["done 12/12", "stage finished"], "its script is told the stage"
     assert app.container.get(Readers).reading("make check --suite fast").name == "counts", "it reads the commands it names"
+    Path(reader.script).write_text("printf 'cut \\342\\200 here\\n'\n")
+    assert reader.variant("finished").card_lines(["x"]) == ["cut \ufffd here"], "a script that cuts a character in half is read with the half replaced, never a fault"
 
 
 def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_once_and_known_by_its_file_name(app: App):
