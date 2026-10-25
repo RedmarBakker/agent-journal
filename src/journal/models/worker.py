@@ -177,6 +177,9 @@ class Worker(Helper):
         instructed = self.instructed(brief, time).moved(move, time).with_(reuse_count=self.reuse_count + 1)
         return instructed.with_event(instructed.pending(kind, time))
 
+    def redirected(self, brief: str, time: float, kind: type[WorkerReused] | type[WorkerRevived], move: str) -> "Worker":
+        return self.resumed(brief, time, kind, move).with_(pid=self.pid, began=self.began)
+
     def instructed(self, brief: str, time: float) -> "Worker":
         return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, review_pending=False, review_queued_at=0.0)
 

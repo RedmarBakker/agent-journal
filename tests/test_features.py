@@ -9847,6 +9847,37 @@ def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_st
     assert "a worker reports by clocking out" in console.run(["worker", "report", "1", "done"], lovelace).error, "journal worker report is refused to a worker, naming clock out"
 
 
+def test_a_worker_sent_on_while_its_last_session_still_runs_takes_the_job_in_that_session_with_its_token(app: App, monkeypatch):
+    import subprocess
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.providers.support.session_inbox import SessionInbox
+    from journal.repositories.workers import Workers
+    starts, delivered = [], []
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: starts.append(worker.id))
+    monkeypatch.setattr(SessionInbox, "deliver", lambda self, pid, session, sender, text: delivered.append((pid, session, text)))
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the parser", "--brief", "the parser is written"], AGENT)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    live = subprocess.Popen(["sleep", "30"])
+    try:
+        with app.container.get(Scope).environment(MAIN):
+            workers = app.container.get(Workers)
+            workers.save(workers.find(1).with_(state=WorkerState.DELIVERED, pid=live.pid, token_hash="the-live-token", resume="lovelace-session"), Actor.system())
+        starts.clear()
+        sent = console.run(["worker", "send", "1", "write the tests for the parser"], AGENT)
+        assert sent.code == 0, sent.error
+        with app.container.get(Scope).environment(MAIN):
+            worker = app.container.get(Workers).find(1)
+        assert starts == [], "no second session is started while the last one runs"
+        assert len(delivered) == 1 and delivered[0][:2] == (live.pid, "lovelace-session") and delivered[0][2].endswith("write the tests for the parser"), "the job is delivered into the session that runs"
+        assert (worker.pid, worker.token_hash, worker.state) == (live.pid, "the-live-token", WorkerState.DISPATCHED) and worker.brief.endswith("write the tests for the parser"), "its token stays valid for the one session it runs in"
+    finally:
+        live.kill()
+        live.wait(timeout=10)
+
+
 def test_a_worker_stopped_at_the_usage_limit_waits_for_it_and_goes_on_by_itself_when_it_resets(app: App, monkeypatch):
     from journal.events.bus import Bus
     from journal.events.clock_ticked import ClockTicked

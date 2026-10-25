@@ -42,11 +42,12 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
 REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
+LIVE_WITHOUT_INBOX = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
 JOB_MOVE = "sent a job"
 REDO_MOVE = SENT_BACK
 
 class WorkerActions:
-    """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, a word informed while it runs, a stop, a retire."""
+    """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""
 
     def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
@@ -221,9 +222,19 @@ class WorkerActions:
         brief = self.rebase_note(worker) + (EDITED_NOTE.format(task=worker.edited_task) if worker.edited_task else "") + brief
         repositories = self.renewal(worker, brief)
         moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories, edited_task=0), datetime.now(timezone.utc).timestamp()
+        if self.is_live(worker):
+            self.inbox.deliver(worker.pid, worker.resume, "the agent that dispatched you", brief)
+            return self.workers.save(moved.redirected(brief, time, reused, move), actor)
         worker = self.workers.save(moved.resumed(brief, time, WorkerRevived if revival else reused, move), actor)
         self.runner.start(worker, actor)
         return worker
+
+    def is_live(self, worker: Worker) -> bool:
+        if not worker.pid or not self.runner.is_running(worker.pid):
+            return False
+        if not self.providers.lookup(worker.provider).session_inbox:
+            raise Rejection(LIVE_WITHOUT_INBOX.format(n=worker.id, provider=worker.provider.capitalize()))
+        return True
 
     def resumable(self, worker: Worker) -> None:
         if worker.is_running():
