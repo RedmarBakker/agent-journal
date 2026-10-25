@@ -2415,10 +2415,10 @@ def test_the_load_is_told_at_each_mark_from_its_start_once_and_drained_past_one_
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     assert [LoadLevels.standing(rho, 0.8, 0.05) for rho in (0.79, 0.8, 0.83, 0.85, 0.99, 1.02)] == [0.0, 0.8, 0.8, 0.85, 0.95, 1.0]
-    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_TOLD_FROM.key: 0.8, WorkersOptions.LOAD_TOLD_STEP.key: 0.05, WorkersOptions.LOAD_DRAIN_TOOL_USES.key: 25})
-    def told(rho, told_level=0.0, use=1, refs=("workers:12", "messages:553", "workers:15")):
-        load = AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0, told_level=told_level)
-        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).counted(use).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8, WorkersOptions.WORKLOAD_NOTICE_STEP.key: 0.05, WorkersOptions.WORKLOAD_DRAIN_TOOL_USES.key: 25})
+    def told(rho, previous=0.0, use=1, refs=("workers:12", "messages:553", "workers:15")):
+        load = AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0)
+        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).counted(use).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load, workload_level=previous)}))
         return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
     assert told(0.79) == [], "under the first mark nothing is said"
     assert told(0.8) == ["your load is 0.8, past 0.8: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"]
@@ -2438,7 +2438,7 @@ def test_the_builder_is_told_at_the_same_marks_and_the_solo_agent_is_told_nothin
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     def told(mode, rho):
-        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.LOAD_TOLD_FROM.key: 0.8, WorkersOptions.LOAD_TOLD_STEP.key: 0.05, WorkersOptions.LOAD_DRAIN_TOOL_USES.key: 25})
+        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8, WorkersOptions.WORKLOAD_NOTICE_STEP.key: 0.05, WorkersOptions.WORKLOAD_DRAIN_TOOL_USES.key: 25})
         load = AgentLoad(rho=rho, waiting_refs=("workers:12",), waiting_items=1, measured_at=1.0)
         event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
         return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
@@ -2782,7 +2782,7 @@ def test_a_dispatch_at_a_load_over_the_line_gets_no_budget_line():
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     from journal.support.command_part import CommandPart
-    settings = SettingsValue({WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.LOAD_TOLD_FROM.key: 0.8})
+    settings = SettingsValue({WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8})
     def told(rho):
         line = "journal worker dispatch 1"
         call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))

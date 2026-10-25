@@ -32,6 +32,7 @@ class WorkersData:
     code_lines: int = 0
     workload: AgentLoad = AgentLoad()
     fitness_level: int = 100
+    workload_level: float = 0.0
     merge_check: MergeCheck = MergeCheck()
     last_calls: dict[int, str] = field(default_factory=dict)
     resumable: tuple[int, ...] = ()

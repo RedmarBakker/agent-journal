@@ -394,7 +394,7 @@ def idle_cap_check(state: BaseState, event: ToolStarting, settings: Settings) ->
     for line in lines if cap else []:
         members, offers = profile_workers(workers, line.profile), idle_offers(workers, line)
         if len(members) >= cap and offers:
-            return state.refuse(WorkersNudges.IDLE_CAP.create(kept=len(members), profile=line.profile, count=len(offers), workers=idle_list(offers)))
+            return state.refuse(WorkersNudges.IDLE_CAP.create(total=len(members), profile=line.profile, count=len(offers), workers=idle_list(offers)))
     return state.none()
 
 
@@ -445,7 +445,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if event.subagent:
         return state.none()
     mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
-    delegating = mode == "builder" and is_over_line(workers, settings)
+    delegating = mode == "builder" and high_workload(workers, settings)
     return state.none(*(line for alignment in WorkersAlignments.ALL if not (delegating and alignment is WorkersAlignments.BUILDER) and (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
 
 
@@ -484,12 +484,12 @@ def capability_check(state: BaseState, event: ToolStarting, settings: Settings) 
     return state.none()
 
 
-def is_over_line(workers, settings: Settings) -> bool:
-    return workers.workload.is_measured() and workers.workload.rho >= settings.decimal(WorkersOptions.LOAD_TOLD_FROM)
+def high_workload(workers, settings: Settings) -> bool:
+    return workers.workload.is_measured() and workers.workload.rho >= settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE)
 
 
 def budget_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent or is_over_line(event.data.part(WorkersPart), settings) or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
+    if event.subagent or high_workload(event.data.part(WorkersPart), settings) or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
         return state.none()
     budget, lines = settings.integer(WorkersOptions.BUILDER_HANDOVER_LINES), event.data.part(WorkersPart).code_lines
     return state.none(WorkersNudges.BUILDER_BUDGET.create(lines=lines, budget=budget)) if 0 < budget and lines < budget else state.none()
@@ -508,9 +508,11 @@ def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     if not crowd.is_measured() or not crowd.waiting_refs or event.subagent or mode not in ("orchestrator", "builder"):
         return state.none()
     values = {"rho": crowd.rho, "queue": crowd.waiting_text(CROWD_LINE_ITEMS), "first": crowd.oldest()}
-    start, step = settings.decimal(WorkersOptions.LOAD_TOLD_FROM), settings.decimal(WorkersOptions.LOAD_TOLD_STEP)
-    mark = LoadLevels.standing(crowd.rho, start, step)
+    start, step = settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE), settings.decimal(WorkersOptions.WORKLOAD_NOTICE_STEP)
+    level = LoadLevels.standing(crowd.rho, start, step)
+    rising = level > event.data.part(WorkersPart).workload_level
     if crowd.rho >= DRAINING:
-        span = Timeout.tool_uses(settings.integer(WorkersOptions.LOAD_DRAIN_TOOL_USES))
-        return state.none(WorkersNudges.LOAD_DRAIN.create(**values)) if mark > crowd.told_level or (span.amount and span.started(0).is_period_start(event.tool_use)) else state.none()
-    return state.none(WorkersNudges.LOAD_RISING.create(**values, mark=mark)) if mark > crowd.told_level else state.none()
+        span = Timeout.tool_uses(settings.integer(WorkersOptions.WORKLOAD_DRAIN_TOOL_USES))
+        repeating = bool(span.amount) and span.started(0).is_period_start(event.tool_use)
+        return state.none(WorkersNudges.WORKLOAD_DRAIN.create(**values)) if rising or repeating else state.none()
+    return state.none(WorkersNudges.WORKLOAD_RISING.create(**values, level=level)) if rising else state.none()

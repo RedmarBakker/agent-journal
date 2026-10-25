@@ -1,4 +1,5 @@
 from journal.features.workers.support.merge_checks import MergeChecks
+from journal.features.workers.support.level_entries import LevelEntries
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
@@ -30,8 +31,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes) -> None:
-        self.edits, self.checks, self.scope, self.stages, self.entries, self.resumes = edits, checks, scope, stages, entries, resumes
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, level_entries: LevelEntries) -> None:
+        self.edits, self.checks, self.scope, self.stages, self.entries, self.resumes, self.level_entries = edits, checks, scope, stages, entries, resumes, levels
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
     def last_call(self, session: str) -> str:
@@ -64,6 +65,7 @@ class WorkersDataReader:
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "workload": lambda: agent.load,
             "fitness_level": lambda: agent.fitness_level,
+            "workload_level": lambda: self.level_entries.latest(agent.session),
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
             "resumable": lambda: tuple(w.id for w in self.workers.unfinished_accepted(agent.session, self.resumes.is_resumable)),

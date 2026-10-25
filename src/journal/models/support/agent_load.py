@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 
 @dataclass(frozen=True)
 class AgentLoad:
-    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low, with the minutes over the level its fitness counts whole and as nothing; with when it was measured and when its places last changed, and the level the load before this measure stood on, which it is told past."""
+    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low, with the minutes over the level its fitness counts whole and as nothing; with when it was measured and when its places last changed."""
 
     arrivals: float = 0.0
     clearings: float = 0.0
@@ -23,7 +23,6 @@ class AgentLoad:
     over_zero_minutes: float = 60.0
     measured_at: float = 0.0
     scaled_at: float = 0.0
-    told_level: float = 0.0
 
     @classmethod
     def parsed(cls, data: dict) -> "AgentLoad":
