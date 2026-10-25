@@ -8,6 +8,7 @@ from journal.features.verification.commands.verdict_command import VerdictComman
 from journal.features.verification.listeners.model_fit_sample import ModelFitSample
 from journal.features.verification.listeners.verifier_card import VerifierCard
 from journal.features.verification.listeners.verifier_retirement import VerifierRetirement
+from journal.features.verification.listeners.typed_verdict import TypedVerdict
 from journal.features.verification.listeners.verifier_start import VerifierStart
 from journal.features.verification.states.verifying import Verifying
 from journal.features.verification.verification_nudges import VerificationNudges
@@ -28,5 +29,5 @@ class Verification(Feature):
     floors = {AgentRole.VERIFIER: Verifying}
     process_cards = (VerifierProcessCard,)
     commands = (VerdictCommand,)
-    listeners = (VerifierStart, VerifierCard, VerifierRetirement, ModelFitSample)
+    listeners = (VerifierStart, VerifierCard, VerifierRetirement, ModelFitSample, TypedVerdict)
     nudges = (VerificationNudges.VERIFIER_REFUSAL,)

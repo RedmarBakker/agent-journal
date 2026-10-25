@@ -18366,6 +18366,42 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
+def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorded(app: App, monkeypatch):
+    from journal.features.verification.support.verifier_runner import VerifierRunner
+    from journal.models.reader_report import ReaderReport
+    from journal.models.verifier_state import VerifierState
+    from journal.repositories.reader_reports import ReaderReports
+    from journal.repositories.verifiers import Verifiers
+    from journal.support.agent_token import AgentToken
+    monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
+    hook(app, "SessionStart")
+    console, reports, verifiers, token = app.console(), app.container.get(ReaderReports), app.container.get(Verifiers), AgentToken("the verifier's token")
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["reader", "add", "builds", "--commands", "make", "--pattern", "^(built|failed)", "--about", "each build's end"], AGENT).code == 0
+
+    def ended_after(last_words: str) -> tuple[ReaderReport, object]:
+        with app.container.get(Scope).environment(MAIN):
+            report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=0, command="make all", session="s1", findings=("a long line",), fixes=("narrow it",)), Actor.system())
+        console.run(["reader", "report", str(report.id)], AGENT)
+        assert console.run(["reader", "dismiss", str(report.id), "--why", "the card shows only the short line"], AGENT).code == 0
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            verifier = verifiers.save([row for row in verifiers.scoped() if row.is_verifying()][-1].with_(session=f"v-{report.id}", token_hash=token.digest()), Actor.system())
+        posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": verifier.session, "last_assistant_message": last_words}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            app.container.get(VerifierRunner).ended(verifier)
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            return reports.find(report.id), verifiers.find(verifier.id)
+
+    typed, verifier = ended_after('journal verdict no "the output contradicts the reason"')
+    assert "with the shell tool, never by writing it as text" in verifier.brief, "the brief tells the verifier to run its verdict, not write it"
+    assert typed.is_refuted and typed.verdict.startswith("the output contradicts the reason") and "typed this verdict" in typed.verdict and verifier.state == VerifierState.JUDGED, "a typed verdict line is recorded as if run, and says so"
+    talked, verifier = ended_after('I think it is sound. journal verdict yes "fine"')
+    assert not talked.is_refuted and not talked.verdict and verifier.state == VerifierState.ENDED, "words besides the one line record nothing"
+
+
 def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewers_the_orchestrator_adds(app: App, monkeypatch):
     from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
     from journal.repositories.entries import Entries
