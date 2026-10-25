@@ -53,6 +53,9 @@ MIGRATIONS = (
     """
     INSERT INTO team_details (name, value) SELECT 'hub', 'on' WHERE NOT EXISTS (SELECT 1 FROM accounts);
     """,
+    """
+    ALTER TABLE leases ADD COLUMN lapse_seconds REAL NOT NULL DEFAULT 90;
+    """,
 )
 
 

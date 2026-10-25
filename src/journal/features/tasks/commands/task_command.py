@@ -29,6 +29,7 @@ from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
 from journal.features.tasks.support.next_open_task import NextOpenTask
+from journal.sync.hub_drives import HubDrives
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
@@ -38,10 +39,10 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels, self.hub, self.filing = check, labels, hub, filing
+        self.check, self.labels, self.hub, self.filing, self.drives = check, labels, hub, filing, drives
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -86,6 +87,10 @@ class TaskCommand(Command):
         pause.add_argument("why")
         Waits.arguments(pause, "paused task's wait")
         self.verb(verbs, "resume", "pick a paused task up again").add_argument("n", type=int)
+        driving = self.verb(verbs, "drive", "work on a hub task from this environment: it reads as this environment's, and no other environment or machine drives it until you release it")
+        driving.add_argument("n", type=int)
+        driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
+        self.verb(verbs, "release", "let a hub task you drive go, so anyone may drive it").add_argument("n", type=int)
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
 
@@ -161,6 +166,15 @@ class TaskCommand(Command):
     def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
         task = self.taking.start(self.tasks.find(n), caller)
         print("\n".join([f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
+        return 0
+
+    def drive(self, args: Namespace, caller: Caller) -> int:
+        task = self.tasks.find(args.n)
+        print(self.drives.drive_line(self.drives.takeover(task, caller.actor) if args.take_over else self.drives.drive(task, caller.actor)))
+        return 0
+
+    def release(self, args: Namespace, caller: Caller) -> int:
+        print(self.drives.release_line(self.drives.release(self.tasks.find(args.n), caller.actor)))
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:

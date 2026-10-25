@@ -35,6 +35,8 @@ class Task(Scoped):
     outcome: str = ""
     pause_reason: str = ""
     block_reason: str = ""
+    driver: str = ""
+    driver_agent: str = ""
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()

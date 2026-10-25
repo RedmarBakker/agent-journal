@@ -12325,6 +12325,40 @@ def test_on_a_team_not_yet_moved_to_the_hub_the_agent_view_of_every_environment_
         assert a.container.get(Environments).existing("main").key in team.agent_views.views_by_key, "a team from before the hub sees each person's agents as it always has"
 
 
+def test_a_hub_task_is_driven_from_one_environment_at_a_time_a_second_drive_refused_naming_its_holder_and_taken_over_only_with_the_flag_once_its_lease_lapses(tmp_path, template_journal, monkeypatch):
+    import time as clock
+    from journal.features.plans.support.plan_bindings import PlanBindings
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        _, hub_task = ada_tasks(a)
+        number = str(hub_task.id)
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
+        assert a.console().run(["environment", "create", "docs"], USER).code == 0
+        driven = a.console().run(["task", "drive", number], USER)
+        assert driven.code == 0 and "is driven from here by Ada" in driven.text, driven.error
+        assert a.container.get(Tasks).find(hub_task.id).driver == "Ada" and "the agent of main on" in a.container.get(Tasks).find(hub_task.id).driver_agent, "the hub row names the person and the agent driving it"
+        assert synced(lambda: b.container.get(Tasks).find(hub_task.id).driver == "Ada"), "and Bob's journal shows who drives it"
+        here = a.console().run(["task", "drive", number], replace(USER, environment="docs"))
+        assert here.code == 1 and "is driven by Ada from the environment main on this machine" in here.error, "a second environment on the same machine is refused, naming the holder"
+        bob = replace(USER, person=2)
+        elsewhere = b.console().run(["task", "drive", number], bob)
+        assert elsewhere.code == 1 and "held by Ada on " in elsewhere.error, "another machine is refused, naming the person and the device holding it"
+        early = b.console().run(["task", "drive", number, "--take-over"], bob)
+        assert early.code == 1 and "held by Ada on " in early.error, "a takeover before the lease lapses is refused"
+        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
+        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
+        unflagged = b.console().run(["task", "drive", number], bob)
+        assert unflagged.code == 1 and "only a takeover has it" in unflagged.error, "lapsed, it is still not taken without the flag"
+        taken = b.console().run(["task", "drive", number, "--take-over"], bob)
+        assert taken.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "Bob", taken.error
+        a.container.get(HubDrives).renewed(Ref.build(hub_task))
+        assert not a.container.get(PlanBindings).environment_id(hub_task), "Ada's journal lets the task go at its next renewal"
+        released = b.console().run(["task", "release", number], bob)
+        assert released.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "" and not team.leases.state(HubDrives.lease_name(Ref.build(hub_task)), lapsed).holder, released.error
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

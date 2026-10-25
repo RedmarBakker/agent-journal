@@ -20,7 +20,7 @@ from journal.support.rejection import Rejection
 
 @dataclass(frozen=True)
 class Plan(Scoped):
-    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started)."""
+    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
 
@@ -29,6 +29,8 @@ class Plan(Scoped):
     state: PlanState = PlanState.DRAFT
     block_reason: str = ""
     reviewers: int = 0
+    driver: str = ""
+    driver_agent: str = ""
 
     def waiting_reason(self) -> str:
         return self.block_reason

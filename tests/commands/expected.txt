@@ -63,6 +63,14 @@ $ agent: journal task undock 1
 exit 0
 Task 1: Write the footer undocked
 
+$ agent: journal task drive 1
+exit 1
+task 1 is not the hub's: only a hub plan or task is driven
+
+$ agent: journal task release 1
+exit 1
+task 1 is not driven from this machine
+
 $ agent: journal task complete 1 --how 'the footer names the shop'
 exit 0
 task 1 done
@@ -319,6 +327,14 @@ created: message 14
 $ agent: journal plan undock 1
 exit 0
 Plan 1: The shop's checkout undocked
+
+$ agent: journal plan drive 1
+exit 1
+plan 1 is not the hub's: only a hub plan or task is driven
+
+$ agent: journal plan release 1
+exit 1
+plan 1 is not driven from this machine
 
 $ agent: journal plan remove 1 4
 exit 0

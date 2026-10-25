@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {createApp, h} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
-import {ownEnvironments, teamGroups} from "../src/domain/hub.js";
+import {driverLine, ownEnvironments, teamGroups} from "../src/domain/hub.js";
 import HubBoard from "../src/pages/HubBoard.vue";
 import HubHome from "../src/pages/HubHome.vue";
 
@@ -66,6 +66,17 @@ test("a hub task is named with its team on its card", () => {
     expect([...host.querySelectorAll("[data-column=open] .card")].map((card) => card.textContent.trim())).toEqual(["acme task 57: ship it", "Task 8: local"]);
 });
 
+test("a driven hub task and plan show who drives them, the person and the agent, and an undriven one shows no driver", () => {
+    const driver = {driver: "Ada", driver_agent: "the agent of main on laptop"};
+    const board = mounted(HubBoard, {tasks: [{id: 57, title: "ship it", state: "started", environment_id: 5, ...driver}, {id: 58, title: "later", state: "open", environment_id: 5, driver: ""}], environments});
+    expect(board.querySelector("[data-column=started] [data-driver]").textContent).toBe("Driven by Ada, the agent of main on laptop");
+    expect(board.querySelector("[data-column=open] [data-driver]")).toBeNull();
+    app.unmount();
+    const home = mounted(HubHome, {hub, plans: [{id: 2, table: "plans", title: "Launch", ...driver}]});
+    expect(home.querySelector("[data-hub-plans] [data-driver]").textContent).toBe("Driven by Ada, the agent of main on laptop");
+    expect(driverLine({driver: ""})).toBe("");
+});
+
 test("a hosted journal opens on the hub home with its documents, plans and board and lists no unshared environment", async () => {
     const { default: HubPage } = await import("../src/pages/HubPage.vue");
     const host = mounted(HubPage, {
@@ -80,6 +91,7 @@ test("a hosted journal opens on the hub home with its documents, plans and board
     expect(host.querySelector("[data-hub-plans]").textContent).not.toContain("Mine");
     expect(host.querySelector("[data-column=open] .card").textContent).toContain("acme task 57");
     expect(ownEnvironments(environments, {...people, hosted: true}).map((row) => row.name)).toEqual(["docs"]);
+    expect([...host.querySelectorAll("button")].map((button) => button.textContent.trim())).not.toContain("Drive");
 });
 
 test("with two teams each hub is its own group named for its team, holding the sessions of its own team key", () => {

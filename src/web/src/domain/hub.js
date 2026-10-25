@@ -25,6 +25,9 @@ export const ownEnvironments = (rows, people) =>
 
 export const inHub = (rows, hub) => rows.filter((row) => row.environment_id === hub.id);
 
+// Who drives a hub plan or task: the person and their agent, or nothing when no one does.
+export const driverLine = (row) => (row.driver ? `Driven by ${row.driver}, ${row.driver_agent}` : "");
+
 export const BOARD_COLUMNS = [
     {key: "open", title: "Open", states: ["open"]},
     {key: "started", title: "In progress", states: ["started", "delegated"]},

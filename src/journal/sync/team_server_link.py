@@ -150,6 +150,12 @@ class TeamServerLink:
     def acquire_lease(self, name: str) -> Lease:
         return Lease(**json.loads(self.posted("/leases/take", {"name": name})))
 
+    def acquire_free_lease(self, name: str, lapse_seconds: float) -> Lease:
+        return Lease(**json.loads(self.posted("/leases/take-free", {"name": name, "lapse_seconds": lapse_seconds})))
+
+    def takeover_lease(self, name: str, lapse_seconds: float) -> Lease:
+        return Lease(**json.loads(self.posted("/leases/take", {"name": name, "lapse_seconds": lapse_seconds})))
+
     def release_lease(self, name: str) -> Lease:
         return Lease(**json.loads(self.posted("/leases/release", {"name": name})))
 

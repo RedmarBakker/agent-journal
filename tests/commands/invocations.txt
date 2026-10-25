@@ -14,6 +14,8 @@ agent task block 2 "waits on the tax rates"
 agent task unblock 2
 agent task dock 1
 agent task undock 1
+agent task drive 1
+agent task release 1
 agent task complete 1 --how "the footer names the shop"
 agent task start 2
 agent task cancel 2 --why "the tax rates changed"
@@ -56,6 +58,8 @@ agent plan unblock 1
 agent plan pause 1
 agent plan dock 1
 agent plan undock 1
+agent plan drive 1
+agent plan release 1
 agent plan remove 1 4
 agent plan cancel 1
 agent question ask "Which payment provider?" --options "Stripe" "Mollie"

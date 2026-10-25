@@ -350,6 +350,29 @@ def test_two_devices_racing_for_a_lease_leave_exactly_one_holder_and_an_unrenewe
     assert leases.release("team-chat", other, 300.0).holder == "", "its holder lets it go"
 
 
+def test_a_lease_taken_free_with_its_own_lapse_names_its_holder_and_device_and_passes_to_another_device_only_by_a_takeover_once_lapsed(store):
+    from sync_server.db.lease_rows import LeaseRows
+    from sync_server.leases import Leases
+
+    accounts, devices = people(store)
+    ada_account = accounts.create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    bob_account = accounts.create("bob@example.com", "Bob", PASSWORD, MEMBER, 1.0)
+    ada, _ = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
+    bob, _ = devices.login("bob@example.com", PASSWORD, "desktop", "10.0.0.2", 2.0)
+    leases = Leases(store, LeaseRows(store), accounts)
+    taken = leases.acquire_free("drive:tasks:7", ada, ada_account, 100.0, 900.0)
+    assert (taken.holder, taken.device_name) == ("Ada", "laptop"), "the answer names the person and the device holding it"
+    assert leases.acquire_free("drive:tasks:7", ada, ada_account, 700.0, 900.0).renewed_at == 700.0, "its holder renews it"
+    with pytest.raises(Refusal, match="held by Ada on laptop"):
+        leases.acquire_free("drive:tasks:7", bob, bob_account, 800.0, 900.0)
+    with pytest.raises(Refusal, match="held by Ada on laptop"):
+        leases.acquire("drive:tasks:7", bob, bob_account, 1500.0, 900.0)
+    assert not leases.state("drive:tasks:7", 1500.0).is_lapsed and leases.state("drive:tasks:7", 1601.0).is_lapsed, "it lapses after its own 900 seconds, not the default 90"
+    with pytest.raises(Refusal, match="only a takeover has it"):
+        leases.acquire_free("drive:tasks:7", bob, bob_account, 1601.0, 900.0)
+    assert leases.acquire("drive:tasks:7", bob, bob_account, 1601.0, 900.0).holder == "Bob", "lapsed, a takeover has it"
+
+
 def test_a_journal_and_a_team_server_on_different_protocols_are_refused_with_the_side_to_upgrade(tmp_path, monkeypatch, connection):
     import json
 

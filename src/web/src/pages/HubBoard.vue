@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {boardColumns} from "../domain/hub.js";
+import {boardColumns, driverLine} from "../domain/hub.js";
 import {rowLabel} from "../domain/rowLabels.js";
 
 const props = defineProps({tasks: {type: Array, default: () => []}, environments: {type: Array, default: () => []}});
@@ -14,7 +14,10 @@ const columns = computed(() => boardColumns(props.tasks));
             <section class="column" :data-column="column.key">
                 <h3 class="head">{{ column.title }} <span class="count">{{ column.tasks.length }}</span></h3>
                 <template v-for="task in column.tasks" :key="task.id">
-                    <button type="button" class="card" @click="emit('open', task)">{{ rowLabel("task", task, environments) }}: {{ task.title }}</button>
+                    <button type="button" class="card" @click="emit('open', task)">
+                        {{ rowLabel("task", task, environments) }}: {{ task.title }}
+                        <span v-if="task.driver" class="driver" data-driver>{{ driverLine(task) }}</span>
+                    </button>
                 </template>
             </section>
         </template>
@@ -47,6 +50,9 @@ const columns = computed(() => boardColumns(props.tasks));
 }
 
 .card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     text-align: left;
     padding: 8px 10px;
     font-size: 12.5px;
@@ -54,5 +60,10 @@ const columns = computed(() => boardColumns(props.tasks));
     background: var(--bg-2, var(--bg));
     border: 1px solid var(--border);
     border-radius: 6px;
+}
+
+.driver {
+    font-size: 11.5px;
+    color: var(--text-3);
 }
 </style>

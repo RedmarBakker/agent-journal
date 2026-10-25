@@ -24,6 +24,7 @@ from journal.repositories.phases import Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
+from journal.sync.hub_drives import HubDrives
 from journal.features.workers.workers_options import WorkersOptions
 from journal.support.caller_kind import CallerKind
 CURRENT = "current"
@@ -33,10 +34,10 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
-        self.settings = settings
+        self.settings, self.drives = settings, drives
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -81,6 +82,10 @@ class PlanCommand(Command):
         Waits.arguments(block, "plan")
         self.verb(verbs, "unblock", "what the plan waited on came: it is started again").add_argument("n", type=int)
         self.verb(verbs, "cancel", "a plan given up, with the tasks that are its alone; one another live plan holds stays").add_argument("n", type=int)
+        driving = self.verb(verbs, "drive", "follow a hub plan from this environment: it and its tasks read as this environment's, and no other environment or machine drives it until you release it")
+        driving.add_argument("n", type=int)
+        driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
+        self.verb(verbs, "release", "let a hub plan you drive go, so anyone may drive it").add_argument("n", type=int)
         self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for the started plan")
         self.verb(verbs, "list", "every plan here")
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
@@ -202,6 +207,15 @@ class PlanCommand(Command):
     def unblock(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.save(self.plans.find(args.n).unblocked("the user opened it", datetime.now(timezone.utc).timestamp()), caller.actor)
         print(f"plan {plan.id} open again: `journal plan start {plan.id}` goes on with it")
+        return 0
+
+    def drive(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.find(args.n)
+        print(self.drives.drive_line(self.drives.takeover(plan, caller.actor) if args.take_over else self.drives.drive(plan, caller.actor)))
+        return 0
+
+    def release(self, args: Namespace, caller: Caller) -> int:
+        print(self.drives.release_line(self.drives.release(self.plans.find(args.n), caller.actor)))
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:

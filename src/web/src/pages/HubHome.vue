@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {recentActivity} from "../domain/hub.js";
+import {driverLine, recentActivity} from "../domain/hub.js";
 import {titleOf} from "../domain/row.js";
 
 const props = defineProps({hub: Object, docs: {type: Array, default: () => []}, plans: {type: Array, default: () => []}, activity: {type: Array, default: () => []}});
@@ -20,7 +20,10 @@ const recent = computed(() => recentActivity(props.activity));
         <section data-hub-plans>
             <h3 class="head">Plans</h3>
             <template v-for="plan in plans" :key="plan.id">
-                <button type="button" class="line" @click="emit('open', plan)">Plan {{ plan.id }}: {{ titleOf(plan) }}</button>
+                <button type="button" class="line" @click="emit('open', plan)">
+                    Plan {{ plan.id }}: {{ titleOf(plan) }}
+                    <span v-if="plan.driver" class="driver" data-driver>{{ driverLine(plan) }}</span>
+                </button>
             </template>
         </section>
         <section data-hub-activity>
@@ -58,5 +61,11 @@ const recent = computed(() => recentActivity(props.activity));
     padding: 4px 0;
     font-size: 12.5px;
     color: var(--text);
+}
+
+.driver {
+    display: block;
+    font-size: 11.5px;
+    color: var(--text-3);
 }
 </style>
