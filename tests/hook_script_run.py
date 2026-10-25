@@ -60,3 +60,19 @@ def test_the_hook_script_writes_the_time_of_every_hook_it_sends_whether_or_not_t
     subprocess.run(["sh", str(SCRIPT), "claude", str(tmp_path)], input=sent, capture_output=True, text=True, env=environ, timeout=30)
     fired = tmp_path / ".journal" / "runtime" / "hooks" / "spike.fired"
     assert fired.is_file() and before <= int(fired.read_text()) <= int(time.time()), "a hook the server never took, with nothing listening on its port, is still written down with its time, under its environment's name"
+
+
+def test_a_journal_that_takes_the_hook_and_never_answers_is_gone_around_within_seconds(tmp_path: Path):
+    import socket
+    import time
+    silent = socket.socket()
+    silent.bind(("127.0.0.1", 0))
+    silent.listen(8)
+    (tmp_path / ".journal" / "runtime").mkdir(parents=True)
+    (tmp_path / ".journal" / "port").write_text(str(silent.getsockname()[1]))
+    sent = json.dumps({"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "ls"}})
+    began = time.monotonic()
+    ran = subprocess.run(["sh", str(SCRIPT), "claude", str(tmp_path)], input=sent, capture_output=True, text=True, env={**os.environ, "AGENT_JOURNAL_ACTIVE": "1", "JOURNAL_ACTOR": "agent"}, timeout=30)
+    silent.close()
+    assert ran.returncode == 0 and ran.stdout == "" and time.monotonic() - began < 5, (ran.returncode, ran.stdout, time.monotonic() - began)
+    assert " hook claude" in (tmp_path / ".journal" / "runtime" / "bypass.log").read_text(), "the miss is noted for the journal to say"

@@ -45,6 +45,12 @@ post() {
 waited=$(journal_boot_wait "$root/.journal")
 [ "$waited" = 0 ] || { port=$(cat "$root/.journal/port" 2>/dev/null); started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null); }
 [ -n "$port" ] || { rm -f "$body" "$sent"; exit 0; }
+# a journal that does not answer its health in two seconds is gone around: the tool goes on, and the miss is noted for the journal to say
+if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health"; then
+    printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$root/.journal/runtime/bypass.log"
+    rm -f "$body" "$sent"
+    exit 0
+fi
 status=$(post) || status=0
 if [ "$status" = 000 ] || [ "$status" = 0 ]; then
     if [ -f "$root/.journal/runtime/journal.booting" ]; then
