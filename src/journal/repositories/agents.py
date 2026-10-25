@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from journal.db.query import Query
 from journal.models.agent import Agent
 from journal.models.agent_role import AgentRole
 from journal.support.missing_row import MissingRow
@@ -26,7 +27,7 @@ class Agents(ScopedRepository[Agent]):
         return [agent for agent in self.global_matching(environment_id=environment_id) if agent.sequence_runs]
 
     def ended_sequence_agents(self, session: str) -> list[Agent]:
-        return [agent for agent in self.scoped() if agent.session != session and agent.state == "ended" and agent.sequence_runs]
+        return self.newest(self.query().filter(state="ended").filter_unequal("session", session).filter_unequal("sequence_runs", ()))
 
     def active_session_agents(self, session: str) -> list[Agent]:
         return [agent for agent in self.global_matching(session=session) if agent.state != "ended"] if session else []
@@ -62,7 +63,7 @@ class Agents(ScopedRepository[Agent]):
     def running_peers(self, agent: Agent) -> list[Agent]:
         if agent.role != AgentRole.MAIN:
             return []
-        return [item for item in self.main_scoped(agent.environment_id) if item.session != agent.session and item.provider == agent.provider]
+        return self.selected_globally(self.query().filter(environment_id=agent.environment_id, role=AgentRole.MAIN, provider=agent.provider).filter_unequal("state", "ended").filter_unequal("session", agent.session).order("id"))
 
     def all_current(self) -> Agent | None:
         responsive = sorted((item for item in self.main_agents() if item.state != "ended"), key=lambda item: item.update_time)
@@ -81,10 +82,21 @@ class Agents(ScopedRepository[Agent]):
         return {agent.session: agent.row_id for agent in self.selected(self.query().filter_listed("session", sorted(sessions)))}
 
     def session_agent(self, session: str) -> Agent:
-        rows = self.global_matching(session=session)
+        rows = self.session_rows(session)
         if not rows:
             raise MissingRow(self.table, session)
         return rows[0]
 
+    def session_rows(self, session: str) -> list[Agent]:
+        """The session's agent, the first if two share it, or none."""
+        return self.selected_globally(self.session_query(session))
+
+    def session_query(self, session: str) -> Query:
+        return self.query().filter(session=session).order("id").limit(1)
+
     def recent_peers(self, session: str | None, start: datetime) -> list[Agent]:
-        return [item for item in self.scoped() if item.session != session and item.update_time >= start and not (item.state == "ended" and item.update_time - item.creation_time < timedelta(minutes=1))]
+        recent = self.newest(self.query().filter_unequal("session", session).filter_greater_equal("updated_at", start))
+        return [item for item in recent if not (item.state == "ended" and item.update_time - item.creation_time < timedelta(minutes=1))]
+
+    def _row_reads(self, row: Agent) -> list[Query]:
+        return [self.session_query(row.session)]

@@ -15,6 +15,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.tasks import PLAN_LINK, WAIT_LINK, Tasks
 from journal.repositories.workers import Workers
+from journal.models.phase_states import PhaseStates
 from journal.models.phase_tasks import PhaseTasks
 from journal.models.plan_tree import PlanTree
 from journal.models.support.ref import Ref
@@ -77,7 +78,9 @@ class Plans(ScopedRepository[Plan]):
         return self.links.model_links("target", phases, PHASE_LINK)
 
     def plan_phases(self, plan: Plan) -> list[Phase]:
-        return self.phases.numbered(ref.id for ref in self.links.sources(plan, PHASE_TASK_LINK))
+        """The plan's phases in the order they were added, which is their numbers' order, read without their links."""
+        linked = self.links.query().filter(target=Ref.build(plan), kind=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
+        return self.phases.selected(self.phases.query().filter_existing(linked).order("id"))
 
     def phase_counts(self, plans: list[Plan]) -> dict[int, int]:
         return self.links.target_counts(plans, PHASE_TASK_LINK)
@@ -89,13 +92,25 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.numbered(ref.id for ref in self.links.sources(phase, PHASE_LINK))
 
     def phased(self, plan: Plan) -> list[PhaseTasks]:
+        return self.phased_among(plan, [])
+
+    def phased_among(self, plan: Plan, known: list[Task]) -> list[PhaseTasks]:
+        """The plan's phases with their tasks, each task read only when it is not among the known ones."""
         phases = self.plan_phases(plan)
         links = self.phase_links(phases)
-        tasks = {task.id: task for task in self.tasks.numbered(link.source.id for link in links)}
+        tasks = {task.id: task for task in known}
+        tasks.update((task.id, task) for task in self.tasks.numbered(link.source.id for link in links if link.source.id not in tasks))
         return [PhaseTasks(number, phase, tuple(tasks[link.source.id] for link in links if link.target.id == phase.id and link.source.id in tasks)) for number, phase in enumerate(phases, 1)]
 
+    def phase_states(self, plan: Plan) -> list[PhaseStates]:
+        phases = self.plan_phases(plan)
+        links = self.phase_links(phases)
+        members = {phase.id: tuple(link.source.id for link in links if link.target.id == phase.id) for phase in phases}
+        return [PhaseStates(number, phase, members[phase.id], self.tasks.state_counts(members[phase.id])) for number, phase in enumerate(phases, 1)]
+
     def tree(self, plan: Plan) -> PlanTree:
-        return PlanTree(plan, tuple(self.plan_tasks(plan)), tuple(self.phased(plan)))
+        tasks = self.plan_tasks(plan)
+        return PlanTree(plan, tuple(tasks), tuple(self.phased_among(plan, tasks)))
 
     def ordered(self, plan: Plan) -> list[Task]:
         return self.tree(plan).ordered
@@ -182,8 +197,8 @@ class Plans(ScopedRepository[Plan]):
     def open_task(self, tree: PlanTree) -> Task | None:
         return tree.plan.next_open_task(tree.ordered, self.unstartable(tree))
 
-    def checkpoint_plans(self, plan: Plan) -> PhaseTasks | None:
-        return plan.checkpoint_phase(self.phased(plan))
+    def checkpoint_plans(self, plan: Plan) -> PhaseStates | None:
+        return plan.checkpoint_phase(self.phase_states(plan))
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)

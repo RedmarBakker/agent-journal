@@ -1,7 +1,6 @@
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.http.support.model_fields import ModelFields
-from journal.models.phase_tasks import PhaseTasks
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.repositories.plan_reviews import PlanReviews
@@ -10,7 +9,7 @@ from journal.repositories.tasks import Tasks
 
 
 class PlanOutline:
-    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, and its review rounds, newest first, each with the reports it filed; a closed plan is read from its links alone, since none of that turns on its tasks' rows."""
+    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, and its review rounds, newest first, each with the reports it filed; read from its links and, for an open plan's phase in hand and checkpoint, its tasks' state counts, never its tasks' rows."""
 
     def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting) -> None:
         self.plans, self.tasks, self.reviews, self.rounds, self.testing = plans, tasks, reviews, rounds, testing
@@ -21,10 +20,10 @@ class PlanOutline:
         return self.open_outline(plan)
 
     def open_outline(self, plan: Plan) -> dict:
-        phased = self.plans.phased(plan)
-        phased_ids = list(dict.fromkeys(t.id for phase in phased for t in phase.tasks))
+        phased = self.plans.phase_states(plan)
+        phased_ids = list(dict.fromkeys(task_id for phase in phased for task_id in phase.task_ids))
         task_ids = phased_ids + self.plans.unphased_task_ids(plan, phased_ids)
-        phases = [{**ModelFields.build(phase.phase), "task_ids": [t.id for t in phase.tasks]} for phase in phased]
+        phases = [{**ModelFields.build(phase.phase), "task_ids": list(phase.task_ids)} for phase in phased]
         checkpoint_pause = plan.state == PlanState.STARTED and plan.checkpoint_phase(phased) is not None
         return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, self.tasks.has_worker_holder(task_ids))
 

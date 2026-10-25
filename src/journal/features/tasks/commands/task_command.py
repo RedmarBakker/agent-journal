@@ -202,8 +202,8 @@ state: {task.state}
         plan = next((self.plans.find(ref.id) for ref in self.links.targets(task, PLAN_LINK)), None)
         if plan is None:
             return "plan: none"
-        phases = self.plans.phased(plan)
-        phase = next((p for p in phases if any(t.id == task.id for t in p.tasks)), None)
+        phases = self.plans.phase_states(plan)
+        phase = next((p for p in phases if task.id in p.task_ids), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:

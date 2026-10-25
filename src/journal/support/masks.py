@@ -19,6 +19,10 @@ class Masks:
         masks = self.current()
         return tuple(self.replaced(param, masks) if isinstance(param, str) and masks else param for param in params)
 
+    def holds_secret(self, params: tuple) -> bool:
+        masks = self.current()
+        return any(value in param for param in params if isinstance(param, str) for value in masks)
+
     def replaced(self, text: str, masks: dict[str, str]) -> str:
         for value, variable in masks.items():
             if value not in text:

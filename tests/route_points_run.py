@@ -1,4 +1,4 @@
-"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, and every hook kind is generated from the router and the hook kinds and answered in-process against the saved full project (tests/full_project.py), counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 50 points fails the run, whatever the machine is doing."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, and every hook kind is generated from the router and the hook kinds and answered in-process against the saved full project (tests/full_project.py), counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing."""
 
 import json
 import time
@@ -81,7 +81,7 @@ LIST_PARAMETERS = ("limit=50", "closed=1", "before=1000", "after=1", "since={sin
 LAST_ACTS = ("/delete", "/remove", "/purge", "/sign-out", "/disconnect")
 GET_TRIES = 3
 # a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
-POINTS_BUDGET = 50
+POINTS_BUDGET = 30
 # the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
 # each is brought down to the budget; a run that finds no file writes it, so deleting it takes the new points once one has come down
 BASELINE = Path(__file__).with_name("route_points_baseline.json")

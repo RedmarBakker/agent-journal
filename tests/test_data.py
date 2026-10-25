@@ -837,3 +837,67 @@ def test_the_developer_numbers_drop_removes_the_timings_table_and_the_numbers_bu
     DeveloperNumbersDrop().apply(connection)
     assert connection.one("SELECT name FROM sqlite_master WHERE name = 'timings'") is None
     assert [row["key"] for row in connection.all("SELECT key FROM statistics")] == ["profiles.x.uses"]
+
+
+def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_would_without_loading_it(connection, bus, scope):
+    """A write keeps the reads it changed: the next find and session read of the row load nothing and return what a load returns; a rolled-back write, a write superseded in its transaction and a write a secret was masked out of keep nothing, and a session two rows share keeps answering the first."""
+    from journal.models.agent import Agent
+    from journal.repositories.load_tally import LoadTally
+    agents = Agents(connection, bus, scope)
+    with scope.environment(1):
+        agent = agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
+        agents.session_agent("s1")
+        changed = agents.save(agents.find(agent.id).with_(tool_uses=3, sequence_runs=({"name": "n"},), skills_due=("a",)), USER)
+        agents.touch(changed, USER, is_overview_read=False)
+        LoadTally.begin()
+        found, by_session = agents.find(agent.id), agents.session_agent("s1")
+        assert LoadTally.ended().points() == 0, "both reads are answered from the writes"
+        connection.cache.cleared()
+        assert found == by_session == agents.find(agent.id) and found.sequence_runs == ({"name": "n"},) and found.is_overview_read is False, "as a load returns it"
+        with pytest.raises(Rejection):
+            with connection.transaction():
+                agents.save(found.with_(tool_uses=9), USER)
+                raise Rejection("rolled back")
+        assert agents.find(agent.id).tool_uses == 3, "a rolled-back write keeps nothing"
+        with connection.transaction():
+            agents.save(agents.find(agent.id).with_(tool_uses=4), USER)
+            agents.save(agents.find(agent.id).with_(tool_uses=5), USER)
+        assert agents.find(agent.id).tool_uses == 5 and agents.session_agent("s1").tool_uses == 5, "the last write of a transaction is the one kept"
+        twin = agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
+        assert agents.session_agent("s1").id == agent.id
+        agents.save(twin.with_(tool_uses=7), USER)
+        assert agents.session_agent("s1").id == agent.id, "a session two rows share answers the first, whichever is written"
+        connection.masks.values.put("GITHUB_KEY", "ghp_0123456789abcdef")
+        agents.save(agents.find(agent.id).with_(queued_lines=("the key is ghp_0123456789abcdef",)), USER)
+        assert agents.find(agent.id).queued_lines == ("the key is [secret GITHUB_KEY]",), "a row a secret was masked out of is read as it was stored"
+
+
+def test_a_load_tally_counts_on_the_thread_that_began_it_and_never_work_another_thread_runs_in_its_context():
+    import contextvars
+    from journal.repositories.load_tally import LoadTally
+    LoadTally.begin()
+    LoadTally.counted("tasks", ("a row",))
+    context = contextvars.copy_context()
+    deferred = threading.Thread(target=lambda: context.run(lambda: (LoadTally.counted("tasks", ("deferred",)), LoadTally.count_write("tasks"))))
+    deferred.start()
+    deferred.join()
+    assert [(count.model, count.rows, count.writes) for count in LoadTally.ended().counts] == [("tasks", 1, 0)]
+
+
+def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_name(connection, bus, scope):
+    from datetime import timedelta
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    agents = Agents(connection, bus, scope)
+    with scope.environment(1):
+        own = agents.save(Agent(environment_id=1, session="own", provider="claude"), USER)
+        agents.save(Agent(environment_id=1, session="peer", provider="claude"), USER)
+        agents.save(Agent(environment_id=1, session="codex", provider="codex"), USER)
+        agents.save(Agent(environment_id=1, session="worker", provider="claude", role=AgentRole.WORKER), USER)
+        agents.save(Agent(environment_id=1, session="ended", provider="claude", state="ended", sequence_runs=({"name": "n"},)), USER)
+        agents.save(Agent(environment_id=1, session="ended-bare", provider="claude", state="ended"), USER)
+        assert [agent.session for agent in agents.running_peers(own)] == ["peer"], "a running main agent of its provider"
+        assert [agent.session for agent in agents.ended_sequence_agents("own")] == ["ended"], "an ended agent with sequence runs"
+        start = datetime.now(timezone.utc) - timedelta(minutes=10)
+        assert [agent.session for agent in agents.recent_peers("own", start)] == ["peer", "codex", "worker"], "an agent ended a moment after it began is no peer"
+        assert agents.recent_peers("own", datetime.now(timezone.utc) + timedelta(minutes=1)) == []

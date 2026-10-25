@@ -20,7 +20,7 @@ class ToolUses:
     def counted(self, event: AgentEvent) -> AgentEvent:
         if not isinstance(event, (ToolStarting, ToolFinished, Compacting)):
             return event
-        rows = self.agents.global_matching(session=event.session)
+        rows = self.agents.session_rows(event.session)
         if not rows:
             return event
         if isinstance(event, Compacting):

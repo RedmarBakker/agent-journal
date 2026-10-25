@@ -814,6 +814,44 @@ def test_a_saved_started_plan_sends_plan_started_once_and_a_plain_edit_sends_non
         assert len(hearing.heard) == 1
 
 
+def test_a_plans_phase_in_hand_and_checkpoint_come_from_its_tasks_state_counts_and_its_tree_reads_each_task_once(app: App):
+    from journal.db.connection import Connection
+    from journal.models.link import Link
+    from journal.models.phase import Phase
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.load_tally import LoadTally
+    from journal.repositories.phases import Phases
+    from journal.repositories.plans import PHASE_LINK, PHASE_TASK_LINK
+    from journal.repositories.tasks import PLAN_LINK
+    plans, tasks, links, phases, actor = app.container.get(Plans), app.container.get(Tasks), app.container.get(Links), app.container.get(Phases), Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="p", state=PlanState.APPROVED), actor)
+        first, second = [phases.save(Phase(environment_id=1, title=title, checkpoint=title == "one"), actor) for title in ("one", "two")]
+        for phase in (first, second):
+            links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
+        rows = [tasks.save(Task(environment_id=1, title=title), actor) for title in ("a", "b", "c")]
+        for task, phase in zip(rows, (first, first, second)):
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(phase), kind=PHASE_LINK), actor)
+        assert [phase.id for phase in plans.plan_phases(plan)] == [first.id, second.id], "in the order they were added"
+        LoadTally.begin()
+        states = plans.phase_states(plan)
+        assert "tasks" not in {count.model for count in LoadTally.ended().counts}, "no task row is read"
+        assert states == [phase.states() for phase in plans.phased(plan)] and [state.task_ids for state in states] == [(rows[0].id, rows[1].id), (rows[2].id,)]
+        assert plan.current_phase(states) == 1 and plan.checkpoint_phase(states) is None
+        for task in rows[:2]:
+            tasks.save(task.finished(datetime.now(timezone.utc), "done"), actor)
+        states = plans.phase_states(plan)
+        assert plan.current_phase(states) == 2 and plan.checkpoint_phase(states).number == 1, "phase one done and phase two not begun: the checkpoint"
+        tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)), actor)
+        assert plans.checkpoint_plans(plan) is None, "phase two begun"
+        app.container.get(Connection).cache.cleared()
+        LoadTally.begin()
+        plans.tree(plan)
+        assert [count.rows for count in LoadTally.ended().counts if count.model == "tasks"] == [3], "each task is read once"
+
+
 def test_the_models_carry_the_events_their_changes_mean():
     time = datetime(2026, 10, 20, 23, 0, tzinfo=timezone.utc)
     task = Task(id=7, environment_id=1, title="t", state=TaskState.STARTED)

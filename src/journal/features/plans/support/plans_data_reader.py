@@ -31,6 +31,6 @@ class PlansDataReader:
         task = self.plans.resumable_task(tree)
         current = next((t for t in tasks if t.state == TaskState.STARTED), None)
         briefing = (self.briefing.text(current) or EMPTY_PLAN_NOTE) if current else ""
-        checkpoint = plan.checkpoint_phase(list(tree.phased))
+        checkpoint = plan.checkpoint_phase([phase.states() for phase in tree.phased])
         phase = checkpoint.number if checkpoint is not None else 0
         return StartedPlan(plan_id=plan.row_id, next_task=task.row_id if task else 0, started_task=current.row_id if current else 0, started_task_briefing=briefing, tasks=tuple(t.row_id for t in tasks), remaining_tasks=sum(1 for t in tasks if not t.is_closed()), checkpoint_pause=checkpoint is not None, checkpoint_phase=phase, testing=" ".join(template.brief for template in self.testing.chosen(plan)))

@@ -13,6 +13,7 @@ from journal.events.rows.plan_started import PlanStarted
 from journal.models.scoped import Scoped
 from journal.models.task import Task
 from journal.models.task_state import TaskState
+from journal.models.phase_states import PhaseStates
 from journal.models.phase_tasks import PhaseTasks
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
@@ -111,12 +112,12 @@ class Plan(Scoped):
     def resumable_task(self, ordered: list[Task], cannot_start: set[int]) -> Task | None:
         return next((task for task in ordered if task.state == TaskState.PAUSED), None) or self.next_open_task(ordered, cannot_start)
 
-    def current_phase(self, phases: list[PhaseTasks]) -> int:
+    def current_phase(self, phases: list[PhaseStates]) -> int:
         return next((phase.number for phase in phases if phase.has_open_work()), len(phases) or 1)
 
-    def checkpoint_phase(self, phases: list[PhaseTasks]) -> PhaseTasks | None:
+    def checkpoint_phase(self, phases: list[PhaseStates]) -> PhaseStates | None:
         for previous, following in zip(phases, phases[1:]):
-            if previous.phase.checkpoint and previous.is_finished() and following.tasks and not following.has_work_started():
+            if previous.phase.checkpoint and previous.is_finished() and following.has_tasks() and not following.has_work_started():
                 return previous
         return None
 

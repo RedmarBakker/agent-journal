@@ -82,6 +82,20 @@ class Connection:
             return self.loaded_rows(tables[0], sql, params, reader)
         return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))
 
+    def stored_rows(self, tables: tuple[str, ...], sql: str, params: tuple) -> list:
+        """The rows the cache holds for a read, current and as this thread would see them; none when it holds none or this thread has written its tables in its open transaction."""
+        if not self._local().in_transaction or self.is_thread_writing(tables):
+            return []
+        return self.cache.current(tables, (sql, params))
+
+    def holds_secret(self, params: tuple) -> bool:
+        """Whether a write of these values would be masked, so what it stores differs from them."""
+        return self.masks.holds_secret(params)
+
+    def rewritten(self, tables: tuple[str, ...], sql: str, params: tuple, rows: list) -> None:
+        """A read the open transaction's write has just changed, answered with rows once the transaction commits, unless another write moves its tables first."""
+        self._threads.rewritten.append((tables, (sql, params), rows, self.cache.table_versions(tables)))
+
     def is_thread_writing(self, tables: tuple[str, ...]) -> bool:
         return self._local().in_transaction and bool(set(tables) & getattr(self._threads, "written", set()))
 
@@ -123,18 +137,21 @@ class Connection:
             self._writing.acquire()
         try:
             local.execute("BEGIN IMMEDIATE")
-            self._threads.committed, self._threads.written = [], set()
+            self._threads.committed, self._threads.written, self._threads.rewritten = [], set(), []
             try:
                 with self.stages.timed("write"):
                     yield self
             except BaseException:
                 local.execute("ROLLBACK")
-                self._threads.committed = []
+                self._threads.committed, self._threads.rewritten = [], []
                 self.cache.cleared()
                 raise
             local.execute("COMMIT")
-            for table in self._threads.__dict__.pop("written", set()):
+            written = self._threads.__dict__.pop("written", set())
+            for table in written:
                 self.cache.changed(table)
+            for tables, key, rows, versions in self._threads.__dict__.pop("rewritten", []):
+                self.cache.stored(tables, key, rows, tuple(version + (table in written) for table, version in zip(tables, versions)))
         finally:
             self._writing.release()
         for work in self._threads.__dict__.pop("committed", []):

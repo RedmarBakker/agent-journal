@@ -223,7 +223,7 @@ class PlanCommand(Command):
             args.n = started.id
         plan = self.plans.find(int(args.n))
         print(f"plan {plan.id} {plan.state}: {plan.title}")
-        if plan.state == PlanState.STARTED and (phases := self.plans.phased(plan)):
+        if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")
         for i, phase in enumerate(self.plans.plan_phases(plan), 1):
