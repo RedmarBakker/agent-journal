@@ -11946,6 +11946,75 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         team.close(server)
 
 
+def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_their_token(app: App, tmp_path):
+    import json
+    from urllib.error import HTTPError
+    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
+    from journal.http.support.member_sessions import MemberSessions
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.account import ADMIN, MEMBER, RELAY
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
+    _, admin = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bobs = team.devices.login("bob@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journal = f"http://127.0.0.1:{app.server().port}"
+
+    class Kept(HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = build_opener(Kept)
+
+    def sent(path, body=None, cookie="", form=None):
+        headers = {"X-Journal-Env": "main", **({"Cookie": cookie} if cookie else {})}
+        data = None if body is None else json.dumps(body).encode()
+        if form is not None:
+            data = "".join(f"--f\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n" for name, value in form.items()).encode() + b"--f--\r\n"
+            headers["Content-Type"] = "multipart/form-data; boundary=f"
+        elif data is not None:
+            headers["Content-Type"] = "application/json"
+        request = HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET")
+        try:
+            with opener.open(request, timeout=10) as answer:
+                return answer.status, answer.headers, answer.read()
+        except HTTPError as refused:
+            return refused.code, refused.headers, refused.read()
+
+    def token_status(token):
+        try:
+            with opener.open(HttpRequest(address + "/people", headers={"Authorization": f"Bearer {token}"}), timeout=10) as answer:
+                return answer.status
+        except HTTPError as refused:
+            return refused.code
+
+    app.container.get(TeamAccount).write({"address": address, "token": relay, "device": 1, "account_id": 3})
+    try:
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        status, headers, _ = sent("/sign-in", form={"email": "bob@example.com", "password": "correct horse battery"})
+        cookie = headers["Set-Cookie"].split(";")[0]
+        assert json.loads(sent("/journal/people", cookie=cookie)[2])["me"] == 2 and token_status(bobs) == 200, "Bob is signed in and his token works"
+        app.container.get(IdBlocks).add("messages", 800000, 800100)
+        assert sent("/journal/messages", {"text": "from Bob"}, cookie=cookie)[0] == 202, "he makes a hub write as himself"
+        team.admins.remove(admin, 2)
+        app.container.get(MemberSessions).read_at = float("-inf")
+        assert sent("/journal/people", cookie=cookie)[0] == 401, "his session is refused once he is removed"
+        assert token_status(bobs) == 403, "and so is his token"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
+
+
 def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_the_host_and_a_push_brings_its_pull(app: App, tmp_path):
     import sqlite3
 
