@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from journal.models.model import Model
+from journal.models.scoped import Scoped
 
 
 @dataclass(frozen=True)
-class Doc(Model):
-    """A document of the project, the same in every environment: a title, a line that says what it is, and its text."""
+class Doc(Scoped):
+    """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, and its text."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 

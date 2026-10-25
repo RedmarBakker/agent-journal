@@ -2297,6 +2297,28 @@ def test_a_document_is_read_by_its_outline_and_one_section_at_a_time(app: App, t
     assert console.run(["doc", "show", "1", "--section", "9"], AGENT).code == 1
 
 
+def test_a_document_is_read_and_listed_in_any_environment_when_it_is_the_projects_or_a_hubs_and_not_another_environments(app: App):
+    from journal.models.doc import Doc
+    from journal.models.environment import Environment
+    from journal.repositories.docs import Docs
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
+    hook(app, "SessionStart")
+    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+    other = app.container.get(Environments).save(Environment(name="other"), Actor.system())
+    docs, scope = app.container.get(Docs), app.container.get(Scope)
+    with scope.environment(0):
+        project = docs.save(Doc(title="Project guide", body="x"), Actor.system())
+    with scope.environment(hub.row_id):
+        shared = docs.save(Doc(title="Hub handbook", body="x"), Actor.system())
+    with scope.environment(other.row_id):
+        hidden = docs.save(Doc(title="Other's notes", body="x"), Actor.system())
+    listed = app.console().run(["doc", "list"], AGENT).text
+    assert "Project guide" in listed and "Hub handbook" in listed and "Other's notes" not in listed, "a personal environment lists the project's and the hub's documents, not another environment's"
+    assert "Project guide" in app.console().run(["doc", "show", str(project.id)], AGENT).text and "Hub handbook" in app.console().run(["doc", "show", str(shared.id)], AGENT).text
+    assert app.console().run(["doc", "show", str(hidden.id)], AGENT).code != 0, "and reads no other environment's"
+
+
 def test_a_document_is_read_whole_with_all_and_by_its_outline_without(app: App, tmp_path):
     text = tmp_path / "doc.md"
     hook(app, "SessionStart")

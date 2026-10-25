@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.models.doc import Doc
-from journal.models.model import Model
+from journal.models.scoped import Scoped
 from journal.support.outline import Outline
 
 FIRST_NOTE = "written"
@@ -9,7 +9,7 @@ TOP = "reworded the top"
 
 
 @dataclass(frozen=True)
-class DocRevision(Model):
+class DocRevision(Scoped):
     """One revision of a document, linked to it: its number from 1, the title, line and text it had, what changed in it section by section, and when edits stop merging into it and open the next."""
 
     number: int = 0
@@ -21,7 +21,7 @@ class DocRevision(Model):
 
     @classmethod
     def build(cls, doc: Doc, number: int, change: str, closes_at: float) -> "DocRevision":
-        return cls(number=number, title=doc.title, abstract=doc.abstract, body=doc.body, change=change, closes_at=closes_at)
+        return cls(environment_id=doc.environment_id, number=number, title=doc.title, abstract=doc.abstract, body=doc.body, change=change, closes_at=closes_at)
 
     def is_open(self, time: float) -> bool:
         return time < self.closes_at

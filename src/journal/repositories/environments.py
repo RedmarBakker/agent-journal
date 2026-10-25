@@ -19,6 +19,10 @@ class Environments(Repository[Environment]):
     def hubs(self) -> list[Environment]:
         return self.matching(kind=EnvironmentKind.HUB)
 
+    def hub_ids(self) -> tuple[int, ...]:
+        with self.connection.unlisted():
+            return tuple(hub.row_id for hub in self.hubs())
+
     def team_chats(self) -> list[Environment]:
         return self.selected(self.query().filter(is_team_chat=True).order("id"))
 

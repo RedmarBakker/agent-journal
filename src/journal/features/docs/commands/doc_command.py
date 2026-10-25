@@ -21,7 +21,7 @@ class DocCommand(Command):
         self.docs, self.doc_revisions, self.clock, self.hub_rows = docs, revisions, clock, hub_rows
 
     def arguments(self, verbs) -> None:
-        creation = self.verb(verbs, "create", "write a document of the project, the same in every environment")
+        creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
         creation.add_argument("title")
         creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
         creation.add_argument("--abstract", default="", help="one line that says what it is")
@@ -32,7 +32,7 @@ class DocCommand(Command):
         display = self.verb(verbs, "show", "a document: its outline, then one section at a time")
         display.add_argument("n", help="the document's number, or a team's name and number such as acme:31")
         Outline.arguments(display)
-        self.verb(verbs, "list", "every document of the project")
+        self.verb(verbs, "list", "every document found here: this environment's, the project's and every hub's")
         self.verb(verbs, "revisions", "a document's revisions: number, when, who and what changed").add_argument("n", type=int)
         revision = self.verb(verbs, "revision", "one revision of a document, whole")
         revision.add_argument("n", type=int)
