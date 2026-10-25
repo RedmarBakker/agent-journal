@@ -1567,3 +1567,7 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **One line to the agent.** PlansConduct answers DriveEnded with PlansNudges.DRIVE_ENDED: what the row is, why (Bob took it over on desktop; Bob marked it done on another journal), and that its writes here are refused. A pulled change's doer is named by EnvironmentOwners.person_name, or someone when it was not a person.
 - **Writes refused.** EndedDriveWriteGuard, blocking, refuses this machine's save or deletion of a row with a drive_ended link; a drive binds the row again and removes that link first, so driving it again lifts the refusal.
 - **Open.** The lease of a row closed elsewhere is not released, so it lapses on its own after 15 minutes.
+
+## Driving offline (task 3151)
+
+- **Refused before anything is written.** A drive asks the team server for the row's lease before it binds the row or names its driver, and a release asks before it unbinds, both through TeamRequests.reached, so with the server away each is refused with "the team server could not be reached: ..." and the links stay as they were. An edit of a hub row made offline is queued like any other and sent once the server answers again; nothing in the drive code holds it.

@@ -12340,6 +12340,8 @@ def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_
 
 # how long the team test waits for a change to travel between journals; under the sharded suite's load it can take far longer than alone
 TEAM_SYNC_WAIT_SECONDS = 40
+# the sync's retries back off to 30 seconds while the server is away, so a reconnect is waited on longer
+RECONNECT_WAIT_SECONDS = 90
 
 
 def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_and_a_stranger_is_refused(tmp_path, template_journal, monkeypatch):
@@ -13148,6 +13150,68 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
             refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
             assert refused.code == 1 and "is driven from here no longer" in refused.error, refused.error
         assert a.console().run(["task", "rename", str(deleted.id), "Ada's name for it"], USER).code == 1, "a deleted task is not written either"
+
+
+def test_with_the_team_server_stopped_a_drive_and_a_release_are_refused_saying_it_cannot_be_reached_writing_no_link_and_an_offline_edit_of_a_hub_task_arrives_once_it_is_back(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.models.plan import Plan
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import BOUND_LINK
+    from journal.repositories.tasks import Tasks
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def bound() -> list:
+        return journal.container.get(Links).all_matching(kind=BOUND_LINK)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    port = server.server_address[1]
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    carrier = CarriedSync(journal).started()
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{port}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        console, tasks, hub = journal.console(), journal.container.get(Tasks), journal.container.get(Environments).hubs()[0]
+        with journal.container.get(Scope).environment(hub.row_id):
+            task, held = (tasks.save(Task(environment_id=hub.row_id, title=title), Actor.user(1)) for title in ("ship it", "held here"))
+            plan = journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan"), Actor.user(1))
+        assert console.run(["task", "drive", str(held.id)], USER).code == 0
+        assert synced(lambda: team.log.row("tasks", task.id) is not None), "the hub task is on the team server"
+        server.shutdown()
+        server.server_close()
+        try:
+            refused = console.run(["task", "drive", str(task.id)], USER)
+            assert refused.code == 1 and "the team server could not be reached" in refused.error, refused.error
+            refused_plan = console.run(["plan", "drive", str(plan.id)], USER)
+            assert refused_plan.code == 1 and "the team server could not be reached" in refused_plan.error, refused_plan.error
+            assert [link.source.id for link in bound()] == [held.id] and tasks.find(task.id).driver == "", "a refused drive writes no link and names no driver"
+            unreleased = console.run(["task", "release", str(held.id)], USER)
+            assert unreleased.code == 1 and "the team server could not be reached" in unreleased.error, unreleased.error
+            assert [link.source.id for link in bound()] == [held.id], "and a refused release keeps the drive as it was"
+            assert console.run(["task", "rename", str(task.id), "ship it today"], USER).code == 0, "an edit of a hub task is made offline"
+            assert [change for change in journal.container.get(OutgoingChanges).all() if change.row_table == "tasks" and change.row == task.id], "and queued for the server"
+        finally:
+            server = team.started("127.0.0.1", port)
+        deadline = timing.monotonic() + RECONNECT_WAIT_SECONDS
+        while timing.monotonic() < deadline and not ((row := team.log.row("tasks", task.id)) is not None and row.fields.get("title") == "ship it today"):
+            timing.sleep(0.2)
+        assert team.log.row("tasks", task.id).fields.get("title") == "ship it today", "the offline edit reaches the team server once it is back"
+    finally:
+        carrier.stop()
+        journal.runtime().stop()
+        team.close(server)
 
 
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
