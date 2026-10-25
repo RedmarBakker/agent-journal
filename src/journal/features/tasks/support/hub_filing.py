@@ -34,6 +34,8 @@ class HubFiling:
         return named[0].row_id if named else 0
 
     def link(self, task: Task, args: Namespace, person: int, team: str, actor: Actor) -> None:
+        if not self.is_filing(args):
+            return
         hub = Ref("environments", self.choice.hub(team).row_id)
         links = [(Ref("users", person), REQUESTED_OF)] if person else []
         links += [(hub, TEAM_REQUEST)] if args.to_team else []
