@@ -12753,6 +12753,8 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     for bad in (["every", "1"], ["every", "0"], ["every", "-1"], ["every", "abc"], ["some"]):
         refused = console.run(["worker", "queue", "2", "4", "--report", *bad], AGENT)
         assert refused.code != 0 and f"--report takes each, queue or every <n> of two or more, not '{' '.join(bad)}'" in refused.error, refused.error
+    posted = lambda body: json.load(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/workers/2/report_choice", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5))
+    assert posted({"choice": "every 3"})["report_choice"] == {"tasks": 3}, "the viewer sets a worker's report choice through the same action the command uses"
     from journal.db.connection import Connection
     app.container.get(Connection).execute("UPDATE sent_agents SET report_choice = NULL WHERE id = 3")
     with app.container.get(Scope).environment(MAIN):

@@ -21,6 +21,7 @@ from journal.models.support.ref import Ref
 from journal.features.workers.support.merge_outcome import MergeOutcome
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
+from journal.models.support.report_choice import POOL_REFUSAL, ReportChoice
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
@@ -247,6 +248,12 @@ class WorkerActions:
 
     def worker_task(self, worker: Worker) -> Task:
         return self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
+
+    def chose_report(self, n: int, choice: ReportChoice, actor: Actor) -> Worker:
+        worker = self.workers.find(n)
+        if worker.pool_request and choice.tasks != 1:
+            raise Rejection(POOL_REFUSAL)
+        return self.workers.save(worker.with_(report_choice=choice), actor)
 
     def release(self, n: int, actor: Actor) -> Worker:
         finished = self.tasks.finished_task_ids(Ref.build(self.local(n)))

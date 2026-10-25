@@ -83,6 +83,19 @@ export function workerReportsWhen(row) {
     return tasks === 1 ? "Reports after each task" : tasks ? `Reports after every ${tasks} tasks` : "Reports when its queue is empty";
 }
 
+// the choices the user picks from for when a worker on a queue reports, by the words the server takes
+export const REPORT_CHOICES = [
+    {key: "each", label: "Each task", title: "It reports after each task"},
+    {key: "every 2", label: "Every 2", title: "It reports after every 2 tasks"},
+    {key: "every 3", label: "Every 3", title: "It reports after every 3 tasks"},
+    {key: "queue", label: "Queue end", title: "It reports once its queue is empty"},
+];
+
+export function reportChoiceKey(row) {
+    const tasks = row.report_choice?.tasks ?? 1;
+    return tasks === 1 ? "each" : tasks ? `every ${tasks}` : "queue";
+}
+
 // where a worker stands in its queue: the task it works on after those it finished, among all of them, and when it reports
 export function workerQueueLine(row) {
     const finished = (row.finished || []).length;

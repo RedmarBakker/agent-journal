@@ -239,3 +239,19 @@ test("a worker with three queued tasks shows its report choice and its place in 
     await flush();
     expect([...single.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Reports after each task");
 });
+
+test("the user changes when a worker reports from its page, and a pool worker is offered no choice", async () => {
+    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
+    const scope = {scope: {env: "", api, rows: () => [], holding: async () => {}}};
+    const host = mount(WorkerPage, {resource: {...worker("clocked in"), report_choice: {tasks: 1}}}, scope);
+    await flush();
+    const options = [...host.querySelectorAll(".report-choice .segmented-option")];
+    expect(options.map((option) => option.textContent.trim())).toEqual(["Each task", "Every 2", "Every 3", "Queue end"]);
+    expect(host.querySelector(".report-choice .segmented-option.on").textContent.trim()).toBe("Each task");
+    options[3].click();
+    expect(api.act).toHaveBeenCalledWith("workers", 3, "report_choice", {choice: "queue"});
+    app.unmount();
+    const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, report_choice: {tasks: 1}}}, scope);
+    await flush();
+    expect(pooled.querySelector(".report-choice")).toBeNull();
+});

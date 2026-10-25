@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from journal.support.rejection import Rejection
 
 CHOICES = "each, queue or every <n> of two or more"
+POOL_REFUSAL = "a pool worker reports after each task for now: it pushes its branch at each clock-out and takes one task per request, so --report queue and --report every are refused with --pool"
 
 
 @dataclass(frozen=True)

@@ -17,7 +17,7 @@ import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, doneCount, todoTotal} from "../domain/workerTurn.js";
-import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
+import {REPORT_CHOICES, reportChoiceKey, stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {go, peek} from "../route.js";
@@ -69,6 +69,9 @@ const ACTIONS = {
     message: (id, text) => api.act("workers", id, "message", {text}),
 };
 const actions = computed(() => workerActions(props.resource, store.people.device));
+// the user changes when the worker reports; a pool worker reports after each task, so it is offered no choice
+const reportChoices = computed(() => (props.resource.pool_request || workerState(props.resource) === "finished" ? [] : REPORT_CHOICES));
+const chooseReport = (choice) => api.act("workers", props.resource.id, "report_choice", {choice});
 const {refusal, question, asking, perform, choose} = useInspectorActions(
     () => actions.value,
     (key, answer) => ACTIONS[key](props.resource.id, answer)
@@ -117,6 +120,12 @@ async function send() {
                 </template>
             </template>
         </InspectorSummary>
+        <template v-if="reportChoices.length">
+            <div class="report-choice">
+                <span class="report-choice-label">Reports</span>
+                <Segmented :options="reportChoices" :value="reportChoiceKey(resource)" @pick="chooseReport" />
+            </div>
+        </template>
         <template v-if="narrow && hasTask">
             <div class="tabs">
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
@@ -189,6 +198,18 @@ async function send() {
 </template>
 
 <style scoped>
+.report-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 8px;
+}
+
+.report-choice-label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
 .worker-page {
     display: flex;
     flex-direction: column;

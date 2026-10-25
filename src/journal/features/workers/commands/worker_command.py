@@ -20,7 +20,7 @@ from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.features.workers.support.merge_steps import MergeSteps
-from journal.models.support.report_choice import ReportChoice
+from journal.models.support.report_choice import POOL_REFUSAL, ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.subagents import Subagents
@@ -56,8 +56,6 @@ ASSIGNMENT_REFUSALS = {
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
-# a pool worker pushes its branch at each clock-out and takes one task per request, so it cannot yet go through a queue before it reports
-POOL_REPORT_REFUSAL = "a pool worker reports after each task for now: it pushes its branch at each clock-out and takes one task per request, so --report queue and --report every are refused with --pool"
 
 class WorkerCommand(Command):
     noun = "worker"
@@ -153,7 +151,7 @@ class WorkerCommand(Command):
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
         if args.pool and ReportChoice.argument(args.report).tasks != 1:
-            raise Rejection(POOL_REPORT_REFUSAL)
+            raise Rejection(POOL_REFUSAL)
         self.worker_profile(args.profile)
         output = self.workers.held_locally()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
@@ -295,10 +293,8 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
-        if args.report and worker.pool_request and ReportChoice.argument(args.report).tasks != 1:
-            raise Rejection(POOL_REPORT_REFUSAL)
         if args.report:
-            worker = self.workers.save(worker.with_(report_choice=ReportChoice.argument(args.report)), caller.actor)
+            worker = self.actions.chose_report(worker.id, ReportChoice.argument(args.report), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.let_go(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
