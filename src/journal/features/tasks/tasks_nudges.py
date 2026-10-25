@@ -27,7 +27,7 @@ class TasksNudges:
     PAUSED_TASK_CLOSURE_REMINDER = Nudge("tasks", "paused_task_named_at_close", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat=Timeout.seconds(0))
     WAIT_CHECK = Nudge("tasks", "check_the_wait", "you have waited {{minutes}} min on {{what}}: check it", "still going: `journal await` again; done or failed: log it and go on", repeat=Timeout.seconds(300), blocks_regardless=True)
     IDLE_CHECK = Nudge("tasks", "check_in_after_quiet", "nothing has happened for half an hour", "carry on, take the next task, or say so in one line", repeat=Timeout.seconds(1800))
-    WAIT_END = Nudge("tasks", "wait_over", "the wait for {{what}} is over: {{outcome}}", repeat=Timeout.seconds(0))
+    WAIT_END = Nudge("tasks", "wait_over", "wait over: {{outcome}}", repeat=Timeout.seconds(0))
     WAIT_NEXT_TASK = Nudge("tasks", "next_task_while_waiting", "while you wait for {{what}}, task {{n}}, {{title}} is next", "work on it meanwhile, or end your turn if you need what you wait for", repeat=Timeout.seconds(0))
     TASK_OPENED = Nudge("tasks", "task_opened", "task {{n}} is open: {{title}}", "`journal task start {{n}}` takes it up", repeat=Timeout.seconds(0))
     PAUSE_WAIT_END = Nudge("tasks", "paused_wait_ended", "what paused task {{n}} waited on came: {{reason}}", "`journal task resume {{n}}`", repeat=Timeout.seconds(0))

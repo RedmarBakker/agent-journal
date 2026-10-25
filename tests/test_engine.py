@@ -1211,7 +1211,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     worktree_file = str(tmp_path / "worktrees" / "3-Lady-Lovelace" / "a.py")
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": worktree_file}, operation=Claude().operation("Edit", {"file_path": worktree_file}), writes=True, edited_paths=(worktree_file,))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "workers.file_is_the_workers"
     back = Ready().respond(WorkerReported(environment_id=1, time=1.0, worker=WorkerMention(2, "Lady Lovelace", None), report=40, ref="workers:2", outcome="worker 2, Lady Lovelace, reported").with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
-    assert [n.rendered() for n in back.nudges] == ["worker 2, Lady Lovelace, reported in the chat"]
+    assert [n.rendered() for n in back.nudges] == ["worker 2 reported"]
 
 
 def test_a_state_whose_own_listener_stops_the_walk_answers_in_the_conducts_place():
@@ -1295,7 +1295,7 @@ def test_awaiting_tells_each_workers_return_and_pops_on_the_last():
     counterpart = waiting.respond(WorkerReported(environment_id=1, time=1.0, worker=WorkerMention(8, "x", "s1"), report=9, ref="workers:8", outcome="worker 8, x, reported"), settings)
     assert counterpart.target is waiting and counterpart.nudges == (), "a worker it does not wait on is not its business"
     last = first.target.respond(WorkerStopped(environment_id=1, time=2.0, worker=WorkerMention(4, "Herr Turing", ""), ref="workers:4", outcome="worker 4, Herr Turing, stopped before it reported"), settings)
-    assert last.popped and [n.key for n in last.nudges] == ["tasks.wait_over"] and last.nudges[-1].rendered().startswith("the wait for worker 3, worker 4 is over: worker 3, Lady Lovelace, reported; worker 4, Herr Turing, stopped before it reported")
+    assert last.popped and [n.key for n in last.nudges] == ["tasks.wait_over"] and last.nudges[-1].rendered().startswith("wait over: worker 3, Lady Lovelace, reported; worker 4, Herr Turing, stopped before it reported")
     from journal.events.rows.worker_dispatched import WorkerDispatched
     from journal.features.workers.workers_conduct import WorkersConduct
     owned = Working(task_id=7).respond(WorkerDispatched(environment_id=1, time=3.0, worker=WorkerMention(5, "Lady Lovelace", "s1"), awaiter="s1", ref="workers:5", label="worker 5").reaching("s1"), settings, (WorkersConduct,))
@@ -1523,7 +1523,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     assert first.target == replace(waiting, end_refs="checks:2", outcomes="output 4 finished") and not first.popped, "one row settled, one still to come"
     assert waiting.respond(RowResolved(environment_id=1, time=200.0, ref="tasks:3"), auto).target == waiting, "a row it does not wait on is not its business"
     last = first.target.respond(RowResolved(environment_id=1, time=300.0, ref="checks:2", outcome="check 2 passed"), auto)
-    assert last.popped and last.nudges[0].rendered().startswith("the wait for the build is over: output 4 finished; check 2 passed"), "the last row settled pops the wait with what each came to"
+    assert last.popped and last.nudges[0].rendered().startswith("wait over: output 4 finished; check 2 passed"), "the last row settled pops the wait with what each came to"
     assert Impasse(reason="the login").respond(Stop(time=1.0).with_data(of()), auto).refusal is None and Impasse(reason="the login").respond(Ticked(silence_seconds=900.0, time=901.0).with_data(of()), auto).nudges == (), "stuck is quiet"
     assert Impasse(reason="the login").respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))), auto).popped, "its own tool use pops it"
 
@@ -1922,7 +1922,7 @@ def test_work_waiting_to_be_checked_is_named_every_so_many_tool_uses_while_the_a
         return [n.rendered() for n in waiting_work_check(Ready(), replace(read, tool_use=use).with_data(FeatureData({"workers": data})), settings).nudges]
 
     assert [said(waiting, use) for use in (1, 4)] == [[], []], "between the reminders nothing is said"
-    assert said(waiting, 5) == ["worker 57, Mr. Muybridge: task 2589 still waits to be checked. journal task show 2589, then journal worker check 57 <point>, or --short \"<what is missing>\""], "at the set tool use the waiting work is named"
+    assert said(waiting, 5) == ["worker 57 waits: task 2589"], "at the set tool use the waiting work is named"
     assert said(waiting, 10) and said(merged, 10) == [], "again at the next, and not once it is merged"
 
 

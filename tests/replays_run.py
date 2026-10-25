@@ -193,9 +193,9 @@ def test_worker_reports_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"a_worker_reports_{provider}", app, monkeypatch, a_worker_reports, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["worker 1 reports"]["typed"] == ["[journal] worker 1, Lady Lovelace, reported in the chat"]
+    assert name_index["worker 1 reports"]["typed"] == ["[journal] worker 1 reported"]
     stopped = name_index["worker 2 is stopped"]["typed"]
-    assert stopped[0].startswith("[journal] the wait for worker 1, worker 2 is over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported") and stopped[1] == "[journal] worker 2, Dr. Einstein, stopped before it reported" and len(stopped) == 2
+    assert stopped[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported") and stopped[1] == "[journal] worker 2 stopped before it reported" and len(stopped) == 2
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "the last worker back popped the wait to the task"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
@@ -844,7 +844,7 @@ def test_a_second_session_in_one_environment_takes_the_first_ones_place_and_a_li
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["a message arrives"]["typed"] == ["[journal] new message 4"], "named once for the environment; messages 1 to 3 are the task's mark, the worker's card and the job in the worker's own chat"
     reported = name_index["the worker reports"]["typed"]
-    assert reported[0].startswith("[journal] the wait for worker 1 is over: worker 1, Lady Lovelace, reported") and reported[1] == "[journal] worker 1, Lady Lovelace, reported in the chat" and len(reported) == 2, "the awaiting agent is told and released, once"
+    assert reported[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and reported[1] == "[journal] worker 1 reported" and len(reported) == 2, "the awaiting agent is told and released, once"
     assert app.container.get(SessionAgents).top("s2").task_id == 1 and app.container.get(SessionAgents).top("s1").name == "ended", "an environment keeps one session: the second took the first one's place"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 

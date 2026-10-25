@@ -11,7 +11,6 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.worker_delivered import WorkerDelivered
-from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.worker_stopped import WorkerStopped
@@ -71,11 +70,6 @@ class WorkersConduct(Conduct):
             return self.none()
         ready = [work for work in event.data.part(WorkersPart).ready_work if work.worker == event.worker.id]
         return self.none(*(WorkersNudges.WORK_READY.create(n=work.worker, name=work.name, task=work.task) for work in ready))
-
-    def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
-        if event.worker.is_other_dispatcher(event.session):
-            return self.none()
-        return self.none(WorkersNudges.WORKER_ARRIVAL.create(n=event.worker.id, name=event.worker.name))
 
     def on_worker_reported(self, event: WorkerReported, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

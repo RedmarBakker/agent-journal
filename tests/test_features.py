@@ -538,7 +538,7 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
     app.container.get(ShellRecord).ended("run", 1, folder, "", Caller.agent("main", "s1", "claude"))
     app.runtime().deferred.drain()
     told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
-    assert f"the wait for the tests is over: output {output.id} failed with code 1: " in told and "1 failed, 3 passed" in told, "the wait's end says how it ended and what the reader picked"
+    assert f"wait over: output {output.id} failed with code 1: " in told and "1 failed, 3 passed" in told, "the wait's end says how it ended and what the reader picked"
     assert outputs.find(output.id).summary is not None
 
 
@@ -692,15 +692,15 @@ def test_awaiting_workers_ends_when_the_last_one_reports(app: App, monkeypatch):
     machine = app.container.get(StateMachine)
     assert app.container.get(SessionAgents).top("s1").name == "awaiting" and hook(app, "Stop")[1] == {}
     console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and keystrokes == ["[journal] worker 1, Lady Lovelace, reported in the chat"], "\n".join(stacks)
+    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and keystrokes == ["[journal] worker 1 reported"], "\n".join(stacks)
     lines, link = app.container.get(TypedLines), app.container.get(SupervisorLink)
     lines.confirm(1, keystrokes[0])
     console.run(["worker", "stop", "2"], USER)
     assert app.container.get(SessionAgents).top("s1").task_id == 1
-    assert keystrokes[-1].startswith("[journal] the wait for worker 1, worker 2 is over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported"), "the last worker back pops the wait, with the work beneath named after it"
+    assert keystrokes[-1].startswith("[journal] wait over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported"), "the last worker back pops the wait, with the work beneath named after it"
     lines.confirm(1, keystrokes[-1])
     link.release(1)
-    assert keystrokes[-1] == "[journal] worker 2, Dr. Einstein, stopped before it reported", "one line at a time: the next waits until this one is seen back"
+    assert keystrokes[-1] == "[journal] worker 2 stopped before it reported", "one line at a time: the next waits until this one is seen back"
 
 
 def test_a_worker_runs_the_dispatching_agents_own_program(app: App, monkeypatch):
@@ -1049,10 +1049,10 @@ def test_the_open_tasks_line_is_short_with_many_tasks_and_said_again_only_when_t
     for n in range(36):
         app.console().run(["task", "create", f"a task with a long title number {n}"], USER)
     use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
-    line = "36 tasks are open with no worker; next: 1, 2, 3"
+    line = "36 tasks open, no worker: 1, 2, 3"
     assert len(line) <= 120 and sum(line in use(f"{n}.py") for n in range(3)) == 1, "36 open tasks are the count and three numbers, said once"
     app.console().run(["task", "create", "one more"], USER)
-    assert "37 tasks are open with no worker; next: 1, 2, 3" in use("again.py"), "said again when the count changes"
+    assert "37 tasks open, no worker: 1, 2, 3" in use("again.py"), "said again when the count changes"
 
 
 def test_a_busy_orchestrator_with_open_tasks_is_told_to_dispatch_them_once_a_stretch_of_tool_uses(app: App):
@@ -1062,7 +1062,7 @@ def test_a_busy_orchestrator_with_open_tasks_is_told_to_dispatch_them_once_a_str
     app.console().run(["task", "create", "the footer"], USER)
     use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
     told = [use(f"{n}.py") for n in range(3)]
-    assert sum("1 tasks are open with no worker; next: 1" in line for line in told) == 1, "the reminder rides one tool use, then waits its stretch"
+    assert sum("1 tasks open, no worker: 1" in line for line in told) == 1, "the reminder rides one tool use, then waits its stretch"
 
 
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
@@ -1686,9 +1686,8 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work" not in use("a.py"), "nothing is said while the mode stays"
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
     switched = use("b.py")
-    assert "you now work as the orchestrator" in switched, "the switch is told at the next step"
-    assert "without waiting for the user" in switched and "cannot be undone" in switched, "the orchestrator decides alone, and waits for the user only before a step that cannot be undone"
-    assert "hand every task you can to a worker" in switched, "and it hands the work out"
+    assert "orchestrating:" in switched, "the switch is told at the next step"
+    assert "dispatch tasks, review and merge, run the suite" in switched, "and it is told to hand the work out, review and merge it, and run the suite"
     assert "you now work" not in use("c.py"), "and only once"
     app.container.get(SettingRows).set("workers.mode", "solo", Actor.user(1))
     assert "you now work solo" in use("d.py")
@@ -3536,7 +3535,7 @@ def test_a_plan_is_built_in_phases_made_ready_approved_by_the_user_and_followed_
     assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error
     assert console.run(["plan", "approve", "1"], USER).code == 0
     app.runtime().deferred.drain()
-    assert "the user approved plan 1" in transmitted[-1]
+    assert "plan 1 approved" in transmitted[-1]
     assert "task 1," in console.run(["plan", "start", "1"], AGENT).text
     console.run(["task", "complete", "1"], AGENT)
     app.runtime().deferred.drain()
@@ -4404,7 +4403,7 @@ def test_a_row_event_walks_about_every_agent_of_the_environment_and_speaks_once(
     console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
     app.runtime().deferred.drain()
     assert app.container.get(SessionAgents).top("s2").task_id == 1, "the agent awaiting the worker, not the live one, is released by the shipped workflow"
-    assert keystrokes[0].startswith("[journal] the wait for worker 1 is over: worker 1, Lady Lovelace, reported") and keystrokes[1] == "[journal] worker 1, Lady Lovelace, reported in the chat" and len(keystrokes) == 2, "told once, on the walk about the agent that waits; the work beneath goes on in silence"
+    assert keystrokes[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and keystrokes[1] == "[journal] worker 1 reported" and len(keystrokes) == 2, "told once, on the walk about the agent that waits; the work beneath goes on in silence"
 
 def test_the_etiquette_reminder_comes_after_fifty_lines_and_never_floods(app: App):
     from journal.engine.nudger import Nudger
@@ -9697,7 +9696,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     from journal.repositories.entries import Entries
     with app.container.get(Scope).environment(MAIN):
         said = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_place_free"]
-    assert said and "is done; 1 tasks are open; next: " in said[-1], "a merged worker frees a place, and the orchestrator is told at once the count of open tasks and the next ones by number"
+    assert said and " free; open: " in said[-1], "a merged worker frees a place, and the orchestrator is told at once the count of open tasks and the next ones by number"
     with app.container.get(Scope).environment(MAIN):
         reopened = [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "tasks.task_reopened"]
     assert not reopened, "a merge finishes its task before it lets the worker go, so the task never opens again on the way"
@@ -10395,7 +10394,7 @@ def test_a_reader_report_is_owed_a_read_and_then_a_fix_or_a_dismissal_each_count
         report = reports.save(ReaderReport(environment_id=1, reader="naps", output=7, command="sleep 40", session="s1", findings=("the run took 40 seconds and its card showed no progress",), fixes=("make it print its steps",)), Actor.system())
     read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
     lines = [read() for _ in range(5)]
-    assert all(f"read due for reader report {report.id}" in line for line in lines) and f"read due for reader report {report.id}: 0" in lines[-1], lines
+    assert all(f"read reader report {report.id}" in line for line in lines) and f"read reader report {report.id} before your next write" in lines[-1], lines
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
     assert status == 409 and f"reader report {report.id} is not read yet" in body["error"]
     shown = console.run(["reader", "report", str(report.id)], AGENT).text
@@ -10932,7 +10931,7 @@ def test_retiring_an_idle_worker_asks_once_whether_it_could_be_reused_and_the_re
     run = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal worker {line}"})
     for verb in ("complete", "stop"):
         status, body = run(f"{verb} 1")
-        assert status != 200 and "can worker 1, Mr. Idle, be reused?" in json.dumps(body) and "--why" in json.dumps(body)
+        assert status != 200 and "can worker 1 be reused?" in json.dumps(body) and "--why" in json.dumps(body)
         assert run(f"{verb} 1 --why 'its branch is merged and the work is done'")[0] == 200, "the repeat with its reason pays the question"
     assert run("stop 2")[0] == 200, "a worker out is never asked"
 
@@ -10969,7 +10968,7 @@ def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: 
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "has been quiet for 20 minutes" in line]
+    quiet = lambda: [line for line in keystrokes if "quiet 20 min" in line]
     tick_after(app, 19 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [], "nineteen minutes is not yet quiet"
@@ -13254,6 +13253,30 @@ def test_a_document_is_taken_back_off_the_hub_and_a_copy_and_an_attachment_of_a_
     assert shown.code == 0 and "copied from doc" in shown.text and "(removed)" in shown.text and "the words" not in shown.error, shown.error
     assert listed.code == 0 and f"{copy.id}" in listed.text and "Source" in listed.text and "(removed)" in listed.text, "the copy is still listed, its source shown as removed"
     assert "attached here: doc" in listed.text and listed.text.count("(removed)") == 2, "and so is the attachment of a removed document"
+
+
+def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1066():
+    import importlib
+    from journal.engine.nudge import Nudge
+    features = Path(__file__).resolve().parents[1] / "src" / "journal" / "features"
+    nudges = {}
+    for module in sorted(features.glob("*/*_nudges.py")):
+        loaded = importlib.import_module(f"journal.features.{module.parent.name}.{module.stem}")
+        for holder in vars(loaded).values():
+            if isinstance(holder, type) and holder.__module__ == loaded.__name__:
+                nudges.update({nudge.key: nudge for nudge in vars(holder).values() if isinstance(nudge, Nudge)})
+    assert len(nudges) > 100, "every nudge of every feature is looked at"
+    named = [key for key, nudge in nudges.items() if key.startswith("workers.") and "{{n}}" in nudge.title and "{{name}}" in nudge.title + nudge.brief]
+    assert not named, f"a worker is named by its number alone, never also by its name: {named}"
+    titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief]
+    assert not titled, f"a task or a plan is given by its number, its title dropped: {titled}"
+    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.dispatch_while_busy": 70, "workers.worker_place_free": 70, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
+             "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
+    values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, outcome="output 19248 passed")
+    for key, limit in short.items():
+        line = nudges[key].create(**values).rendered()
+        assert len(line) <= limit and "Lady" not in line and "{{" not in line, f"{key} is said short: {line!r}"
+    assert "workers.worker_clocked_in" not in nudges, "an arrival the orchestrator dispatched is not told back to it"
 
 
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
