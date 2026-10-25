@@ -5658,7 +5658,7 @@ def echo(app, name="echo", **manifest):
 def test_a_plugins_processes_run_with_the_path_the_users_login_shell_has(app: App, tmp_path, monkeypatch):
     from journal.features.plugins.support.plugin_runner import PluginRunner
     shell = tmp_path / "login-shell"
-    shell.write_text('#!/bin/sh\nprintf "%s" "noise journal-path-start:/home/me/.nvm/bin:/usr/bin:journal-path-end"\n')
+    shell.write_text('#!/bin/sh\nprintf "%s" "noise journal-path-begin:/home/me/.nvm/bin:/usr/bin:journal-path-finish"\n')
     shell.chmod(0o755)
     monkeypatch.setenv("SHELL", str(shell))
     plugin = echo(app)
