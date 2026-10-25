@@ -293,10 +293,10 @@ def test_a_blocked_task_waits_on_something_outside_and_is_neither_offered_nor_nu
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the tree"], AGENT)
-    assert "waiting on: a talk with the user" in console.run(["task", "block", "1", "a talk with the user"], AGENT).text
+    assert "waiting on: the payment sandbox coming back" in console.run(["task", "block", "1", "the payment sandbox coming back"], AGENT).text
     assert app.container.get(Tasks).find(1).state == TaskState.BLOCKED and app.container.get(SessionAgents).top("s1").name == "idle"
     assert "tasks 1 are blocked" in hook(app, "Stop")[1].get("reason", ""), "a blocked task is not offered: the stop asks the agent to check it is still truly blocked"
-    assert "blocked tasks: 1 the tree (waiting on: a talk with the user)" in console.run(["environment", "overview"], AGENT).text
+    assert "blocked tasks: 1 the tree (waiting on: the payment sandbox coming back)" in console.run(["environment", "overview"], AGENT).text
     assert "open again" in console.run(["task", "unblock", "1"], AGENT).text and app.container.get(Tasks).find(1).state == TaskState.OPEN
 
 

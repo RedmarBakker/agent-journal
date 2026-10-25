@@ -28,7 +28,7 @@ class WaitReading:
         held = [task for task in unclosed if task.state in HELD]
         waiting = [task for task in held if self.tasks.open_waits(task)]
         worded = [task for task in held if task not in waiting]
-        outside = sum(1 for task in worded if self.people.names_a_person(task.waiting_reason()))
+        outside = sum(1 for task in worded if self.people.names_someone_outside(task.waiting_reason()))
         least = self.settings.integer(WorkersOptions.UNORDERED_PLAN_TASKS)
         unordered = sum(1 for plan in plans if least and self.plans.remaining_count(plan) >= least and not self.plans.blocked_count(plan))
         return WaitUse(len(waiting), len(worded) - outside, outside, self.missing(unclosed), unordered)
