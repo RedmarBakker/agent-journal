@@ -2390,7 +2390,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.WORKLOAD_WARNING_RATIO.key: 0.7, WorkersOptions.WORKLOAD_CRITICAL_RATIO.key: 0.9})
-    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), crowd=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
+    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
     assert told(0.6) == [], "under the warning level nothing is said"
     rising = told(0.74)
     assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising
