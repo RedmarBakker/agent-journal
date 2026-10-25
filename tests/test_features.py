@@ -3623,8 +3623,8 @@ def test_a_plan_and_a_task_are_made_in_a_teams_hub_with_team_and_an_unjoined_tea
     assert plan.text.startswith("acme plan ") and task.text.startswith("acme task "), "the answers name the rows with their team"
     with app.container.get(Scope).environment(hub.row_id):
         assert [p.title for p in app.container.get(Plans).scoped()] == ["launch"] and [t.title for t in app.container.get(Tasks).scoped()] == ["ship it"], "both are in the hub environment"
-    assert "no joined team is named zed" in console.run(["task", "create", "lost", "--team", "zed"], USER).text
-    assert "no joined team is named zed" in console.run(["plan", "create", "lost", "--team", "zed"], USER).text
+    assert "no joined team is named zed" in console.run(["task", "create", "lost", "--team", "zed"], USER).error
+    assert "no joined team is named zed" in console.run(["plan", "create", "lost", "--team", "zed"], USER).error
 
 
 def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to_its_person(app: App):
@@ -3644,7 +3644,7 @@ def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to
         assert [t.title for t in app.container.get(Tasks).scoped()] == ["review it", "plan the move", "the board is slow"], "all three are in the hub environment"
     kinds = sorted((link.kind, str(link.target)) for link in app.container.get(Links).rows() if link.kind in ("requested_of", "requested_of_team", "issue"))
     assert kinds == [("issue", f"environments:{hub.row_id}"), ("requested_of", f"users:{bob.row_id}"), ("requested_of_team", f"environments:{hub.row_id}")]
-    assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).text
+    assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).error
     assert console.run(["task", "create", "plain"], USER).text.startswith("task "), "a task made with none of the flags never asks for a hub"
 
 
