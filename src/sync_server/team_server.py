@@ -68,7 +68,7 @@ class TeamServer:
         self.signins = SigninLinks(self.devices, self.accounts)
         self.host_requests = HostRequests(HostRequestRows(self.store), PoolCapacityRows(self.store), self.devices, self.log)
         self.uploads = UploadHandler(self.store, self.log, self.ranges, self.devices, self.details)
-        self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests)
+        self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests, self.files)
         self.pulls = PullHandler(self.log, self.devices, self.clock, self.details, self.host_requests)
         self.people = PeopleHandler(self.accounts, self.devices)
         self.agent_views = AgentViews(self.devices)

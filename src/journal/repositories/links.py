@@ -7,6 +7,9 @@ from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.repository import Repository
 
+# refs read in one query, each named twice, under SQLite's limit of values in one statement
+REF_CHUNK = 10_000
+
 
 class Links(Repository[Link]):
     model = Link
@@ -67,6 +70,11 @@ class Links(Repository[Link]):
 
     def remove_links(self, model: Model, actor: Actor) -> None:
         self.purged_rows(Link, self.touching(model), actor)
+
+    def touching_any(self, models: Sequence[Model]) -> list[Link]:
+        refs = [Ref.build(model) for model in models]
+        chunks = [refs[start:start + REF_CHUNK] for start in range(0, len(refs), REF_CHUNK)]
+        return list({link.id: link for chunk in chunks for link in self.selected(self.query().filter_alternatives(self.query().filter_listed("source", chunk), self.query().filter_listed("target", chunk)))}.values())
 
     def touching(self, model: Model) -> Query:
         ref = Ref.build(model)

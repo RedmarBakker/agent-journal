@@ -7,6 +7,8 @@ CREATED = "created"
 UPDATED = "updated"
 DELETED = "deleted"
 WITHDRAWN = "withdrawn"
+# a withdrawn row every journal keeps; any other keeper is the stamp of the one person whose journals keep it
+KEPT_BY_ALL = "all"
 
 
 @dataclass(frozen=True)

@@ -27,5 +27,8 @@ class LoggedChange:
     def is_update(self) -> bool:
         return self.action == UPDATED
 
+    def is_withdrawal(self) -> bool:
+        return self.action == WITHDRAWN
+
     def is_removal(self) -> bool:
         return self.action in (DELETED, WITHDRAWN)

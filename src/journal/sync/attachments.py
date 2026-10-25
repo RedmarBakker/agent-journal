@@ -1,4 +1,5 @@
 import mimetypes
+import shutil
 from pathlib import Path
 
 from journal.config import Config
@@ -27,6 +28,10 @@ class Attachments:
         if self.account.is_joined():
             self.uploads.save(PendingUpload(row_table=table, row=id, name=safe), Actor.system())
         return safe
+
+    def removed(self, table: str, id: int) -> None:
+        if table in FOLDERS and (folder := self.home / FOLDERS[table] / str(id)).is_dir():
+            shutil.rmtree(folder)
 
     def path(self, table: str, id: int, name: str) -> Path:
         return self.home / FOLDERS[table] / str(id) / Path(name).name

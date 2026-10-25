@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+from journal.events.rows.environment_unshared import EnvironmentUnshared
 from journal.models.environment_kind import EnvironmentKind
 from journal.models.model import Model
 from journal.support.rejection import Rejection
@@ -39,7 +40,9 @@ class Environment(Model):
         return self.with_(is_shared_with_team=True)
 
     def unshared(self) -> "Environment":
-        return self.with_(is_shared_with_team=False)
+        if not self.is_shared_with_team:
+            return self
+        return self.with_(is_shared_with_team=False).with_event(EnvironmentUnshared(environment_id=self.row_id))
 
     def team_ready(self, owner_prefix: str) -> "Environment":
         if self.team_name is not None:

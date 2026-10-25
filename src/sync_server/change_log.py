@@ -11,7 +11,7 @@ PAGE_ROWS = 500
 
 
 class ChangeLog:
-    """The team's changes in the order the server took them, and the current value of every row they made, so a pull is the changes past a number and a full copy is the rows. A waiting pull waits on the newest sequence stored in memory, never on the database, so a push that holds the store while it wakes the pulls cannot meet a pull that waits for the store; news that is no change, such as a new pinned version, wakes them too. Changes every device has pulled are trimmed, the newest always stored so the head stands; the current values, deleted and withdrawn rows among them as markers, are never trimmed."""
+    """The team's changes in the order the server took them, and the current value of every row they made, so a pull is the changes past a number and a full copy is the rows. A waiting pull waits on the newest sequence stored in memory, never on the database, so a push that holds the store while it wakes the pulls cannot meet a pull that waits for the store; news that is no change, such as a new pinned version, wakes them too. Changes every device has pulled are trimmed, the newest always stored so the head stands; the current values, deleted and withdrawn rows among them as markers, are never trimmed. A withdrawn row's marker holds none of its fields and its earlier changes leave the log, so the server keeps nothing of it."""
 
     def __init__(self, store: Store, changes: ChangeRows, values: RowValues) -> None:
         self.store, self.changes, self.values = store, changes, values
@@ -23,7 +23,9 @@ class ChangeLog:
     def appended(self, change: LoggedChange) -> LoggedChange:
         with self.store.transaction():
             sequence = self.changes.insert(change)
-            current = self.row(change.row_table, change.row) or StoredRow()
+            if change.is_withdrawal():
+                self.changes.delete_row_before(change.row_table, change.row, sequence)
+            current = StoredRow() if change.is_withdrawal() else self.row(change.row_table, change.row) or StoredRow()
             self.values.write(change.row_table, change.row, StoredRow({**current.fields, **change.fields}, {**current.changed_at, **change.changed_at}, {**current.writers, **{name: change.account_id for name in change.fields}}), change.is_removal(), sequence)
         with self.signal:
             self.latest = max(self.latest, sequence)

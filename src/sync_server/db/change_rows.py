@@ -17,6 +17,9 @@ class ChangeRows:
     def newer(self, sequence: int, device_id: int, limit: int) -> list[Row]:
         return self.store.all("SELECT * FROM changes WHERE sequence > ? AND device_id != ? ORDER BY sequence LIMIT ?", (sequence, device_id, limit))
 
+    def delete_row_before(self, table: str, row: int, sequence: int) -> None:
+        self.store.execute("DELETE FROM changes WHERE row_table = ? AND row = ? AND sequence < ?", (table, row, sequence))
+
     def delete_older(self, sequence: int) -> None:
         self.store.execute("DELETE FROM changes WHERE sequence <= ? AND sequence < (SELECT MAX(sequence) FROM changes)", (sequence,))
 

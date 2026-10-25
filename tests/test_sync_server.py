@@ -128,7 +128,8 @@ def test_number_blocks_never_overlap_and_start_above_a_shared_journals_numbers(s
     assert ranges.block(1, "messages", 1000) == (1, 1000)
 
 
-def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_and_rejects_the_older(store):
+def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_and_rejects_the_older(store, tmp_path):
+    from sync_server.file_store import FileStore
     from sync_server.push_handler import PushHandler
     from sync_server.host_requests import HostRequests
     from sync_server.db.host_request_rows import HostRequestRows
@@ -143,7 +144,7 @@ def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_
     _, ada = devices.login("ada@example.com", PASSWORD, "ada's laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "bob's laptop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"))
 
     def request(action, actor, fields, seconds, clock_offset=0.0):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], clock_offset)
@@ -219,7 +220,8 @@ def test_over_http_a_pull_waits_and_wakes_on_a_push_while_other_requests_go_on_a
         team.store.close()
 
 
-def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_first_time(store):
+def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_first_time(store, tmp_path):
+    from sync_server.file_store import FileStore
     from sync_server.db.push_result_rows import PushResultRows
     from sync_server.push_handler import PushHandler
     from sync_server.host_requests import HostRequests
@@ -233,7 +235,7 @@ def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_
     _, ada = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "desktop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"))
 
     def request(local_number, actor, title, seconds):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": "updated", "actor": actor, "fields": {"title": title}, "changed_at": {"title": seconds}, "local_number": local_number}])
@@ -407,7 +409,7 @@ def test_a_withdrawn_change_reaches_a_journal_on_the_current_protocol_with_its_k
         assert status == 426 and refusal == {"error": f"this journal speaks protocol {PROTOCOL - 1} and the team server {PROTOCOL}: upgrade the journal with journal update apply"}, "a journal on the protocol before the withdrawn action is refused, so it never reads a withdrawal as an update or a deletion"
         assert call("/push", {"changes": [{**task, "row": 8}]}, bob, PROTOCOL - 1)[0] == 426 and team.log.row("tasks", 8) is None, "nor does it push"
         pulled = call("/pull?after=0", token=bob)[1]["changes"]
-        assert [(change["action"], change["kept_by"]) for change in pulled] == [("created", ""), ("withdrawn", "owner")], "a journal on the current protocol pulls the withdrawal with who keeps the row"
+        assert [(change["action"], change["kept_by"]) for change in pulled] == [("withdrawn", "owner")], "a journal on the current protocol pulls the withdrawal with who keeps the row, and nothing of the row from before it"
         assert call("/copy", token=bob)[1]["rows"] == [], "a full copy never holds a withdrawn row"
         call("/push", {"changes": [{**task, "action": "updated", "fields": {"title": "late"}, "changed_at": {"title": 9.0}}]}, ada)
         assert team.log.row("tasks", 7) is None, "an update to a withdrawn row is dropped"

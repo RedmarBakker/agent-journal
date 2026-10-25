@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
 
-from journal.models.outgoing_change import CREATED, DELETED, WITHDRAWN
+from journal.models.outgoing_change import CREATED, DELETED, KEPT_BY_ALL, WITHDRAWN
 from journal.support.actor import Actor
 from sync_server.logged_change import LoggedChange
 
 
 @dataclass(frozen=True)
 class TeamChange:
-    """One change to a shared row as the team server passes it on: the row's table and number, whether it was created, updated, deleted or withdrawn from the team, its columns as stored, who wrote it, and for a withdrawn row who keeps it."""
+    """One change to a shared row as the team server passes it on: the row's table and number, whether it was created, updated, deleted or withdrawn from the team, its columns as stored, who wrote it, and for a withdrawn row who keeps it: every journal, or the journals of one person."""
 
     row_table: str
     row: int
@@ -24,6 +24,9 @@ class TeamChange:
 
     def is_withdrawal(self) -> bool:
         return self.action == WITHDRAWN
+
+    def is_kept_by(self, person: Actor) -> bool:
+        return self.kept_by in (KEPT_BY_ALL, person.stamp)
 
     def actor(self) -> Actor:
         return Actor.parse(self.writer)
