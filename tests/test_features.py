@@ -17859,6 +17859,18 @@ def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
     assert app.container.get(SettingRows).option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS) is False
 
 
+def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each_has_run(app: App):
+    from journal.models.test_turn import TestTurn
+    from journal.repositories.test_turns import TestTurns
+    with app.container.get(Scope).environment(MAIN):
+        turns = app.container.get(TestTurns)
+        waiting = turns.save(TestTurn(environment_id=MAIN, worker=3, ids="tests/test_a.py::test_one"), Actor.worker(3))
+        running = turns.save(TestTurn(environment_id=MAIN, worker=4, ids="tests/test_b.py::test_two").started(1000.0), Actor.worker(4))
+        turns.save(TestTurn(environment_id=MAIN, worker=5, ids="tests/test_c.py::test_three").started(900.0).ended(), Actor.worker(5))
+    rows = got(app, "/journal/test_turns?limit=50", {"X-Journal-Env": "main"})[1]["rows"]
+    assert [(row["id"], row["worker"], row["state"], row["started_at"]) for row in rows] == [(waiting.id, 3, "waiting", 0.0), (running.id, 4, "running", 1000.0)], "the viewer reads the turns running and waiting, a running one with the time it started, and no ended one"
+
+
 def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
     from journal.repositories.plans import Plans
     console, settings = app.console(), app.container.get(SettingRows)

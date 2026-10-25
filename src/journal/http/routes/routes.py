@@ -60,6 +60,7 @@ from journal.http.controllers.voices import VoiceController
 from journal.http.controllers.subagents import SubagentController
 from journal.http.controllers.verifiers import VerifierController
 from journal.http.controllers.reviewers import ReviewerController
+from journal.http.controllers.test_turns import TestTurnController
 from journal.http.controllers.workers import WorkerController
 from journal.http.router import Router
 
@@ -202,6 +203,7 @@ class Routes:
         router.get(f"{API}/workers/{{id}}/transcript", get(TranscriptController).worker_transcript)
         self.listed(router, "verifiers", get(VerifierController))
         self.listed(router, "reviewers", get(ReviewerController))
+        self.listed(router, "test_turns", get(TestTurnController))
         router.get(f"{API}/verifiers/{{id}}/transcript", get(TranscriptController).verifier_transcript)
 
     def chat(self, router: Router) -> None:

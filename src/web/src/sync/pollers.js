@@ -93,6 +93,7 @@ export const POLLERS = Object.freeze({
     "workers.every": {read: () => api.list("workers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},
+    "test_turns.open": {read: () => api.list("test_turns", {limit: pageOf("test_turns")}).then((got) => got.rows || []), every: 3000},
     "workers.holding": {read: ({tasks}) => (tasks.length ? api.list("workers", {tasks}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({tasks}) => tasks.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
     "plan.timeline": {read: ({scope, plan}) => scope.api.planTimeline(plan), every: 15000, by: ({scope, plan}) => `${scope.env}:${plan}`},

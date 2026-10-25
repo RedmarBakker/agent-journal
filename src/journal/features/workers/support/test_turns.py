@@ -83,7 +83,7 @@ class TestTurns:
                 running = self.running()
                 free = [row for row in self.turns.waiting() if row.folder not in {going.folder for going in running}]
                 if free and free[0].id == turn.id and len(running) < self.budget():
-                    self.turns.save(self.turns.find(turn.id).started(), Actor.system())
+                    self.turns.save(self.turns.find(turn.id).started(time.time()), Actor.system())
                     return True
             time.sleep(POLL_SECONDS)
 

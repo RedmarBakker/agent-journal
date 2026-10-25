@@ -5,6 +5,8 @@ import CloseButton from "../kit/CloseButton.vue";
 import Btn from "../kit/Btn.vue";
 import FoldGroup from "../kit/FoldGroup.vue";
 import WorkerRow from "./WorkerRow.vue";
+import TestTurns from "./TestTurns.vue";
+import {TEST_BUDGET} from "../domain/testTurns.js";
 import Skeleton from "../kit/Skeleton.vue";
 import {peek} from "../route.js";
 import Segmented from "../kit/Segmented.vue";
@@ -49,6 +51,9 @@ function inspect(row) {
             <span class="workers-testing-label">How workers test</span>
             <Segmented :options="testingOptions" :value="workTesting" wrap @pick="pickTesting" />
         </div>
+        <template v-if="workTesting === TEST_BUDGET">
+            <TestTurns :workers="rows" />
+        </template>
         <div class="workers-body">
             <template v-if="!rows.length && loading">
                 <Skeleton :count="3" label="Loading the workers" />
