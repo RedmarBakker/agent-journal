@@ -14,6 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
+import {usePointerPresence} from "../composables/pointerPresence.js";
 import {arrive, arriveAtOnce} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
@@ -143,7 +144,10 @@ const AT_BOTTOM = 2;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
-const {away, missed, showNewest, follow: atTheFoot, toBottom: glideTo, left: readingUp, arrived} = useFollowing(scroller, FAR);
+// a reader who scrolled up and has the pointer over the chat is reading it: nothing scrolls it for them until the pointer has been
+// outside it for a minute, and then a reader still away is taken back to the foot
+const presence = usePointerPresence(() => away.value && toBottom(true));
+const {away, missed, showNewest, follow: atTheFoot, toBottom: glideTo, left: readingUp, arrived} = useFollowing(scroller, FAR, presence.isGone);
 // away from the foot, messages that arrive are loaded but held off the screen, so nothing below the reader grows and moves the page;
 // back at the foot, every held message appears
 const heldAfter = ref(null);
@@ -326,7 +330,7 @@ function restAtFoot() {
     clearTimeout(restTimer);
     restTimer = setTimeout(() => {
         const s = scroller.value;
-        if (s && away.value && !planOpen.value && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
+        if (s && away.value && !planOpen.value && presence.isGone() && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
     }, RESTED_MS);
 }
 
@@ -350,7 +354,7 @@ function watchScroll() {
         return;
     }
     if (far) readingUp();
-    else if (!away.value || Date.now() - scrolledAt < BY_HAND) atTheFoot();
+    else if (!away.value || (Date.now() - scrolledAt < BY_HAND && (gap <= AT_BOTTOM || presence.isGone()))) atTheFoot();
     else restAtFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
@@ -507,6 +511,8 @@ const {colleague, me} = useColleague();
                     @touchmove.passive="scrolledByHand"
                     @keydown="scrolledByHand"
                     @pointerdown="scrolledByHand"
+                    @pointerenter="presence.entered"
+                    @pointerleave="presence.left"
                 >
                     <template v-if="rendering">
                         <div ref="topMark" class="thread-top" />

@@ -17,9 +17,9 @@ export const SETTLE_AFTER_MS = 5000;
  * At the foot, the reader is following and new content carries them along. Having scrolled up, they are reading, and
  * nothing moves under them; what arrives is counted instead, so the pane can offer to take them to it. The offer waits
  * a moment, and longer for a reader who has only just left the foot, so a glance up does not flash a button. A reader
- * who stopped a little short of the foot is taken to it once the pane has rested there.
+ * who stopped a little short of the foot is taken to it once the pane has rested there, if mayMove allows it.
  */
-export function useFollowing(scroller, at = AT_BOTTOM) {
+export function useFollowing(scroller, at = AT_BOTTOM, mayMove = () => true) {
     const away = ref(false);
     const missed = ref(0);
     const showNewest = ref(false);
@@ -77,7 +77,7 @@ export function useFollowing(scroller, at = AT_BOTTOM) {
     function settleSoon() {
         clearTimeout(settleTimer);
         if (!isNearBottom()) return;
-        settleTimer = setTimeout(() => away.value && isNearBottom() && toBottom(true), SETTLE_AFTER_MS);
+        settleTimer = setTimeout(() => away.value && isNearBottom() && mayMove() && toBottom(true), SETTLE_AFTER_MS);
     }
 
     /** Called when the reader scrolls: leaving the foot stops the following, returning to it starts again. */
