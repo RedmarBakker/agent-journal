@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from journal.config import Config
+from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_repository import PROJECT_FOLDER, WorkerRepository
 from journal.models.worker import Worker
 from journal.support.listener_queue import ListenerQueue
@@ -155,9 +156,12 @@ class WorkerBranch:
 
     def merge_commit(self, worker: Worker) -> str:
         pending = self.pending(worker)
-        refusal = self.refusal(pending, worker)
-        if refusal:
-            raise Rejection(f"worker {worker.id}'s work was not merged, since {refusal}; its proofs and its task are as they were")
+        blocked = self.blocking(pending, worker)
+        if blocked:
+            raise Rejection(f"worker {worker.id}'s work was not merged, since {blocked}; its proofs and its task are as they were")
+        clashing = self.clash(pending, worker)
+        if clashing:
+            raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
 
     def head(self, repository: WorkerRepository) -> str:
@@ -165,9 +169,12 @@ class WorkerBranch:
         return f"{repository.folder} {head}" if repository.is_inner else head
 
     def refusal(self, pending: list[WorkerRepository], worker: Worker) -> str:
-        blocked = [reason for repository in pending if (reason := self.blocked(repository, worker))]
-        if blocked:
-            return blocked[0]
+        return self.blocking(pending, worker) or self.clash(pending, worker)
+
+    def blocking(self, pending: list[WorkerRepository], worker: Worker) -> str:
+        return next((reason for repository in pending if (reason := self.blocked(repository, worker))), "")
+
+    def clash(self, pending: list[WorkerRepository], worker: Worker) -> str:
         for repository in pending:
             clashing = self.rebased(repository, worker)
             if clashing:

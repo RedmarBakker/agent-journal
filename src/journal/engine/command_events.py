@@ -1,5 +1,6 @@
 from journal.events.worker_merge_result import WorkerMergeResult
 from journal.events.worker_merging import WorkerMerging
+from journal.events.moments.worker_merge_refused import WorkerMergeRefused
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.support.decision import Decision
 from journal.engine.clock import Clock
@@ -15,7 +16,7 @@ from journal.support.caller import Caller
 
 
 class CommandEvents:
-    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a worker's merge about to happen, which a listener may block, and its result."""
+    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
 
     def __init__(self, bus: Bus, clock: Clock, scope: Scope) -> None:
         self.bus, self.clock, self.scope = bus, clock, scope
@@ -36,6 +37,9 @@ class CommandEvents:
         self.bus.dispatch(event)
 
     def worker_work_merged(self, event: WorkerWorkMerged) -> None:
+        self.bus.dispatch(event)
+
+    def worker_merge_refused(self, event: WorkerMergeRefused) -> None:
         self.bus.dispatch(event)
 
     def help_needed(self, reason: str, caller: Caller) -> None:

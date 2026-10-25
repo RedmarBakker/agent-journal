@@ -8,6 +8,8 @@ from journal.events.rows.worker_sent_on import WorkerSentOn
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
+from journal.events.moments.worker_merge_refused import WorkerMergeRefused
+from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -117,7 +119,7 @@ class WorkerActions:
         if worker.pool_request:
             self.branch.fetch_pool(worker)
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or ()))
-        commit = self.branch.merge_commit(worker) if worker.worktree else ""
+        commit = self.merge_commit(worker, task)
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
@@ -130,6 +132,13 @@ class WorkerActions:
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp()))
         return MergeOutcome(closed, worktree_line, next_line)
+
+    def merge_commit(self, worker: Worker, task: Task) -> str:
+        try:
+            return self.branch.merge_commit(worker) if worker.worktree else ""
+        except MergeClash as clash:
+            self.events.worker_merge_refused(WorkerMergeRefused(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, clashing=clash.clashing, line=str(clash)))
+            raise
 
     def next_job(self, n: int, actor: Actor) -> str:
         return self.send_next(n, actor, WorkerReused)[0]

@@ -11523,6 +11523,34 @@ def test_a_rebase_conflict_in_an_inner_repository_merges_nothing_anywhere(app: A
     assert git_run(root, "rev-parse", "HEAD").stdout.strip() == project_head and git_run(root / "platform", "rev-parse", "HEAD").stdout.strip() == platform_head
 
 
+def test_a_merge_refused_on_a_clash_records_for_the_orchestrator_the_files_and_the_command_that_sends_the_worker_back(app: App, monkeypatch):
+    import json as json_module
+    from journal.db.connection import Connection
+    from journal.repositories.proofs import Proofs
+    from journal.repositories.tasks import Tasks
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
+    def proofs():
+        with app.container.get(Scope).environment(MAIN):
+            return [(proof.point, proof.state, proof.text) for proof in app.container.get(Proofs).task_proofs(app.container.get(Tasks).find(1))]
+
+    def task_state():
+        with app.container.get(Scope).environment(MAIN):
+            return app.container.get(Tasks).find(1).state
+
+    app.console().run(["worker", "check", "1", "1"], AGENT)
+    checked = proofs()
+    refused = app.console().run(["worker", "merge", "1"], AGENT)
+    line = "worker 1's work was not merged, since rebased onto the branch of"
+    assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'journal worker send 1 "rebase your branch onto the project\'s branch' in refused.error and refused.error.count("\n") == 1, refused.error
+    cards = [(row["text"], json_module.loads(row["data"])) for row in app.container.get(Connection).all("SELECT text, data FROM messages WHERE text LIKE '%merge of task 1 refused%'")]
+    assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.strip() and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the orchestrator as a card in its chat"
+    assert proofs() == checked and worker_row(app).state == WorkerState.DELIVERED and task_state() != "done", "the worker's proofs and task are kept"
+
+
 def test_a_worker_sent_a_new_job_naming_another_repository_gets_its_worktree_and_records_it(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
