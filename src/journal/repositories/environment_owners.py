@@ -28,17 +28,17 @@ class EnvironmentOwners:
     def unowned(self) -> list[Environment]:
         return [environment for environment in self.environments.working() if not self.owner_number(environment.row_id)]
 
-    def is_team_chat(self, environment_id: int) -> bool:
-        return any(environment.is_team_chat for environment in self.environments.matching(id=environment_id))
+    def is_session(self, environment_id: int) -> bool:
+        return any(environment.is_session() for environment in self.environments.matching(id=environment_id))
 
-    def is_shared_with_team(self, environment_id: int) -> bool:
-        return any(environment.is_shared_with_team for environment in self.environments.matching(id=environment_id))
+    def is_shared(self, environment_id: int) -> bool:
+        return any(environment.is_shared() for environment in self.environments.matching(id=environment_id))
 
     def is_teammate(self, actor: Actor, environment_id: int) -> bool:
-        return actor.kind == ActorKind.USER and (self.is_team_chat(environment_id) or (self.is_shared_with_team(environment_id) and self.is_colleague(actor, environment_id)))
+        return actor.kind == ActorKind.USER and (self.is_session(environment_id) or (self.is_shared(environment_id) and self.is_colleague(actor, environment_id)))
 
     def is_commenter(self, actor: Actor, environment_id: int) -> bool:
-        return self.is_colleague(actor, environment_id) and not self.is_shared_with_team(environment_id)
+        return self.is_colleague(actor, environment_id) and not self.is_shared(environment_id)
 
     def owner_name(self, environment_id: int) -> str:
         number = self.owner_number(environment_id)

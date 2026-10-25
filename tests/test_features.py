@@ -28,6 +28,7 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.models.environment_kind import EnvironmentKind
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
 from journal.models.plugin import Plugin as PluginRow
@@ -6512,11 +6513,11 @@ def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_
     from journal.repositories.environments import Environments
     from journal.repositories.links import Links
     environments, links = app.container.get(Environments), app.container.get(Links)
-    first = environments.save(Environment(name="team", team_name="jesse-team", is_team_chat=True), Actor.system())
-    environments.save(Environment(name="team", team_name="team", is_team_chat=True), Actor.system())
+    first = environments.save(Environment(name="team", team_name="jesse-team", kind=EnvironmentKind.SESSION), Actor.system())
+    environments.save(Environment(name="team", team_name="team", kind=EnvironmentKind.SESSION), Actor.system())
     links.save(Link(source=Ref("users", 1), target=Ref.build(first), kind=OWNER), Actor.system())
     app.container.get(SingleTeamChat).run()
-    assert [(chat.row_id, chat.team_name) for chat in environments.team_chats()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
+    assert [(chat.row_id, chat.team_name) for chat in environments.sessions()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
     assert links.model_links("target", [first], OWNER) == [], "and it is owned by no one"
 
 
@@ -11473,10 +11474,10 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         from journal.repositories.id_blocks import IdBlocks
         from journal.models.environment import Environment
         a.container.get(IdBlocks).add("messages", 900001, 900009)
-        a.container.get(Environments).save(Environment(name="team", is_team_chat=True), Actor.system())
+        a.container.get(Environments).save(Environment(name="team", kind=EnvironmentKind.SESSION), Actor.system())
         joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
-        assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).team_chats()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
+        assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).sessions()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
         assert team.accounts.find(1).email == "ada@example.com" and team.accounts.find(1).is_admin(), "the first journal to connect to a new team server by its bare URL makes its admin"
         assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
         assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"
@@ -11630,7 +11631,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/messages", data=json.dumps({"text": text}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
             return json.load(urlopen(request, timeout=5))
 
-        assert eventually(lambda: [row.name for row in b.container.get(Environments).rows() if row.is_team_chat] == ["team"]), "the Team chat is an environment every machine has"
+        assert eventually(lambda: [row.name for row in b.container.get(Environments).rows() if row.is_session()] == ["team"]), "the Team chat is an environment every machine has"
         team_env = b.container.get(Environments).existing("team")
         assert b.container.get(EnvironmentOwners).owner_number(team_env.row_id) == 0, "owned by no one"
         ada_word, bob_word = team_post(a, "morning, team"), team_post(b, "morning, Ada")
@@ -11736,7 +11737,6 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
     import subprocess
     from carried_sync import CarriedSync
     from conftest import copied
-    from journal.models.environment_kind import EnvironmentKind
     from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.environments import Environments
     from journal.console.support.hub_rows import HubRows
@@ -11808,8 +11808,11 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         (b.config.home / TEAM_FILE).write_text(json.dumps(before_keys))
         numbered = lambda: {table: [row["id"] for row in b.container.get(Connection).all(f"SELECT id FROM {table} ORDER BY id")] for table in ("environments", "messages", "tasks", "links", "users")}
         rows_before = numbered()
-        assert accounts[1].is_joined() and accounts[1].team_key() == "", "an account from before teams had keys is read from team.json"
+        assert accounts[1].is_joined() and accounts[1].team_key() == "unknown", "an account from before teams had keys is read from team.json, its key unknown"
+        b.container.get(Connection).execute("UPDATE environments SET team_key = 'unknown' WHERE kind = 'session'")
+        b.container.get(Connection).cache.cleared()
         b.container.get(SyncDesk).refresh()
+        assert {row.team_key for row in b.container.get(Environments).sessions()} == {new.key}, "an environment placed in the team before its key was known is given it once the team server names it"
         assert (accounts[1].path().name, accounts[1].team_key(), accounts[1].team_number()) == (f"{new.key}.json", new.key, 0), "its key is learnt from the team server and it moves to the teams folder, a team from before T reading T = 0"
         assert not (b.config.home / TEAM_FILE).exists() and accounts[1].address() == address, "nothing of the account is lost in the move"
         assert numbered() == rows_before, "and no row is renumbered"
@@ -11949,12 +11952,12 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
         assert a.console().run(["environment", "create", "docs"], USER).code == 0
         docs = a.container.get(Environments).existing("docs")
         assert eventually(lambda: keyed(b, docs.key) is not None and b.container.get(EnvironmentOwners).owner_number(keyed(b, docs.key).id) == 1), "Bob's journal holds Ada's docs as hers"
-        assert not keyed(b, docs.key).is_shared_with_team, "an environment is its owner's alone until they share it"
+        assert not keyed(b, docs.key).is_shared(), "an environment is its owner's alone until they share it"
         assert written(b, keyed(b, docs.key).id, "before the share", bob.actor).is_comment(), "in a colleague's environment Bob only comments"
         assert "the Team chat is the whole team's already" in a.console().run(["environment", "share", "team"], USER).error
         shared = a.console().run(["environment", "share", "docs"], USER)
         assert shared.code == 0 and "is shared with the team" in shared.text, shared.error
-        assert eventually(lambda: keyed(b, docs.key).is_shared_with_team), "the share reaches every member's journal, whose sidebar then lists it"
+        assert eventually(lambda: keyed(b, docs.key).is_shared()), "the share reaches every member's journal, whose sidebar then lists it"
         on_b = keyed(b, docs.key)
         refused = b.console().run(["environment", "share", on_b.name], bob)
         assert refused.code == 1 and "only its owner shares it" in refused.error, refused.error
@@ -11967,7 +11970,7 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
         unshared = a.console().run(["environment", "unshare", "docs"], USER)
         assert unshared.code == 0, unshared.error
         assert eventually(lambda: keyed(b, docs.key) is None and texts(b, on_b.id) == []), "unsharing withdraws the environment and its chat from every other member's journal"
-        assert not a.container.get(Environments).existing("docs").is_shared_with_team and sorted(texts(a, docs.id)) == chat, "while the owner's environment and chat stay as they were"
+        assert not a.container.get(Environments).existing("docs").is_shared() and sorted(texts(a, docs.id)) == chat, "while the owner's environment and chat stay as they were"
     finally:
         for carrier in carriers:
             carrier.stop()

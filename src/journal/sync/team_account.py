@@ -7,6 +7,7 @@ import socket
 from pathlib import Path
 
 from journal.config import Config
+from journal.models.environment import UNKNOWN_TEAM_KEY
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.release import Release
@@ -32,7 +33,7 @@ class TeamAccount:
         return next(iter(sorted((self.config.home / TEAMS_FOLDER).glob("*.json"))), self.config.home / TEAM_FILE)
 
     def team_key(self) -> str:
-        return str(self.contents().get("team_key", ""))
+        return str(self.contents().get("team_key", UNKNOWN_TEAM_KEY)) if self.is_joined() else ""
 
     def team_number(self) -> int:
         return int(self.contents().get("team_number", 0))

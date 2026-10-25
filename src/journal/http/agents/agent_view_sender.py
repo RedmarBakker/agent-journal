@@ -57,7 +57,7 @@ class AgentViewSender:
         self.last_views, self.last_send_at = views, request_at
 
     def views(self) -> dict[str, list[dict]]:
-        return {environment.key: self.rows(environment.row_id) for environment in self.hosts.hosted_environments() if not environment.is_team_chat}
+        return {environment.key: self.rows(environment.row_id) for environment in self.hosts.hosted_environments() if not environment.is_session()}
 
     def rows(self, environment_id: int) -> list[dict]:
         with self.scope.environment(environment_id):

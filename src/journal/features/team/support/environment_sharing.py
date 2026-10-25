@@ -14,7 +14,7 @@ class EnvironmentSharing:
 
     def shared(self, environment: Environment, actor: Actor) -> Environment:
         self.check(environment, actor)
-        return self.environments.save(environment.shared_with_team(), actor)
+        return self.environments.save(environment.shared_with_team(self.account.team_key()), actor)
 
     def unshared(self, environment: Environment, actor: Actor) -> Environment:
         self.check(environment, actor)

@@ -1,15 +1,15 @@
-import {colleagueOwner, sidebarEnvironments} from "./people.js";
+import {colleagueOwner, isSession, isShared, sidebarEnvironments} from "./people.js";
 import {updatedAt} from "./row.js";
 
 // A team's hub is an environment of kind hub, named for the team; what the team's colleagues share and the Team chat are its sessions.
 export const isHub = (row) => row.kind === "hub";
 
-const isSession = (row, people) => !isHub(row) && (row.is_team_chat || (row.is_shared_with_team && colleagueOwner(row.id, people) > 0));
+const isTeamListed = (row, people) => !isHub(row) && (isSession(row) || (isShared(row) && colleagueOwner(row.id, people) > 0));
 
 // Each team's hub with its sessions, a session joining the hub of its own team key and, with none, the first hub.
 export function teamGroups(rows, people) {
     const hubs = rows.filter(isHub);
-    const sessions = sidebarEnvironments(rows, people).filter((row) => isSession(row, people));
+    const sessions = sidebarEnvironments(rows, people).filter((row) => isTeamListed(row, people));
     return hubs.map((hub, n) => ({
         key: hub.team_key || String(hub.id),
         team: hub.team_name || hub.name,
@@ -21,7 +21,7 @@ export function teamGroups(rows, people) {
 // The environments the sidebar lists apart from every team: the person's own.
 // On a hosted journal only what is shared is listed: an environment that is not shared, not the hub and not a session never is.
 export const ownEnvironments = (rows, people) =>
-    sidebarEnvironments(rows, people).filter((row) => !isHub(row) && !isSession(row, people) && (!people.hosted || row.is_shared_with_team));
+    sidebarEnvironments(rows, people).filter((row) => !isHub(row) && !isTeamListed(row, people) && (!people.hosted || isShared(row)));
 
 export const inHub = (rows, hub) => rows.filter((row) => row.environment_id === hub.id);
 

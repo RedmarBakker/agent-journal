@@ -23,9 +23,9 @@ function mounted(component, props) {
 const hub = {id: 5, kind: "hub", name: "acme", team_name: "acme", team_key: "k1"};
 const environments = [
     {id: 1, name: "main", kind: "local"},
-    {id: 2, name: "docs", kind: "local", is_shared_with_team: true},
-    {id: 3, name: "team", kind: "local", is_team_chat: true},
-    {id: 4, name: "bobs-api", kind: "local", is_shared_with_team: true},
+    {id: 2, name: "docs", kind: "local", team_key: "k1"},
+    {id: 3, name: "team", kind: "session", team_key: "k1"},
+    {id: 4, name: "bobs-api", kind: "local", team_key: "k1"},
     hub,
 ];
 const people = {me: 1, device: "", people: [], owners: {1: 1, 2: 1, 4: 2}};
@@ -85,10 +85,10 @@ test("a hosted journal opens on the hub home with its documents, plans and board
 test("with two teams each hub is its own group named for its team, holding the sessions of its own team key", () => {
     const rows = [
         {id: 1, name: "main", kind: "local"},
-        {id: 3, name: "acme-chat", kind: "local", is_team_chat: true, team_key: "k1"},
-        {id: 4, name: "acme-api", kind: "local", is_shared_with_team: true, team_key: "k1"},
-        {id: 6, name: "beta-chat", kind: "local", is_team_chat: true, team_key: "k2"},
-        {id: 7, name: "beta-web", kind: "local", is_shared_with_team: true, team_key: "k2"},
+        {id: 3, name: "acme-chat", kind: "session", team_key: "k1"},
+        {id: 4, name: "acme-api", kind: "local", team_key: "k1"},
+        {id: 6, name: "beta-chat", kind: "session", team_key: "k2"},
+        {id: 7, name: "beta-web", kind: "local", team_key: "k2"},
         {id: 5, kind: "hub", name: "acme", team_name: "acme", team_key: "k1"},
         {id: 8, kind: "hub", name: "beta", team_name: "beta", team_key: "k2"},
     ];

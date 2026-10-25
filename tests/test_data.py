@@ -29,6 +29,7 @@ from journal.events.listener import Listener
 from journal.features.listeners.unlink_deleted import UnlinkDeleted
 from journal.support.rejection import Rejection
 from journal.support.actor import Actor
+from journal.models.environment_kind import EnvironmentKind
 from journal.models.entry import Entry
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -323,6 +324,47 @@ def test_the_paused_tasks_migration_turns_a_parked_task_and_plan_into_paused_one
     PausedTasks().apply(connection)
     task = connection.one("SELECT state, pause_reason FROM tasks")
     assert (task["state"], task["pause_reason"]) == ("paused", "waits on the lexer") and connection.one("SELECT state FROM plans")["state"] == "paused"
+
+
+def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_shared_environments_the_team_key_and_puts_documents_in_the_project(tmp_path):
+    """Migration 52 on a copy of a pre-hub database: no row is lost, the Team chat is a session in the team, a shared environment carries the team's key, one known later as unknown, the flags go, and every document is in environment 0."""
+    import json
+    from journal.config import Config
+    from journal.db.connection import Connection
+    from journal.db.migrations.environment_teams import EnvironmentTeams
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.support.large_reads import LargeReads
+    from journal.support.masks import Masks
+    from journal.support.query_times import QueryTimes
+    from journal.support.secret_values import SecretValues
+    from journal.support.stage_times import StageTimes
+    from journal.sync.team_account import TEAM_FILE, TEAMS_FOLDER
+
+    def migrated(root, account: dict, filename: str) -> Connection:
+        config = Config(root)
+        (config.home / TEAMS_FOLDER).mkdir(parents=True)
+        (config.home / filename).write_text(json.dumps(account))
+        connection = Connection(config.database, Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
+        Schema(connection, AllModels.MODELS).create()
+        connection.execute("ALTER TABLE environments ADD COLUMN is_team_chat INTEGER NOT NULL DEFAULT 0")
+        connection.execute("ALTER TABLE environments ADD COLUMN is_shared_with_team INTEGER NOT NULL DEFAULT 0")
+        for name, team_chat, shared in (("main", 0, 0), ("team", 1, 0), ("ada-docs", 0, 1)):
+            connection.execute("INSERT INTO environments (name, key, kind, team_key, is_team_chat, is_shared_with_team, created_at, creator) VALUES (?, lower(hex(randomblob(16))), 'local', '', ?, ?, '2026-10-24', 'system')", (name, team_chat, shared))
+        connection.execute("INSERT INTO docs (title, body, created_at, creator) VALUES ('Handbook', 'how we work', '2026-10-24', 'system')")
+        with connection.transaction() as db:
+            EnvironmentTeams().apply(db)
+        return connection
+
+    keyed = migrated(tmp_path / "keyed", {"address": "https://team.example", "team_key": "k1", "team_number": 0}, f"{TEAMS_FOLDER}/k1.json")
+    rows = {row["name"]: (row["kind"], row["team_key"]) for row in keyed.all("SELECT name, kind, team_key FROM environments")}
+    assert rows == {"main": ("local", ""), "team": ("session", "k1"), "ada-docs": ("local", "k1")}, "no environment is lost, the Team chat is a session in the team and the shared one carries its key"
+    assert not {"is_team_chat", "is_shared_with_team"} & {row["name"] for row in keyed.all("PRAGMA table_info(environments)")}, "the flags they were marked by are gone"
+    assert [(row["title"], row["environment_id"]) for row in keyed.all("SELECT title, environment_id FROM docs")] == [("Handbook", 0)], "every document is the project's"
+    keyed.close()
+    unkeyed = migrated(tmp_path / "unkeyed", {"address": "https://team.example"}, TEAM_FILE)
+    assert {row["name"]: row["team_key"] for row in unkeyed.all("SELECT name, team_key FROM environments")} == {"main": "", "team": "unknown", "ada-docs": "unknown"}, "a journal that has not learnt its team's key places them in the team as unknown, which the sync names once the server does"
+    unkeyed.close()
 
 
 def test_no_dataclass_field_shadows_a_property_or_method_of_its_class_or_a_parent():
@@ -754,7 +796,7 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
     links_a, links_b = Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
 
-    hub = scope_a.environments.save(Environment(name="hub", is_team_chat=True), USER)
+    hub = scope_a.environments.save(Environment(name="hub", kind=EnvironmentKind.SESSION), USER)
     shared = scope_a.environments.save(Environment(name="mine"), USER)
     links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), kind="owner"), USER)
     with scope_a.environment(hub.id):
@@ -805,8 +847,8 @@ def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_an
     rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
     kept = [rows_a.rows(row.table()).save(row, USER) for row in (Rule(text="a rule"), Template(title="a template"), Trigger(phrases=("a phrase",)), Check(title="a check", command="true"), Sequence(title="a sequence"))]
     private = scope_a.environments.save(Environment(name="private"), USER)
-    shared = scope_a.environments.save(Environment(name="open", is_shared_with_team=True), USER)
-    chat = scope_a.environments.save(Environment(name="team", is_team_chat=True), USER)
+    shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
+    chat = scope_a.environments.save(Environment(name="team", kind=EnvironmentKind.SESSION), USER)
     owner = Links(tasks_a.connection, tasks_a.bus).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)

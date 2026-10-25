@@ -50,7 +50,7 @@ class StartLines:
         return ", ".join(f"{n} {name}" for name, n in counts.items() if n)
 
     def team_history(self, environment: Environment) -> str:
-        if not environment.is_team_chat:
+        if not environment.is_session():
             return ""
         return " | ".join(f"{self.writer(m)}: {m.text[:HISTORY_CHARACTERS]}" for m in self.messages.exchanges(HISTORY_MESSAGES))
 

@@ -36,13 +36,17 @@ export function colleagueOwner(environmentId, people = NOBODY) {
     return owner && owner !== people.me ? owner : 0;
 }
 
+// A session, the Team chat the first, is an environment of kind session; a person's own environment shared with the team carries the team's key.
+export const isSession = (row) => row.kind === "session";
+export const isShared = (row) => row.kind === "local" && Boolean(row.team_key);
+
 // The environments the sidebar lists: the viewer's own, the Team chat and those a colleague shares with the team; a colleague's
 // other environments open from the Team page.
-export const sidebarEnvironments = (rows, people = NOBODY) => rows.filter((row) => row.is_shared_with_team || !colleagueOwner(row.id, people));
+export const sidebarEnvironments = (rows, people = NOBODY) => rows.filter((row) => isShared(row) || !colleagueOwner(row.id, people));
 
 // The name the sidebar gives an environment: Team chat, one a colleague shares with their name after it, else its own name.
 export function environmentLabel(row, people = NOBODY) {
-    if (row.is_team_chat) return "Team chat";
+    if (isSession(row)) return "Team chat";
     const owner = colleagueOwner(row.id, people);
     return owner ? `${row.name} · ${personName(owner, people)}` : row.name;
 }

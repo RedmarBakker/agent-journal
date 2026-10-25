@@ -1,5 +1,5 @@
 import {computed} from "vue";
-import {colleagueOwner, personName} from "../domain/people.js";
+import {colleagueOwner, isSession, personName} from "../domain/people.js";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
 import {rows} from "../sync/rows.js";
@@ -13,6 +13,6 @@ export function useColleague() {
         return owner ? personName(owner, store.people) : "";
     });
     const me = computed(() => personName(store.people.me, store.people));
-    const teamChat = computed(() => Boolean(environment.value && environment.value.is_team_chat));
+    const teamChat = computed(() => Boolean(environment.value && isSession(environment.value)));
     return {colleague, me, teamChat};
 }

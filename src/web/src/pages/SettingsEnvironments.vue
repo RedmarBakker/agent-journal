@@ -12,7 +12,7 @@ import StatusLabel from "../kit/StatusLabel.vue";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
 import {matches} from "../domain/settingsCatalog.js";
-import {colleagueOwner} from "../domain/people.js";
+import {colleagueOwner, isShared} from "../domain/people.js";
 
 const props = defineProps({query: {type: String, default: ""}});
 const hosted = computed(() => Boolean(store.people && store.people.hosted));
@@ -33,8 +33,8 @@ const envRows = computed(() =>
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
             worktree: hosted.value ? "" : (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
-            shareable: Boolean(store.people.device) && !standing.environment.is_team_chat && !colleagueOwner(standing.environment.id, store.people),
-            shared: Boolean(standing.environment.is_shared_with_team),
+            shareable: Boolean(store.people.device) && standing.environment.kind === "local" && !colleagueOwner(standing.environment.id, store.people),
+            shared: isShared(standing.environment),
         }))
         .filter((row) => matches(`${row.name} environment`, props.query))
         .sort((a, b) => here(b.name) - here(a.name) || a.name.localeCompare(b.name))

@@ -62,7 +62,7 @@ class TeamChat:
         self.renewed_at = time.monotonic()
 
     def start_refusal(self, environment: Environment) -> str:
-        if not environment.is_team_chat or self.account.is_chat_holder():
+        if not environment.is_session() or self.account.is_chat_holder():
             return ""
         return "the Team chat's agent runs on the machine that claims it: claim it first with journal team claim"
 

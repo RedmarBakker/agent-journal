@@ -20,7 +20,7 @@ class Hosts:
         if not self.account.is_joined():
             return self.environments.rows()
         unowned = self.owners.unowned() if self.hosting.is_hosted() else []
-        return [*self.owners.owned(self.account.user_number()), *self.environments.team_chats(), *unowned]
+        return [*self.owners.owned(self.account.user_number()), *self.environments.sessions(), *unowned]
 
     def is_host(self, environment: Environment) -> bool:
         return environment.key in self.keys()

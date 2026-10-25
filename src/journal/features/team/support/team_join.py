@@ -77,7 +77,7 @@ class TeamJoin:
         if not summary.has_rows:
             self.claim_environments(prefix, login.account_id)
             self.name_user(login.account_id, login.name)
-            self.team_chat_ready()
+            self.team_chat_ready(summary.key)
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
         self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION, "team_key": summary.key, "team_number": summary.number})
         outcome = self.downloaded(prefix, login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
@@ -192,13 +192,13 @@ class TeamJoin:
         fields = Schema.stored_values(user, None)
         self.outgoing.queued(OutgoingChange(row_table=User.table(), row=account_id, action=CREATED, fields=fields, changed_at={field: 0.0 for field in fields}, writer=Actor.user(account_id).stamp), Actor.user(account_id))
 
-    def team_chat_ready(self) -> None:
-        chats = self.environments.team_chats()
+    def team_chat_ready(self, team_key: str) -> None:
+        chats = self.environments.sessions()
         if not chats:
-            self.environments.save(Environment(name=TEAM_CHAT, team_name=TEAM_CHAT, is_team_chat=True), Actor.system())
+            self.environments.save(Environment.session(team_key, TEAM_CHAT), Actor.system())
             return
         for chat in chats:
-            self.environments.save(chat.with_(team_name=TEAM_CHAT), Actor.system())
+            self.environments.save(chat.with_(team_name=TEAM_CHAT, team_key=team_key), Actor.system())
 
     def claim_environments(self, prefix: str, account_id: int) -> None:
         for environment in self.environments.working():

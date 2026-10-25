@@ -13,7 +13,7 @@ class SingleTeamChat(Seed):
         self.environments, self.links = environments, links
 
     def run(self) -> None:
-        chats = self.environments.team_chats()
+        chats = self.environments.sessions()
         if not chats:
             return
         team_chat, *duplicates = chats
