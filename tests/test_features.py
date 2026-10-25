@@ -12624,6 +12624,37 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
 
+def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merge_then_takes_all_three(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    for title in ("the second job", "the third job"):
+        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    for n in (1, 2, 3):
+        committed(worktree, f"notes{n}.md", f"note {n}\n")
+        proved_and_out(app, caller, f"notes{n}.md:1")
+    short = console.run(["worker", "check", "1", "1", "--task", "1", "--short", "note 1 names no section"], AGENT)
+    assert short.code == 0 and "point 1 of task 1 sent back short" in short.text, short.error
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        assert tasks.holder_task_ids(Ref("workers", 1)) == (1,) and set(tasks.finished_task_ids(Ref("workers", 1))) == {2, 3}, "the worker is back on the task sent back, and the others wait for the merge"
+        app.container.get(Workers).save(worker_row(app).with_(token_hash="h").ready(2.0), Actor.system())
+    committed(worktree, "notes1.md", "note 1, its section\n")
+    out = proved_and_out(app, caller, "notes1.md:1")
+    assert out.code == 0 and "clocked out of task 1" in out.text, out.error
+    for task in (1, 2, 3):
+        assert console.run(["worker", "check", "1", "1", "--task", str(task)], AGENT).code == 0
+    merged = console.run(["worker", "merge", "1"], AGENT)
+    assert merged.code == 0, merged.error
+    with app.container.get(Scope).environment(MAIN):
+        assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"], "one merge closes all three"
+
+
 def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_work_is_never_released_unasked(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks

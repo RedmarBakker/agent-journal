@@ -269,7 +269,7 @@ class WorkerCommand(Command):
 
     def check(self, args: Namespace, caller: Caller) -> int:
         if args.short:
-            task = self.actions.short_check(args.n, args.point, args.short, caller.actor)
+            task = self.actions.short_check(args.n, args.point, args.short, caller.actor, args.task)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
             return 0
         warning = self.actions.unrun(args.n, args.point, args.task) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""

@@ -264,6 +264,14 @@ class Tasks(ScopedRepository[Task]):
         self.release_task(holder, task_id, actor)
         self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
 
+    # a finished task sent back short: it is the one in hand again, and the task the worker reported on waits for the merge in its place
+    def reopened_on(self, task_id: int, holder: Ref, actor: Actor) -> None:
+        for current in self.holder_task_ids(holder):
+            self.finished_on(current, holder, actor)
+        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK):
+            self.links.delete(link, actor)
+        self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK), actor)
+
     def unfinished(self, holder: Ref, actor: Actor) -> None:
         for link in self.links.all_matching(source=holder, kind=FINISHED_LINK):
             self.links.delete(link, actor)

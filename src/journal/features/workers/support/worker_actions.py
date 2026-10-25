@@ -113,13 +113,15 @@ class WorkerActions:
     def merged_task_ids(self, worker: Worker) -> tuple[int, ...]:
         return (*self.tasks.finished_task_ids(Ref.build(worker)), *self.tasks.holder_task_ids(Ref.build(worker)))
 
-    def short_check(self, n: int, point: int, shortfall: str, actor: Actor) -> Task:
-        return self.short_checks(n, [(point, shortfall)], actor)
+    def short_check(self, n: int, point: int, shortfall: str, actor: Actor, task_id: int = 0) -> Task:
+        return self.short_checks(n, [(point, shortfall)], actor, task_id)
 
     # every point short at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out
-    def short_checks(self, n: int, shortfalls: list[tuple[int, str]], actor: Actor) -> Task:
+    def short_checks(self, n: int, shortfalls: list[tuple[int, str]], actor: Actor, task_id: int = 0) -> Task:
         worker = self.delivered(n, "proofs to check")
-        task = self.worker_task(worker)
+        task = self.checked_task(worker, task_id)
+        if task.id in self.tasks.finished_task_ids(Ref.build(worker)):
+            self.tasks.reopened_on(task.id, Ref.build(worker), actor)
         *first_shortfalls, (point, shortfall) = shortfalls
         proof = self.open_proof(task, point)
         earlier = tuple(sent.shortfall for sent in self.proofs.task_proofs(task) if sent.state == ProofState.SHORT)
