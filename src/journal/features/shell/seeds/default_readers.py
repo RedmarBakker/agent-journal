@@ -12,6 +12,8 @@ SHIPPED = (
     Reader("dotnet-test", "the failed tests and the totals of a dotnet test run", r"Failed |error |Passed!|Failed!|Total tests", "", "Running tests", ReaderCommands(("dotnet test",)), finished_pattern=r"Passed!|Total tests", failed_pattern=r"Failed |Failed!|error "),
     Reader("phpunit", "the failures and the totals of a phpunit or pest run", r"FAILURES!|ERRORS!|Tests: |FAIL |Failed asserting|OK \(", r"\( *([0-9]+)%\)", "Running tests", ReaderCommands(("phpunit", "pest", "artisan test")), r"[.FEWRSI]",
            finished_pattern=r"OK \(|Tests: ", failed_pattern=r"FAILURES!|ERRORS!|FAIL |Failed asserting|Tests: "),
+    Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^task [0-9]+ done: |^it went |^worker [0-9]+('s work was not merged| is )|^  [a-z][a-z-]+ at |^  and [0-9]+ sins? more|clash", "", "Merging a worker's work", ReaderCommands(("journal worker merge",)),
+           finished_pattern=r"^task [0-9]+ done: ", failed_pattern=r"^worker [0-9]+('s work was not merged| is )|clash"),
 )
 
 
@@ -20,7 +22,7 @@ RETIRED_PATTERNS = (r"^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tes
 
 
 class DefaultReaders(Seed):
-    """The readers the journal ships, for pytest, vitest, dotnet test and phpunit or pest, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is informed about."""
+    """The readers the journal ships, for pytest, vitest, dotnet test, phpunit or pest and a worker merge, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is informed about."""
 
     def __init__(self, config: Config, readers: Readers) -> None:
         self.config, self.readers = config, readers

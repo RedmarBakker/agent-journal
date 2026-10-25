@@ -58,6 +58,9 @@ class Registry:
     def services(self) -> list[Service]:
         return [service for feature in self.features for service in feature.services]
 
+    def is_background_verb(self, noun: str, verb: str) -> bool:
+        return any(command.noun == noun and verb in command.background_verbs for feature in self.features for command in feature.commands)
+
     def card_families(self) -> list[CardFamily]:
         return [*MarkKinds.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
 

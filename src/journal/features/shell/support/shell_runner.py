@@ -102,7 +102,7 @@ class ShellRunner:
         limit = self.limits.build(request.line, caller.environment, caller.session)
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
-        immediate = bool(background) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
+        immediate = bool(background) or self.limits.is_background(request.line) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
         if limit > 0 and not immediate and not cap.is_whole():
             self.start_card(folder, request.line, reader, caller)
         shown, tick, began = 0, 0, time.monotonic()

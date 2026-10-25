@@ -12302,6 +12302,21 @@ def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_wait
     assert console.run(["alias", "edit", "snooze", "--foreground"], AGENT).code == 0 and "(background)" not in console.run(["alias", "list"], USER).text
 
 
+def test_a_worker_merge_goes_to_the_background_at_once_with_the_reader_the_journal_ships_and_other_journal_commands_never_do(app: App):
+    from journal.features.shell.seeds.default_readers import DefaultReaders
+    from journal.features.shell.seeds.journal_output_readers import JournalOutputReaders
+    from journal.features.shell.support.foreground_limit import ForegroundLimit
+    from journal.features.shell.support.readers import Readers
+    limits, readers = app.container.get(ForegroundLimit), app.container.get(Readers)
+    hook(app, "SessionStart")
+    assert limits.is_background("journal worker merge 3") and limits.is_background("journal worker 3 merge"), "worker merge names itself among its command's background verbs"
+    assert limits.build("journal worker merge 3", MAIN, None) > 0, "so its line has a foreground limit, which the runner passes at once"
+    assert not limits.is_background("journal task list") and limits.build("journal task list", MAIN, None) == 0, "any other journal command stays in the foreground"
+    app.container.get(DefaultReaders).run()
+    app.container.get(JournalOutputReaders).run()
+    assert readers.reading("journal worker merge 3").name == "worker-merge", "the reader the journal ships for a merge reads it, and the seed that removes readers of journal commands keeps it"
+
+
 def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to_give_the_reader_a_topic(app: App):
     """A command a reader reads, run here with three or more argument sets, does different things, so the reader is asked for a topic that says which."""
     from journal.features.shell.support.shell_request import ShellRequest

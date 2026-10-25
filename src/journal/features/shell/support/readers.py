@@ -15,6 +15,8 @@ from journal.features.plugins.support.plugin_skills import STAMP
 DEFAULTS_FILE = "defaults"
 
 KINDS = (".pattern", ".sh")
+# the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
+JOURNAL_COMMAND_READERS = ("worker-merge",)
 
 
 class Readers:
@@ -99,7 +101,7 @@ class Readers:
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()
-        return any(name not in aliases for name in reader.commands.journal_commands())
+        return reader.name not in JOURNAL_COMMAND_READERS and any(name not in aliases for name in reader.commands.journal_commands())
 
     def default_names(self) -> set[str]:
         path = self.config.readers / DEFAULTS_FILE
