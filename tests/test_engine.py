@@ -2481,7 +2481,7 @@ def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_sta
     tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, held_since=held)})
     held = lambda data, time: [n.rendered() for n in held_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
     still = "these blocked or paused tasks stand still: 3, 5; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"
-    assert held(tasks({3: 1000.0, 5: 1200.0}), 1200.0 + 59 * 60) == [], "blocked work that moved within the hour is not named"
+    assert held(tasks({3: 1000.0, 5: 1200.0}), 1000.0 + 59 * 60) == [], "blocked work that moved within the hour is not named"
     assert held(tasks({3: 1000.0, 5: 1200.0}), 1200.0 + 60 * 60) == [still], "once both stood still for the set time they are named with their ids"
     assert held(tasks({3: 1000.0, 5: 1200.0}), 1000.0 + 60 * 60) == [still.replace("3, 5;", "3;")], "only those that stood still"
     assert held(tasks({3: 1000.0, 5: 1200.0}, open_count=2), 1300.0) == [still], "past the set share of the tasks not done they are named at once"
