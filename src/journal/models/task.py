@@ -1,8 +1,9 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar
+from typing import Callable, ClassVar
 
+from journal.events.event import Event
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
@@ -40,6 +41,10 @@ class Task(Scoped):
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()
+
+    def pulled_events(self, previous: "Task") -> tuple[Event, ...]:
+        move = PULLED_MOVES.get(self.state) if self.state != previous.state else None
+        return move(previous, self, self.update_time).events if move else ()
 
     def is_closed(self) -> bool:
         return self.state.is_closed()
@@ -128,3 +133,14 @@ class Task(Scoped):
 
     def summary_line(self) -> str:
         return self.opening_line(self.brief)
+
+
+# a change pulled from the team, by the state it reached, replayed on the row as it stood here, so it carries the events the same change made here would
+PULLED_MOVES: dict[TaskState, Callable[[Task, Task, datetime], Task]] = {
+    TaskState.STARTED: lambda previous, task, time: previous.started(time),
+    TaskState.DELEGATED: lambda previous, task, time: previous.delegated(time),
+    TaskState.FINISHED: lambda previous, task, time: previous.finished(time, task.outcome),
+    TaskState.CANCELLED: lambda previous, task, time: previous.cancelled(time, task.outcome),
+    TaskState.PAUSED: lambda previous, task, time: previous.closed(task, time, "paused"),
+    TaskState.BLOCKED: lambda previous, task, time: previous.closed(task, time, "blocked"),
+}

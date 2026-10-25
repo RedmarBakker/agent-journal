@@ -119,6 +119,9 @@ class Model:
     def creation_events(self) -> tuple[Event, ...]:
         return ()
 
+    def pulled_events(self, previous: Self) -> tuple[Event, ...]:
+        return ()
+
     def with_event(self, event: Event) -> Self:
         return replace(self, events=(*self.events, event))
 

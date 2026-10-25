@@ -33,6 +33,9 @@ class RowEvent(Event):
     def with_bound_environments(self, environment_ids: tuple[int, ...]) -> "RowEvent":
         return replace(self, bound_environment_ids=environment_ids)
 
+    def with_environment(self, environment_id: int) -> "RowEvent":
+        return replace(self, environment_id=environment_id, bound_environment_ids=())
+
     def environment_ids(self) -> tuple[int, ...]:
         return (self.environment_id, *self.bound_environment_ids)
 

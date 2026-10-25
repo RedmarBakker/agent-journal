@@ -1550,3 +1550,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **The working state carries the noun.** Working keeps task_noun, task unless it was pushed for a hub task, then acme task, from the tasks data's task_nouns (RowLabels.hub_nouns, the one place a hub row's noun is made; RowLabels.name and noun build on it). Every line the agent gets while working (carry on, log requests, the reminders, the compaction summary) names it as acme task 57, and the plan states keep it as they swap.
 - **The card reaches the driving environment.** A task's move card names it with RowLabels and is written in every environment its event is heard in: its own, the hub, and each environment it is bound to.
 - **Open.** Other task nudges (task opened, paused, next) still say task {n}; a worker's Working, pushed at clock-in, names its task plainly.
+
+## A pulled change to a driven hub row reaches its driver (task 3149)
+
+- **The model names what a pulled change means.** Model.pulled_events(previous) answers nothing; Task answers, by the state the pulled row reached, the events the same change made here would carry, by replaying it on the row as it stood (PULLED_MOVES: started, delegated, finished, cancelled, paused, blocked), so each event is built in its one place. Repository.pulled_update reads the row before it writes it and hands both to _pulled_dispatched.
+- **Heard where the row is driven, and nowhere else.** A scoped repository dispatches those events once into each environment the row is bound to, directly or through its plan (Scope.binders), as that environment's own (RowEvent.with_environment), never into the hub: the writing journal's listeners already wrote the hub's cards, so this journal's answer, the card among it, stays in the local environment. A row nobody here drives fires nothing, as before.
+- **Open.** A pulled plan fires no event, and a task moved back to open (unblocked or released) neither.

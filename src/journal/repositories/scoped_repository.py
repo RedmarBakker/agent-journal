@@ -15,7 +15,7 @@ S = TypeVar("S", bound=Scoped)
 
 
 class ScopedRepository(Repository[S]):
-    """The same, within the scope's environment: every read sees only that environment's rows, so no read names it; a read across environments says so by its name; a new row that names none is placed in it; a row bound to it, or linked by one of member_links into a row bound to it, is read there and its events are heard there too."""
+    """The same, within the scope's environment: every read sees only that environment's rows, so no read names it; a read across environments says so by its name; a new row that names none is placed in it; a row bound to it, or linked by one of member_links into a row bound to it, is read there and its events are heard there too, and what a change pulled from the team means is heard in each environment it is bound to alone."""
 
     member_links: tuple[str, ...] = ()
 
@@ -65,6 +65,12 @@ class ScopedRepository(Repository[S]):
         environment_rows = self.query().filter(environment_id=self.scope.id)
         binding_rows = self.query().filter_listed("id", [ref.id for ref in bindings if ref.type == self.table])
         return query.filter_alternatives(environment_rows, binding_rows, self.query().filter_existing(membership))
+
+    def _pulled_dispatched(self, row: S, previous: S, actor: Actor) -> None:
+        drivers = self.scope.binders(Ref.build(row), self.member_links)
+        for event in row.pulled_events(previous):
+            for environment_id in drivers:
+                self.bus.dispatch(super()._placed_event(event, row, actor).with_environment(environment_id))
 
     def _placed_event(self, event: RowEvent, row: S, actor: Actor) -> RowEvent:
         return super()._placed_event(event, row, actor).with_bound_environments(self.scope.binders(Ref.build(row), self.member_links))

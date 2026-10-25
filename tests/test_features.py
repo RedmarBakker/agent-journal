@@ -12805,6 +12805,56 @@ def test_sharing_an_environment_made_after_joining_sends_its_older_and_new_messa
         assert on_b()[0][0].name == "ada-lab", "Bob's journal knows it by Ada's name for it"
 
 
+def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_it_once_and_a_task_of_an_unbound_hub_plan_reaches_no_agent(tmp_path, template_journal, monkeypatch):
+    from datetime import datetime, timezone
+    from journal.engine.state_machine import StateMachine
+    from journal.engine.support.session_agents import SessionAgents
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.task_closed import TaskClosed
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.plan_state import PlanState
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    heard: list[TaskClosed] = []
+
+    class ClosedTasks(Listener[TaskClosed]):
+        def handle(self, event: TaskClosed) -> None:
+            heard.append(event)
+
+    def finished_by_bob(task_id: int) -> None:
+        tasks = b.container.get(Tasks)
+        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
+            tasks.save(tasks.find(task_id).finished(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2))
+
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert hook(a, "SessionStart")[0] == 200
+        a.console().run(["environment", "overview"], AGENT)
+        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
+        _, driven = ada_tasks(a)
+        with a.container.get(Scope).environment(hub.row_id):
+            plan = a.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), Actor.user(1))
+            planned = a.container.get(Tasks).save(Task(environment_id=hub.row_id, title="in the team's plan"), Actor.user(1))
+        a.container.get(Links).save(Link(source=Ref.build(planned), target=Ref.build(plan), kind=PLAN_LINK), Actor.user(1))
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=driven.id)) and bool(b.container.get(Tasks).global_matching(id=planned.id))), "both hub tasks are on Bob's journal"
+        assert a.console().run(["task", "drive", str(driven.id)], USER).code == 0
+        assert a.console().run(["task", "start", str(driven.id)], AGENT).code == 0
+        assert a.container.get(SessionAgents).top("s1").task_id == driven.id
+        a.container.get(Bus).listen(TaskClosed, ClosedTasks())
+        finished_by_bob(planned.id)
+        finished_by_bob(driven.id)
+        assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.FINISHED and a.container.get(Tasks).find(planned.id).state == TaskState.FINISHED), "Bob's finishes reach Ada's journal"
+        assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "done", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
+        assert "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "it reaches the agent of that environment"
+        assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"
+
+
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied
