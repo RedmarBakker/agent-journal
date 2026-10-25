@@ -25,7 +25,7 @@ class WorkersNudges:
     TASK_DELEGATION = Nudge("workers", "delegate_the_task", "{{name}} is in hand and you orchestrate; {{logged}}", "hand it to a worker with journal worker dispatch \"<Name>\" --task <n>, and review its report", repeat=Timeout.seconds(0))
     BLOCKED_CHECK = Nudge("workers", "check_blocked_tasks", "tasks {{tasks}} are paused or blocked", "resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided", repeat=Timeout.seconds(300))
     CREW_REMINDER = Nudge("workers", "dispatch_while_busy", "{{count}} tasks open, no worker: {{tasks}}", repeat=Timeout.tool_uses(30))
-    OUT_OF_WORK = Nudge("workers", "worker_has_no_work_left", "worker {{n}}, {{name}}, has no work left: its work is merged and its queue is empty", "queue it the next tasks with journal worker queue {{n}} <task> <task>, or retire it", repeat=Timeout.seconds(0))
+    OUT_OF_WORK = Nudge("workers", "worker_has_no_work_left", "worker {{n}} has no work left", "queue it tasks with journal worker queue {{n}} <task> <task>, or retire it", repeat=Timeout.seconds(0))
     PLACE_FREE = Nudge("workers", "worker_place_free", "worker {{n}} free; open: {{tasks}}", repeat=Timeout.seconds(0))
     ORCHESTRATOR_MODE = Nudge("workers", "now_orchestrating", "orchestrating: dispatch tasks, review and merge, run the suite", repeat=Timeout.seconds(0))
     SOLO_MODE = Nudge("workers", "now_solo", "you now work solo", "do every job yourself: no worker is dispatched", repeat=Timeout.seconds(0))

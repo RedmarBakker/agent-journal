@@ -1551,9 +1551,9 @@ profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker prof
 questions.ask_through_the_journal  [questions]  ask through the journal, not your own question tool. `journal question ask "<one line>" --options "a" "b"`
 questions.question_answered  [questions]  question {{n}} is answered. `journal question show {{n}}`, then act on it
 reports.write_an_update  [reports]  you committed work: if a meaningful piece landed, write the user an update. journal report changes shows what it covers, then journal report recap "<one or two sentences>" writes it, docked at the bottom of the chat; skip it when the work is small
-reviewing.review_failed  [reviewing]  the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
+reviewing.review_failed  [reviewing]  the reviewer of worker {{n}} ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
 reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: you change no file and merge nothing. read, run the tests the proofs name and judge the changes, then give your report with journal review "<one line per point>"
-reviewing.reviewer_could_not_decide  [reviewing]  reviewer {{reviewer}} could not decide worker {{n}}, {{name}}, on task {{task}}:
+reviewing.reviewer_could_not_decide  [reviewing]  reviewer {{reviewer}} could not decide worker {{n}} on task {{task}}:
 {{report}}. decide the points it left: journal worker check {{n}} <point>, or --short "<what is missing>", then journal worker merge {{n}}
 reviewing.reviewer_gives_its_report  [reviewing]  your review is not given yet. journal review "<one line per point: 1 passed, or 2 short: why; then the tests you ran>"
 reviewing.reviews_wait_for_a_reviewer  [reviewing]  reviews waiting for a reviewer: {{waiting}}; reviewers: {{reviewers}}. add one with journal reviewer add when they pile up; journal reviewer list names them in their order
@@ -1693,7 +1693,7 @@ workers.too_many_subagents  [workers]  {{running}} subagents are running, the mo
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
-workers.worker_has_no_work_left  [workers]  worker {{n}}, {{name}}, has no work left: its work is merged and its queue is empty. queue it the next tasks with journal worker queue {{n}} <task> <task>, or retire it
+workers.worker_has_no_work_left  [workers]  worker {{n}} has no work left. queue it tasks with journal worker queue {{n}} <task> <task>, or retire it
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_place_free  [workers]  worker {{n}} free; open: {{tasks}}
 workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}

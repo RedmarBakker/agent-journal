@@ -23,12 +23,12 @@ class ReviewingConduct(Conduct):
     def on_worker_review_undecided(self, event: WorkerReviewUndecided, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(ReviewingNudges.REVIEW_UNDECIDED.create(reviewer=event.reviewer, n=event.worker.id, name=event.worker.name, task=event.task, report=event.report))
+        return self.none(ReviewingNudges.REVIEW_UNDECIDED.create(reviewer=event.reviewer, n=event.worker.id, task=event.task, report=event.report))
 
     def on_worker_review_failed(self, event: WorkerReviewFailed, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(ReviewingNudges.REVIEW_FAILED.create(n=event.worker.id, name=event.worker.name, task=event.task))
+        return self.none(ReviewingNudges.REVIEW_FAILED.create(n=event.worker.id, task=event.task))
 
 
 def waiting_lines(data: FeatureData) -> tuple[Nudge, ...]:

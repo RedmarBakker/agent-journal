@@ -122,7 +122,7 @@ class WorkersConduct(Conduct):
     def on_worker_queue_empty(self, event: WorkerQueueEmpty, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(*(free_place(event.worker, event.data, settings) or (WorkersNudges.OUT_OF_WORK.create(n=event.worker.id, name=event.worker.name),)))
+        return self.none(*(free_place(event.worker, event.data, settings) or (WorkersNudges.OUT_OF_WORK.create(n=event.worker.id),)))
 
     def on_worker_retired(self, event: WorkerRetired, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
