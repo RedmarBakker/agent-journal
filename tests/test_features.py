@@ -11905,6 +11905,8 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
 
 
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -11914,9 +11916,11 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
+    app.container.get(Entries).save(Entry(environment_id=workers.find(1).environment_id, kind="ToolStarting", actor=Actor.agent(workers.find(1).session), data={"call": call}), Actor.system())
     tick_after(app, 21 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and "worker 1 quiet 20 min; last: " in quiet()[0], "the first line names the worker's last tool call"
+    assert len(quiet()) == 1 and quiet()[0].endswith('worker 1 quiet 20 min; last: journal task log 3260 "BLOCKED: commit…'), "the first line names the worker's last tool call, ended on a whole word"
     tick_after(app, 41 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 2 and "worker 1 quiet 40 min; split its job?" in quiet()[1] and workers.find(1).silence.is_split_advised, "at forty minutes it is told once more, with the advice to split"

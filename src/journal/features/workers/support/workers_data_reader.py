@@ -18,6 +18,7 @@ from journal.models.proof_state import ProofState
 from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.support.command_text import CommandText
 from journal.repositories.worker_todos import WorkerTodos
 from journal.repositories.workers import Workers
 from journal.repositories.subagents import Subagents
@@ -39,7 +40,7 @@ class WorkersDataReader:
         call = started[0].recorded_call() if started else None
         if call is None:
             return "no tool call yet"
-        return (call.command or " ".join(filter(None, (call.work, *(call.edited_paths or call.read_paths)[:1]))) or "a tool")[:LAST_CALL_CHARACTERS]
+        return CommandText.shortened(call.command or " ".join(filter(None, (call.work, *(call.edited_paths or call.read_paths)[:1]))) or "a tool", LAST_CALL_CHARACTERS)
 
     def is_unchecked(self, task_id: int) -> bool:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(self.tasks.find(task_id)), key=lambda proof: proof.row_id)}
