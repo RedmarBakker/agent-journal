@@ -20333,3 +20333,51 @@ def test_a_fitness_that_falls_past_a_mark_is_told_once_and_a_rise_lets_the_marks
         told = FitnessLevels.standing(score, 5)
     assert said == [False, False, True, False, True, False, True], "100 to 96 nothing, 96 to 95 one, 95 to 91 nothing, 91 to 80 one, 80 to 90 nothing, 90 to 84 one"
     assert FitnessLevels.is_fall(80, 100, 5) and not FitnessLevels.is_fall(94, 90, 5), "a fall past several marks is one fall"
+
+
+def test_a_rebase_order_reaches_a_worker_on_a_task_at_its_next_clock_out(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(root / "platform", "notes.md", "a later note\n")
+    ordered = app.console().run(["worker", "rebase", "1"], AGENT)
+    assert ordered.code == 0 and "rebased at its next clock-out" in ordered.text, ordered.text
+    assert worker_row(app).rebase_due and not (folder / "platform/notes.md").exists(), "a worker on its task is left alone until it finishes"
+    (folder / "platform/totals.php").write_text("<?php\n// totals\n")
+    assert proved_and_out(app, caller, "platform/totals.php:1").code == 0
+    app.runtime().deferred.drain()
+    assert not worker_row(app).rebase_due and (folder / "platform/notes.md").is_file(), "its clock-out rebased it and the order is carried out"
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(MAIN):
+        assert [m for m in app.container.get(Messages).scoped() if m.text.startswith("Worker 1, Worker 1: rebased by the journal")], "the rebase is one mark in the chat"
+
+
+def test_a_rebase_order_rebases_a_resting_worker_at_once_and_sends_a_clash_back(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    _, second, second_caller = worktree_worker(app, monkeypatch, "platform header", n=2)
+    committed(folder / "platform", "totals.php", "<?php\n// totals\n")
+    committed(second / "platform", "app.php", "<?php\n// the second worker's line\n")
+    assert proved_and_out(app, caller, "platform/totals.php:1").code == 0
+    assert proved_and_out(app, second_caller, "platform/app.php:1").code == 0
+    committed(root / "platform", "notes.md", "a later note\n")
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
+    ordered = app.console().run(["worker", "rebase"], AGENT)
+    assert ordered.code == 0, ordered.error
+    assert (folder / "platform/notes.md").is_file() and worker_row(app).state == WorkerState.DELIVERED, "a clocked-out worker is rebased at once and stays as it was"
+    assert worker_row(app, 2).state == WorkerState.DISPATCHED and "conflict in platform/app.php" in worker_row(app, 2).brief, "one that clashes goes back to fix the files"
+
+
+def test_a_forced_rebase_moves_a_running_workers_worktree_and_keeps_its_changes_not_committed(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(folder / "platform", "totals.php", "<?php\n// totals\n")
+    (folder / "platform/draft.php").write_text("<?php\n// a draft\n")
+    committed(root / "platform", "notes.md", "a later note\n")
+    forced = app.console().run(["worker", "rebase", "1", "--force"], AGENT)
+    assert forced.code == 0 and "rebased onto the project's branch" in forced.text, forced.text
+    assert (folder / "platform/notes.md").is_file() and (folder / "platform/draft.php").read_text() == "<?php\n// a draft\n", "the worktree carries what landed and the worker's changes not committed are kept"
+    assert "draft.php" in git_run(folder / "platform", "status", "--porcelain").stdout and not worker_row(app).edit_lock, "its draft is still its own, and its writes are free again"
+    monkeypatch.setattr(WorkerBranch, "rebased_onto_branch", lambda self, worker: (_ for _ in ()).throw(RuntimeError("git failed")))
+    with pytest.raises(RuntimeError):
+        app.console().run(["worker", "rebase", "1", "--force"], AGENT)
+    assert not worker_row(app).edit_lock, "a rebase that fails still frees the worker's writes"

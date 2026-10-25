@@ -21,6 +21,7 @@ from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.features.workers.support.report_fitting import ReportFitting
+from journal.features.workers.support.worker_rebase import WorkerRebase
 from journal.models.support.report_choice import ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
@@ -66,8 +67,8 @@ class WorkerCommand(Command):
     background_verbs = frozenset({"merge"})
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting) -> None:
-        self.targets, self.fitting = targets, fitting
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase) -> None:
+        self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
@@ -116,6 +117,9 @@ class WorkerCommand(Command):
         queue.add_argument("tasks", type=int, nargs="+")
         queue.add_argument("--report", nargs="+", help="when it reports from now: each, queue or every <n>; unnamed, its choice stays")
         queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order given, taking one from another worker's queue if it is there, so the first is the next one sent")
+        rebase = self.verb(verbs, "rebase", "have the journal rebase workers' worktrees onto the project's branch: one on a task at its next clock-out, any other at once")
+        rebase.add_argument("workers", type=int, nargs="*", help="the workers to rebase; all of yours with a worktree when none are named")
+        rebase.add_argument("--force", action="store_true", help="rebase a running worker at once: the journal pauses its writes, stashes its changes, rebases and takes them back")
         self.verb(verbs, "drain", "give back every task waiting in a worker's queue, open again, in one mark; the task it works on stays its").add_argument("n", type=int)
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
         notify.add_argument("n", type=int)
@@ -317,6 +321,14 @@ class WorkerCommand(Command):
         advice = self.fitting.advice(self.workers.find(worker.id), time.time())
         if advice:
             print(advice)
+        return 0
+
+    def rebase(self, args: Namespace, caller: Caller) -> int:
+        workers = [self.workers.find(n) for n in args.workers] or self.workers.rebase_candidates(caller.session)
+        if not workers:
+            raise Rejection("no worker of yours has a worktree to rebase")
+        for worker in workers:
+            print(self.rebases.immediate_rebase(worker, caller.actor) if args.force else self.rebases.rebase(worker, caller.actor))
         return 0
 
     def drain(self, args: Namespace, caller: Caller) -> int:

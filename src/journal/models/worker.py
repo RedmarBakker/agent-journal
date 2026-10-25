@@ -10,6 +10,7 @@ from journal.events.rows.worker_test_failed import WorkerTestFailed
 from journal.events.rows.worker_spent import WorkerSpent
 from journal.models.model_tier import ModelTier
 from journal.events.rows.worker_keeps_clashing import WorkerKeepsClashing
+from journal.events.rows.worker_rebased import WorkerRebased
 from journal.events.rows.worker_model_judged import WorkerModelJudged
 from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.models.support.model_fit import ModelFit
@@ -89,6 +90,8 @@ class Worker(Helper):
     cost_dollars: float = 0.0
     report_choice: ReportChoice = ReportChoice()
     clashes: int = 0
+    rebase_due: bool = False
+    edit_lock: bool = False
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
@@ -131,6 +134,9 @@ class Worker(Helper):
 
     def model_judged(self, verdict: str, reason: str, verifier_session: str, time: float) -> "Worker":
         return self.with_(model_fit=self.model_fit.judged(verdict, reason)).with_event(WorkerModelJudged(environment_id=self.environment_id, time=time, worker=self.mention(), verdict=verdict, reason=reason, verifier_session=verifier_session))
+
+    def rebased(self, outcome: str, time: float) -> "Worker":
+        return self.with_(rebase_due=False, edit_lock=False).with_event(WorkerRebased(environment_id=self.environment_id, time=time, worker=self.mention(), outcome=outcome))
 
     def clashed(self, clashing: str, limit: int, time: float) -> "Worker":
         worker = self.with_(clashes=self.clashes + 1)

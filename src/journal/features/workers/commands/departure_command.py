@@ -60,6 +60,8 @@ class DepartureCommand(Command):
             raise Rejection(f"your worktree contains folders outside the repositories of your task, which would be lost: {', '.join(strays)}; move their changes into your task's repositories or remove them")
         if self.branch.worktree_heads(worker) != start_heads:
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
+        if worker.rebase_due:
+            self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", datetime.now(timezone.utc).timestamp()), caller.actor)
         if self.is_journal_testing(worker):
             self.tested(worker, task, args.tests, caller)
         holder = Ref(Worker.table(), worker.id)

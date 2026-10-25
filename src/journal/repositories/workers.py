@@ -37,6 +37,9 @@ class Workers(ScopedRepository[Worker]):
     def with_worktree(self) -> list[Worker]:
         return self.selected(self.query().filter(worktree=True).order("id"))
 
+    def rebase_candidates(self, dispatcher: str) -> list[Worker]:
+        return self.selected(self.query().filter(worktree=True, dispatcher=dispatcher).filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED, WorkerState.REPORTED]).order("id"))
+
     def idle_workers(self) -> list[Worker]:
         return self.selected(self.idle_query().with_columns("name", "profile", "touched_paths", "state", "adopted", "dispatcher").order("id"))
 
