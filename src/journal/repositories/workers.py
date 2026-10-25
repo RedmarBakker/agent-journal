@@ -29,8 +29,8 @@ class Workers(ScopedRepository[Worker]):
     def idle_workers(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.REPORTED, adopted=False).order("id"))
 
-    def delivered_workers(self) -> list[Worker]:
-        return self.selected(self.query().filter(state=WorkerState.DELIVERED).order("id"))
+    def checkable_workers(self) -> list[Worker]:
+        return self.selected(self.query().filter(state=WorkerState.DELIVERED).filter_unequal("review_pending", True).order("id"))
 
     def has_idle(self) -> bool:
         return any(worker.is_idle() for worker in self.scoped())

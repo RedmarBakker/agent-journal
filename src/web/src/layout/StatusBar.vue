@@ -247,8 +247,8 @@ async function runBar(p) {
                         labelled
                         v-tip:approves="
                             orchestratorApproves
-                                ? {title: 'The orchestrator approves plans', line: 'It approves a plan itself with journal plan approve.'}
-                                : {title: 'Only you approve plans', line: 'The orchestrator waits for your approval of every plan.'}
+                                ? {title: 'The agent approves plans', line: 'It approves a plan itself with journal plan approve.'}
+                                : {title: 'Only you approve plans', line: 'The agent waits for your approval of every plan.'}
                         "
                         @change="setOrchestratorApproves"
                     />
