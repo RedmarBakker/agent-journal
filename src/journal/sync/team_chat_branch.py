@@ -1,3 +1,5 @@
+import time
+
 from journal.events.announcer import Announcer
 from journal.events.moments.team_chat_files_diverged import TeamChatFilesDiverged
 from journal.config import Config
@@ -10,6 +12,9 @@ TEAM_CHAT = "team"
 REMOTE = "origin"
 SHARED_BRANCH = "journal/team-chat"
 COMMIT_DELAY_SECONDS = 15
+# git holds the index for a moment while another git command of the same worktree reads or refreshes it: staging waits for it this many times
+STAGE_ATTEMPTS = 25
+STAGE_WAIT_SECONDS = 0.2
 
 
 class TeamChatBranch:
@@ -24,6 +29,8 @@ class TeamChatBranch:
         if not self.worktree.path.is_dir():
             return
         files_hash = self.staged_hash()
+        if not files_hash:
+            return
         if files_hash != self.files_hash:
             self.files_hash, self.files_hash_at = files_hash, time
         elif time - self.files_hash_at >= COMMIT_DELAY_SECONDS:
@@ -35,12 +42,19 @@ class TeamChatBranch:
     def push_all(self) -> None:
         if not self.worktree.path.is_dir():
             return
-        self.commit(self.staged_hash())
-        self.push_head(self.worktree.local_branch())
+        files_hash = self.staged_hash()
+        if files_hash:
+            self.commit(files_hash)
+            self.push_head(self.worktree.local_branch())
 
     def staged_hash(self) -> str:
-        self.worktree.run_git("add", "-A")
-        return self.worktree.run_git("write-tree").stdout.strip()
+        for _ in range(STAGE_ATTEMPTS):
+            added = self.worktree.run_git("add", "-A")
+            if added.returncode == 0:
+                return self.worktree.run_git("write-tree").stdout.strip()
+            time.sleep(STAGE_WAIT_SECONDS)
+        self.status.failed(f"the Team chat's files were not staged: {added.stderr.strip()}")
+        return ""
 
     def commit(self, files_hash: str) -> None:
         if files_hash != self.worktree.run_git("rev-parse", "HEAD^{tree}").stdout.strip():

@@ -14949,6 +14949,42 @@ def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_t
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
 
 
+def test_the_team_chat_holder_waits_for_git_to_free_the_index_before_it_stages_and_stages_nothing_when_it_never_does(app: App, monkeypatch):
+    import subprocess
+    import threading
+    from journal.events.announcer import Announcer
+    from journal.repositories.environments import Environments
+    from journal.support.worktree import Worktree
+    from journal.sync import team_chat_branch
+    from journal.sync.sync_status import SyncStatus
+    from journal.sync.team_account import TeamAccount
+    from journal.sync.team_chat_branch import TEAM_CHAT, TeamChatBranch
+    root = app.config.root
+
+    def git(*arguments, cwd=root):
+        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "Ada")
+    git("config", "user.email", "ada@example.com")
+    (root / ".gitignore").write_text("secret.env\n")
+    git("add", ".gitignore")
+    git("commit", "-q", "-m", "first")
+    held = Worktree(root, TEAM_CHAT).created()
+    (held / "plan.txt").write_text("the agent's work\n")
+    holder = TeamChatBranch(app.config, app.container.get(TeamAccount), app.container.get(Environments), app.container.get(Announcer), app.container.get(SyncStatus))
+    lock = Path(git("rev-parse", "--absolute-git-dir", cwd=held)) / "index.lock"
+    monkeypatch.setattr(team_chat_branch, "STAGE_WAIT_SECONDS", 0.05)
+    lock.write_text("")
+    threading.Timer(0.5, lock.unlink).start()
+    staged = holder.staged_hash()
+    assert staged and "plan.txt" in git("ls-tree", "--name-only", staged, cwd=held), "git holding the index for a moment does not leave the file unstaged"
+    lock.write_text("")
+    monkeypatch.setattr(team_chat_branch, "STAGE_ATTEMPTS", 3)
+    assert holder.staged_hash() == "", "an index that never frees stages nothing, and the push does nothing this time"
+    lock.unlink()
+
+
 def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environments_worktree_and_main_is_untouched(app: App):
     import subprocess
     from journal.features.workers.support.worker_branch import WorkerBranch
