@@ -19,3 +19,6 @@ class ProgressStalls:
 
     def longest_seconds(self, output: int) -> float:
         return self.longest.get(output, 0.0)
+
+    def has_seen(self, output: int) -> bool:
+        return output in self.fractions

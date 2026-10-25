@@ -20487,3 +20487,22 @@ def test_a_card_titled_by_a_bare_word_raises_one_report_naming_its_reader_and_a_
     assert len(found) == 1 and found[0].reader == "renamer" and "--topic" in found[0].fixes[0], "one report names the reader, however often the card is written"
     whole = outputs.save(CommandOutput(chain="run2", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("renamer", "Running the rename tool"), Actor.system())
     assert reports.open_with_output_finding(whole.id, "bare word") == [], "a title of a whole phrase raises none"
+
+
+def test_a_long_run_whose_progress_showed_only_in_its_last_lines_is_flagged_and_one_counting_as_it_went_is_not():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    from journal.features.shell.support.progress_stalls import ProgressStalls
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import PROGRESS_LATE, ReaderJudge
+    began = datetime(2026, 10, 26, tzinfo=timezone.utc)
+    output = SimpleNamespace(row_id=5, command="pytest -q", creation_time=began)
+    reader = Reader("tests", "the tests", progress_pattern=r"\[ *([0-9]+)%\]", label="Running tests")
+    lines = ["collected 3 items", "1 passed, 2 failed [100%]"]
+    judge = lambda stalls: ReaderJudge(None, None, stalls, None, None, None, None, None, None)
+    late = judge(ProgressStalls()).late_progress(reader, output, lines, began + timedelta(seconds=40))
+    assert len(late) == 1 and PROGRESS_LATE in late[0][0] and "scripts/suite.py" in late[0][1], "a figure printed only at the end of a 40 second run is flagged with the counting advice"
+    counted = ProgressStalls()
+    counted.seen(5, 0.4, 10.0)
+    assert judge(counted).late_progress(reader, output, lines, began + timedelta(seconds=40)) == [], "progress seen while the run went raises nothing"
+    assert judge(ProgressStalls()).late_progress(reader, output, lines, began + timedelta(seconds=10)) == [], "a short run raises nothing"

@@ -34,6 +34,7 @@ NEWEST_RUNS = 200
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
 PROGRESS_MISSING = "its card showed no progress"
 PROGRESS_STALLED = "its progress stood still for"
+PROGRESS_LATE = "its progress showed only in the last lines"
 SUMMARY_MISSING = "the card ended with no line of its own"
 POOR_LINES = "the card showed lines too long"
 SINGLE_WORD = "the card showed a line of one word"
@@ -45,7 +46,7 @@ SUITES_COUNTED = "its progress counts suites, not tests"
 SILENT_RUN = "the run printed nothing for"
 SILENT_RUN_FIX = ("the command held its output back, which no reader can show: run it unbuffered, with stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, "
                   "go test -json in place of -v, or a runner that prints its count of tests before the first one and a line as each ends")
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, PROGRESS_LATE, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
 # the newest runs of a reader looked through for one title given to different work
 MIXED_RUNS = 6
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
@@ -110,13 +111,19 @@ class ReaderJudge:
         return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
 
     def progress_findings(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
-        return self.silent_run(output) or [*self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output)]
+        return self.silent_run(output) or [*self.missing_progress(reader, output, lines, ended_at), *self.late_progress(reader, output, lines, ended_at), *self.stalled_progress(output)]
 
     def silent_run(self, output: CommandOutput) -> list[tuple[str, str]]:
         seconds = self.silences.longest_seconds(output.row_id)
         if seconds <= STALL_SECONDS:
             return []
         return [(f"{SILENT_RUN} {seconds:.0f} seconds while it ran, so its card had nothing to show", SILENT_RUN_FIX)]
+
+    def late_progress(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
+        seconds = (ended_at - output.creation_time).total_seconds()
+        if seconds < PROGRESS_SECONDS or not reader.progress(lines).is_known() or self.stalls.has_seen(output.row_id):
+            return []
+        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_LATE}, never while it ran", f"make the run print its count as it goes, N of M as each step finishes, such as scripts/suite.py does for a scoped run: {self.progress_fix(output.command, lines)}")]
 
     def stalled_progress(self, output: CommandOutput) -> list[tuple[str, str]]:
         seconds = self.stalls.longest_seconds(output.row_id)
