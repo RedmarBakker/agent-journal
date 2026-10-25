@@ -20,6 +20,7 @@ from journal.models.scoped import Scoped
 
 # how many of its newest tool uses an agent's subagent dispatches, research, handovers and file edits are counted over
 WORK_WINDOW_USES = 50
+WINDOWED_USES = ("subagent_dispatch_uses", "research_uses", "handover_uses", "file_edit_uses", "merge_uses", "prepared_merge_uses", "reuse_uses", "fresh_idle_uses", "briefed_uses", "late_worker_uses", "late_task_uses")
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
 MODEL_FITS_KEPT = 10
 
@@ -173,10 +174,11 @@ class Agent(Scoped):
         return self.with_(late_task_uses=self.windowed((*self.late_task_uses, self.tool_uses)))
 
     def windowed(self, uses: tuple[int, ...]) -> tuple[int, ...]:
-        return tuple(use for use in uses if use > self.tool_uses - WORK_WINDOW_USES)
+        return tuple(use for use in uses if self.tool_uses - WORK_WINDOW_USES < use <= self.tool_uses)
 
     def compacted(self) -> "Agent":
-        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0)
+        shifted = {name: tuple(use - self.tool_uses for use in getattr(self, name)) for name in WINDOWED_USES}
+        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted)
 
     def message_arrived(self) -> "Agent":
         return self.with_(inbox_position=self.tool_uses)

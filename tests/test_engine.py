@@ -2417,6 +2417,14 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
     assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
 
 
+def test_a_compaction_keeps_the_newest_fifty_tool_uses_in_the_fitness_window():
+    agent = Agent(environment_id=1, session="s1", tool_uses=320, late_worker_uses=(250, 300, 319), merge_uses=(310,))
+    compacted = agent.compacted()
+    assert compacted.tool_uses == 0 and compacted.windowed(compacted.late_worker_uses) == (-20, -1) and compacted.windowed(compacted.merge_uses) == (-10,), "the same uses stay in the window after the count starts again"
+    stale = Agent(environment_id=1, session="s1", tool_uses=166, late_worker_uses=(150, 290, 321))
+    assert stale.windowed(stale.late_worker_uses) == (150,), "a use numbered above the count is from before a compaction and left out"
+
+
 def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_load_itself():
     from dataclasses import replace
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
