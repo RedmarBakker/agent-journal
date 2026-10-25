@@ -13,6 +13,7 @@ IN_PLACE = re.compile(r"\s(-[a-zA-Z]*i|--in-place)")
 READERS = {"cat", "sed", "grep", "egrep", "fgrep", "rg", "ag", "head", "tail", "less", "more", "bat", "awk", "jq", "wc", "ls", "find", "tree", "diff", "stat", "file", "nl", "sqlite3"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "find", "ls", "tree"}
 GIT_READS = {"show", "diff", "log", "status", "blame", "grep", "ls-files"}
+GIT_BRANCH_WRITES = {"merge", "pull", "rebase", "cherry-pick", "revert", "am", "commit"}
 GIT_OPTIONS = {"--no-pager", "-c", "-C", "--git-dir", "--work-tree", "-p", "-P"}
 CODE = re.compile(r"\.(py|pyi|vue|js|mjs|cjs|jsx|ts|tsx|cs|go|rs|swift|kt|kts|java|scala|php|rb|ex|exs|erl|hs|ml|clj|c|h|cc|cpp|hpp|m|mm|lua|dart|r|jl|sh|bash|zsh|fish|ps1|sql|css|scss|sass|less|html|htm|svelte|astro|json|jsonl|yaml|yml|toml|ini|cfg|xml|gradle|tf|proto|graphql|md|txt)\b")
 WRITING = re.compile(r">>?(?!\s*/dev/null|&[0-9])|\btee\b")
@@ -70,6 +71,9 @@ class Part:
     def is_read(self) -> bool:
         tokens = self.tokens()
         return (len(tokens) > 1 and tokens[1] in GIT_READS if self.program() == "git" else self.program() in READERS) and not self.edits_files()
+
+    def is_branch_write(self) -> bool:
+        return self.program() == "git" and self.tokens()[1:2] != [] and self.tokens()[1] in GIT_BRANCH_WRITES
 
     def is_harmless(self) -> bool:
         return self.program() in HARMLESS and not WRITING.search(self.unquoted()) and "$(" not in self.text and "`" not in self.text

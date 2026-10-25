@@ -97,7 +97,9 @@ class WorkerCommand(Command):
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
         release.add_argument("n", type=int)
         release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it completed and that wait for the merge; their commits stay on its branch")
-        self.verb(verbs, "merge", "take in a clocked-out worker's checked work, which closes its task").add_argument("n", type=int)
+        merge = self.verb(verbs, "merge", "take in a clocked-out worker's checked work, which closes its task; every merge waits its turn in the journal's merge queue")
+        merge.add_argument("n", type=int, nargs="?")
+        merge.add_argument("--all", action="store_true", help="take in every worker of yours whose work waits with every point checked, one after another")
         check = self.verb(verbs, "check", "check one proof of a clocked-out worker, or send it back short")
         check.add_argument("n", type=int)
         check.add_argument("point", type=int)
@@ -297,7 +299,30 @@ class WorkerCommand(Command):
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
-        outcome = self.actions.merge(args.n, caller.actor, MergeSteps(lambda line: print(line)))
+        if args.all:
+            return self.merge_all(caller)
+        if args.n is None:
+            raise Rejection("name the worker to merge, or --all for every worker whose work is checked")
+        return self.merge_one(args.n, caller)
+
+    def merge_all(self, caller: Caller) -> int:
+        waiting = self.workers.delivered_workers(caller.session)
+        if not waiting:
+            raise Rejection("no worker of yours has clocked-out work waiting to merge")
+        for worker in waiting:
+            print(f"== worker {worker.id}, {worker.name}")
+            print(self.actions.unchecked_line(worker) or self.merge_outcome(worker.id, caller))
+        return 0
+
+    def merge_outcome(self, n: int, caller: Caller) -> str:
+        try:
+            self.merge_one(n, caller)
+            return f"worker {n} merged"
+        except Rejection as refused:
+            return str(refused)
+
+    def merge_one(self, n: int, caller: Caller) -> int:
+        outcome = self.actions.merge(n, caller.actor, MergeSteps(lambda line: print(line)))
         print(f"task {outcome.task.id} done: {outcome.task.outcome}")
         print(outcome.worktree or "it had no worktree")
         if outcome.finished:

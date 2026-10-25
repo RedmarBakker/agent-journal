@@ -10,6 +10,7 @@ from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
 from journal.events.moments.worker_merge_refused import WorkerMergeRefused
 from journal.features.workers.support.merge_clash import MergeClash
+from journal.support.merger import Merger
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -54,9 +55,9 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account, self.moves, self.failures, self.settings = account, moves, failures, settings
+        self.account, self.moves, self.failures, self.settings, self.merger = account, moves, failures, settings, merger
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -157,28 +158,33 @@ class WorkerActions:
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
         self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
-        steps.started(2)
-        merged_total = self.branch.merged_lines(worker)
-        commit = self.merge_commit(worker, task)
-        unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
-        merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
-        outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
-        steps.started(3)
-        closed = self.tasks.save(task.merge_completed(datetime.now(timezone.utc), outcome, worker.id), actor)
-        self.tasks.release_task(Ref.build(worker), task.id, actor)
-        closed_queue = tuple(self.tasks.save(queued_task.merge_completed(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
-        self.tasks.unfinished(Ref.build(worker), actor)
-        self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
-        self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
-        self.moves.cleared(worker)
-        steps.started(4)
-        worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
+        steps.started(2, self.queue_note())
+        with self.merger.turn():
+            merged_total = self.branch.merged_lines(worker)
+            commit = self.merge_commit(worker, task)
+            unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
+            merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
+            outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
+            steps.started(3)
+            closed = self.tasks.save(task.merge_completed(datetime.now(timezone.utc), outcome, worker.id), actor)
+            self.tasks.release_task(Ref.build(worker), task.id, actor)
+            closed_queue = tuple(self.tasks.save(queued_task.merge_completed(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
+            self.tasks.unfinished(Ref.build(worker), actor)
+            self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
+            self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
+            self.moves.cleared(worker)
+            steps.started(4)
+            worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
         steps.started(5)
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp(), lines=merged_total))
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
+
+    def queue_note(self) -> str:
+        ahead = self.merger.queued()
+        return f", after the {ahead} merges ahead of it in the queue" if ahead else ""
 
     def gated(self, n: int, task: Task) -> Worker:
         worker = self.delivered(n, "work to merge")
@@ -190,9 +196,17 @@ class WorkerActions:
         return {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}
 
     # one unchecked point of any task the merge would close refuses the whole merge, naming the task
-    def refuse_unchecked(self, worker: Worker, task: Task, task_option: str) -> None:
+    def unchecked_line(self, worker: Worker) -> str:
+        tasks = (*(self.tasks.find(task_id) for task_id in self.tasks.finished_task_ids(Ref.build(worker))), self.worker_task(worker))
+        unchecked = [f"task {task.id} point {point}" for task in tasks for point in self.unchecked_points(task)]
+        return f"skipped: {', '.join(unchecked)} not checked yet" if unchecked else ""
+
+    def unchecked_points(self, task: Task) -> list[int]:
         latest = self.latest_proofs(task)
-        unchecked = [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state not in CHECKED_STATES]
+        return [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state not in CHECKED_STATES]
+
+    def refuse_unchecked(self, worker: Worker, task: Task, task_option: str) -> None:
+        unchecked = self.unchecked_points(task)
         if unchecked:
             raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked, and the merge takes every completed task in at once: journal worker check {worker.id} <point>{task_option} first")
 

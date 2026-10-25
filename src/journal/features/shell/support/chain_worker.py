@@ -10,6 +10,8 @@ from journal.features.shell.support.shell_process import ShellProcess
 from journal.features.shell.support.shell_record import ShellRecord
 from journal.features.shell.support.shell_request import OUTPUT_FOLDER_VARIABLE, ShellRequest
 from journal.support.caller import Caller
+from journal.support.merger import Merger
+from journal.support.part import Part
 
 SHELL_SETUP = """
 ulimit -n 65536 2>/dev/null || ulimit -n 10240 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null
@@ -32,8 +34,8 @@ ONECMD_RESET = "set +t 2>/dev/null"
 class ChainWorker:
     """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever arrived before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a new shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone."""
 
-    def __init__(self, record: ShellRecord) -> None:
-        self.record = record
+    def __init__(self, record: ShellRecord, merger: Merger) -> None:
+        self.record, self.merger = record, merger
 
     def run(self, folder: OutputFiles, request: ShellRequest, caller: Caller, direct: bool, output_text: Callable[[bytes], None]) -> int:
         request = request.folder_request(folder.folder)
@@ -77,12 +79,19 @@ class ChainWorker:
             self.record.started(folder.folder.name, text, caller)
         previous = self.tree(shell, folder, i, "before") if writes else ""
         began = time.monotonic()
-        self.write_part(shell, self.script(folder, i, text, edges, direct))
-        status = self.status_once_ended(shell, folder, i)
+        status = self.branch_write(shell, folder, i, text, edges, direct) if Part(text).is_branch_write() else self.run_part(shell, folder, i, text, edges, direct)
         following = self.tree(shell, folder, i, "after") if writes else ""
         if recorded:
             self.record.finish_part(folder.folder.name, text, status, round(time.monotonic() - began, 1), folder.output_text(i), self.changed(previous, following), caller)
         return status
+
+    def branch_write(self, shell: ShellProcess, folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> int:
+        with self.merger.turn():
+            return self.run_part(shell, folder, i, text, edges, direct)
+
+    def run_part(self, shell: ShellProcess, folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> int:
+        self.write_part(shell, self.script(folder, i, text, edges, direct))
+        return self.status_once_ended(shell, folder, i)
 
     @staticmethod
     def script(folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> str:

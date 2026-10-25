@@ -1656,6 +1656,20 @@ def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_str
         app.container.get(SupervisorLink).working(1)
         answered = run("sleep 0.2; echo slept") + app.container.get(SupervisorLink).pending_lines(1)
         assert "slept" in answered and "in the background" not in answered and time.monotonic() - began < 1.5, "a quick command a reader reads answers in the foreground like any other"
+        import threading
+        from journal.support.merger import Merger
+        merger, held = app.container.get(Merger), threading.Event()
+        def merging() -> None:
+            with merger.turn():
+                held.set()
+                time.sleep(0.6)
+        holder = threading.Thread(target=merging)
+        holder.start()
+        held.wait(5)
+        began = time.monotonic()
+        run("git commit -q -m nothing || true")
+        holder.join(5)
+        assert time.monotonic() - began >= 0.5, "a git commit typed in the shell waits for the merge running in the merger before it touches git"
     finally:
         app.runtime().stop()
 

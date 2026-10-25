@@ -2683,3 +2683,30 @@ def test_the_builder_is_scored_on_the_share_of_the_code_it_wrote_itself_against_
     heavier = WorkersProfiles.BUILDER.scored(replace(counts(10, 90), code_share=CodeShareLimits(0.67, 0.33, 12)))
     assert heavier.score < handed.score, "the weight is the user's setting"
     assert all(option.title.startswith("Fitness: ") for option in (WorkersOptions.CODE_SHARE_FULL, WorkersOptions.CODE_SHARE_ZERO, WorkersOptions.CODE_SHARE_WEIGHT)), "the settings are among those under Fitness:"
+
+
+def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
+    import threading
+    import time as timing
+    from journal.support.merger import Merger
+    from journal.support.part import Part
+    merger, spans, lock = Merger(), [], threading.Lock()
+    def merge(name: str) -> None:
+        with merger.turn():
+            began = timing.monotonic()
+            timing.sleep(0.05)
+            with lock:
+                spans.append((name, began, timing.monotonic()))
+    threads = []
+    for name in ("first", "second", "third"):
+        threads.append(threading.Thread(target=merge, args=(name,)))
+        threads[-1].start()
+        timing.sleep(0.01)
+    for thread in threads:
+        thread.join(5)
+    assert [name for name, _, _ in spans] == ["first", "second", "third"], "turns are served in the order asked for"
+    assert all(spans[i][2] <= spans[i + 1][1] for i in range(len(spans) - 1)), "no two turns overlap"
+    assert merger.queued() == 0
+    assert Part("git merge feature").is_branch_write() and Part("git -C x pull").is_branch_write() and Part("git commit -qm x").is_branch_write(), "a command that writes the branch goes through the merger"
+    assert not Part("git status").is_branch_write() and not Part("git log -3").is_branch_write() and not Part("ls").is_branch_write(), "a read of git does not wait"
+

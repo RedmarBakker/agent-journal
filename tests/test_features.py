@@ -20506,3 +20506,20 @@ def test_a_long_run_whose_progress_showed_only_in_its_last_lines_is_flagged_and_
     counted.seen(5, 0.4, 10.0)
     assert judge(counted).late_progress(reader, output, lines, began + timedelta(seconds=40)) == [], "progress seen while the run went raises nothing"
     assert judge(ProgressStalls()).late_progress(reader, output, lines, began + timedelta(seconds=10)) == [], "a short run raises nothing"
+
+
+def test_merging_all_takes_in_every_checked_worker_and_names_one_with_points_unchecked(app: App, monkeypatch):
+    workspace_made(app, ("platform",))
+    callers = []
+    for n, name in ((1, "totals"), (2, "header"), (3, "footer")):
+        _, folder, caller = worktree_worker(app, monkeypatch, f"platform {name}", n=n)
+        committed(folder / "platform", f"{name}.php", f"<?php\n// {name}\n")
+        callers.append(caller)
+    for caller, name in zip(callers, ("totals", "header", "footer")):
+        assert proved_and_out(app, caller, f"platform/{name}.php:1").code == 0
+    app.console().run(["worker", "check", "1", "1"], AGENT)
+    app.console().run(["worker", "check", "2", "1"], AGENT)
+    merged = app.console().run(["worker", "merge", "--all"], AGENT)
+    assert merged.code == 0, merged.error
+    assert worker_row(app, 1).state == WorkerState.MERGED and worker_row(app, 2).state == WorkerState.MERGED, merged.text
+    assert worker_row(app, 3).state == WorkerState.DELIVERED and "skipped: task 3 point 1 not checked yet" in merged.text, merged.text
