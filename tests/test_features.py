@@ -11925,11 +11925,10 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     assert len(quiet()) == 2, "and no more"
 
 
-def test_a_quiet_worker_is_named_once_when_two_ticks_come_before_the_worker_thread_runs(app: App, monkeypatch):
+def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_two_ticks_run_on_two_threads_at_once(app: App, monkeypatch):
     import threading
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
     from journal.repositories.environments import Environments
     from journal.repositories.workers import Workers
     keystrokes = []
@@ -11943,16 +11942,29 @@ def test_a_quiet_worker_is_named_once_when_two_ticks_come_before_the_worker_thre
     held = threading.Event()
     app.runtime().deferred.add(held.wait)
     clock, environment = app.container.get(Clock), app.container.get(Environments).lookup("main").id
-    clock.driven_at = clock.held_at + 21 * 60
-    try:
-        for _ in range(2):
-            app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=21 * 60))
-    finally:
+
+    def side_by_side(span_start: float, minutes: int) -> None:
+        clock.driven_at = span_start + minutes * 60
+        start = threading.Barrier(2)
+        tick = lambda: (start.wait(), clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=minutes * 60)))
+        threads = [threading.Thread(target=tick) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
         clock.driven_at = clock.held_at
+
+    try:
+        for hour in range(1, 21):
+            worker, span_start = workers.find(1), clock.held_at + hour * 3600
+            workers.touch(worker, Actor.system(), silence=worker.silence.started(span_start))
+            side_by_side(span_start, 21)
+            side_by_side(span_start, 41)
+    finally:
         held.set()
     app.runtime().deferred.drain()
-    quiet = [line for line in keystrokes if "quiet 20 min" in line]
-    assert len(quiet) == 1 and workers.find(1).silence.is_reported, "the second tick sees the worker named by the first, with the worker thread held"
+    assert len([line for line in keystrokes if "quiet 20 min" in line]) == 20, "each quiet span is named once at twenty minutes, with the worker thread held"
+    assert len([line for line in keystrokes if "quiet 40 min; split its job?" in line]) == 20, "and once at forty, however the two ticks fall"
 
 
 def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
