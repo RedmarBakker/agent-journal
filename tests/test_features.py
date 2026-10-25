@@ -14037,6 +14037,8 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         assert a.console().run(["session", "start", "review"], USER).code == 0
         assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
         carriers[0].carrier.stop()
+        team.log.wake()
+        assert synced(lambda: all(loop.is_dead() for loop in carriers[0].carrier.loops)), "Ada's machine is offline: its sync's loops have ended, no pull of hers left waiting on the server"
         now = clock.time()
         monkeypatch.setattr(team.clock, "time", lambda: now + 89)
         early = b.console().run(["session", "start", "review"], bob)
