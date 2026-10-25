@@ -179,11 +179,12 @@ button.mark:hover {
 
 .head {
     display: flex;
-    flex-wrap: wrap;
     align-items: baseline;
     gap: 5px;
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .settled {

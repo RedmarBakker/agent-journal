@@ -102,3 +102,28 @@ test("a push is one live mark titled for the branch and the remote, and opens to
     app.unmount();
     host.remove();
 });
+
+test("a card keeps the same mark element while it opens and closes, and its title never wraps", async () => {
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+    const {default: Turn} = await import("../src/chat/Turn.vue");
+    const {turns} = threadTurns([message], []);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h(Turn, {turn: turns[0]})});
+    app.provide("scope", scope);
+    app.directive("tip", {});
+    app.mount(host);
+    await nextTick();
+    const mark = host.querySelector(".mark");
+    mark.click();
+    await nextTick();
+    expect(host.querySelector(".mark")).toBe(mark);
+    mark.click();
+    await nextTick();
+    expect(host.querySelector(".mark")).toBe(mark);
+    const {readFileSync} = await import("node:fs");
+    const css = readFileSync(new URL("../src/kit/ChatMark.vue", import.meta.url), "utf8");
+    expect(css).toMatch(/\.head \{[^}]*white-space: nowrap/);
+    app.unmount();
+    host.remove();
+});
