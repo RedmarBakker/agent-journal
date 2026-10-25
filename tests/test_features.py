@@ -12009,6 +12009,11 @@ def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_th
         app.container.get(MemberSessions).read_at = float("-inf")
         assert sent("/journal/people", cookie=cookie)[0] == 401, "his session is refused once he is removed"
         assert token_status(bobs) == 403, "and so is his token"
+        ada = sent("/sign-in", form={"email": "ada@example.com", "password": "correct horse battery"})[1]["Set-Cookie"].split(";")[0]
+        server.shutdown()
+        server.server_close()
+        app.container.get(MemberSessions).read_at = float("-inf")
+        assert sent("/journal/people", cookie=ada)[0] == 200, "with the team server stopped a member still listed goes through on the people last read"
     finally:
         (app.config.home / "hosted").unlink(missing_ok=True)
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
