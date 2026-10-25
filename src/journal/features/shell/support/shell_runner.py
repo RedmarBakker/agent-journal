@@ -36,6 +36,7 @@ from journal.features.faults.support.slow_requests import SlowRequests
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
+from journal.features.shell.support.restart_queue import RestartQueue
 
 EXIT = "__journal_exit"
 SHELL = "SHELL"
@@ -44,15 +45,17 @@ TICK_SECONDS = 0.2
 LIMIT_READ_TICKS = 10
 VARIED_RUNS = 3
 
+# a restart waits on the commands running when it was asked, and one started now would be cut off by it
+RESTART_HOLD = "the journal restarts once the commands running now end, and this one would be cut off by it: run it again once the journal is back, in a minute or two"
 
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue) -> None:
         self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
-        self.stages, self.slow, self.guess, self.card = stages, slow, guess, card
+        self.stages, self.slow, self.guess, self.card, self.restarts = stages, slow, guess, card, restarts
         self.wrappers_told: set[str] = set()
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
@@ -65,6 +68,9 @@ class ShellRunner:
             if not cap.is_whole() and not cap.is_direct():
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller, request.cwd))
         self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
+        if self.is_held(request, caller, environment):
+            yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
+            return
         output_text: queue.Queue = queue.Queue()
         ended: list[int] = []
         faults: list[Exception] = []
@@ -126,6 +132,15 @@ class ShellRunner:
             tick += 1
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
+
+    # while a restart waits, a command that goes to the background at once would be cut off by it, so it is not started
+    def is_held(self, request: ShellRequest, caller: Caller, environment: int) -> bool:
+        with self.scope.environment(environment):
+            if not self.restarts.is_waiting(environment):
+                return False
+            reader = self.readers.reading(request.line)
+            limit = self.limits.build(request.line, caller.environment, caller.session)
+            return self.limits.is_background(request.line) or bool(self.aliases.background_part(request.line)) or (reader is not None and limit > 0 and self.is_long_run(reader.commands.read_part(request.line), limit))
 
     # a run whose reader is known shows its card in the chat as it starts, before any move to the background
     def start_card(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:

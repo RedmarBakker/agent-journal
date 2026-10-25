@@ -109,5 +109,9 @@ Every shell command you run goes through the journal's runner.
   three times or more with no alias for it is asked once to become one, with the reader that reads it.
 - A test suite is a long runner: run it on its own and chain the commit after its result in a second call.
 - A journal command runs on its own, or chained only with other journal commands; chained with anything else it is
-  refused, since it would move to the background with the rest and its answer would be lost.
+  refused, since it would move to the background with the rest and its answer would be lost. A journal command stays in
+  the foreground, but for the few that name themselves background commands, such as `journal worker merge`, which go to
+  the background at once with their card and their own reader, streaming their lines as they print them.
+- While the journal waits to restart until the commands running now end, a command that would go to the background at
+  once (a merge, a test run, a build) is refused, since the restart would cut it off: run it again once the journal is back.
 """, keywords=("background", "long-running", "alias"), commands=('output', 'reader', 'alias'), events=(ReaderReportRaised,))

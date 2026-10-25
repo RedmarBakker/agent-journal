@@ -65,5 +65,8 @@ by you, approved by them, and then followed: finishing one task starts the next 
   blocks itself and opens again when one opens. When one thing stops all of the plan's work, block the plan on it:
   `journal plan block <n> "<why>"`, with `--on question:N`, `--on task:N` or `--until "<command>"` as for a task, so it
   opens by itself; `journal plan unblock <n>` opens it by hand.
+- A plan's testing template, set on its plan page or by the setting plans.testing for new plans, says how its work is
+  tested; it comes with the plan's start and with each task the plan hands you, and you are told when the user changes
+  it: follow it, such as writing each task's tests and running them only at a phase's end.
 - `journal plan cancel <n>` abandons it, with the tasks that belong to it alone; tasks another active plan has stay.
 """, keywords=('plan', 'plans', 'roadmap', 'phases'), required_states=('following_plan', 'orchestrating_plan'), commands=('plan',), events=(PlanApproved,))

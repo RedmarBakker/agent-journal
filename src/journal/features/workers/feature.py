@@ -140,9 +140,11 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Check each proof: read them with `journal task show <task>`, then `journal worker check <n> <point>`, or
   `journal worker check <n> <point> --short "<what is missing>"`, which sends it back to the same worker on the same task.
   Once every point is checked, `journal worker merge <n>` takes its branch in and closes the task; nothing else adds a
-  worker's work, not the end of its run, a hand merge or a commit's tasks-done line.
+  worker's work, not the end of its run, a hand merge or a commit's tasks-done line. A merge goes to the background at
+  once with its card, step 1/5 to 5/5, while the plugins judge it; wait on its output as on any command.
 - A worker whose run ends without clocking out still owns its task: send it again with `journal worker send <n>`, or
-  release the task with `journal worker release <n>`. `journal worker list` shows every worker, and the subagents you
+  release the task with `journal worker release <n>`, refused while tasks it finished wait for the merge unless
+  `--drop`, which opens them again. `journal worker list` shows every worker, and the subagents you
   started with their state and task.
 - A worker that runs past 60 minutes is stopped and its report says so (setting workers.timeout_minutes, 0 for no limit).
 - On a shared journal, `journal worker dispatch ... --pool` sends the worker to the team's pool: a teammate's machine
@@ -161,6 +163,13 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
   Each is delegated to that worker at once, so it is never offered to you, nor blocked or paused; when its work is merged
   you are given the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
+- When a worker reports is its report choice, `--report each` (the default), `queue` or `every <n>`, on dispatch or
+  queue: with queue or every n it clocks out of each task, which waits for the merge, and goes straight on to the next
+  in its queue in the same session, telling you nothing until it reports. Give a worker several small tasks with
+  `--report queue`, so it interrupts you once; you are told when a choice does not fit the work queued. Check a finished
+  task's points with `journal worker check <n> <point> --task <task>` (`--short` puts the worker back on it), and one
+  merge takes every finished task in, refused while any point is unchecked. Each report you get while plenty of work is
+  open costs fitness, and a worker reporting within a minute of its job's start costs more at once.
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.
 - A dispatch whose brief names files an idle worker touched is refused, naming that worker and its send line; add

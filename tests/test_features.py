@@ -12358,6 +12358,21 @@ def test_a_worker_merge_goes_to_the_background_at_once_with_the_reader_the_journ
     assert readers.reading("journal worker merge 3").name == "worker-merge", "the reader the journal ships for a merge reads it, and the seed that removes readers of journal commands keeps it"
 
 
+def test_while_a_restart_waits_a_merge_or_a_long_run_is_not_started_and_a_short_command_still_runs(app: App):
+    from journal.features.shell.support.restart_queue import RestartQueue
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    runner, link = app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    hook(app, "SessionStart")
+    link.working(MAIN)
+    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    app.container.get(RestartQueue).record_wait(MAIN, ["999"])
+    held = b"".join(runner.run(request("journal worker merge 3"), AGENT, MAIN)).decode()
+    assert "the journal restarts once the commands running now end" in held and held.rstrip().endswith("1"), "a merge started now would be cut off by the restart, so it is not started"
+    ran = b"".join(runner.run(request("echo still here"), AGENT, MAIN)).decode()
+    assert "still here" in ran, "a short command still runs"
+
+
 def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to_give_the_reader_a_topic(app: App):
     """A command a reader reads, run here with three or more argument sets, does different things, so the reader is asked for a topic that says which."""
     from journal.features.shell.support.shell_request import ShellRequest
