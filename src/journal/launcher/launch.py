@@ -37,6 +37,8 @@ TEAM_WORKTREE_REFUSAL = "the worktree team is the Team chat's own, so no launch 
 RESUMING = ("--resume", "-r")
 # the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row
 JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
+from journal.engine.boot_notices import BOOT_NOTICE, BOOT_SECONDS
+
 # the agent's hooks count as dead when its terminal keeps moving and its hooks file has stood still this long, longer than a long tool use
 FRONT_STALE_SECONDS = 600.0
 DEAD_HOOKS_WARNING = "[journal] This session's hooks have stopped reaching the journal, so it holds your lines and the user's messages: quit this session and start it again from the project's root with journal."
@@ -239,7 +241,7 @@ class Launch:
             Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
             self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
             self.provider.folder_trusted(self.root, folder)
-        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}}
+        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}, "boot": self.boot_watch()}
         front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}
         return {
             "launch": launch,
@@ -251,6 +253,10 @@ class Launch:
             "screen": str(self.runtime / "screens" / f"{choice.environment}.out"),
             "band": {"left": "agent-journal", "middle": f"{self.root.name} · {choice.environment}", "right": "journal starting…"},
         }
+
+    def boot_watch(self) -> dict:
+        kept = self.runtime.parent / "last_good"
+        return {"notice": str(self.runtime / BOOT_NOTICE), "keep_source": str(self.package), "keep_copy": str(kept), "fallback_command": [sys.executable, str(kept / "journal.py"), "serve"], "seconds_file": str(self.runtime / BOOT_SECONDS)}
 
     def socket(self, environment: str) -> Path:
         key = hashlib.sha1(str(self.root.resolve()).encode()).hexdigest()[:12]

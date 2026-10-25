@@ -1,6 +1,11 @@
 import gc
+import sys
+import traceback
 import time as timing
+from journal.engine.boot_notices import BootNotices
 from journal.engine.clock import Clock
+from journal.features.updates.updates_options import UpdatesOptions
+from journal.repositories.setting_rows import SettingRows
 from journal.engine.job_runner import JobRunner
 from journal.engine.lifecycle import Lifecycle
 from journal.engine.menu_watcher import MenuWatcher
@@ -88,12 +93,19 @@ class Runtime:
             for listener in feature.listeners:
                 self.bus.listen(listener.kind(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
-                self.container.get(seed).run()
+                self.seeded(seed)
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
+
+    def seeded(self, seed: type) -> None:
+        try:
+            self.container.get(seed).run()
+        except Exception as fault:
+            print(traceback.format_exc(), file=sys.stderr, flush=True)
+            self.container.get(BootNotices).add(f"{seed.__name__} raised at boot and was skipped: {type(fault).__name__}: {fault}")
 
     def start(self) -> None:
         self.lifecycle.booting()
@@ -117,6 +129,9 @@ class Runtime:
         self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
         self.replacement_announced()
+        notices = self.container.get(BootNotices)
+        notices.wait_told(self.container.get(SettingRows).decimal(UpdatesOptions.BOOT_SECONDS))
+        notices.announce()
         gc.freeze()
 
     def replacement_announced(self) -> None:

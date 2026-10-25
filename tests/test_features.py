@@ -15744,3 +15744,28 @@ def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
     assert console.run(["settings", "set", "workers.orchestrator_approves_plans", "on"], USER).code == 0
     controller.saved("workers", {"orchestrator_approves_plans": False}, Actor.user(1))
     assert app.container.get(SettingRows).option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS) is False
+
+
+def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_the_supervisors_notice_are_told_once_booted(app: App, capsys):
+    from journal.engine.boot_notices import BOOT_NOTICE, BootNotices
+    from journal.events.bus import Bus
+    from journal.events.moments.boot_failed import BootFailed
+    from journal.features.seed import Seed
+
+    class RemovedReader(Seed):
+        def run(self) -> None:
+            raise ValueError("a removed reader")
+
+    told = []
+    bus = app.container.get(Bus)
+    bus.listen(BootFailed, type("Hears", (), {"handle": lambda self, event: told.append(event.text)})())
+    app.runtime().seeded(RemovedReader)
+    assert "ValueError: a removed reader" in capsys.readouterr().err, "the traceback is logged"
+    notice = app.container.get(Config).home / "runtime" / BOOT_NOTICE
+    notice.parent.mkdir(parents=True, exist_ok=True)
+    notice.write_text("The journal failed to boot twice, so the last version that booted runs instead.\n")
+    app.container.get(BootNotices).announce()
+    assert told == ["The journal failed to boot twice, so the last version that booted runs instead.", "RemovedReader raised at boot and was skipped: ValueError: a removed reader"], "the supervisor's line and the seed's fault are told"
+    assert not notice.exists(), "and told once"
+    app.container.get(BootNotices).announce()
+    assert len(told) == 2

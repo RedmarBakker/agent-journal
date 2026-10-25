@@ -1,3 +1,4 @@
+import json
 import time
 import urllib.error
 import urllib.request
@@ -20,6 +21,14 @@ class HealthCheck:
 
     def fault(self) -> str:
         return self.url_fault(self.url) if self.url is not None else self.file_fault()
+
+    def is_booted(self) -> bool:
+        address = self.address(self.url or "")
+        try:
+            with urllib.request.urlopen(address, timeout=self.timeout_seconds) as answer:
+                return answer.status == 200 and json.loads(answer.read()).get("phase") == "booted"
+        except (OSError, ValueError):
+            return False
 
     def address(self, url: str) -> str:
         if self.port_file is None:

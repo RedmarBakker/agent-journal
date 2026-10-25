@@ -423,3 +423,47 @@ def test_an_agent_whose_terminal_moves_while_its_hooks_file_stands_still_is_warn
     finally:
         supervisor.stop()
         inbox.close()
+
+
+def test_a_boot_that_never_answers_booted_is_started_again_once_then_from_the_last_good_copy_and_a_good_boot_keeps_its_code(tmp_path: Path):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from supervisor.boot_watch import BootWatch
+    from supervisor.health_check import HealthCheck
+
+    answer = {"status": 503, "body": b"{}"}
+
+    class Standing(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(answer["status"])
+            self.end_headers()
+            self.wfile.write(answer["body"])
+
+        def log_message(self, *args):
+            return
+
+    stand_in = HTTPServer(("127.0.0.1", 0), Standing)
+    threading.Thread(target=stand_in.serve_forever, daemon=True).start()
+    source, kept = tmp_path / "package", tmp_path / "last_good"
+    source.mkdir(), kept.mkdir()
+    (source / "version").write_text("broken"), (kept / "version").write_text("good")
+    notice = tmp_path / "notice.txt"
+    log = tmp_path / "web.log"
+    log.write_text("Traceback (most recent call last):\n  File seed.py\nValueError: a removed reader\n")
+    watch = BootWatch(notice=str(notice), keep_source=str(source), keep_copy=str(kept), fallback_command=["sleep", "31"], seconds=0)
+    health = HealthCheck(url=f"http://127.0.0.1:{stand_in.server_address[1]}/health", grace_seconds=0, interval_seconds=0, timeout_seconds=1, failures=99)
+    web = Service("web", ["sleep", "30"], tmp_path, {"PATH": os.environ["PATH"]}, log, health=health, boot=watch)
+    web.start()
+    try:
+        assert "did not boot in time" in web.health_restart() and "a removed reader" in notice.read_text(), "the first failed boot starts it again and says what failed"
+        assert "started from the last version that booted" in web.health_restart() and web.command == ["sleep", "31"], "the second starts the copy kept at the last good boot"
+        assert notice.read_text().count("\n") == 2 and (kept / "version").read_text() == "good", "both are told in the notice and the good copy is untouched while it runs"
+        answer.update(status=200, body=b'{"phase": "booted"}')
+        fresh = Service("web", ["sleep", "30"], tmp_path, {"PATH": os.environ["PATH"]}, log, health=health, boot=watch)
+        fresh.start()
+        fresh.health_restart()
+        assert (kept / "version").read_text() == "broken", "a boot that answers booted keeps its code as the last good one"
+        fresh.stop()
+    finally:
+        web.stop()
+        stand_in.shutdown()
