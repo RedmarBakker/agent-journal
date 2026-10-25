@@ -12039,6 +12039,20 @@ def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_
         assert own.id > 0 and a.container.get(Tasks).find(own.id).title == "Ada's own", "and stays on her journal, numbered as before"
 
 
+def test_a_member_writes_a_hub_task_and_a_hub_message_on_their_own_journal_with_no_hosted_journal_and_both_reach_the_other(tmp_path, template_journal, monkeypatch):
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        [hub] = b.container.get(Environments).hubs()
+        posted = lambda path, body: urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": hub.name}), timeout=5)
+        assert posted("/journal/tasks", {"title": "Bob's hub task"}).status == 201
+        assert posted("/journal/messages", {"text": "Bob's word in the hub"}).status == 201, "a message in the hub is made on Bob's own journal, never asked of a host"
+        assert team.store.all("SELECT id FROM host_requests") == [], "and no host request is made"
+        in_hub = lambda repository, field, text: any(getattr(row, field) == text for row in a.container.get(repository).global_matching(environment_id=hub.row_id))
+        assert synced(lambda: in_hub(Tasks, "title", "Bob's hub task") and in_hub(Messages, "text", "Bob's word in the hub")), "both reach Ada's journal, in the hub"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
