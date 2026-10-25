@@ -15,6 +15,8 @@ from journal.features.shell.support.streaming_form import StreamingForm
 from journal.models.command_output import ACTIVE, FAILED, FINISHED, CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.run_history import RunHistory
+from journal.models.alias import Alias
+from journal.repositories.aliases import Aliases
 from journal.models.reader_report import ReaderReport
 from journal.support.command_shape import CommandShape
 from journal.features.shell.shell_options import ShellOptions
@@ -53,9 +55,9 @@ BUILD_LINE = re.compile(r"\bbuilt in\b|\bbuild (?:succeeded|complete|finished)\b
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; a run that printed nothing for a long stretch is the command's fault, buffering, and is said so in place of the reader's progress findings; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases) -> None:
         self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
-        self.history, self.processes, self.silences = history, processes, silences
+        self.history, self.processes, self.silences, self.aliases = history, processes, silences, aliases
 
     def stored_runs(self, reader: Reader) -> list[CommandOutput]:
         return self.history.latest_accepted(NEWEST_RUNS, lambda run: reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored())
@@ -158,7 +160,7 @@ class ReaderJudge:
 
     def mixed_title(self, reader: Reader, output: CommandOutput) -> list[tuple[str, str]]:
         runs = self.history.reader_ended(reader.name, MIXED_RUNS)
-        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(run.command))})
+        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(Alias.resolved(run.command, self.aliases.index())))})
         kinds = sorted({kind for run in runs if (kind := self.work_kind(run))})
         if len(programs) < 2 and len(kinds) < 2:
             return []

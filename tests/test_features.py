@@ -13171,10 +13171,15 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     reader = Reader("viewer-build", "the viewer", label="Building the viewer")
     same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
     mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
-    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None)
+    judge = lambda runs, aliases={}: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None, SimpleNamespace(index=lambda: aliases))
     assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
     found = judge(mixed).mixed_title(reader, mixed[0])
     assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
+    from journal.models.alias import Alias
+    aliases = {"suite": Alias(name="suite", line="python3 -m pytest")}
+    tests = [run(4, "journal suite", "3 passed\n"), run(5, "timeout 60 python3 -m pytest -q", "3 passed\n")]
+    assert judge(tests, aliases).mixed_title(reader, tests[0]) == [], "an alias is judged by the line it runs, so journal suite and python3 -m pytest are one program"
+    assert judge([run(6, "npm run build", "built in 3s\n"), run(7, "journal suite", "3 passed\n")], aliases).mixed_title(reader, tests[0]), "a build and an aliased test run still raise one"
 
 
 @pytest.mark.parametrize("lines, fraction", [
@@ -18085,7 +18090,7 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
         "a run that counts tests": (shell + "101 100 go test -v ./pkg\n102 101 /tmp/pkg.test -test.v\n", Progress(40, 400), "go test -v ./pkg", 1),
         "children that are no tests": (shell + "101 100 sleep 30\n102 100 node server.js\n", Progress(1, 3), "sleep 30", 0),
     }
-    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None)
+    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None, None)
     for number, (name, (listing, progress, inner, count)) in enumerate(cases.items(), 1):
         processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100))
         assert processes.test_count(number) == count and processes.inner_command(number) == inner, name
