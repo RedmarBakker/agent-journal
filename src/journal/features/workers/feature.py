@@ -35,6 +35,7 @@ from journal.features.workers.support.worker_process_card import WorkerProcessCa
 from journal.engine.support.modes import Modes
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.workers.listeners.worker_moment_cards import WorkerMomentCards
+from journal.features.workers.listeners.worker_merge_card import WorkerMergeCard
 from journal.features.workers.listeners.dispatch_refusal_cards import DispatchRefusalCards
 from journal.features.workers.listeners.silent_worker_record import SilentWorkerRecord
 from journal.features.workers.states.delegating import Delegating
@@ -60,7 +61,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch,)
     process_cards = (WorkerProcessCard, SubagentProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake)
+    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

@@ -3,6 +3,7 @@ from journal.events.rows.row_event import RowEvent
 from journal.events.rows.worker_notified import WorkerNotified
 from journal.events.rows.worker_queue_drained import WorkerQueueDrained
 from journal.events.rows.worker_retired import WorkerRetired
+from journal.events.rows.worker_sent_on import WorkerSentOn
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.support.actor import Actor
@@ -28,7 +29,7 @@ class WorkerMomentCards(Listener[RowEvent]):
         self.cards, self.tasks = cards, tasks
 
     def handle(self, event: RowEvent) -> None:
-        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired, WorkerQueueDrained)):
+        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired, WorkerQueueDrained)) or isinstance(event, WorkerSentOn):
             return
         text, tone, detail = MOMENTS[type(event)]
         worker = event.worker

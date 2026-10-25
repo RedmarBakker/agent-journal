@@ -1,5 +1,6 @@
 from journal.events.worker_merge_result import WorkerMergeResult
 from journal.events.worker_merging import WorkerMerging
+from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.support.decision import Decision
 from journal.engine.clock import Clock
 from journal.events.agent.wait_request import WaitRequest
@@ -32,6 +33,9 @@ class CommandEvents:
         return [answer.reason for answer in self.bus.dispatch(event) if isinstance(answer, Decision) and not answer.allowed]
 
     def worker_merge_result(self, event: WorkerMergeResult) -> None:
+        self.bus.dispatch(event)
+
+    def worker_work_merged(self, event: WorkerWorkMerged) -> None:
         self.bus.dispatch(event)
 
     def help_needed(self, reason: str, caller: Caller) -> None:

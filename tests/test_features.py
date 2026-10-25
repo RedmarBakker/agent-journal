@@ -9352,6 +9352,11 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     console.run(["clock-out", "the notes are written"], babbage)
     console.run(["worker", "check", "2", "1"], AGENT)
     assert console.run(["worker", "merge", "2"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(MAIN):
+        idle = [message.text for message in app.container.get(Messages).scoped() if "work on task 2 merged" in message.text]
+    assert idle == ["Worker 2, Mr. Babbage: work on task 2 merged; it is idle"], "a merge with an empty queue is one mark saying the worker is idle"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(2).state == TaskState.FINISHED, "a worker with no worktree has its task closed by its merge alone"
     console.run(["task", "create", "the guide", "--brief", "the guide is written"], AGENT)
@@ -9406,6 +9411,12 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
     merged = console.run(["worker", "merge", "1"], AGENT)
     assert merged.code == 0 and "it went straight on to task 2 from its queue" in merged.text, merged.error or merged.text
+    app.runtime().deferred.drain()
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(MAIN):
+        marks = [message.text for message in app.container.get(Messages).scoped() if message.data.get("card_type") == "moment"]
+    assert [mark for mark in marks if "work on task 1 merged" in mark] == ["Worker 1, Mr. Babbage: work on task 1 merged; it went on to task 2"], "a merge that sends the worker on is one mark naming both tasks"
+    assert not [mark for mark in marks if mark.startswith("Finished task 1") or mark.endswith("merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
     given = console.run(["worker", "drain", "1"], AGENT)

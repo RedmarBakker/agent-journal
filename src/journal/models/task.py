@@ -99,8 +99,8 @@ class Task(Scoped):
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time, outcome=outcome), time, "cancelled")
 
-    def closed(self, task: "Task", time: datetime, manner: str) -> "Task":
-        return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
+    def closed(self, task: "Task", time: datetime, manner: str, worker_id: int = 0) -> "Task":
+        return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
 
     def blocked(self, reason: str, time: datetime) -> "Task":
         if self.state == TaskState.STARTED:
@@ -117,6 +117,9 @@ class Task(Scoped):
 
     def finished(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.FINISHED, finished_at=time, outcome=outcome), time, "done")
+
+    def finished_by_merge(self, time: datetime, outcome: str, worker_id: int) -> "Task":
+        return self.closed(self.with_(state=TaskState.FINISHED, finished_at=time, outcome=outcome), time, "done", worker_id)
 
     def title_words(self) -> str:
         return self.title

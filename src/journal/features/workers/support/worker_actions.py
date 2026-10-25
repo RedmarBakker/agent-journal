@@ -4,6 +4,8 @@ from journal.engine.command_events import CommandEvents
 from datetime import datetime, timezone
 
 from journal.events.rows.worker_reused import WorkerReused
+from journal.events.rows.worker_sent_on import WorkerSentOn
+from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
 from journal.features.workers.support.worker_branch import WorkerBranch
@@ -119,24 +121,31 @@ class WorkerActions:
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
-        closed = self.tasks.save(task.finished(datetime.now(timezone.utc), outcome), actor)
+        closed = self.tasks.save(task.finished_by_merge(datetime.now(timezone.utc), outcome, worker.id), actor)
         self.tasks.release(Ref.build(worker), actor)
         self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         self.moves.cleared(worker)
-        return MergeOutcome(closed, self.merged_worktree_line(self.workers.find(worker.id)), self.next_job(worker.id, actor))
+        worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
+        next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
+        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp()))
+        return MergeOutcome(closed, worktree_line, next_line)
 
     def next_job(self, n: int, actor: Actor) -> str:
+        return self.send_next(n, actor, WorkerReused)[0]
+
+    def send_next(self, n: int, actor: Actor, reused: type[WorkerReused]) -> tuple[str, int]:
         queued = self.tasks.queue(Ref.build(self.workers.find(n)))
         if not queued:
-            return ""
+            return "", 0
         task = queued[0]
         try:
-            worker = self.send(n, f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor)
+            with self.runner.lock(n):
+                worker = self.relaunch(self.local(n), f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor, JOB_MOVE, reused)
         except Rejection as refused:
-            return f"its next queued task {task.id} was not sent, since {refused}"
+            return f"its next queued task {task.id} was not sent, since {refused}", 0
         self.tasks.handover(task, Ref.build(worker), actor)
-        return f"it went straight on to task {task.id} from its queue, in its own session and worktree"
+        return f"it went straight on to task {task.id} from its queue, in its own session and worktree", task.id
 
     def merged_worktree_line(self, worker: Worker) -> str:
         if not worker.worktree:
@@ -176,7 +185,7 @@ class WorkerActions:
             self.moves.cleared(worker)
             return self.workers.save(worker.released(datetime.now(timezone.utc).timestamp()), actor)
 
-    def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str) -> Worker:
+    def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str, reused: type[WorkerReused] = WorkerReused) -> Worker:
         revival = worker.state == WorkerState.STOPPED or self.runner.is_ended(worker)
         if self.runner.is_ended(worker):
             worker = self.runner.recorded_end(worker, actor)
@@ -184,7 +193,7 @@ class WorkerActions:
         brief = self.rebase_note(worker) + (EDITED_NOTE.format(task=worker.edited_task) if worker.edited_task else "") + brief
         repositories = self.renewal(worker, brief)
         moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories, edited_task=0), datetime.now(timezone.utc).timestamp()
-        worker = self.workers.save(moved.resumed(brief, time, WorkerRevived if revival else WorkerReused, move), actor)
+        worker = self.workers.save(moved.resumed(brief, time, WorkerRevived if revival else reused, move), actor)
         self.runner.start(worker, actor)
         return worker
 
