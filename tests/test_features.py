@@ -11379,7 +11379,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     again = started[-1]
     assert again.model == "opus" and again.profile == "journal-medior" and again.resume == "w-1", "the next job runs on the model named, in its last session"
     assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
-    listed = console.run(["worker", "list"], AGENT).output
+    listed = console.run(["worker", "list"], AGENT).text
     assert "on opus, $0.00 spent, sent back 0 times on this task" in listed, listed
     costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
     runner = app.container.get(WorkerRunner)
@@ -11392,7 +11392,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     runner.cost_recorded(workers.find(1), 3.0, Actor.system())
     app.runtime().deferred.drain()
     assert len(costly()) == 1, "it is said once"
-    assert "on opus, $5.25 spent" in console.run(["worker", "list"], AGENT).output, "the status names the spend so far"
+    assert "on opus, $5.25 spent" in console.run(["worker", "list"], AGENT).text, "the status names the spend so far"
     assert Claude().worker_outcome('{"type":"result","result":"done","session_id":"w-1","total_cost_usd":0.42}\n', "").cost_dollars == 0.42, "the spend is read from the run's result line"
     refused = console.run(["worker", "send", "1", "more", "--profile", "journal-researcher"], AGENT)
     assert refused.code != 0 and "no worker profile" in refused.error, "a send names a worker profile"
