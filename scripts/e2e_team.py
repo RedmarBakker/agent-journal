@@ -44,7 +44,8 @@ def deploy() -> None:
     shipped = subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE, "tar -C /opt/agent-journal -xf -"], stdin=packed.stdout, capture_output=True, timeout=600)
     if shipped.returncode:
         raise SystemExit(shipped.stderr.decode())
-    remote("cd /opt/agent-journal && docker build -q -f docker/team-server/Dockerfile -t agent-journal-team . ", timeout=1800)
+    commit = run(["git", "-C", str(BRANCH), "rev-parse", "HEAD"]).stdout.strip()
+    remote(f"cd /opt/agent-journal && docker build -q -f docker/team-server/Dockerfile --build-arg COMMIT={commit} -t agent-journal-team . ", timeout=1800)
     remote("docker run -d --name team --restart unless-stopped -p 80:80 -e TEAM_PLAIN_HTTP=1 -v team-data:/data agent-journal-team")
     print(f"team server started at http://{SERVER}")
 

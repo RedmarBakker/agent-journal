@@ -4,7 +4,8 @@
 # private network. The sync paths go to the team server and every other path to the hosted journal, where each person
 # signs in with their team account. Everything it keeps, the team's database, the hosted journal and Caddy's
 # certificates, lives in the /data volume.
-# Built from the repository root: docker build -f docker/team-server/Dockerfile -t agent-journal-team .
+# Built from the repository root, naming the commit it is built from, which the hosted journal's install records:
+# docker build -f docker/team-server/Dockerfile --build-arg COMMIT=$(git rev-parse HEAD) -t agent-journal-team .
 FROM caddy:2.8.4 AS caddy
 
 FROM python:3.14.7-slim
@@ -18,6 +19,8 @@ COPY src/supervisor /app/src/supervisor
 COPY src/sync_service /app/src/sync_service
 COPY src/journal.py src/journal.sh /app/src/
 COPY src/web/dist /app/src/web/dist
+ARG COMMIT=""
+RUN printf '%s\n' "$COMMIT" > /app/src/commit
 COPY install.sh /app/install.sh
 COPY docker/team-server/Caddyfile.https docker/team-server/Caddyfile.plain docker/team-server/Caddyfile.internal docker/team-server/routes.caddy /etc/caddy/
 COPY docker/team-server/run.sh docker/team-server/hosted.sh /app/

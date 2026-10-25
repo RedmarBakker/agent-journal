@@ -157,8 +157,10 @@ for name in journal supervisor sync_server sync_service journal.py journal.sh; d
   swap "$SRC/$name" ".journal/src/$name"
 done
 mkdir -p .journal/src/web && swap "$SRC/web/dist" .journal/src/web/dist
-# The commit installed, so a journal that follows a branch knows whether the branch has moved on.
-commit=$(git -C "$SRC/.." rev-parse HEAD 2>/dev/null) || { echo "the install failed: $SRC is not a git checkout, so the commit installed cannot be known" >&2; exit 1; }
+# The commit installed, so a journal that follows a branch knows whether the branch has moved on: the checkout's, or for a
+# copy with no .git, as the team server's image is, the commit its build wrote beside it.
+commit=$(git -C "$SRC/.." rev-parse HEAD 2>/dev/null || cat "$SRC/commit" 2>/dev/null)
+[ -n "$commit" ] || { echo "the install failed: $SRC is not a git checkout and names no commit, so the commit installed cannot be known" >&2; exit 1; }
 printf '%s\n' "$commit" > .journal/src/commit
 echo "installed commit $commit from $SRC"
 [ -z "$TMP" ] || rm -rf "$TMP"
