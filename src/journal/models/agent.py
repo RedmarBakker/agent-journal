@@ -77,6 +77,8 @@ class Agent(Scoped):
     load: AgentLoad = AgentLoad()
     mode_loads: dict = field(default_factory=dict)
     fitness_level: int = 100
+    unlinked_message: int = 0
+    unlinked_numbers: tuple[str, ...] = ()
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     report_use: ReportUse = ReportUse()

@@ -42,6 +42,7 @@ agent message read 1
 agent message recent
 agent message react 1 "👍"
 agent message tag --help
+agent message amend-links --help
 agent message send "The footer is done" --reply-to 1
 agent plan create "The shop's checkout" --brief "A customer can pay"
 agent plan phase 1 "The cart" --when "the cart adds up"

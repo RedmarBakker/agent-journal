@@ -28,6 +28,7 @@ from journal.features.messages.messages_part import MessagesPart
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
 from journal.features.messages.messages_demands import MessagesDemands
+from journal.features.messages.listeners.unlinked_number_record import UnlinkedNumberRecord
 
 
 class Messages(Feature[MessagesData]):
@@ -40,11 +41,11 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    listeners = (InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, DeliverMessage, StartInboxDelivery)
+    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, DeliverMessage, StartInboxDelivery)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 
-    nudges = (MessagesNudges.TAG_FAILURE, MessagesNudges.REPLY_TAG_PLACE, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.DUPLICATE_REPLY, MessagesNudges.REPEATED_CLOSING_TEXT, MessagesNudges.MESSAGE_READ, MessagesNudges.MESSAGES_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
+    nudges = (MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.TAG_FAILURE, MessagesNudges.REPLY_TAG_PLACE, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.DUPLICATE_REPLY, MessagesNudges.REPEATED_CLOSING_TEXT, MessagesNudges.MESSAGE_READ, MessagesNudges.MESSAGES_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
     skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
 # Messages
@@ -63,6 +64,9 @@ The user sends messages; you answer them before anything else.
   `[!reply:N,M]` answers both with one part. A tag inside a line is only text.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
   as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
+- A number that names a row is written with its kind, task 3399 or plan 1032, so the chat links it. A message of
+  yours that has one without it is pointed out to you once: fix it with `journal message amend-links <n> <kind>
+  [<kind>...]`, the kinds in the order the numbers appear, or one kind for all.
 - A message that only needs acknowledging ("ok", "thanks", "continue") gets a reaction, not words: `journal message react N "👍"`,
   🙏 for thanks; the same reaction again takes it off. The user's reaction to a message is acted on when it asks for something and
   never mentioned. A turn of yours that is only a reaction is not posted.

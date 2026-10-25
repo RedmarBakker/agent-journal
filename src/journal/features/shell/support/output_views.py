@@ -112,7 +112,14 @@ class OutputViews:
         lines = files.lines()
         progress, tally = self.progress(output, reader, lines), reader.tally(lines)
         steps = progress.count_text() if progress.is_known() and not output.ended else ""
-        return " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
+        counted = " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
+        return counted or (self.zero_count(reader) if not output.ended else "")
+
+    @staticmethod
+    def zero_count(reader: Reader) -> str:
+        if reader.step_pattern:
+            return "0 passed"
+        return "0%" if reader.progress_pattern else ""
 
     def ended_summary(self, output: CommandOutput) -> str | None:
         reader = self.reader(output)

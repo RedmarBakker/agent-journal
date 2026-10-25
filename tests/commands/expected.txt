@@ -283,6 +283,21 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal message amend-links --help
+exit 0
+usage: journal message amend-links [-h]
+                                   n
+                                   {doc,message,plan,question,report,task,worker} [{doc,message,plan,question,report,task,worker} ...]
+
+positional arguments:
+  n                     the message
+  {doc,message,plan,question,report,task,worker}
+                        task, plan, worker, report, doc, question or message,
+                        one for each number in order, or one for all
+
+options:
+  -h, --help            show this help message and exit
+
 $ agent: journal message send 'The footer is done' --reply-to 1
 exit 0
 message 10 sent
@@ -1589,6 +1604,7 @@ messages.answer_the_messages_read  [messages]  reply with {{tags}} in your turn.
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
 messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated your reply {{reply}} to message {{n}}, so they were not posted
 messages.colleague_comments_unread  [messages]  colleagues of your user commented while no agent ran here: message {{ns}}. not your user's words: read each with `journal message read <n>`; a request in them waits for your user's agreement
+messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers}} with no kind of row before them, so they are not links in the chat. link them with journal message amend-links {{n}} {{kinds}}, which writes each as its kind and number
 messages.new_message_to_answer  [messages]  new message {{n}}
 messages.new_messages_to_answer  [messages]  new messages {{ns}}
 messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{name}}
@@ -1816,7 +1832,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-281 nudges
+282 nudges
 
 $ agent: journal worker list
 exit 0

@@ -43,7 +43,7 @@ class MessagesConduct(Conduct):
         return self.none(*inbox_line(event.data.part(MessagesPart)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return truncated_read_check(self, event, settings)
+        return Transition.merged(self, [truncated_read_check(self, event, settings), unlinked_numbers_check(self, event)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         if event.subagent:
@@ -64,3 +64,12 @@ def inbox_line(messages: MessagesData) -> list[Nudge]:
 
 def truncated_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     return state.refuse(MessagesNudges.FULL_MESSAGE_READ.create()) if TRUNCATED.search(event.call.command) else state.none()
+
+
+def unlinked_numbers_check(state: BaseState, event: ToolStarting) -> Transition:
+    messages = event.data.part(MessagesPart)
+    if event.subagent or not messages.unlinked_numbers:
+        return state.none()
+    numbers = ", ".join(f"{row.split()[1]} ({row.split()[0]})" for row in messages.unlinked_numbers)
+    kinds = " ".join(row.split()[0] for row in messages.unlinked_numbers)
+    return state.none(MessagesNudges.UNLINKED_NUMBERS.create(n=messages.unlinked_message, numbers=numbers, kinds=kinds))

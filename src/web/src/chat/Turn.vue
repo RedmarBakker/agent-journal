@@ -165,6 +165,7 @@ function markClick(data) {
 .mark-more {
     display: grid;
     grid-column: 1 / -1;
+    contain: inline-size;
     grid-template-rows: 0fr;
     opacity: 0;
     transition:

@@ -9078,6 +9078,38 @@ def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still
     assert keystrokes.confirm(1, segment) and not keystrokes.is_waiting(1), "a piece arriving is the line arriving, so it is not typed a third time"
 
 
+def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_told_once_and_linked_by_one_command(app: App, monkeypatch):
+    from journal.features.messages.support import unlinked_row_numbers
+    from journal.models.agent_role import AgentRole
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.task import Task
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        tasks, messages = app.container.get(Tasks), app.container.get(Messages)
+        parser, lexer = (tasks.save(Task(environment_id=MAIN, title=title, brief="b"), Actor.system()).id for title in ("the parser", "the lexer"))
+    monkeypatch.setattr(unlinked_row_numbers, "LEAST_ROW_NUMBER", 1)
+    with app.container.get(Scope).environment(MAIN):
+        said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text), Actor.agent("s1"))
+        bare = said(f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s")
+    app.runtime().deferred.drain()
+    line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert f"message {bare.id} has {parser} (task), {lexer} (task) with no kind of row before them" in line and f"journal message amend-links {bare.id} task task" in line, "the numbers that name a row are told, each with its likely kind and the command that links them, and a count is not"
+    assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "once for that message"
+    assert f"no plan {parser}" in console.run(["message", "amend-links", str(bare.id), "plan", "task"], AGENT).error, "a kind whose row does not exist is refused, and nothing is changed"
+    assert "2 numbers without a kind" in console.run(["message", "amend-links", str(bare.id), "task", "task", "task"], AGENT).error, "a kind for each number, or one for all"
+    assert console.run(["message", "amend-links", str(bare.id), "task"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert messages.find(bare.id).text == f"Writing task {parser} (the parser) and task {lexer} (the lexer) together, 1183 passed in 92s", "one kind links every number, and the count stays as it was"
+        said(f"task {parser} is done")
+    app.runtime().deferred.drain()
+    assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]), "a number with its kind before it is told nothing"
+
+
 def test_messages_between_sessions_reach_the_chat_both_ways_named_by_their_agents(app: App):
     from journal.events.agent.peer_message import PeerMessage
     from journal.events.bus import Bus
@@ -13076,7 +13108,7 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     reader = Reader("viewer-build", "the viewer", label="Building the viewer")
     same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
     mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
-    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None)
+    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None)
     assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
     found = judge(mixed).mixed_title(reader, mixed[0])
     assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
@@ -16590,6 +16622,38 @@ def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_n
     with app.container.get(Scope).environment(1):
         assert not app.container.get(ReaderReports).unread("s1"), "go test prints one line per package as each ends, so no percentage or count of a total exists to show"
 
+def test_a_run_that_printed_nothing_for_a_long_stretch_is_told_to_unbuffer_and_one_whose_lines_showed_no_progress_to_fix_its_reader(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_silences import OutputSilences
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    outputs, silences = app.container.get(CommandOutputs), app.container.get(OutputSilences)
+
+    def run(name: str, printed: str, silent_seconds: float) -> list[str]:
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("go test ./...")
+        (folder / "0.out").write_text(printed)
+        app.container.get(OutputLog).start(name, "go test ./...", folder, Caller.agent("main", "s1", "claude"))
+        output = max(outputs.all(), key=lambda row: row.row_id)
+        outputs.save(output.backgrounded(), Actor.system())
+        assert app.console().run(["output", "watch", str(output.row_id), "--reader", "packages"], AGENT).code == 0
+        started = outputs.find(output.row_id).creation_time.timestamp()
+        silences.sampled(output.row_id, 0, started, started + silent_seconds)
+        outputs.save(outputs.find(output.row_id).ended_with(0, started + 95), Actor.system())
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(1):
+            return [finding for report in app.container.get(ReaderReports).unread("s1") if report.output == output.row_id for finding in report.findings]
+
+    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
+    silent = run("silent", "ok  \tshop/cart\t90.2s\n", 90.0)
+    assert any("printed nothing for 90 seconds" in finding for finding in silent) and not any("showed no progress" in finding for finding in silent), "a run that printed no line for 90 seconds is the command's buffering, never the reader's progress"
+    shown = run("counted", "[ 10%] shop/cart\n[ 50%] shop/pay\nok  \tshop/pay\t0.4s\n", 5.0)
+    assert any("showed no progress" in finding for finding in shown) and not any("printed nothing" in finding for finding in shown), "lines that came throughout with a percentage the reader did not show are the reader's to fix"
+
+
 def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
     from journal.features.shell.support.reader_commands import ReaderCommands
     pytest_runs = ReaderCommands(("pytest",))
@@ -16770,6 +16834,8 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
 
     dots, folder = run("dots", "....F...                [ 45%]\n")
     assert shown(dots)["figure"] == "Running tests 45% · 7 passed, 1 failed", "a running card shows the counts so far beside its progress"
+    nothing_yet, _ = run("nothing_yet", "")
+    assert shown(nothing_yet)["count"] == "0 passed", "a counting card that has counted nothing yet shows its zero, never an empty figure"
     title = lambda: app.container.get(Messages).with_key(f"watch:{dots}")[0].text
     with app.container.get(Scope).environment(MAIN):
         running_title = title()
@@ -17919,7 +17985,7 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
         "a run that counts tests": (shell + "101 100 go test -v ./pkg\n102 101 /tmp/pkg.test -test.v\n", Progress(40, 400), "go test -v ./pkg", 1),
         "children that are no tests": (shell + "101 100 sleep 30\n102 100 node server.js\n", Progress(1, 3), "sleep 30", 0),
     }
-    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses())
+    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None)
     for number, (name, (listing, progress, inner, count)) in enumerate(cases.items(), 1):
         processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100))
         assert processes.test_count(number) == count and processes.inner_command(number) == inner, name
