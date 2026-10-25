@@ -11,3 +11,16 @@ test("the chat's activity line and the top bar read busy from one place, a state
     expect(isBusy({status: "stopped"})).toBe(false);
     expect(isBusy(null)).toBe(false);
 });
+
+test("an agent that awaits something shows waiting again once its command has ended for the timeout", async () => {
+    const {WAITING_AGAIN_AFTER} = await import("../src/domain/agentState.js");
+    const heard = 1000;
+    const idle = {status: "idle", awaiting: "worker 3", heard_at: heard};
+    expect(stateOf(idle, heard + 100)).toBe("waiting");
+    const running = {...idle, status: "busy", tool_running: true};
+    expect(stateOf(running, heard + 100)).toBe("busy");
+    const ended = {...idle, status: "busy", tool_running: false};
+    expect(stateOf(ended, heard + WAITING_AGAIN_AFTER - 1)).toBe("busy");
+    expect(stateOf(ended, heard + WAITING_AGAIN_AFTER)).toBe("waiting");
+    expect(stateOf({...ended, awaiting: ""}, heard + 100)).toBe("busy");
+});

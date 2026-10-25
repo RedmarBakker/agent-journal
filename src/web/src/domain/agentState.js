@@ -52,9 +52,15 @@ export function waitingOn(agent, workers = [], now = Date.now() / 1000) {
 // whether the agent is at work, by the same reading the top bar shows: working, compacting, or a state of its own that is neither idle nor stopped
 export const isBusy = (agent) => Boolean(agent) && ["working", "busy", "compacting"].includes(stateOf(agent));
 
-export function stateOf(agent) {
+// Seconds after its last hook with no tool running that an agent that awaits something is shown as waiting again.
+export const WAITING_AGAIN_AFTER = 3;
+
+const quietSince = (agent, now) => !agent.tool_running && seconds(agent.heard_at) > 0 && now - seconds(agent.heard_at) >= WAITING_AGAIN_AFTER;
+
+export function stateOf(agent, now = Date.now() / 1000) {
     if (agent?.state === "paused") return "paused";
     const reported = agent ? agent.status : "stopped";
+    if (agent?.awaiting && ["working", "busy"].includes(reported) && quietSince(agent, now)) return "waiting";
     if (reported === "working") return "working";
     if (reported === "idle" && agent.awaiting) return "waiting";
     return REPORTED.includes(reported) ? reported : agent.awaiting ? "waiting" : "busy";
