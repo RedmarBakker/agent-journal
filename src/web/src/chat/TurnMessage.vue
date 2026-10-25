@@ -9,7 +9,7 @@ import TurnHeader from "./TurnHeader.vue";
 import TurnQuote from "./TurnQuote.vue";
 import TurnParent from "./TurnParent.vue";
 import TurnFromMain from "./TurnFromMain.vue";
-import TurnReport from "./TurnReport.vue";
+import ReportCard from "./ReportCard.vue";
 import TurnBriefMarker from "./TurnBriefMarker.vue";
 import TurnText from "./TurnText.vue";
 import TurnQuestion from "./TurnQuestion.vue";
@@ -36,6 +36,7 @@ const fold = computed(() => turnFold(props.turn));
 const {scope, env, open, openChip} = useTurnLinks();
 const rowsOf = (table) => scope.rows(table);
 const report = computed(() => reportOf(props.turn));
+const reportedTask = computed(() => (report.value && report.value.workerId ? rowsOf("tasks").find((t) => t.worker_id === report.value.workerId) || null : null));
 const {words, html} = useTurnText(() => (report.value ? {...props.turn, text: report.value.text} : props.turn), env);
 
 const sent = computed(() => Boolean(props.turn.data?.sent_to));
@@ -106,12 +107,12 @@ async function drop() {
         <template v-if="opening">
             <TurnBriefMarker :time="turn.time" />
         </template>
-        <div v-show="bubbled && !opening" ref="bubble" class="thread-bubble md" data-figure-bubble :data-figure-mark="turn.key" @click="resourceComment && openComment()">
+        <template v-if="report">
+            <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task="reportedTask" :time="turn.time" />
+        </template>
+        <div v-show="bubbled && !opening && !report" ref="bubble" class="thread-bubble md" data-figure-bubble :data-figure-mark="turn.key" @click="resourceComment && openComment()">
             <template v-if="fromMain">
                 <TurnFromMain :time="turn.time" :data="turn.data" />
-            </template>
-            <template v-if="report">
-                <TurnReport :worker="report.worker" :time="turn.time" />
             </template>
             <template v-if="resourceComment">
                 <TurnParent :label="commentParent.label" @open="openComment" />

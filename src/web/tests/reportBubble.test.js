@@ -1,5 +1,8 @@
 import {createApp, h, nextTick} from "vue";
-import {expect, test} from "vitest";
+import {expect, test, vi} from "vitest";
+
+const peeked = vi.hoisted(() => []);
+vi.mock("../src/route.js", async (original) => ({...(await original()), peek: (table, id) => peeked.push(`${table}/${id}`)}));
 import {reportOf} from "../src/domain/report.js";
 import {threadTurns} from "../src/domain/thread.js";
 
@@ -14,7 +17,8 @@ globalThis.ResizeObserver ??= class {
 const at = (seconds) => new Date(seconds * 1000).toISOString();
 const message = (id, text, data = {}) => ({table: "messages", id, created_at: at(id), author: "agent", text, files: [], data, comments_on: [], idempotency: "", reply_target: null});
 const messages = [message(1, "Lady Montagu reports: the footer is fixed", {kind: "report", worker: "Lady Montagu", worker_id: 7}), message(2, "Montagu reports: not a report")];
-const scope = {env: "", api: {}, rows: () => messages, loaded: () => true, holding: () => {}, earlier: () => {}};
+const tasks = [{table: "tasks", id: 12, title: "Fix the footer", worker_id: 7}];
+const scope = {env: "", api: {}, rows: (table) => (table === "tasks" ? tasks : messages), loaded: () => true, holding: () => {}, earlier: () => {}};
 
 async function drawn(turn) {
     window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
@@ -26,7 +30,13 @@ async function drawn(turn) {
     app.directive("tip", {});
     app.mount(host);
     await nextTick();
-    const shown = {report: host.querySelector(".thread-turn").classList.contains("report"), bubble: host.querySelector(".thread-bubble").textContent};
+    const card = host.querySelector(".report-card");
+    const bubble = host.querySelector(".thread-bubble");
+    const shown = {report: host.querySelector(".thread-turn").classList.contains("report"), card: card ? card.textContent : "", bubbleShown: bubble.style.display !== "none"};
+    if (card) {
+        card.click();
+        shown.opened = peeked.at(-1);
+    }
     app.unmount();
     host.remove();
     return shown;
@@ -34,17 +44,19 @@ async function drawn(turn) {
 
 test("a worker's report is told from the agent's own words by the worker it names", () => {
     const [report, own] = threadTurns(messages, []).turns;
-    expect(reportOf(report)).toEqual({worker: "Lady Montagu", text: "the footer is fixed"});
+    expect(reportOf(report)).toEqual({worker: "Lady Montagu", workerId: 7, text: "the footer is fixed"});
     expect(reportOf(own)).toBe(null);
 });
 
-test("a report bubble is marked as a report from its worker and holds only the report", async () => {
+test("a report in the chat is a small card with its worker and task, no report text, and a click opens the report", async () => {
     const [report, own] = threadTurns(messages, []).turns;
     const shown = await drawn(report);
     expect(shown.report).toBe(true);
-    expect(shown.bubble).toContain("Report from Lady Montagu");
-    expect(shown.bubble).toContain("the footer is fixed");
-    expect(shown.bubble).not.toContain("reports:");
+    expect(shown.card).toContain("Lady Montagu");
+    expect(shown.card).toContain("task 12, Fix the footer");
+    expect(shown.card).not.toContain("the footer is fixed");
+    expect(shown.bubbleShown).toBe(false);
+    expect(shown.opened).toBe("workers/7");
     expect((await drawn(own)).report).toBe(false);
 });
 
