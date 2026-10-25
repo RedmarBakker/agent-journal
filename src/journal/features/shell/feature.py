@@ -25,6 +25,7 @@ from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.shell.support.streaming_form import COUNTING
+from journal.features.shell.support.activity_title import TITLE_RULE
 
 
 class Shell(Feature[ShellData]):
@@ -72,7 +73,7 @@ Every shell command you run goes through the journal's runner.
   sooner. One output is watched at a time. A reader written for a watch picks few lines that read well in the card, and
   may show how far the command has progressed: `--progress <regex>` takes the last match, its groups a percentage such as
   `\\[(\\d+)%\\]` or a count of a total such as `(\\d+)/(\\d+)`, shown as a bar in the card, and `--label "<words>"` says what the run is doing, such as Running tests or Building the
-  application, never a bare name such as Tests; `--topic '<pattern>'`, read over the command line, adds what a run is about
+  application, never a bare name such as Tests nor a half sentence that stops on of or the: """ + TITLE_RULE + """; `--topic '<pattern>'`, read over the command line, adds what a run is about
   after the title, such as the test files or the -k a line names, for a command run with different arguments.
   A run over several suites, packages or shards shows its progress too: """ + COUNTING + """.
   `--finished '<pattern>'` and `--failed '<pattern>'` pick other lines once the command finished or failed, such as its summary

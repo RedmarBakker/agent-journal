@@ -3,6 +3,7 @@ from pathlib import Path
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import COUNTING
+from journal.features.shell.support.activity_title import TITLE_RULE
 from journal.models.reader_report import ReaderReport
 from journal.repositories.command_outputs import CommandOutputs
 
@@ -24,6 +25,7 @@ class DismissalEvidence:
             "journal verdict yes \"<reason>\" when the dismissal is sound and the report is wrong, or journal verdict no \"<reason>\" when the output contradicts the agent's reason. "
             "Every other tool is refused, and your verdict ends your session.",
             f"A run over several suites, packages or shards can still show its progress, so a dismissal that says it cannot is not sound: {COUNTING}.",
+            f"A reader's label is {TITLE_RULE}; a label that is not, such as a half sentence, is a sound finding.",
             f"## The report\n\n{report.evidence()}",
             f"## The agent's reason for dismissing it\n\n{report.dismissal}",
             f"## The reader {report.reader}, as it is written\n\n{self.readers.definition(report.reader)}",

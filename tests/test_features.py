@@ -10859,7 +10859,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n")
     app.container.get(OutputLog).start("w", "pytest", folder, Caller.agent("main", "s1", "claude"))
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert "a card's title says what the run is doing" in console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--label", "Tests"], AGENT).error, "a bare name is refused as a label"
+    assert "that says what the run is doing" in console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--label", "Tests"], AGENT).error, "a bare name is refused as a label"
     console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--progress", r"\[ *(\d+)%\]", "--label", "Running the tests"], AGENT)
     assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
     seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
@@ -17614,6 +17614,14 @@ def test_the_output_shapers_ending_a_line_are_taken_off_and_an_in_place_edit_is_
         assert Part(line).cut_command() == cut, f"{line} is shaped by {cut}, taken off so its whole output is kept"
     for line in ("ls | sed -i s/a/b/ f", "x | perl -pi -e s/a/b/ f", "x | tee log.txt", "x | xargs rm", "tail -f app.log | grep error"):
         assert Part(line).cut_command() in ("", "grep error") and Part(line).uncut().text.startswith(line.split(" | ")[0]), f"{line} keeps what writes a file, runs a command or follows a file"
+
+
+def test_a_readers_label_ending_half_a_sentence_is_refused_and_a_whole_phrase_is_taken(app: App):
+    from journal.features.shell.support.activity_title import TITLE_RULE
+    console = app.console()
+    refused = console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running the tests of"], AGENT)
+    assert refused.code != 0 and TITLE_RULE in refused.error and "stops on 'of'" in refused.error, refused.error
+    assert console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running tests"], AGENT).code == 0, "a whole phrase is taken"
 
 
 def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words():

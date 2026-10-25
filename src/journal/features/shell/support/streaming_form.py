@@ -1,4 +1,6 @@
-COUNTING = "count what has finished against the total and print it as N/M on each line that finishes one, such as each test against the number the run will run, as a suite run in shards counts every shard's finished tests; give the reader --progress '(\\d+)/(\\d+)' and a --label that is a short, whole phrase such as Running tests. A bar that counts suites or packages says little when each runs many tests: count the tests"
+from journal.features.shell.support.activity_title import TITLE_RULE
+
+COUNTING = "count what has finished against the total and print it as N/M on each line that finishes one, such as each test against the number the run will run, as a suite run in shards counts every shard's finished tests; give the reader --progress '(\\d+)/(\\d+)' and a --label that is " + TITLE_RULE + ". A bar that counts suites or packages says little when each runs many tests: count the tests"
 DEFAULT_ADVICE = f"make the command print its steps as it goes, run it unbuffered (python -u), or {COUNTING}"
 # the form of a tool that prints each step as it happens, by the bare command a run is known by
 FORMS = {

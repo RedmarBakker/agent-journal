@@ -10,7 +10,7 @@ from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.git_writes import GitWrites
-from journal.features.shell.support.activity_title import ActivityTitle
+from journal.features.shell.support.activity_title import TITLE_RULE, ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
 from journal.features.shell.support.output_files import OutputFiles
@@ -42,7 +42,7 @@ class ReaderCommand(Command):
         addition.add_argument("--about", help="what it picks, in a few words; a new reader needs it")
         addition.add_argument("--progress", help="a pattern whose last match says how far the command has come: one group for a percentage, two for a count of a total")
         addition.add_argument("--topic", help="a pattern read over the command line whose matches say what a run is about, after the card's title: the test files a line names, or its -k, such as '(\\S+\\.py)'")
-        addition.add_argument("--label", help="what the run is doing, the card's title and the words before its progress, such as Running tests")
+        addition.add_argument("--label", help=f"the card's title and the words before its progress: {TITLE_RULE}")
         addition.add_argument("--step", help="a pattern for one step, such as a test's dot, that moves the progress between two of its counts")
         addition.add_argument("--finished", help="a pattern for the lines it picks once the command finished, such as its summary; the pattern picks them while it runs")
         addition.add_argument("--failed", help="a pattern for the lines it picks once the command failed, such as its failures; the pattern picks them while it runs")
