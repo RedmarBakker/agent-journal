@@ -2034,6 +2034,37 @@ def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_l
     assert scheduled.row_id not in {message.row_id for message in messages.unanswered()}, "and it is never reminded as unanswered"
 
 
+def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_scheduled_and_both_are_out_of_the_load_and_the_unanswered(app: App, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import journal.features.messages.listeners.record_typed_prompt as recording
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.models.author import Author
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    since = datetime.now(timezone.utc) - timedelta(minutes=1)
+    check = "Run the journal health check: say nothing when it is healthy"
+    for prompt in (check, "yes", "yes"):
+        hook(app, "UserPromptSubmit", prompt=prompt)
+    app.runtime().deferred.drain()
+
+    class HalfAnHourOn(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + timedelta(minutes=30)
+
+    monkeypatch.setattr(recording, "datetime", HalfAnHourOn)
+    hook(app, "UserPromptSubmit", prompt=check)
+    app.runtime().deferred.drain()
+    messages = app.container.get(Messages)
+    chat = messages.selected(messages.main_chat().order("id"))
+    checks, answers = [m for m in chat if m.text == check], [m for m in chat if m.text == "yes"]
+    assert len(checks) == 2 and all(m.author == Author.SYSTEM and m.is_scheduled_prompt for m in checks), "the same words half an hour apart are a schedule's: the second arrival and the first are scheduled prompts"
+    assert len(answers) == 2 and all(m.author == Author.USER for m in answers), "the same words typed again within a minute are still the user's"
+    waiting = {item.ref for item in app.container.get(LoadItems).message_items(since)}
+    assert not {f"messages:{m.row_id}" for m in checks} & waiting and {f"messages:{m.row_id}" for m in answers} <= waiting, f"neither arrival waits on the orchestrator: {waiting}"
+    assert not {m.row_id for m in checks} & {m.row_id for m in messages.unanswered()}, "and neither is reminded as unanswered"
+
+
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
     """A prompt that is a journal line already says its words, so its hook adds no line it carries."""
     hook(app, "SessionStart")

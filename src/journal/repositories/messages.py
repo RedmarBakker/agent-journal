@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 from journal.db.query import Query
 from journal.models.agent_role import AgentRole
 from journal.models.author import Author
-from journal.models.message import Message
+from journal.models.message import TERMINAL_LINE, Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.support.rejection import Rejection
@@ -90,6 +90,10 @@ class Messages(ScopedRepository[Message]):
     def unfiled_reads(self, moment: datetime) -> list[Message]:
         read = self.selected(self.main_chat().filter(author=Author.USER).filter_greater("read_at", moment).order("id"))
         return [m for m in read if not m.is_terminal_line and not any(ref.type == "tasks" for ref in self.links.targets(m, self.SUBJECT_LINK))]
+
+    def prompt_repeats(self, text: str) -> list[Message]:
+        typed = self.selected(self.main_chat().filter(text=text).filter_json("data->kind", TERMINAL_LINE).order("id"))
+        return [*typed, *self.selected(self.main_chat().filter(text=text).filter_json("data->kind", Message.SCHEDULED_PROMPT).order("id"))]
 
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()

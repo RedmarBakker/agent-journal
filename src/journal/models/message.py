@@ -131,6 +131,13 @@ class Message(Scoped):
     def text_body(self) -> str:
         return "\n".join(self.text.split("\n")[self.quoted_lines:]).strip()
 
+    def scheduled(self) -> "Message":
+        return self.with_(author=Author.SYSTEM, data={**self.data, "kind": self.SCHEDULED_PROMPT})
+
+    @property
+    def is_scheduled_prompt(self) -> bool:
+        return self.data.get("kind") == self.SCHEDULED_PROMPT
+
     @property
     def is_thought(self) -> bool:
         return self.data.get("kind") == self.THOUGHT
