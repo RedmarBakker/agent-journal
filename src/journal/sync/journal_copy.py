@@ -10,7 +10,7 @@ from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are stored through it."""
+    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and the team's full copy taken in place of the rows it sends, every row TeamPlacement places in no team kept as it is: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never taken from the copy either way, this machine's own kept as they are."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, placement: TeamPlacement) -> None:
         self.tables, self.scopes, self.placement = tables, scopes, placement
@@ -60,23 +60,18 @@ class JournalCopy:
         return placed
 
     def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict]) -> None:
-        machine_settings = self.machine_settings()
-        for table in self.tables.names():
-            self.tables.rows(table).clear()
+        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_sent(row)] for table in self.tables.names()}
+        for table, numbers in sent.items():
+            self.tables.rows(table).clear_numbers(numbers)
         tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}
         for row in rows:
-            if row.row_table in tables:
+            if row.row_table in tables and self.is_copied(row):
                 tables[row.row_table].append((row.row, {**row.fields, **local.get((row.row_table, row.row), {})}))
         for table, table_rows in tables.items():
             self.tables.rows(table).restored(table_rows)
-        settings = self.tables.rows(Setting.table())
-        for setting in self.machine_settings():
-            settings.delete(setting, Actor.system())
-        for setting in machine_settings:
-            settings.save(Setting(environment_id=setting.environment_id, key=setting.key, value=setting.value), Actor.system())
 
-    def machine_settings(self) -> list[Setting]:
-        return [setting for setting in self.tables.rows(Setting.table()).rows() if not self.scopes.is_team(setting.key)]
+    def is_copied(self, row: CopiedRow) -> bool:
+        return row.row_table != Setting.table() or self.scopes.is_team(row.fields.get("key", ""))
 
     def local_values(self) -> dict[tuple[str, int], dict]:
         return {(table, row.row_id): values for table in self.tables.names() for row in self.tables.rows(table).rows() if (values := {name: value for name, value in Schema.stored_values(row, None).items() if name in row.local_fields})}

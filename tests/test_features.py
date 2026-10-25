@@ -12104,6 +12104,47 @@ def test_a_member_writes_a_hub_task_and_a_hub_message_on_their_own_journal_with_
         assert synced(lambda: in_hub(Tasks, "title", "Bob's hub task") and in_hub(Messages, "text", "Bob's word in the hub")), "both reach Ada's journal, in the hub"
 
 
+def test_a_full_copy_after_an_upgrade_and_after_falling_behind_replaces_only_the_teams_rows_and_keeps_every_row_placed_nowhere(tmp_path, template_journal, monkeypatch):
+    from journal.db.connection import Connection
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.tasks import Tasks
+    from journal.sync.team_upgrade import TeamUpgrade
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        hub_task = ada_tasks(a)[1]
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)))
+        main = b.container.get(Environments).existing("main")
+        with b.container.get(Scope).environment(main.row_id):
+            own = b.container.get(Tasks).save(Task(environment_id=main.row_id, title="Bob's own"), Actor.user(2))
+        mention = b.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), kind="mentions"), Actor.user(2))
+        kept = lambda: bool(b.container.get(Tasks).global_matching(id=own.id)) and bool(b.container.get(Links).all_matching(id=mention.id)) and bool(b.container.get(Environments).numbered([main.row_id]))
+        has_hub_task = lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))
+
+        def lose_hub_task() -> None:
+            b.container.get(Connection).execute("DELETE FROM tasks WHERE id = ?", (hub_task.id,))
+            b.container.get(Connection).cache.cleared()
+
+        lose_hub_task()
+        assert synced(lambda: a.container.get(TeamAccount).sequence() == team.log.head())
+        team.details.record_migration(0)
+        upgrade = a.container.get(TeamUpgrade)
+        upgrade.claim()
+        upgrade.finish()
+        assert synced(has_hub_task), "after an upgrade Bob's journal takes the team's full copy, which brings the hub's task back"
+        assert kept(), "and keeps his own task, its link to the hub's task and his own environment, which the team never had"
+
+        lose_hub_task()
+        team.details.record_lowest_sequence(team.log.head() + 1)
+        with a.container.get(Scope).environment(hub_task.environment_id):
+            a.container.get(Tasks).save(Task(environment_id=hub_task.environment_id, title="the team's next work"), Actor.user(1))
+        assert synced(has_hub_task), "a journal behind the lowest sequence a pull may go on from takes the full copy too"
+        team.details.record_lowest_sequence(0)
+        assert kept(), "and keeps every row placed nowhere"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
