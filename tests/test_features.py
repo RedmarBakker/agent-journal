@@ -4149,7 +4149,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     settings.set(WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default, Actor.user(1))
 
 
-def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_fast_verifier_and_a_mismatch_is_named_and_scored(app: App, monkeypatch):
+def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_general_verifier_and_a_mismatch_is_named_and_scored(app: App, monkeypatch):
     from journal.features.verification.support.verifier_runner import VerifierRunner
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import MODEL_FIT_SHARE, WorkersProfiles
@@ -4204,7 +4204,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_fast_
         sampled = next(w for w in workers.global_matching(name="large-opus"))
         judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), kind="verifies")]
         verifier = app.container.get(Verifiers).find(judging[-1].id)
-    assert verifier.model == "haiku" and "## The diff" in verifier.brief and "Change src/parser.py" in verifier.brief and "journal verdict model" in verifier.brief, "a merge sampled is judged by a verifier on the fast model, handed the brief, the diff and the report"
+    assert verifier.model == "sonnet" and "## The diff" in verifier.brief and "Change src/parser.py" in verifier.brief and "journal verdict model" in verifier.brief, "a merge sampled is judged by a verifier on the general model, never the fast one, handed the brief, the diff and the report"
     answer = app.console().run(["verdict", "model", "too-strong", "one parser module and its test"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
     assert answer.code == 0, answer.error
     with app.container.get(Scope).environment(MAIN):

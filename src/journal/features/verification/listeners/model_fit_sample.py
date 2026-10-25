@@ -30,4 +30,4 @@ class ModelFitSample(Listener[WorkerMerged]):
         if self.statistics.incremented(f"{MERGES}.{event.environment_id}", Actor.system()).value % every:
             return
         worker = self.workers.find(event.worker.id)
-        self.dispatch.sent_fast(worker, self.evidence.brief(worker))
+        self.dispatch.sent(worker, self.evidence.brief(worker))
