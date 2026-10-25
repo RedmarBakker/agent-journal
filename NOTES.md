@@ -1594,3 +1594,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 
 - **As in the Team chat.** A person's message in any session is a teammate's (EnvironmentOwners.is_teammate already covers every session), stamped with the writer's name, and DeliverMessage hears it pulled as it hears a local one, in the session's environment on the machine that runs its agent. The line typed to that agent now names the writer, "new message 57 from Bob" (MessagesNudges.TEAMMATE_MESSAGE, chosen by MessagesNudges.arrival), and `journal message read` names him as before.
 - **The agent runs on the holder.** StartRule asks SessionLeases.start_refusal: a session's agent starts only on the machine holding its lease. TeamChat.start_refusal now asks Environment.is_team_chat, the session with no branch of its own, so the Team chat claim governs the Team chat alone.
+
+## A session drives a hub plan (task 3131)
+
+- **As a local environment does.** HubDrives drives from an environment of this machine's own or a session it holds (SessionLeases.is_hosted_session), never the hub or the Team chat; the session is bound like any environment, its reads take the hub plan and its tasks, and every change is made on the hub rows, nothing in the session.
+- **A binding never leaves the machine.** A link from a hub row to a session has both its ends in one team, so it would have been sent; TeamPlacement now places bound_to and drive_ended links (MACHINE_LINKS) in no team by their kind, whatever their ends.

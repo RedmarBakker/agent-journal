@@ -38,6 +38,9 @@ class SessionLeases:
     def hosted(self) -> list[Environment]:
         return self.environments.session_rows(self.account.held_sessions())
 
+    def is_hosted_session(self, environment: Environment) -> bool:
+        return environment.is_session() and not environment.is_team_chat() and environment.team_name in self.account.held_sessions()
+
     def start_refusal(self, environment: Environment) -> str:
         if not environment.is_session() or environment.is_team_chat() or environment.team_name in self.account.held_sessions():
             return ""

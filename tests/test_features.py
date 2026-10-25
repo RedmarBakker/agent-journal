@@ -13835,6 +13835,59 @@ def test_a_message_bob_writes_in_a_session_ada_holds_reaches_the_agent_of_the_se
         assert a.container.get(Messages).find(message.id).sender.startswith("Bob, one of the people you work for"), "and the agent reads it as his"
 
 
+def test_a_session_drives_a_hub_plan_whose_tasks_read_as_its_work_and_change_on_the_hub_rows_with_no_row_in_the_session_and_its_binding_never_sent(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from datetime import datetime, timezone
+    from conftest import copied
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import BOUND_LINK
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        console, tasks, plans, scope = journal.console(), journal.container.get(Tasks), journal.container.get(Plans), journal.container.get(Scope)
+        assert console.run(["session", "start", "review"], USER).code == 0
+        environments = journal.container.get(Environments)
+        hub, session = environments.hubs()[0], environments.session_rows(["review"])[0]
+        with scope.environment(hub.row_id):
+            plan = plans.save(Plan(environment_id=hub.row_id, title="the release"), Actor.user(1))
+            task = tasks.save(Task(environment_id=hub.row_id, title="the release notes"), Actor.user(1))
+        journal.container.get(Links).save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), Actor.user(1))
+        driven = console.run(["plan", "drive", str(plan.id)], replace(USER, environment="review"))
+        assert driven.code == 0, driven.error
+        with scope.environment(session.row_id):
+            assert plan.id in {row.id for row in plans.scoped()} and task.id in {row.id for row in tasks.scoped()}, "the hub plan and its task read as the session's work"
+            tasks.save(tasks.find(task.id).started(datetime.now(timezone.utc)), Actor.user(1))
+        assert tasks.find(task.id).state == TaskState.STARTED and tasks.find(task.id).environment_id == hub.row_id, "the change is made on the hub row"
+        assert not tasks.global_matching(environment_id=session.row_id) and not plans.global_matching(environment_id=session.row_id), "and no row is made in the session"
+        binding = journal.container.get(Links).all_matching(kind=BOUND_LINK)
+        assert [link.target for link in binding] == [Ref(Environment.table(), session.row_id)], "the session is bound to the plan"
+        assert not [change for change in journal.container.get(OutgoingChanges).all() if change.row_table == "links" and change.row == binding[0].id], "and its binding, both ends in the team, is never sent"
+    finally:
+        journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied

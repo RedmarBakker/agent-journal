@@ -5,16 +5,19 @@ from journal.models.scoped import Scoped
 from journal.models.setting import Setting
 from journal.models.support.ref import Ref
 from journal.models.user import User
-from journal.repositories.scope import PROJECT
+from journal.features.plans.support.plan_bindings import ENDED_LINK
+from journal.repositories.scope import BOUND_LINK, PROJECT
 from journal.repositories.shared_tables import SharedTables
 from journal.sync.setting_scopes import SettingScopes
 from journal.sync.team_account import TeamAccount
 
 NO_TEAM = ""
+# the links that say what this machine does with a hub row, never the team's: an environment's binding of a hub plan or task, and its drive ended
+MACHINE_LINKS = (BOUND_LINK, ENDED_LINK)
 
 
 class TeamPlacement:
-    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment, but for a row it withholds, such as a local copy of a hub document; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server, and to which team's, the home team's every row it sends but a further team's, a further team's only its own: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine. A placement moved by rows and the teams they are going to answers as if they were there already."""
+    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment, but for a row it withholds, such as a local copy of a hub document; a link only when both its ends are in one team, and never a binding of a hub row or its ended drive, which are this machine's alone; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server, and to which team's, the home team's every row it sends but a further team's, a further team's only its own: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine. A placement moved by rows and the teams they are going to answers as if they were there already."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, account: TeamAccount) -> None:
         self.tables, self.scopes, self.account = tables, scopes, account
@@ -52,6 +55,8 @@ class TeamPlacement:
         return NO_TEAM if environment.is_private() else environment.team_key
 
     def link_team(self, link: Link) -> str:
+        if link.kind in MACHINE_LINKS:
+            return NO_TEAM
         ends = {self.ref_key(link.source), self.ref_key(link.target)}
         return ends.pop() if len(ends) == 1 else NO_TEAM
 

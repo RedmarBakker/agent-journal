@@ -16,6 +16,7 @@ from journal.support.actor_kind import ActorKind
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
 from journal.sync.hosting import Hosting
+from journal.sync.session_leases import SessionLeases
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_requests import TeamRequests
 from journal.sync.team_server_link import TeamServerLink
@@ -26,11 +27,11 @@ RENEW_SECONDS = 60
 
 
 class HubDrives:
-    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope and writes on the hub row the person and the agent driving it, and a release undoes all three. A drive ends here when its lease is found taken over at a renewal, or its row is deleted or closed on another journal: the binding is lost, the environment's agent told why, naming who, and this machine's writes to the row refused until it is driven again. The hosted journal drives nothing."""
+    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope, one of this machine's own or a session it holds, and writes on the hub row the person and the agent driving it, and a release undoes all three. A drive ends here when its lease is found taken over at a renewal, or its row is deleted or closed on another journal: the binding is lost, the environment's agent told why, naming who, and this machine's writes to the row refused until it is driven again. The hosted journal drives nothing."""
 
-    def __init__(self, link: TeamServerLink, bindings: PlanBindings, tasks: Tasks, plans: Plans, environments: Environments, scope: Scope, hosting: Hosting, labels: RowLabels, owners: EnvironmentOwners) -> None:
+    def __init__(self, link: TeamServerLink, bindings: PlanBindings, tasks: Tasks, plans: Plans, environments: Environments, scope: Scope, hosting: Hosting, labels: RowLabels, owners: EnvironmentOwners, sessions: SessionLeases) -> None:
         self.link, self.bindings, self.environments, self.scope, self.hosting, self.labels = link, bindings, environments, scope, hosting, labels
-        self.owners = owners
+        self.owners, self.sessions = owners, sessions
         self.repositories = {Task: tasks, Plan: plans}
         self.tables = {Task.table(): tasks, Plan.table(): plans}
         self.renewed_at = 0.0
@@ -79,8 +80,8 @@ class HubDrives:
         if row.environment_id not in self.environments.hub_ids():
             raise Rejection(f"{self.label(row)} is not the hub's: only a hub plan or task is driven")
         environment = self.environments.find(self.scope.id)
-        if not environment.is_personal():
-            raise Rejection(f"{self.label(row)} is driven from an environment of your own, never the hub or the Team chat")
+        if not environment.is_personal() and not self.sessions.is_hosted_session(environment):
+            raise Rejection(f"{self.label(row)} is driven from an environment of your own or a session this machine holds, never the hub or the Team chat")
         self.bindings.check(row, environment.row_id)
         return environment
 
