@@ -1212,6 +1212,9 @@ workers.weight_repeat_send_back = 1.5
 workers.weight_idle_place = 0.5
 workers.recovery_full_score_minutes = 10
 workers.recovery_zero_score_minutes = 60
+workers.held_still_minutes = 60
+workers.held_share = 0.4
+workers.unordered_plan_tasks = 10
 workers.priorities_minutes = 45
 workers.model_fit_sample = 5
 workers.costly_shaped_work_dollars = 2.0
@@ -1677,6 +1680,7 @@ voices.introduce_yourself  [voices]  introduce yourself in the chat. one or two 
 voices.say_you_are_back  [voices]  you are back in an earlier conversation. say so in a line in your voice, then carry on
 voices.the_voice_changed  [voices]  the user changed how you talk to them. from now on: {{voice}} Open your next chat line in the new voice, and say nothing else about it
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have not acted on it. give it its next job, stop it, or mark it done
+workers.blocked_work_stands_still  [workers]  these blocked or paused tasks stand still: {{tasks}}; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
@@ -1688,6 +1692,7 @@ workers.dispatch_while_busy  [workers]  {{count}} tasks open, no worker: {{tasks
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
 workers.load_critical  [workers]  your load is {{rho}}, critical: {{waiting}} wait, {{oldest}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
 workers.load_rising  [workers]  your load is {{rho}}: {{waiting}} wait; clear {{oldest}} first, the oldest
+workers.make_the_wait_a_block  [workers]  you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done
 workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model
 workers.no_workers_when_solo  [workers]  you work solo: no worker is dispatched
@@ -1701,6 +1706,7 @@ workers.own_output_running  [workers]  your output {{n}} still runs, and your ru
 workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once
 workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
+workers.plan_order_without_dependencies  [workers]  plan {{plan}} has {{open}} open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
 workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?. answer with journal plan priorities '<the order and why>'
@@ -1715,6 +1721,7 @@ workers.solo_researches_itself  [workers]  you are solo: you sent more subagents
 workers.started_plans  [workers]  started plans: {{plans}}
 workers.suite_failed_after_merges  [workers]  the whole suite failed in output {{run}} after the merges of {{workers}}. read what failed, then send the work back to the worker whose change broke it: journal worker send {{n}} "the whole suite fails since your merge: <what failed>; fix it and clock out again"
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
+workers.task_names_another_without_a_wait  [workers]  task {{task}} names task {{other}}, still open, and does not wait on it. journal task block {{task}} --on task:{{other}}
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
@@ -1736,7 +1743,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-261 nudges
+265 nudges
 
 $ agent: journal worker list
 exit 0
