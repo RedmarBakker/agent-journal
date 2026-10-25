@@ -4,6 +4,7 @@ from journal.app import App
 from sync_service.carrier import Carrier
 from sync_service.event_inbox import EventInbox
 from sync_service.journal_doors import JournalDoors
+from sync_service.team_carriers import TeamCarriers
 from sync_service.team_link import TeamLink
 
 
@@ -14,13 +15,16 @@ class CarriedSync:
         app.server()
         self.carrier = Carrier(JournalDoors(app.config.root))
         self.inbox = EventInbox(self.carrier)
+        self.teams = TeamCarriers(self.carrier.doors)
 
     def started(self) -> "CarriedSync":
         self.inbox.start()
         threading.Thread(target=self.carrier.run, args=(self.inbox.address,), name="carried sync", daemon=True).start()
+        self.teams.started()
         return self
 
     def stop(self) -> None:
+        self.teams.stop()
         self.carrier.stop()
         self.inbox.stop()
 

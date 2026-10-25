@@ -20,10 +20,17 @@ SYNC_PATH = "/journal/sync"
 
 
 class JournalDoors:
-    """The journal server's doors as the sync service reaches them: each call reads the server's port and its service secret anew from the journal's folder, since a server started again takes a new port and a new secret, and a server that is down, starting or on a new secret answers JournalBusy; the team's answers are handed in as the bytes the team sent."""
+    """The journal server's doors as the sync service reaches them, the home team's or, bound to its key, a further team's: each call reads the server's port and its service secret anew from the journal's folder, since a server started again takes a new port and a new secret, and a server that is down, starting or on a new secret answers JournalBusy; the team's answers are handed in as the bytes the team sent."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, team: str = "") -> None:
         self.port_file, self.secret_file = root / ".journal" / "port", root / ".journal" / "runtime" / "sync-secret"
+        self.team_key = team
+
+    def bound(self, team: str) -> "JournalDoors":
+        return JournalDoors(self.port_file.parent.parent, team)
+
+    def teams(self) -> list[str]:
+        return list(json.loads(self.called("GET", f"{SYNC_PATH}/teams", None, CALL_SECONDS)).get("keys", []))
 
     def secret(self) -> str:
         return self.secret_file.read_text() if self.secret_file.is_file() else ""
@@ -75,6 +82,7 @@ class JournalDoors:
         port, secret = self.port_file.read_text().strip() if self.port_file.is_file() else "", self.secret()
         if not port.isdigit() or not secret:
             raise JournalBusy("the journal server is not running")
+        path = f"{path}{'&' if '?' in path else '?'}team={self.team_key}" if self.team_key else path
         request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=body, method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret, PROTOCOL_HEADER: str(DESK_PROTOCOL)})
         try:
             with urllib.request.urlopen(request, timeout=seconds) as answer:

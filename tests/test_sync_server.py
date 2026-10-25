@@ -120,13 +120,21 @@ def test_the_log_keeps_changes_in_order_with_each_rows_current_value_and_a_devic
     assert log.row("tasks", 7) is None
 
 
-def test_number_blocks_never_overlap_and_start_above_a_shared_journals_numbers(store):
-    ranges = IdRanges(store, IdBlockRows(store))
+def test_number_blocks_never_overlap_start_above_a_shared_journals_numbers_and_of_a_team_of_number_t_from_t_times_2_32(store):
+    from sync_server.db.team_detail_rows import TeamDetailRows
+    from sync_server.team_details import TeamDetails
+    details = TeamDetails(TeamDetailRows(store), ChangeLog(store, ChangeRows(store), RowValues(store)), Accounts(AccountRows(store)))
+    ranges, base = IdRanges(store, IdBlockRows(store), details), details.number() << 32
+    assert details.number() > 0, "a new server draws its T"
     ranges.raise_floor("tasks", 1450)
-    ranges.raise_floor("tasks", 1200)
-    assert ranges.block(1, "tasks", 100) == (1451, 1550)
-    assert ranges.block(2, "tasks", 100) == (1551, 1650)
-    assert ranges.block(1, "messages", 1000) == (1, 1000)
+    assert ranges.block(1, "tasks", 100) == (base + 1, base + 100), "a team's numbers start at T * 2^32, above the journal's own small ones"
+    assert ranges.block(2, "tasks", 100) == (base + 101, base + 200)
+    store.execute("DELETE FROM team_details WHERE name = 'number'")
+    ranges.raise_floor("messages", 1450)
+    ranges.raise_floor("messages", 1200)
+    assert ranges.block(1, "messages", 100) == (1451, 1550), "a team from before T, T = 0, numbers as it always has, above a shared journal's numbers"
+    assert ranges.block(2, "messages", 100) == (1551, 1650)
+    assert ranges.block(1, "links", 1000) == (1, 1000)
 
 
 def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_and_rejects_the_older(store, tmp_path):

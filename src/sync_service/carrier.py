@@ -41,11 +41,16 @@ class Carrier:
 
     def run(self, address: str) -> None:
         self.address = address
+        self.started()
+        while not self.stopping.wait(REPORT_SECONDS):
+            self.report()
+
+    # the loops and their watchdog alone, as a further team's carrier runs, which the home carrier reports and registers for
+    def started(self) -> "Carrier":
         for loop in self.loops:
             loop.started(self.repeated)
         threading.Thread(target=self.watched, name="sync watchdog", daemon=True).start()
-        while not self.stopping.wait(REPORT_SECONDS):
-            self.report()
+        return self
 
     def watched(self) -> None:
         while not self.stopping.wait(WATCH_SECONDS):

@@ -595,7 +595,7 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
     from journal.sync.team_account import TEAM_FILE, TeamAccount
 
     config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))))
+    bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
     with scope.environment(1):
         assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
         config.home.mkdir(parents=True, exist_ok=True)
@@ -612,6 +612,21 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
         with pytest.raises(NumberShortage):
             tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
         assert not issubclass(NumberShortage, Rejection), "a shortage is a fault, so a hook lets its event through instead of refusing it"
+
+
+def block_numbers(connection, bus, scope, config, blocks):
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.repositories.environments import Environments
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.block_numbers import BlockNumbers
+    from journal.sync.block_supply import BlockSupply
+    from journal.sync.team_account import TeamAccount
+    from journal.sync.team_accounts import TeamAccounts
+    from journal.sync.team_server_link import TeamServerLink
+
+    supply = BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))
+    return BlockNumbers(blocks, TeamAccount(config), supply, team_placement(connection, bus, scope, config), TeamAccounts(config, Environments(connection, bus)))
 
 
 def outgoing_recorder(connection, bus, scope, config, changes):
@@ -748,7 +763,7 @@ def team_journal(tmp_path, name: str):
     for model in AllModels.MODELS:
         if model.shared:
             blocks.add(model.table(), base + 1, base + 99_999)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))))
+    bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
     bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
     bus.listen(EnvironmentUnshared, RecordWithdrawal(outgoing, TeamAccount(config), environment_withdrawal(config, connection, bus, scope), ServiceHooks()))
     bus.listen(SyncedDeletion, PulledFileRemoval(Attachments(config, PendingUploads(connection, bus), TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)))))

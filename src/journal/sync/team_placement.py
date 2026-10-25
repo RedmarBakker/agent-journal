@@ -1,4 +1,4 @@
-from journal.models.environment import Environment
+from journal.models.environment import UNKNOWN_TEAM_KEY, Environment
 from journal.models.link import Link
 from journal.models.model import Model
 from journal.models.scoped import Scoped
@@ -14,7 +14,7 @@ NO_TEAM = ""
 
 
 class TeamPlacement:
-    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment, but for a row it withholds, such as a local copy of a hub document; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine. A placement moved by rows and the teams they are going to answers as if they were there already."""
+    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment, but for a row it withholds, such as a local copy of a hub document; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server, and to which team's, the home team's every row it sends but a further team's, a further team's only its own: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine. A placement moved by rows and the teams they are going to answers as if they were there already."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, account: TeamAccount) -> None:
         self.tables, self.scopes, self.account = tables, scopes, account
@@ -41,6 +41,11 @@ class TeamPlacement:
 
     def is_sent(self, row: Model) -> bool:
         return self.is_team_row(row) if self.account.is_on_hub() else self.scopes.is_team_row(row)
+
+    def is_sent_to(self, row: Model, account: TeamAccount) -> bool:
+        if account.key:
+            return self.team_key(row) == account.key
+        return self.is_sent(row) and self.team_key(row) in (NO_TEAM, self.account.team_key(), UNKNOWN_TEAM_KEY)
 
     @staticmethod
     def environment_team(environment: Environment) -> str:

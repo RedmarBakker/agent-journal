@@ -7,19 +7,20 @@ from journal.models.outgoing_change import DELETED, OutgoingChange
 from journal.models.setting import Setting
 from journal.repositories.shared_tables import SharedTables
 from journal.sync.setting_scopes import SettingScopes
+from journal.sync.team_account import TeamAccount
 from journal.sync.team_placement import TeamPlacement
 from journal.support.actor import Actor
 from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and the team's full copy taken in place of the rows it sends, every row TeamPlacement places in no team kept as it is: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never taken from the copy either way, this machine's own kept as they are."""
+    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and a team's full copy taken in place of the rows sent to that team, every row TeamPlacement places in no team kept as it is: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never taken from the copy either way, this machine's own kept as they are."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, placement: TeamPlacement) -> None:
         self.tables, self.scopes, self.placement = tables, scopes, placement
 
     def rows(self) -> list[CopiedRow]:
-        return self.copied(self.placement.is_sent)
+        return self.copied(lambda row: self.placement.is_sent_to(row, self.placement.account))
 
     def team_rows(self, team_key: str) -> list[CopiedRow]:
         return self.copied(lambda row: self.placement.team_key(row) == team_key)
@@ -37,16 +38,16 @@ class JournalCopy:
     def highest(self) -> dict:
         return {table: self.tables.highest_number(table) for table in self.tables.names()}
 
-    def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange]) -> None:
+    def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange], account: TeamAccount) -> None:
         with self.tables.transaction():
-            self.rebuilt(rows, self.local_values())
+            self.rebuilt(rows, self.local_values(), account)
             for change in waiting:
                 if self.tables.has(change.row_table):
                     self.laid(change)
 
     def replace_whole(self, rows: tuple[CopiedRow, ...]) -> None:
         with self.tables.transaction():
-            self.rebuilt(rows, {})
+            self.rebuilt(rows, {}, self.placement.account)
 
     def laid_beside(self, rows: tuple[CopiedRow, ...]) -> None:
         kept = {environment.key: environment.row_id for environment in self.tables.rows(Environment.table()).rows()}
@@ -75,8 +76,8 @@ class JournalCopy:
                 placed[end] = f"{table}:{same[int(number)]}"
         return placed
 
-    def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict]) -> None:
-        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_sent(row)] for table in self.tables.names()}
+    def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict], account: TeamAccount) -> None:
+        sent = {table: [row.row_id for row in self.tables.rows(table).rows() if self.placement.is_sent_to(row, account)] for table in self.tables.names()}
         for table, numbers in sent.items():
             self.tables.rows(table).clear_numbers(numbers)
         tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}

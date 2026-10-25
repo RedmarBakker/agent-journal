@@ -13013,14 +13013,13 @@ def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_
         assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=moved_link.id)] == [(moved_link.source, moved_link.target)]), "the link reaches Bob still pointing at its task and its note"
 
 
-def test_a_journal_joins_two_teams_each_writing_with_its_own_account_a_team_of_a_held_number_is_refused_and_a_tied_team_refuses_another_repository_until_untied(tmp_path, template_journal, monkeypatch):
+def test_a_journal_joins_two_teams_each_writing_with_its_own_account_on_its_own_carrier_and_numbers_apart_a_team_of_a_held_number_is_refused_and_a_tied_team_refuses_another_repository_until_untied(tmp_path, template_journal, monkeypatch):
     import re
     import subprocess
     from carried_sync import CarriedSync
     from conftest import copied
     from journal.db.connection import Connection
     from journal.repositories.environments import Environments
-    from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.repositories.tasks import Tasks
     from journal.sync.team_accounts import TeamAccounts
     from sync_server.account import ADMIN
@@ -13061,8 +13060,12 @@ def test_a_journal_joins_two_teams_each_writing_with_its_own_account_a_team_of_a
         one, two = written(hub_one), written(hub_two)
         creators = {task.id: task.creator for task in a.container.get(Tasks).global_matching(id=one["id"]) + a.container.get(Tasks).global_matching(id=two["id"])}
         assert (creators[one["id"]], creators[two["id"]]) == (Actor.user(1), Actor.user(2)), "each team's write is stamped with this person's account in that team"
-        assert [change.team_key for change in a.container.get(OutgoingChanges).all() if change.row_table == "tasks" and change.row == two["id"]] == [second.details.answer().key], "and the second team's change waits for that team, never for the first's server"
-        assert synced(lambda: first.log.row("tasks", one["id"]) is not None) and first.log.row("tasks", two["id"]) is None, "the first team's server takes its own team's write alone"
+        assert synced(lambda: first.log.row("tasks", one["id"]) is not None and second.log.row("tasks", two["id"]) is not None), "each team's write reaches its own server, the second team's on a carrier of its own"
+        assert first.log.row("tasks", two["id"]) is None and second.log.row("tasks", one["id"]) is None and one["id"] != two["id"], "and no other team's server, under a number no other team's row has"
+        blocks = lambda team: [(row["row_table"], row["first_number"], row["last_number"]) for row in team.store.all("SELECT row_table, first_number, last_number FROM id_blocks")]
+        floors = {row["row_table"]: row["highest"] for row in second.store.all("SELECT row_table, highest FROM id_floors")}
+        assert blocks(second) and all(first_number > floors.get(table, 0) and first_number > second.details.number() << 32 for table, first_number, _ in blocks(second)), "every block of the second team is above that team's floor, in its own number space"
+        assert not [(table, low, high) for table, low, high in blocks(second) for other, other_low, other_high in blocks(first) if table == other and low <= other_high and other_low <= high], "and outside every block of the first team"
 
         third.store.execute("UPDATE team_details SET value = ? WHERE name = 'number'", (str(first.details.number()),))
         same_number = join(a, address("third"), "ada@example.com", "Ada")
@@ -15499,7 +15502,7 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
     def take():
         try:
             for _ in range(100):
-                outgoing.sent(outgoing.sending_batch(3, ""))
+                outgoing.sent(outgoing.sending_batch(3, ("",)))
         except Exception as fault:
             faults.append(fault)
 

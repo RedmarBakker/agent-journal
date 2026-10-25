@@ -109,6 +109,7 @@ class Routes:
         router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
         router.get_unscoped(f"{API}/sync/team", get(SyncDeskController).guarded(get(SyncDeskController).team))
+        router.get_unscoped(f"{API}/sync/teams", get(SyncDeskController).guarded(get(SyncDeskController).teams))
         router.post_unscoped(f"{API}/sync/state", get(SyncDeskController).guarded(get(SyncDeskController).state))
         router.get_unscoped(f"{API}/sync/query", get(SyncDeskController).guarded(get(SyncDeskController).query))
         router.post_unscoped(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))

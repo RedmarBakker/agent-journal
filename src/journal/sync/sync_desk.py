@@ -75,7 +75,7 @@ class SyncDesk:
         self.supply.refill()
 
     def batch(self, rows: int) -> list:
-        return self.outgoing.sending_batch(rows, self.account.team_key())
+        return self.outgoing.sending_batch(rows, ("", self.account.team_key(), UNKNOWN_TEAM_KEY))
 
     # what a push of these changes sends the team server, with the clock offset measured so far and the query it pulls with
     def request_body(self, changes: list) -> dict:
@@ -143,7 +143,7 @@ class SyncDesk:
         return True
 
     def copied(self, copy: FullCopy) -> None:
-        self.copy.replace(copy.rows, self.outgoing.rows())
+        self.copy.replace(copy.rows, self.outgoing.rows(), self.account)
         self.account.record_sequence(copy.head)
 
     def is_upgrader(self) -> bool:
