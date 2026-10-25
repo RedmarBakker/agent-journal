@@ -20672,3 +20672,28 @@ def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progr
     assert len(found) == 1 and BUILD_UNSHOWN in found[0][0] and "--logLevel info" in found[0][1], "a 40 second vite build with no figure gets the finding with the vite advice"
     assert judge.unshown_build(reader, output("vite build"), ["transforming..."], began + timedelta(seconds=10)) == [], "a short build raises nothing"
     assert judge.unshown_build(reader, output("pytest -q"), ["..."], began + timedelta(seconds=40)) == [], "a run that is not a build raises nothing"
+
+
+def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_until_taken_up_and_the_outer_resumes_after(app: App):
+    console = app.console()
+    outer = console.run(["sequence", "create", "outer", "--steps", "plan it | ship it"], USER).text.split()[1].rstrip(":")
+    inner = console.run(["sequence", "create", "inner", "--steps", "check it"], USER).text.split()[1].rstrip(":")
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    bash = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
+    console.run(["sequence", "run", outer], AGENT)
+    console.run(["sequence", "follow"], AGENT)
+    assert bash("make build")[0] == 200, "a taken up step lets work through"
+    assert "step 1: check it" in console.run(["sequence", "run", inner], AGENT).text
+    assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(inner), "a sequence started inside another takes priority"
+    status, body = bash("make build")
+    assert status == 409 and f"a write waits for sequence {inner}" in json.dumps(body), "work that is not reading is held while the top step is not taken up"
+    assert bash("journal task list")[0] == 200 and hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "journal commands and reads go through"
+    assert "step 1 of sequence" in console.run(["sequence", "next"], AGENT).error, "only the top can be moved on, and not before it is followed"
+    console.run(["sequence", "follow"], AGENT)
+    assert bash("make build")[0] == 200
+    ended = console.run(["sequence", "next"], AGENT).text
+    assert "ran its last step" in ended and "step 1: plan it" in ended, "when the inner ends the outer's step is announced again"
+    assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(outer), "and the outer is the top again"
+    assert bash("make build")[0] == 200, "the outer, taken up before, resumes with its step taken up"

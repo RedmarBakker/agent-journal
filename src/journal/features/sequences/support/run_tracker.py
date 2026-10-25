@@ -64,8 +64,11 @@ class RunTracker:
         if len(runs) == 1:
             self.stored(agent, [])
             return ended
-        outer = self.rewritten(agent, lambda time: [*time[:-2], time[-2].announced(self.timestamp())])[-1]
+        outer = self.rewritten(agent, lambda time: [*time[:-2], self.resumed(time[-2])])[-1]
         return f"{ended}\n{self.line(agent, self.step(outer))}"
+
+    def resumed(self, run: SequenceRun) -> SequenceRun:
+        return (run.adopted(self.timestamp()) if run.adopted_at else run).announced(self.timestamp())
 
     def skip(self, session: str, environment_id: int) -> str:
         agent = self.sessions.agent(session, environment_id)

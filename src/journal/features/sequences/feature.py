@@ -46,8 +46,8 @@ Steps followed in order, one at a time. A running sequence stays with you throug
 until its last step is done.
 
 - `journal sequence run <n>` starts one and tells you step 1. Creating a plan starts Building a plan on its own.
-- `journal sequence follow` takes the step in hand up: until you do, a write waits, while reads and journal commands
-  go through. A command the step names, in backticks, also takes it up when you run it.
+- `journal sequence follow` takes the step in hand up: until you do, a write, a command that runs anything but a read, and a subagent's dispatch
+  wait, while reads and journal commands go through. A command the step names, in backticks, also takes it up when you run it.
 - `journal sequence next` when the step is done: you are given the next one, or that the sequence ended and what
   you were doing before it. A step never taken up cannot be moved on.
 - A step taken up that stands for many writes holds the next write again: move it on, follow it again, or pause it.
@@ -56,7 +56,8 @@ until its last step is done.
   plan. A row cancelled or deleted, or the sequence deleted, ends the run and you are informed.
 - `journal sequence abandon --why "<why>"` names the steps it would leave undone; again with `--sure` it gives the run
   up and tells the user. Take the step up first.
-- One started while another runs is followed first; when it ends, the other is announced again. Only the user's own
+- Sequences stack: one started while another runs is the top, and only the top is held to and followed, moved on
+  or abandoned; when it ends, the one beneath is announced again, its step taken up as it was, and carries on. Only the user's own
   words start a sequence by its trigger.
 - A stop with a step open is shown the step once; a wait, an open question or a pending duty to the journal keeps it silent.
 - `journal sequence create "<title>" --steps "first | second | third"` writes one; `--starts-on plan.created`
