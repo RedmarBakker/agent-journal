@@ -896,6 +896,31 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     assert tasks_b.find(901).state == TaskState.PAUSED, "a team row in a state's former name is read in its new one"
 
 
+def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_before_and_after_the_migration(tmp_path):
+    from journal.repositories.setting_rows import SettingRows
+    from journal.repositories.shared_tables import SharedTables
+    from journal.services.service_hooks import ServiceHooks
+    from journal.sync.migration_withdrawal import MigrationWithdrawal
+
+    team, (_, scope_a, tasks_a, outgoing_a, _), (_, scope_b, tasks_b, _, _), carried = served_team_journals(tmp_path)
+    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
+    on_server = lambda: {row.fields["key"]: row.fields["value"] for row in team.log.copied_rows() if row.row_table == "settings"}
+    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
+    settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
+    carried()
+    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "before the migration the team's setting reaches the other journal and the person's name does not"
+
+    MigrationWithdrawal(outgoing_a, SharedTables(tasks_a.connection, tasks_a.bus), Links(tasks_a.connection, tasks_a.bus), ServiceHooks()).withdraw(Actor.system())
+    carried()
+    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "the migration moves no setting row: the team's setting stays on the server and the other journal"
+    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 5, USER)
+    settings_a.set(VoicesOptions.NAME.key, "Ada Lovelace", USER)
+    carried()
+    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 5} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "after it a change to the team's setting still reaches the other journal and the person's name still does not"
+    assert settings_a.project(VoicesOptions.NAME.key) == "Ada Lovelace", "the person's own setting stays on their journal"
+    team.store.close()
+
+
 def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_everything_in_it(tmp_path):
     from journal.models.environment import Environment
     from journal.models.task import Task
