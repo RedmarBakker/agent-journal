@@ -120,13 +120,13 @@ One line of JSON, ending in a newline:
 ```json
 {"v": 1, "event": "tool_starting", "at": "2026-10-17T18:00:00+00:00", "environment": "main", "state": "working",
  "session": "…", "provider": "claude", "subagent": "",
- "data": {"tool": "Bash", "input": {"command": "ls"}, "writes": false}}
+ "data": {"tool": "Bash", "input": {"command": "ls"}, "writes": false, "folder": "/path/to/project"}}
 ```
 
 - `event`: the event's name as the manifest's `hears` spells it. `state`: the agent's state at an agent event, one
   word such as `working`, `idle` or `awaiting`, empty at a row event.
 - `session`, `provider`, `subagent`: whose event it was, sent with agent events only.
-- `data`, by event: `tool_starting` the `tool`, its `input` and whether it `writes`; `command_starting`, one per
+- `data`, by event: `tool_starting` the `tool`, its `input`, whether it `writes` and the `folder` the agent's shell is in when it runs, empty when the program does not say; `command_starting`, one per
   command of a shell line as the journal cut the chain, the command's `text`, whether it `writes`, the `files` it
   touches, its `position` in the chain and the chain's `parts`, a journal command never among them; `tool_finished`
   the same as `tool_starting` with its `output` and `response`; `file_edited`, one per file a tool changed, once
