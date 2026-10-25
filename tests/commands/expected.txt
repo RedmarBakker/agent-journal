@@ -1516,21 +1516,21 @@ pins.pin_the_link  [pins]  {{url}} is not pinned. pin it if the user will come b
 plans.approved_unstarted  [plans]  plan {{n}} is approved and not started. `journal plan start {{n}}` begins its first task
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing}}
-plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0. your next write waits until it is readied
+plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0{{reports}}. your next write waits until it is readied
 plans.now_building  [plans]  you now work as the builder
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} is complete, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} is complete. `journal plan start {{n}}` begins the next phase
 plans.plan_blocked  [plans]  plan {{n}} is blocked: {{why}}. `journal plan unblock {{n}}` opens it by hand
-plans.plan_done  [plans]  plan {{n}} is done: its last task closed
+plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main and releasing wait for the user's word
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it
 plans.plan_reopened  [plans]  plan {{n}} is open again: {{why}}. `journal plan start {{n}}` goes on with it
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
-plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
+plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
 plans.review_write_up_waits  [plans]  your writes wait until plan {{n}} is readied. put the reviewers' findings into it and `journal plan ready {{n}} --changed "<what changed>"`
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
-plans.writes_held_soon_until_the_review_is_in  [plans]  plan {{n}} readied due: {{count}}
+plans.writes_held_soon_until_the_review_is_in  [plans]  plan {{n}} readied due: {{count}}{{reports}}
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
 plugins.plugin_not_working  [plugins]  the plugin {{plugin}} was on and no longer works: {{fault}}. fix it, or switch it off with journal plugin disable {{plugin}}
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker profile. `journal worker dispatch "<Name>" --task <n> --profile {{name}}`
@@ -1681,7 +1681,7 @@ workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min
 workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-240 nudges
+241 nudges
 
 $ agent: journal worker list
 exit 0
