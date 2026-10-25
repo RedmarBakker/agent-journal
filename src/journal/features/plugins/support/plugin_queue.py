@@ -29,7 +29,7 @@ class PluginQueue:
             except PluginFault as fault:
                 self.faults.failed(plugin, event.environment_id, QUEUE, f"{file.name}: {fault}")
                 continue
-            self.relay.applied(plugin, answer, self.environments.find(environment_id).name, environment_id)
+            self.relay.applied(plugin, event, answer, self.environments.find(environment_id).name, environment_id)
             if answer.answer == "refuse":
                 self.relay.unanswered(plugin, event, environment_id, answer.reason)
             elif answer.message and environment_id == event.environment_id:

@@ -1,6 +1,9 @@
 from journal.events.agent.agent_event import AgentEvent
 from journal.models.agent_role import AgentRole
+from dataclasses import replace
+
 from journal.events.event import Event
+from journal.events.worker_merge_event import WorkerMergeEvent
 from journal.features.plugins.support.linked_manifests import LinkedManifests
 from journal.features.plugins.support.plugin_answers import PluginAnswers
 from journal.features.plugins.support.plugin_fault import PluginFault
@@ -27,6 +30,7 @@ WAITING = "plugin_line_waiting"
 PLUGIN_LINE_KIND = "plugin_said"
 CUT = "plugin_cut"
 WARNING = "plugin_warning"
+MERGE_CARDS = "plugin_merge_cards"
 
 
 class PluginRelay:
@@ -61,7 +65,7 @@ class PluginRelay:
             return PluginAnswer()
         self.faults.answered(plugin, environment_id)
         self.warned(plugin, answer, environment_id)
-        self.applied(plugin, answer, environment, environment_id)
+        self.applied(plugin, event, answer, environment, environment_id)
         return answer
 
     def warned(self, plugin: Plugin, answer: PluginAnswer, environment_id: int) -> None:
@@ -71,7 +75,10 @@ class PluginRelay:
         self.warnings.add((plugin.name, keys))
         self.logged(environment_id, WARNING, Actor.plugin(plugin.name), {"plugin": plugin.name, "warning": f"its answer has keys this journal does not know, ignored: {keys}"})
 
-    def applied(self, plugin: Plugin, answer: PluginAnswer, environment: str, environment_id: int) -> None:
+    def applied(self, plugin: Plugin, event: Event, answer: PluginAnswer, environment: str, environment_id: int) -> None:
+        if isinstance(event, WorkerMergeEvent) and answer.cards:
+            self.logged(environment_id, MERGE_CARDS, Actor.plugin(plugin.name), {"plugin": plugin.name, "worker": event.worker, "task": event.task, "cards": [{"kind": card.kind, "label": card.label, "detail": card.detail} for card in answer.cards]})
+            answer = replace(answer, cards=())
         if answer.cards or answer.commands:
             self.deferred.add(lambda: self.answers.apply(plugin, answer, environment, environment_id))
 

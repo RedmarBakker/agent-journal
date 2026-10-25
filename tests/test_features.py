@@ -13107,6 +13107,32 @@ def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it
     assert [line for line in heard if line["event"] == "worker_merging"][-1]["data"]["window_ms"] == 5000, "a plugin's window on a merge is cut to the setting"
 
 
+def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_and_not_written_to_the_chat(app: App, tmp_path):
+    import shutil
+    from journal.events.clock_ticked import ClockTicked
+    from journal.events.worker_merge_event import WorkerMergeEvent
+    from journal.features.plugins.support.plugin_answer import PluginAnswer
+    from journal.features.plugins.support.plugin_card import PluginCard
+    from journal.features.plugins.support.plugin_relay import MERGE_CARDS, PluginRelay
+    from journal.repositories.entries import Entries
+    from journal.repositories.messages import Messages
+    from journal.repositories.plugins import Plugins
+    folder = tmp_path / "echo"
+    shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
+    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
+    relay, plugin = app.container.get(PluginRelay), app.container.get(Plugins).lookup("echo")
+    answer = PluginAnswer(cards=(PluginCard(kind="sin-found", label="1 sin in src/a.py", key="sins:src/a.py"),))
+    shown = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
+    merge = WorkerMergeEvent(environment_id=MAIN, worker=1, name="Mr Faraday", task=1, branch="worker/1", worktree="w")
+    with app.container.get(Scope).environment(MAIN):
+        relay.applied(plugin, merge, answer, "main", MAIN)
+        app.runtime().deferred.drain()
+        assert not shown() and [e.data["cards"][0]["label"] for e in app.container.get(Entries).kind_entries(MERGE_CARDS)] == ["1 sin in src/a.py"], "a card raised on a worker's merge is kept in the merge's record, never written to the chat"
+        relay.applied(plugin, ClockTicked(time=0.0), answer, "main", MAIN)
+        app.runtime().deferred.drain()
+        assert len(shown()) == 1, "a card raised on any other moment still lands in the chat"
+
+
 def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: App):
     import threading
     from journal.features.plugins.support.merge_queue import MergeQueue
