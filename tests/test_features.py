@@ -16872,7 +16872,7 @@ def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_t
             return [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "memory.reminder_due" and text in entry.data.get("line", "")]
 
     first = told("call the plumber")
-    assert len(first) == 1, "a due reminder at a session start leaves one reminder_due entry"
+    assert len(first) == 1, "a due reminder at a session start leaves one reminder_due entry" + "".join("\n".join(e.data["dbg"]) + "=====" for e in first)
     assert first and "water the plants" not in started and not told("water the plants"), "a reminder that fell due while no agent ran is told at the first event after it, the session's start unless a later event came first, and one not due yet is quiet"
     listed = app.console().run(["reminder", "list"], USER).text
     assert "call the plumber" not in listed and f"water the plants (at {later})" in listed, "a told reminder is struck, and the list shows a timed one with its moment"
