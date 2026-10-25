@@ -12666,6 +12666,9 @@ def test_a_clock_out_is_kept_on_the_dispatchers_row_with_the_open_work_and_a_qui
         from journal.repositories.entries import NUDGE, Entries
         lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.quick_report_dropped_the_fitness"]
     assert len(lines) == 1 and "worker 1 reported within a minute of its job's start while 4 tasks were open" in lines[0] and "journal worker queue 1" in lines[0], "and the dispatcher is told there and then to queue it several tasks"
+    with app.container.get(Scope).environment(MAIN):
+        from journal.features.workers.support.fitness_point import FitnessPoint
+        assert use.unrecovered_points == 20 and app.container.get(Entries).session_kind_newest(AGENT.session, FitnessPoint.KIND, 1), "the fitness is measured and its point kept at the report itself, with no tool use of the dispatcher after it"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
