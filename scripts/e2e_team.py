@@ -5,6 +5,7 @@
     python3 scripts/e2e_team.py journals  # two scratch journals on ports 8531 and 8532, joined to it
     python3 scripts/e2e_team.py checks    # every check, one line each
     python3 scripts/e2e_team.py stop      # the scratch journals; the test server is left running
+    python3 scripts/e2e_team.py wipe      # the scratch journals and every team server, its data and the package on the test server
 """
 import http.client
 import json
@@ -69,7 +70,11 @@ def journal(name: str, *words: str) -> str:
 
 
 def posted(name: str, path: str, body: dict, environment_name: str) -> dict:
-    request = urllib.request.Request(f"http://127.0.0.1:{PORTS[name]}/journal{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": environment_name})
+    return sent(name, f"/journal{path}", body, environment_name)
+
+
+def sent(name: str, path: str, body: dict, environment_name: str) -> dict:
+    request = urllib.request.Request(f"http://127.0.0.1:{PORTS[name]}{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": environment_name})
     with urllib.request.urlopen(request, timeout=20) as reply:
         return json.loads(reply.read())
 
@@ -140,13 +145,13 @@ def stop() -> None:
         run(["sh", "-c", f"kill $(lsof -t -nP -iTCP:{port} -sTCP:LISTEN) 2>/dev/null; pkill -f 'sync_service {WORK / FOLDERS[name]}' 2>/dev/null; true"])
 
 
-def server_python(program: str) -> str:
-    return subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE, "docker exec -i team python -"], input=program, capture_output=True, text=True, timeout=60).stdout
+def server_python(program: str, container: str = "team") -> str:
+    return subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE, f"docker exec -i {container} python -"], input=program, capture_output=True, text=True, timeout=60).stdout
 
 
-def server_rows() -> list[dict]:
+def server_rows(container: str = "team") -> list[dict]:
     program = "import json, sqlite3\nc = sqlite3.connect('/data/team/team.db')\nprint(json.dumps([[t, n, json.loads(f)] for t, n, f in c.execute('select row_table, row, fields from rows where is_deleted = 0')]))\n"
-    return [{"table": t, "id": n, **f} for t, n, f in json.loads(server_python(program))]
+    return [{"table": t, "id": n, **f} for t, n, f in json.loads(server_python(program, container))]
 
 
 def waiting_for(found, seconds: int = 90):
@@ -317,6 +322,82 @@ def check_drive_to_done() -> str:
     return f"{'OK' if ok else 'FAIL'}: hub task {number} driven from a's main by journal commands, as its agent runs them (drive: {drive.splitlines()[0] if drive else 'nothing'}; start: {started.splitlines()[0] if started else 'nothing'}; complete: {completed.splitlines()[0] if completed else 'nothing'}): reached b {reached}, b shows it driven by {PEOPLE['a'][1]} {driven_on_b}, b shows it done {done_on_b}, the hosted journal shows it {on_hosted.get('state', 'absent')} driven by {on_hosted.get('driver') or 'nobody'}"
 
 
+SECOND_PORT = 8090
+
+
+def task_row(name: str, title: str) -> dict:
+    return next(iter(stored(name, "SELECT * FROM tasks WHERE title = ? ORDER BY id DESC", (title,))), {})
+
+
+def check_requests() -> str:
+    for_bob, for_team = f"a request for Bob {STAMP}", f"a request for the team {STAMP}"
+    journal("a", "task", "create", for_bob, "--brief", "Bob may turn it down", "--to", PEOPLE["b"][1])
+    journal("a", "task", "create", for_team, "--brief", "anyone may take it", "--to-team")
+    reached = waiting_for(lambda: task_row("b", for_bob) and task_row("b", for_team))
+    declined = journal("b", "task", "decline", str(task_row("b", for_bob).get("id", 0)), "--why", f"not mine {STAMP}")
+    claimed = journal("b", "task", "drive", str(task_row("b", for_team).get("id", 0)))
+    turned_down = waiting_for(lambda: task_row("a", for_bob).get("state") == "cancelled" and STAMP in str(task_row("a", for_bob)))
+    taken = waiting_for(lambda: task_row("a", for_team).get("driver") == PEOPLE["b"][1])
+    ok = bool(reached and turned_down and taken)
+    return f"{'OK' if ok else 'FAIL'}: a filed a request for Bob and one for the team, which reached b {bool(reached)}; b declined the first ({declined.splitlines()[0] if declined else 'nothing'}) and a sees it cancelled with b's reason {bool(turned_down)}; b claimed the second by driving it ({claimed.splitlines()[0] if claimed else 'nothing'}) and a sees it driven by Bob {bool(taken)}"
+
+
+def lease_holders() -> dict:
+    program = "import json, sqlite3\nc = sqlite3.connect('/data/team/team.db')\nprint(json.dumps({n: p for n, p in c.execute('select leases.name, accounts.name from leases join accounts on accounts.id = leases.account_id')}))\n"
+    return json.loads(server_python(program) or "{}")
+
+
+def check_sessions() -> str:
+    review, notes, planner = f"review-{STAMP}", f"notes-{STAMP}", f"planner-{STAMP}"
+    journal("a", "session", "start", review)
+    journal("b", "session", "start", notes)
+    both = waiting_for(lambda: all(stored(name, "SELECT id FROM environments WHERE kind = 'session' AND name IN (?, ?)", (review, notes)) and len(stored(name, "SELECT id FROM environments WHERE kind = 'session' AND name IN (?, ?)", (review, notes))) == 2 for name in ("a", "b")))
+    holders = lease_holders()
+    held_apart = holders.get(f"session:{review}") == PEOPLE["a"][1] and holders.get(f"session:{notes}") == PEOPLE["b"][1]
+    sent("a", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": f"e2e-{STAMP}"}, review)
+    posted("b", "/messages", {"text": f"for the review {STAMP}", "idempotency": f"e2e-{STAMP}"}, review)
+    heard = waiting_for(lambda: any("from Bob" in str(row["data"]) for row in stored("a", "SELECT data FROM entries WHERE kind = 'nudge' AND data LIKE ?", (f"%e2e-{STAMP}%",))), 120)
+    made = bool(stored("a", "SELECT id FROM messages WHERE text = ?", (f"for the review {STAMP}",)))
+    plan_title = f"session plan {STAMP}"
+    journal("a", "plan", "create", plan_title, "--brief", "driven by a session", "--team", hubs("a")[0]["team_name"])
+    plan = next(iter(stored("a", "SELECT id FROM plans WHERE title = ?", (plan_title,))), {})
+    reached = waiting_for(lambda: stored("b", "SELECT id FROM plans WHERE id = ?", (plan.get("id", 0),)))
+    driving = journal("b", "session", "start", planner, "--plan", str(plan.get("id", 0)))
+    driven = waiting_for(lambda: next(iter(stored("a", "SELECT driver FROM plans WHERE id = ?", (plan.get("id", 0),))), {}).get("driver") == PEOPLE["b"][1])
+    ok = bool(both) and held_apart and made and bool(heard) and bool(reached) and bool(driven)
+    return f"{'OK' if ok else 'FAIL'}: sessions {review} and {notes} on both journals {bool(both)}, held by Ada and by Bob on the server {held_apart} ({holders}); Bob's message in {review} made on a, its holder, {made}, and its agent told {bool(heard)}; b's session {planner} drives hub plan {plan.get('id')} ({driving.splitlines()[0] if driving else 'nothing'}), a sees it driven by Bob {bool(driven)}"
+
+
+def check_two_teams() -> str:
+    remote(f"docker rm -f team2 >/dev/null 2>&1; docker volume rm team2-data >/dev/null 2>&1; docker run -d --name team2 --restart unless-stopped -p {SECOND_PORT}:80 -e TEAM_PLAIN_HTTP=1 -v team2-data:/data agent-journal-team")
+    second = f"http://{SERVER}:{SECOND_PORT}"
+    wait(lambda: urllib.request.urlopen(urllib.request.Request(f"{second}/team", headers={"X-Journal-Protocol": "99"}), timeout=10).status == 200, "the second team server to answer", 180)
+    email, person = PEOPLE["a"]
+    server_python(f"from pathlib import Path\nfrom sync_server.accounts import Accounts\nfrom sync_server.account import ADMIN\nfrom sync_server.db.account_rows import AccountRows\nfrom sync_server.db.store import Store\naccounts = Accounts(AccountRows(Store(Path('/data/team/team.db'))))\naccounts.create('lead@e2e.test', 'Lead', {PASSWORD!r}, ADMIN, 1.0)\naccounts.create({email!r}, {person!r}, {PASSWORD!r}, ADMIN, 1.0)\n", "team2")
+    joined = journal("a", "team", "join", second, "--email", email, "--name", person, f"--password={PASSWORD}")
+    names = {row["team_key"]: row["team_name"] for row in hubs("a")}
+    summaries = [json.loads(urllib.request.urlopen(urllib.request.Request(f"{address}/team", headers={"X-Journal-Protocol": "99"}), timeout=10).read()) for address in (f"http://{SERVER}", second)]
+    first_hub, second_hub = names.get(summaries[0]["key"], ""), names.get(summaries[1]["key"], "")
+    titles = (f"first team's task {STAMP}", f"second team's task {STAMP}")
+    for title, hub in zip(titles, (first_hub, second_hub)):
+        journal("a", "task", "create", title, "--brief", "filed in its team's hub", "--team", hub)
+    rows = lambda container: {row.get("title"): row for row in server_rows(container) if row["table"] == "tasks"}
+    arrived = waiting_for(lambda: titles[0] in rows("team") and titles[1] in rows("team2"), 120)
+    first_rows, second_rows = rows("team"), rows("team2")
+    apart = titles[1] not in first_rows and titles[0] not in second_rows
+    stamps = (first_rows.get(titles[0], {}).get("creator"), second_rows.get(titles[1], {}).get("creator"))
+    numbers = [task_row("a", title).get("id", 0) >> 32 for title in titles]
+    spaces = numbers == [summaries[0]["number"], summaries[1]["number"]] and numbers[0] != numbers[1]
+    ok = bool(arrived) and apart and stamps == ("user:1", "user:2") and spaces
+    return f"{'OK' if ok else 'FAIL'}: a joined a second team server at {second} ({joined.splitlines()[0] if joined else 'nothing'}); hubs {first_hub} and {second_hub}; each task reached its own server {bool(arrived)} and no other {apart}; stamped {stamps}, a's account in each team; numbered in each team's space T = {numbers} against the servers' {[summary['number'] for summary in summaries]} {spaces}"
+
+
+def wipe() -> None:
+    stop()
+    remote("docker rm -f team team2 >/dev/null 2>&1; docker volume rm team-data team2-data >/dev/null 2>&1; rm -rf /opt/agent-journal; true")
+    print(f"the test server {SERVER} holds no team server, no team data and no package of this run")
+
+
 def joined_pair(first: str, second: str) -> None:
     for name in (first, second):
         run(["sh", "-c", f"kill $(lsof -t -nP -iTCP:{PORTS[name]} -sTCP:LISTEN) 2>/dev/null; pkill -f 'sync_service {WORK / FOLDERS[name]}' 2>/dev/null; true"])
@@ -358,7 +439,7 @@ def check_pre_hub_migration() -> str:
 
 
 CHECKS = (("team key and hub", check_team_key_and_hub), ("hub write reaches the other journal and the server", check_hub_write), ("a personal task never reaches the server", check_personal_task),
-          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("the hosted journal's hub home lists no environment that is not shared", check_hosted_hub_home), ("a hub document in each edit mode is edited from both journals, a read-only one refused to the other", check_hub_documents), ("a hub task driven from a to done shows driven and done on b and the hosted journal", check_drive_to_done), ("a pre-hub team journal migrates", check_pre_hub_migration))
+          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("the hosted journal's hub home lists no environment that is not shared", check_hosted_hub_home), ("a hub document in each edit mode is edited from both journals, a read-only one refused to the other", check_hub_documents), ("a hub task driven from a to done shows driven and done on b and the hosted journal", check_drive_to_done), ("a request is filed, declined and claimed", check_requests), ("sessions are held one machine each, a message reaches its holder's agent, and a session drives a hub plan", check_sessions), ("a journal joined to two teams writes with each team's account, its numbers apart", check_two_teams), ("a pre-hub team journal migrates", check_pre_hub_migration))
 
 
 def checks() -> None:
@@ -369,7 +450,7 @@ def checks() -> None:
             print(f"{title}: FAIL: {type(fault).__name__}: {fault}", flush=True)
 
 
-COMMANDS = {"deploy": deploy, "journals": journals, "checks": checks, "stop": stop}
+COMMANDS = {"deploy": deploy, "journals": journals, "checks": checks, "stop": stop, "wipe": wipe}
 
 if __name__ == "__main__":
     verb = sys.argv[1] if len(sys.argv) == 2 else ""
