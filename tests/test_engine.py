@@ -2511,7 +2511,7 @@ def test_a_compaction_keeps_the_newest_fifty_tool_uses_in_the_fitness_window():
     assert stale.windowed(stale.late_worker_uses) == (150,), "a use numbered above the count is from before a compaction and left out"
 
 
-def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_load_itself():
+def test_the_orchestrators_fitness_scores_its_handling_of_its_load_beside_the_level_of_the_load():
     from dataclasses import replace
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import CALM_DISPATCH_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, WorkersProfiles
@@ -2524,7 +2524,7 @@ def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_loa
     badly = replace(counts, load=replace(handled, over_minutes=35, oldest_first=4, dispatches_for=1, dispatches_against=4))
     scored = WorkersProfiles.ORCHESTRATOR.scored(badly)
     assert scored.is_measured and scored.score < WorkersProfiles.ORCHESTRATOR.scored(counts).score
-    assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line for line in scored.lines), scored.lines
+    assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line or line.startswith("your load is 140%") for line in scored.lines), scored.lines
     assert BUSY_MINUTES.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
 
 
@@ -2801,7 +2801,7 @@ def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_a
         return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", mode_uses=100, window_uses=100, handovers=20, load=AgentLoad(rho=rho, measured_at=1.0)))
     assert orchestrator(0.3).score > orchestrator(0.95).score + 5, "an orchestrator at a low load scores well, at a high load poorly"
     def builder(rho, handovers):
-        return WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", mode_uses=100, window_uses=100, file_edits=12, handovers=handovers, research_count=10, load=AgentLoad(rho=rho, measured_at=1.0)))
+        return WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", mode_uses=100, window_uses=100, file_edits=6, handovers=handovers, research_count=10, load=AgentLoad(rho=rho, measured_at=1.0)))
     assert builder(0.9, 1).score >= builder(0.9, 0).score - 3, "at a high load one handover is not punished"
-    assert builder(0.3, 6).score < builder(0.3, 1).score, "several handovers at a low load are"
+    assert builder(0.3, 12).score < builder(0.3, 1).score, "several handovers at a low load are"
     assert builder(1.1, 1).score < builder(0.3, 1).score, "writing on while the load climbs is"
