@@ -34,6 +34,7 @@ import {useScope} from "../composables/scope.js";
 import DumpWindow from "./DumpWindow.vue";
 import TerminalWindow from "./TerminalWindow.vue";
 import OutputDialog from "./OutputDialog.vue";
+import {useRevealPressed} from "../composables/revealPressed.js";
 import ChatDock from "./ChatDock.vue";
 import DumpDock from "./DumpDock.vue";
 import {dockedDump, dockedRows, streamRows} from "../domain/docks.js";
@@ -228,9 +229,18 @@ function scrolled() {
 
 let grew = null;
 let added = null;
+const pressedTurn = useRevealPressed(scroller);
+
+function pressed(event) {
+    scrolledByHand();
+    pressedTurn.press(event);
+}
 
 onMounted(() => {
-    grew = new ResizeObserver(settled);
+    grew = new ResizeObserver(() => {
+        settled();
+        pressedTurn.reveal();
+    });
     const watchRows = () => {
         for (const el of scroller.value?.children || []) grew.observe(el);
     };
@@ -512,7 +522,7 @@ const {colleague, me} = useColleague();
                     @wheel.passive="wheeled"
                     @touchmove.passive="scrolledByHand"
                     @keydown="scrolledByHand"
-                    @pointerdown="scrolledByHand"
+                    @pointerdown="pressed"
                     @pointerenter="presence.entered"
                     @pointerleave="presence.left"
                 >
