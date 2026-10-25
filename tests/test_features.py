@@ -12571,6 +12571,10 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         from journal.repositories.tasks import Tasks
         task = next(iter(a.container.get(Tasks).global_matching(title="About the page")))
         about = links.save(Link(source=Ref.build(task), target=Ref.build(doc), kind="about_document"), Actor.system())
+        hub_name = a.container.get(Environments).hubs()[0].team_name
+        assert a.console().run(["task", "create", "Hub task about the page", "--brief", "b", "--team", hub_name], USER).code == 0
+        hub_task = next(iter(a.container.get(Tasks).global_matching(title="Hub task about the page")))
+        hub_about = links.save(Link(source=Ref.build(hub_task), target=Ref.build(doc), kind="about_document"), Actor.system())
         with a.container.get(Scope).environment(doc.environment_id):
             before = len(revisions.document_revisions(doc))
         assert before == 2, "the document has two revisions before it moves"
@@ -12578,13 +12582,13 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         assert shared.code == 0, shared.error
         moved = docs.find(doc.id)
         assert moved.is_on_hub() and moved.id == doc.id, "the document keeps its row, so every link, mention and attachment to it points at the hub row"
-        assert [link.row_id for link in links.all_matching(target=Ref.build(moved), kind="about_document")] == [about.row_id], "the local link still points at it"
+        assert sorted(link.row_id for link in links.all_matching(target=Ref.build(moved), kind="about_document")) == sorted([about.row_id, hub_about.row_id]), "every local link still points at it"
         assert len(revisions.document_revisions(moved)) == before and all(revision.environment_id == moved.environment_id for revision in revisions.document_revisions(moved)), "its revisions moved with it"
         copy = next(d for d in docs.global_matching(title="Linked page") if d.is_copy)
         assert [link.target for link in links.all_matching(source=Ref.build(copy), kind="copied_from")] == [Ref.build(moved)], "--keep-copy leaves a copied_from link on the copy, which stays here"
         assert eventually(lambda: (read := next(iter(b.container.get(Docs).global_matching(title="Linked page")), None)) is not None and read.is_on_hub() and len(b.container.get(DocRevisions).document_revisions(read)) == before), "the other journal reads the document and all its revisions"
         on_b = next(d for d in b.container.get(Docs).global_matching(title="Linked page") if not d.is_copy)
-        assert eventually(lambda: b.container.get(Links).all_matching(target=Ref.build(on_b), kind="about_document")), "and the link to it"
+        assert eventually(lambda: [link.row_id for link in b.container.get(Links).all_matching(target=Ref.build(on_b), kind="about_document")] == [hub_about.row_id]), "and the link that joins it to a hub task, the personal task's link staying on Ada's journal"
         assert [revision.body for revision in b.container.get(DocRevisions).document_revisions(on_b)][-1].endswith("the second words\n")
     finally:
         for carrier in carriers:
