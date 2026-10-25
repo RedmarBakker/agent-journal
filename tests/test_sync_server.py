@@ -321,7 +321,7 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
             assert call(path, {})[0] == 403, f"{path} refuses a request with no token"
         ada = call("/login", {"email": "ada@example.com", "password": PASSWORD, "device_name": "laptop"})[1]["token"]
         upload = {"rows": [{"row_table": "tasks", "row": 1450, "fields": {"title": "from before"}, "changed_at": {"title": 1.0}}], "highest": {"tasks": 1450}, "repository": "", "version": "4.20.0", "migration": 3}
-        drawn = {"key": team.details.answer().key, "number": team.details.number(), "on_hub": True}
+        drawn = {"key": team.details.answer().key, "number": team.details.number(), "on_hub": True, "tied_to_repository": True}
         assert call("/team") == (200, {"repository": "", "has_rows": False, "version": "", "migration": 0, "versions": "exact", "has_admin": True, **drawn, "name": ""}), "anyone may ask what the team holds before joining, whether it has its admin, and its key and T"
         assert call("/upload", {**upload, "repository": "abc123", "team_name": "acme"}, ada) == (200, {"rows": 1, "head": 1})
         assert call("/team") == (200, {"repository": "abc123", "has_rows": True, "version": "4.20.0", "migration": 3, "versions": "exact", "has_admin": True, **drawn, "name": "acme"}), "the first copy pins the team to its journal's version and names the team"

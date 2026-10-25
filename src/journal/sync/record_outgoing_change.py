@@ -66,7 +66,7 @@ class RecordOutgoingChange(Listener[ModelEvent]):
         if names is not None and not set(fields) - set(STAMP_COLUMNS) and action != DELETED:
             return
         updated_at = row.updated_at.timestamp()
-        self.changes.queued(OutgoingChange(row_table=row.table(), row=row.row_id, action=action, fields=fields, changed_at={name: updated_at for name in fields}, writer=actor.stamp), actor)
+        self.changes.queued(OutgoingChange(row_table=row.table(), row=row.row_id, action=action, fields=fields, changed_at={name: updated_at for name in fields}, writer=actor.stamp, team_key=self.placement.team_key(row)), actor)
         self.changes.commit_callback(partial(self.hooks.post, ServiceEvent(CHANGE_QUEUED)))
 
     @staticmethod

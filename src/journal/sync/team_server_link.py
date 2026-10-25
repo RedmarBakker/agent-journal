@@ -42,6 +42,9 @@ class TeamServerLink:
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
 
+    def bound(self, account: TeamAccount) -> "TeamServerLink":
+        return TeamServerLink(account, self.schema)
+
     @staticmethod
     def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
         # a team server from before the pool refuses a push with fields it does not know
@@ -102,6 +105,9 @@ class TeamServerLink:
 
     def pin_version(self, version: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/version", {"version": version})))
+
+    def tie_repository(self, tied: bool) -> TeamSummary:
+        return TeamSummary(**json.loads(self.posted("/team/repository", {"tied": tied})))
 
     def allow_versions(self, rule: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/versions", {"versions": rule})))

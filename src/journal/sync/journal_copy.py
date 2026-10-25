@@ -1,4 +1,7 @@
+from typing import Callable
+
 from journal.db.schema import Schema
+from journal.models.model import Model
 from journal.models.environment import Environment
 from journal.models.outgoing_change import DELETED, OutgoingChange
 from journal.models.setting import Setting
@@ -16,7 +19,20 @@ class JournalCopy:
         self.tables, self.scopes, self.placement = tables, scopes, placement
 
     def rows(self) -> list[CopiedRow]:
-        return [CopiedRow(table, row.row_id, Schema.team_values(row, None), {name: row.updated_at.timestamp() for name in Schema.team_values(row, None)}) for table in self.tables.names() for row in self.tables.rows(table).rows() if self.placement.is_sent(row)]
+        return self.copied(self.placement.is_sent)
+
+    def team_rows(self, team_key: str) -> list[CopiedRow]:
+        return self.copied(lambda row: self.placement.team_key(row) == team_key)
+
+    def copied(self, is_copied: Callable[[Model], bool]) -> list[CopiedRow]:
+        return [CopiedRow(table, row.row_id, Schema.team_values(row, None), {name: row.updated_at.timestamp() for name in Schema.team_values(row, None)}) for table in self.tables.names() for row in self.tables.rows(table).rows() if is_copied(row)]
+
+    def taken_numbers(self, rows: tuple[CopiedRow, ...]) -> list[str]:
+        numbers: dict[str, list[int]] = {}
+        for row in rows:
+            if self.tables.has(row.row_table):
+                numbers.setdefault(row.row_table, []).append(row.row)
+        return [f"{table}:{row.row_id}" for table, ids in numbers.items() for row in self.tables.rows(table).numbered(ids)]
 
     def highest(self) -> dict:
         return {table: self.tables.highest_number(table) for table in self.tables.names()}

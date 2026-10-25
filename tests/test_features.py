@@ -12938,6 +12938,77 @@ def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_
         assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=moved_link.id)] == [(moved_link.source, moved_link.target)]), "the link reaches Bob still pointing at its task and its note"
 
 
+def test_a_journal_joins_two_teams_each_writing_with_its_own_account_a_team_of_a_held_number_is_refused_and_a_tied_team_refuses_another_repository_until_untied(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.repositories.environments import Environments
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.tasks import Tasks
+    from journal.sync.team_accounts import TeamAccounts
+    from sync_server.account import ADMIN
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    for name, person in (("a", "Ada"), ("c", "Carol")):
+        git("init", "-q", str(tmp_path / name))
+        git("-C", str(tmp_path / name), "-c", f"user.name={person}", "-c", f"user.email={person.lower()}@example.com", "commit", "-q", "--allow-empty", "-m", f"{person}'s first")
+    teams = {}
+    for name in ("first", "second", "third"):
+        (tmp_path / name).mkdir()
+        team = TeamServer(tmp_path / name)
+        teams[name] = (team, team.started("127.0.0.1", 0))
+    address = lambda name: f"http://127.0.0.1:{teams[name][1].server_address[1]}"
+    first, second, third = (teams[name][0] for name in ("first", "second", "third"))
+    second.accounts.create("lead@example.com", "Lead", "correct horse battery", ADMIN, 1.0)
+    second.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    a, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("a", "c"))
+    c.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    carriers = [CarriedSync(journal).started() for journal in (a, c)]
+    join = lambda journal, url, email, name: journal.console().run(["team", "join", url, "--email", email, "--name", name, "--password", "correct horse battery"], USER)
+    try:
+        assert join(a, address("first"), "ada@example.com", "Ada").code == 0
+        joined = join(a, address("second"), "ada@example.com", "Ada")
+        assert joined.code == 0 and "beside this journal's other teams" in joined.text, joined.error
+        accounts = a.container.get(TeamAccounts).accounts()
+        assert sorted((account.team_key(), account.user_number()) for account in accounts) == sorted([(first.details.answer().key, 1), (second.details.answer().key, 2)]), "the journal holds one account and token per team, the first team's kept as it was"
+        hubs = {hub.team_key: hub for hub in a.container.get(Environments).hubs()}
+        hub_one, hub_two = hubs[first.details.answer().key], hubs[second.details.answer().key]
+
+        def written(hub) -> dict:
+            request = HttpRequest(f"http://127.0.0.1:{a.server().port}/journal/tasks", data=json.dumps({"title": f"filed in {hub.name}"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": hub.name})
+            return json.load(urlopen(request, timeout=5))
+
+        one, two = written(hub_one), written(hub_two)
+        creators = {task.id: task.creator for task in a.container.get(Tasks).global_matching(id=one["id"]) + a.container.get(Tasks).global_matching(id=two["id"])}
+        assert (creators[one["id"]], creators[two["id"]]) == (Actor.user(1), Actor.user(2)), "each team's write is stamped with this person's account in that team"
+        assert [change.team_key for change in a.container.get(OutgoingChanges).all() if change.row_table == "tasks" and change.row == two["id"]] == [second.details.answer().key], "and the second team's change waits for that team, never for the first's server"
+        assert synced(lambda: first.log.row("tasks", one["id"]) is not None) and first.log.row("tasks", two["id"]) is None, "the first team's server takes its own team's write alone"
+
+        third.store.execute("UPDATE team_details SET value = ? WHERE name = 'number'", (str(first.details.number()),))
+        same_number = join(a, address("third"), "ada@example.com", "Ada")
+        assert same_number.code != 0 and "one team of each number" in same_number.error, "a join to a team whose number this journal holds already is refused"
+
+        invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "carol@example.com"], USER).text).group(1)
+        refused = join(c, invitation, "carol@example.com", "Carol")
+        assert refused.code != 0 and "join from a clone of the team's repository" in refused.error, "a team tied to its repository refuses a journal of another"
+        untied = a.console().run(["team", "repository", "untied"], USER)
+        assert untied.code == 0 and "any repository" in untied.text, untied.error
+        taken = join(c, invitation, "carol@example.com", "Carol")
+        assert taken.code == 0, "an untied team takes a journal of any repository: " + taken.error
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in (a, c):
+            journal.runtime().stop()
+        for team, server in teams.values():
+            team.close(server)
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
@@ -15353,7 +15424,7 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
     def take():
         try:
             for _ in range(100):
-                outgoing.sent(outgoing.sending_batch(3))
+                outgoing.sent(outgoing.sending_batch(3, ""))
         except Exception as fault:
             faults.append(fault)
 

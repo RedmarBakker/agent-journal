@@ -21,16 +21,26 @@ PREFIX_FILE = "team-prefix"
 
 
 class TeamAccount:
-    """This journal's place in a team: whether it has joined one and which device of the team this machine is, whether it holds the team's upgrade, and the team's key and number T, read from the file the join writes in the teams folder beside the database, named by the team's key; an account from before teams had keys is read from team.json until its key is recorded, which moves it into the teams folder."""
+    """This journal's place in a team: whether it has joined one and which device of the team this machine is, whether it holds the team's upgrade, and the team's key and number T, read from the file the join writes in the teams folder beside the database, named by the team's key; the home team's, the first joined, unless made for one team's key; an account from before teams had keys is read from team.json until its key is recorded, which moves it into the teams folder."""
 
     def __init__(self, config: Config) -> None:
-        self.config = config
+        self.config, self.key = config, ""
+
+    @classmethod
+    def keyed(cls, config: Config, key: str) -> "TeamAccount":
+        account = cls(config)
+        account.key = key
+        return account
 
     def is_joined(self) -> bool:
         return self.path().is_file()
 
     def path(self) -> Path:
-        return next(iter(sorted((self.config.home / TEAMS_FOLDER).glob("*.json"))), self.config.home / TEAM_FILE)
+        if self.key:
+            return self.config.home / TEAMS_FOLDER / f"{self.key}.json"
+        files = sorted((self.config.home / TEAMS_FOLDER).glob("*.json"))
+        homes = [path for path in files if json.loads(path.read_text()).get("home", True)] if len(files) > 1 else files
+        return next(iter(homes or files), self.config.home / TEAM_FILE)
 
     def team_key(self) -> str:
         return str(self.contents().get("team_key", UNKNOWN_TEAM_KEY)) if self.is_joined() else ""

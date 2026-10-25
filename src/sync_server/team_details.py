@@ -16,6 +16,8 @@ KEY = "key"
 NAME = "name"
 NUMBER = "number"
 HUB = "hub"
+REPOSITORY_TIE = "repository_tie"
+UNTIED = "untied"
 ON_HUB = "on"
 EXACT = "exact"
 ANY = "any"
@@ -23,7 +25,7 @@ VERSION_SHAPE = re.compile(r"\d+\.\d+\.\d+")
 
 
 class TeamDetails:
-    """What the team server knows of the journal it hosts: the first commit of its repository, which a joining checkout must share, the journal version the team is pinned to, which the first copy's journal sets and an admin moves, and the migration the team's rows are at, which the first copy sets: a journal on an older migration may neither push nor pull until it is upgraded; the lowest sequence a pull may go on from, below which a device takes the full copy; and whether a journal must run exactly the pinned version to push or pull, the default, or any version will do, as the admin sets it; and the team's key and number T, both drawn when the server is made, T read as 0 for a team from before them, which stores none, and its name, which its first journal gives it; and whether the team is on the hub, as a team made since is and one from before is once it has been moved there, whose journals send the team only the rows that belong to it."""
+    """What the team server knows of the journal it hosts: the first commit of its repository, which a joining checkout must share, the journal version the team is pinned to, which the first copy's journal sets and an admin moves, and the migration the team's rows are at, which the first copy sets: a journal on an older migration may neither push nor pull until it is upgraded; the lowest sequence a pull may go on from, below which a device takes the full copy; and whether a journal must run exactly the pinned version to push or pull, the default, or any version will do, as the admin sets it; and the team's key and number T, both drawn when the server is made, T read as 0 for a team from before them, which stores none, and its name, which its first journal gives it; and whether the team is on the hub, as a team made since is and one from before is once it has been moved there, whose journals send the team only the rows that belong to it; and whether the team is tied to its repository, so a journal of another checkout is refused, as a team is unless it was made with --any-repository or its admin untied it."""
 
     def __init__(self, rows: TeamDetailRows, log: ChangeLog, accounts: Accounts) -> None:
         self.rows, self.log, self.accounts = rows, log, accounts
@@ -73,6 +75,12 @@ class TeamDetails:
     def version(self) -> str:
         return self.rows.value(VERSION)
 
+    def is_tied_to_repository(self) -> bool:
+        return self.rows.value(REPOSITORY_TIE) != UNTIED
+
+    def record_repository_tie(self, tied: bool) -> None:
+        self.rows.write(REPOSITORY_TIE, "tied" if tied else UNTIED)
+
     def is_on_hub(self) -> bool:
         return self.rows.value(HUB) == ON_HUB
 
@@ -83,4 +91,4 @@ class TeamDetails:
         return int(self.rows.value(NUMBER) or UNVERSIONED)
 
     def answer(self) -> TeamSummary:
-        return TeamSummary(self.rows.value(REPOSITORY), self.log.head() > 0, self.version(), self.migration(), self.versions(), not self.accounts.is_empty(), self.rows.value(KEY), self.rows.value(NAME), self.number(), self.is_on_hub())
+        return TeamSummary(self.rows.value(REPOSITORY), self.log.head() > 0, self.version(), self.migration(), self.versions(), not self.accounts.is_empty(), self.rows.value(KEY), self.rows.value(NAME), self.number(), self.is_on_hub(), self.is_tied_to_repository())

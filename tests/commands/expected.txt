@@ -2354,6 +2354,16 @@ positional arguments:
 options:
   -h, --help   show this help message and exit
 
+$ agent: journal team repository --help
+exit 0
+usage: journal team repository [-h] {tied,untied}
+
+positional arguments:
+  {tied,untied}
+
+options:
+  -h, --help     show this help message and exit
+
 $ agent: journal setup hooks --help
 exit 0
 usage: journal setup hooks [-h]

@@ -1,3 +1,4 @@
+from journal.models.environment import UNKNOWN_TEAM_KEY
 from journal.models.outgoing_change import OutgoingChange
 from journal.repositories.repository import Repository
 from journal.support.actor import Actor
@@ -34,12 +35,12 @@ class OutgoingChanges(Repository[OutgoingChange]):
     def waiting(self) -> list[OutgoingChange]:
         return self.all_matching(is_sending=False)
 
-    def sending_batch(self, limit: int) -> list[OutgoingChange]:
+    def sending_batch(self, limit: int, team_key: str) -> list[OutgoingChange]:
         with self.connection.transaction():
             outstanding = self.all_matching(is_sending=True)
             if outstanding:
                 return outstanding[:limit]
-            for change in self.waiting()[:limit]:
+            for change in [change for change in self.waiting() if change.team_key in ("", team_key, UNKNOWN_TEAM_KEY)][:limit]:
                 self.save(change.with_(is_sending=True), Actor.system())
         return self.all_matching(is_sending=True)[:limit]
 

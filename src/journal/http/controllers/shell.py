@@ -11,7 +11,7 @@ from journal.http.support.request import Request
 from journal.http.support.stream_response import StreamResponse
 from journal.repositories.scope import Scope
 from journal.providers.providers import Providers
-from journal.sync.team_account import TeamAccount
+from journal.sync.team_accounts import TeamAccounts
 
 CWD_HEADER = "x-journal-cwd"
 SHELL_HEADER = "x-journal-shell"
@@ -20,8 +20,8 @@ SHELL_HEADER = "x-journal-shell"
 class ShellController:
     """The shim posts a shell line here with the folder, the shell and the environment it runs in; the runner streams back what the agent sees, the exit code last."""
 
-    def __init__(self, runner: ShellRunner, scope: Scope, providers: Providers, identity: AgentIdentity, announced: AnnouncedCommands, account: TeamAccount) -> None:
-        self.account = account
+    def __init__(self, runner: ShellRunner, scope: Scope, providers: Providers, identity: AgentIdentity, announced: AnnouncedCommands, accounts: TeamAccounts) -> None:
+        self.accounts = accounts
         self.runner, self.scope, self.providers, self.identity, self.announced = runner, scope, providers, identity, announced
 
     def run(self, request: Request) -> StreamResponse:
@@ -32,5 +32,5 @@ class ShellController:
         return StreamResponse("text/plain", self.runner.run(posted, self.caller(variables, posted.line), self.scope.id))
 
     def caller(self, variables: CallerVariables, line: str) -> Caller:
-        caller = variables.caller(self.account.user_number())
+        caller = variables.caller(self.accounts.person_in(variables.environment))
         return caller.subagent_caller() if self.announced.is_announced(variables.environment, caller.session, tuple(Chain.self_parts(line))) else caller

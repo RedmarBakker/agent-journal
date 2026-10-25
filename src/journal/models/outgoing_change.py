@@ -13,7 +13,7 @@ KEPT_BY_ALL = "all"
 
 @dataclass(frozen=True)
 class OutgoingChange(Model):
-    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated, deleted or withdrawn from the team, the columns as stored with when each was changed, who wrote it, and for a withdrawn row who keeps it. Stored on this machine."""
+    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated, deleted or withdrawn from the team, the columns as stored with when each was changed, who wrote it, for a withdrawn row who keeps it, and the key of the team it goes to, none for the home team's. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False
@@ -26,6 +26,7 @@ class OutgoingChange(Model):
     writer: str = ""
     is_sending: bool = False
     kept_by: str = ""
+    team_key: str = ""
 
     @classmethod
     def withdrawal(cls, row: Model, writer: str, kept_by: str) -> "OutgoingChange":

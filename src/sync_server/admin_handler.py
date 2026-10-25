@@ -40,6 +40,11 @@ class AdminHandler:
         self.details.record_versions(rule)
         return self.details.answer()
 
+    def tie(self, token: str, tied: bool) -> TeamSummary:
+        self.devices.admin(token)
+        self.details.record_repository_tie(tied)
+        return self.details.answer()
+
     def password_reset(self, token: str, account_id: int) -> PasswordAnswer:
         self.devices.admin(token)
         password = PasswordAnswer.generated()

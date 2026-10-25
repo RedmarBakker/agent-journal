@@ -13,6 +13,8 @@ from sync_server.team_server import BACKUPS, DATABASE, TeamServer
 
 def serve(arguments: argparse.Namespace) -> None:
     team = TeamServer(arguments.data)
+    if arguments.any_repository:
+        team.details.record_repository_tie(False)
     if team.accounts.is_empty():
         print("this team server has no admin yet: the first journal to claim it, at its address or by journal team join, becomes its admin", flush=True)
     team.http(arguments.host, arguments.port).serve_forever()
@@ -46,6 +48,7 @@ def main() -> None:
     serving = verbs.add_parser("serve", help="answer the team's journals; its own migrations run first, so a new image upgrades the database at its first start")
     serving.add_argument("--host", default="127.0.0.1")
     serving.add_argument("--port", type=int, default=8470)
+    serving.add_argument("--any-repository", action="store_true", help="take a journal of any repository, not only clones of the first journal's; its admin can tie it again with journal team repository tied")
     backing = verbs.add_parser("backup", help="copy the database while the server runs, with SQLite's online backup, into the data folder's backups or --to")
     backing.add_argument("--to", type=Path)
     restoring = verbs.add_parser("restore", help="put a backup in place of the database; run it while no server runs on the data folder")
