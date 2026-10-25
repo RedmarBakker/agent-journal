@@ -155,6 +155,11 @@ One line of JSON on its output, the last line counting; an empty output is `allo
   `worker_clocking_out`, `worker_delivering` and `worker_merging` can be refused: the first two hold the worker's clock-out with the plugin's reason, so the worker fixes it in its own session and clocks out again, its window cut to the setting plugins.clock_out_window_seconds (180 by default); the last holds the merge with the plugin's reason while the worker's proofs and task stay as they were; at `prompt_submitted` and `session_started` a refusal's reason is told. A plugin holds a
   stop once a turn: once the agent went on because a stop was held, a refusal of the next is recorded unanswered. What it says reaches
   the agent as `[plugin <name>] ...`.
+- `status`: what the plugin is doing now, a few plain words such as `judging 12 changed files`. A plugin that holds a
+  worker's merge (`worker_merging`) may print lines of JSON before its answer, each with a `status`, and the last line
+  is still the answer: the journal reads the lines as they come, and the merge's output and its card show the latest
+  status of each plugin, one line each, as `now: <plugin>: <status>`, beside the journal's own step. A status at any
+  other event, or from a service, is ignored.
 - At an event it does not hold, everything applies after the reply: the `cards` and `commands` at once, a `tell` at
   the agent's next tool use or prompt (to the environment's live agent for a row event), and a `refuse` is recorded
   as `plugin_unanswered`.

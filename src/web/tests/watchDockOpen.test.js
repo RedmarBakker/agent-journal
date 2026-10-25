@@ -180,3 +180,23 @@ test("the run's duration is the last detail of a docked card's head, after its f
     const order = [...host.querySelectorAll(".watch-dock-figure, .watch-dock-ending")].map((el) => el.textContent.trim());
     expect(order).toEqual(["3 of 9", "Passed", "4s"]);
 });
+
+test("a docked merge says what is happening now, one line for the journal and one for each plugin, above its steps, with the timer last in the head, and none once it ended", async () => {
+    const lines = ["step 1/5: asking the plugins about its branch", "now: asking the plugins about its branch", "now: judge: judging 12 changed files", "now: lint: reading the diff", "now: judge: judging 3 of 12 files"];
+    const merge = {table: "messages", id: 8, author: "system", text: "Merging worker 3", data: {kind: "card", output: 13, lines, count: "1/5", fraction: 0.2, began_at: 100, ended_at: 160, ending: ""}};
+    const host = document.createElement("div");
+    document.body.append(host);
+    const message = ref(merge);
+    app = createApp({render: () => h(WatchDock, {message: message.value})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    const shown = [...host.querySelectorAll(".watch-dock-statuses li")].map((item) => item.textContent);
+    expect(shown).toEqual(["asking the plugins about its branch", "judge: judging 3 of 12 files", "lint: reading the diff"]);
+    const head = [...host.querySelectorAll(".watch-dock-figure")].map((item) => item.textContent.trim());
+    expect(head[0]).toBe("1/5");
+    expect(host.querySelector(".watch-dock-timer")).toBe(host.querySelectorAll(".watch-dock-figure")[head.length - 1]);
+    message.value = {...merge, data: {...merge.data, ending: "merged"}};
+    await flush();
+    expect(host.querySelector(".watch-dock-statuses")).toBeNull();
+});

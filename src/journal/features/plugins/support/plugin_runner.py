@@ -1,8 +1,12 @@
 import json
 import os
+import select
 import signal
 import socket
 import subprocess
+import tempfile
+import time
+from collections.abc import Callable
 
 from journal.config import Config
 from journal.features.plugins.support.plugin_fault import PluginFault
@@ -17,23 +21,24 @@ from journal.features.plugins.support.plugin_answer import PluginAnswer
 
 PASSED_VARIABLES = ("HOME", "LANG", "LC_ALL", "TMPDIR", "USER")
 # a service socket that is gone or dropped the connection, as a service exiting or restarting leaves it: the plugin's program answers instead
+READ_BYTES = 65536
 SOCKET_FAILURES = (ConnectionRefusedError, FileNotFoundError, BrokenPipeError, ConnectionResetError)
 
 
 class PluginRunner:
-    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin and has the user's login shell's PATH, and at most the time it is given; a plugin with a service is asked on its socket first, and its program answers when the socket is gone or drops the connection, the supervisor starting the service again by its restart rule."""
+    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin and has the user's login shell's PATH, and at most the time it is given, each line it prints that holds a status told on as it comes; a plugin with a service is asked on its socket first, and its program answers when the socket is gone or drops the connection, the supervisor starting the service again by its restart rule."""
 
     def __init__(self, config: Config, folders: PluginFolders, tokens: PluginTokens, protocol: Protocol, settings: PluginSettings, login_path: LoginPath) -> None:
         self.config, self.folders, self.tokens, self.protocol, self.settings, self.login_path = config, folders, tokens, protocol, settings, login_path
 
-    def ask(self, plugin: Plugin, environment: str, line: str, window: float) -> PluginAnswer:
+    def ask(self, plugin: Plugin, environment: str, line: str, window: float, on_status: Callable[[str], None] | None = None) -> PluginAnswer:
         subscribed = self.folders.socket(plugin, environment)
         if any(s.answers for s in plugin.manifest.services) and subscribed.is_socket():
             try:
                 return self.service_run(subscribed, line, window)
             except SOCKET_FAILURES:
-                return self.program_run(plugin, environment, line, window)
-        return self.program_run(plugin, environment, line, window)
+                return self.program_run(plugin, environment, line, window, on_status)
+        return self.program_run(plugin, environment, line, window, on_status)
 
     def service_run(self, subscribed, line: str, window: float) -> PluginAnswer:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as link:
@@ -52,18 +57,48 @@ class PluginRunner:
                 raise ConnectionResetError("the service closed its socket without an answer")
             return self.protocol.parsed_answer(answer)
 
-    def program_run(self, plugin: Plugin, environment: str, line: str, window: float) -> PluginAnswer:
+    def program_run(self, plugin: Plugin, environment: str, line: str, window: float, on_status: Callable[[str], None] | None = None) -> PluginAnswer:
         folder = self.folders.folder(plugin)
-        process = subprocess.Popen([str(folder / plugin.manifest.program)], cwd=folder, env=self.environment(plugin, environment), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
-        try:
-            output, err = process.communicate(line + "\n", timeout=window)
-        except subprocess.TimeoutExpired as late:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.communicate()
-            raise WindowMissed(f"it gave no answer within {window * 1000:.0f} ms, its hold window") from late
-        if process.returncode != 0:
-            raise PluginFault(f"it exited with {process.returncode}: {err.strip()[-300:]}")
+        with tempfile.TemporaryFile("w+") as given, tempfile.TemporaryFile("w+") as errors:
+            given.write(line + "\n")
+            given.seek(0)
+            process = subprocess.Popen([str(folder / plugin.manifest.program)], cwd=folder, env=self.environment(plugin, environment), stdin=given, stdout=subprocess.PIPE, stderr=errors, bufsize=0, start_new_session=True)
+            try:
+                output = self.printed(process, window, on_status)
+            except WindowMissed:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                raise
+            finally:
+                process.stdout.close()
+            errors.seek(0)
+            if process.returncode != 0:
+                raise PluginFault(f"it exited with {process.returncode}: {errors.read().strip()[-300:]}")
         return self.protocol.parsed_answer(output)
+
+    def printed(self, process: subprocess.Popen, window: float, on_status: Callable[[str], None] | None) -> str:
+        ends, printed, partial = time.monotonic() + window, [], b""
+        while True:
+            remaining = ends - time.monotonic()
+            if remaining <= 0 or not select.select([process.stdout], [], [], remaining)[0]:
+                raise WindowMissed(f"it gave no answer within {window * 1000:.0f} ms, its hold window")
+            chunk = os.read(process.stdout.fileno(), READ_BYTES)
+            if not chunk:
+                break
+            *whole, partial = (partial + chunk).split(b"\n")
+            for text in whole:
+                printed.append(text.decode(errors="replace"))
+                self.told(printed[-1], on_status)
+        printed.append(partial.decode(errors="replace"))
+        try:
+            process.wait(timeout=max(ends - time.monotonic(), 0.001))
+        except subprocess.TimeoutExpired as late:
+            raise WindowMissed(f"it gave no answer within {window * 1000:.0f} ms, its hold window") from late
+        return "\n".join(printed)
+
+    def told(self, text: str, on_status: Callable[[str], None] | None) -> None:
+        if on_status and (status := self.protocol.status_of(text)):
+            on_status(status)
 
     def shell(self, plugin: Plugin, environment: str, line: str, seconds: float) -> subprocess.CompletedProcess:
         return subprocess.run(["sh", "-c", line], cwd=self.folders.folder(plugin), env=self.environment(plugin, environment), capture_output=True, text=True, timeout=seconds)

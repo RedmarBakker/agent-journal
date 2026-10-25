@@ -49,6 +49,14 @@ class Protocol:
             data |= {**asdict(value), "operation": value.operation.as_data()} if isinstance(value, ToolCall) else {name: value}
         return {FIELD_NAMES.get(name, name): value for name, value in data.items()}
 
+    @staticmethod
+    def status_of(text: str) -> str:
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            return ""
+        return str(raw.get("status", "")).strip() if isinstance(raw, dict) else ""
+
     def parsed_answer(self, text: str) -> PluginAnswer:
         if not text.strip():
             return PluginAnswer()

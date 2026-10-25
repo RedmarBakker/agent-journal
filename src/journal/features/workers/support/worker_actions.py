@@ -20,6 +20,7 @@ from journal.providers.providers import Providers
 from journal.providers.support.session_inbox import SessionInbox
 from journal.models.support.ref import Ref
 from journal.features.workers.support.merge_outcome import MergeOutcome
+from journal.features.workers.support.merge_statuses import MergeStatuses
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
 from journal.models.support.report_choice import ReportChoice
@@ -55,9 +56,9 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account, self.moves, self.failures, self.settings, self.merger, self.time_source = account, moves, failures, settings, merger, time_source
+        self.account, self.moves, self.failures, self.settings, self.merger, self.time_source, self.statuses = account, moves, failures, settings, merger, time_source, statuses
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -156,10 +157,13 @@ class WorkerActions:
         if worker.pool_request:
             self.branch.fetch_pool(worker)
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
-        self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
+        with self.statuses.watched(worker.id, steps.status):
+            self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
-        steps.started(2, self.queue_note())
+        ahead = self.merger.queued()
+        steps.started(2, self.queue_note(ahead), f"waiting in the merge queue behind {ahead} merges" if ahead else "")
         with self.merger.turn():
+            steps.status(MergeSteps.sentence(2))
             merged_total = self.branch.merged_lines(worker)
             commit = self.merge_commit(worker, task)
             unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
@@ -182,8 +186,8 @@ class WorkerActions:
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total))
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
 
-    def queue_note(self) -> str:
-        ahead = self.merger.queued()
+    @staticmethod
+    def queue_note(ahead: int) -> str:
         return f", after the {ahead} merges ahead of it in the queue" if ahead else ""
 
     def gated(self, n: int, task: Task) -> Worker:

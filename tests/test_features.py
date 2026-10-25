@@ -13848,6 +13848,8 @@ def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it
     committed(worktree, "allowed.py", "y = 2\n")
     merged = app.console().run(["worker", "merge", "1"], AGENT)
     assert merged.code == 0, merged.error
+    assert "now: asking the plugins about its branch" in merged.text and "now: echo: judging 1 changed files" in merged.text, "a plugin's status reaches the merge's output while it holds the merge, beside the journal's own"
+    assert "now: merging its branch" in merged.text and merged.text.index("now: echo: judging") < merged.text.index("step 2/5"), "and the journal's status follows the step it is on"
     app.runtime().deferred.drain()
     heard = [json.loads(line) for line in (app.config.home / "plugin-data" / "echo" / "heard.jsonl").read_text().splitlines()]
     assert any(line["event"] == "worker_merge_result" and line["data"]["commits"] for line in heard), "and hears the merge once it landed"

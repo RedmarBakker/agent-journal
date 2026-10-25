@@ -7,6 +7,7 @@ import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
 import {createdAt} from "../domain/row.js";
+import {watchLines} from "../domain/watchStatus.js";
 import {elapsed} from "../format/time.js";
 import {useSharedNow} from "../composables/now.js";
 import {useOutputPages} from "../composables/outputPages.js";
@@ -23,7 +24,10 @@ const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad:
 const ENDED = {passed: "good", failed: "bad"};
 const endedTone = computed(() => ENDED[card.value.outcome] || card.value.tone || "good");
 const runState = computed(() => (card.value.ending ? endedTone.value : "running"));
-const lines = computed(() => (card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean).slice(-SHOWN_LINES));
+const printed = computed(() => watchLines((card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean)));
+const lines = computed(() => printed.value.steps.slice(-SHOWN_LINES));
+// what is happening now is told while the run goes on, one line for the journal and one for each plugin
+const statuses = computed(() => (card.value.ending ? [] : printed.value.statuses));
 const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
 
 const now = useSharedNow();
@@ -70,6 +74,13 @@ watch(
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
+        </template>
+        <template v-if="statuses.length">
+            <ul class="watch-dock-statuses">
+                <template v-for="status in statuses" :key="status">
+                    <li>{{ status }}</li>
+                </template>
+            </ul>
         </template>
         <div :class="['watch-dock-more', {open: opened}]">
             <div class="watch-dock-more-inner">
@@ -166,6 +177,16 @@ watch(
     color: var(--text-3);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+}
+
+.watch-dock-statuses {
+    margin: 0;
+    padding: 0 15px 8px 39px;
+    color: var(--text-3);
+    font-size: 11px;
+    line-height: 1.5;
+    list-style: none;
+    overflow-wrap: anywhere;
 }
 
 .watch-dock-lines {

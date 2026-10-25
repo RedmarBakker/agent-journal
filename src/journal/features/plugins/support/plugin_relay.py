@@ -1,5 +1,6 @@
 from journal.events.agent.agent_event import AgentEvent
 from journal.models.agent_role import AgentRole
+from collections.abc import Callable
 from dataclasses import replace
 
 from journal.events.event import Event
@@ -52,11 +53,11 @@ class PluginRelay:
             return []
         return hearers
 
-    def ask(self, plugin: Plugin, event: Event, environment_id: int, window: float) -> PluginAnswer:
+    def ask(self, plugin: Plugin, event: Event, environment_id: int, window: float, on_status: Callable[[str], None] | None = None) -> PluginAnswer:
         self.linked.notice(plugin, environment_id)
         environment = self.environments.find(environment_id).name if environment_id else ""
         try:
-            answer = self.runner.ask(plugin, environment, self.protocol.event_line(event, environment, self.agent_state(event)), window)
+            answer = self.runner.ask(plugin, environment, self.protocol.event_line(event, environment, self.agent_state(event)), window, on_status)
         except WindowMissed as missed:
             self.unanswered(plugin, event, environment_id, str(missed))
             return PluginAnswer()

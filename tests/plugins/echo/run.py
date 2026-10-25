@@ -48,4 +48,7 @@ def answer(line: dict) -> str:
 
 
 if __name__ == "__main__":
-    print(answer(json.loads(sys.stdin.readline())))
+    heard = json.loads(sys.stdin.readline())
+    if heard["event"] == "worker_merging":
+        print(json.dumps({"status": f"judging {len(heard['data'].get('files', []))} changed files"}), flush=True)
+    print(answer(heard))
