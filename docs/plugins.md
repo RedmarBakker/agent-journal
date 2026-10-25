@@ -129,7 +129,7 @@ One line of JSON, ending in a newline:
 - `data`, by event: `tool_starting` the `tool`, its `input`, whether it `writes` and the `folder` the agent's shell is in when it runs, empty when the program does not say; `command_starting`, one per
   command of a shell line as the journal cut the chain, the command's `text`, whether it `writes`, the `files` it
   touches, its `position` in the chain and the chain's `parts`, a journal command never among them; `tool_finished`
-  the same as `tool_starting` with its `output` and `response`; `file_edited`, one per file a tool changed, once
+  the same as `tool_starting`, its `folder` aside, with its `output` and `response`; `file_edited`, one per file a tool changed, once
   the journal has recorded the edit, at the tool's end for a plugin that holds it and after the reply for the rest: the `path` inside the project, the `kind` (`create` for a file
   written whole, `edit` for a change inside one, `delete` for a file gone), the lines `added` and `removed`, the span
   `first_line` to `last_line`, the changed `lines` as `{kind: add|del|ctx, line, text}` up to two hundred, every
