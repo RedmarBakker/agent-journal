@@ -42,7 +42,9 @@ beforeEach(() => {
     vi.spyOn(api, "chat").mockImplementation(async (session) => ({rows: session === "r-1" ? STEPS : [], is_last_page: true, counts: {}}));
 });
 
-afterEach(() => {
+// the layout is saved 500 ms after its last change, so the stubs stay until that save has gone to them
+afterEach(async () => {
+    await new Promise((done) => setTimeout(done, 550));
     app?.unmount();
     document.body.innerHTML = "";
     vi.restoreAllMocks();
