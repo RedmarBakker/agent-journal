@@ -9,6 +9,7 @@ export const workMode = computed(() => (store.settings && store.settings.workers
 export const workTesting = computed(() => (store.settings && store.settings.workers && store.settings.workers.testing) || DEFAULT_TESTING);
 export const orchestratorApproves = computed(() => Boolean(store.settings && store.settings.workers && store.settings.workers.orchestrator_approves_plans));
 export const autoOn = computed(() => !store.settings || !store.settings.tasks || store.settings.tasks.auto !== false);
+export const reviewerOn = computed(() => Boolean(store.settings && store.settings.reviewing && store.settings.reviewing.reviewer));
 export const sharingOn = computed(() => !store.settings || store.settings.features.sharing !== false);
 
 const viewer = () => (store.settings && store.settings.viewer) || {};

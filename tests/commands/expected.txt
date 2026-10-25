@@ -162,6 +162,16 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal review record --help
+exit 0
+usage: journal review record [-h] report
+
+positional arguments:
+  report
+
+options:
+  -h, --help  show this help message and exit
+
 $ user: journal message send 'Please look at the footer'
 exit 0
 message 9 sent
@@ -1149,6 +1159,7 @@ shell.short_output = 400
 shell.unread_output_every = 5
 shell.dock_live_outputs = True
 shell.outputs_kept = 250
+reviewing.reviewer = False  (the user sets it)
 sharing.host = ''  (the user sets it)
 delivery.batch_seconds = 0
 reports.update_every = 60
@@ -1467,6 +1478,11 @@ profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker prof
 questions.ask_through_the_journal  [questions]  ask through the journal, not your own question tool. `journal question ask "<one line>" --options "a" "b"`
 questions.question_answered  [questions]  question {{n}} is answered. `journal question show {{n}}`, then act on it
 reports.write_an_update  [reports]  you committed work: if a meaningful piece landed, write the user an update. journal report changes shows what it covers, then journal report recap "<one or two sentences>" writes it, docked at the bottom of the chat; skip it when the work is small
+reviewing.review_failed  [reviewing]  the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
+reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: you change no file and merge nothing. read, run the tests the proofs name and judge the changes, then give your report with journal review "<one line per point>"
+reviewing.reviewer_gives_its_report  [reviewing]  your review is not given yet. journal review "<one line per point: 1 passed, or 2 short: why; then the tests you ran>"
+reviewing.work_reviewed  [reviewing]  reviewer {{reviewer}} reviewed worker {{n}}, {{name}}, on task {{task}}:
+{{report}}. send what is short back with journal worker check {{n}} <point> --short "<what is missing>", or check each point with journal worker check {{n}} <point> and merge with journal worker merge {{n}}
 schedules.stop_scheduled_job  [schedules]  the user stopped your scheduled job {{job}}. delete it now with CronDelete, id {{job}}
 secrets.secret_allowed_for_programs  [secrets]  the user let secret {{n}}, {{title}}, go to {{programs}}. run it with `journal secret run {{n}} -- <program> ...`
 secrets.secrets_out_of_reach  [secrets]  secrets are out of your reach. pass one to a program with `journal secret run <n> -- <program>`

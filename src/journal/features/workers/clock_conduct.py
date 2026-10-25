@@ -7,6 +7,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_ready import WorkerReady
+from journal.events.rows.worker_sent_to_review import WorkerSentToReview
 from journal.features.tasks.states.working import Working
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.models.worker_state import WorkerState
@@ -18,7 +19,7 @@ from journal.features.shell.support.activity_label import TESTING, ActivityLabel
 
 
 class ClockConduct(Conduct):
-    """A worker's own conduct in every state: its writes wait until it clocks in, with that as the only message; clocking in puts it to work on the task it owns, a stop is blocked while an output of its own runs and the worker is informed the end of one that ended, and informed the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop."""
+    """A worker's own conduct in every state: its writes wait until it clocks in, with that as the only message; clocking in puts it to work on the task it owns, a stop is blocked while an output of its own runs and the worker is informed the end of one that ended, and informed the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop, whether its work goes to the agent or to the journal's reviewer."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         rows = event.data.part(WorkersPart).session_workers
@@ -51,4 +52,7 @@ class ClockConduct(Conduct):
         return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings else self.none()
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
+        return self.pop()
+
+    def on_worker_sent_to_review(self, event: WorkerSentToReview, settings: Settings) -> Transition:
         return self.pop()

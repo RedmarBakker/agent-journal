@@ -37,9 +37,11 @@ class HookController:
     @staticmethod
     def sender_stamped(hook: Hook, request: Request) -> Hook:
         actor, token = request.headers.get(ACTOR_HEADER, ""), request.headers.get(ACTOR_TOKEN_HEADER)
-        worker, verifier = Actor.stamp_number(actor, ActorKind.WORKER), Actor.stamp_number(actor, ActorKind.VERIFIER)
+        worker, verifier, reviewer = Actor.stamp_number(actor, ActorKind.WORKER), Actor.stamp_number(actor, ActorKind.VERIFIER), Actor.stamp_number(actor, ActorKind.REVIEWER)
         if worker is not None:
             return hook.worker_hook(worker, token)
+        if reviewer is not None:
+            return hook.reviewer_hook(reviewer, token)
         return hook.verifier_hook(verifier, token) if verifier is not None else hook
 
     def is_copy_shown(self) -> bool:

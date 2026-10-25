@@ -26,6 +26,7 @@ agent clock-in record --help
 agent clock-out record --help
 agent proof record --help
 agent verdict give --help
+agent review record --help
 user message send "Please look at the footer"
 agent message list
 agent message unread

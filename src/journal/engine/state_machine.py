@@ -55,7 +55,7 @@ class StateMachine:
         return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
-        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER, AgentRole.VERIFIER)]
+        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)]
         self.listener_index = ListenerIndex.built(list(self.states.classes()), conduct_sets, self.event_kinds(Event))
 
     @classmethod

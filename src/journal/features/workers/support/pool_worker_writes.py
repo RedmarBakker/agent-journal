@@ -33,11 +33,7 @@ class PoolWorkerWrites(HostWriter):
         self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.ready(time.time()), actor))
 
     def delivered(self, request: HostRequest) -> None:
-        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.delivery(worker, request.body["report"], actor))
-
-    def delivery(self, worker: Worker, report: str, actor: Actor) -> None:
-        self.reports.posted(worker, report, actor)
-        self.workers.save(self.workers.find(worker.row_id).delivered(time.time()), actor)
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.reports.delivered(worker, request.body["report"], actor))
 
     def ended(self, request: HostRequest) -> None:
         end = WorkerEnd.parsed(request.body)

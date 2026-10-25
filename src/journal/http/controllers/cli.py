@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from journal.console.command import HELPER_KINDS
+from journal.console.command import SUBAGENT_KINDS, WORKER_KINDS
 from journal.support.caller_kind import CallerKind
 from journal.models.alias import Alias
 from journal.console.console import Console
@@ -51,7 +51,7 @@ class CliController:
 
     @staticmethod
     def alias_answer(alias: Alias, argv: list[str], kind: CallerKind) -> StreamResponse:
-        if kind in HELPER_KINDS:
+        if kind in WORKER_KINDS | SUBAGENT_KINDS:
             return StreamResponse("text/plain", iter([f"a {kind} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
         return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(argv[1:])}\n{EXIT} 0\n".encode()]))
 

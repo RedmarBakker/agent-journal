@@ -6,14 +6,15 @@ from journal.support.caller import Caller
 from journal.support.caller_kind import CallerKind
 
 PRINCIPAL_KINDS = frozenset({CallerKind.MAIN_AGENT, CallerKind.USER, CallerKind.PLUGIN})
-HELPER_KINDS = frozenset({CallerKind.WORKER, CallerKind.SUBAGENT})
+HELPER_KINDS = frozenset({CallerKind.WORKER, CallerKind.SUBAGENT, CallerKind.REVIEWER})
 WORKER_KINDS = frozenset({CallerKind.WORKER})
 SUBAGENT_KINDS = frozenset({CallerKind.SUBAGENT})
 VERIFIER_KINDS = frozenset({CallerKind.VERIFIER})
+REVIEWER_KINDS = frozenset({CallerKind.REVIEWER})
 
 
 class Command:
-    """One noun; each verb is a method named after it, taking the parsed arguments and where and by whom it runs. The main agent, the user and a plugin run every verb; a worker or a subagent runs only the verbs whose callers name its kind."""
+    """One noun; each verb is a method named after it, taking the parsed arguments and where and by whom it runs. The main agent, the user and a plugin run every verb; a worker, a subagent, a verifier or a reviewer runs only the verbs whose callers name its kind."""
 
     noun: ClassVar[str]
     default_verb: ClassVar[str] = ""

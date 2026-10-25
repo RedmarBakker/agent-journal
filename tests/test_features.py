@@ -15495,6 +15495,101 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
+def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_reviewer_whose_report_reaches_the_orchestrator(app: App, monkeypatch):
+    from journal.features.reviewing.support.reviewer_dispatch import JURAN
+    from journal.models.agent_role import AgentRole
+    from journal.models.reviewer_state import ReviewerState
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import Entries
+    from journal.repositories.reviewers import Reviewers
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console, sessions, settings = app.console(), app.container.get(SessionAgents), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("reviewing.reviewer", True, Actor.user(1))
+    console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
+    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
+    for name, task in (("Lady Lovelace", "1"), ("Mr. Babbage", "2")):
+        console.run(["worker", "dispatch", name, "--task", task, "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
+        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+        workers.save(workers.find(2).with_(token_hash="h", session="w-2", resume="w-2").ready(1.0), Actor.system())
+    lovelace, babbage = Caller.worker("main", 1, "w-1", "claude"), Caller.worker("main", 2, "w-2", "claude")
+    token = AgentToken("the reviewer's token")
+
+    def clocked_out(caller: Caller, report: str, *proofs: str):
+        for point, proof in enumerate(proofs, 1):
+            assert console.run(["proof", str(point), proof], caller).code == 0
+        assert console.run(["clock-out", report], caller).code == 0
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            [reviewer] = [reviewer for reviewer in reviewers.scoped() if reviewer.is_reviewing()]
+            deadline = timing.time() + 10
+            while not reviewers.find(reviewer.id).pid and timing.time() < deadline:
+                timing.sleep(0.02)
+            return reviewers.save(reviewers.find(reviewer.id).with_(token_hash=token.digest()), Actor.system())
+
+    def reviewer_hook(reviewer, kind: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": reviewer.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": token.text})
+
+    def told(key: str) -> list[str]:
+        with app.container.get(Scope).environment(MAIN):
+            return [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1" and entry.data["key"] == key]
+
+    reviewer = clocked_out(lovelace, "the parser is done", "parser.py:12, test_reads passes: pytest tests/test_parser.py", "parser.py:30, test_names passes")
+    with app.container.get(Scope).environment(MAIN):
+        sent = workers.find(1)
+    assert reviewer.name == JURAN and reviewer.pid and sent.state == WorkerState.DELIVERED and sent.in_review, "the clock-out sends the journal's reviewer, and its program runs"
+    assert all(part in reviewer.brief for part in ("reads the grammar", "parser.py:12, test_reads passes", "the parser is done", "journal sins", "journal review")), "it is handed the brief, each proof and the report"
+    assert not told("workers.work_ready") and "awaiting workers 1" in console.run(["worker", "wait", "1"], AGENT).text, "the orchestrator is not told of the clock-out, and a wait on the worker waits for its review"
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": reviewer.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": "a wrong token"})
+    assert not app.container.get(Agents).active_session_agents(reviewer.session), "a hook that claims a reviewer without its token is not taken in"
+    reviewer_hook(reviewer, "SessionStart")
+    assert sessions.top(reviewer.session).name == "reviewing" and app.container.get(Agents).session_agent(reviewer.session).role == AgentRole.REVIEWER, "a reviewer rests on Reviewing from its first hook, as reviewer:N"
+    status, body = reviewer_hook(reviewer, "PreToolUse", tool_name="Write", tool_input={"file_path": "parser.py", "content": "x"}, tool_use_id="t-write")
+    assert status == 409 and "you change no file" in body["error"], "it changes no file"
+    assert reviewer_hook(reviewer, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest tests/test_parser.py"}, tool_use_id="t-test")[0] == 200, "it runs the tests"
+    assert "your review is not given yet" in str(reviewer_hook(reviewer, "Stop")[1]), "it may not stop before its report"
+    reviewing = Caller.reviewer("main", reviewer.id, reviewer.session, "claude")
+    assert reviewing.actor.stamp == f"reviewer:{reviewer.id}" and console.run(["worker", "merge", "1"], reviewing).code != 0, "the reviewer never merges"
+    assert console.run(["review", "it is fine"], lovelace).code != 0, "a worker gives no review"
+    report = "1 passed. 2 short: the alias names are missing. Tests: pytest tests/test_parser.py passed"
+    assert console.run(["review", report], reviewing).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        reviewed, sent = reviewers.find(reviewer.id), workers.find(1)
+    assert reviewed.state == ReviewerState.REVIEWED and not reviewed.token_hash and not sent.in_review and sessions.top(reviewer.session).name == "ended", "the report ends the review and the reviewer's session"
+    [line] = told("reviewing.work_reviewed")
+    assert f"reviewer {reviewer.id} reviewed worker 1, Lady Lovelace, on task 1:" in line and report in line, "its one report reaches the orchestrator with each point and the tests run"
+    assert not told("workers.work_ready"), "the orchestrator is told of the review alone, never of the clock-out"
+    kept = clocked_out(babbage, "the lexer splits", "lexer.py:4, test_splits passes")
+    assert kept.id == reviewer.id and kept.session == reviewer.session and len(reviewers.scoped()) == 1 and "the lexer splits the words" in kept.brief, "the idle reviewer takes the next review in its own session"
+    os.killpg(kept.pid, signal.SIGKILL)
+    deadline = timing.time() + 10
+    with app.container.get(Scope).environment(MAIN):
+        while reviewers.find(kept.id).state != ReviewerState.ENDED and timing.time() < deadline:
+            timing.sleep(0.02)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        handed = workers.find(2)
+    assert not handed.in_review and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
+    assert any("worker 2, Mr. Babbage, ended without a report: task 2 waits for your own check" in line for line in told("reviewing.review_failed")), "and tells the orchestrator so"
+    settings.set("reviewing.reviewer", False, Actor.user(1))
+    assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
+    assert console.run(["worker", "check", "1", "2", "--short", "the alias names are missing"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    console.run(["proof", "2", "parser.py:31, the alias names are in"], lovelace)
+    assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert not workers.find(1).in_review and not [r for r in reviewers.scoped() if r.is_reviewing()], "with the reviewer off no reviewer is sent"
+    assert told("workers.work_ready"), "and the orchestrator is told of the clock-out as today"
+
+
 def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_team_and_hands_the_teams_back(tmp_path, template_journal, monkeypatch):
     import threading
     from conftest import copied

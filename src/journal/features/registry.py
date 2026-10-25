@@ -12,9 +12,9 @@ from journal.support.skill import Skill
 from journal.repositories.setting_rows import SettingRows
 
 
-ROLE_CONDUCT = {AgentRole.MAIN: lambda feature: feature.conduct, AgentRole.WORKER: lambda feature: feature.worker_conduct, AgentRole.VERIFIER: lambda feature: ()}
+ROLE_CONDUCT = {AgentRole.MAIN: lambda feature: feature.conduct, AgentRole.WORKER: lambda feature: feature.worker_conduct, AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
 # what the journal demands of an agent is the main agent's: the user's messages, the skills and the marks are its, and a worker owes none of them
-ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKER: lambda feature: (), AgentRole.VERIFIER: lambda feature: ()}
+ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKER: lambda feature: (), AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
 
 
 class Registry:

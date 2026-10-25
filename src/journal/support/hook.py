@@ -18,6 +18,7 @@ class Hook:
     launch: str = ""
     worker: int | None = None
     verifier: int | None = None
+    reviewer: int | None = None
     actor_token: str | None = None
     boot_wait_seconds: float = 0.0
 
@@ -31,8 +32,11 @@ class Hook:
     def verifier_hook(self, number: int, token: str | None) -> "Hook":
         return replace(self, verifier=number, actor_token=token)
 
+    def reviewer_hook(self, number: int, token: str | None) -> "Hook":
+        return replace(self, reviewer=number, actor_token=token)
+
     def is_sent(self) -> bool:
-        return self.worker is not None or self.verifier is not None
+        return self.worker is not None or self.verifier is not None or self.reviewer is not None
 
     def stamped(self, started_ms: int) -> "Hook":
         return replace(self, started_ms=started_ms)

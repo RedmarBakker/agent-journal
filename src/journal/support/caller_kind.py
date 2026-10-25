@@ -7,6 +7,7 @@ class CallerKind(StrEnum):
     MAIN_AGENT = "main agent"
     WORKER = "worker"
     VERIFIER = "verifier"
+    REVIEWER = "reviewer"
     SUBAGENT = "subagent"
     USER = "user"
     PLUGIN = "plugin"

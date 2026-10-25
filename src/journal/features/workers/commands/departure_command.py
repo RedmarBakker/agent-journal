@@ -1,9 +1,7 @@
 from argparse import Namespace
-from datetime import datetime, timezone
 
 from journal.console.command import WORKER_KINDS, Command
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.support.actor import Actor
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.proof_state import ProofState
@@ -49,13 +47,9 @@ class DepartureCommand(Command):
         if self.moves.is_remote(worker):
             self.moves.ask(worker, DELIVERED, {"report": args.report}, caller.actor)
         else:
-            self.delivered(worker, args.report, caller.actor)
+            self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
-
-    def delivered(self, worker: Worker, report: str, actor: Actor) -> None:
-        self.reports.posted(worker, report, actor)
-        self.workers.save(self.workers.find(worker.id).delivered(datetime.now(timezone.utc).timestamp()), actor)
 
     def push_branch(self, worker: Worker) -> None:
         outcome = self.branch.git("push", "origin", f"{self.branch.name(worker)}:refs/heads/{WorkerBranch.pool_branch(worker)}", cwd=self.branch.folder(worker))

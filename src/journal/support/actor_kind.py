@@ -10,3 +10,4 @@ class ActorKind(StrEnum):
     EXTERNAL = "external"
     WORKER = "worker"
     VERIFIER = "verifier"
+    REVIEWER = "reviewer"

@@ -277,9 +277,9 @@ class WorkerCommand(Command):
     def wait(self, args: Namespace, caller: Caller) -> int:
         workers = [self.workers.find(n) for n in args.on]
         for worker in workers:
-            if not worker.is_running():
+            if not worker.is_awaited():
                 print(self.state_line(worker))
-        crew = [worker for worker in workers if worker.is_running()]
+        crew = [worker for worker in workers if worker.is_awaited()]
         if crew:
             numbers = ", ".join(str(worker.id) for worker in crew)
             self.events.wait_declared(f"the work of workers {numbers}", ",".join(worker.mention().ref() for worker in crew), caller)

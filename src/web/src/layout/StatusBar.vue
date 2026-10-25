@@ -1,7 +1,7 @@
 <script setup>
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
-import {autoOn, orchestratorApproves, workMode} from "../composables/settings.js";
+import {autoOn, orchestratorApproves, reviewerOn, workMode} from "../composables/settings.js";
 import {MODES, showsApprovalToggle} from "../domain/modes.js";
 import {api} from "../api/client.js";
 import {saveSettings} from "../actions/settings.js";
@@ -32,7 +32,7 @@ import {useEveryVerifier} from "../composables/verifiers.js";
 import VerifierList from "../chat/VerifierList.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
-import {runPlan, setAuto} from "../actions/work.js";
+import {runPlan, setAuto, setReviewer} from "../actions/work.js";
 import {useColleague} from "../composables/colleague.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
@@ -213,17 +213,32 @@ async function runBar(p) {
         </template>
         <span class="statusbar-tools">
             <span class="statusbar-agentset">
-                <Switch
-                    :on="autoOn"
-                    word="auto"
-                    labelled
-                    v-tip:auto="
-                        autoOn
-                            ? {title: 'Auto is on', line: 'The agent works through the task list without asking.'}
-                            : {title: 'Auto is off', line: 'The agent asks before picking up the next task.'}
-                    "
-                    @change="setAuto"
-                />
+                <template v-if="workMode === 'orchestrator'">
+                    <Switch
+                        :on="reviewerOn"
+                        word="reviewer"
+                        labelled
+                        v-tip:reviewer="
+                            reviewerOn
+                                ? {title: 'Reviewer is on', line: 'A reviewer tests and checks each worker\'s work and reports to the agent, which sends it back or merges it.'}
+                                : {title: 'Reviewer is off', line: 'The agent checks each worker\'s work itself.'}
+                        "
+                        @change="setReviewer"
+                    />
+                </template>
+                <template v-else>
+                    <Switch
+                        :on="autoOn"
+                        word="auto"
+                        labelled
+                        v-tip:auto="
+                            autoOn
+                                ? {title: 'Auto is on', line: 'The agent works through the task list without asking.'}
+                                : {title: 'Auto is off', line: 'The agent asks before picking up the next task.'}
+                        "
+                        @change="setAuto"
+                    />
+                </template>
                 <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
                 <template v-if="showsApprovalToggle(workMode)">
                     <Switch
