@@ -2,7 +2,9 @@ from argparse import Namespace
 from dataclasses import replace
 from datetime import datetime, timezone
 
+from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
+from journal.support.row_labels import RowLabels
 from journal.console.command import SUBAGENT_KINDS, Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
@@ -28,14 +30,15 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
-        self.rounds, self.taking, self.plan_testing, self.hub_rows = rounds, taking, testing, hub_rows
+        self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
         creation.add_argument("title")
         creation.add_argument("--brief", default="")
+        creation.add_argument("--team", default="", help="make it in the hub of the joined team of this name")
         addition = self.verb(verbs, "add", "add a task to a plan, after the ones it has")
         addition.add_argument("n", type=int)
         addition.add_argument("title")
@@ -81,8 +84,9 @@ class PlanCommand(Command):
         testing.add_argument("title")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
-        print(f"plan {plan.id} {plan.state}")
+        with self.hub.writing_in(args.team):
+            plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
+        print(f"{self.labels.name('plan', plan)} {plan.state}")
         return 0
 
     def add(self, args: Namespace, caller: Caller) -> int:

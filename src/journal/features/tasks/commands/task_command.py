@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from journal.console.command import HELPER_KINDS, SUBAGENT_KINDS, WORKER_KINDS, Command
+from journal.console.support.hub_choice import HubChoice
 from journal.support.caller import Caller
 from journal.support.row_labels import RowLabels
 from journal.support.caller_kind import CallerKind
@@ -36,10 +37,10 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels = check, labels
+        self.check, self.labels, self.hub = check, labels, hub
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -57,6 +58,7 @@ class TaskCommand(Command):
         brief.add_argument("n", type=int)
         brief.add_argument("brief")
         creation.add_argument("--brief", default="")
+        creation.add_argument("--team", default="", help="make it in the hub of the joined team of this name")
         creation.add_argument("--priority", default="normal", help="low, normal, high, critical or a number")
         creation.add_argument("--start", action="store_true", help="start it at once")
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
@@ -84,12 +86,14 @@ class TaskCommand(Command):
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
-        self.message_link(args.message, task, caller)
-        if args.start:
-            task = self.taking.start(task, caller)
-        unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
-        print("\n".join(filter(None, [f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else ""), unfiled])))
+        with self.hub.writing_in(args.team):
+            task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
+            self.message_link(args.message, task, caller)
+            if args.start:
+                task = self.taking.start(task, caller)
+            unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
+            line = f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else "")
+        print("\n".join(filter(None, [line, unfiled])))
         return 0
 
     def message_link(self, message: int, task: Task, caller: Caller) -> None:
