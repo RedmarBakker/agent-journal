@@ -2623,7 +2623,7 @@ def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
     from journal.features.verification.support.verifier_dispatch import VerifierDispatch
     from journal.models.verifier import Verifier
     sent = []
-    verifiers = SimpleNamespace(idle=lambda: [v for v in rows if v.state == "judged"], out=lambda: rows)
+    verifiers = SimpleNamespace(idle=lambda: [v for v in rows if v.state == "judged"], working=lambda: rows)
     rows: list = []
     runner = SimpleNamespace(start=lambda verifier, resume: sent.append((verifier.brief, resume)) or verifier)
     dispatch = VerifierDispatch(verifiers, None, runner, SimpleNamespace(default=lambda: SimpleNamespace(name="claude")), None, SimpleNamespace(integer=lambda option: 1))
