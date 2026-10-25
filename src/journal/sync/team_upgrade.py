@@ -19,7 +19,7 @@ class TeamUpgrade:
         self.link.acquire_lease(UPGRADE_LEASE)
         if self.link.summary(self.account.address()).migration < self.schema.version():
             rows = self.copy.rows()
-            answer = self.link.upgrade(rows, self.copy.highest(rows), self.account.sequence())
+            answer = self.link.upgrade(rows, self.copy.highest(), self.account.sequence())
             self.account.record_sequence(answer.head)
         self.link.release_lease(UPGRADE_LEASE)
         self.account.write({**self.account.contents(), "upgrade": False})

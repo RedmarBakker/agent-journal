@@ -10,7 +10,7 @@ from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are stored through it."""
+    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are stored through it."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, placement: TeamPlacement) -> None:
         self.tables, self.scopes, self.placement = tables, scopes, placement
@@ -18,8 +18,8 @@ class JournalCopy:
     def rows(self) -> list[CopiedRow]:
         return [CopiedRow(table, row.row_id, Schema.team_values(row, None), {name: row.updated_at.timestamp() for name in Schema.team_values(row, None)}) for table in self.tables.names() for row in self.tables.rows(table).rows() if self.placement.is_sent(row)]
 
-    def highest(self, rows: list[CopiedRow]) -> dict:
-        return {table: max((row.row for row in rows if row.row_table == table), default=0) for table in self.tables.names()}
+    def highest(self) -> dict:
+        return {table: self.tables.highest_number(table) for table in self.tables.names()}
 
     def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange]) -> None:
         with self.tables.transaction():

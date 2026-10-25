@@ -11966,6 +11966,7 @@ def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
     from carried_sync import CarriedSync
     from conftest import copied
     from journal.db.connection import Connection
+    from journal.repositories.shared_tables import SharedTables
     from sync_server.team_server import TeamServer
 
     def git(*arguments: str) -> None:
@@ -11983,12 +11984,14 @@ def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
     a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("acme", "b"))
     b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
     carriers = [CarriedSync(journal).started() for journal in (a, b)]
+    tables = a.container.get(SharedTables)
+    held = {table: tables.highest_number(table) for table in tables.names()}
     try:
         assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
         invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined = b.console().run(["team", "join", invitation, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined.code == 0, joined.error
-        yield team, a, b
+        yield team, a, b, held
     finally:
         for carrier in carriers:
             carrier.stop()
@@ -12022,8 +12025,10 @@ def synced(check) -> bool:
 
 def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_a_hub_task_reaches_the_other_journal(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b):
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, held):
         assert a.container.get(TeamAccount).is_on_hub(), "a new team server is on the hub, and the join says so"
+        floors = {row["row_table"]: row["highest"] for row in team.store.all("SELECT row_table, highest FROM id_floors")}
+        assert all(floors.get(table, 0) >= number for table, number in held.items()), "the team's numbers start above every number Ada's journal had given, her own rows' too, though only the hub's were sent"
         own, hub_task = ada_tasks(a)
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "a task in the hub reaches the other journal"
         assert team.log.row("tasks", own.id) is None and not b.container.get(Tasks).global_matching(id=own.id), "a task in Ada's own environment, written before it, never reaches the team server or Bob"
@@ -12032,7 +12037,7 @@ def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_
 
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
-    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b):
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
         assert not a.container.get(TeamAccount).is_on_hub()
         own, hub_task = ada_tasks(a)
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)) and bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task as before, beside the hub's"

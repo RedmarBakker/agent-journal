@@ -140,7 +140,7 @@ class TeamJoin:
 
     def uploaded(self, repository: str) -> str:
         rows = self.copy.rows()
-        answer = self.link.upload(rows, self.copy.highest(rows), repository, VERSION, self.team_name())
+        answer = self.link.upload(rows, self.copy.highest(), repository, VERSION, self.team_name())
         self.account.record_sequence(answer.head)
         files = self.upload_files()
         self.supply.refill()
