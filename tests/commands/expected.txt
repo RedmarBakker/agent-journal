@@ -559,7 +559,7 @@ Doc 1: The cart undocked
 
 $ agent: journal doc share 1
 exit 1
-no team is joined, so there is no hub to file in
+there is no hub to file in: no team is joined, or the team is not on the hub yet, which journal team migrate moves it to
 
 $ agent: journal doc mode 1 free
 exit 1
