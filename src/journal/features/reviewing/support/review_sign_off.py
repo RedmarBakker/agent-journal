@@ -21,5 +21,5 @@ class ReviewSignOff:
         return self.merged(worker, actor)
 
     def merged(self, worker: int, actor: Actor) -> str:
-        outcome = self.actions.merge(worker, actor, MergeSteps.unseen())
+        outcome = self.actions.merge(worker, actor, MergeSteps.silent())
         return "; ".join(part for part in (f"signed off: task {outcome.task.id} closed", outcome.worktree, outcome.next_task) if part)

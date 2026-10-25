@@ -106,7 +106,7 @@ class ActivityLabel:
         shaped = CommandShape.inner(CommandShape.working(part))
         if (inner := CommandWrappers.inner(shaped)) != shaped:
             return cls.build(inner)
-        tokens = TOKEN_PATTERN.findall(CommandShape.inner(CommandShape.working(part)).split("<<", 1)[0])
+        tokens = TOKEN_PATTERN.findall(shaped.split("<<", 1)[0])
         arguments = [w for index, w in enumerate(tokens) if not w.startswith("-") and "=" not in w and (index == 0 or tokens[index - 1] not in VALUED_FLAGS)]
         runner = tokens[0].rsplit("/", 1)[-1] if tokens else ""
         if runner in RUNNERS and len(tokens) > 1 and tokens[1] in ("-c", "-"):

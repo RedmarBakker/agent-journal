@@ -50,7 +50,7 @@ class Protocol:
         return {FIELD_NAMES.get(name, name): value for name, value in data.items()}
 
     @staticmethod
-    def status_of(text: str) -> str:
+    def line_status(text: str) -> str:
         try:
             raw = json.loads(text)
         except json.JSONDecodeError:

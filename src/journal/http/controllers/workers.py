@@ -38,7 +38,7 @@ class WorkerController(Controller[Worker]):
         return Response.json(self.shown(self.repository.find(request.number("id"))))
 
     def merge(self, request: Request) -> Response:
-        self.actions.merge(request.number("id"), request.actor, MergeSteps.unseen())
+        self.actions.merge(request.number("id"), request.actor, MergeSteps.silent())
         return Response.json(self.shown(self.repository.find(request.number("id"))))
 
     def report_choice(self, request: Request) -> Response:

@@ -12304,7 +12304,7 @@ def test_a_worker_messages_only_its_own_dispatchers_other_workers_and_starts_no_
     assert "worker 1 is you" in refused("send", "1", "x") and "worker 1 is you" in refused("notify", "1", "x")
     assert "belongs to another agent" in refused("send", "3", "x") and "belongs to another agent" in refused("notify", "3", "x")
     assert "is retired" in refused("send", "4", "x") and "is retired" in refused("notify", "4", "x"), "a peer never revives a retired worker"
-    assert "holds no task" in refused("send", "2", "the separate condenser"), "a peer that works on no task takes no message"
+    assert "has no task" in refused("send", "2", "the separate condenser"), "a peer that works on no task takes no message"
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     tasks = app.container.get(Tasks)
@@ -14249,7 +14249,7 @@ def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_mer
     with pytest.raises(Rejection, match="runs on another machine of the team"):
         actions.stop(7, "stop", Actor.user(1))
     with pytest.raises(Rejection, match="runs on another machine of the team"):
-        actions.merge(7, Actor.user(1), MergeSteps.unseen())
+        actions.merge(7, Actor.user(1), MergeSteps.silent())
     assert workers.find(7) == pulled
     (app.config.home / TEAM_FILE).unlink()
     assert actions.local(7).id == 7, "a journal in no team runs every worker it holds, whichever machine started it"

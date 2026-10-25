@@ -53,11 +53,11 @@ class PluginRelay:
             return []
         return hearers
 
-    def ask(self, plugin: Plugin, event: Event, environment_id: int, window: float, on_status: Callable[[str], None] | None = None) -> PluginAnswer:
+    def ask(self, plugin: Plugin, event: Event, environment_id: int, window: float, report: Callable[[str], None] | None = None) -> PluginAnswer:
         self.linked.notice(plugin, environment_id)
         environment = self.environments.find(environment_id).name if environment_id else ""
         try:
-            answer = self.runner.ask(plugin, environment, self.protocol.event_line(event, environment, self.agent_state(event)), window, on_status)
+            answer = self.runner.ask(plugin, environment, self.protocol.event_line(event, environment, self.agent_state(event)), window, report)
         except WindowMissed as missed:
             self.unanswered(plugin, event, environment_id, str(missed))
             return PluginAnswer()

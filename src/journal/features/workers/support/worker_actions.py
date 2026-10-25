@@ -97,7 +97,7 @@ class WorkerActions:
         if worker.dispatcher != writer.dispatcher:
             raise Rejection(f"worker {worker.id}, {worker.name}, belongs to another agent: you message only the workers of the agent that dispatched you, `journal worker peers` lists them")
         if not self.tasks.holder_task_ids(Ref.build(worker)):
-            raise Rejection(f"worker {worker.id}, {worker.name}, holds no task: you message only a peer that works on one")
+            raise Rejection(f"worker {worker.id}, {worker.name}, has no task: you message only a peer that works on one")
         return worker
 
     def check(self, n: int, point: int, actor: Actor, task_id: int = 0) -> Task:
@@ -160,8 +160,8 @@ class WorkerActions:
         with self.statuses.watched(worker.id, steps.status):
             self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
-        ahead = self.merger.queued()
-        steps.started(2, self.queue_note(ahead), f"waiting in the merge queue behind {ahead} merges" if ahead else "")
+        queued = self.merger.queued()
+        steps.started(2, self.queue_note(queued), f"waiting in the merge queue behind {queued} merges" if queued else "")
         with self.merger.turn():
             steps.status(MergeSteps.sentence(2))
             merged_total = self.branch.merged_lines(worker)
@@ -187,8 +187,8 @@ class WorkerActions:
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
 
     @staticmethod
-    def queue_note(ahead: int) -> str:
-        return f", after the {ahead} merges ahead of it in the queue" if ahead else ""
+    def queue_note(queued: int) -> str:
+        return f", after the {queued} merges before it in the queue" if queued else ""
 
     def gated(self, n: int, task: Task) -> Worker:
         worker = self.delivered(n, "work to merge")

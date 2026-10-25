@@ -10,7 +10,7 @@ class MergeSteps:
         self.writer = writer
 
     @classmethod
-    def unseen(cls) -> "MergeSteps":
+    def silent(cls) -> "MergeSteps":
         return cls(lambda line: None)
 
     @staticmethod
