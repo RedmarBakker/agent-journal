@@ -23,4 +23,6 @@ export function pointRows(task) {
 
 export const checkedCount = (task) => (task.proofs || []).filter((proof) => CHECKED.has(proof.state)).length;
 
+export const todoTotal = (task, queue) => (task.todos || []).length + (queue || []).length;
+
 export const doneCount = (task) => (task.todos || []).filter((item) => item.complete).length;

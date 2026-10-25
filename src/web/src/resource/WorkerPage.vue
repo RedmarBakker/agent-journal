@@ -16,7 +16,7 @@ import {useInspectorActions} from "../composables/inspectorActions.js";
 import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
-import {checkedCount, doneCount} from "../domain/workerTurn.js";
+import {checkedCount, doneCount, todoTotal} from "../domain/workerTurn.js";
 import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
@@ -58,6 +58,7 @@ const done = computed(() => doneCount(task.value));
 const hasTask = computed(() => Boolean(task.value.task_id));
 // the tasks waiting in the worker's queue, in the order it takes them up
 const queue = computed(() => props.resource.queue || []);
+const todos = computed(() => todoTotal(task.value, queue.value));
 
 const ACTIONS = {
     send: (id, brief) => api.act("workers", id, "send", {brief}),
@@ -82,13 +83,13 @@ const transcript = useTranscript(() => "worker", "", scroller, transcripts);
 const speakers = computed(() => ({agent: name.value, human: "The agent"}));
 const {measured, panes, resize} = useWorkerLayout();
 const TITLES = {points: "Points", transcript: "Transcript", todos: "To-dos"};
-const counts = computed(() => ({points: `${checked.value} of ${task.value.points.length} checked`, todos: `${done.value} of ${task.value.todos.length} done`, transcript: ""}));
+const counts = computed(() => ({points: `${checked.value} of ${task.value.points.length} checked`, todos: `${done.value} of ${todos.value} done`, transcript: ""}));
 
 const tab = ref("points");
 const tabs = computed(() => [
     {key: "points", label: "Points", count: `${checked.value} of ${task.value.points.length}`},
     {key: "transcript", label: "Transcript"},
-    {key: "todos", label: "To-dos", count: `${done.value} of ${task.value.todos.length}`},
+    {key: "todos", label: "To-dos", count: `${done.value} of ${todos.value}`},
 ]);
 
 const message = ref("");

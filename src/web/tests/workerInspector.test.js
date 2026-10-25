@@ -214,3 +214,13 @@ test("the worker page names the task it works on above its name and the tasks qu
     const queued = host.querySelector(".todos [data-worker-queue]");
     expect([...queued.querySelectorAll(".queued-task")].map((link) => link.textContent.trim())).toEqual(["Task 8: the docs", "Task 9: the help page"]);
 });
+
+test("a worker's queued tasks count as to-dos not yet done in the To-dos count, and stay listed under Queued next", async () => {
+    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
+    const todos = [true, true, false, false].map((complete, n) => ({text: `item ${n}`, complete}));
+    const queue = Array.from({length: 11}, (_, n) => ({id: 20 + n, title: `queued ${n}`}));
+    const host = mount(WorkerPage, {resource: {...worker("clocked in"), task: {...task, todos}, queue}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    await flush();
+    expect(host.textContent).toContain("2 of 15 done");
+    expect(host.querySelectorAll(".todos [data-worker-queue] .queued-task").length).toBe(11);
+});
