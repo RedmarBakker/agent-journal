@@ -13,6 +13,8 @@ from journal.models.command_output import CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
 
 TAIL_LINES = 10
+# the lines of how a run ended that the agent is told, its progress lines left on the card
+SUMMARY_LINES = 3
 VIEW_LINES = 20
 SILENT_SECONDS = 30
 
@@ -106,8 +108,12 @@ class OutputViews:
         return " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
 
     def ended_summary(self, output: CommandOutput) -> str | None:
-        summary_lines = self.card_lines(output, self.view(output)) if self.reader(output) is not None else ()
-        return " / ".join(summary_lines) if summary_lines else None
+        reader = self.reader(output)
+        if reader is None:
+            return None
+        lines = self.card_lines(output, self.view(output))
+        ending = [line for line in lines if not reader.is_progress_line(line)] or list(lines[-1:])
+        return " / ".join(ending[-SUMMARY_LINES:]) or None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
         return "\n".join(self.card_lines(output, view) or self.ending_lines(output))

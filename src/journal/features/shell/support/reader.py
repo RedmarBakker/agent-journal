@@ -83,6 +83,9 @@ class Reader:
     def is_counting(self) -> bool:
         return bool(self.progress_pattern)
 
+    def is_progress_line(self, line: str) -> bool:
+        return self.is_counting() and bool(re.search(self.progress_pattern, line))
+
     def matches(self, command: str) -> bool:
         return bool(self.pattern) and self.pattern in command
 

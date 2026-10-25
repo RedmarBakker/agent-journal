@@ -4094,6 +4094,22 @@ def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_l
     assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
 
 
+def test_how_a_watched_run_ended_is_told_without_its_progress_lines_in_a_few_lines(app: App, tmp_path):
+    from journal.config import Config
+    from journal.features.shell.support.output_views import OutputViews
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
+    config.readers.mkdir(parents=True, exist_ok=True)
+    (config.readers / "go-tests.pattern").write_text("# a go test run: each finished test and the totals\n^(\\d+/\\d+ tests|\\d+ tests, )\nprogress: (\\d+)/(\\d+) tests\nlabel: Running tests\ncommands: scripts/tested\n")
+    folder = tmp_path / "tested"
+    folder.mkdir()
+    (folder / "parts").write_text("R\n")
+    (folder / "0.out").write_text("".join(f"{n}/24 tests --- PASS: TestNumber{n} (0.01s)\n" for n in range(1, 25)) + "24 tests, 0 failed\n")
+    output = outputs.save(CommandOutput(chain="tested", command="scripts/tested ./cli/", folder=str(folder), watch_reader="go-tests", ended=True, status=0), Actor.system())
+    assert app.container.get(OutputViews).ended_summary(output) == "24 tests, 0 failed", "the agent is told how the run ended, its progress lines left on the card"
+
+
 def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_settings_page_shows_it_and_its_own_suite_never_waits(app: App, tmp_path):
     import threading
     from journal.repositories.environments import Environments
