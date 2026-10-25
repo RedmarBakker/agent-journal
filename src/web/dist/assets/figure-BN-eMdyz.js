@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-CBNZ3lrY.js
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-Dur5DaWM.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-C8a6xjNv.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DVdvpaHQ.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DMSWK0ZX.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> fc3159395 (A docked chat card of a running command shows how long it has run, counting up each second in the viewer from the run's start time, and its total once it ends):src/web/dist/assets/figure-DDyn3Jae.js
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DFvPyEoz.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-CWWv_aTN.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
