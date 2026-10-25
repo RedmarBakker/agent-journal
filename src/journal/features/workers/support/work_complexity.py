@@ -16,7 +16,7 @@ REPEATED_SEND_BACKS = 2
 
 @dataclass(frozen=True)
 class WorkComplexity:
-    """How complex a worker's merged work was, from what is recorded of it: the lines and files it changed, the times it was sent back, its tool uses, its minutes, the tests it added and whether its brief named its files; scored in points, which call for the fast model under a few, the strongest from many and the general one between. Set against the model it ran on, work on a stronger model than it called for was too strong, and work sent back again and again on a weaker one too weak."""
+    """How complex a worker's merged work was, from what is recorded of it: the lines and files it changed, the times it was sent back, its tool uses, its minutes, the tests it added and whether its brief named its files; scored in points, which call for the fast model under a few, the strongest from many and the general one between. Set against the model it ran on, work on a stronger model than it called for was too strong, and work sent back again and again on a weaker one too weak; work with no edit recorded is not judged."""
 
     lines: int
     files: int
@@ -41,7 +41,7 @@ class WorkComplexity:
         return ModelFit(self.points(), called_for, tier, self.measured(tier, called_for))
 
     def measured(self, tier: ModelTier, called_for: ModelTier) -> str:
-        if tier == ModelTier.UNKNOWN:
+        if tier == ModelTier.UNKNOWN or not self.files:
             return ""
         if tier.rank() > called_for.rank():
             return TOO_STRONG

@@ -2440,5 +2440,6 @@ def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_mo
     assert [small.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["right", "too strong", "too strong"], "small work on a stronger model than it needs is too strong"
     assert [large.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["too weak", "too weak", "right"], "large work sent back again and again on a weaker model is too weak"
     assert WorkComplexity(600, 12, 0, 200, 120, 5, True).fit(ModelTier.GENERAL).measured == "right", "on a weaker model with no send-backs it did the work"
+    assert WorkComplexity(0, 0, 0, 5, 1, 0, True).fit(ModelTier.STRONGEST).measured == "", "work with no edit recorded is not judged, so no line is drawn from it"
     assert WorkComplexity(20, 1, 0, 15, 10, 1, False).points() == small.points() + 1, "a brief that names no files makes the work harder"
     assert small.fit(ModelTier.UNKNOWN).measured == "" and [Claude().tier(model) for model in ("claude-haiku-5-5", "sonnet", "claude-opus-5-5", "fable")] == [ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST, ModelTier.UNKNOWN]
