@@ -116,7 +116,6 @@ class ReaderJudge:
         last = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), lines[-1])
         return [(f"the run took {seconds:.0f} seconds and {SUMMARY_READER_MISSING}", f"give the reader a --summary pattern that picks the figures of its summary line, \"{last[:120]}\", in a few words, such as --summary '(\\d+ failed), (\\d+ passed)'")]
 
-    @staticmethod
     def prints_total(self, output: CommandOutput) -> bool:
         files = OutputFiles(Path(output.folder))
         return files.is_stored() and CountForms.has_total(files.lines())
