@@ -12631,14 +12631,13 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a
 def test_one_wait_holds_a_test_run_and_the_workers_still_out(app: App, monkeypatch):
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
-    from journal.features.tasks.states.external_wait import ExternalWait
     workspace_made(app, ("platform",))
     worktree_worker(app, monkeypatch, "platform totals")
     with app.container.get(Scope).environment(MAIN):
         run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-both", command="python3 scripts/suite.py", session="s1"), Actor.agent("s1"))
     waited = app.console().run(["worker", "wait", "1", "--output", str(run.id)], AGENT)
     assert waited.code == 0, waited.error
-    assert f"output {run.id}" in waited.output and "workers 1" in waited.output, waited.output
+    assert f"output {run.id}" in waited.text and "workers 1" in waited.text, waited.text
     refs = hook(app, "Stop")[1]
     assert "journal worker wait" not in refs.get("reason", ""), "a stop while one wait holds the run and the worker is let through"
 
