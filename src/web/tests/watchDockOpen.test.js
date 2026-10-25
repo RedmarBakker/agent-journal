@@ -159,3 +159,12 @@ test("a docked card of a running command counts its run up each second from its 
     expect(read).not.toHaveBeenCalled();
     vi.useRealTimers();
 });
+
+test("a docked run that failed shows red by the outcome its card reports, never the green of a card with no tone", async () => {
+    const failed = {...watched, data: {...watched.data, ending: "failed with code 1", outcome: "failed", tone: undefined}};
+    const host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(WatchDock, {message: failed})});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-state").dataset.state).toBe("bad");
+});

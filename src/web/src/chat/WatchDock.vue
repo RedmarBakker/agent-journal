@@ -19,7 +19,10 @@ const {colleague} = useColleague();
 const card = computed(() => props.message.data);
 // the badge on the dock's icon and its progress bar, in the colour of the state of its run: running, passed (good) or failed (bad)
 const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad: "var(--tone-bad)"};
-const runState = computed(() => (card.value.ending ? card.value.tone || "good" : "running"));
+// how the run ended, as its card reports it, or as its colour said on a card from before cards reported their outcome
+const ENDED = {passed: "good", failed: "bad"};
+const endedTone = computed(() => ENDED[card.value.outcome] || card.value.tone || "good");
+const runState = computed(() => (card.value.ending ? endedTone.value : "running"));
 const lines = computed(() => (card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean).slice(-SHOWN_LINES));
 const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
 
@@ -78,7 +81,7 @@ watch(
             </ul>
         </template>
         <template v-if="card.fraction > 0">
-            <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''" :data-figure-began="createdAt(message)">
+            <div class="watch-dock-bar" :data-figure-bar="card.ending ? endedTone : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width, background: STATE_TONES[runState]}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>
         </template>

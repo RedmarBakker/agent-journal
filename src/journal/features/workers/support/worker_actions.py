@@ -144,7 +144,7 @@ class WorkerActions:
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
         closed = self.tasks.save(task.finished_by_merge(datetime.now(timezone.utc), outcome, worker.id), actor)
-        self.tasks.release(Ref.build(worker), actor)
+        self.tasks.release_task(Ref.build(worker), task.id, actor)
         self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         self.moves.cleared(worker)
@@ -166,6 +166,9 @@ class WorkerActions:
         return self.send_next(n, actor, WorkerReused)[0]
 
     def send_next(self, n: int, actor: Actor, reused: type[WorkerReused]) -> tuple[str, int]:
+        current_tasks = self.tasks.holder_task_ids(Ref.build(self.workers.find(n)))
+        if current_tasks:
+            return f"it is already on task {current_tasks[0]} from its queue", current_tasks[0]
         queued = self.tasks.queue(Ref.build(self.workers.find(n)))
         if not queued:
             return "", 0

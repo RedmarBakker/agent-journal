@@ -12515,6 +12515,27 @@ def checked_and_merged(app: App, n: int = 1):
     return console.run(["worker", "merge", str(n)], AGENT)
 
 
+def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queued_task_keeps_it(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console, tasks = app.console(), app.container.get(Tasks)
+    committed(worktree, "notes.md", "the notes\n")
+    assert proved_and_out(app, caller, "notes.md:1").code == 0
+    for title in ("the second job", "the third job"):
+        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "3"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        tasks.handover(tasks.find(2), Ref("workers", 1), Actor.system())
+    merged = checked_and_merged(app)
+    assert merged.code == 0, merged.error
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(1).state == "done", "the merged task is closed"
+        assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.find(2).state == "delegated", "the task the worker went on to stays its own, never let go by the merge of the one before"
+        assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).state == "delegated", "and the merge hands it no second task: the next stays queued"
+
+
 def test_a_workspace_worker_gets_worktrees_of_the_repositories_its_brief_names_as_whole_words_in_any_case(app: App, monkeypatch):
     workspace_made(app, ("platform", "mobile", "docs"))
     worker, folder, _ = worktree_worker(app, monkeypatch, "fix the Platform invoices and their docstrings")
