@@ -3452,18 +3452,11 @@ def test_a_messages_mentions_reach_the_viewer_as_refs(app: App):
 def hub_mentions_of(app: App, team: str) -> list[str]:
     from journal.models.environment import Environment
     from journal.repositories.environments import Environments
-    from journal.sync.team_account import TEAM_FILE
-    from journal.config import Config
-    home = app.container.get(Config).home
-    app.container.get(Environments).save(Environment.hub("acme-key", "acme"), Actor.system())
-    (home / TEAM_FILE).write_text(json.dumps({"team_name": team, "team_key": "acme-key"}))
-    try:
-        hook(app, "SessionStart")
-        app.console().run(["message", "send", "look at acme plan 12"], USER)
-        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-            return json.loads(reply.read())["rows"][-1]["mentions"]
-    finally:
-        (home / TEAM_FILE).unlink()
+    app.container.get(Environments).save(Environment.hub(f"{team}-key", team), Actor.system())
+    hook(app, "SessionStart")
+    app.console().run(["message", "send", "look at acme plan 12"], USER)
+    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+        return json.loads(reply.read())["rows"][-1]["mentions"]
 
 
 def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_plan(app: App):
@@ -11415,7 +11408,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         for journal in (a, b):
             names = [environment.name for environment in journal.container.get(Environments).rows()]
             assert len(names) == len(set(names)), f"no two environments share a name: {names}"
-        assert eventually(lambda: all(a.container.get(EnvironmentOwners).owner_number(environment.row_id) for environment in a.container.get(Environments).rows() if not environment.is_team_chat)), "every environment but the Team chat has an owner"
+        assert eventually(lambda: all(a.container.get(EnvironmentOwners).owner_number(environment.row_id) for environment in a.container.get(Environments).rows() if environment.is_personal())), "every environment but the Team chat and the hub has an owner"
         assert not any(c.container.get(EnvironmentOwners).is_colleague(Actor.user(1), environment.row_id) for environment in c.container.get(Environments).rows()), "a journal in no team has no colleagues"
         def ada_name(journal):
             return "main" if journal is a else "ada-main"
@@ -11614,15 +11607,15 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         assert joined.code == 0, joined.error
         named = team.details.answer()
         assert (named.key, named.number, named.name) == (new.key, new.number, "acme"), "the first journal names the team after its checkout's folder, and the key and T stay as drawn"
-        [hub] = a.container.get(Environments).hubs(new.key)
+        [hub] = a.container.get(Environments).hubs()
         assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentKind.HUB, new.key), "the first journal makes the team's hub environment"
         assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
         bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_b.code == 0, joined_b.error
-        assert [(row.row_id, row.key, row.kind) for row in b.container.get(Environments).hubs(new.key)] == [(hub.row_id, hub.key, EnvironmentKind.HUB)], "a later journal finds the same hub, and makes no second one"
-        assert [row.row_id for row in a.container.get(Environments).hubs(new.key)] == [hub.row_id], "and the first journal still holds one"
-        assert [(journal.container.get(TeamAccount).team_key(), journal.container.get(TeamAccount).team_name()) for journal in journals] == [(new.key, "acme")] * 2, "each journal keeps the team's key and name, which find its hub"
+        assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentKind.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
+        assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
+        assert [journal.container.get(TeamAccount).team_name() for journal in journals] == ["acme"] * 2, "each journal keeps the team's name, which a row number like acme:12 is read by"
     finally:
         for carrier in carriers:
             carrier.stop()

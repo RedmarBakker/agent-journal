@@ -16,8 +16,8 @@ class Environments(Repository[Environment]):
     def working(self) -> list[Environment]:
         return self.selected(self.query().filter(is_team_chat=False, kind=EnvironmentKind.LOCAL).order("id"))
 
-    def hubs(self, team_key: str) -> list[Environment]:
-        return self.matching(kind=EnvironmentKind.HUB, team_key=team_key)
+    def hubs(self) -> list[Environment]:
+        return self.matching(kind=EnvironmentKind.HUB)
 
     def team_chats(self) -> list[Environment]:
         return self.selected(self.query().filter(is_team_chat=True).order("id"))
