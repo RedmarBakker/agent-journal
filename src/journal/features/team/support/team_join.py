@@ -79,7 +79,7 @@ class TeamJoin:
             self.name_user(login.account_id, login.name)
             self.team_chat_ready(summary.key)
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
-        self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION, "team_key": summary.key, "team_number": summary.number})
+        self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION, "team_key": summary.key, "team_number": summary.number, "on_hub": summary.on_hub})
         outcome = self.downloaded(prefix, login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
         self.hooks.post(ServiceEvent(TEAM_JOINED))
         return outcome

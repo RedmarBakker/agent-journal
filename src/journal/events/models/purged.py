@@ -7,8 +7,8 @@ from journal.support.actor import Actor
 
 @dataclass(frozen=True)
 class Purged(Event):
-    """Rows of one model were deleted together, without a Deleted for each: their numbers and who deleted them."""
+    """Rows of one model were deleted together, without a Deleted for each: the rows as they were stored and who deleted them."""
 
     model: type[Model]
-    ids: tuple[int, ...]
+    rows: tuple[Model, ...]
     actor: Actor

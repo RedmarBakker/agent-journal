@@ -553,7 +553,7 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
 
     config = Config(tmp_path)
     changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
         assert changes.waiting() == [], "a journal in no team queues nothing"
@@ -614,6 +614,14 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
         with pytest.raises(NumberShortage):
             tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
         assert not issubclass(NumberShortage, Rejection), "a shortage is a fault, so a hook lets its event through instead of refusing it"
+
+
+def team_placement(connection, bus, scope, config):
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.team_account import TeamAccount
+    from journal.sync.team_placement import TeamPlacement
+
+    return TeamPlacement(SharedTables(connection, bus), team_scopes(connection, bus, scope), TeamAccount(config))
 
 
 def team_scopes(connection, bus, scope):
@@ -686,8 +694,8 @@ def team_journal(tmp_path, name: str):
     bus = Bus()
     scope = Scope(Environments(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
-    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), ServiceHooks()))
-    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
+    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
     blocks = IdBlocks(connection, bus)
     base = (ord(name[0]) - ord("a")) * 100_000
     for model in AllModels.MODELS:
@@ -986,10 +994,10 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     from journal.repositories.shared_tables import SharedTables
     from journal.sync.journal_copy import JournalCopy
     from sync_server.copied_row import CopiedRow
-    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus), team_scopes(tasks_a.connection, tasks_a.bus, scope_a)).rows()
+    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus), team_scopes(tasks_a.connection, tasks_a.bus, scope_a), team_placement(tasks_a.connection, tasks_a.bus, scope_a, Config(tmp_path / "a"))).rows()
     assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersOptions.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
     settings_b.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make mine"], USER)
-    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b))
+    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b), team_placement(tasks_b.connection, tasks_b.bus, scope_b, Config(tmp_path / "b")))
     stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersOptions.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
     former = [CopiedRow("tasks", 901, {"environment_id": 1, "title": "kept from before the rename", "state": "parked"}, {})]
     copy_b.replace_whole(tuple(copied) + tuple(stray) + tuple(former))

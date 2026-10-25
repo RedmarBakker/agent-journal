@@ -51,7 +51,7 @@ def test_a_new_team_server_draws_its_key_and_a_number_t_below_2_21_once_and_one_
         (tmp_path / name).mkdir()
     first, second = TeamServer(tmp_path / "first"), TeamServer(tmp_path / "second")
     drawn = [team.details.answer() for team in (first, second)]
-    assert all(len(answer.key) == 32 and 0 < answer.number < 2 ** 21 for answer in drawn), "a new server draws a key and a number T above 0 and below 2^21"
+    assert all(len(answer.key) == 32 and 0 < answer.number < 2 ** 21 and answer.on_hub for answer in drawn), "a new server draws a key and a number T above 0 and below 2^21, and is on the hub"
     assert drawn[0].key != drawn[1].key, "each server draws its own key"
     ServerSchema(first.store).migrated()
     assert first.details.answer() == drawn[0], "a second start draws nothing anew"
@@ -66,7 +66,7 @@ def test_a_new_team_server_draws_its_key_and_a_number_t_below_2_21_once_and_one_
     assert TeamDetailRows(old).value("number") == "" and len(TeamDetailRows(old).value("key")) == 32, "a server claimed before stores no number and is given a key"
     old.close()
     reopened = TeamServer(tmp_path / "old")
-    assert reopened.details.answer().number == 0, "and reads T = 0"
+    assert (reopened.details.answer().number, reopened.details.answer().on_hub) == (0, False), "and reads T = 0, not on the hub until it is moved there"
     for store in (first.store, second.store, reopened.store):
         store.close()
 
@@ -278,7 +278,7 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
             assert call(path, {})[0] == 403, f"{path} refuses a request with no token"
         ada = call("/login", {"email": "ada@example.com", "password": PASSWORD, "device_name": "laptop"})[1]["token"]
         upload = {"rows": [{"row_table": "tasks", "row": 1450, "fields": {"title": "from before"}, "changed_at": {"title": 1.0}}], "highest": {"tasks": 1450}, "repository": "", "version": "4.20.0", "migration": 3}
-        drawn = {"key": team.details.answer().key, "number": team.details.number()}
+        drawn = {"key": team.details.answer().key, "number": team.details.number(), "on_hub": True}
         assert call("/team") == (200, {"repository": "", "has_rows": False, "version": "", "migration": 0, "versions": "exact", "has_admin": True, **drawn, "name": ""}), "anyone may ask what the team holds before joining, whether it has its admin, and its key and T"
         assert call("/upload", {**upload, "repository": "abc123", "team_name": "acme"}, ada) == (200, {"rows": 1, "head": 1})
         assert call("/team") == (200, {"repository": "abc123", "has_rows": True, "version": "4.20.0", "migration": 3, "versions": "exact", "has_admin": True, **drawn, "name": "acme"}), "the first copy pins the team to its journal's version and names the team"

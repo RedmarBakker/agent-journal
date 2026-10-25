@@ -22,6 +22,8 @@ from journal.sync.sync_secret import SECRET_FILE
 from journal.sync.team_chat_branch import TEAM_CHAT
 from sync_server.team_server import TeamServer
 
+from before_the_hub import before_the_hub
+
 from carried_sync import CarriedSync
 from main_journal import main_journal
 
@@ -133,6 +135,7 @@ def test_from_a_launch_file_naming_the_journal_alone_its_boot_starts_the_sync_se
     git("clone", "-q", str(root), str(clone))
     (tmp_path / "team-server").mkdir()
     team = TeamServer(tmp_path / "team-server")
+    before_the_hub(team)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     bob = booted(clone, monkeypatch)

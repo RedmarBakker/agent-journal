@@ -110,11 +110,15 @@ class Repository(Generic[M]):
         self.stored()
 
     def purged_rows(self, model: type[Model], query: Query, actor: Actor) -> None:
-        ids = tuple(row["id"] for row in self.connection.all(*query.select()))
-        if not ids:
+        rows = tuple(self.stored_model(model, row) for row in self.connection.all(*query.select()))
+        if not rows:
             return
         self._purged(query)
-        self.bus.dispatch(Purged(model=model, ids=ids, actor=actor))
+        self.bus.dispatch(Purged(model=model, rows=rows, actor=actor))
+
+    @staticmethod
+    def stored_model(model: type[Model], row) -> Model:
+        return model(**{column.name: value for column in Schema.columns(model) if (value := column.parsed(row[column.name])) is not None})
 
     def linked(self, kind: str, ids: Iterable[int]) -> dict[int, list[Ref]]:
         return self._linked(self.link_query.filter(kind=kind).filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))

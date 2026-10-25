@@ -6,6 +6,7 @@ import re
 import signal
 import subprocess
 import time as timing
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 from pathlib import Path
 from urllib.error import HTTPError
@@ -13,6 +14,7 @@ from urllib.request import Request as HttpRequest, urlopen
 
 import pytest
 
+from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
@@ -23,6 +25,7 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.tool_call import ToolCall
 
 from journal.app import App
+from journal.sync.team_account import TeamAccount
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
 from journal.supervisor_link import SupervisorLink
@@ -11571,6 +11574,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
     git("-C", str(tmp_path / "c"), "-c", "user.name=Eve", "-c", "user.email=eve@example.com", "commit", "-q", "--allow-empty", "-m", "another")
     (tmp_path / "server").mkdir()
     team = TeamServer(tmp_path / "server")
+    before_the_hub(team)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc"]
@@ -11928,7 +11932,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         assert all(any(block["row_table"] == table and block["first_number"] <= number <= block["last_number"] for block in blocks) for table, number in (("environments", kept_lab.row_id), ("tasks", kept_task.id), ("messages", kept_message.id))), "its own rows are renumbered into the team's blocks for this device"
         assert b.container.get(Links).connecting(kept_task, kept_message) and kept_task.creator == Actor.user(2), "the link between them is renumbered with them, and the person's stamp names their team account"
         assert b.container.get(Attachments).path("messages", kept_message.id, "note.txt").read_bytes() == b"kept", "a kept message's file moves to its new number"
-        assert {task.title for task in a.container.get(Tasks).global_matching()} <= {task.title for task in b.container.get(Tasks).global_matching()}, "the team's rows are laid in beside the kept ones, none in place of one"
+        assert {row.fields.get("title") for row in team.log.copied_rows() if row.row_table == "tasks"} <= {task.title for task in b.container.get(Tasks).global_matching()}, "the team's rows are laid in beside the kept ones, none in place of one"
         assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
         assert [journal.container.get(HubRows).number("acme:12") for journal in journals] == [12, 12], "each journal reads acme:12 by the team's name on its hub"
         accounts = [journal.container.get(TeamAccount) for journal in journals]
@@ -11953,6 +11957,86 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         for journal in journals:
             journal.runtime().stop()
         team.close(server)
+
+
+@contextmanager
+def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
+    """Ada's and Bob's journals of one repository joined to a team server in this process, on the hub or, for a team from before it, not."""
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "acme"))
+    git("-C", str(tmp_path / "acme"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "acme"), str(tmp_path / "b"))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    if not on_hub:
+        before_the_hub(team)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("acme", "b"))
+    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    carriers = [CarriedSync(journal).started() for journal in (a, b)]
+    try:
+        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
+        invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
+        joined = b.console().run(["team", "join", invitation, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        yield team, a, b
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in (a, b):
+            journal.runtime().stop()
+        team.close(server)
+
+
+def ada_tasks(a: App) -> tuple:
+    """A task in Ada's own environment, then one in the team's hub."""
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.tasks import Tasks
+
+    environments = a.container.get(Environments)
+    tasks = []
+    for environment, title in ((environments.existing("main"), "Ada's own"), (environments.hubs()[0], "the team's work")):
+        with a.container.get(Scope).environment(environment.row_id):
+            tasks.append(a.container.get(Tasks).save(Task(environment_id=environment.row_id, title=title), Actor.user(1)))
+    return tuple(tasks)
+
+
+def synced(check) -> bool:
+    deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+    while timing.monotonic() < deadline:
+        if check():
+            return True
+        timing.sleep(0.05)
+    return False
+
+
+def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_a_hub_task_reaches_the_other_journal(tmp_path, template_journal, monkeypatch):
+    from journal.repositories.tasks import Tasks
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b):
+        assert a.container.get(TeamAccount).is_on_hub(), "a new team server is on the hub, and the join says so"
+        own, hub_task = ada_tasks(a)
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "a task in the hub reaches the other journal"
+        assert team.log.row("tasks", own.id) is None and not b.container.get(Tasks).global_matching(id=own.id), "a task in Ada's own environment, written before it, never reaches the team server or Bob"
+        assert own.id > 0 and a.container.get(Tasks).find(own.id).title == "Ada's own", "and stays on her journal, numbered as before"
+
+
+def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
+    from journal.repositories.tasks import Tasks
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b):
+        assert not a.container.get(TeamAccount).is_on_hub()
+        own, hub_task = ada_tasks(a)
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)) and bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task as before, beside the hub's"
+        assert team.log.row("tasks", own.id) is not None
 
 
 def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_server_has_the_team_hold_each_environment_before_any_message_in_it(tmp_path, template_journal, monkeypatch):
@@ -11990,6 +12074,7 @@ def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_serve
     git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
     (tmp_path / "server").mkdir()
     team = TeamServer(tmp_path / "server")
+    before_the_hub(team)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     a = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
@@ -12067,6 +12152,7 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
     git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
     (tmp_path / "server").mkdir()
     team = TeamServer(tmp_path / "server")
+    before_the_hub(team)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     a = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
@@ -12379,6 +12465,7 @@ def test_a_member_opens_the_shared_journal_from_their_own_journal_by_a_one_time_
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     ada = team.accounts.create("ada@example.com", "Ada", "correct horse battery", MEMBER, 1.0)
     team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
     _, ada_token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -12437,6 +12524,7 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
@@ -12518,6 +12606,7 @@ def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_th
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
@@ -12601,6 +12690,7 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -12690,6 +12780,7 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
     monkeypatch.setattr(Updater, "restart", lambda self: steps.append("restarted"))
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.details.record_version(pinned)
     server = team.started("127.0.0.1", 0)
     account = app.container.get(TeamAccount)
@@ -12765,6 +12856,7 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
 
@@ -13207,6 +13299,7 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
     git("remote", "add", "origin", str(tmp_path / "origin.git"))
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -13315,6 +13408,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
     git("remote", "add", "origin", str(tmp_path / "origin.git"))
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -13434,6 +13528,7 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
     git("remote", "add", "origin", str(tmp_path / "origin.git"))
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -13556,6 +13651,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
@@ -14482,6 +14578,7 @@ def joined_team(app: App):
     folder = app.config.root / "team-server"
     folder.mkdir()
     team = TeamServer(folder)
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     server = team.started("127.0.0.1", 0)
     answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
@@ -15304,6 +15401,7 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
+    before_the_hub(team)
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"

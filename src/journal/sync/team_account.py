@@ -35,6 +35,9 @@ class TeamAccount:
     def team_key(self) -> str:
         return str(self.contents().get("team_key", UNKNOWN_TEAM_KEY)) if self.is_joined() else ""
 
+    def is_on_hub(self) -> bool:
+        return bool(self.contents().get("on_hub", False))
+
     def team_number(self) -> int:
         return int(self.contents().get("team_number", 0))
 

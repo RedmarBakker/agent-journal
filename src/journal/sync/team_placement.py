@@ -14,7 +14,7 @@ NO_TEAM = ""
 
 
 class TeamPlacement:
-    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none."""
+    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, account: TeamAccount) -> None:
         self.tables, self.scopes, self.account = tables, scopes, account
@@ -30,6 +30,9 @@ class TeamPlacement:
 
     def is_team_row(self, row: Model) -> bool:
         return bool(self.team_key(row))
+
+    def is_sent(self, row: Model) -> bool:
+        return self.is_team_row(row) if self.account.is_on_hub() else self.scopes.is_team_row(row)
 
     @staticmethod
     def environment_team(environment: Environment) -> str:
