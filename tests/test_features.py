@@ -13593,7 +13593,7 @@ def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_
             plan = journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the launch"), Actor.user(1))
         assert console.run(["plan", "drive", str(plan.id)], USER).code == 0
         added = console.run(["plan", "add", str(plan.id), "the footer", "--brief", "the footer names the shop"], AGENT)
-        assert added.code == 0 and added.text.strip().endswith(f"on the {hub.team_name} hub"), added.text
+        assert added.code == 0 and added.text.splitlines()[0].endswith(f"on the {hub.team_name} hub"), added.text
         task = next(row for row in journal.container.get(Tasks).global_matching(title="the footer"))
         assert task.environment_id == hub.row_id, "a task added to the driven plan is a hub row"
         reported = console.run(["report", "create", "What the footer test found", "--body", "it names the shop", "--about", f"tasks:{task.id}"], AGENT)
@@ -13602,7 +13602,7 @@ def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_
         notes = tmp_path / "notes.md"
         notes.write_text("# Notes\n\nthe footer\n")
         made = console.run(["doc", "create", "Footer notes", "--file", str(notes)], AGENT)
-        assert made.code == 0 and made.text.strip().endswith(f"kept in {main.name} on this machine"), made.text
+        assert made.code == 0 and made.text.splitlines()[0].endswith(f"kept in {main.name} on this machine"), made.text
         assert journal.container.get(Docs).global_matching(title="Footer notes")[0].environment_id == main.row_id, "any other row made while driving stays local"
     finally:
         journal.runtime().stop()
