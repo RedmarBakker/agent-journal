@@ -6,6 +6,7 @@
     python3 scripts/e2e_team.py checks    # every check, one line each
     python3 scripts/e2e_team.py stop      # the scratch journals; the test server is left running
 """
+import http.client
 import json
 import os
 import shutil
@@ -189,7 +190,32 @@ def check_share_and_unshare() -> str:
 def check_server_holds_only_team_rows() -> str:
     environments = [row for row in server_rows() if row["table"] == "environments"]
     personal = [row.get("team_name") for row in environments if row.get("kind") not in ("hub", "session") and not is_shared(row)]
-    return f"{'OK' if not personal else 'FAIL (waits on the migration task)'}: environments on the server: {[row.get('team_name') for row in environments]}; not the team's: {personal}"
+    return f"{'OK' if not personal else 'FAIL'}: environments on the server: {[row.get('team_name') for row in environments]}; not the team's: {personal}"
+
+
+def hosted(method: str, path: str, body: dict | None = None, cookie: str = "") -> http.client.HTTPResponse:
+    connection = http.client.HTTPConnection(SERVER, 80, timeout=30)
+    headers = {"Content-Type": "application/json", "X-Journal-Env": hubs("a")[0]["name"], **({"Cookie": cookie} if cookie else {})}
+    connection.request(method, path, json.dumps(body).encode() if body is not None else None, headers)
+    return connection.getresponse()
+
+
+def signed_in() -> str:
+    email, _ = PEOPLE["a"]
+    reply = hosted("POST", "/sign-in", {"email": email, "password": PASSWORD})
+    cookie = (reply.getheader("Set-Cookie") or "").split(";")[0]
+    return cookie if reply.status == 303 and cookie else ""
+
+
+def check_hosted_journal() -> str:
+    cookie = waiting_for(signed_in, 180)
+    if not cookie:
+        return "FAIL: the hosted journal took no sign-in with a's team account within three minutes"
+    reply = hosted("GET", "/journal/environments", cookie=cookie)
+    rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
+    hub = next((row for row in rows if row.get("kind") == "hub"), None)
+    found = bool(hub) and hub.get("team_key") == hubs("a")[0]["team_key"]
+    return f"{'OK' if found else 'FAIL'}: a signed in to the hosted journal at http://{SERVER} and it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]})"
 
 
 def check_pre_hub_copy() -> str:
@@ -197,7 +223,7 @@ def check_pre_hub_copy() -> str:
 
 
 CHECKS = (("team key and hub", check_team_key_and_hub), ("hub write reaches the other journal and the server", check_hub_write), ("a personal task never reaches the server", check_personal_task),
-          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("a pre-hub team journal migrates", check_pre_hub_copy))
+          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("a pre-hub team journal migrates", check_pre_hub_copy))
 
 
 def checks() -> None:
