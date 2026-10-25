@@ -74,3 +74,29 @@ test("seated turned along an edge, as at either corner, its legs stay inside the
         }
     }
 });
+
+test("seated facing the viewer, the thighs show on screen at least half their standing length, the knees forward of the hips and apart", () => {
+    // the length of a thigh as the viewer sees it, the camera looking along the figure's forward line: across and up the picture alone
+    const shown = (hip, knee) => Math.hypot(knee.x - hip.x, knee.z - hip.z);
+    for (const voice of Object.keys(stances)) {
+        for (const name of ["idle", "ledge_sit", "doze"]) {
+            for (const u of [0, 0.25, 0.5, 0.75]) {
+                for (const facing of [0, 15, 345]) {
+                    const at = seated(name, u, voice, facing);
+                    const label = `${voice} ${name} ${u} turned ${facing}`;
+                    const shares = ["l", "r"].map((side) => {
+                        const standing = RIG.heads.get(`thigh_${side}`).distanceTo(RIG.heads.get(`shin_${side}`));
+                        const [hip, knee] = [at(`thigh_${side}`), at(`shin_${side}`)];
+                        expect(hip.y - knee.y, `${label} ${side} knee in front of the hip`).toBeGreaterThan(0.2);
+                        return shown(hip, knee) / standing;
+                    });
+                    // square to the viewer each thigh shows half its length or more; turned a little, the thigh turned toward the viewer
+                    // shows less and the other more, so the two together still do
+                    if (facing === 0) for (const share of shares) expect(share, `${label} thigh shown`).toBeGreaterThanOrEqual(0.5);
+                    expect((shares[0] + shares[1]) / 2, `${label} thighs shown`).toBeGreaterThanOrEqual(0.5);
+                    expect(Math.abs(at("shin_l").x - at("shin_r").x), `${label} knees apart`).toBeGreaterThan(Math.abs(at("thigh_l").x - at("thigh_r").x));
+                }
+            }
+        }
+    }
+});

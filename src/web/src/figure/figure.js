@@ -656,9 +656,12 @@ const WALK_STRIDE = [1.36, 0.6, 0.16];
 const DEPART_TURN = 0.14;
 const SEAT_LIFT = 0.2;
 // sitting on an edge, how far each thigh is raised from hanging, so it slopes down a little over the edge from the hips, and how far each
-// knee bends, so the shins hang straight down past the edge, as a person sits on a wall with the legs loose
+// knee bends, so the shins hang straight down past the edge, as a person sits on a wall with the legs loose; and how far each thigh turns out
+// from straight ahead, the knees forward and apart and the feet hanging apart under them, so a figure seated facing the viewer shows its
+// thighs, which pointing straight at the viewer would vanish and leave it short-legged
 const SEAT_THIGH = 66;
 const SEAT_SHIN = 68;
+export const SEAT_SPREAD = 16;
 const PULL_GRIP_X = 1.51;
 const PULL_GRIP_Y = -0.0233463035019455;
 const PULL_GRIP_Z = 3.17;
@@ -760,7 +763,7 @@ function restOnKnee(pose, side) {
 
 function seatedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
-        pose.turn(`thigh_${side}`, {x: -SEAT_THIGH});
+        pose.turn(`thigh_${side}`, {x: -SEAT_THIGH, z: sign * SEAT_SPREAD});
         pose.bend(`shin_${side}`, SEAT_SHIN + sign * 9 * pose.sway);
         pose.turn(`foot_${side}`, {x: -sign * 5 * pose.sway + (side === "r" ? pose.tap : 0)});
     }

@@ -1,6 +1,7 @@
 """Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind and the commands an agent runs on its plan are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read and a read the viewer polls."""
 
 import json
+import math
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -94,7 +95,8 @@ STARTED_PLAN = 1
 # a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
 POINTS_BUDGET = 30
 # the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
-# each is brought down to the budget; a run that finds no file writes it, so deleting it takes the new points once one has come down
+# each is brought down to the budget; a run that finds no file writes it, so deleting it takes the new points once one has come down;
+# each is kept three over what it spent, rounded up to five, since the bytes an answer loads vary by a few with the timings its entries record
 BASELINE = Path(__file__).with_name("route_points_baseline.json")
 MISSING = not BASELINE.is_file()
 
@@ -185,7 +187,7 @@ def spent(name: str, loads: RequestLoads) -> str:
 def recorded(spending: dict[str, RequestLoads]) -> dict[str, RequestLoads]:
     if MISSING:
         kept = json.loads(BASELINE.read_text()) if BASELINE.is_file() else {}
-        BASELINE.write_text(json.dumps(dict(sorted({**kept, **{name: loads.points() for name, loads in spending.items() if loads.points() > POINTS_BUDGET}}.items())), indent=1) + "\n")
+        BASELINE.write_text(json.dumps(dict(sorted({**kept, **{name: math.ceil((loads.points() + 3) / 5) * 5 for name, loads in spending.items() if loads.points() > POINTS_BUDGET}}.items())), indent=1) + "\n")
     return spending
 
 

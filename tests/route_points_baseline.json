@@ -1,12 +1,12 @@
 {
- "GET /journal/bar": 75,
- "POST /cli/task complete": 49,
- "POST /journal/plans/1": 81,
- "POST /journal/tasks/1/finish": 61,
- "hook MessageDisplay": 131,
- "hook SessionStart": 282,
- "hook Stop": 38,
- "hook StopFailure": 124,
- "hook SubagentStart": 120,
- "hook SubagentStop": 122
+ "GET /journal/bar": 80,
+ "POST /cli/task complete": 55,
+ "POST /journal/plans/1": 85,
+ "POST /journal/tasks/1/finish": 65,
+ "hook MessageDisplay": 135,
+ "hook SessionStart": 285,
+ "hook Stop": 45,
+ "hook StopFailure": 130,
+ "hook SubagentStart": 125,
+ "hook SubagentStop": 125
 }
