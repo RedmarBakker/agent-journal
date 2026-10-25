@@ -195,16 +195,17 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
+        if not caller.actor.is_user() and not self.is_approving_orchestrator(caller):
+            raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.is_user() and not self.is_approver(caller, plan):
+        if not caller.actor.is_user() and not PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor):
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.approve(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
-    def is_approver(self, caller: Caller, plan: Plan) -> bool:
-        allowed = self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
-        return allowed and PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor)
+    def is_approving_orchestrator(self, caller: Caller) -> bool:
+        return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
 
     def is_orchestrator(self, caller: Caller) -> bool:
         return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator"

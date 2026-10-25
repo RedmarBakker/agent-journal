@@ -17541,6 +17541,20 @@ def test_the_sync_service_is_handed_the_pull_query_and_the_waiting_files_and_its
     server.shutdown()
 
 
+def test_every_line_of_the_command_corpus_carries_every_expectation():
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    expected = {"work", "reader", "needs", "cut", "label"}
+    half = [n for n, row in enumerate(rows, 1) if not isinstance(row.get("line"), str) or not isinstance(row.get("parts"), list) or set(row.get("reading", {})) != expected or not all(isinstance(value, str) for value in row["reading"].values())]
+    assert not half, f"{len(half)} corpus lines lack an expectation (line, parts, and a reading of work, reader, needs, cut and label), the first: {half[:5]}"
+
+
+def test_every_line_of_the_command_corpus_is_labelled_by_what_its_working_part_does():
+    from journal.features.shell.support.activity_label import ActivityLabel
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    wrong = [(n, row["line"][:100], row["reading"]["label"], got) for n, row in enumerate(rows, 1) if (got := ActivityLabel.line_label(row["line"])) != row["reading"]["label"]]
+    assert not wrong, f"{len(wrong)} corpus lines are labelled otherwise than their reading names, the first: {wrong[:3]}"
+
+
 def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_names(app: App):
     """Each corpus line's reading names the reader that should read its output, of the fixed set in shell_corpus_reading/readers.json; the lines where the journal chooses otherwise are frozen in disagreements.json, so a fix shrinks the list and a new miss fails; CORPUS_FREEZE=1 writes the list anew after review."""
     from journal.features.shell.support.readers import Readers
