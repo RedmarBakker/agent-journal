@@ -1,3 +1,4 @@
+import time
 from functools import partial
 
 from journal.events.listener import Listener
@@ -13,8 +14,11 @@ from journal.support.listener_queue import ListenerQueue
 from journal.features.plugins.plugins_options import PluginsOptions
 
 
+# the least time a plugin is given to answer once a place came late in its window
+PLACE_SECONDS_LEAST = 0.05
+
 class PluginMergeRelay(Listener[WorkerMergeEvent]):
-    """The plugins that receive a worker's merge: one that listens for worker_merging is asked before the branch is merged, inside its window capped by the merge window setting and with at most so many merges asked about at once, and its refusal blocks the merge with its reason; every other one receives it, and worker_merge_landed, after the reply."""
+    """The plugins that receive a worker's merge: one that listens for worker_merging is asked before the branch is merged, inside its window capped by the merge window setting, which bounds both the wait for a place among the merges asked about at once and the answer, and its refusal blocks the merge with its reason; every other one receives it, and worker_merge_landed, after the reply."""
 
     def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows, queue: MergeQueue) -> None:
         self.relay, self.deferred, self.settings, self.queue = relay, deferred, settings, queue
@@ -33,5 +37,9 @@ class PluginMergeRelay(Listener[WorkerMergeEvent]):
         return decision
 
     def plugin_answer(self, plugin: Plugin, event: WorkerMergeEvent, window_ms: int) -> PluginAnswer:
-        with self.queue.place():
-            return self.relay.ask(plugin, event, event.environment_id, window_ms / 1000)
+        began, window = time.monotonic(), window_ms / 1000
+        with self.queue.place(window) as placed:
+            if not placed:
+                self.relay.unanswered(plugin, event, event.environment_id, f"no place to ask it within the {window:g} seconds of the merge window, {self.queue.asked} merges were being asked about")
+                return PluginAnswer()
+            return self.relay.ask(plugin, event, event.environment_id, max(window - (time.monotonic() - began), PLACE_SECONDS_LEAST))

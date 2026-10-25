@@ -13818,8 +13818,8 @@ def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: Ap
     queue, inside, release, third = app.container.get(MergeQueue), [], threading.Event(), threading.Event()
 
     def merge(name: str, done: threading.Event | None = None) -> None:
-        with app.container.get(Scope).environment(MAIN), queue.place():
-            inside.append(name)
+        with app.container.get(Scope).environment(MAIN), queue.place(10) as placed:
+            inside.append(name if placed else f"{name} found no place")
             if done:
                 done.set()
             release.wait(5)
@@ -13834,6 +13834,17 @@ def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: Ap
     release.set()
     assert third.wait(5), "and goes on once a place is free"
     for thread in threads:
+        thread.join(5)
+    release.clear()
+    holders = [threading.Thread(target=merge, args=(name,)) for name in ("fourth", "fifth")]
+    for thread in holders:
+        thread.start()
+    while len(inside) < 5:
+        time.sleep(0.01)
+    with queue.place(0.2) as placed:
+        assert not placed, "a merge that finds no place within its window goes on without asking, never waiting past it"
+    release.set()
+    for thread in holders:
         thread.join(5)
 
 

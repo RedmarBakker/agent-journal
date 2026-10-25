@@ -7,7 +7,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class MergeQueue:
-    """The worker merges that plugins are asked about at once; a merge past the setting waits here for a place, and its wait is not counted against its window."""
+    """The worker merges that plugins are asked about at once; a merge past the setting waits here for a place within the seconds it is given, and one that finds none goes on without asking."""
 
     def __init__(self, settings: SettingRows) -> None:
         self.settings, self.asked, self.condition = settings, 0, Condition()
@@ -17,13 +17,15 @@ class MergeQueue:
         return limit == 0 or self.asked < limit
 
     @contextmanager
-    def place(self) -> Iterator[None]:
+    def place(self, seconds: float) -> Iterator[bool]:
         with self.condition:
-            self.condition.wait_for(self.has_place)
-            self.asked += 1
+            placed = self.condition.wait_for(self.has_place, seconds)
+            if placed:
+                self.asked += 1
         try:
-            yield
+            yield placed
         finally:
-            with self.condition:
-                self.asked -= 1
-                self.condition.notify_all()
+            if placed:
+                with self.condition:
+                    self.asked -= 1
+                    self.condition.notify_all()
