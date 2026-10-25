@@ -26,6 +26,12 @@ class Workers(ScopedRepository[Worker]):
     def running_workers(self) -> list[Worker]:
         return [worker for worker in self.scoped() if worker.is_running()]
 
+    def has_idle(self) -> bool:
+        return any(worker.is_idle() for worker in self.scoped())
+
+    def has_unanswered(self, time: float, seconds: float) -> bool:
+        return any(worker.is_unanswered(time, seconds) for worker in self.scoped())
+
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]
 

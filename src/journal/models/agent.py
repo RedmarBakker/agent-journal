@@ -43,11 +43,15 @@ class Agent(Scoped):
     research_uses: tuple[int, ...] = ()
     handover_uses: tuple[int, ...] = ()
     file_edit_uses: tuple[int, ...] = ()
-    checked_uses: tuple[int, ...] = ()
     merge_uses: tuple[int, ...] = ()
-    read_merge_uses: tuple[int, ...] = ()
-    idle_slot_uses: tuple[int, ...] = ()
+    prepared_merge_uses: tuple[int, ...] = ()
+    reuse_uses: tuple[int, ...] = ()
+    fresh_idle_uses: tuple[int, ...] = ()
+    briefed_uses: tuple[int, ...] = ()
+    late_worker_uses: tuple[int, ...] = ()
+    late_task_uses: tuple[int, ...] = ()
     is_proof_read: bool = False
+    is_test_run: bool = False
     mode: str = ""
     mode_started_use: int = 0
     inbox_position: int = 0
@@ -110,19 +114,30 @@ class Agent(Scoped):
     def in_mode(self, mode: str) -> "Agent":
         return self if self.mode == mode else self.with_(mode=mode, mode_started_use=self.tool_uses)
 
-    def worker_checked(self) -> "Agent":
-        return self.with_(checked_uses=self.windowed((*self.checked_uses, self.tool_uses)))
-
     def worker_merged(self) -> "Agent":
-        merged = self.worker_checked()
-        read = (*merged.read_merge_uses, merged.tool_uses) if merged.is_proof_read else merged.read_merge_uses
-        return merged.with_(merge_uses=merged.windowed((*merged.merge_uses, merged.tool_uses)), read_merge_uses=merged.windowed(read), is_proof_read=False)
+        prepared = (*self.prepared_merge_uses, self.tool_uses) if self.is_proof_read and self.is_test_run else self.prepared_merge_uses
+        return self.with_(merge_uses=self.windowed((*self.merge_uses, self.tool_uses)), prepared_merge_uses=self.windowed(prepared), is_proof_read=False, is_test_run=False)
 
     def proof_read(self) -> "Agent":
         return self.with_(is_proof_read=True)
 
-    def slot_left_idle(self) -> "Agent":
-        return self.with_(idle_slot_uses=self.windowed((*self.idle_slot_uses, self.tool_uses)))
+    def tests_run(self) -> "Agent":
+        return self.with_(is_test_run=True)
+
+    def worker_reused(self) -> "Agent":
+        return self.with_(reuse_uses=self.windowed((*self.reuse_uses, self.tool_uses)))
+
+    def fresh_over_idle(self) -> "Agent":
+        return self.with_(fresh_idle_uses=self.windowed((*self.fresh_idle_uses, self.tool_uses)))
+
+    def briefed(self) -> "Agent":
+        return self.with_(briefed_uses=self.windowed((*self.briefed_uses, self.tool_uses)))
+
+    def worker_waited(self) -> "Agent":
+        return self.with_(late_worker_uses=self.windowed((*self.late_worker_uses, self.tool_uses)))
+
+    def task_waited(self) -> "Agent":
+        return self.with_(late_task_uses=self.windowed((*self.late_task_uses, self.tool_uses)))
 
     def windowed(self, uses: tuple[int, ...]) -> tuple[int, ...]:
         return tuple(use for use in uses if use > self.tool_uses - WORK_WINDOW_USES)
