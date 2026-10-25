@@ -4213,7 +4213,7 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     said = tick(10)
     assert len(said) == 1 and "its manifest does not parse" in said[0], said
     assert len(tick(60)) == 1 and len(tick(10 + 301)) == 1 and len(tick(10 + 3600)) == 1, "the same fault is not named again at later turns"
-    manifest.write_text("{ still not json")
+    manifest.write_text("not json at all")
     assert len(tick(10 + 3700)) == 2, "a changed fault is named again"
     assert len(tick(10 + 3700 + 86401)) == 3, "the same fault is named again after a day"
     manifest.write_text('{"name": "lint"}')
