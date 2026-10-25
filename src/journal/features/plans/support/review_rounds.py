@@ -41,5 +41,8 @@ class ReviewRounds:
         topic = [ref.id for ref in self.links.typed_sources(plan, Messages.SUBJECT_LINK, Report.table())]
         return self.reports.recent_numbered(topic, review.creation_time)
 
+    def unread(self, plan: Plan) -> list[Report]:
+        return [report for review in self.reviews.open_review(plan) for report in self.recent_reports(plan, review) if report.read_at is None]
+
     def report_ids(self, review: PlanReview) -> list[int]:
         return [ref.id for ref in self.links.targets(review, FILED)]

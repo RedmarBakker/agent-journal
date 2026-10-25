@@ -4226,6 +4226,33 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
     assert result.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
 
 
+def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_reports_not_read_yet(app: App):
+    from datetime import datetime, timezone
+    from journal.features.plans.plans_nudges import PlansNudges
+    from journal.features.plans.support.review_rounds import ReviewRounds
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.report import Report
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.plans import Plans
+    from journal.repositories.reports import Reports
+    done = PlansNudges.PLAN_FINISHED.create(n=7).rendered()
+    assert "plan 7 done" in done and "final suite" in done and "merging to main and releasing wait for the user's word" in done, done
+    assert PlansNudges.review_countdown(3, 2, (12, 14)).rendered().startswith("plan 3 readied due: 2; unread: reports 12, 14")
+    assert PlansNudges.review_countdown(3, 0, (12,)).rendered().startswith("plan 3 readied due: 0; unread: reports 12")
+    assert PlansNudges.review_countdown(3, 2).rendered() == "plan 3 readied due: 2", "no unread report, nothing named"
+    plan = app.container.get(Plans).save(Plan(title="the hub"), Actor.user(1))
+    rounds, reports, links = app.container.get(ReviewRounds), app.container.get(Reports), app.container.get(Links)
+    rounds.begin(plan, Actor.user(1))
+    unread, read = (reports.save(Report(title=title), Actor.agent("s1")) for title in ("reviewer one", "researcher two"))
+    for report in (unread, read):
+        links.save(Link(source=Ref.build(report), target=Ref.build(plan), kind=Messages.SUBJECT_LINK), Actor.agent("s1"))
+    reports.save(read.read(datetime.now(timezone.utc)), Actor.user(1))
+    assert [report.row_id for report in rounds.unread(plan)] == [unread.row_id], "of the reports filed about the plan in its review only the unread one is named"
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task

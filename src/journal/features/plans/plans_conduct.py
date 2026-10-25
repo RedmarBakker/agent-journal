@@ -22,7 +22,7 @@ class PlansConduct(Conduct):
         return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id)) if event.user_origin else self.none()
 
     def on_plan_reviewed(self, event: PlanReviewed, settings: Settings) -> Transition:
-        return self.none(PlansNudges.REVIEW_ENTRY_REQUEST.create(n=event.plan_id))
+        return self.none(PlansNudges.REVIEW_ENTRY_REQUEST.create(n=event.plan_id, reports=PlansNudges.unread(event.data.part(PlansPart).review_reports)))
 
     def on_plan_blocked(self, event: PlanBlocked, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_BLOCKED.create(n=event.plan_id, why=event.reason))

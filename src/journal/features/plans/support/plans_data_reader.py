@@ -1,6 +1,7 @@
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.features.plans.support.plan_testing import PlanTesting
+from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.repositories.entries import Entries
@@ -18,9 +19,9 @@ RECENT_PLAN_TASKS = 3
 class PlansDataReader:
     """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields PlansData names; the started plan's facts the same, with the fields StartedPlan names."""
 
-    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, scope: Scope, stages: StageTimes) -> None:
+    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, scope: Scope, stages: StageTimes, rounds: ReviewRounds) -> None:
         self.plans, self.briefing, self.entries, self.testing, self.statuses = plans, briefing, entries, testing, statuses
-        self.scope, self.stages = scope, stages
+        self.scope, self.stages, self.rounds = scope, stages, rounds
 
     def read(self, agent: Agent) -> LazyFacts:
         return LazyFacts("plans", {
@@ -28,6 +29,7 @@ class PlansDataReader:
             "started": lambda: self.started(),
             "review_plan": lambda: self.review_plan(agent),
             "started_plans": lambda: self.statuses.started(),
+            "review_reports": lambda: self.review_reports(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def started(self) -> LazyFacts | None:
@@ -38,6 +40,10 @@ class PlansDataReader:
         review = next(iter(self.plans.reviewed()), None)
         review_line = self.entries.last_line_entry(agent.session, (PlansNudges.REVIEW_ENTRY_REQUEST.key,)) if review else None
         return review.row_id if review_line else 0
+
+    def review_reports(self) -> tuple[int, ...]:
+        review = next(iter(self.plans.reviewed()), None)
+        return tuple(report.row_id for report in self.rounds.unread(review)) if review else ()
 
     def started_plan(self, plan: Plan) -> LazyFacts:
         return LazyFacts("plans started", {
