@@ -3670,6 +3670,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     environments, links = app.container.get(Environments), app.container.get(Links)
     hub = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
     home = environments.save(Environment(name="bob-main"), Actor.system())
+    app.container.get(Users).save(User(name="Ada", email="ada@example.com"), Actor.system())
     bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
     links.save(Link(source=Ref.build(bob), target=Ref.build(home), kind=OWNER), Actor.system())
     with app.container.get(Scope).environment(hub.row_id):
