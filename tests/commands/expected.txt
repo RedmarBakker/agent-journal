@@ -1175,7 +1175,10 @@ sequences.say_every = 10
 usage.check_minutes = 15
 workers.builder_handovers = 2
 workers.orchestrator_lines = 200
+workers.orchestrator_writes_plans = True  (the user sets it)
 workers.orchestrator_approves_plans = False  (the user sets it)
+workers.orchestrator_approves_others_plans = False  (the user sets it)
+workers.orchestrator_releases = False  (the user sets it)
 workers.plan_stall_minutes = 60
 workers.fitness_threshold = 70
 workers.load_window_minutes = 30
@@ -1677,6 +1680,7 @@ workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
+workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of the {{kept}} {{profile}} workers kept are idle:
 {{workers}}. send the job to one of them, or retire one with `journal worker complete <n> --why "<reason>"`
@@ -1706,7 +1710,7 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times; earlier: {{earlier}}. change the target, the model or the worker
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-250 nudges
+251 nudges
 
 $ agent: journal worker list
 exit 0

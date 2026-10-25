@@ -11,7 +11,7 @@ const OBVIOUS = /^(close|dismiss|remove|delete|hide|clear|cancel|more|menu|pane 
 const GAP = 9;
 const EDGE = 8;
 const CORNER = 10;
-const NO_WORDS = {title: "", line: "", keys: ""};
+const NO_WORDS = {title: "", line: "", keys: "", toggles: []};
 
 const known = new Map();
 const layer = {el: null};

@@ -153,6 +153,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | voices | voices.introduce_yourself | introduce yourself to the user in the chat | VoicesConduct.on_session_started_voices_introduce |
 | voices | voices.the_voice_changed | the user changed how you talk to them | VoicesConduct.on_setting_changed_voices |
 | voices | voices.say_you_are_back | you are back in a conversation that went on before: say so to the user in a line, in your voice | VoicesConduct.on_session_started_voices_introduce |
+| workers | workers.release_waits_for_the_user | {{line}} waits for the user: Orchestrator may release is off | WorkersConduct.on_tool_starting_workers |
 | workers | workers.worker_has_no_work_left | worker {{n}} has no work left | WorkersConduct.on_worker_queue_empty_workers |
 | workers | workers.worker_reported | worker {{n}}, {{name}}, reported in the chat | WorkersConduct.on_worker_reported_workers, ExternalWait.on_worker_reported_workers |
 | workers | workers.worker_stopped_unreported | worker {{n}}, {{name}}, stopped before it reported | ExternalWait.on_worker_stopped_workers |

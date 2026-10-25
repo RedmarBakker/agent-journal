@@ -28,6 +28,7 @@ onUnmounted(() => {
         :title="shown.words.title"
         :line="shown.words.line"
         :keys="shown.words.keys"
+        :toggles="shown.words.toggles"
         :side="shown.side"
         :arrow="`${shown.arrow}px`"
     />

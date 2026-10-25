@@ -17712,6 +17712,46 @@ def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
     assert app.container.get(SettingRows).option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS) is False
 
 
+def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
+    from journal.repositories.plans import Plans
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+
+    def drafted(caller: Caller, title: str) -> int:
+        made = console.run(["plan", "create", title, "--brief", "the goal"], caller)
+        assert made.code == 0, made.error
+        with app.container.get(Scope).environment(MAIN):
+            n = str(max(plan.id for plan in app.container.get(Plans).scoped()))
+        console.run(["plan", "phase", n, "Lay the floor", "--when", "the floor is level"], caller)
+        console.run(["plan", "add", n, "pour the slab"], caller)
+        assert console.run(["plan", "ready", n], caller).code == 0
+        return int(n)
+
+    own = drafted(AGENT, "the orchestrator's plan")
+    settings.set("workers.orchestrator_writes_plans", False, Actor.user(1))
+    assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
+    settings.set("workers.mode", "builder", Actor.user(1))
+    assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    users = drafted(USER, "the user's plan")
+    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
+    settings.set("workers.orchestrator_approves_others_plans", True, Actor.user(1))
+    assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving only plans it did not write, the orchestrator may not approve its own"
+    assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
+    settings.set("workers.orchestrator_approves_others_plans", False, Actor.user(1))
+    assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with that toggle off it approves its own too"
+    tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
+    status, body = tag()
+    assert status == 409 and "waits for the user: Orchestrator may release is off" in body["error"], "with May release off the orchestrator's release waits for the user"
+    settings.set("workers.orchestrator_releases", True, Actor.user(1))
+    assert tag()[0] == 200, "with it on the orchestrator releases"
+    for name in ("orchestrator_writes_plans", "orchestrator_approves_others_plans", "orchestrator_releases"):
+        refused = console.run(["settings", "set", f"workers.{name}", "on"], AGENT)
+        assert refused.code == 1 and "the user's to set" in refused.error, f"workers.{name} is the user's to set, refused from an agent"
+
+
 def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_the_supervisors_notice_are_told_once_booted(app: App, capsys):
     from journal.engine.boot_notices import BOOT_NOTICE, BootNotices
     from journal.events.bus import Bus

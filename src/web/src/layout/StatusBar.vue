@@ -1,8 +1,8 @@
 <script setup>
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
-import {autoOn, orchestratorApproves, reviewerOn, workMode} from "../composables/settings.js";
-import {MODES, showsApprovalToggle} from "../domain/modes.js";
+import {autoOn, workMode} from "../composables/settings.js";
+import {MODES, modeToggles, toggleOn} from "../domain/modes.js";
 import {api} from "../api/client.js";
 import {saveSettings} from "../actions/settings.js";
 import Segmented from "../kit/Segmented.vue";
@@ -34,7 +34,7 @@ import {useEveryVerifier} from "../composables/verifiers.js";
 import VerifierList from "../chat/VerifierList.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
-import {runPlan, setAuto, setReviewer} from "../actions/work.js";
+import {runPlan, setAuto} from "../actions/work.js";
 import {useColleague} from "../composables/colleague.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
@@ -72,7 +72,7 @@ const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
         label: one.label,
-        tip: {title: one.label, line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note) + fitnessLine(one)},
+        tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note) + fitnessLine(one)},
     }))
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
@@ -106,9 +106,12 @@ async function pickMode(key) {
     }
 }
 
-async function setOrchestratorApproves(on) {
+// a mode's settings as toggles in its button's hover panel, each saved as the user's own
+const toggles = (mode) => modeToggles(mode).map((toggle) => ({key: toggle.name, label: toggle.label, on: toggleOn(toggle, store.settings), change: (on) => saveToggle(toggle, on)}));
+
+async function saveToggle(toggle, on) {
     try {
-        await saveSettings({workers: {orchestrator_approves_plans: on}});
+        await saveSettings({[toggle.feature]: {[toggle.name]: on}});
     } catch (e) {
         toast.value = {text: e.message};
     }
@@ -230,20 +233,7 @@ async function runBar(p) {
         </template>
         <span class="statusbar-tools">
             <span class="statusbar-agentset">
-                <template v-if="workMode === 'orchestrator'">
-                    <Switch
-                        :on="reviewerOn"
-                        word="reviewer"
-                        labelled
-                        v-tip:reviewer="
-                            reviewerOn
-                                ? {title: 'Reviewer is on', line: 'A reviewer tests and checks each worker\'s work and reports to the agent, which sends it back or merges it.'}
-                                : {title: 'Reviewer is off', line: 'The agent checks each worker\'s work itself.'}
-                        "
-                        @change="setReviewer"
-                    />
-                </template>
-                <template v-else>
+                <template v-if="workMode !== 'orchestrator'">
                     <Switch
                         :on="autoOn"
                         word="auto"
@@ -257,19 +247,6 @@ async function runBar(p) {
                     />
                 </template>
                 <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
-                <template v-if="showsApprovalToggle(workMode)">
-                    <Switch
-                        :on="orchestratorApproves"
-                        word="approves plans"
-                        labelled
-                        v-tip:approves="
-                            orchestratorApproves
-                                ? {title: 'The agent approves plans', line: 'It approves a plan itself with journal plan approve.'}
-                                : {title: 'Only you approve plans', line: 'The agent waits for your approval of every plan.'}
-                        "
-                        @change="setOrchestratorApproves"
-                    />
-                </template>
                 <template v-if="bars.length">
                     <Btn
                         kind="icon"

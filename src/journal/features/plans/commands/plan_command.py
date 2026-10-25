@@ -7,6 +7,7 @@ from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
 from journal.support.row_labels import RowLabels
 from journal.console.command import SUBAGENT_KINDS, Command
+from journal.support.actor_kind import ActorKind
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
@@ -96,6 +97,8 @@ class PlanCommand(Command):
         testing.add_argument("title")
 
     def create(self, args: Namespace, caller: Caller) -> int:
+        if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
+            raise Rejection("the user writes the plans here: Orchestrator may write plans is off, so ask them for one")
         with self.hub.writing_in(args.team):
             plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
         print(f"{self.labels.name('plan', plan)} {plan.state}")
@@ -185,14 +188,20 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.is_user() and not self.orchestrator_may_approve(caller):
-            raise Rejection("only the user approves a plan: ask, then wait for their word")
-        plan = self.plans.approve(self.plans.find(args.n), caller.actor)
+        plan = self.plans.find(args.n)
+        if not caller.actor.is_user() and not self.is_orchestrator_approval(caller, plan):
+            raise Rejection("only the user approves this plan: ask, then wait for their word")
+        plan = self.plans.approve(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
-    def orchestrator_may_approve(self, caller: Caller) -> bool:
-        return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator" and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
+    def is_orchestrator_approval(self, caller: Caller, plan: Plan) -> bool:
+        if not self.is_orchestrator(caller) or not self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS):
+            return False
+        return not self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_OTHERS_PLANS) or plan.creation_actor.kind != ActorKind.AGENT
+
+    def is_orchestrator(self, caller: Caller) -> bool:
+        return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator"
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)

@@ -1,10 +1,13 @@
 <script setup>
+import Switch from "./Switch.vue";
+
 defineProps({
     title: {type: String, required: true},
     line: {type: String, default: ""},
     keys: {type: String, default: ""},
     side: {type: String, default: "below"},
     arrow: {type: String, default: "50%"},
+    toggles: {type: Array, default: () => []},
 });
 </script>
 
@@ -18,6 +21,13 @@ defineProps({
         </span>
         <template v-if="line">
             <span class="tip-line">{{ line }}</span>
+        </template>
+        <template v-if="toggles.length">
+            <span class="tip-toggles">
+                <template v-for="toggle in toggles" :key="toggle.key">
+                    <Switch class="tip-toggle" :on="toggle.on" :word="toggle.label" :title="toggle.label" beside @change="toggle.change" />
+                </template>
+            </span>
         </template>
         <span class="tip-arrow" />
     </span>
@@ -52,6 +62,16 @@ defineProps({
     margin-top: 2px;
     color: var(--text-2);
     text-wrap: pretty;
+}
+
+.tip-toggles {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--tip-edge);
 }
 
 .tip-keys {

@@ -25,6 +25,7 @@ from journal.events.rows.worker_mention import WorkerMention
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.features.workers.support.worker_line import WorkerLine
 from journal.features.workers.support.path_mentions import PathMentions
+from journal.features.workers.support.release_lines import ReleaseLines
 from journal.models.subagent import Subagent
 from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker import Worker
@@ -56,7 +57,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, and in orchestrator mode a stop is refused while work this agent sent out waits clocked out, naming each worker, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line; and in orchestrator mode a merged worker's model that did not fit its work, too strong or too weak, is named in one short line."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, load_check)
+        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, load_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -245,6 +246,13 @@ def limit_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
         return state.none()
     maximum, active = settings.integer(WorkersOptions.SUBAGENT_LIMIT), event.data.part(WorkersPart).active_subagents
     return state.refuse(WorkersNudges.SUBAGENT_OVERFLOW.create(running=active)) if maximum and active >= maximum else state.none()
+
+
+def release_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode or settings.value(WorkersOptions.ORCHESTRATOR_RELEASES):
+        return state.none()
+    releases = ReleaseLines.found(tuple(part.text for part in event.call.parts))
+    return state.refuse(WorkersNudges.RELEASE_HELD.create(line=releases[0])) if releases else state.none()
 
 
 def worktrees_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
