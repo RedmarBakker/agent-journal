@@ -58,6 +58,7 @@ agent plan review 1
 agent plan ready 1 --changed "nothing changed in review"
 user plan approve 1
 agent plan start 1
+agent plan priorities "task 3 first: the cart comes before paying"
 agent plan block 1 "waits on the payment provider"
 agent plan unblock 1
 agent plan pause 1

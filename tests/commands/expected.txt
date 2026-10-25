@@ -339,6 +339,10 @@ $ agent: journal plan start 1
 exit 0
 plan 1 started: task 3, The cart sums its lines is started
 
+$ agent: journal plan priorities 'task 3 first: the cart comes before paying'
+exit 0
+plan 1 priorities recorded
+
 $ agent: journal plan block 1 'waits on the payment provider'
 exit 0
 plan 1 blocked, waiting on: waits on the payment provider
@@ -1196,6 +1200,7 @@ workers.weight_repeat_send_back = 1.5
 workers.weight_idle_place = 0.5
 workers.recovery_full_score_minutes = 10
 workers.recovery_zero_score_minutes = 60
+workers.priorities_minutes = 45
 workers.model_fit_sample = 5
 workers.costly_shaped_work_dollars = 2.0
 workers.solo_dispatches = 3
@@ -1682,6 +1687,7 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
 workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
+workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?. answer with journal plan priorities '<the order and why>'
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of the {{kept}} {{profile}} workers kept are idle:
 {{workers}}. send the job to one of them, or retire one with `journal worker complete <n> --why "<reason>"`
@@ -1697,6 +1703,7 @@ workers.tests_are_handed_over  [workers]  tests are handed over here, so you do 
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
+workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue. put it first: journal worker queue {{n}} {{task}} --first
 workers.wait_for_running_workers  [workers]  {{workers}} are still out and no work waits to be checked. wait for them with journal worker wait {{numbers}}
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
@@ -1712,7 +1719,7 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}. change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> "<job>"
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-251 nudges
+253 nudges
 
 $ agent: journal worker list
 exit 0

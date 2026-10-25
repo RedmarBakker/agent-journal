@@ -17,6 +17,7 @@ from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.events.rows.worker_spent import WorkerSpent
+from journal.events.rows.task_delegated import TaskDelegated
 from journal.models.support.model_fit import TOO_STRONG
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_test_failed import WorkerTestFailed
@@ -69,7 +70,14 @@ class WorkersConduct(Conduct):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
         silent = [quiet_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
-        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent)
+        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent, *priorities_lines(event, settings))
+
+    def on_task_delegated(self, event: TaskDelegated, settings: Settings) -> Transition:
+        if settings.value(WorkersOptions.MODE) != "orchestrator" or not event.is_unblocking():
+            return self.none()
+        queues = event.data.part(WorkersPart).queues
+        behind = [(worker, queue.index(event.task_id) + 1) for worker, queue in queues.items() if event.task_id in queue[1:]]
+        return self.none(*(WorkersNudges.UNBLOCKER_QUEUED.create(task=event.task_id, n=worker, place=place) for worker, place in behind))
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
@@ -197,6 +205,18 @@ def stalled_lines(started: tuple[PlanStatus, ...], now: float, settings: Setting
     if len(stalled) == len(started):
         return ()
     return tuple(WorkersNudges.PLAN_STALLED.create(n=plan.plan_id, title=plan.title, since=plan.moved_line(), minutes=minutes) for plan in stalled)
+
+
+def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
+        return ()
+    started = event.data.part(PlansPart).started
+    if started is None:
+        return ()
+    interval = settings.integer(WorkersOptions.PRIORITIES_MINUTES) * 60
+    if started.priorities_phase == started.current_phase and not (interval and event.time - started.priorities_at >= interval):
+        return ()
+    return (WorkersNudges.PRIORITIES.create(plan=started.plan_id, phase=started.current_phase),)
 
 
 def report_mentions(data: FeatureData) -> list[Nudge]:

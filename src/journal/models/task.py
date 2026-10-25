@@ -94,7 +94,7 @@ class Task(Scoped):
         return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="").with_event(event)
 
     def delegated(self, time: datetime) -> "Task":
-        event = TaskDelegated(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title)
+        event = TaskDelegated(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, brief=self.brief)
         return self.with_(state=TaskState.DELEGATED, started_at=self.started_at or time, pause_reason="", block_reason="").with_event(event)
 
     def released(self, time: float) -> "Task":

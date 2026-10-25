@@ -96,6 +96,9 @@ class PlanCommand(Command):
         self.verb(verbs, "release", "let a hub plan you drive go, so anyone may drive it").add_argument("n", type=int)
         self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for every started plan")
         self.verb(verbs, "list", "every plan here")
+        priorities = self.verb(verbs, "priorities", "the order the started plan's open work goes in, and why: what unblocks the most others or you first")
+        priorities.add_argument("order")
+        priorities.add_argument("--plan", type=int, help="the plan, when it is not the started one")
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
         testing.add_argument("title")
@@ -260,6 +263,15 @@ class PlanCommand(Command):
         print(f"plan {plan.id} tests this way: {followed[0].brief}" if followed else f"plan {plan.id} follows no testing template")
         return 0
 
+    def priorities(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.find(args.plan) if args.plan else next(iter(self.plans.running_plans()), None)
+        if plan is None:
+            raise Rejection("no plan is started: name the plan with --plan")
+        phases = self.plans.phase_states(plan)
+        plan = self.plans.save(plan.prioritised(args.order, plan.current_phase(phases), time.time()), caller.actor)
+        print(f"plan {plan.id} priorities recorded")
+        return 0
+
     def brief(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.save(replace(self.plans.find(args.n), brief=args.text), caller.actor)
         print(f"plan {plan.id} brief set")
@@ -283,6 +295,8 @@ class PlanCommand(Command):
         if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")
+        if plan.priorities:
+            print(f"priorities: {plan.priorities}")
         for i, phase in enumerate(self.plans.plan_phases(plan), 1):
             print(f"phase {i}: {phase.title}" + (f" (complete when {phase.completion_rule})" if phase.completion_rule else "") + (" [checkpoint]" if phase.checkpoint else ""))
             for task in self.plans.phase_tasks(phase):

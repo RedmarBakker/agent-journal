@@ -37,6 +37,8 @@ class WorkersNudges:
     LOAD_CRITICAL = Nudge("workers", "load_critical", "your load is {{rho}}, critical: {{waiting}} wait, {{oldest}} the oldest", "ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out", repeat=Timeout.seconds(300))
     PLACE_OPENED = Nudge("workers", "place_opened", "your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once", repeat=Timeout.seconds(0))
     PLACE_CLOSED = Nudge("workers", "place_closed", "your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once", repeat=Timeout.seconds(0))
+    PRIORITIES = Nudge("workers", "reprioritise", "plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?", "answer with journal plan priorities '<the order and why>'", repeat=Timeout.minutes(15))
+    UNBLOCKER_QUEUED = Nudge("workers", "unblocking_task_waits_in_a_queue", "task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue", "put it first: journal worker queue {{n}} {{task}} --first", repeat=Timeout.seconds(0))
     MODEL_TOO_STRONG = Nudge("workers", "model_too_strong", "worker {{n}} ran on {{model}} for work a cheaper model would have done", repeat=Timeout.seconds(0))
     MODEL_TOO_WEAK = Nudge("workers", "model_too_weak", "worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model", repeat=Timeout.seconds(0))
     TEST_RUN_FAILED = Nudge("workers", "worker_test_run_failed", "worker {{n}}: {{failed}} failed in its test run", repeat=Timeout.seconds(0))

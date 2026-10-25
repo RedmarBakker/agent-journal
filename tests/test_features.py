@@ -11399,6 +11399,58 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
         team.close(server)
 
 
+def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_plan_and_quiets_the_line_until_the_interval_or_the_next_phase(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.plans import Plans
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["plan", "create", "release", "--brief", "ship"], USER)
+    for title in ("write the notes", "tag it"):
+        console.run(["plan", "add", "1", title], USER)
+    for title in ("notes", "tag"):
+        console.run(["plan", "phase", "1", title], USER)
+    for phase in (1, 2):
+        console.run(["plan", "todos", "1", str(phase), str(phase)], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    now = timing.time()
+    asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
+
+    def ticked(minutes: float) -> list[str]:
+        monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
+        app.runtime().deferred.drain()
+        return asked()
+
+    assert len(ticked(0)) == 1 and asked()[0].startswith("plan 1, phase 1: which open task unblocks the most others"), asked()
+    answer = console.run(["plan", "priorities", "task 1 first: the notes come before the tag"], AGENT)
+    assert answer.code == 0, answer.error
+    plan = app.container.get(Plans).find(1)
+    assert (plan.priorities, plan.priorities_phase) == ("task 1 first: the notes come before the tag", 1), "the answer is kept on the plan with its phase"
+    assert "priorities: task 1 first: the notes come before the tag" in console.run(["plan", "show", "1"], AGENT).text
+    assert len(ticked(20)) == 1, "once answered the line is quiet, past the time a line may repeat"
+    assert len(ticked(46)) == 2, "and asks again once the interval has passed"
+    console.run(["plan", "priorities", "task 1 still first"], AGENT)
+    settings.set("workers.priorities_minutes", 0, Actor.user(1))
+    assert len(ticked(62)) == 2, "with no interval an answered phase is not asked again"
+    assert console.run(["task", "complete", "1"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    assert len(ticked(78)) == 3 and asked()[-1].startswith("plan 1, phase 2:"), "a new phase asks at once"
+    for title in ("the lexer", "the docs", "Grant the journal the gh permission"):
+        console.run(["task", "create", title, "--brief", "b"], AGENT)
+    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", "3", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior"], AGENT)
+    assert dispatched.code == 0, dispatched.error
+    assert console.run(["worker", "queue", "1", "4", "5"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    unblocking = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.unblocking_task_waits_in_a_queue"]
+    assert unblocking == ["task 5 unblocks you but is number 2 in worker 1's queue. put it first: journal worker queue 1 5 --first"], unblocking
+
+
 def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_an_opus_worker_spending_much_on_settled_work_is_named_once(app: App, monkeypatch):
     from journal.features.workers.support.worker_branch import WorkerBranch
     from journal.providers.claude import Claude

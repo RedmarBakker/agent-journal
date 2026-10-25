@@ -2433,6 +2433,34 @@ def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_loa
     assert LOAD_OVER.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
 
 
+def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after_the_interval_and_an_unblocking_task_queued_behind_others_is_named_at_once():
+    from pathlib import Path
+    from journal.events.rows.task_delegated import TaskDelegated
+    from journal.features.plans.support.plans_data import PlansData
+    from journal.features.plans.support.started_plan import StartedPlan
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import WorkersConduct, priorities_lines
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.PRIORITIES_MINUTES.key: 45})
+    planned = lambda **facts: FeatureData({"plans": PlansData((), StartedPlan(plan_id=5, next_task=8, started_task=7, started_task_briefing="", recent_tasks=(7,), remaining_tasks=3, checkpoint_pause=False, checkpoint_phase=0, testing="", **facts), 0)})
+    asked = lambda data, time, settings=settings: [n.rendered() for n in priorities_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
+    line = lambda phase: f"plan 5, phase {phase}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order? answer with journal plan priorities '<the order and why>'"
+    assert asked(planned(current_phase=1), 100.0) == [line(1)], "a started plan with no priorities yet asks at once, at the start of its first phase"
+    answered = planned(current_phase=1, priorities_phase=1, priorities_at=1000.0)
+    assert asked(answered, 1000.0 + 44 * 60) == [], "once answered the line is quiet until the interval has passed"
+    assert asked(answered, 1000.0 + 45 * 60) == [line(1)], "after the interval it asks again"
+    assert asked(planned(current_phase=2, priorities_phase=1, priorities_at=1000.0), 1100.0) == [line(2)], "a new phase asks at once, without waiting for the interval"
+    assert asked(answered, 1000.0 + 90 * 60, SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.PRIORITIES_MINUTES.key: 0})) == [], "with no interval it asks only at a phase start"
+    assert asked(planned(current_phase=1), 100.0, SettingsValue({WorkersOptions.MODE.key: "builder"})) == [], "only the orchestrator is asked"
+    assert asked(FeatureData({"plans": PlansData((), None, 0)}), 100.0) == [], "and only with a plan started"
+    queued = lambda queues: FeatureData({"workers": WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=Path("."), worktrees=(), queues=queues)})
+    said = lambda event, data: [n.rendered() for n in Ready().respond(event.reaching("s1").with_data(data), settings, (WorkersConduct,)).nudges]
+    unblocking = TaskDelegated(environment_id=1, time=1.0, task_id=9, title="Grant the journal the gh permission", brief="")
+    assert said(unblocking, queued({3: (4, 5, 9)})) == ["task 9 unblocks you but is number 3 in worker 3's queue. put it first: journal worker queue 3 9 --first"], "a task that unblocks the orchestrator queued last is named at once"
+    assert said(unblocking, queued({3: (9, 4)})) == [], "first in its queue it is not"
+    assert said(replace(unblocking, title="The parser", brief="the parser needs read access to the grammar repository"), queued({3: (4, 9)})) != [], "the brief may say it"
+    assert said(replace(unblocking, title="The parser"), queued({3: (4, 9)})) == [], "a task that says nothing of unblocking is not named"
+
+
 def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_model_it_ran_on():
     from journal.features.workers.support.work_complexity import WorkComplexity
     from journal.models.model_tier import ModelTier

@@ -62,6 +62,9 @@ class PlansDataReader:
             "testing": lambda: " ".join(template.brief for template in self.testing.chosen(plan)),
             "phase_commands": lambda: self.phase_testing.unpassed(plan),
             "is_checkpoint": lambda: self.plans.checkpoint_plans(plan) is not None,
+            "current_phase": lambda: plan.current_phase(self.plans.phase_states(plan)),
+            "priorities_phase": lambda: plan.priorities_phase,
+            "priorities_at": lambda: plan.priorities_at,
         }, lambda: self.scope.environment(plan.environment_id), self.stages)
         return facts
 
