@@ -13163,6 +13163,18 @@ def test_the_fifth_default_priority_task_gives_a_line_the_tenth_holds_a_write_an
     assert console.run(["task", "priorities", "confirm"], AGENT).code == 0 and "default priority" not in read() and write()[0] == 200, "confirming the others clears them"
 
 
+def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchecked_while_the_journal_did_not_answer(app: App):
+    hook(app, "SessionStart")
+    log = app.config.home / "runtime" / "bypass.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("1761393836 hook claude\n1761393837 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
+    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    line = json.dumps(body)
+    assert status == 200 and "2 hooks let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded" in line and "git status" in line and "run again what ran unrecorded" in line, line
+    app.runtime().deferred.drain()
+    assert "ran in the shell itself" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "the line is said once"
+
+
 def test_a_queued_worker_whose_run_ends_without_a_clock_out_names_every_task_of_its_queue_and_merges_nothing(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner as Runner
     from journal.repositories.messages import Messages
