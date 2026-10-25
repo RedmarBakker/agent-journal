@@ -11,6 +11,13 @@ FORMS = {
     "jest": "run jest with --verbose, which prints each test as it ends",
     "cargo test": "run cargo test with -- --nocapture --test-threads=1, which prints each test as it runs",
     "phpunit": "run phpunit with --testdox, which prints each test as it ends",
+    "vite build": "vite build prints its transformed module count (N modules transformed) at the end only: run it with --logLevel info for a line per step, and count those lines against the total",
+    "webpack": "run webpack with --progress, which prints a percentage as it builds, and read it with --progress '(\\d+)%'",
+    "cargo build": "cargo build prints a Compiling line per crate: count those lines against the number of crates in cargo metadata --format-version 1 (its packages list) and print N/M as each one starts",
+    "go build": "run go build with -v, which prints a line per package as it compiles; count those lines against go list -deps . and print N/M",
+    "dotnet build": "run dotnet build with -v n, which prints a line per project as it builds, and count them against the projects in the solution",
+    "gradle": "run gradle with --console=plain, which prints a line per task as it runs, and count those lines against the tasks of gradle <task> --dry-run",
+    "npm run build": "npm run build runs whatever tool its package.json build script names: read that script, and give that tool the form it takes (vite --logLevel info, webpack --progress, tsc --listFiles) so it prints a line per step; " + DEFAULT_ADVICE,
     "dotnet test": "run dotnet test with --logger 'console;verbosity=normal', which prints each test as it ends",
 }
 

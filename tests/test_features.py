@@ -20656,3 +20656,19 @@ def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words
         console.run(["fact", "add", f"a needle fact {n}"], AGENT)
     found = console.run(["search", "needle"], AGENT).text.strip().splitlines()
     assert len(found) == 40 and found[0].startswith("task "), "the newest rows of the first kinds fill the forty and the later kinds are not read"
+
+
+def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progress_with_its_tools_advice():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    from journal.features.shell.support.progress_stalls import ProgressStalls
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import BUILD_UNSHOWN, ReaderJudge
+    began = datetime(2026, 10, 26, tzinfo=timezone.utc)
+    output = lambda command: SimpleNamespace(row_id=6, command=command, creation_time=began)
+    reader = Reader("builds", "the build", label="Building the viewer")
+    judge = ReaderJudge(None, None, ProgressStalls(), None, None, None, None, None, None)
+    found = judge.unshown_build(reader, output("vite build"), ["transforming...", "built in 38s"], began + timedelta(seconds=40))
+    assert len(found) == 1 and BUILD_UNSHOWN in found[0][0] and "--logLevel info" in found[0][1], "a 40 second vite build with no figure gets the finding with the vite advice"
+    assert judge.unshown_build(reader, output("vite build"), ["transforming..."], began + timedelta(seconds=10)) == [], "a short build raises nothing"
+    assert judge.unshown_build(reader, output("pytest -q"), ["..."], began + timedelta(seconds=40)) == [], "a run that is not a build raises nothing"
