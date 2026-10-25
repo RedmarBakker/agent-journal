@@ -1766,19 +1766,23 @@ def orchestrator_scored(app: App, setup=None, uses: int = 50):
     return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts.counted(app.container.get(Agents).current()))
 
 
-def test_an_orchestrator_is_scored_low_when_a_clocked_out_worker_waits_unanswered_and_high_when_it_answers_in_minutes(app: App):
-    import time
+def clocked_out(app: App, at: float):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
-    waiting = orchestrator_scored(app, lambda: app.container.get(Workers).save(Worker(environment_id=1, name="Ada Lovelace", brief="b").delivered(time.time() - 1200), Actor.system()))
+    workers = app.container.get(Workers)
+    saved = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="b"), Actor.system())
+    return workers.save(saved.delivered(at), Actor.system())
+
+
+def test_an_orchestrator_is_scored_low_when_a_clocked_out_worker_waits_unanswered_and_high_when_it_answers_in_minutes(app: App):
+    import time
+    waiting = orchestrator_scored(app, lambda: clocked_out(app, time.time() - 1200))
     assert waiting.score < 70 and waiting.gaps[0].label.startswith("your tool uses made while a clocked-out worker waited"), "a worker unanswered for twenty minutes costs the orchestrator its score"
 
 
 def test_an_orchestrator_that_answers_a_clocked_out_worker_in_minutes_scores_high(app: App):
     import time
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-    answered = orchestrator_scored(app, lambda: app.container.get(Workers).save(Worker(environment_id=1, name="Ada Lovelace", brief="b").delivered(time.time() - 120), Actor.system()))
+    answered = orchestrator_scored(app, lambda: clocked_out(app, time.time() - 120))
     assert answered.is_measured and answered.score >= 90 and not answered.gaps, "a worker clocked out two minutes ago is within the time to answer"
 
 
