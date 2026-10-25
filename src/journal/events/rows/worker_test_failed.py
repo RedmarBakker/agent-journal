@@ -11,3 +11,6 @@ class WorkerTestFailed(RowEvent):
     worker: WorkerMention
     failed: int
     runs: int
+
+    def is_streak(self, length: int) -> bool:
+        return self.runs == length

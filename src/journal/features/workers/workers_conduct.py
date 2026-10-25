@@ -58,7 +58,7 @@ CROWD_LINE_ITEMS = 4
 # what a line says of a worker whose run hit the time limit
 RUN_LIMIT_CAUSE = ": run limit"
 # the most of an earlier reason a send-back line quotes
-REJECTION_REASON_LENGTH = 30
+REJECTION_REASON_CHARACTERS = 30
 # the send-back on one task at which the orchestrator is told, once, to change the target, the worker or the model
 STRUGGLE_REJECTIONS = 3
 
@@ -85,8 +85,8 @@ class WorkersConduct(Conduct):
         if settings.value(WorkersOptions.MODE) != "orchestrator" or not event.is_unblocking():
             return self.none()
         queues = event.data.part(WorkersPart).queues
-        behind = [(worker, queue.index(event.task_id) + 1) for worker, queue in queues.items() if event.task_id in queue[1:]]
-        return self.none(*(WorkersNudges.UNBLOCKER_QUEUED.create(task=event.task_id, n=worker, place=place) for worker, place in behind))
+        queue_places = [(worker, queue.index(event.task_id) + 1) for worker, queue in queues.items() if event.task_id in queue[1:]]
+        return self.none(*(WorkersNudges.UNBLOCKER_QUEUED.create(task=event.task_id, n=worker, place=place) for worker, place in queue_places))
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
@@ -119,7 +119,7 @@ class WorkersConduct(Conduct):
             return self.none()
         name = event.worker.name[:TEST_LINE_NAME]
         failed = (WorkersNudges.TEST_RUN_FAILED.create(n=event.worker.id, name=name, failed=event.failed),) if settings.value(WorkersOptions.TEST_RUN_LINES) else ()
-        failing = (WorkersNudges.WORKER_KEEPS_FAILING.create(n=event.worker.id, name=name, runs=event.runs),) if event.runs == settings.integer(WorkersOptions.FAILING_RUNS) else ()
+        failing = (WorkersNudges.WORKER_KEEPS_FAILING.create(n=event.worker.id, name=name, runs=event.runs),) if event.is_streak(settings.integer(WorkersOptions.FAILING_RUNS)) else ()
         return self.none(*failed, *failing)
 
     def on_worker_spent(self, event: WorkerSpent, settings: Settings) -> Transition:
@@ -139,7 +139,7 @@ class WorkersConduct(Conduct):
     def on_waits_missing(self, event: WaitsMissing, settings: Settings) -> Transition:
         if event.agent_session != event.session:
             return self.none()
-        return self.none(*(WorkersNudges.WAIT_MISSING.create(task=task, other=other) for task, other in (pair.split(":") for pair in event.pairs)))
+        return self.none(*(WorkersNudges.WAIT_MISSING.create(task=task, other=blocker) for task, blocker in (pair.split(":") for pair in event.pairs)))
 
     def on_places_scaled(self, event: PlacesScaled, settings: Settings) -> Transition:
         if event.agent_session != event.session:
@@ -167,12 +167,12 @@ class WorkersConduct(Conduct):
 
 
 def rejection_line(event: ProofShort) -> Nudge:
-    times = len(event.earlier) + 1
-    if times == 1:
+    attempts = len(event.earlier) + 1
+    if attempts == 1:
         return WorkersNudges.PROOF_REJECTED.create(n=event.worker_id, point=event.point)
-    earlier = "; ".join(reason[:REJECTION_REASON_LENGTH] for reason in event.earlier)
-    nudge = WorkersNudges.PROOF_REJECTED_OFTEN if times == STRUGGLE_REJECTIONS else WorkersNudges.PROOF_REJECTED_REPEAT
-    return nudge.create(n=event.worker_id, point=event.point, times=times, earlier=earlier, model=event.model)
+    prior_reasons = "; ".join(reason[:REJECTION_REASON_CHARACTERS] for reason in event.earlier)
+    nudge = WorkersNudges.PROOF_REJECTED_OFTEN if attempts == STRUGGLE_REJECTIONS else WorkersNudges.PROOF_REJECTED_REPEAT
+    return nudge.create(n=event.worker_id, point=event.point, times=attempts, earlier=prior_reasons, model=event.model)
 
 
 def silence_line(worker, last: str, time: float) -> Nudge:
@@ -193,27 +193,27 @@ def crew_stop(state: BaseState, event: Stop, settings: Settings) -> Transition:
     delivered = [worker for worker in workers.delivered_workers if not worker.mention().is_other_dispatcher(event.session) and not is_waited(worker, wait_refs, workers.delivered_runs)]
     if delivered:
         return state.refuse(WorkersNudges.DELIVERED_WAITING.create(workers=worker_list(delivered)))
-    out_workers = [worker for worker in workers.dispatched_workers if not worker.mention().is_other_dispatcher(event.session) and worker.mention().ref() not in wait_refs]
-    if out_workers and not event.prior_refusal:
-        return state.refuse(WorkersNudges.ACTIVE_WORKERS.create(workers=worker_list(out_workers), numbers=" ".join(str(worker.id) for worker in out_workers)))
+    active_workers = [worker for worker in workers.dispatched_workers if not worker.mention().is_other_dispatcher(event.session) and worker.mention().ref() not in wait_refs]
+    if active_workers and not event.prior_refusal:
+        return state.refuse(WorkersNudges.ACTIVE_WORKERS.create(workers=worker_list(active_workers), numbers=" ".join(str(worker.id) for worker in active_workers)))
     return state.none()
 
 
-def is_waited(worker: Worker, awaited: set[str], runs: tuple[tuple[int, int], ...]) -> bool:
-    return worker.mention().ref() in awaited or any(f"{CommandOutput.table()}:{output}" in awaited for output, owner in runs if owner == worker.row_id)
+def is_waited(worker: Worker, waited_refs: set[str], runs: tuple[tuple[int, int], ...]) -> bool:
+    return worker.mention().ref() in waited_refs or any(f"{CommandOutput.table()}:{output}" in waited_refs for output, owner in runs if owner == worker.row_id)
 
 
 def worker_list(workers: list[Worker]) -> str:
     return ", ".join(f"worker {worker.id} ({worker.name})" for worker in workers)
 
 
-def plan_lines(data: FeatureData, now: float, settings: Settings) -> tuple[Nudge, ...]:
+def plan_lines(data: FeatureData, moment: float, settings: Settings) -> tuple[Nudge, ...]:
     if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
         return ()
     started = data.part(PlansPart).started_plans
     if not started:
         return ()
-    return (WorkersNudges.STARTED_PLANS.create(plans="; ".join(plan.line(now) for plan in started)), *stalled_lines(started, now, settings))
+    return (WorkersNudges.STARTED_PLANS.create(plans="; ".join(plan.line(moment) for plan in started)), *stalled_lines(started, moment, settings))
 
 
 def suite_lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
@@ -223,9 +223,9 @@ def suite_lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
     return (WorkersNudges.SUITE_BROKEN.create(run=check.failed_run, workers=check.workers_line(), n=check.merged[-1].id),) if check.failed_run else ()
 
 
-def stalled_lines(started: tuple[PlanStatus, ...], now: float, settings: Settings) -> tuple[Nudge, ...]:
+def stalled_lines(started: tuple[PlanStatus, ...], moment: float, settings: Settings) -> tuple[Nudge, ...]:
     minutes = settings.value(WorkersOptions.PLAN_STALL_MINUTES)
-    stalled = [plan for plan in started if minutes and plan.is_stalled(now, minutes * 60)]
+    stalled = [plan for plan in started if minutes and plan.is_stalled(moment, minutes * 60)]
     if len(stalled) == len(started):
         return ()
     return tuple(WorkersNudges.PLAN_STALLED.create(n=plan.plan_id, title=plan.title, since=plan.moved_line(), minutes=minutes) for plan in stalled)
@@ -257,13 +257,13 @@ def unmoved_task_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     if settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
     tasks = event.data.part(TasksPart)
-    held = tasks.held_since
-    if not held:
+    unmoved = tasks.held_since
+    if not unmoved:
         return ()
-    still = tuple(n for n, since in held.items() if event.time - since >= settings.integer(WorkersOptions.HELD_STILL_MINUTES) * 60)
-    crowded = len(held) > settings.decimal(WorkersOptions.HELD_SHARE) * (tasks.open_count + len(held))
-    worker_list = tuple(sorted(held)) if crowded else tuple(sorted(still))
-    return (WorkersNudges.UNMOVED_TASKS.create(tasks=", ".join(str(n) for n in worker_list)),) if worker_list else ()
+    long_unmoved = tuple(n for n, last_move in unmoved.items() if Timeout.minutes(settings.integer(WorkersOptions.HELD_STILL_MINUTES)).started(last_move).is_elapsed(event.time))
+    crowded = len(unmoved) > settings.decimal(WorkersOptions.HELD_SHARE) * (tasks.open_count + len(unmoved))
+    listed = tuple(sorted(unmoved)) if crowded else tuple(sorted(long_unmoved))
+    return (WorkersNudges.UNMOVED_TASKS.create(tasks=", ".join(str(n) for n in listed)),) if listed else ()
 
 
 def unordered_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
@@ -387,7 +387,9 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if settings.value(WorkersOptions.MODE) != "orchestrator":
         return state.none()
     if is_full((*workers.dispatched_workers, *workers.ready_work), settings.integer(WorkersOptions.WORKER_LIMIT)):
-        return state.none(*(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker),) if workers.ready_work else ())
+        if not workers.ready_work:
+            return state.none()
+        return state.none(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker))
     if not tasks.open_count:
         return state.none()
     return state.none(WorkersNudges.CREW_REMINDER.create(count=tasks.open_count, tasks=tasks.open_next))
@@ -436,12 +438,12 @@ def is_full(dispatched: tuple, limit: int) -> bool:
 
 
 def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    load = event.data.part(WorkersPart).load
-    if not load.is_measured() or not load.waiting_refs or event.subagent or settings.value(WorkersOptions.MODE) != "orchestrator":
+    crowd = event.data.part(WorkersPart).load
+    if not crowd.is_measured() or not crowd.waiting_refs or event.subagent or settings.value(WorkersOptions.MODE) != "orchestrator":
         return state.none()
-    values = {"rho": load.rho, "queue": load.waiting_text(CROWD_LINE_ITEMS), "first": load.oldest()}
-    if load.rho >= settings.decimal(WorkersOptions.LOAD_CRITICAL):
+    values = {"rho": crowd.rho, "queue": crowd.waiting_text(CROWD_LINE_ITEMS), "first": crowd.oldest()}
+    if crowd.rho >= settings.decimal(WorkersOptions.LOAD_CRITICAL):
         return state.none(WorkersNudges.CROWDED_CRITICAL.create(**values))
-    if load.rho >= settings.decimal(WorkersOptions.LOAD_WARN):
+    if crowd.rho >= settings.decimal(WorkersOptions.LOAD_WARN):
         return state.none(WorkersNudges.CROWDED_RISING.create(**values))
     return state.none()

@@ -161,8 +161,8 @@ class Worker(Helper):
         return self.contacted(time).moved(move, time).with_(review_pending=False, review_queued_at=0.0)
 
     def unfinished(self, time: float, text: str) -> "Worker":
-        times = sum(1 for word, _ in self.moves.steps if word == ENDED_UNFINISHED) + 1
-        return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=times, is_run_limit=text.startswith(RUN_LIMIT_END)))
+        attempts = sum(1 for word, _ in self.moves.steps if word == ENDED_UNFINISHED) + 1
+        return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=attempts, is_run_limit=text.startswith(RUN_LIMIT_END)))
 
     def limited(self, time: float, resumes_at: float, text: str) -> "Worker":
         return self.moved(LIMITED_MOVE, time).with_(state=WorkerState.LIMITED, pid=0, token_hash="", run_end=text, resumes_at=resumes_at).with_event(WorkerLimited(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, waiting for the usage limit", resumes_at=resumes_at))

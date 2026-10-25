@@ -133,9 +133,15 @@ class WorkerCommand(Command):
     def provider_default(self, caller: Caller) -> str:
         return self.providers.default().name if caller.provider is None else caller.provider
 
+    @staticmethod
+    def testing_title(mode: str, title: str) -> str:
+        if mode == MERGER_TESTING:
+            return ZERO_TESTS.title
+        return BUDGET_TESTS.title if mode == TEST_BUDGET else title or SCOPED_TESTS.title
+
     def testing_template(self, title: str) -> Template:
         mode = self.settings.option(WorkersOptions.TESTING)
-        title = ZERO_TESTS.title if mode == MERGER_TESTING else BUDGET_TESTS.title if mode == TEST_BUDGET else title or SCOPED_TESTS.title
+        title = self.testing_title(mode, title)
         matches = self.templates.testing_titled(title, "worker")
         if not matches:
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
