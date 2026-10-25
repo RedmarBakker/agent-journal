@@ -437,11 +437,11 @@ def is_full(dispatched: tuple, limit: int) -> bool:
 
 def load_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     load = event.data.part(WorkersPart).load
-    if not load.is_measured() or event.subagent or settings.value(WorkersOptions.MODE) != "orchestrator":
+    if not load.is_measured() or not load.waiting_refs or event.subagent or settings.value(WorkersOptions.MODE) != "orchestrator":
         return state.none()
-    named = {"rho": load.rho, "waiting": load.waiting_text(LOAD_NAMED) or "nothing", "oldest": load.oldest()}
+    values = {"rho": load.rho, "queue": load.waiting_text(LOAD_NAMED), "first": load.oldest()}
     if load.rho >= settings.decimal(WorkersOptions.LOAD_CRITICAL):
-        return state.none(WorkersNudges.LOAD_CRITICAL.create(**named))
+        return state.none(WorkersNudges.LOAD_CRITICAL.create(**values))
     if load.rho >= settings.decimal(WorkersOptions.LOAD_WARN):
-        return state.none(WorkersNudges.LOAD_RISING.create(**named))
+        return state.none(WorkersNudges.LOAD_RISING.create(**values))
     return state.none()

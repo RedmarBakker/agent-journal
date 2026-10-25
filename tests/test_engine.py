@@ -2384,6 +2384,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     critical = told(0.93)
     assert critical[0].startswith("your load is 0.93, critical: worker 12, message 553, worker 15 wait, worker 12 the oldest") and "turn the reviewer on" in critical[0] and "queue work" in critical[0] and "lower workers.most_out" in critical[0]
     assert told(0.8, tuple(f"workers:{n}" for n in range(10)))[0].startswith("your load is 0.8: worker 0, worker 1, worker 2, worker 3 and 6 more wait")
+    assert told(0.8, ()) == [], "with nothing waiting there is nothing to clear, so nothing is said"
     assert [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
 
 

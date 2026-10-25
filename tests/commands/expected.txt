@@ -1690,8 +1690,8 @@ workers.could_it_be_reused  [workers]  can worker {{n}} be reused?. if so, `jour
 workers.delegate_the_task  [workers]  {{name}} is in hand and you orchestrate; {{logged}}. hand it to a worker with journal worker dispatch "<Name>" --task <n>, and review its report
 workers.dispatch_while_busy  [workers]  {{count}} tasks open, no worker: {{tasks}}
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
-workers.load_critical  [workers]  your load is {{rho}}, critical: {{waiting}} wait, {{oldest}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
-workers.load_rising  [workers]  your load is {{rho}}: {{waiting}} wait; clear {{oldest}} first, the oldest
+workers.load_critical  [workers]  your load is {{rho}}, critical: {{queue}} wait, {{first}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
+workers.load_rising  [workers]  your load is {{rho}}: {{queue}} wait; clear {{first}} first, the oldest
 workers.make_the_wait_a_block  [workers]  you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done
 workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model
