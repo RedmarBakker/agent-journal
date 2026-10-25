@@ -3943,7 +3943,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_fast_
             worker = workers.save(Worker(environment_id=MAIN, name=name, model=model, session=f"ws-{name}", dispatcher="s1", brief="Change src/parser.py; done when its test passes", moves=WorkerMoves(tuple(steps))), Actor.system())
             for n in range(files):
                 edits.save(Edit(environment_id=MAIN, session=f"ws-{name}", path=f"src/part_{n}.py" if n else "tests/test_parser.py", added=lines // files, removed=0, time=start + 120, new_text="x = 1"), Actor.system())
-            worker = workers.save(workers.find(worker.row_id).merged(now), Actor.system())
+            worker = workers.save(workers.find(worker.row_id).merged(0, now), Actor.system())
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             return workers.find(worker.row_id)

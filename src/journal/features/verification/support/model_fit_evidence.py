@@ -1,9 +1,7 @@
 from journal.features.workers.support.merged_work import MergedWork
 from journal.features.workers.support.worker_reports import WorkerReports
-from journal.models.task import Task
 from journal.models.worker import Worker
-from journal.repositories.links import Links
-from journal.repositories.tasks import WORKED_LINK, Tasks
+from journal.repositories.tasks import Tasks
 
 # the most of the diff a verifier of a model's fit is handed, so its brief stays one read
 DIFF_CHARS = 8000
@@ -14,8 +12,8 @@ MODEL_VERDICTS = ("too-strong", "right", "too-weak")
 class ModelFitEvidence:
     """The brief a verifier of a worker's model is handed: the task's brief, the diff the worker's edits make as its records keep them, its report, the model it ran on and how complex the journal measured the work, with the one answer it gives."""
 
-    def __init__(self, work: MergedWork, links: Links, tasks: Tasks, reports: WorkerReports) -> None:
-        self.work, self.links, self.tasks, self.reports = work, links, tasks, reports
+    def __init__(self, work: MergedWork, tasks: Tasks, reports: WorkerReports) -> None:
+        self.work, self.tasks, self.reports = work, tasks, reports
 
     def brief(self, worker: Worker) -> str:
         complexity = self.work.complexity(worker)
@@ -32,8 +30,7 @@ class ModelFitEvidence:
         ))
 
     def task_brief(self, worker: Worker) -> str:
-        worked = self.links.typed_targets(worker, WORKED_LINK, Task.table())
-        return self.tasks.find(worked[-1].id).brief if worked else worker.brief
+        return self.tasks.find(worker.merged_task).brief if worker.merged_task else worker.brief
 
     def diff(self, worker: Worker) -> str:
         edits = self.work.job_edits(worker)
