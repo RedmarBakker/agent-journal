@@ -12591,6 +12591,8 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
     assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
     reports = lambda: [m for m in app.container.get(Messages).all() if m.data.get("kind") == "report"]
+    with app.container.get(Scope).environment(MAIN):
+        before = len(app.container.get(Messages).all())
     for n, task in enumerate((1, 2), start=1):
         committed(worktree, f"notes{n}.md", f"note {n}\n")
         moved = proved_and_out(app, caller, f"notes{n}.md:1")
@@ -12599,6 +12601,11 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         tasks = app.container.get(Tasks)
         assert tasks.finished_task_ids(Ref("workers", 1)) == (1, 2) and tasks.holder_task_ids(Ref("workers", 1)) == (3,), "each finished task waits for the merge, and the worker holds only the task it is on"
         assert not reports() and worker_row(app).state == "clocked in", "no report yet: the dispatcher is not interrupted"
+        assert len(app.container.get(Messages).all()) == before, "a move inside the queue writes nothing in the dispatcher's chat"
+        assert [step[0] for step in worker_row(app).moves.steps if step[0].startswith("moved on")] == ["moved on to task 2", "moved on to task 3"], "each move is on the worker's trail"
+        from journal.repositories.proofs import Proofs
+        proofs = app.container.get(Proofs)
+        assert [p.text for p in proofs.task_proofs(tasks.find(1))] == ["notes1.md:1"] and [p.text for p in proofs.task_proofs(tasks.find(2))] == ["notes2.md:1"], "each proof lands on the task the worker was on, and the finished task's proofs stand"
     committed(worktree, "notes3.md", "note 3\n")
     out = proved_and_out(app, caller, "notes3.md:1")
     assert out.code == 0 and "clocked out of task 3" in out.text, out.error

@@ -1,4 +1,5 @@
 from argparse import Namespace
+from datetime import datetime, timezone
 
 from journal.console.command import WORKER_KINDS, Command
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
@@ -7,6 +8,7 @@ from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
@@ -47,8 +49,8 @@ class DepartureCommand(Command):
             raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
-        if not worker.pool_request and not self.is_unfinished(task) and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
-            return self.moved_on(task, waiting[0], holder, caller)
+        if not worker.pool_request and not self.is_unfinished(task) and not self.is_blocked(waiting) and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
+            return self.moved_on(worker, task, waiting[0], caller)
         if worker.pool_request:
             self.push_branch(worker)
         if self.moves.is_remote(worker):
@@ -58,9 +60,11 @@ class DepartureCommand(Command):
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
 
-    def moved_on(self, task: Task, next_task: Task, holder: Ref, caller: Caller) -> int:
+    def moved_on(self, worker: Worker, task: Task, next_task: Task, caller: Caller) -> int:
+        holder = Ref(Worker.table(), worker.id)
         self.tasks.finished_on(task.id, holder, caller.actor)
         self.tasks.handover(next_task, holder, caller.actor)
+        self.workers.save(self.workers.find(worker.id).moved(f"moved on to task {next_task.id}", datetime.now(timezone.utc).timestamp()), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
         print("work on it now in this session: prove each of its points, commit, and clock out again")
         return 0
@@ -70,6 +74,11 @@ class DepartureCommand(Command):
         if outcome.returncode != 0:
             raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
         self.moves.ended(worker)
+
+    # a blocked task next in the queue stops it too: the worker reports instead of taking it
+    @staticmethod
+    def is_blocked(waiting: list[Task]) -> bool:
+        return bool(waiting) and waiting[0].state == TaskState.BLOCKED
 
     # a point proved not done stops the queue: the worker reports at once instead of going on
     def is_unfinished(self, task: Task) -> bool:
