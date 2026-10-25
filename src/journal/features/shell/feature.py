@@ -86,6 +86,7 @@ Every shell command you run goes through the journal's runner.
   after the title, such as the test files or the -k a line names, for a command run with different arguments.
   A run over several suites, packages or shards shows its progress too: """ + COUNTING + """.
   `--finished '<pattern>'` and `--failed '<pattern>'` pick other lines once the command finished or failed, such as its summary
+  `--summary '<pattern>'` is the summary reader: the last match in the output, its groups joined, is the summary the card shows when opened, such as '(\d+ failed), (\d+ passed)'
   or its failures; a script reader finds which in JOURNAL_OUTPUT_STAGE: running, finished or failed.
 - A reader names the commands whose output it reads, `--commands "pytest"`, and a command moved to the background that
   runs one is instructed to watch it with that reader, so one reader serves every later run; a test run or a build that no reader
