@@ -2341,13 +2341,14 @@ def test_a_document_put_on_the_hub_in_each_mode_is_found_there_with_that_mode_an
     assert {doc.title for doc in on_hub.values() if doc.environment_id == hub.row_id} == {"Read only one", "Free one", "Kept one"}
     with scope.environment(1):
         assert [doc.title for doc in docs.all() if doc.environment_id == 1] == ["Kept one"], "a document moves to the hub and --keep-copy leaves a local copy"
-    monkeypatch.setattr(TeamAccount, "user_number", lambda self: 2)
+    owner = on_hub["Free one"].owner
+    monkeypatch.setattr(TeamAccount, "user_number", lambda self: owner + 1)
     monkeypatch.setattr(TeamAccount, "is_admin", lambda self: False)
     refused = console.run(["doc", "mode", str(on_hub["Free one"].id), "read_only"], USER)
     assert refused.code != 0 and "only whoever put" in refused.error, "another member does not change the mode"
     monkeypatch.setattr(TeamAccount, "is_admin", lambda self: True)
     assert console.run(["doc", "mode", str(on_hub["Free one"].id), "read_only"], USER).code == 0, "an admin does"
-    monkeypatch.setattr(TeamAccount, "user_number", lambda self: 1)
+    monkeypatch.setattr(TeamAccount, "user_number", lambda self: owner)
     monkeypatch.setattr(TeamAccount, "is_admin", lambda self: False)
     assert console.run(["doc", "mode", str(on_hub["Read only one"].id), "free"], USER).code == 0, "and whoever put it there does"
 
