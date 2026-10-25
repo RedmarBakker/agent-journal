@@ -7,7 +7,7 @@ from journal.models.test_turn_state import TestTurnState
 
 @dataclass(frozen=True)
 class TestTurn(Scoped):
-    """A worker's turn to run tests: the worker, the test ids it named, the command that runs them, where it stands, and the number of the output of its run once that moved to the background. Stored on this machine."""
+    """A worker's turn to run tests: the worker, the test ids it named, the command that runs them, the worktree it runs in, where it stands, and the number of the output of its run once that moved to the background. Stored on this machine."""
 
     __test__ = False
 
@@ -17,6 +17,7 @@ class TestTurn(Scoped):
     worker: int = 0
     ids: str = ""
     command: str = ""
+    folder: str = ""
     state: TestTurnState = TestTurnState.WAITING
     output: int = 0
 

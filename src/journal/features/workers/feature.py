@@ -7,6 +7,9 @@ from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
 from journal.features.workers.support.pool_worker_writes import PoolWorkerWrites
 from journal.features.workers.support.pool_runner_writes import PoolRunnerWrites
 from journal.features.workers.listeners.worker_task_changes import WorkerTaskChanges
+from journal.features.workers.listeners.test_turn_release import TestTurnRelease
+from journal.features.workers.listeners.test_turn_task_release import TestTurnTaskRelease
+from journal.features.workers.seeds.test_turns_resume import TestTurnsResume
 from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.arrival_command import ArrivalCommand
 from journal.features.workers.commands.todo_command import TodoCommand
@@ -58,11 +61,11 @@ class Workers(Feature[WorkersData]):
     options = (WorkersOptions.BUILDER_HANDOVER_LIMIT, WorkersOptions.ORCHESTRATOR_LINE_LIMIT, WorkersOptions.ORCHESTRATOR_APPROVES_PLANS, WorkersOptions.FITNESS_THRESHOLD, WorkersOptions.SOLO_DISPATCH_LIMIT, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.TESTING, WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TESTS_PER_RUN, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS, WorkersOptions.TEST_RUN_LINES, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand, TestsCommand)
-    seeds = (WorkersSeed, SubagentsSeed)
+    seeds = (WorkersSeed, SubagentsSeed, TestTurnsResume)
     jobs = (WorkerWatch,)
     process_cards = (WorkerProcessCard, SubagentProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord)
+    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

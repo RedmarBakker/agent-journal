@@ -1,9 +1,12 @@
+import os
 import re
 import shutil
+import signal
 from itertools import islice
 from pathlib import Path
 
 from journal.support.part import Part
+from journal.support.process_check import ProcessCheck
 from journal.support.writes import Writes
 
 BLOCK_BYTES = 65536
@@ -15,6 +18,19 @@ class OutputFiles:
 
     def __init__(self, folder: Path) -> None:
         self.folder = folder
+
+    def shell_started(self, pid: int) -> None:
+        (self.folder / "pid").write_text(str(pid))
+
+    def stop(self, reason: str) -> None:
+        path = self.folder / "pid"
+        pid = int(path.read_text()) if path.is_file() and path.read_text().strip().isdigit() else 0
+        if ProcessCheck.is_running(pid):
+            os.killpg(pid, signal.SIGKILL)
+        parts = self.recorded()
+        if parts:
+            with (self.folder / f"{parts[-1]}.out").open("a") as out:
+                out.write(f"\n{reason}\n")
 
     def is_stored(self) -> bool:
         return (self.folder / "parts").is_file()

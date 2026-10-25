@@ -3791,7 +3791,9 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     from journal.features.workers.support.test_turns import TestTurns
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
     from journal.repositories.test_turns import TestTurns as TurnRows
+    from journal.repositories.workers import Workers
     from journal.support.rejection import Rejection
     settings = app.container.get(SettingRows)
     started, gates, results, refused = [], {n: threading.Event() for n in (1, 2, 3)}, {}, []
@@ -3815,7 +3817,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), crew)
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -3874,6 +3876,103 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     for number in (1, 2):
         gates[number].set()
     for thread in threads:
+        thread.join(10)
+
+
+def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_turns_and_waiting_turns_start_again_after_a_restart(app: App, tmp_path, monkeypatch):
+    import threading
+    import time
+    from types import SimpleNamespace
+    from journal.features.shell.support.output_files import OutputFiles
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.command_output import CommandOutput
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    from journal.repositories.workers import Workers
+    settings, outputs, scope = app.container.get(SettingRows), app.container.get(CommandOutputs), app.container.get(Scope)
+    started, gates, results, stops = [], {}, {}, []
+
+    class Crew:
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name=f"Worker {number}")
+
+        def save(self, row, actor):
+            return row
+
+    crew = Crew()
+    monkeypatch.setattr(OutputFiles, "stop", lambda self, reason: (stops.append((self.folder.name, reason)), gates[int(self.folder.name.removeprefix("run"))].set()))
+
+    class Runner:
+        def run(self, request, caller, environment):
+            number = int(Path(request.cwd).name.removeprefix("wt"))
+            started.append(number)
+            with scope.environment(1):
+                row = outputs.save(CommandOutput(chain=f"run{number}", command=request.line, folder=str(tmp_path / f"run{number}"), ran_in=request.cwd), Actor.system())
+                gates.setdefault(number, threading.Event()).wait(10)
+                outputs.save(outputs.find(row.row_id).with_(ended=True), Actor.system())
+            yield f"FAILED tests/test_{number}.py::test_it\n".encode()
+
+    def fresh():
+        started.clear(), gates.clear(), results.clear(), stops.clear()
+        gates.update({n: threading.Event() for n in range(1, 5)})
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments))
+
+    def worker(number):
+        return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
+
+    def ask(turns, number):
+        with scope.environment(1):
+            results[number] = turns.take(worker(number), f"tests/test_{number}.py", SimpleNamespace())
+
+    def asking(turns, *numbers):
+        threads = [threading.Thread(target=ask, args=(turns, number)) for number in numbers]
+        for thread in threads:
+            thread.start()
+            time.sleep(0.4)
+        return threads
+
+    def until(test):
+        end = time.time() + 10
+        while not test() and time.time() < end:
+            time.sleep(0.05)
+        return test()
+
+    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 0.01, Actor.user(1))
+    turns = fresh()
+    threads = asking(turns, 1, 2)
+    assert until(lambda: 1 in results) and "timed out" in results[1] and [name for name, _ in stops] == ["run1"], "a run past the time limit is stopped and reported to its worker as timed out"
+    assert until(lambda: started == [1, 2]), "and its place goes to the next waiting turn"
+    gates[2].set()
+    for thread in threads:
+        thread.join(10)
+
+    settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 10, Actor.user(1))
+    turns = fresh()
+    first = asking(turns, 1)
+    waiting = threading.Thread(target=ask, args=(turns, 1))
+    waiting.start()
+    time.sleep(0.4)
+    follow = asking(turns, 2)
+    assert started == [1]
+    turns.release(1)
+    assert until(lambda: started == [1, 2]) and [name for name, _ in stops] == ["run1"], "a worker that ends has its running run stopped, its waiting turn gone, and the next turn starts"
+    gates[2].set()
+    for thread in follow:
+        thread.join(10)
+
+    turns = fresh()
+    with scope.environment(1):
+        for number in (1, 2, 3):
+            turns.asked(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
+    resumed = turns.resume()
+    for number in (1, 2, 3):
+        assert until(lambda: len(started) == number) and started == list(range(1, number + 1)), "after a restart the waiting turns run in order, one at a time"
+        gates[number].set()
+    for thread in resumed:
         thread.join(10)
 
 

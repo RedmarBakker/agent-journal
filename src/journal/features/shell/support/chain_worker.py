@@ -8,7 +8,7 @@ from journal.features.shell.support.changed_file import ChangedFile
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.shell_process import ShellProcess
 from journal.features.shell.support.shell_record import ShellRecord
-from journal.features.shell.support.shell_request import ShellRequest
+from journal.features.shell.support.shell_request import OUTPUT_FOLDER_VARIABLE, ShellRequest
 from journal.support.caller import Caller
 
 SHELL_SETUP = """
@@ -61,6 +61,7 @@ class ChainWorker:
 
     def started(self, request: ShellRequest, output_text: Callable[[bytes], None]) -> tuple[ShellProcess, threading.Thread]:
         shell = ShellProcess.started(request)
+        OutputFiles(Path(request.environment[OUTPUT_FOLDER_VARIABLE])).shell_started(shell.process.pid)
         pump = threading.Thread(target=lambda: self.pump(shell, output_text), name="shell-output", daemon=True)
         pump.start()
         self.write_part(shell, SHELL_SETUP.replace("__JOURNAL_OWNER", str(os.getpid())))
