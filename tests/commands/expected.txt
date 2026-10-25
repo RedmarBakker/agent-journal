@@ -1588,6 +1588,7 @@ plans.plan_reopened  [plans]  plan {{n}} is open again: {{why}}. `journal plan s
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
 plans.review_write_up_waits  [plans]  your writes wait until plan {{n}} is readied. put the reviewers' findings into it and `journal plan ready {{n}} --changed "<what changed>"`
+plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{title}}): {{testing}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
@@ -1764,7 +1765,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-266 nudges
+267 nudges
 
 $ agent: journal worker list
 exit 0
