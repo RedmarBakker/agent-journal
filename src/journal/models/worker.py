@@ -114,9 +114,9 @@ class Worker(Helper):
     def delivery_time(self) -> float:
         return next((time for word, time in reversed(self.moves.steps) if word == DELIVERY_MOVE), 0.0)
 
-    # when its job began: its dispatch, a job sent to it, or its move to the next task of its queue
+    # when its job began: its dispatch or a job sent to it; a move to the next task of its queue is the same job going on
     def job_start_time(self) -> float:
-        return next((time for word, time in reversed(self.moves.steps) if word in ("dispatched", "sent a job") or word.startswith("moved on to task")), 0.0)
+        return next((time for word, time in reversed(self.moves.steps) if word in ("dispatched", "sent a job")), 0.0)
 
     def rejections(self) -> int:
         return self.moves.counted_since(REJECTION_MOVE, MERGED)

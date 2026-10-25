@@ -12829,6 +12829,13 @@ def test_a_session_with_no_reports_and_no_queues_scores_as_it_did_before_the_new
     assert WorkersProfiles.BUILDER.scored(counts) == before, "a measure with no data is absent, so the score is unchanged"
 
 
+def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.models.worker import Worker
+    worker = Worker(name="w", brief="b", moves=WorkerMoves((("dispatched", 100.0), ("clocked in", 110.0), ("moved on to task 2", 900.0), ("moved on to task 3", 1500.0))))
+    assert worker.job_start_time() == 100.0, "a move inside the queue is the same job going on, so a report at the queue's end is never a quick or tiny one for its last task alone"
+
+
 def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_how_quick_it_was(app: App, monkeypatch):
     from journal.features.workers.listeners.report_use_record import ReportUseRecord
     from journal.repositories.agents import Agents
