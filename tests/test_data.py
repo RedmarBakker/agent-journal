@@ -657,6 +657,7 @@ def team_journal(tmp_path, name: str):
     from journal.sync.attachments import Attachments
     from journal.sync.pulled_file_removal import PulledFileRemoval
     from journal.sync.record_withdrawal import RecordWithdrawal
+    from journal.repositories.journal_backup import JournalBackup
 
     folder = tmp_path / name
     config = Config(folder)
@@ -678,7 +679,7 @@ def team_journal(tmp_path, name: str):
     bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
     bus.listen(EnvironmentUnshared, RecordWithdrawal(outgoing, TeamAccount(config), SharedTables(connection, bus), Links(connection, bus), EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments), team_scopes(connection, bus, scope), ServiceHooks()))
     bus.listen(SyncedDeletion, PulledFileRemoval(Attachments(config, PendingUploads(connection, bus), TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)))))
-    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus), TeamAccount(config))
+    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus), TeamAccount(config), JournalBackup(connection), config)
 
 
 def team_changes(outgoing):
@@ -829,6 +830,47 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     assert outgoing_b.waiting() == [], "the colleague sends nothing back for what it let go"
     assert {(table, id) for table, id in withdrawn if rows_a.rows(table).matching(id=id)} == set(withdrawn) and links_a.connecting(task, hub_task), "the owner keeps every row and its link to the hub's task"
     assert (tmp_path / "a" / ".journal" / "files" / "message" / str(messages[0].id) / "note.txt").read_bytes() == b"a note", "and its file"
+    team.store.close()
+
+
+def test_a_journal_backs_up_before_it_deletes_withdrawn_rows_and_one_restored_from_that_backup_converges_after_one_pull(tmp_path):
+    import json
+    import shutil
+    import sqlite3
+    from journal.models.environment import Environment
+    from journal.models.message import Message
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.team_account import TEAM_FILE
+    from journal.sync.team_change import TeamChange
+
+    team, (_, scope_a, tasks_a, _, _), (_, _, tasks_b, _, _), carried = served_team_journals(tmp_path)
+    shared = scope_a.environments.save(Environment(name="mine", is_shared_with_team=True), USER)
+    with scope_a.environment(shared.id):
+        task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
+        message = SharedTables(tasks_a.connection, tasks_a.bus).rows("messages").save(Message(environment_id=shared.id, text="hello"), USER)
+    carried()
+    before = team.log.head()
+    withdrawn = [("environments", shared.id), ("tasks", task.id), ("messages", message.id)]
+    scope_a.environments.save(scope_a.environments.find(shared.id).unshared(), USER)
+    carried()
+    [backup] = (tmp_path / "b" / ".journal").glob("journal-before-withdrawal-*.db")
+    held = sqlite3.connect(backup)
+    assert all(held.execute(f"SELECT 1 FROM {table} WHERE id = ?", (id,)).fetchone() for table, id in withdrawn), "the backup is written before the withdrawn rows are deleted, so it holds every one of them"
+    held.close()
+    rows_b = SharedTables(tasks_b.connection, tasks_b.bus)
+    assert not any(rows_b.rows(table).matching(id=id) for table, id in withdrawn), "and then they are deleted"
+
+    (tmp_path / "c").mkdir()
+    shutil.copy(backup, tmp_path / "c" / "journal.db")
+    _, _, tasks_c, _, incoming_c = team_journal(tmp_path, "c")
+    (tmp_path / "c" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2}))
+    rows_c = SharedTables(tasks_c.connection, tasks_c.bus)
+    assert all(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "the restored journal holds the withdrawn rows again"
+    pulled = [TeamChange.logged(change) for change in team.log.pull_page(before, 0)]
+    incoming_c.apply(pulled)
+    assert not any(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "one pull from where its backup stood leaves it with no withdrawn row"
+    incoming_c.apply(pulled)
+    assert not any(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "and the same pull again changes nothing"
     team.store.close()
 
 
