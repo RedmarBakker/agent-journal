@@ -25,6 +25,8 @@ class ClockConduct(Conduct):
         rows = event.data.part(WorkersPart).session_workers
         if event.call.writes and rows and rows[0].state == WorkerState.DISPATCHED:
             return self.refuse(WorkersNudges.READINESS.create())
+        if rows and any(part.is_git for part in event.call.parts):
+            return self.refuse(WorkersNudges.WORKER_GIT_REFUSAL.create())
         tests = ActivityLabel.test_runs(tuple(part.text for part in event.call.parts))
         if rows and tests and settings.value(WorkersOptions.TESTING) == MERGER_TESTING:
             return self.refuse(WorkersNudges.TEST_HANDOVER.create(command=tests[0]))

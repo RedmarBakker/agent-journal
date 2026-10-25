@@ -45,7 +45,8 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
-REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
+REBASE_NOTE = f"The journal rebased your worktree onto the project's branch, at {{heads}}, and {{clashing}}. First {REBASE_STEPS}. Then: "
+MOVED_NOTE = "The journal rebased your worktree onto the project's branch, at {heads}, so files may have changed since your last job. "
 SESSION_BUSY_REFUSAL = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
 JOB_MOVE = "sent a job"
 REDO_MOVE = REJECTION_MOVE
@@ -301,8 +302,11 @@ class WorkerActions:
             raise Rejection(f"worker {worker.id}, {worker.name}: the conversation of its session {worker.resume} is gone, so it cannot go on with its memory; dispatch the job again")
 
     def rebase_note(self, worker: Worker) -> str:
+        start_heads = self.branch.worktree_heads(worker)
         clashing = self.branch.rebased_onto_branch(worker)
-        return REBASE_NOTE.format(clashing=clashing) if clashing else ""
+        if clashing:
+            return REBASE_NOTE.format(heads=self.branch.project_heads(worker), clashing=clashing)
+        return MOVED_NOTE.format(heads=self.branch.project_heads(worker)) if self.branch.worktree_heads(worker) != start_heads else ""
 
     def renewal(self, worker: Worker, brief: str) -> tuple[str, ...]:
         try:

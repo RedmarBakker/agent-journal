@@ -7,7 +7,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 
-RETURN_JOB = "the project's branch moved under your finished work and it no longer merges cleanly; once it is rebased, clock out again, and the journal runs your tests again"
+RETURN_JOB = "the project's branch moved under your finished work and it no longer merges cleanly; once the files that clash are fixed, clock out again, and the journal goes on with the rebase and runs your tests again"
 
 
 class ClashReturn:

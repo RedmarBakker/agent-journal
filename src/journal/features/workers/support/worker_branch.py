@@ -23,7 +23,8 @@ CHECKOUT_TIMEOUT_SECONDS = 600
 BUILD_SECONDS = 600
 
 # what a worker does when its branch clashes with the branch its work merges into
-REBASE_STEPS = "rebase your branch onto it in your worktree, resolve each conflict keeping both sides' changes, and commit"
+REBASE_STEPS = "fix only the files that clash, keeping both sides' changes and removing every conflict marker; never run git, since the journal adds them and goes on with the rebase when you clock out"
+CONFLICT_MARKER = re.compile(r"^(<{7}|>{7}) ", re.MULTILINE)
 
 class WorkerBranch:
     """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again."""
@@ -223,6 +224,9 @@ class WorkerBranch:
         return ""
 
     def rebased(self, repository: WorkerRepository, worker: Worker) -> str:
+        unresolved = self.continue_rebase(repository) if repository.is_present and self.is_rebasing(repository.worktree) else ""
+        if unresolved:
+            return unresolved
         head = self.git("rev-parse", "HEAD", cwd=repository.checkout).stdout.strip()
         if self.git("merge-base", "--is-ancestor", head, self.tip(repository, worker), cwd=repository.checkout).returncode == 0:
             return ""
@@ -230,16 +234,53 @@ class WorkerBranch:
             return ""
         if not repository.is_present:
             return f"{repository.label()}, whose worktree is gone, so its commits cannot be rebased"
-        outcome = self.git("rebase", "--autostash", head, cwd=repository.worktree)
-        rebuilt = False
-        while outcome.returncode != 0 and self.is_built_clash(repository.worktree):
-            outcome = self.project_side(repository.worktree)
-            rebuilt = True
+        return self.rebase_conflicts(repository, self.git("rebase", "--autostash", head, cwd=repository.worktree))
+
+    def continue_rebase(self, repository: WorkerRepository) -> str:
+        unresolved = [path for path in self.conflicts(repository.worktree).split(", ") if path and self.is_marked(repository.worktree / path)]
+        if unresolved:
+            return ", ".join(repository.path(path) for path in unresolved)
+        self.git("add", "-A", cwd=repository.worktree)
+        return self.rebase_conflicts(repository, self.git("-c", "core.editor=true", "rebase", "--continue", cwd=repository.worktree))
+
+    def rebase_conflicts(self, repository: WorkerRepository, outcome: subprocess.CompletedProcess) -> str:
+        folder, rebuilt = repository.worktree, False
+        while self.is_automatic_step(folder, outcome):
+            rebuilt = rebuilt or bool(self.conflicts(folder))
+            outcome = self.project_side(folder) if self.conflicts(folder) else self.git("rebase", "--skip", cwd=folder)
         if outcome.returncode == 0:
-            return self.rebuild(repository.worktree) if rebuilt else ""
-        clashing = self.conflicts(repository.worktree)
-        self.git("rebase", "--abort", cwd=repository.worktree)
+            return self.rebuild(folder) if rebuilt else ""
+        clashing = self.conflicts(folder)
         return ", ".join(repository.path(path) for path in clashing.split(", ")) if clashing else f"the files of {repository.label()}"
+
+    def is_automatic_step(self, folder: Path, outcome: subprocess.CompletedProcess) -> bool:
+        return outcome.returncode != 0 and self.is_rebasing(folder) and (self.is_built_clash(folder) or self.is_empty_step(folder))
+
+    def is_rebasing(self, folder: Path) -> bool:
+        return any((folder / self.git("rev-parse", "--git-path", name, cwd=folder).stdout.strip()).exists() for name in ("rebase-merge", "rebase-apply"))
+
+    def is_empty_step(self, folder: Path) -> bool:
+        return not self.conflicts(folder) and self.git("diff", "--cached", "--quiet", cwd=folder).returncode == 0
+
+    @staticmethod
+    def is_marked(path: Path) -> bool:
+        return path.is_file() and bool(CONFLICT_MARKER.search(path.read_text(errors="replace")))
+
+    def commit_changes(self, worker: Worker, message: str) -> None:
+        for repository in self.changed_repositories(worker):
+            self.git("add", "-A", cwd=repository.worktree)
+            self.git("commit", "-qm", message, cwd=repository.worktree)
+
+    def changed_repositories(self, worker: Worker) -> list[WorkerRepository]:
+        return [repository for repository in self.repositories(worker) if repository.is_present and not self.is_rebasing(repository.worktree) and self.status_files(repository.worktree)]
+
+    def worktree_heads(self, worker: Worker) -> tuple[str, ...]:
+        if not worker.worktree or not self.folder(worker).is_dir():
+            return ()
+        return tuple(self.git("rev-parse", "HEAD", cwd=repository.worktree).stdout.strip() for repository in self.repositories(worker) if repository.is_present)
+
+    def project_heads(self, worker: Worker) -> str:
+        return ", ".join(self.head(repository) for repository in self.repositories(worker))
 
     def built_paths(self) -> tuple[str, ...]:
         lines = self.settings.texts(WorkersOptions.BUILT_PATHS)

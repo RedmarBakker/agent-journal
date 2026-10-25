@@ -49,7 +49,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         actor = Actor.agent(event.session)
         if not head or self.cards.is_shown(f"{COMMIT}:{head.sha}", actor) or not (commit_call or self.is_agents(event, head)):
             return None
-        label = f"Agent committed {head.sha[:8]} on `{head.branch}`"
+        label = f"Committed {head.sha[:8]} on `{head.branch}`"
         self.cards.show(event.environment_id, event.session, label, head.subject, actor=actor, key=f"{COMMIT}:{head.sha}", shows=CardKind.COMMITS)
         return self.commit(event, head.sha, head.body if self.is_agents(event, head) else "")
 

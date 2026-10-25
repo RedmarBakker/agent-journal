@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from journal.support.part import Part
+
 
 @dataclass(frozen=True)
 class CommandPart:
@@ -25,3 +27,7 @@ class CommandPart:
     def journal_noun(self) -> str:
         tokens = self.text.split()
         return tokens[1] if self.is_journal and len(tokens) > 1 else ""
+
+    @property
+    def is_git(self) -> bool:
+        return Part(self.text).program() == "git"

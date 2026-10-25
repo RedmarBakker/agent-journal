@@ -613,6 +613,9 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
         messages = posted()
     writes = [worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
     assert all(status == 200 for status, _ in writes), "a worker is never held by the user's unread messages, which are the main agent's to read"
+    for line in ("git commit -qm work", "git -C platform status", "cd platform && git rebase main"):
+        status, body = worker_hook("PreToolUse", tool_name="Bash", tool_input={"command": line})
+        assert status == 409 and "you never run git: the journal commits your work" in body["error"], (line, body)
     with scope.environment(1):
         workers.save(workers.find(worker.id).delivered(2.0), Actor.worker(worker.id))
     assert agents.session_agent("w1").stack[-1]["state"] != "working" and "decision" not in worker_hook("Stop")[1], "clocked out, it may stop"

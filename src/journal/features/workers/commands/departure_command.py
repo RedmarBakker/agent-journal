@@ -50,12 +50,16 @@ class DepartureCommand(Command):
         missing = self.unproved(task)
         if missing:
             raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof that stands: journal proof <point> \"<file:line, and the test that shows it>\", or journal proof <point> --not-done \"<why>\"")
-        uncommitted = self.uncommitted(worker)
-        if uncommitted:
-            raise Rejection(f"your worktree has uncommitted files, which would be lost: {', '.join(uncommitted)}; commit them first")
+        start_heads = self.branch.worktree_heads(worker)
+        self.branch.commit_changes(worker, f"Task {task.id}: {task.title}")
         clashing = self.clashing(worker)
         if clashing:
-            raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
+            raise Rejection(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}, and it clashes: {clashing}; {REBASE_STEPS}, then clock out again")
+        strays = self.uncommitted(worker)
+        if strays:
+            raise Rejection(f"your worktree contains folders outside the repositories of your task, which would be lost: {', '.join(strays)}; move their changes into your task's repositories or remove them")
+        if self.branch.worktree_heads(worker) != start_heads:
+            print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if self.is_journal_testing(worker):
             self.tested(worker, task, args.tests, caller)
         holder = Ref(Worker.table(), worker.id)
@@ -96,7 +100,7 @@ class DepartureCommand(Command):
         moment = datetime.now(timezone.utc).timestamp()
         self.workers.save(self.workers.find(worker.id).moved(f"moved on to task {next_task.id}", moment).with_(began=moment), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
-        print("work on it now in this session: prove each of its points, commit, and clock out again")
+        print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")
         return 0
 
     def push_branch(self, worker: Worker) -> None:

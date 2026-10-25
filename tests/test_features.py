@@ -2391,7 +2391,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     app.runtime().deferred.drain()
     from journal.repositories.messages import Messages
     thresholds = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "commits"]
-    assert len(thresholds) == 1 and thresholds[0].text.startswith("Agent committed ") and thresholds[0].data["detail"] == "Ship the footer", "the commit is a message in the chat, once"
+    assert len(thresholds) == 1 and thresholds[0].text.startswith("Committed ") and thresholds[0].data["detail"] == "Ship the footer", "the commit is a message in the chat, once"
 
 
 def test_the_start_block_carries_the_quiet_rule_the_laws_a_takeover_and_what_waits(app: App):
@@ -10925,7 +10925,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     hook(app, "SessionStart")
     looked = dict(tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "", "stderr": ""})
     hook(app, "PostToolUse", **looked)
-    cards = lambda: [m.text for m in app.container.get(Messages).scoped() if m.text.startswith("Agent committed")]
+    cards = lambda: [m.text for m in app.container.get(Messages).scoped() if m.text.startswith("Committed")]
     assert cards() == [], "the head as first seen is no commit of this session's"
     app.console().run(["task", "create", "footer", "--start"], AGENT)
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git commit -qm 'the footer' && sh install.sh"})
@@ -13359,14 +13359,15 @@ def test_touched_files_across_repositories_carry_their_repository_folder(app: Ap
     assert set(app.container.get(WorkerBranch).touched(worker_row(app))) == {"README.md", "platform/totals.php"}
 
 
-def test_an_uncommitted_file_in_an_inner_worktree_refuses_clock_out_by_its_full_path_whatever_the_users_git_config(app: App, monkeypatch):
+def test_an_uncommitted_file_in_an_inner_worktree_is_committed_by_the_journal_at_clock_out_whatever_the_users_git_config(app: App, monkeypatch):
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
     git_run(folder / "platform", "config", "status.branch", "true")
     git_run(folder / "platform", "config", "color.status", "always")
     (folder / "platform" / "draft.php").write_text("<?php\n")
     out = proved_and_out(app, caller)
-    assert out.code != 0 and "platform/draft.php" in out.error and "##" not in out.error, out.error
+    assert out.code == 0, out.error
+    assert git_run(folder / "platform", "status", "--porcelain").stdout == "" and "draft.php" in git_run(folder / "platform", "show", "--name-only", "--format=").stdout, "the journal committed the worker's file under its task"
 
 
 def test_files_written_into_a_repository_folder_the_worker_has_no_worktree_of_refuse_clock_out(app: App, monkeypatch):
@@ -18253,7 +18254,7 @@ def test_a_paused_task_can_be_blocked_so_an_agent_held_by_the_user_may_say_it_is
     assert stuck()[0] == 200, "the paused task blocked, every task waits, and the agent may say it is stuck"
 
 
-def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_it_with_the_conflict_to_resolve(app: App, monkeypatch):
+def test_a_worker_sent_a_job_while_its_branch_clashes_is_rebased_by_the_journal_and_sent_the_conflict_to_fix(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
@@ -18262,23 +18263,37 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_i
     sent = app.console().run(["worker", "send", "1", "finish the job"], AGENT)
     assert sent.code == 0, sent.error
     brief = worker_row(app).brief
-    assert "conflict in platform/app.php" in brief and "rebase your branch onto it" in brief and brief.endswith("finish the job"), brief
+    assert brief.startswith("The journal rebased your worktree onto the project's branch") and "conflict in platform/app.php" in brief and "fix only the files that clash" in brief and brief.endswith("finish the job"), brief
+    assert "<<<<<<< " in (folder / "platform/app.php").read_text(), "the journal stopped the rebase with the conflict in the worktree, for the worker to fix"
 
 
-def test_a_clock_out_moves_the_workers_branch_up_to_the_project_and_sends_a_clash_back_at_once(app: App, monkeypatch):
+def test_a_clock_out_commits_and_rebases_the_workers_work_and_goes_on_with_a_rebase_once_its_conflicts_are_fixed(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    (folder / "platform/app.php").write_text("<?php\n// the worker's line\n")
     committed(root / "platform", "app.php", "<?php\n// the user's line\n")
     refused = proved_and_out(app, caller, "platform/app.php:1")
-    assert refused.code != 0 and "conflict in platform/app.php" in refused.error and "rebase your branch onto it" in refused.error and "clock out again" in refused.error, refused.error
-    assert worker_row(app).state != WorkerState.DELIVERED, "the worker is still out, with the clash to resolve"
-    git_run(folder / "platform", "reset", "-q", "--hard", git_run(root / "platform", "rev-parse", "HEAD").stdout.strip())
-    committed(folder / "platform", "app.php", "<?php\n// the user's line\n// the worker's line\n")
+    assert refused.code != 0 and "the journal committed your work and rebased it" in refused.error and "conflict in platform/app.php" in refused.error and "fix only the files that clash" in refused.error, refused.error
+    assert worker_row(app).state != WorkerState.DELIVERED, "the worker is still out, with the clash to fix"
+    assert app.console().run(["clock-out", "the work is in"], caller).code != 0, "a file still holding its conflict markers is refused again"
+    (folder / "platform/app.php").write_text("<?php\n// the user's line\n// the worker's line\n")
     committed(root / "platform", "notes.md", "a later note\n")
-    assert app.console().run(["clock-out", "the work is in"], caller).code == 0, "once it has no clash the clock-out goes through"
+    out = app.console().run(["clock-out", "the work is in"], caller)
+    assert out.code == 0, out.error
     project_tip = git_run(root / "platform", "rev-parse", "HEAD").stdout.strip()
-    assert git_run(folder / "platform", "merge-base", "--is-ancestor", project_tip, "HEAD").returncode == 0, "and the worker's branch is moved up to the project's, the note committed meanwhile with it"
+    assert git_run(folder / "platform", "merge-base", "--is-ancestor", project_tip, "HEAD").returncode == 0, "the journal went on with the rebase and moved the branch up to the project's, the note committed meanwhile with it"
+    assert git_run(folder / "platform", "log", "-1", "--format=%s").stdout.strip() == "Task 1: the job 1" and git_run(folder / "platform", "status", "--porcelain").stdout == "", "the worker's work is committed by the journal under its task"
+
+
+def test_a_clean_clock_out_commits_the_workers_work_and_tells_it_the_journal_rebased_it(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    (folder / "platform/totals.php").write_text("<?php\n// totals\n")
+    committed(root / "platform", "notes.md", "a later note\n")
+    out = proved_and_out(app, caller, "platform/totals.php:1")
+    assert out.code == 0, out.error
+    assert "the journal committed your work and rebased it onto the project's branch, at" in out.text, out.text
+    assert (folder / "platform/notes.md").is_file() and git_run(folder / "platform", "status", "--porcelain").stdout == "", "its work is committed and its worktree carries what landed meanwhile"
 
 
 def test_a_merge_landing_sends_back_each_waiting_branch_it_makes_clash_and_leaves_one_clashing_only_in_built_files_alone(app: App, monkeypatch):
