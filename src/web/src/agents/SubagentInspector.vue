@@ -2,15 +2,11 @@
 import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
-import InspectorColumn from "./InspectorColumn.vue";
-import InspectorSummary from "./InspectorSummary.vue";
-import InspectorTop from "./InspectorTop.vue";
-import TranscriptTurns from "./TranscriptTurns.vue";
+import TranscriptInspector from "./TranscriptInspector.vue";
 import {useTranscript} from "../composables/transcript.js";
 import {ending} from "../domain/agentState.js";
 import {briefOf, reportOf} from "../domain/transcript.js";
 import {ago, clock} from "../format/time.js";
-import {narrow} from "../platform/view.js";
 
 const props = defineProps({
     subagent: {type: Object, required: true},
@@ -20,8 +16,8 @@ const props = defineProps({
 });
 const emit = defineEmits(["back", "close"]);
 const name = computed(() => props.subagent.task || props.subagent.type || "Subagent");
-const turnsView = ref(null);
-const scroller = computed(() => turnsView.value && turnsView.value.scroller);
+const inspector = ref(null);
+const scroller = computed(() => inspector.value && inspector.value.scroller);
 const transcript = useTranscript(() => props.agent.id, props.subagent.session, scroller, props.api);
 const {turns} = transcript;
 const brief = computed(() => props.subagent.brief || briefOf(turns.value)?.text || "");
@@ -46,39 +42,14 @@ const parts = computed(() => [
 </script>
 
 <template>
-    <div :class="['subagent-inspector', {narrow}]">
-        <InspectorTop @close="emit('close')">
+    <TranscriptInspector ref="inspector" :name="name" :state="state" :moves="moves" :facts="facts" :parts="parts" :env="env" :transcript="transcript" :speakers="speakers" @close="emit('close')">
+        <template #top>
             <Btn small @click="emit('back')">
                 <Icon name="back" :size="12" />
                 Main agent
             </Btn>
             Subagents › {{ name }}
-        </InspectorTop>
-        <InspectorSummary :name="name" :state="state" :moves="moves" :facts="facts" :parts="parts" :env="env">
-            <template #stamp>Subagent of agent {{ agent.id }}</template>
-        </InspectorSummary>
-        <div class="cols">
-            <InspectorColumn title="Transcript">
-                <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
-            </InspectorColumn>
-        </div>
-    </div>
+        </template>
+        <template #stamp>Subagent of agent {{ agent.id }}</template>
+    </TranscriptInspector>
 </template>
-
-<style scoped>
-.subagent-inspector {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    background: var(--raised);
-}
-
-.cols {
-    display: grid;
-    flex: 1;
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
-    border-top: 1px solid var(--border);
-}
-</style>

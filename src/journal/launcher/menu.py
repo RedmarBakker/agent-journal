@@ -7,6 +7,7 @@ from typing import TypeVar
 
 from journal.support.worktree import Worktree
 from journal.launcher.support.answers import Answers
+from journal.launcher.support.command_environment import CommandEnvironment
 from journal.support.choice import Choice
 from journal.support.environment_row import EnvironmentRow
 from journal.support.past_session_row import PastSessionRow
@@ -50,8 +51,8 @@ class Menu:
     def command(self, argv: tuple[str, ...]) -> list[str]:
         return ["sh", str(self.journal_sh), *argv]
 
-    def command_environment(self) -> dict[str, str]:
-        return {"JOURNAL_ROOT": str(self.root), "PATH": f"{Path(sys.executable).parent}:/usr/bin:/bin:/usr/local/bin"}
+    def command_environment(self) -> CommandEnvironment:
+        return CommandEnvironment(JOURNAL_ROOT=str(self.root), PATH=f"{Path(sys.executable).parent}:/usr/bin:/bin:/usr/local/bin")
 
     def environment_rows(self, name: str, rows: list) -> list:
         if name in {row.name for row in rows}:
@@ -150,9 +151,14 @@ class Menu:
         if row.working:
             self.screen.pick(f"{row.name} has an agent working", ["Stop that agent first."], [Option("Back")], 0)
             return
-        notes = ["Everything recorded in it goes with it: tasks, messages, plans, memory, the record. This cannot be undone.", *([f"Its worktree folder and its branch stay; journal worktree remove {row.name} removes them once their work is done."] if row.worktree else [])]
+        notes = ["Everything recorded in it goes with it: tasks, messages, plans, memory, the record. This cannot be undone.", *self.worktree_notes(row)]
         if self.screen.pick(f"Delete {row.name}?", notes, [Option("No, keep it"), Option("Yes, delete it")], 0) == 1:
             self.journal("environment", "delete", row.name)
+
+    def worktree_notes(self, row: EnvironmentRow) -> list[str]:
+        if not row.worktree:
+            return []
+        return [f"Its worktree folder and its branch stay; journal worktree remove {row.name} removes them once their work is done."]
 
     def _resume(self, agent: str, environment: str, last: str) -> str:
         notes = [f"An earlier {agent.capitalize()} session worked {environment}. Carrying on opens that conversation again,", "without asking the other questions."]

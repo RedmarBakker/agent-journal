@@ -26,7 +26,7 @@ class CommentController(ShapedRowsController[Message]):
     def index(self, request: Request) -> Response:
         if "on" not in request.query:
             return super().index(request)
-        rows = self.repository.row_comments(self.row(str(request.query["on"])))
+        rows = self.repository.row_comments(self.row(request.query["on"]))
         return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
 
     def rows(self) -> list[Message]:
@@ -37,13 +37,14 @@ class CommentController(ShapedRowsController[Message]):
         return [{**ModelFields.build(m), "on": [str(ref) for ref in enabled.get(m.row_id, [])]} for m in rows]
 
     def store(self, request: Request) -> Response:
-        target = self.row(str(request.body.get("on", "")))
+        target = self.row(request.body.get("on", ""))
         reply_ref = request.body.get("reply_target")
         message = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=int(reply_ref) if reply_ref else None).arrived(), request.actor)
         self.links.save(Link(source=Ref.build(message), target=target, kind=Messages.COMMENT_LINK), request.actor)
         return Response.json(self.shown(message), 201)
 
-    def row(self, matched: str) -> Ref:
+    def row(self, reference: object) -> Ref:
+        matched = str(reference)
         kind, _, id = matched.partition(":")
         if kind not in COMMENTED or not id.isdigit() or not self.references.is_row(Ref(kind, int(id))):
             raise Rejection(f"a comment is written under a task, a plan, a document, a report, a fact, a rule, a reminder or a question that is there, named as tasks:12, not {matched!r}")

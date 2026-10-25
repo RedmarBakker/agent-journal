@@ -41,11 +41,11 @@ class Server:
             self._bound[0].shutdown()
         for bound in self._bound:
             bound.server_close()
-        if self._bound and self.owns_port_file():
+        if self._bound and self.is_port_file_owned():
             self.config.port_file.unlink(missing_ok=True)
 
     # the port file names whichever journal serves the project now; a server stopping after another took over leaves it alone
-    def owns_port_file(self) -> bool:
+    def is_port_file_owned(self) -> bool:
         return self.config.port_file.is_file() and self.config.port_file.read_text().strip() == str(self.port)
 
     def _build(self) -> ThreadingServer:

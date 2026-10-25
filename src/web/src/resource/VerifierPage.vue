@@ -1,9 +1,6 @@
 <script setup>
 import {computed, ref} from "vue";
-import InspectorColumn from "../agents/InspectorColumn.vue";
-import InspectorSummary from "../agents/InspectorSummary.vue";
-import InspectorTop from "../agents/InspectorTop.vue";
-import TranscriptTurns from "../agents/TranscriptTurns.vue";
+import TranscriptInspector from "../agents/TranscriptInspector.vue";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {judgedLine, verifierName, verifierWord} from "../domain/verifiers.js";
@@ -23,49 +20,24 @@ const judged = computed(() => [...(props.resource.judged || [])].reverse().map((
 
 // The verifier's own conversation, read from its transcript.
 const transcripts = {env: () => api.env(), transcript: (_agent, _session, fields) => api.verifierTranscript(props.resource.id, fields)};
-const turnsView = ref(null);
-const scroller = computed(() => turnsView.value && turnsView.value.scroller);
+const inspector = ref(null);
+const scroller = computed(() => inspector.value && inspector.value.scroller);
 const transcript = useTranscript(() => "verifier", "", scroller, transcripts);
 const speakers = computed(() => ({agent: name.value, human: "The journal"}));
 </script>
 
 <template>
-    <div class="verifier-page">
-        <InspectorTop @close="emit('close')">Verifiers › {{ name }}</InspectorTop>
-        <InspectorSummary :name="name" :state="state" :facts="facts" :parts="parts" :env="env">
-            <template #stamp>
-                <template v-for="row in judged" :key="row.ref">
-                    <span class="judged">Reader report {{ row.id }}</span>
-                </template>
-            </template>
-        </InspectorSummary>
-        <div class="cols">
-            <InspectorColumn title="Transcript">
-                <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
-            </InspectorColumn>
-        </div>
-    </div>
+    <TranscriptInspector ref="inspector" :name="name" :state="state" :facts="facts" :parts="parts" :env="env" :transcript="transcript" :speakers="speakers" @close="emit('close')">
+        <template #top>Verifiers › {{ name }}</template>
+        <template #stamp>
+            <span v-for="row in judged" :key="row.ref" class="judged">Reader report {{ row.id }}</span>
+        </template>
+    </TranscriptInspector>
 </template>
 
 <style scoped>
-.verifier-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    background: var(--raised);
-}
-
 .judged {
     margin-right: 10px;
     color: var(--text-2);
-}
-
-.cols {
-    display: grid;
-    flex: 1;
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
-    border-top: 1px solid var(--border);
 }
 </style>

@@ -37,6 +37,7 @@ from journal.providers.support.claude_stream_row import ClaudeStreamRow
 from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
+from journal.providers.support.status_line_setting import StatusLineSetting
 from journal.support.worktree import Worktree
 from journal.providers.support.claude_trust import ClaudeTrust
 
@@ -279,8 +280,8 @@ class Claude(Provider):
         settings_path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": hooks, "statusLine": self.status_line(script)}, indent=2) + "\n")
         Worktree.linked(folder / self.home / LOCAL_SETTINGS, settings_path)
 
-    def status_line(self, script: Path) -> dict:
-        return {"type": "command", "command": shlex.join(["sh", str(script.with_name("status.sh"))]), "padding": 0}
+    def status_line(self, script: Path) -> StatusLineSetting:
+        return StatusLineSetting(type="command", command=shlex.join(["sh", str(script.with_name("status.sh"))]), padding=0)
 
     def wire_hooks(self, project: Path, script: Path, command: str) -> Path:
         path = super().wire_hooks(project, script, command)
