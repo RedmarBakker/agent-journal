@@ -10,6 +10,7 @@ from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_started import PlanStarted
+from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.models.scoped import Scoped
 from journal.models.task import Task
 from journal.models.phase_states import PhaseStates
@@ -64,6 +65,9 @@ class Plan(Scoped):
         if not self.state.is_startable():
             raise Rejection(f"plan {self.id} is {self.state}, not approved: the user approves it first")
         return self
+
+    def testing_changed(self, time: float, title: str, testing: str) -> "Plan":
+        return self.with_event(PlanTestingChanged(environment_id=self.environment_id, time=time, plan_id=self.row_id, title=title, testing=testing))
 
     def started(self, first: Task, time: float) -> "Plan":
         return self.startable().moved(PlanState.STARTED).with_event(PlanStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id, task_id=first.row_id))

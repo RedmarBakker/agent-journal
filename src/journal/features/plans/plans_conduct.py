@@ -1,4 +1,5 @@
 from journal.engine.conduct import Conduct
+from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -42,6 +43,9 @@ class PlansConduct(Conduct):
         if event.task_id or not started.remaining_tasks:
             return self.none(*testing)
         return self.none(*testing, PlansNudges.PLAN_STALLED.create(n=event.plan_id, left=started.remaining_tasks))
+
+    def on_plan_testing_changed(self, event: PlanTestingChanged, settings: Settings) -> Transition:
+        return self.none(PlansNudges.PLAN_TESTING_CHANGED.create(n=event.plan_id, title=event.title, testing=event.testing))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         if not event.plan_id or event.is_agents(event.session) or event.task_id not in event.data.part(TasksPart).agent_tasks:

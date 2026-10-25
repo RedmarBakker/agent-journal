@@ -2521,6 +2521,31 @@ def test_a_phase_end_names_its_testing_commands_and_holds_the_next_phase_until_t
     assert started.code == 0 and app.container.get(Tasks).find(2).state == "started", "after a passing run of each the next phase starts"
 
 
+def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_with_each_task_it_is_handed(app: App, monkeypatch):
+    from journal.repositories.entries import NUDGE, Entries
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "p first"], USER)
+    console.run(["plan", "add", "1", "p second"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+
+    def lines(key: str) -> list[str]:
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+
+    assert console.run(["plan", "testing", "1", "Tests at each phase end"], USER).code == 0
+    changed = lines("plans.the_plan_tests_another_way")
+    assert changed and changed[-1].startswith("plan 1 now tests this way (Tests at each phase end): Write the tests each task needs"), changed
+    console.run(["task", "complete", "1"], AGENT)
+    reminded = lines("plans.how_the_plan_tests")
+    assert reminded and "run the tests only at the end of each phase" in reminded[-1], "the task the plan hands next comes with how the plan tests"
+
+
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.repositories.plans import Plans
