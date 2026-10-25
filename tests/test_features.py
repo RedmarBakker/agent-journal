@@ -14022,6 +14022,7 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
     import time as clock
     from journal.repositories.entries import NUDGE, Entries
     from journal.repositories.environments import Environments
+    from journal.models.message import Message
     from journal.repositories.messages import Messages
     bob = replace(USER, person=2)
 
@@ -14044,10 +14045,15 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         status, answer = posted(b, "/journal/messages", {"text": "the release notes are ready", "idempotency": "bob-1"}, {"X-Journal-Env": "review"})
         assert status == 202 and "session review is held by Ada, offline since" in answer["notice"], answer
         assert not b.container.get(Messages).global_matching(idempotency="bob-1"), "the message waits on the team server, made nowhere yet"
+        assert posted(b, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200
         claimed = b.console().run(["session", "start", "review"], bob)
         assert claimed.code == 0, claimed.error
-        assert posted(b, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200
-        assert synced(lambda: any(line.startswith("new message") and line.endswith("from Bob") for line in lines())), lines()
+        deadline = clock.monotonic() + RECONNECT_WAIT_SECONDS
+        while clock.monotonic() < deadline and not any(line.startswith("new message") and line.endswith("from Bob") for line in lines()):
+            clock.sleep(0.2)
+        made = b.container.get(Messages).global_matching(idempotency="bob-1")
+        assert made and made[0].data.get(Message.TEAMMATE) == "Bob", "the claiming machine makes the waiting message as Bob's"
+        assert f"new message {made[0].id} from Bob" in lines(), lines()
 
 
 def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
