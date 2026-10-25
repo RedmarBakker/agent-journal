@@ -64,7 +64,7 @@ import {tickerAt, tickerSeconds} from "../figure/visorPixels.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, actDrawn, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
+import {ACTS, actDrawn, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, throwsFor, wallBugs} from "../figure/acts.js";
 import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter, admiringLook} from "../figure/admire.js";
@@ -103,6 +103,7 @@ import {
     tripTo,
     turnStep,
     leavesSeat,
+    swingView,
 } from "../figure/places.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
@@ -1870,6 +1871,8 @@ function callTicker() {
 
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
+// the picture on the rope swing, swinging toward the camera and away (places.js swingView), or null off it
+const onSwing = computed(() => acting.value?.name === "rope_swing" && swingView(acting.value.u, below.value));
 
 // the soft glow about the lit visor, centred on the eyes it lights over (figure/visor.js VISOR.halo)
 const haloStyle = computed(() => ({
@@ -1904,7 +1907,7 @@ const actorStyle = computed(() => ({
     ...(chasing.value && {animationDuration: `${chaseMs.value}ms`, "--chase": `${chaseRun.value}px`}),
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
     ...(body.airborne?.thrown && {rotate: `${body.airborne.spin}deg`, transformOrigin: "50% 55%"}),
-    ...(acting.value?.name === "rope_swing" && {rotate: `${swingAngle(acting.value.u)}deg`, transformOrigin: `50% ${(1 - below.value - POSTURES.sit.drop - ACTS.rope_swing.rope) * 100}%`}),
+    ...(onSwing.value && {scale: `${onSwing.value.scale}`, transformOrigin: `${onSwing.value.origin.x * 100}% ${onSwing.value.origin.y * 100}%`}),
 }));
 
 // the figure and all it holds are drawn inside the chat alone, cut off at its walls, as when it climbs out over the top

@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAt} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
@@ -3172,9 +3172,9 @@ const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, 
 
 // sits down onto the rope swing's seat (ropeSwingOf), drawn whole where it hangs all the act long while the body lifted onto it moves,
 // holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
-// swingAngle), and rises off it at the end (acts.js offSwing)
+// swingAt), and rises off it at the end (acts.js offSwing)
 function rope_swing(pose, stance, t) {
-    const pump = swingAngle(t) / ACTS.rope_swing.sway;
+    const pump = swingAt(t);
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
     breathe(pose, t);

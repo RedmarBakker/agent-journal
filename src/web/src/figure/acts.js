@@ -61,10 +61,11 @@ export const ACTS = {
     // a rope swing tied under a bubble, drawn whole from the act's first frame: its two ropes `rope` of the figure's height long from the
     // middle of the bubble's bottom edge, `ties` of it apart, just outside the figure's arms, down to a seat `seat` of it wide, a little wider
     // than its body, whose top is `under` of it below the line the figure sits on, where its thighs' underside rests. Its frames are an
-    // intro, the figure sitting down onto the seat; a held stretch looped while it swings, `swings` swings each way of `sway` degrees, the
-    // legs pumping with them; and an outro, the figure rising off it. The knots stand at least `room` of the figure's height in from either
-    // side of the chat, so it swings clear of them.
-    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.53, seat: 0.59, under: 0.025, sway: 9, room: 0.85},
+    // intro, the figure sitting down onto the seat; a held stretch looped while it swings, `swings` swings back and forth toward the camera
+    // and away, never to either side, coming `depth` of its size nearer at the front of each swing and as far back at the back, the legs
+    // pumping with them; and an outro, the figure rising off it. The knots stand at least `room` of the figure's height in from either side
+    // of the chat.
+    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.53, seat: 0.59, under: 0.025, depth: 0.12, room: 0.85},
     // a pogo stick up onto a bubble's top: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times on the spot
     // over `bounces`, each higher than the last up to `bounce` of its height, and springs up over `spring` to the top of its throw, `over`
     // of its height past the bubble's edge; there it lets the stick go over `release`, the stick falling away over `drop`, and it falls
@@ -496,9 +497,10 @@ export function offSwing(u) {
     return 1 - partOf(into, [0, 1]) * (1 - partOf(out, [0, 1]));
 }
 
-// how far the rope swing has swung at `u` of its frames, in degrees, clockwise on the screen: still while the ropes go down or up
-export function swingAngle(u) {
+// where the rope swing is in its swing at `u` of its frames, -1 at the back of a swing, away from the camera, to 1 at the front, toward it:
+// still while the figure sits down onto it or rises off it
+export function swingAt(u) {
     const {held} = heldPhases(ACTS.rope_swing, u);
-    return held === null ? 0 : ACTS.rope_swing.sway * Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
+    return held === null ? 0 : Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
 }
 

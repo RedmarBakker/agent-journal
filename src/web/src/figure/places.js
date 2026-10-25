@@ -1,5 +1,5 @@
 import {GRAVITY} from "../domain/falls.js";
-import {ACTS} from "./acts.js";
+import {ACTS, swingAt} from "./acts.js";
 import {flips} from "./reactions.js";
 import {PARCEL, PILED, PUSH} from "./parcels.js";
 
@@ -76,6 +76,14 @@ export function turnStep(from, to) {
     if (from.facing === to.facing || (!SEATED.has(from.posture) && !SEATED.has(to.posture))) return to;
     return {posture: "stand", facing: SEATED.has(from.posture) ? from.facing : to.facing};
 }
+
+// The rope swing as the page draws it `u` of the way through its act, for a figure whose picture has `below` of it under its feet: the whole
+// picture, ropes and figure, scaled about the knots the ropes hang from, `origin` as shares of the picture across and down, larger and so
+// lower at the front of each swing, toward the camera, and smaller and higher at the back, its middle never moving to either side
+export const swingView = (u, below) => ({
+    scale: 1 + ACTS.rope_swing.depth * swingAt(u),
+    origin: {x: 0.5, y: 1 - below - POSTURES.sit.drop - ACTS.rope_swing.rope},
+});
 
 // how long the figure takes to change from one clip, posture or facing to the next, easing out of the pose before it, in seconds
 export const CHANGE_SECONDS = 0.25;

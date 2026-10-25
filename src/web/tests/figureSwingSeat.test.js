@@ -103,3 +103,35 @@ test("the figure sits between the ropes, which rise from the seat's ends to the 
         }
     }
 });
+
+test("the swing goes back and forth toward the camera, never to either side: through one swing the figure's middle keeps its place across while it grows and drops toward the front and shrinks and rises toward the back", async () => {
+    const {swingView} = await import("../src/figure/places.js");
+    const act = ACTS.rope_swing;
+    const below = 0.06;
+    // the held stretch, as shares of the act's frames, and one swing, back and forth, through it
+    const frames = act.intro + act.hold + act.outro;
+    const [from, to] = [act.intro / frames, (act.intro + act.hold / act.swings) / frames];
+    // where a point of the picture, as shares of it across and down, is drawn under the page's swing: scaled about the knots
+    const drawnAt = (view, point) => ({x: view.origin.x + view.scale * (point.x - view.origin.x), y: view.origin.y + view.scale * (point.y - view.origin.y)});
+    // the figure's middle on the seat, below the knots
+    const seat = {x: 0.5, y: 1 - below - (heldPhases(act, 0).held === null ? 0 : 0) - 0.26 + 0.05};
+    const steps = Array.from({length: 49}, (_, index) => from + ((to - from) * index) / 48).map((u) => {
+        const view = swingView(u, below);
+        return {u, scale: view.scale, at: drawnAt(view, seat)};
+    });
+    for (const step of steps) expect(step.at.x, `${step.u}`).toBeCloseTo(0.5, 9);
+    // it comes nearer and goes further, as far each way, and is drawn lower the nearer it is
+    const scales = steps.map((step) => step.scale);
+    expect(Math.max(...scales)).toBeCloseTo(1 + act.depth, 2);
+    expect(Math.min(...scales)).toBeCloseTo(1 - act.depth, 2);
+    const [front, back] = [steps.find((step) => step.scale === Math.max(...scales)), steps.find((step) => step.scale === Math.min(...scales))];
+    expect(front.at.y).toBeGreaterThan(seat.y);
+    expect(back.at.y).toBeLessThan(seat.y);
+    for (let index = 1; index < steps.length; index++) {
+        const [a, b] = [steps[index - 1], steps[index]];
+        expect(Math.sign(b.at.y - a.at.y), `${b.u}`).toBe(Math.sign(b.scale - a.scale));
+    }
+    // still on the seat as it sits down and rises off it
+    expect(swingView(0, below).scale).toBe(1);
+    expect(swingView(0.999, below).scale).toBe(1);
+});
