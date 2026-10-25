@@ -15,6 +15,7 @@ from journal.features.workers.support.written_wait import WrittenWait
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
+from journal.events.rows.quick_report_dropped import QuickReportDropped
 from journal.events.rows.worker_limited import WorkerLimited
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
@@ -90,6 +91,11 @@ class WorkersConduct(Conduct):
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
+
+    def on_quick_report_dropped(self, event: QuickReportDropped, settings: Settings) -> Transition:
+        if event.agent_session != event.session:
+            return self.none()
+        return self.none(WorkersNudges.QUICK_REPORT.create(n=event.worker, open=event.open_tasks, points=event.points))
 
     def on_worker_limited(self, event: WorkerLimited, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

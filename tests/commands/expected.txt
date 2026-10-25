@@ -1216,6 +1216,13 @@ workers.weight_repeat_send_back = 1.5
 workers.weight_idle_place = 0.5
 workers.recovery_full_score_minutes = 10
 workers.recovery_zero_score_minutes = 60
+workers.interruption_window_minutes = 60
+workers.interruptions_full_score_per_hour = 2
+workers.interruptions_zero_score_per_hour = 8
+workers.plenty_open_tasks = 3
+workers.quick_report_minutes = 1
+workers.quick_report_drop_points = 20
+workers.drop_recovery_minutes = 30
 workers.held_still_minutes = 60
 workers.held_share = 0.4
 workers.unordered_plan_tasks = 10
@@ -1721,6 +1728,7 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_order_without_dependencies  [workers]  plan {{plan}} has {{open}} open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
+workers.quick_report_dropped_the_fitness  [workers]  worker {{n}} reported within a minute of its job's start while {{open}} tasks were open, which cost your fitness {{points}} points at once: queue it several tasks with journal worker queue {{n}} <task> <task>... --report queue, so it reports once for all of them
 workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?. answer with journal plan priorities '<the order and why>'
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
@@ -1756,7 +1764,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-265 nudges
+266 nudges
 
 $ agent: journal worker list
 exit 0

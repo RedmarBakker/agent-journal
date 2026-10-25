@@ -2428,18 +2428,18 @@ def test_a_compaction_keeps_the_newest_fifty_tool_uses_in_the_fitness_window():
 def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_load_itself():
     from dataclasses import replace
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import CALM_DISPATCH_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, WorkersProfiles
+    from journal.features.workers.workers_profiles import CALM_DISPATCH_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, WorkersProfiles
     from journal.models.support.agent_load import AgentLoad
     handled = AgentLoad(rho=1.4, over_minutes=5, oldest_first=10, clearings_counted=10, dispatches_for=3, measured_at=1.0)
     counts = ToolUseCounts(handovers=20, mode="orchestrator", load=handled)
-    assert (LOAD_OVER.closeness(counts), OLDEST_FIRST_SHARE.closeness(counts), CALM_DISPATCH_SHARE.closeness(counts)) == (1.0, 1.0, 1.0), "a high load handled well scores whole: the load itself is never scored"
+    assert (BUSY_MINUTES.closeness(counts), OLDEST_FIRST_SHARE.closeness(counts), CALM_DISPATCH_SHARE.closeness(counts)) == (1.0, 1.0, 1.0), "a high load handled well scores whole: the load itself is never scored"
     late = replace(counts, load=replace(handled, over_minutes=35))
-    assert LOAD_OVER.closeness(late) == 0.5 and LOAD_OVER.closeness(replace(counts, load=replace(handled, over_minutes=70))) == 0.0, "full under 10 minutes over, falling straight to nothing at 60"
+    assert BUSY_MINUTES.closeness(late) == 0.5 and BUSY_MINUTES.closeness(replace(counts, load=replace(handled, over_minutes=70))) == 0.0, "full under 10 minutes over, falling straight to nothing at 60"
     badly = replace(counts, load=replace(handled, over_minutes=35, oldest_first=4, dispatches_for=1, dispatches_against=4))
     scored = WorkersProfiles.ORCHESTRATOR.scored(badly)
     assert scored.is_measured and scored.score < WorkersProfiles.ORCHESTRATOR.scored(counts).score
     assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line for line in scored.lines), scored.lines
-    assert LOAD_OVER.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
+    assert BUSY_MINUTES.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
 
 
 def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after_the_interval_and_an_unblocking_task_queued_behind_others_is_named_at_once():

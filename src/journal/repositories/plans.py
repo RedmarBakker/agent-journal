@@ -73,6 +73,10 @@ class Plans(ScopedRepository[Plan]):
     def task_count(self, plan: Plan) -> int:
         return self.tasks.counted(self.plan_task_query(plan))
 
+    # the work open for workers: the open tasks of the approved and started plans, neither blocked, paused, delegated, queued nor in hand
+    def open_work_count(self) -> int:
+        return sum(self.unassigned_count(plan) for plan in (*self.approved(), *self.running_plans()))
+
     def unassigned_count(self, plan: Plan) -> int:
         return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.OPEN))
 

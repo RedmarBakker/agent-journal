@@ -1956,7 +1956,7 @@ def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_
     assert (ideal.score, ideal.gaps) == (100, ()), "a builder inside every range scores 100"
     drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
     assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
-    assert not WorkersProfiles.SOLO.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
+    assert not WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
 def test_a_measure_with_fewer_than_three_events_in_its_window_is_left_out_of_the_score():
@@ -12622,6 +12622,50 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
     assert steps == [f"step {n}/5" for n in range(1, 6)], "the merge tells each step as it starts, in order, numbered of the whole"
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
+
+
+def test_worker_reports_while_plenty_is_open_lower_the_fitness_and_a_quick_one_drops_it_at_once_then_recovers(app: App):
+    from journal.features.workers.support.interruption_measure import InterruptionMeasure
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.models.support.report_use import ReportUse
+    measure = InterruptionMeasure("reports", 3, "queue")
+    rates = (2.0, 8.0)
+    counts = lambda use: ToolUseCounts(report_use=use)
+    assert measure.closeness(counts(ReportUse())) is None, "no report at all leaves the measure unmeasured"
+    calm = ReportUse().recorded(0, 5).recorded(1800, 5).measured(3600, 60, 3, rates, 30)
+    assert calm.hourly_reports == 2 and measure.closeness(counts(calm)) == 1.0, "two reports an hour while plenty was open are within the full score"
+    busy = ReportUse()
+    for minute in range(0, 60, 10):
+        busy = busy.recorded(minute * 60, 5)
+    busy = busy.recorded(3500, 1).measured(3600, 60, 3, rates, 30)
+    assert busy.hourly_reports == 6 and measure.closeness(counts(busy)) == (8 - 6) / 6, "six reports an hour while plenty was open fall toward no score, and a report with little open is not counted"
+    quick = ReportUse().recorded(1000, 5).dropped(1000, 20)
+    assert quick.measured(1000, 60, 3, rates, 30).unrecovered_points == 20, "a quick report's drop is whole at once"
+    assert quick.measured(1000 + 15 * 60, 60, 3, rates, 30).unrecovered_points == 10 and quick.measured(1000 + 30 * 60, 60, 3, rates, 30).unrecovered_points == 0, "and wears off straight to nothing over its recovery minutes"
+
+
+def test_a_clock_out_is_kept_on_the_dispatchers_row_with_the_open_work_and_a_quick_one_with_plenty_open_drops_the_fitness(app: App, monkeypatch):
+    from journal.repositories.agents import Agents
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["plan", "create", "the release", "--brief", "the release"], USER)
+    for n in range(4):
+        console.run(["plan", "add", "1", f"step {n}", "--brief", f"step {n}: done when it is in"], USER)
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.plans import Plans
+        plans = app.container.get(Plans)
+        plans.approve(plans.find(1), Actor.user(1))
+        assert plans.open_work_count() == 4, "the open tasks of an approved plan are the work open for workers"
+    committed(worktree, "notes1.md", "note 1\n")
+    assert proved_and_out(app, caller, "notes1.md:1").code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
+        assert [pair[1] for pair in use.reports] == [4] and use.drop_points == 20, "the report is kept with the open work, and one within a minute of its job's start with plenty open drops the fitness at once"
+        from journal.repositories.entries import NUDGE, Entries
+        lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.quick_report_dropped_the_fitness"]
+    assert len(lines) == 1 and "worker 1 reported within a minute of its job's start while 4 tasks were open" in lines[0] and "journal worker queue 1" in lines[0], "and the dispatcher is told there and then to queue it several tasks"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):

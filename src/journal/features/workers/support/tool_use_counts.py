@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from journal.models.agent import WORK_WINDOW_USES, Agent
 from journal.models.support.agent_load import AgentLoad
+from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
 from journal.support.recorded_call import RecordedCall
 from journal.support.subagent_dispatch import SubagentDispatch
@@ -42,6 +43,7 @@ class ToolUseCounts:
     load: AgentLoad = AgentLoad()
     model_fits: tuple[str, ...] = ()
     waits: WaitUse = WaitUse()
+    report_use: ReportUse = ReportUse()
 
     @classmethod
     def counted(cls, agent: Agent) -> "ToolUseCounts":
@@ -51,7 +53,7 @@ class ToolUseCounts:
                    merges=len(agent.windowed(agent.merge_uses)), prepared_merges=len(agent.windowed(agent.prepared_merge_uses)), reuses=len(agent.windowed(agent.reuse_uses)),
                    fresh_idle=len(agent.windowed(agent.fresh_idle_uses)), briefed=len(agent.windowed(agent.briefed_uses)),
                    late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)),
-                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load, model_fits=agent.model_fits, waits=agent.wait_use)
+                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use)
 
     @staticmethod
     def is_handover(call: RecordedCall) -> bool:

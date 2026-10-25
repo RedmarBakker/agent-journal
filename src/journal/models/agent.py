@@ -13,6 +13,8 @@ from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.models.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
+from journal.events.rows.quick_report_dropped import QuickReportDropped
+from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
 from journal.events.rows.waits_missing import WaitsMissing
 from journal.models.scoped import Scoped
@@ -69,6 +71,7 @@ class Agent(Scoped):
     load: AgentLoad = AgentLoad()
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
+    report_use: ReportUse = ReportUse()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -157,6 +160,9 @@ class Agent(Scoped):
         found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
         measured = self.with_(wait_use=use)
         return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
+
+    def quick_report_dropped(self, use: ReportUse, time: float, worker: int, open_tasks: int) -> "Agent":
+        return self.with_(report_use=use).with_event(QuickReportDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, open_tasks=open_tasks, points=use.drop_points))
 
     def load_measured(self, load: AgentLoad) -> "Agent":
         return self.with_(load=replace(load, scaled_at=self.load.scaled_at))
