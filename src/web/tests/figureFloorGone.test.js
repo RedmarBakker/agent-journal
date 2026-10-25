@@ -78,10 +78,10 @@ test("a bubble rising under the figure still carries it, and one moved a pixel o
 test("a figure standing where it keeps no footing takes the floor at its feet as it is now, and with none there it has none and falls", () => {
     const bubble = bubbleAt(400);
     const {spot} = standingOn(bubble);
-    const found = footingUnder({...spot, on: null});
+    const found = footingUnder({...spot, on: null}, readFloors().floors);
     expect(found && found.id, "the bubble's top at its feet").toBe(floorOf(bubble));
     bubble.top = 470;
-    expect(footingUnder({...spot, on: null}), "the bubble went down: nothing at its feet").toBe(null);
+    expect(footingUnder({...spot, on: null}, readFloors().floors), "the bubble went down: nothing at its feet").toBe(null);
     expect(onAFloorThere(fallen(spot))).toBe(true);
-    expect(footingUnder({...spot, posture: "hang"}), "a hanging figure is never stood on a floor").toBe(null);
+    expect(footingUnder({...spot, posture: "hang"}, readFloors().floors), "a hanging figure is never stood on a floor").toBe(null);
 });
