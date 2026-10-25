@@ -12387,6 +12387,28 @@ def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_sui
     assert len(broken()) == 1, "once the whole suite has passed, a later failure names no merge it passed after"
 
 
+def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_test_run_in_a_clocked_out_workers_worktree(app: App, monkeypatch):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    with app.container.get(Scope).environment(MAIN):
+        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-worker-tests", command="python3 -m pytest tests", session="s1", ran_in=str(folder / "platform")), Actor.agent("s1"))
+    awaited = app.console().run(["await", "begin", "the worker's tests", "--output", str(run.id)], AGENT)
+    assert awaited.code == 0, awaited.error
+    body = hook(app, "Stop")[1]
+    assert "clocked out and their work waits" not in body.get("reason", ""), "while it awaits a test run in the worker's worktree the stop is let through"
+    with app.container.get(Scope).environment(MAIN):
+        outputs = app.container.get(CommandOutputs)
+        outputs.save(outputs.find(run.id).ended_with(1, timing.time()), Actor.agent("s1"))
+    app.runtime().deferred.drain()
+    again = hook(app, "Stop", stop_hook_active=True)[1]
+    assert again.get("decision") == "block" and "worker 1 (Worker 1) clocked out and their work waits for you" in again["reason"], again
+
+
 def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_to_wait_while_its_workers_are_out(app: App, monkeypatch):
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
