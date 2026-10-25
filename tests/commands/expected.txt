@@ -1113,6 +1113,7 @@ sequences.say_every = 10
 usage.check_minutes = 15
 workers.builder_handovers = 2
 workers.orchestrator_lines = 200
+workers.orchestrator_approves_plans = False  (the user sets it)
 workers.fitness_threshold = 70
 workers.solo_dispatches = 3
 workers.timeout_minutes = 60
