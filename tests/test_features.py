@@ -9113,6 +9113,11 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     assert f"no plan {parser}" in console.run(["message", "amend-links", str(bare.id), "plan", "task"], AGENT).error, "a kind whose row does not exist is refused, and nothing is changed"
     assert "2 numbers without a kind" in console.run(["message", "amend-links", str(bare.id), "task", "task", "task"], AGENT).error, "a kind for each number, or one for all"
     assert console.run(["message", "amend-links", str(bare.id), "task"], AGENT).code == 0
+    from journal.features.messages.listeners.record_turn import RecordTurn
+    from journal.events.agent.turn_displayed import TurnDisplayed
+    app.container.get(RecordTurn).handle(TurnDisplayed(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s", turn_id="another-id").placed("s1", 1, "claude", 0.0, 0.0))
+    with app.container.get(Scope).environment(MAIN):
+        assert len([m for m in messages.scoped() if "(the parser)" in m.text]) == 1, "the transcript's old text of a linked message is known by the text it was recorded with, so the turn is never recorded again"
     with app.container.get(Scope).environment(MAIN):
         assert messages.find(bare.id).text == f"Writing task {parser} (the parser) and task {lexer} (the lexer) together, 1183 passed in 92s", "one kind links every number, and the count stays as it was"
         said(f"task {parser} is done")

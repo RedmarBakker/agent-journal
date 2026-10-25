@@ -14,7 +14,7 @@ from journal.support.actor import Actor
 from journal.models.author import Author
 from journal.models.entry import Entry
 from journal.models.link import Link
-from journal.models.message import Message
+from journal.models.message import RECORDED_TEXT, Message
 from journal.models.support.ref import Ref
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
@@ -112,7 +112,8 @@ class RecordTurn(AgentListener[TurnDisplayed]):
 
     def is_recorded(self, part: str, turn_key: str) -> bool:
         recent = self.messages.recent_voice(RECENT_VOICE_MESSAGES)
-        return any(message.text == Tags.visible(part) or (turn_key and message.data.get(TURN_KEY) == turn_key) for message in recent)
+        visible = Tags.visible(part)
+        return any(visible in (message.text, message.data.get(RECORDED_TEXT)) or (turn_key and message.data.get(TURN_KEY) == turn_key) for message in recent)
 
     @staticmethod
     def sections(full: str) -> list[tuple[list[int], str]]:
