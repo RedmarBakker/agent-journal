@@ -18837,7 +18837,7 @@ def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_a
     console.run(["environment", "overview"], AGENT)
     settings.set("workers.mode", "orchestrator", Actor.user(1))
     own, users, others = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan"), drafted_plan(app, AGENT, "a worker's plan")
-    app.container.get(Connection).execute("UPDATE plans SET creator = ? WHERE id = ?", (Actor.worker(3).stamp(), others))
+    app.container.get(Connection).execute("UPDATE plans SET creator = ? WHERE id = ?", (Actor.worker(3).stamp, others))
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
     choose = lambda approval: settings.set("workers.orchestrator_plan_approval", approval.value, Actor.user(1))
     choose(PlanApproval.ALL)
