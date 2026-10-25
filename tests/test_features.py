@@ -3735,6 +3735,27 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         readers.removed("worktree-pytest")
 
 
+def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_line_answered(app: App, tmp_path):
+    from journal.config import Config
+    from journal.features.shell.support.output_views import OutputViews
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
+    config.readers.mkdir(parents=True, exist_ok=True)
+    (config.readers / "watched-log.pattern").write_text("# the lines with a number\n^[0-9]+\ncommands: make\n")
+    folder = tmp_path / "watched"
+    folder.mkdir()
+    (folder / "parts").write_text("R\n")
+    (folder / "0.out").write_text("1 first\nplain second\n3 third\nplain fourth\n")
+    output = outputs.save(CommandOutput(chain="watched", command="make all", folder=str(folder), watch_reader="watched-log"), Actor.system())
+    views = app.container.get(OutputViews)
+    assert views.measured(output).lines == ("1: 1 first", "3: 3 third"), "watched, the output shows the lines its reader picks"
+    result = app.console().run(["reader", "remove", "watched-log"], AGENT)
+    assert f"outputs {output.row_id} were read through it" in result.text, "removing a reader says which outputs it was reading"
+    assert views.measured(output).lines == ("1 first", "plain second", "3 third", "plain fourth"), "after it, the watch shows the last lines"
+    assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task

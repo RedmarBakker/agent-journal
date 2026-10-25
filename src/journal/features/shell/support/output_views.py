@@ -27,6 +27,9 @@ class OutputViews:
         measured = self.measured(output)
         return replace(measured, silent=self.is_silent(output, measured))
 
+    def reader(self, output: CommandOutput) -> Reader | None:
+        return self.readers.found(output.watch_reader)
+
     def is_silent(self, output: CommandOutput, view: OutputView) -> bool:
         return not output.ended and time.time() - output.creation_time.timestamp() >= SILENT_SECONDS and not view.figure and not self.card_lines(output, view)
 
@@ -35,9 +38,10 @@ class OutputViews:
         ending = output.ending() if output.ended else ""
         if not files.is_stored():
             return OutputView.unmeasured(output.row_id, (), ending)
-        if not output.watch_reader:
+        watching = self.reader(output)
+        if watching is None:
             return OutputView.unmeasured(output.row_id, tuple(files.last(TAIL_LINES)), ending)
-        reader, lines = self.readers.lookup(output.watch_reader).variant(output.stage()), files.lines()
+        reader, lines = watching.variant(output.stage()), files.lines()
         progress = self.progress(output, reader, lines)
         tally = reader.tally(lines) if not output.ended else StepTally(0, 0)
         figure = " · ".join(part for part in (progress.text() if progress.is_known() else "", tally.text() if tally.is_known() else "") if part)
@@ -62,9 +66,10 @@ class OutputViews:
 
     def card_lines(self, output: CommandOutput, view: OutputView) -> tuple[str, ...]:
         files = OutputFiles(Path(output.folder))
-        if not output.watch_reader or not files.is_stored():
+        watching = self.reader(output)
+        if watching is None or not files.is_stored():
             return view.lines
-        reader, lines = self.readers.lookup(output.watch_reader).variant(output.stage()), files.lines()
+        reader, lines = watching.variant(output.stage()), files.lines()
         summary_lines = tuple(CardLine.plain(line) for line in reader.card_lines(lines)[-VIEW_LINES:])
         return summary_lines or self.tally_lines(output, reader.tally(lines))
 
@@ -74,9 +79,10 @@ class OutputViews:
 
     def is_summary_missing(self, output: CommandOutput) -> bool:
         files = OutputFiles(Path(output.folder))
-        if not output.ended or not output.watch_reader or not files.is_stored():
+        watching = self.reader(output)
+        if not output.ended or watching is None or not files.is_stored():
             return False
-        reader, lines = self.readers.lookup(output.watch_reader).variant(output.stage()), files.lines()
+        reader, lines = watching.variant(output.stage()), files.lines()
         return not reader.card_lines(lines) and reader.tally(lines).is_known()
 
     @staticmethod
@@ -84,22 +90,23 @@ class OutputViews:
         return (output.ending(),) if output.ended else ()
 
     def is_empty_card(self, output: CommandOutput, view: OutputView) -> bool:
-        return bool(output.watch_reader) and output.ended and not self.card_lines(output, view) and not view.figure
+        return self.reader(output) is not None and output.ended and not self.card_lines(output, view) and not view.figure
 
     def poor_line(self, output: CommandOutput, view: OutputView) -> str:
-        return next((line for line in self.card_lines(output, view) if output.watch_reader and CardLine.is_poor(line)), "")
+        return next((line for line in self.card_lines(output, view) if self.reader(output) is not None and CardLine.is_poor(line)), "")
 
     def count(self, output: CommandOutput) -> str:
         files = OutputFiles(Path(output.folder))
-        if not output.watch_reader or not files.is_stored():
+        reader = self.reader(output)
+        if reader is None or not files.is_stored():
             return ""
-        reader, lines = self.readers.lookup(output.watch_reader), files.lines()
+        lines = files.lines()
         progress, tally = self.progress(output, reader, lines), reader.tally(lines)
         steps = progress.count_text() if progress.is_known() and not output.ended else ""
         return " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
 
     def ended_summary(self, output: CommandOutput) -> str | None:
-        summary_lines = self.card_lines(output, self.view(output)) if output.watch_reader else ()
+        summary_lines = self.card_lines(output, self.view(output)) if self.reader(output) is not None else ()
         return " / ".join(summary_lines) if summary_lines else None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:

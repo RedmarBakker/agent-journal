@@ -98,11 +98,12 @@ class ReaderCommand(Command):
         return 0
 
     def remove(self, args: Namespace, caller: Caller) -> int:
+        reading = [output.id for output in self.outputs.reader_outputs(args.name) if not output.ended]
         self.readers.removed(args.name)
         aliases = self.aliases.reader_rows(args.name)
         for alias in aliases:
             self.aliases.save(alias.with_(reader=""), caller.actor)
-        print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else ""))
+        print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else "") + (f"; outputs {', '.join(map(str, reading))} were read through it and now show their last lines" if reading else ""))
         return 0
 
     def default(self, args: Namespace, caller: Caller) -> int:

@@ -73,7 +73,7 @@ class OutputProcessCard(ProcessCard):
         return "good" if output.is_success() else "bad"
 
     def title(self, output: CommandOutput, part: str) -> str:
-        reader = self.readers.lookup(output.watch_reader) if output.watch_reader else None
+        reader = self.readers.found(output.watch_reader)
         heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
         full = f"{heading}: {topic}" if topic else heading

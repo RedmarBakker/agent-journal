@@ -44,6 +44,9 @@ class Readers:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
         return Reader.loaded(rows[0])
 
+    def found(self, name: str) -> Reader | None:
+        return Reader.loaded(self.files(name)[0]) if name and self.files(name) else None
+
     def revisions(self) -> dict[str, datetime]:
         return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all()}
 
