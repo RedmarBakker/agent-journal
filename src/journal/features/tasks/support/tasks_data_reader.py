@@ -49,6 +49,7 @@ class TasksDataReader:
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_HELD_TASKS),
             "task_nouns": lambda: self.labels.hub_nouns("task"),
+            "held_since": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks())},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def current_id(self, agent: Agent) -> int:

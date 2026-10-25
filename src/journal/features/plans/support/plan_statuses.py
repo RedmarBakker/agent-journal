@@ -15,4 +15,4 @@ class PlanStatuses:
     def status(self, plan: Plan) -> PlanStatus:
         phases = self.plans.phase_states(plan)
         total = self.plans.task_count(plan)
-        return PlanStatus(plan.row_id, plan.title, plan.current_phase(phases) if phases else 0, len(phases), total - self.plans.remaining_count(plan), total, self.plans.unassigned_count(plan), self.plans.last_moved(plan))
+        return PlanStatus(plan.row_id, plan.title, plan.current_phase(phases) if phases else 0, len(phases), total - self.plans.remaining_count(plan), total, self.plans.unassigned_count(plan), self.plans.last_moved(plan), self.plans.blocked_count(plan))

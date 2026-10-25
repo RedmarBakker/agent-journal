@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PlanStatus:
-    """A started plan as the orchestrator is reminded of it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, and when it last moved."""
+    """A started plan as the orchestrator is reminded of it: its number and title, the phase in hand of how many, its tasks done of all, its open tasks no worker holds, when it last moved, and how many of its tasks are blocked."""
 
     plan_id: int
     title: str
@@ -14,6 +14,7 @@ class PlanStatus:
     total: int
     unassigned: int
     moved_at: float
+    blocked: int = 0
 
     def line(self, now: float) -> str:
         phase = f"phase {self.phase} of {self.phases}, " if self.phases else ""

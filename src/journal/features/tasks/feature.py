@@ -59,6 +59,9 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - `journal task complete <n> --how "<outcome>"` finishes it. The output names the next open task.
 - One task in hand at a time: a second start is refused until the first is done or paused. `journal task pause <n> "<why>"`
   sets a started task aside for something else first; `journal task resume <n>` picks it up. Pause for choice, never for being stuck.
+- A wait is a block the journal can see, never words: a task that waits on another task is blocked with
+  `journal task block <n> --on task:<m>`, one that waits on anything else with `--until '<command>'`, so it opens by
+  itself when what it waits on is there.
 - A task that waits on something outside your hands, a decision, an answer, a dependency, is blocked:
   `journal task block <n> "<what it waits on>"`. Blocked is neither offered nor nudged, only listed with its reason;
   `journal task unblock <n>` opens it again when what it waited on has arrived. `journal task block <n> --on question:12`

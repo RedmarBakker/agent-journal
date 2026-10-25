@@ -9,6 +9,8 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
+from journal.events.agent.turn_displayed import TurnDisplayed
+from journal.features.workers.support.written_wait import WrittenWait
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
@@ -61,7 +63,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, and in orchestrator mode a stop is refused while work this agent sent out waits clocked out, naming each worker, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line; and in orchestrator mode a merged worker's model that did not fit its work, too strong or too weak, is named in one short line."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, load_check)
+        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, load_check, written_wait_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -70,7 +72,10 @@ class WorkersConduct(Conduct):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
         silent = [quiet_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
-        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent, *priorities_lines(event, settings))
+        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent, *priorities_lines(event, settings), *held_lines(event, settings), *unordered_lines(event, settings))
+
+    def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
+        return self.none(*written_wait_lines(event.content, settings)) if event.final else self.none()
 
     def on_task_delegated(self, event: TaskDelegated, settings: Settings) -> Transition:
         if settings.value(WorkersOptions.MODE) != "orchestrator" or not event.is_unblocking():
@@ -217,6 +222,37 @@ def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     if started.priorities_phase == started.current_phase and not (interval and event.time - started.priorities_at >= interval):
         return ()
     return (WorkersNudges.PRIORITIES.create(plan=started.plan_id, phase=started.current_phase),)
+
+
+def written_wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    return state.none() if event.subagent else state.none(*written_wait_lines(WrittenWait.worded(event.call), settings))
+
+
+def written_wait_lines(text: str, settings: Settings) -> tuple[Nudge, ...]:
+    if not WrittenWait.is_written(text) or settings.value(WorkersOptions.MODE) != "orchestrator":
+        return ()
+    return (WorkersNudges.WAIT_IN_WORDS.create(),)
+
+
+def held_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
+        return ()
+    tasks = event.data.part(TasksPart)
+    held = tasks.held_since
+    if not held:
+        return ()
+    still = tuple(n for n, since in held.items() if event.time - since >= settings.integer(WorkersOptions.HELD_STILL_MINUTES) * 60)
+    crowded = len(held) > settings.decimal(WorkersOptions.HELD_SHARE) * (tasks.open_count + len(held))
+    named = tuple(sorted(held)) if crowded else tuple(sorted(still))
+    return (WorkersNudges.HELD_STILL.create(tasks=", ".join(str(n) for n in named)),) if named else ()
+
+
+def unordered_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
+        return ()
+    least = settings.integer(WorkersOptions.UNORDERED_PLAN_TASKS)
+    plans = event.data.part(PlansPart).started_plans if least else ()
+    return tuple(WorkersNudges.NO_DEPENDENCIES.create(plan=status.plan_id, open=status.total - status.done) for status in plans if status.total - status.done >= least and not status.blocked)
 
 
 def report_mentions(data: FeatureData) -> list[Nudge]:

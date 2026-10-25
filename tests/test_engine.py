@@ -2462,6 +2462,37 @@ def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after
     assert said(replace(unblocking, title="The parser"), queued({3: (4, 9)})) == [], "a task that says nothing of unblocking is not named"
 
 
+def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_stands_still_or_a_plan_with_no_dependencies_is_named():
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.features.plans.support.plan_status import PlanStatus
+    from journal.features.plans.support.plans_data import PlansData
+    from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.workers.workers_conduct import held_lines, unordered_lines, written_wait_check, written_wait_lines
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.HELD_STILL_MINUTES.key: 60, WorkersOptions.HELD_SHARE.key: 0.4, WorkersOptions.UNORDERED_PLAN_TASKS.key: 10})
+    builder = SettingsValue({WorkersOptions.MODE.key: "builder"})
+    worded = lambda line, settings=settings: [n.rendered() for n in written_wait_check(Ready(), ToolStarting(call=shell(line)), settings).nudges]
+    block_line = "you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else"
+    assert worded("journal task log 5 'waiting for the API key from the user'") == [block_line], "a log line that says it waits is told to be a block"
+    assert worded("journal message send 'task 7 waits on task 4 to merge'") == [block_line], "and a message"
+    assert worded("journal task block 7 'waits on the lexer' --on task:4") == [], "a block with --on is the wait itself"
+    assert worded("journal task log 5 'the parser reads every rule'") == [], "a log line with no wait in it is not"
+    assert worded("journal task log 5 'waiting for the API key'", builder) == [], "only the orchestrator is told"
+    assert [n.key for n in written_wait_lines("I am blocked on the deploy until it lands", settings)] == ["workers.make_the_wait_a_block"], "a reply that says it waits is told the same"
+    tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, held_since=held)})
+    held = lambda data, time: [n.rendered() for n in held_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
+    still = "these blocked or paused tasks stand still: 3, 5; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"
+    assert held(tasks({3: 1000.0, 5: 1200.0}), 1200.0 + 59 * 60) == [], "blocked work that moved within the hour is not named"
+    assert held(tasks({3: 1000.0, 5: 1200.0}), 1200.0 + 60 * 60) == [still], "once both stood still for the set time they are named with their ids"
+    assert held(tasks({3: 1000.0, 5: 1200.0}), 1000.0 + 60 * 60) == [still.replace("3, 5;", "3;")], "only those that stood still"
+    assert held(tasks({3: 1000.0, 5: 1200.0}, open_count=2), 1300.0) == [still], "past the set share of the tasks not done they are named at once"
+    assert held(tasks({}), 1300.0) == [], "with nothing blocked nothing is said"
+    planned = lambda total, done, blocked: FeatureData({"plans": PlansData((), None, 0, started_plans=(PlanStatus(5, "release", 1, 2, done, total, total - done, 0.0, blocked),))})
+    unordered = lambda data: [n.rendered() for n in unordered_lines(Ticked(silence_seconds=0.0, time=1.0).with_data(data), settings)]
+    assert unordered(planned(12, 2, 0)) == ["plan 5 has 10 open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>"], "ten open tasks with none blocked asks which depend on which"
+    assert unordered(planned(12, 2, 1)) == [], "one blocked on another shows the order was thought of"
+    assert unordered(planned(12, 3, 0)) == [], "under ten open tasks nothing is asked"
+
+
 def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_model_it_ran_on():
     from journal.features.workers.support.work_complexity import WorkComplexity
     from journal.models.model_tier import ModelTier

@@ -11441,6 +11441,42 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
         team.close(server)
 
 
+def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_plan_with_no_dependencies_are_named_to_the_orchestrator(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.tasks.feature import Tasks as TasksFeature
+    from journal.features.workers.feature import Workers as WorkersFeature
+    from journal.repositories.entries import NUDGE, Entries
+    orchestrator = WorkersFeature.skill.body[WorkersFeature.skill.body.index("Orchestrator:"):]
+    assert all(words in orchestrator for words in ("--on task:<m>", "--until '<command>'", "a wait written only in words")), "the orchestrator mode's instructions teach a wait as a block with --on or --until"
+    assert "--on task:<m>" in TasksFeature.skill.body and "--until '<command>'" in TasksFeature.skill.body, "and so does the tasks skill"
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["plan", "create", "release", "--brief", "ship"], USER)
+    for n in range(1, 13):
+        console.run(["plan", "add", "1", f"step {n}"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    now = timing.time()
+    said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+
+    def ticked(minutes: float) -> None:
+        monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
+        app.runtime().deferred.drain()
+
+    ticked(0)
+    assert said("workers.plan_order_without_dependencies") == ["plan 1 has 12 open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>"], "a started plan of twelve open tasks with none blocked is asked which depend on which"
+    assert said("workers.blocked_work_stands_still") == [], "nothing blocked, nothing stands still"
+    assert console.run(["task", "block", "5", "waits on the payment provider"], AGENT).code == 0
+    ticked(30)
+    assert said("workers.blocked_work_stands_still") == [], "a task blocked half an hour ago has not stood still the set time"
+    ticked(61)
+    assert said("workers.blocked_work_stands_still") == ["these blocked or paused tasks stand still: 5; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"], "after the set time it is named by its id"
+
+
 def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_plan_and_quiets_the_line_until_the_interval_or_the_next_phase(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
