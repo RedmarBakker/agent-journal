@@ -1,6 +1,3 @@
-import time
-from pathlib import Path
-
 from sync_server.change_log import ChangeLog
 from sync_server.db.store import Store
 from sync_server.devices import Devices
@@ -8,6 +5,7 @@ from sync_server.id_ranges import IdRanges
 from sync_server.leases import UPGRADE_LEASE, Leases
 from sync_server.logged_change import CREATED, LoggedChange
 from sync_server.refusal import Refusal
+from sync_server.server_backups import ServerBackups
 from sync_server.server_clock import ServerClock
 from sync_server.team_details import TeamDetails
 from sync_server.upgrade_request import UpgradeRequest
@@ -18,7 +16,7 @@ from sync_server.upload_handler import UPLOAD_ACTOR
 class UpgradeHandler:
     """Takes a journal's migrated copy in place of the team's rows: only from the device holding the upgrade lease, only when the log has not moved past the sequence that journal pulled to, and only after a backup of the database is written into the backups folder. The copy's rows become creations in the log, the team's migration is the copy's, and the lowest sequence a pull may go on from rises to the new head, so every other device takes the full copy."""
 
-    def __init__(self, store: Store, log: ChangeLog, ranges: IdRanges, devices: Devices, leases: Leases, details: TeamDetails, clock: ServerClock, backups: Path) -> None:
+    def __init__(self, store: Store, log: ChangeLog, ranges: IdRanges, devices: Devices, leases: Leases, details: TeamDetails, clock: ServerClock, backups: ServerBackups) -> None:
         self.store, self.log, self.ranges, self.devices, self.leases = store, log, ranges, devices, leases
         self.details, self.clock, self.backups = details, clock, backups
 
@@ -28,8 +26,7 @@ class UpgradeHandler:
         if lease.device_id != device.id or lease.is_lapsed:
             raise Refusal("only the device holding the team's upgrade lease uploads a migrated copy: take it first")
         self.require_head(request.base_sequence)
-        self.backups.mkdir(parents=True, exist_ok=True)
-        self.store.backup(self.backups / time.strftime("team-before-upgrade-%Y%m%d-%H%M%S.db"))
+        self.backups.written("team-before-upgrade")
         with self.store.transaction():
             self.require_head(request.base_sequence)
             self.log.cleared()

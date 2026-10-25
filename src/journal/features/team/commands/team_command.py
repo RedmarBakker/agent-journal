@@ -1,7 +1,9 @@
 from argparse import Namespace
 
 from journal.console.command import Command
+from journal.features.team.support.migration_plan import MigrationPlan
 from journal.features.team.support.team_join import TeamJoin
+from journal.features.team.support.team_migration import TeamMigration
 from journal.sync.team_url import TeamUrl
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
@@ -21,8 +23,8 @@ class TeamCommand(Command):
 
     noun = "team"
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, joining: TeamJoin, sync_status: SyncStatus, team_chat: TeamChat, starts: StartRule) -> None:
-        self.account, self.link, self.joining, self.sync_status, self.team_chat, self.starts = account, link, joining, sync_status, team_chat, starts
+    def __init__(self, account: TeamAccount, link: TeamServerLink, joining: TeamJoin, sync_status: SyncStatus, team_chat: TeamChat, starts: StartRule, migration: TeamMigration) -> None:
+        self.account, self.link, self.joining, self.sync_status, self.team_chat, self.starts, self.migration = account, link, joining, sync_status, team_chat, starts, migration
 
     def arguments(self, verbs) -> None:
         join = self.verb(verbs, "join", "join a team by its URL: a new team server's bare URL makes you its admin, an invitation URL an admin shared makes you a member; a team with no journal yet takes this one whole, else this machine downloads the team's")
@@ -44,6 +46,8 @@ class TeamCommand(Command):
         self.verb(verbs, "release", "let the Team chat go, so another person may claim it; its agent on this machine stops")
         self.verb(verbs, "chat", "who holds the Team chat, and whether they are online")
         self.verb(verbs, "leave", "leave the team: the sync stops, every local row stays, and the team's settings are kept in a backup file")
+        migrate = self.verb(verbs, "migrate", "move a team that syncs everything to the hub, once: the team server writes its backup first, then the hub environment is made and every unshared environment, rule, template, trigger, check and sequence is withdrawn from the server, each journal keeping what is its own; admins only")
+        migrate.add_argument("--preview", action="store_true", help="name what would be withdrawn, moved and kept, and write nothing")
 
     def join(self, args: Namespace, caller: Caller) -> int:
         if not args.password:
@@ -68,6 +72,20 @@ class TeamCommand(Command):
 
     def leave(self, args: Namespace, caller: Caller) -> int:
         print(self.joining.leave())
+        return 0
+
+    def migrate(self, args: Namespace, caller: Caller) -> int:
+        self.joined()
+        plan = TeamRequests.reached(lambda: self.migration.plan(caller.actor))
+        return self.previewed(plan) if args.preview else self.migrated(plan, caller)
+
+    def previewed(self, plan: MigrationPlan) -> int:
+        print("\n".join(["journal team migrate would do this, and has written nothing:", *plan.lines()]))
+        return 0
+
+    def migrated(self, plan: MigrationPlan, caller: Caller) -> int:
+        backup = TeamRequests.reached(lambda: self.migration.run(caller.actor))
+        print("\n".join([*plan.lines(), f"the team server wrote its backup first, {backup.name} in its data folder's backups; sync_server restore --from that file puts the team's rows back"]))
         return 0
 
     def status(self, args: Namespace, caller: Caller) -> int:

@@ -38,6 +38,8 @@ from sync_server.people_handler import PeopleHandler
 from sync_server.pull_handler import PullHandler
 from sync_server.push_handler import PushHandler
 from sync_server.push_results import PushResults
+from sync_server.backup_handler import BackupHandler
+from sync_server.server_backups import ServerBackups
 from sync_server.server_clock import ServerClock
 from sync_server.team_request_handler import TeamRequestHandler
 
@@ -73,7 +75,9 @@ class TeamServer:
         self.people = PeopleHandler(self.accounts, self.devices)
         self.agent_views = AgentViews(self.devices)
         self.copies = CopyHandler(self.store, self.log, self.devices, self.clock)
-        self.upgrades = UpgradeHandler(self.store, self.log, self.ranges, self.devices, self.leases, self.details, self.clock, data / BACKUPS)
+        self.backups = ServerBackups(self.store, data / BACKUPS)
+        self.upgrades = UpgradeHandler(self.store, self.log, self.ranges, self.devices, self.leases, self.details, self.clock, self.backups)
+        self.backup_requests = BackupHandler(self.devices, self.backups)
 
     def http(self, host: str, port: int) -> ThreadingHTTPServer:
         server = ThreadingHTTPServer((host, port), TeamRequestHandler)

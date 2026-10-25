@@ -1,6 +1,6 @@
 # The team server's paths go to the sync server, but only with the journal's protocol header, a request without it answered 404
 # before it reaches the server; the hooks and the CLI go to no one, and every other path to the hosted journal.
-@sync path /login /accept /install /signin-links /signin-links/* /host-requests /host-requests/* /pool-requests /device-requests /agent-views /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /password /upload /upgrade /team /team/* /files/* /leases /leases/*
+@sync path /login /accept /install /signin-links /signin-links/* /host-requests /host-requests/* /pool-requests /device-requests /agent-views /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /password /upload /upgrade /backups /team /team/* /files/* /leases /leases/*
 handle @sync {
 	@unmarked not header X-Journal-Protocol *
 	respond @unmarked 404

@@ -7,6 +7,7 @@ import urllib.request
 from journal.db.schema import Schema
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
+from sync_server.backup_answer import BackupAnswer
 from sync_server.agent_view_list import AgentViewList
 from sync_server.blocks_answer import BlocksAnswer
 from sync_server.copied_row import CopiedRow
@@ -89,6 +90,9 @@ class TeamServerLink:
     def upgrade(self, rows: list[CopiedRow], highest: dict, base_sequence: int) -> UploadAnswer:
         body = json.dumps({"rows": [row.__dict__ for row in rows], "highest": highest, "migration": self.schema.version(), "base_sequence": base_sequence}).encode()
         return UploadAnswer(**json.loads(self.sent(self.account.address(), "/upgrade", body, COPY_SECONDS)))
+
+    def backup(self) -> BackupAnswer:
+        return BackupAnswer(**json.loads(self.sent(self.account.address(), "/backups", b"{}", COPY_SECONDS)))
 
     def invite(self, email: str) -> InvitationAnswer:
         return InvitationAnswer(**json.loads(self.posted("/invite", {"email": email})))
