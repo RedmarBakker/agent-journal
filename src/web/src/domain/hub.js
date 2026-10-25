@@ -40,7 +40,7 @@ export const BOARD_COLUMNS = [
     {key: "open", title: "Open", states: ["open"]},
     {key: "started", title: "In progress", states: ["started", "delegated"]},
     {key: "waiting", title: "Waiting", states: ["paused", "blocked"]},
-    {key: "done", title: "Done", states: ["done"]},
+    {key: "done", title: "Completed", states: ["completed"]},
 ];
 
 export const boardColumns = (tasks) => BOARD_COLUMNS.map((column) => ({...column, tasks: tasks.filter((task) => column.states.includes(task.state))}));

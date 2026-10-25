@@ -21,7 +21,7 @@ let app = null;
 
 beforeEach(() => {
     store.rows = {
-        tasks: [task(1, "paused one", "paused"), task(2, "blocked one", "blocked", {block_reason: "the release"}), task(3, "open one", "open"), task(4, "done one", "done", {finished_at: "2026-10-21T10:00:00+00:00"})],
+        tasks: [task(1, "paused one", "paused"), task(2, "blocked one", "blocked", {block_reason: "the release"}), task(3, "open one", "open"), task(4, "done one", "completed", {completed_at: "2026-10-21T10:00:00+00:00"})],
         plans: [],
         questions: [],
         checks: [],

@@ -157,14 +157,15 @@ class WorkerActions:
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or (), base=self.branch.base(worker), window_ms=self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
         steps.started(2)
+        landed = self.branch.landed_lines(worker)
         commit = self.merge_commit(worker, task)
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
         steps.started(3)
-        closed = self.tasks.save(task.finished_by_merge(datetime.now(timezone.utc), outcome, worker.id), actor)
+        closed = self.tasks.save(task.merge_completed(datetime.now(timezone.utc), outcome, worker.id), actor)
         self.tasks.release_task(Ref.build(worker), task.id, actor)
-        closed_queue = tuple(self.tasks.save(queued_task.finished_by_merge(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
+        closed_queue = tuple(self.tasks.save(queued_task.merge_completed(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
         self.tasks.unfinished(Ref.build(worker), actor)
         self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
@@ -175,7 +176,7 @@ class WorkerActions:
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)
-        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp()))
+        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp(), lines=landed))
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
 
     def gated(self, n: int, task: Task) -> Worker:
@@ -192,7 +193,7 @@ class WorkerActions:
         latest = self.latest_proofs(task)
         unchecked = [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state not in CHECKED_STATES]
         if unchecked:
-            raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked, and the merge takes every finished task in at once: journal worker check {worker.id} <point>{task_option} first")
+            raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked, and the merge takes every completed task in at once: journal worker check {worker.id} <point>{task_option} first")
 
     def merge_commit(self, worker: Worker, task: Task) -> str:
         try:
@@ -258,7 +259,7 @@ class WorkerActions:
     def release(self, n: int, actor: Actor) -> Worker:
         finished = self.tasks.finished_task_ids(Ref.build(self.local(n)))
         if finished:
-            raise Rejection(f"worker {n} finished {', '.join(f'task {task_id}' for task_id in finished)}, which wait for the merge with the rest of its queue: check and merge them, or release it with --drop, which opens them again and leaves their commits on its branch {self.branch.name(self.local(n))}")
+            raise Rejection(f"worker {n} completed {', '.join(f'task {task_id}' for task_id in finished)}, which wait for the merge with the rest of its queue: check and merge them, or release it with --drop, which opens them again and leaves their commits on its branch {self.branch.name(self.local(n))}")
         return self.release_dropping(n, actor)
 
     def release_dropping(self, n: int, actor: Actor) -> Worker:

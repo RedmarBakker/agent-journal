@@ -459,7 +459,7 @@ def test_the_message_agents_migration_moves_the_session_into_its_column_and_puts
 def test_a_query_renders_every_read_shape_with_its_values_bound():
     tasks, entries = Query.build(Task), Query.build(Entry)
     assert tasks.filter(state=TaskState.OPEN, creator=None).order_descending("id").limit(5).select() == ("SELECT * FROM tasks WHERE state = ? AND creator IS NULL ORDER BY id DESC LIMIT ? OFFSET ?", ("open", 5, 0)), "a value is turned by its column, and None reads as null"
-    assert tasks.filter_listed("id", (1, 2)).filter_unlisted("state", (TaskState.FINISHED,)).filter_present("block_reason").select() == ("SELECT * FROM tasks WHERE id IN (?, ?) AND state NOT IN (?) AND block_reason IS NOT NULL", (1, 2, TaskState.FINISHED.value))
+    assert tasks.filter_listed("id", (1, 2)).filter_unlisted("state", (TaskState.COMPLETED,)).filter_present("block_reason").select() == ("SELECT * FROM tasks WHERE id IN (?, ?) AND state NOT IN (?) AND block_reason IS NOT NULL", (1, 2, TaskState.COMPLETED.value))
     assert tasks.filter_greater("id", 1).filter_less("id", 9).filter_greater_equal("id", 2).filter_less_equal("id", 8).filter_unequal("title", "x").select()[0] == "SELECT * FROM tasks WHERE id > ? AND id < ? AND id >= ? AND id <= ? AND title IS NOT ?"
     assert tasks.filter_prefix("title", "a").filter_missing_prefix("creator", "user:").select() == ("SELECT * FROM tasks WHERE title >= ? AND title < ? AND (creator IS NULL OR creator < ? OR creator >= ?)", ("a", "a\uffff", "user:", "user:\uffff"))
     assert tasks.filter_containing("title", "50%_off").order("state").order_descending("id").offset(3).select() == ("SELECT * FROM tasks WHERE title LIKE ? ESCAPE '\\' ORDER BY state, id DESC LIMIT ? OFFSET ?", ("%50\\%\\_off%", -1, 3))
@@ -524,7 +524,7 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
         drafted = tasks.save(Task(environment_id=1, title="in a draft plan"), actor=USER)
         blocked = tasks.save(Task(environment_id=1, title="blocked", state=TaskState.BLOCKED), actor=USER)
         paused = tasks.save(Task(environment_id=1, title="paused", state=TaskState.PAUSED), actor=USER)
-        done = tasks.save(Task(environment_id=1, title="done", state=TaskState.FINISHED), actor=USER)
+        done = tasks.save(Task(environment_id=1, title="done", state=TaskState.COMPLETED), actor=USER)
         draft = PlanRows(connection, bus, scope).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
         links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), kind=PLAN_LINK), actor=USER)
         assert [task.id for task in tasks.open_tasks()] == [free.id], "a task of an unapproved plan is no open work"

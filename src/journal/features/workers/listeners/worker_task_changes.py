@@ -8,7 +8,7 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 
-RELEASING = ("done", "cancelled")
+RELEASING = ("completed", "cancelled")
 
 
 class WorkerTaskChanges(Listener[RowEvent]):

@@ -22,4 +22,4 @@ class PhaseStates:
         return any(count for state, count in self.state_counts.items() if not state.is_closed())
 
     def has_work_started(self) -> bool:
-        return any(self.state_counts.get(state, 0) for state in (TaskState.STARTED, TaskState.DELEGATED, TaskState.FINISHED))
+        return any(self.state_counts.get(state, 0) for state in (TaskState.STARTED, TaskState.DELEGATED, TaskState.COMPLETED))

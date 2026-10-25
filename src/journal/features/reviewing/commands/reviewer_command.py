@@ -4,7 +4,9 @@ from journal.console.command import Command
 from journal.features.reviewing.support.review_queue import ReviewQueue
 from journal.features.reviewing.support.review_routing import ReviewRouting
 from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
+from journal.features.workers.workers_options import WorkersOptions
 from journal.repositories.reviewers import Reviewers
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
@@ -17,8 +19,8 @@ class ReviewerCommand(Command):
     noun = "reviewer"
     default_verb = "list"
 
-    def __init__(self, reviewers: Reviewers, workers: Workers, dispatch: ReviewerDispatch, queue: ReviewQueue, routing: ReviewRouting, scope: Scope) -> None:
-        self.reviewers, self.workers, self.dispatch, self.queue, self.routing, self.scope = reviewers, workers, dispatch, queue, routing, scope
+    def __init__(self, reviewers: Reviewers, workers: Workers, dispatch: ReviewerDispatch, queue: ReviewQueue, routing: ReviewRouting, scope: Scope, settings: SettingRows) -> None:
+        self.reviewers, self.workers, self.dispatch, self.queue, self.routing, self.scope, self.settings = reviewers, workers, dispatch, queue, routing, scope, settings
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "add", "start another reviewer, which takes the next review waiting at once")
@@ -28,6 +30,9 @@ class ReviewerCommand(Command):
     def add(self, args: Namespace, caller: Caller) -> int:
         if not self.routing.is_enabled():
             raise Rejection("the reviewer is off: turn the Reviewer switch on, in orchestrator mode, first")
+        most = self.settings.integer(WorkersOptions.REVIEWERS_MOST)
+        if len(self.reviewers.active()) >= most:
+            raise Rejection(f"{most} reviewers are out, the most workers.reviewers_most allows; {self.standing()}")
         added = self.dispatch.added(self.scope.id)
         self.queue.assigned(self.scope.id)
         print(f"reviewer {added.id} added; {self.standing()}")

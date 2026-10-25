@@ -3,7 +3,7 @@ import {describe, expect, test, vi} from "vitest";
 import RailTodos from "../src/rail/RailTodos.vue";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
-const task = (id, title, finished = 0) => ({table: "tasks", id, title, state: finished ? "done" : "open", finished_at: finished ? at(finished) : null, plan_id: null});
+const task = (id, title, finished = 0) => ({table: "tasks", id, title, state: finished ? "completed" : "open", completed_at: finished ? at(finished) : null, plan_id: null});
 const rows = [task(1, "Still open"), task(2, "Finished early", 100), task(3, "Finished late", 300)];
 
 async function shown(props, scope) {
@@ -20,7 +20,7 @@ describe("the tasks list of an agent", () => {
         const host = await shown({finished: true});
         const titles = [...host.querySelectorAll(".rail-row-title")].map((one) => one.textContent);
         expect(titles).toEqual(["Still open", "Finished late", "Finished early"]);
-        expect(host.textContent).toContain("Finished");
+        expect(host.textContent).toContain("Completed");
     });
 
     test("is only the open ones where the list is not an agent's, and asks an environment of its own for its latest", async () => {

@@ -48,7 +48,7 @@ from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOP
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
-    TaskState.FINISHED: "task {n} is {state}: a worker is started only on an open task or one you hold",
+    TaskState.COMPLETED: "task {n} is {state}: a worker is started only on an open task or one you hold",
     TaskState.CANCELLED: "task {n} is {state}: a worker is started only on an open task or one you hold",
     TaskState.BLOCKED: "task {n} is {state}: unblock it before a worker takes it",
     TaskState.STARTED: "task {n} is started in another's hands: a worker is started only on an open task or one you hold",
@@ -94,13 +94,13 @@ class WorkerCommand(Command):
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
         release.add_argument("n", type=int)
-        release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it finished and that wait for the merge; their commits stay on its branch")
+        release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it completed and that wait for the merge; their commits stay on its branch")
         self.verb(verbs, "merge", "take in a clocked-out worker's checked work, which closes its task").add_argument("n", type=int)
         check = self.verb(verbs, "check", "check one proof of a clocked-out worker, or send it back short")
         check.add_argument("n", type=int)
         check.add_argument("point", type=int)
         check.add_argument("--short", help="what is missing; the worker is sent it in its last session")
-        check.add_argument("--task", type=int, default=0, help="a task of its queue it finished before the one it is on, which waits for the same merge; the one it is on when not named")
+        check.add_argument("--task", type=int, default=0, help="a task of its queue it completed before the one it is on, which waits for the same merge; the one it is on when not named")
         report = self.verb(verbs, "report", "the worker reports back")
         report.add_argument("n", type=int)
         report.add_argument("text")

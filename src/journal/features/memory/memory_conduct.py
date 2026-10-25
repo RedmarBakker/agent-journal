@@ -43,7 +43,7 @@ class MemoryConduct(Conduct):
         return Transition.merged(self, [hint_check(self, event, settings), threshold_check(self, event, settings), self.none(*due_lines(event))])
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
-        return self.none(*triggered_lines(event, MemoryTrigger.TASK_COMPLETED)) if event.outcome == "done" else self.none()
+        return self.none(*triggered_lines(event, MemoryTrigger.TASK_COMPLETED)) if event.outcome == "completed" else self.none()
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         return self.none(*triggered_lines(event, MemoryTrigger.TASK_STARTED))

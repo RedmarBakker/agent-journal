@@ -124,3 +124,21 @@ describe("sending a comment", () => {
         expect(changed).toHaveBeenCalledWith(["c-1", "c-2"]);
     });
 });
+
+describe("sending a large file", () => {
+    test("a 44.6 MB zip is kept in memory, not in the browser's storage, and is uploaded whole", async () => {
+        const zip = new File([new Uint8Array(46_800_000)], "agent-journal-avatar-refined.zip", {type: "application/zip"});
+        server.create.mockResolvedValue({id: 77});
+        expect(await delivered("main", {text: "the avatar"}, [zip], "big-1")).toBe(true);
+        expect(server.upload).toHaveBeenCalledTimes(1);
+        expect(server.upload.mock.calls[0][2]).toBe(zip);
+        expect(queued()).toEqual([]);
+    });
+
+    test("one that cannot be sent yet is queued without its bytes, so the storage never refuses it", async () => {
+        const zip = new File([new Uint8Array(46_800_000)], "agent-journal-avatar-refined.zip", {type: "application/zip"});
+        server.create.mockRejectedValueOnce(new TypeError("offline"));
+        expect(await delivered("main", {text: "the avatar"}, [zip], "big-2")).toBe(false);
+        expect(queued().map((r) => [r.id, r.files.length, r.held])).toEqual([["big-2", 0, 1]]);
+    });
+});

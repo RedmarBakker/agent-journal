@@ -13,7 +13,7 @@ const {store} = await import("../src/state/store.js");
 
 const index = {table: "plans", id: 5, title: "The rest of the list", state: "started", current_phase: 1, delegated: true, phase_count: 2, task_count: 3};
 const whole = {...index, phases: [{title: "First", task_ids: [1, 2]}, {title: "Second", task_ids: [3]}], task_ids: [1, 2, 3]};
-const task = (id, state) => ({table: "tasks", id, title: `task ${id}`, state, plan_id: 5, priority: 0});
+const task = (id, state) => ({table: "tasks", id, title: `task ${id}`, state: state === "done" ? "completed" : state, plan_id: 5, priority: 0});
 const tasks = [task(1, "done"), task(2, "open"), task(3, "open")];
 
 test("a plan list row, which carries the plan alone, draws the task board without a throw and its tasks as loose ones", () => {

@@ -32,7 +32,7 @@ class TodoImport(EnvironmentKind):
     @staticmethod
     def task(row: Version3Row, task: Task) -> Task:
         if row.completed:
-            return task.with_(state=TaskState.FINISHED, finished_at=row.closing_moment(), outcome=row.outcome)
+            return task.with_(state=TaskState.COMPLETED, completed_at=row.closing_moment(), outcome=row.outcome)
         if row.data.get("blocked"):
             return task.with_(state=TaskState.BLOCKED, block_reason=row.data["blocked"])
         if row.data.get("status") == "started":

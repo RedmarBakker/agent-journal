@@ -61,8 +61,8 @@ test("a delegated plan names the workers that hold the open tasks of the phase i
     const {delegationOf} = await import("../src/domain/plans.js");
     const delegated = plan(1, "started", {delegated: true, phases: [{title: "One", task_ids: [10, 11]}]});
     const tasks = [
-        {id: 10, state: "started", finished_at: null, worker_id: 3},
-        {id: 11, state: "open", finished_at: null, worker_id: 4},
+        {id: 10, state: "started", completed_at: null, worker_id: 3},
+        {id: 11, state: "open", completed_at: null, worker_id: 4},
     ];
     const workers = [
         {id: 3, name: "Hedy", brief: "Fix the tunnel", worktree: true},

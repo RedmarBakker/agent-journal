@@ -1,5 +1,8 @@
 from journal.features.reviewing.reviewing_options import ReviewingOptions
+from dataclasses import replace
+
 from journal.features.workers.support.fitness_score import FitnessScore
+from journal.features.workers.support.own_share_limits import OwnShareLimits
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_profiles import WorkersProfiles
@@ -15,4 +18,5 @@ class FitnessScoring:
 
     def scored(self, agent: Agent) -> FitnessScore | None:
         profile = (WorkersProfiles.reviewed_mode_profile if self.settings.option(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(str(self.settings.option(WorkersOptions.MODE)))
-        return profile.scored(ToolUseCounts.counted(agent)) if profile else None
+        limits = OwnShareLimits(self.settings.decimal(WorkersOptions.OWN_SHARE_FULL), self.settings.decimal(WorkersOptions.OWN_SHARE_ZERO), self.settings.integer(WorkersOptions.OWN_SHARE_WEIGHT))
+        return profile.scored(replace(ToolUseCounts.counted(agent), own_share=limits)) if profile else None

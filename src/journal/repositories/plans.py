@@ -230,7 +230,7 @@ class Plans(ScopedRepository[Plan]):
         return plan.ended_phase(self.phase_states(plan))
 
     def phase_closed_at(self, phase: Phase) -> float:
-        return max(((task.finished_at or task.update_time).timestamp() for task in self.phase_tasks(phase)), default=0.0)
+        return max(((task.completed_at or task.update_time).timestamp() for task in self.phase_tasks(phase)), default=0.0)
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)

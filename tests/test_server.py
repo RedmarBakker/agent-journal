@@ -80,7 +80,7 @@ def test_tasks_live_over_http(server):
     assert call(server, "POST", "/journal/tasks/1/log", {"line": "halfway"})[0] == 201
     assert [log["line"] for log in call(server, "GET", "/journal/tasks/1/logs")[1]] == ["halfway"]
     status, finished = call(server, "POST", "/journal/tasks/1/finish", {"how": "merged"})
-    assert finished["state"] == "done" and finished["outcome"] == "merged"
+    assert finished["state"] == "completed" and finished["outcome"] == "merged"
     status, listed = call(server, "GET", "/journal/tasks")
     assert [t["title"] for t in listed["rows"]] == ["ship it"]
     for n in range(3):
@@ -655,9 +655,9 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
     try:
         tasks = app.container.get(Tasks)
         with app.container.get(Scope).environment(1):
-            old = tasks.save(Task(environment_id=1, title="done long ago", state=TaskState.FINISHED), Actor.user(1))
+            old = tasks.save(Task(environment_id=1, title="done long ago", state=TaskState.COMPLETED), Actor.user(1))
             for n in range(PAGE_ROWS + 5):
-                tasks.save(Task(environment_id=1, title=f"later {n}", state=TaskState.FINISHED), Actor.user(1))
+                tasks.save(Task(environment_id=1, title=f"later {n}", state=TaskState.COMPLETED), Actor.user(1))
         assert old.id not in [row["id"] for row in call(server, "GET", "/journal/tasks")[1]["rows"]], "the plain list holds the newest page"
         assert [row["id"] for row in call(server, "GET", f"/journal/tasks?ids={old.id}")[1]["rows"]] == [old.id], "a task read by its id is found though it lies behind the newest page, as a plan's done tasks do"
     finally:
@@ -734,7 +734,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         app.console().run(["task", "complete", "1", "--how", "shipped"], Caller.agent("main", "s1", "claude"))
         entries = call(server, "GET", "/journal/entries?last=50")[1]
         assert any(e["kind"] == "updated" and e["data"]["table"] == "messages" and "read_at" in e["data"]["changed"] for e in entries)
-        assert any(e["kind"] == "updated" and e["data"]["table"] == "tasks" and "finished_at" in e["data"]["changed"] for e in entries)
+        assert any(e["kind"] == "updated" and e["data"]["table"] == "tasks" and "completed_at" in e["data"]["changed"] for e in entries)
         assert any(e["kind"] == "SessionStarted" for e in entries)
         hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(tmp_path / "a.py"), "old_string": "x", "new_string": "y"}, tool_response={"structuredPatch": [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]})
         edit = call(server, "GET", "/journal/agents/1/edits")[1]["edits"][0]

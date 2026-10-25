@@ -43,7 +43,7 @@ class LoadItems:
 
     def message_items(self, since: datetime) -> list[LoadItem]:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)
-        asked = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", since).order("id"))
+        asked = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", since).order("created_at").order("id"))
         replied: dict[int, float] = {}
         for reply in self.messages.recent_replies(since):
             replied.setdefault(reply.reply_target, reply.creation_time.timestamp())

@@ -40,8 +40,8 @@ const fold = (key) => (taskBoard.folded[key] = !taskBoard.folded[key]);
             <div class="empty">
                 <TaskStatusIcon status="done" :size="24" />
                 <h4>Every task is done</h4>
-                <p>{{ counted(hiddenDone, "done task") }} {{ hiddenDone === 1 ? "is" : "are" }} hidden.</p>
-                <Btn @click="taskBoard.display.showDone = true">Show the done tasks</Btn>
+                <p>{{ counted(hiddenDone, "completed task") }} {{ hiddenDone === 1 ? "is" : "are" }} hidden.</p>
+                <Btn @click="taskBoard.display.showDone = true">Show the completed tasks</Btn>
             </div>
         </template>
         <template v-else-if="tasks.length && !lines.length">
@@ -83,7 +83,7 @@ const fold = (key) => (taskBoard.folded[key] = !taskBoard.folded[key]);
         </TransitionGroup>
         <template v-if="hiddenDone && lines.length">
             <p class="hidden-done">
-                {{ counted(hiddenDone, "done task") }} {{ hiddenDone === 1 ? "is" : "are" }} hidden.
+                {{ counted(hiddenDone, "completed task") }} {{ hiddenDone === 1 ? "is" : "are" }} hidden.
                 <button type="button" @click="taskBoard.display.showDone = true">Show them</button>
             </p>
         </template>

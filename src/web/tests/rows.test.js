@@ -13,8 +13,8 @@ const {earlier, hasLoaded, holding, rows, load, optimistic, patched, recallEntri
 const {store} = await import("../src/state/store.js");
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
-const row = (id, more = {}) => ({table: "tasks", id, state: "open", finished_at: null, created_at: at(id), updated_at: at(id), ...more});
-const done = (id) => row(id, {state: "done", finished_at: at(id)});
+const row = (id, more = {}) => ({table: "tasks", id, state: "open", completed_at: null, created_at: at(id), updated_at: at(id), ...more});
+const done = (id) => row(id, {state: "completed", completed_at: at(id)});
 const empty = {rows: [], is_last_page: true, counts: {}};
 
 beforeEach(async () => {

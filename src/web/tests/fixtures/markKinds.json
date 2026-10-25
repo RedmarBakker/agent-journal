@@ -128,6 +128,13 @@
    "colouring": "outcome"
   },
   {
+   "key": "fitness",
+   "title": "Fitness",
+   "icon": "activity",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
    "key": "triggers",
    "title": "Triggers",
    "icon": "bolt",
@@ -404,7 +411,7 @@
   },
   {
    "key": "filed",
-   "label": "Filed from your messages",
+   "label": "Tasks created from your messages",
    "family": "filed",
    "main": true,
    "shown": true,
@@ -499,6 +506,19 @@
    "icon": "agents",
    "group": "agent",
    "colouring": "outcome"
+  },
+  {
+   "key": "fitness",
+   "label": "Drops in the fitness",
+   "family": "fitness",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "activity",
+   "group": "agent",
+   "colouring": "none"
   },
   {
    "key": "triggers",

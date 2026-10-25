@@ -2,6 +2,7 @@ from journal.features.workers.support.fitness_measure import FitnessMeasure
 from journal.features.workers.support.interruption_measure import InterruptionMeasure
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.support.mode_profile import ModeProfile
+from journal.features.workers.support.own_share_measure import OwnShareMeasure
 from journal.features.workers.support.queue_measure import QueueMeasure
 from journal.models.support.model_fit import RIGHT
 
@@ -25,10 +26,13 @@ WAIT_SHARE = FitnessMeasure("your started plans' blocked tasks that wait with --
 INTERRUPTIONS = InterruptionMeasure("the reports an hour your workers filed while plenty of work was open", 3, "queue each worker several tasks with journal worker queue <n> <task>... --report queue, so it reports once for all of them")
 STEADY_QUEUES = QueueMeasure("your workers with merges whose queue neither stood empty while tasks were open nor piled up past what they drain", 3)
 
+OWN_CODE_SHARE = OwnShareMeasure("the share of the code landed lately that you wrote yourself, against what your workers' merges brought", "write the next piece yourself and hand a worker only what is better done beside you")
+INFLOW_SHARE = FitnessMeasure("your tasks completed or merged among the tasks you filed and those you completed in the window", lambda counts: (counts.tasks_completed, max(counts.tasks_filed, counts.tasks_completed)), 0.5, 1.0, 2, "dispatch a worker on a task that fits one with journal worker dispatch, and take in what is back first", least=3)
+
 class WorkersProfiles:
     """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; the orchestrator is also scored on its handling of its load, the minutes it stays over the add-a-place level, clearing the oldest first and not dispatching while the queue grows, on whether the models of its merged jobs fit them, and on how its plans' tasks wait; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them; a share of events counts only once it has three of them, save the waits, which are the plans as they stand and count from one task."""
 
-    BUILDER = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE, INTERRUPTIONS))
+    BUILDER = ModeProfile("builder", (OWN_CODE_SHARE, FILE_EDIT_SHARE, RESEARCH_SHARE, INFLOW_SHARE, INTERRUPTIONS))
     ORCHESTRATOR = ModeProfile("orchestrator", (INTERRUPTIONS, STEADY_QUEUES, WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, ORCHESTRATOR_EDIT_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE, WAIT_SHARE))
     ORCHESTRATOR_REVIEWER_PROFILE = ModeProfile("orchestrator", (INTERRUPTIONS, STEADY_QUEUES, WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, ORCHESTRATOR_EDIT_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE, WAIT_SHARE))
     SOLO_PROFILE = ModeProfile("solo", (SOLO_FILE_EDIT_SHARE, SOLO_RESEARCH_SHARE))

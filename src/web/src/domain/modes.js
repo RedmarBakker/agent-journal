@@ -31,8 +31,18 @@ const ORCHESTRATOR_TOGGLES = [
     {feature: "workers", name: "orchestrator_releases", label: "May release", note: "Tags a version and publishes a release. Off, a git tag or gh release waits for you.", fallback: false},
     {feature: "reviewing", name: "reviewer", label: "Reviewer", note: "A reviewer reads each worker's proofs and runs their tests before you merge.", fallback: false},
 ];
-const WORKING_TOGGLES = [{feature: "tasks", name: "auto", label: "Auto", note: "Works through the task list without asking. Off, it asks before picking up the next task.", fallback: true}];
-const MODE_TOGGLES = {orchestrator: ORCHESTRATOR_TOGGLES, builder: WORKING_TOGGLES, solo: WORKING_TOGGLES};
+const AUTO_TOGGLE = {feature: "tasks", name: "auto", label: "Auto", note: "Works through the task list without asking. Off, it asks before picking up the next task.", fallback: true};
+const BUILDER_TOGGLES = [
+    AUTO_TOGGLE,
+    {feature: "workers", name: "builder_may_dispatch", label: "May dispatch workers", note: "Sends a worker with journal worker dispatch. Off, the line is refused.", fallback: true},
+    {feature: "workers", name: "builder_may_queue", label: "May queue a worker's next task", note: "Queues a worker's next task with journal worker queue. Off, the line is refused.", fallback: true},
+    {feature: "workers", name: "builder_may_subagents", label: "May send subagents", note: "Sends its program's own subagents. Off, the dispatch is refused.", fallback: true},
+];
+const SOLO_TOGGLES = [
+    AUTO_TOGGLE,
+    {feature: "workers", name: "solo_may_subagents", label: "May send subagents to help it", note: "Sends its program's own subagents to help it. Off, the dispatch is refused.", fallback: true},
+];
+const MODE_TOGGLES = {orchestrator: ORCHESTRATOR_TOGGLES, builder: BUILDER_TOGGLES, solo: SOLO_TOGGLES};
 
 export const modeToggles = (mode) => MODE_TOGGLES[mode] || [];
 

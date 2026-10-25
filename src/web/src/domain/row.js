@@ -51,7 +51,7 @@ export const bodyOf = (row) => (BODIES[row.table] ? BODIES[row.table](row) : row
 const ENDED = ["done", "cancelled"];
 
 const CLOSED = {
-    tasks: (r) => seconds(r.finished_at) || (r.state === "cancelled" ? seconds(r.updated_at) : 0),
+    tasks: (r) => seconds(r.completed_at) || (r.state === "cancelled" ? seconds(r.updated_at) : 0),
     questions: (r) => (r.answer ? seconds(r.updated_at) : 0),
     plans: (r) => (ENDED.includes(r.state) ? seconds(r.updated_at) : 0),
     notices: (r) => seconds(r.closed_at),

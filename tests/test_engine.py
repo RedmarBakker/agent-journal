@@ -906,7 +906,7 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         assert plans.next_task(plan).id == rows[1].id, "the first open task of the first phase, in the order it joined the phase"
         assert [count.rows for count in LoadTally.ended().counts if count.model == "tasks"] == [1], "only the task found is read"
         for task in rows[:2]:
-            tasks.save(task.finished(datetime.now(timezone.utc), "done"), actor)
+            tasks.save(task.completed(datetime.now(timezone.utc), "done"), actor)
         states = plans.phase_states(plan)
         assert plan.current_phase(states) == 2 and plan.checkpoint_phase(states).number == 1, "phase one done and phase two not begun: the checkpoint"
         assert plans.next_task(plan).id == rows[2].id and plans.remaining_count(plan) == 2 and not plans.is_stalled(plan)
@@ -967,7 +967,7 @@ def test_a_hub_task_and_a_hub_plan_bound_to_an_environment_read_as_its_work_and_
 def test_the_models_carry_the_events_their_changes_mean():
     time = datetime(2026, 10, 20, 23, 0, tzinfo=timezone.utc)
     task = Task(id=7, environment_id=1, title="t", state=TaskState.STARTED)
-    assert [type(e) for e in task.finished(time, "x").events] == [TaskClosed, RowResolved] and task.finished(time, "x").events[1].ref == "tasks:7"
+    assert [type(e) for e in task.completed(time, "x").events] == [TaskClosed, RowResolved] and task.completed(time, "x").events[1].ref == "tasks:7"
     assert task.paused("later", time).events[0] == TaskClosed(environment_id=1, time=time.timestamp(), task_id=7, outcome="paused")
     assert Task(id=8, environment_id=1, title="u").started(time).events == (TaskStarted(environment_id=1, time=time.timestamp(), task_id=8, title="u", plan_id=0, prior_state=TaskState.OPEN),)
     assert TaskLog.build(task, "where it stands", 3.0).events == (TaskLogged(environment_id=1, time=3.0, task_id=7),)
@@ -1195,7 +1195,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_HANDOVER_LIMIT.key: 2, WorkersOptions.FITNESS_THRESHOLD.key: 70, "tasks.auto": False, "reviewing.reviewer": False})
+    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_MAY_SUBAGENTS.key: True, WorkersOptions.BUILDER_MAY_DISPATCH.key: True, WorkersOptions.BUILDER_MAY_QUEUE.key: True, WorkersOptions.BUILDER_LINES_PER_HANDOVER.key: 50, WorkersOptions.BUILDER_HANDOVER_LIMIT.key: 2, WorkersOptions.FITNESS_THRESHOLD.key: 70, "tasks.auto": False, "reviewing.reviewer": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
@@ -1454,8 +1454,8 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     assert [n.key for n in PlansWorking(task_id=7, active_at=0.0).respond(Ticked(silence_seconds=900.0, time=900.0).with_data(of()), settings).nudges] == ["tasks.task_still_open"], "a quarter of an hour of quiet, counted from the agent's last activity, names the open task"
     assert PlansWorking(task_id=7, active_at=0.0).respond(Ticked(silence_seconds=60.0, time=900.0).with_data(of()), settings).nudges == (), "an agent active a minute ago is not nagged, however old its task"
     assert PlansWorking(task_id=7, active_at=100.0).respond(Ticked(silence_seconds=0.0, time=900.0).with_data(of()), settings).nudges == ()
-    assert working.respond(TaskClosed(environment_id=1, time=2.0, task_id=7, outcome="done").with_data(of()), settings).popped
-    assert not working.respond(TaskClosed(environment_id=1, time=2.0, task_id=8, outcome="done").with_data(of()), settings).popped
+    assert working.respond(TaskClosed(environment_id=1, time=2.0, task_id=7, outcome="completed").with_data(of()), settings).popped
+    assert not working.respond(TaskClosed(environment_id=1, time=2.0, task_id=8, outcome="completed").with_data(of()), settings).popped
     assert working.on_resume(of(current_task=0), settings).popped, "its task closed while it waited"
     assert working.on_resume(of(), settings) == (), "its task still in hand, the work goes on in silence: the wait that popped said what came"
 
@@ -1480,12 +1480,12 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     of = lambda started: FeatureData({"tasks": tasks, "plans": PlansData((), started, 0)})
     following = FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=10.0)
     assert following.on_push(auto) == () and isinstance(FollowingPlan(plan_id=5).on_push(auto), Block), "an unapproved plan is refused"
-    closed = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="done").with_data(of(plan)), auto)
+    closed = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="completed").with_data(of(plan)), auto)
     assert closed.target == replace(following, task_id=0, origin_state=7) and not closed.popped
-    assert following.respond(TaskClosed(environment_id=1, time=20.0, task_id=9, outcome="done").with_data(of(plan)), auto).target == following
+    assert following.respond(TaskClosed(environment_id=1, time=20.0, task_id=9, outcome="completed").with_data(of(plan)), auto).target == following
     started = closed.target.respond(TaskStarted(environment_id=1, time=30.0, task_id=8, title="next", plan_id=5).with_data(of(replace(plan, started_task=8))), auto)
     assert started.target == replace(following, task_id=8, origin_state=7, logged_at=30.0)
-    checkpoint_pause = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="done").with_data(of(replace(plan, checkpoint_pause=True, checkpoint_phase=2))), auto)
+    checkpoint_pause = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="completed").with_data(of(replace(plan, checkpoint_pause=True, checkpoint_phase=2))), auto)
     assert checkpoint_pause.target == replace(following, task_id=0, origin_state=7, checkpoint_pause=True, phase=2)
     stopped = checkpoint_pause.target.respond(Stop().with_data(of(plan)), auto)
     assert stopped.refusal.rendered().startswith("plan 5: phase 2 is complete")
@@ -2393,6 +2393,33 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     assert [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
 
 
+def test_the_builder_is_told_to_hand_less_out_over_its_own_ceiling_and_the_solo_agent_is_told_nothing():
+    from pathlib import Path
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import crowd_check
+    from journal.features.workers.workers_options import WorkersOptions
+    from journal.models.support.agent_load import AgentLoad
+    def told(mode, rho):
+        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.BUILDER_CEILING.key: 0.5, WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
+        load = AgentLoad(rho=rho, waiting_refs=("workers:12",), waiting_items=1, measured_at=1.0)
+        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=load)}))
+        return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
+    assert told("builder", 0.4) == [], "under its ceiling the builder is told nothing"
+    assert told("builder", 0.6) == ["your load is 0.6, over 0.5: worker 12 wait; hand less out and take in what is back first, worker 12 the oldest"], told("builder", 0.6)
+    assert told("solo", 0.95) == [], "the solo agent's load is counted and never spoken of"
+
+
+def test_each_work_mode_keeps_its_own_load_so_a_switch_neither_resets_nor_mixes_them():
+    from journal.models.agent import Agent
+    from journal.models.support.agent_load import AgentLoad
+    agent = Agent(environment_id=1, session="s1", mode="builder", load=AgentLoad(rho=0.4, measured_at=1.0))
+    orchestrating = agent.in_mode("orchestrator")
+    assert orchestrating.load == AgentLoad(), "a mode not yet measured starts with no figure"
+    measured = orchestrating.with_(load=AgentLoad(rho=0.9, measured_at=2.0))
+    assert measured.in_mode("builder").load.rho == 0.4, "back in the builder's mode its own figure is there"
+    assert measured.in_mode("builder").in_mode("orchestrator").load.rho == 0.9 and measured.in_mode("solo").load == AgentLoad()
+
+
 def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
     from dataclasses import replace
     from journal.features.workers.support.place_scaling import PlaceScaling
@@ -2538,3 +2565,90 @@ def test_a_git_commit_or_push_is_never_owed_a_reader_and_every_other_git_step_ma
     from journal.features.shell.support.git_writes import GitWrites
     assert all(GitWrites.is_writing(command) for command in ("git commit", "git push")), "the journal marks a commit and a push itself, so neither gets a reader"
     assert not any(GitWrites.is_writing(command) for command in ("git rebase", "git merge", "git log", "git show", "git diff")), "a rebase, a merge and reading the history keep their readers"
+
+
+def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_a_handover_under_the_line_budget_is_told():
+    from pathlib import Path
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import budget_check, capability_check
+    from journal.features.workers.workers_options import WorkersOptions
+    def event(line, lines=0):
+        from journal.support.command_part import CommandPart
+        call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
+        return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=lines)}))
+    allowed = {WorkersOptions.BUILDER_MAY_DISPATCH.key: True, WorkersOptions.BUILDER_MAY_QUEUE.key: True, WorkersOptions.BUILDER_MAY_SUBAGENTS.key: True, WorkersOptions.SOLO_MAY_SUBAGENTS.key: True, WorkersOptions.BUILDER_LINES_PER_HANDOVER.key: 50}
+    builder = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder"})
+    assert capability_check(Ready(), event("journal worker dispatch 1"), builder).refusal is None
+    off = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_MAY_DISPATCH.key: False, WorkersOptions.BUILDER_MAY_QUEUE.key: False})
+    assert "may not dispatch a worker" in capability_check(Ready(), event("journal worker dispatch 1"), off).refusal.rendered()
+    assert "may not queue a worker's next task" in capability_check(Ready(), event("journal worker queue 1 2"), off).refusal.rendered()
+    assert [n.rendered() for n in budget_check(Ready(), event("journal worker dispatch 1", 20), builder).nudges] == ["you wrote 20 lines since your last handover, under the 50 one worker out is worth: write the next piece yourself"]
+    assert budget_check(Ready(), event("journal worker dispatch 1", 60), builder).nudges == (), "past the budget of its own lines a handover is let through"
+    assert budget_check(Ready(), event("git status", 0), builder).nudges == (), "only a handover is told"
+
+
+def test_a_builder_with_ten_tasks_filed_and_one_completed_in_the_window_scores_lower_and_is_told_to_dispatch():
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    steady = ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=4, tasks_completed=4)
+    swamped = ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=10, tasks_completed=1)
+    kept, swamp = WorkersProfiles.BUILDER.scored(steady), WorkersProfiles.BUILDER.scored(swamped)
+    assert swamp.score < kept.score and swamp.score < 80, (kept.score, swamp.score)
+    assert any("dispatch a worker on a task that fits one" in line for line in swamp.lines), swamp.lines
+    assert WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1)) == WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=2)), "under three tasks filed the measure is absent"
+
+
+def test_the_review_queue_gets_its_first_reviewer_itself_and_the_orchestrator_adds_the_others_up_to_the_most():
+    from types import SimpleNamespace
+    from journal.features.reviewing.commands.reviewer_command import ReviewerCommand
+    from journal.features.reviewing.support.review_queue import ReviewQueue
+    from journal.support.rejection import Rejection
+    added = []
+    dispatch = SimpleNamespace(added=lambda environment_id: added.append(environment_id) or SimpleNamespace(id=len(added)))
+    queue = lambda waiting, idle, out: ReviewQueue(SimpleNamespace(queued_reviews=lambda: list(range(waiting))), SimpleNamespace(idle=lambda: list(idle), active=lambda: list(out)), None, None, None, dispatch, None)
+    assert len(queue(3, [], []).free_reviewers(1)) == 1, "a queue with no reviewer gets its first"
+    assert queue(3, [], ["a"]).free_reviewers(1) == [], "and never a second by itself"
+    command = lambda out: ReviewerCommand(SimpleNamespace(active=lambda: list(out)), SimpleNamespace(queued_reviews=lambda: []), dispatch, SimpleNamespace(assigned=lambda environment_id: None), SimpleNamespace(is_enabled=lambda: True), SimpleNamespace(id=1), SimpleNamespace(integer=lambda option: 2))
+    assert command(["a"]).add(None, None) == 0, "the orchestrator adds a second"
+    try:
+        command(["a", "b"]).add(None, None)
+    except Rejection as refusal:
+        assert "workers.reviewers_most" in str(refusal)
+    else:
+        raise AssertionError("a third past the most is refused")
+
+
+def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
+    from types import SimpleNamespace
+    from journal.features.verification.support.verifier_dispatch import VerifierDispatch
+    from journal.models.verifier import Verifier
+    sent = []
+    verifiers = SimpleNamespace(idle=lambda: [v for v in rows if v.state == "judged"], out=lambda: rows)
+    rows: list = []
+    runner = SimpleNamespace(start=lambda verifier, resume: sent.append((verifier.brief, resume)) or verifier)
+    dispatch = VerifierDispatch(verifiers, None, runner, SimpleNamespace(default=lambda: SimpleNamespace(name="claude")), None, SimpleNamespace(integer=lambda option: 1))
+    dispatch.judging = lambda verifier, target, resume: (rows.append(verifier), runner.start(verifier, resume))[1]
+    target = SimpleNamespace(environment_id=1)
+    first = dispatch.sent_on(target, "one", "sonnet")
+    assert first is not None and dispatch.sent_on(target, "two", "sonnet") is None and len(dispatch.waiting) == 1, "past the most the verdict waits"
+    rows[0] = rows[0].judged()
+    dispatch.released()
+    assert dispatch.waiting == [] and [brief for brief, _ in sent] == ["one", "two"], "once one is free the waiting verdict goes to it"
+
+
+def test_the_builder_is_scored_on_the_share_of_the_code_it_wrote_itself_against_what_its_workers_merges_brought_with_the_range_and_weight_the_user_sets():
+    from dataclasses import replace
+    from journal.features.workers.support.own_share_limits import OwnShareLimits
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_options import WorkersOptions
+    from journal.features.workers.workers_profiles import OWN_CODE_SHARE, WorkersProfiles
+    counts = lambda own, landed: ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, own_lines=own, landed_lines=landed)
+    assert OWN_CODE_SHARE in WorkersProfiles.BUILDER.measures
+    assert OWN_CODE_SHARE.closeness(counts(80, 20)) == 1.0, "two thirds or more of its own is whole"
+    assert OWN_CODE_SHARE.closeness(counts(30, 70)) == 0.0, "under a third it scores nothing"
+    assert round(OWN_CODE_SHARE.closeness(counts(50, 50)), 2) == 0.5 and OWN_CODE_SHARE.closeness(counts(5, 5)) is None, "between the two it falls straight, and under twenty lines it is not scored"
+    mine, handed = WorkersProfiles.BUILDER.scored(counts(80, 20)), WorkersProfiles.BUILDER.scored(counts(10, 90))
+    assert handed.score < mine.score and any("write the next piece yourself" in line for line in handed.lines), (mine.score, handed.score)
+    heavier = WorkersProfiles.BUILDER.scored(replace(counts(10, 90), own_share=OwnShareLimits(0.67, 0.33, 12)))
+    assert heavier.score < handed.score, "the weight is the user's setting"
+    assert all(option.title.startswith("Fitness: ") for option in (WorkersOptions.OWN_SHARE_FULL, WorkersOptions.OWN_SHARE_ZERO, WorkersOptions.OWN_SHARE_WEIGHT)), "the settings are among those under Fitness:"

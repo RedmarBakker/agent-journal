@@ -70,7 +70,7 @@ onMounted(() => props.finished && scope.recent && scope.recent("tasks", FINISHED
         </template>
         <template v-if="done.length">
             <div class="rail-group">
-                Finished
+                Completed
                 <span class="rail-group-n">{{ done.length }}</span>
             </div>
             <template v-for="t in done" :key="t.id">

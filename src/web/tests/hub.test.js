@@ -53,7 +53,7 @@ test("the hub home lists the hub's documents, plans and recent activity", () => 
 });
 
 test("the hub board puts each task of the hub in the column of its state", () => {
-    const host = mounted(HubBoard, {tasks: [{id: 1, title: "a", state: "open"}, {id: 2, title: "b", state: "started"}, {id: 3, title: "c", state: "blocked"}, {id: 4, title: "d", state: "done"}, {id: 5, title: "e", state: "open"}]});
+    const host = mounted(HubBoard, {tasks: [{id: 1, title: "a", state: "open"}, {id: 2, title: "b", state: "started"}, {id: 3, title: "c", state: "blocked"}, {id: 4, title: "d", state: "completed"}, {id: 5, title: "e", state: "open"}]});
     const column = (key) => [...host.querySelectorAll(`[data-column=${key}] .card`)].map((card) => card.textContent.trim());
     expect(column("open")).toEqual(["Task 1: a", "Task 5: e"]);
     expect(column("started")).toEqual(["Task 2: b"]);

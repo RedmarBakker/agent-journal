@@ -56,7 +56,7 @@ const message = (id, author, text, data = {}, session = null) => ({table: "messa
 test("each thing the agent does in the journal is its own moment, read from the chat's messages as the server writes them, and nothing else is", () => {
     const agent = {session: "s", data: {}};
     const messages = [
-        message(1, "system", "Finished task 12: the stamp", {shows: "task_moves"}),
+        message(1, "system", "Completed task 12: the stamp", {shows: "task_moves"}),
         // a new task is no longer acted out (task 2647)
         message(2, "system", "Started task 13: the parser", {shows: "task_moves"}),
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
@@ -67,7 +67,7 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(8, "system", "Check Check for sins passed", {shows: "checks", outcome: "passed"}),
         message(9, "system", "Resumed task 13: the parser", {shows: "task_moves"}),
         message(10, "system", "Worker 57, Mr. Muybridge, motion photographer: released", {shows: "workers"}),
-        message(11, "system", "Finished task 99 in another session", {shows: "task_moves"}, "other"),
+        message(11, "system", "Completed task 99 in another session", {shows: "task_moves"}, "other"),
         message(12, "agent", "Done: the figure stamps now.", {}, "s"),
         message(13, "agent", "Worker 57 reports: done", {kind: "report"}),
         message(14, "agent", "thinking it over", {kind: "thought"}, "s"),

@@ -1,3 +1,5 @@
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_options import WorkersOptions
 import time
 from dataclasses import asdict
 
@@ -105,8 +107,15 @@ class AgentActivity:
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": self.load(agent),
+            "handover_budget": self.handover_warning(agent),
             **self.rolling(),
         }
+
+    def handover_warning(self, agent: Agent) -> str:
+        budget = self.settings.integer(WorkersOptions.BUILDER_LINES_PER_HANDOVER)
+        if self.settings.option(WorkersOptions.MODE) != "builder" or budget <= 0 or not agent.consecutive_handovers or agent.lines_since_handover() >= budget:
+            return ""
+        return WorkersNudges.BUILDER_BUDGET.create(lines=agent.lines_since_handover(), budget=budget).rendered()
 
     @staticmethod
     def load(agent: Agent) -> dict | None:

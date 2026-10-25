@@ -26,7 +26,7 @@ class NextOpenTask:
 
     def plan_next(self, plan: Plan, closed: Task) -> OpenTask | None:
         current = self.plans.started_task(plan)
-        if current is not None and current.started_at is not None and closed.finished_at is not None and current.started_at < closed.finished_at:
+        if current is not None and current.started_at is not None and closed.completed_at is not None and current.started_at < closed.completed_at:
             return None
         if current is not None:
             return OpenTask(current.row_id, current.title, current.brief, plan.row_id)

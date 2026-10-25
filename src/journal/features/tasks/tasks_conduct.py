@@ -37,7 +37,7 @@ class TasksConduct(Conduct):
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
-        if event.outcome != "done" or tasks.current_task or not tasks.paused or event.data.part(TaskSuccession):
+        if event.outcome != "completed" or tasks.current_task or not tasks.paused or event.data.part(TaskSuccession):
             return self.none()
         return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
 

@@ -31,7 +31,7 @@ class RequestController:
     def standing(self, task: Task, drivers: dict[int, Ref]) -> dict:
         state = "declined" if task.is_declined() else task.state
         return {**ModelFields.build(task), "standing": state, "reason": task.outcome.removeprefix(DECLINED) if task.is_declined() else "", "for_whom": self.recipient(task),
-                "driver": self.holders.name(drivers[task.row_id]) if task.row_id in drivers else "", "done_at": task.finished_at.isoformat() if task.finished_at else ""}
+                "driver": self.holders.name(drivers[task.row_id]) if task.row_id in drivers else "", "done_at": task.completed_at.isoformat() if task.completed_at else ""}
 
     def recipient(self, task: Task) -> str:
         links = [link for link in self.links.link_rows(task) if link.source == Ref.build(task) and link.kind in (REQUESTED_OF, TEAM_REQUEST)]

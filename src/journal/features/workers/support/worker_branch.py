@@ -154,6 +154,16 @@ class WorkerBranch:
         changed = self.git("diff", "--name-only", f"HEAD...{self.tip(repository, worker)}", cwd=repository.checkout).stdout.split()
         return "; ".join(self.commits(repository, worker)) + f" (files: {', '.join(changed[:20])}{', and more' if len(changed) > 20 else ''})"
 
+    def landed_lines(self, worker: Worker) -> int:
+        total = 0
+        for repository in self.repositories(worker):
+            tip = self.tip(repository, worker)
+            if not self.is_commit(repository, tip):
+                continue
+            counted = self.git("diff", "--numstat", f"HEAD...{tip}", cwd=repository.checkout).stdout.splitlines()
+            total += sum(int(line.split("\t")[0]) for line in counted if line.split("\t")[0].isdigit())
+        return total
+
     def merge_commit(self, worker: Worker) -> str:
         pending = self.pending(worker)
         blocked = self.blocking(pending, worker)

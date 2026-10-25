@@ -35,7 +35,7 @@ from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
     card_families = (CardFamily("tasks", "Tasks", "task", WORK), CardFamily("impasse", "Agent stuck", "warn", AGENT), CardFamily("requests", "Requests", "inbox", JOURNAL),)
-    card_kinds = (MarkKind(CardKind.TASK_MOVES, "Tasks started and finished", "tasks"), MarkKind(CardKind.TASK_PAUSES, "Tasks paused and blocked", "tasks"), MarkKind(CardKind.IMPASSE, "Agent stuck", "impasse"), MarkKind(CardKind.REQUESTS, "Requests filed for you", "requests"),)
+    card_kinds = (MarkKind(CardKind.TASK_MOVES, "Tasks started and completed", "tasks"), MarkKind(CardKind.TASK_PAUSES, "Tasks paused and blocked", "tasks"), MarkKind(CardKind.IMPASSE, "Agent stuck", "impasse"), MarkKind(CardKind.REQUESTS, "Requests filed for you", "requests"),)
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait)
@@ -86,7 +86,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
   again so drift is visible, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
   tasks.name_every and tasks.log_after). A log line starts a new version.
 - A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
-- A commit whose message includes `Journal: tasks done <n>` on a line of its own finishes task n.
+- A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
   one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
 - Work you put off in words is work lost: file it as a task instead.

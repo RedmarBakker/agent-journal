@@ -12,7 +12,7 @@ const {store} = await import("../src/state/store.js");
 
 const index = {table: "plans", id: 5, title: "Going", state: "started", phase_count: 2, task_count: 3};
 const whole = {...index, phases: [{title: "One", task_ids: [1, 2]}, {title: "Two", task_ids: [3]}], task_ids: [1, 2, 3], current_phase: 2, held: false, delegated: true};
-const task = (id, state) => ({table: "tasks", id, title: `t${id}`, state, plan_id: 5});
+const task = (id, state) => ({table: "tasks", id, title: `t${id}`, state: state === "done" ? "completed" : state, plan_id: 5});
 
 test("a started plan listed as a summary is read whole, then its tasks, so the bar counts its done tasks and draws its phase with no error", async () => {
     store.rows.plans = [index];

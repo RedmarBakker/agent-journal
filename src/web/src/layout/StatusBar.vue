@@ -74,7 +74,7 @@ const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
         label: one.label,
-        tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
+        tip: {title: one.label, toggles: toggles(one.key), warning: one.key === "builder" ? agent.value?.handover_budget || "" : "", line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
     }))
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
@@ -93,11 +93,12 @@ function toggleFitness(e) {
     fitnessAnchor.value = e.currentTarget;
     fitnessOpen.value = !fitnessOpen.value;
 }
-// the orchestrator's load, arrivals over clearings, shown beside the fitness and never scored, toned by workers.load_warn and workers.load_critical
-const load = computed(() => agent.value?.load || null);
+// the load of the work mode the agent is in, arrivals over clearings, shown beside the fitness and never scored, none in solo, where it is still counted; toned by workers.load_warn and workers.load_critical, the builder's by workers.builder_load_ceiling
+const load = computed(() => (workMode.value === "solo" ? null : agent.value?.load || null));
 const loadLevel = computed(() => {
     const levels = store.settings?.workers || {};
     if (!load.value) return "";
+    if (workMode.value === "builder") return load.value.rho >= (levels.builder_load_ceiling ?? 0.5) ? "warn" : "";
     if (load.value.rho >= (levels.load_critical ?? 0.9)) return "critical";
     return load.value.rho >= (levels.load_warn ?? 0.7) ? "warn" : "";
 });

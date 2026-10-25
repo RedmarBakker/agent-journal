@@ -193,7 +193,7 @@ class Messages(ScopedRepository[Message]):
         return replies[0] if replies else None
 
     def recent_replies(self, time: datetime) -> list[Message]:
-        return self.selected(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", time).order("id"))
+        return self.selected(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", time).order("created_at").order("id"))
 
     def reply_text(self, n: int, text: str) -> list[Message]:
         return self.selected(self.main_voice().filter(reply_target=n, text=text.strip()))

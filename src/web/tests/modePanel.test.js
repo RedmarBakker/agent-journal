@@ -83,7 +83,7 @@ test("hovering the Builder button shows the Auto toggle, which flips tasks.auto,
     await nextTick();
     const panel = host.querySelector(".tooltip");
     const toggles = [...panel.querySelectorAll(".tip-toggle")];
-    expect(toggles.map((toggle) => toggle.textContent.trim())).toEqual(["Auto"]);
+    expect(toggles.map((toggle) => toggle.textContent.trim())).toEqual(["Auto", "May dispatch workers", "May queue a worker's next task", "May send subagents"]);
     expect(toggles[0].getAttribute("aria-checked")).toBe("true");
     toggles[0].click();
     await nextTick();
@@ -91,4 +91,27 @@ test("hovering the Builder button shows the Auto toggle, which flips tasks.auto,
     app.unmount();
     host.remove();
     save.mockRestore();
+});
+
+test("hovering the Builder button shows the handover budget warning the agent is told, while its lines since the last handover are under the budget", async () => {
+    choose("main");
+    const warning = "you wrote 12 lines since your last handover, under the 50 one worker out is worth: write the next piece yourself";
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", handover_budget: warning}];
+    store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h("div", [h(StatusBar), h(Tooltip)])});
+    app.directive("tip", tip);
+    app.mount(host);
+    await nextTick();
+    const builder = [...host.querySelectorAll(".statusbar-mode .segmented-option")].find((button) => button.textContent.trim() === "Builder");
+    builder.dispatchEvent(new MouseEvent("pointerover", {bubbles: true}));
+    await nextTick();
+    await nextTick();
+    expect(host.querySelector(".tooltip .tip-warning").textContent.trim()).toBe(warning);
+    store.agents = [{...store.agents[0], handover_budget: ""}];
+    await nextTick();
+    expect(host.querySelector(".tooltip .tip-warning")).toBeNull();
+    app.unmount();
+    host.remove();
 });

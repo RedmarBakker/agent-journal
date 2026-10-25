@@ -50,7 +50,7 @@ watchEffect(() => {
 });
 // A plan not started yet has finished nothing and strikes nothing out, whatever its tasks were before
 const running = computed(() => !PLANNED.includes(status.value));
-const finished = computed(() => (running.value ? planned.value.filter((t) => t.state === "done").length : 0));
+const finished = computed(() => (running.value ? planned.value.filter((t) => t.state === "completed").length : 0));
 
 async function run(act) {
     error.value = "";

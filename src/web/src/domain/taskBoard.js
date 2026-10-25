@@ -4,7 +4,7 @@ import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
 import {NORMAL_PRIORITY} from "./taskPriority.js";
 
-export const STATUS_WORDS = {...GROUPS, done: "Done"};
+export const STATUS_WORDS = {...GROUPS, done: "Completed"};
 export const STATUS_ORDER = ["blocked", "asked", "started", "delegated", "paused", "open", "planned", "done"];
 const WAIT_KINDS = {tasks: "task", questions: "question", checks: "command"};
 
@@ -96,7 +96,7 @@ function phaseLines(plan, shown, all, folded) {
                     key,
                     1,
                     `Phase ${i + 1} of ${phases.length}: ${phase.title}`,
-                    `${inPhase.filter((t) => t.state === "done").length} of ${inPhase.length} done`
+                    `${inPhase.filter((t) => t.state === "completed").length} of ${inPhase.length} completed`
                 )
             );
             if (folded[key]) return;
@@ -161,11 +161,11 @@ export const boardLines = (grouping, parts) => GROUPINGS[grouping](parts);
 const choice = (status, label, act, note) => ({status, label, act, note});
 const CHOICES = [
     (s) =>
-        choice("open", "Open", s === "blocked" ? "unblock" : s === "done" ? "reopen" : "", "Only a blocked or done task goes back to open"),
+        choice("open", "Open", s === "blocked" ? "unblock" : s === "done" ? "reopen" : "", "Only a blocked or completed task goes back to open"),
     (s) => choice("started", "In progress", ["open", "planned", "asked", "paused"].includes(s) ? "start" : "", "Unblock it first"),
     (s) => choice("paused", "Paused...", s === "started" ? "pause" : "", "Only a task in progress can be paused"),
     (s) => choice("blocked", "Blocked...", ["done", "blocked"].includes(s) ? "" : "block", "It is blocked already"),
-    (s) => choice("done", "Done...", s === "done" ? "" : "finish", "It is done already"),
+    (s) => choice("done", "Completed...", s === "done" ? "" : "finish", "It is completed already"),
 ];
 const CURRENT = {open: ["open", "asked", "planned"]};
 

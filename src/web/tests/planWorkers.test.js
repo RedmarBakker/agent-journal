@@ -11,7 +11,7 @@ test("a plan that opens reads the workers holding its tasks by the task numbers 
     vi.useFakeTimers();
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     api.list.mockResolvedValue({rows: [{id: 3, name: "Lady Lovelace", state: "dispatched", holds: [7]}]});
-    const tasks = ref([{table: "tasks", id: 7, title: "Task 7", state: "open", finished_at: null}]);
+    const tasks = ref([{table: "tasks", id: 7, title: "Task 7", state: "open", completed_at: null}]);
     const into = document.createElement("div");
     document.body.append(into);
     createApp({

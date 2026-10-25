@@ -35,7 +35,7 @@ def test_a_task_lives_through_the_cli(app: App):
     assert console.run(["task", "complete", "1", "--how", "published"], MAIN).code == 0
     tasks = app.container.get(Tasks)
     task = tasks.find(1)
-    assert task.state == TaskState.FINISHED and task.outcome == "published" and task.started_at is not None
+    assert task.state == TaskState.COMPLETED and task.outcome == "published" and task.started_at is not None
     assert task.creator == Actor.user(1)
     assert [log.line for log in app.container.get(TaskLogs).logs(task)] == ["half done"]
     assert (app.config.database).is_file()

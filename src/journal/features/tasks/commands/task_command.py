@@ -74,7 +74,7 @@ class TaskCommand(Command):
         log = self.verb(verbs, "log", "note where a task stands")
         log.add_argument("n", type=int)
         log.add_argument("line")
-        finished = self.verb(verbs, "complete", "finish a task")
+        finished = self.verb(verbs, "complete", "complete a task")
         finished.add_argument("n", type=int)
         finished.add_argument("--how", default="")
         dropped = self.verb(verbs, "cancel", "give a task up, undone, with why")
@@ -200,7 +200,7 @@ class TaskCommand(Command):
         holdings = self.tasks.task_worker_holdings({args.n})
         if args.n in holdings and not caller.actor.is_user():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: take its work in with journal worker merge {holdings[args.n]} once its proofs are checked")
-        task = self.tasks.save(self.tasks.find(args.n).finished(self._time(), args.how), caller.actor)
+        task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
         print(f"{self.labels.name('task', task)} done")
         self._name_next(task)
         return 0

@@ -60,3 +60,17 @@ test("the Fold the plans button is the last button before the full screen button
     expect(strip).not.toBeNull();
     expect(strip.nextElementSibling).toBe(wide);
 });
+
+test("the load shows for the builder and the orchestrator and is hidden in solo, and the builder's warns at its own ceiling", async () => {
+    const withLoad = (rho) => ({...lead(null), load: {rho, arrivals: 10, clearings: 20, waiting: 1, wait_minutes: 1, waiting_refs: []}});
+    store.settings = {features: {}, tasks: {}, workers: {mode: "builder", builder_load_ceiling: 0.5}, reviewing: {}};
+    store.agents = [withLoad(0.6)];
+    const host = await bar();
+    expect(host.querySelector(".statusbar-load").classList.contains("warn")).toBe(true);
+    store.settings = {...store.settings, workers: {mode: "solo"}};
+    await nextTick();
+    expect(host.querySelector(".statusbar-load")).toBeNull();
+    store.settings = {...store.settings, workers: {mode: "orchestrator"}};
+    await nextTick();
+    expect(host.querySelector(".statusbar-load").classList.contains("warn")).toBe(false);
+});

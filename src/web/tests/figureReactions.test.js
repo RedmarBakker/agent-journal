@@ -133,7 +133,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, shows: "workers", outcome: "failed"},
         {time: 2, shows: "questions"},
         // features/tasks, features/inbox, features/questions, features/workers, features/facts and features/checks, as their cards read
-        {time: 2, shows: "task_moves", label: "Finished task 12: the stamp"},
+        {time: 2, shows: "task_moves", label: "Completed task 12: the stamp"},
         {time: 2, shows: "filed", label: "Filed task 13 from your message"},
         {time: 2, kind: "question", label: "Which one?"},
         {time: 2, shows: "workers", label: "Worker 57, Mr. Muybridge, motion photographer: started on claude opus"},

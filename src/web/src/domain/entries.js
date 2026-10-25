@@ -14,7 +14,7 @@ export const atOf = (entry) => seconds(entry.created_at);
 export const whoOf = (entry) => (entry.actor || "system").split(":")[0];
 
 // The fields whose change closes a row of a table, so a change of one reads as its closing.
-const CLOSES = {tasks: "finished_at", questions: "answer", notices: "closed_at", shares: "stopped_at", secrets: "deleted_at"};
+const CLOSES = {tasks: "completed_at", questions: "answer", notices: "closed_at", shares: "stopped_at", secrets: "deleted_at"};
 
 export const closes = (entry) => entry.kind === "updated" && (entry.data.changed || []).includes(CLOSES[entry.data.table]);
 

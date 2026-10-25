@@ -167,7 +167,7 @@ const BEATS = [
     {beat: "refused", matches: (card) => card.shows === "workers" && outcomeOf(card) === "failed" && !card.process},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
     {beat: "answered", matches: (card) => card.shows === "questions"},
-    {beat: "task_finished", matches: (card) => card.shows === "task_moves" && /^Finished /.test(card.label)},
+    {beat: "task_finished", matches: (card) => card.shows === "task_moves" && /^Completed /.test(card.label)},
     {beat: "messaged", matches: givenWork},
     {beat: "fact_filed", matches: (card) => ["facts", "reminders"].includes(card.shows) && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
     {beat: "check_passed", matches: (card) => card.shows === "checks" && outcomeOf(card) === "passed"},

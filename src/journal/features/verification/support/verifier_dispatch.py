@@ -6,6 +6,8 @@ from journal.models.support.ref import Ref
 from journal.models.verifier import Verifier
 from journal.providers.providers import Providers
 from journal.repositories.links import Links
+from journal.features.workers.workers_options import WorkersOptions
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.verifiers import Verifiers
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
@@ -19,17 +21,28 @@ MODEL_PROFILE = "journal-medior"
 class VerifierDispatch:
     """Sends a verifier, as the journal and never an agent, on the general model, Sonnet at the least, since a verdict on a job's model is a judgement: the idle one on that model that judged last, in its own session with its memory of that judgement, else a new one named after Diogenes, handed the evidence as its whole brief, linked to the row whose dismissal it judges, and started by its own runner; and finds the row a verifier judges now, the last it was linked to."""
 
-    def __init__(self, verifiers: Verifiers, links: Links, runner: VerifierRunner, providers: Providers, profiles: ProfileFiles) -> None:
-        self.verifiers, self.links, self.runner, self.providers, self.profiles = verifiers, links, runner, providers, profiles
+    def __init__(self, verifiers: Verifiers, links: Links, runner: VerifierRunner, providers: Providers, profiles: ProfileFiles, settings: SettingRows) -> None:
+        self.verifiers, self.links, self.runner, self.providers, self.profiles, self.settings = verifiers, links, runner, providers, profiles, settings
+        self.waiting: list[tuple[Scoped, str, str]] = []
 
-    def sent(self, target: Scoped, brief: str) -> Verifier:
+    def sent(self, target: Scoped, brief: str) -> Verifier | None:
         return self.sent_on(target, brief, self.general_model())
 
-    def sent_on(self, target: Scoped, brief: str, model: str) -> Verifier:
+    def sent_on(self, target: Scoped, brief: str, model: str) -> Verifier | None:
         idle = [verifier for verifier in self.verifiers.idle() if verifier.model == model]
         if idle:
             return self.judging(idle[0].next_judgement(brief), target, idle[0].session)
+        if len(self.verifiers.out()) >= self.settings.integer(WorkersOptions.VERIFIERS_MOST):
+            self.waiting.append((target, brief, model))
+            return None
         return self.judging(Verifier(environment_id=target.environment_id, name=DIOGENES, brief=brief, provider=self.providers.default().name, model=model), target, "")
+
+    def released(self) -> None:
+        while self.waiting:
+            target, brief, model = self.waiting[0]
+            if self.sent_on(target, brief, model) is None:
+                return
+            self.waiting.pop(0)
 
     def general_model(self) -> str:
         return self.providers.default().profile_model(self.profiles.read(MODEL_PROFILE))

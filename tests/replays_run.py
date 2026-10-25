@@ -956,7 +956,7 @@ def test_a_session_in_a_worktree_works_its_environment_and_its_commit_closes_its
     app.runtime().deferred.drain()
     name_index = {s["name"]: s for s in replay.record()}
     assert "error" not in name_index["a write inside the worktree"]["answer"], "the agent's own worktree is its to write in"
-    assert "task 1" in str(name_index["the merge that lands it"]["answer"]) and app.container.get(Tasks).find(1).state.value == "done", "the trailer closes its task when the merge lands it"
+    assert "task 1" in str(name_index["the merge that lands it"]["answer"]) and app.container.get(Tasks).find(1).state.value == "completed", "the trailer closes its task when the merge lands it"
     assert any(m.text.startswith("Working in the worktree main, on the branch worktree-main") for m in app.container.get(Messages).recent(30)), "the session is marked with its worktree and branch"
     assert rows == [], "the record says the same"
 

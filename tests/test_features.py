@@ -1120,14 +1120,14 @@ def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_fo
         from journal.repositories.messages import Messages
         marks = [(m.text, m.data.get("detail", "")) for m in app.container.get(Messages).all() if m.data.get("shows") in ("task_moves", "task_pauses")]
     texts = [text for text, _ in marks]
-    assert "Started task 1: the parser" in texts and "Paused task 1: the parser" in texts and "Blocked task 2: the footer" in texts and "Finished task 1: the parser" in texts, texts
+    assert "Started task 1: the parser" in texts and "Paused task 1: the parser" in texts and "Blocked task 2: the footer" in texts and "Completed task 1: the parser" in texts, texts
     assert ("Blocked task 2: the footer", "waits on the client's logo") in marks, "a paused or blocked mark says why"
     assert texts.count("Started task 1: the parser") == 1 and "Resumed task 1: the parser" in texts, "a paused task taken up again is resumed, not started"
     assert "Unblocked task 2: the footer" in texts, "and a blocked task opened again has a mark too"
     with app.container.get(Scope).environment(MAIN):
         looks = {m.text: (m.data.get("outcome"), m.data.get("shows")) for m in app.container.get(Messages).all() if m.data.get("shows") in ("task_moves", "task_pauses")}
     assert looks["Paused task 1: the parser"] == ("", "task_pauses"), "a task's move is an event with no outcome, a pause shown as a pause"
-    assert looks["Finished task 1: the parser"] == ("", "task_moves"), "a finished task too: colour is kept for runs that pass or fail"
+    assert looks["Completed task 1: the parser"] == ("", "task_moves"), "a finished task too: colour is kept for runs that pass or fail"
 
 
 def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
@@ -2331,7 +2331,7 @@ def test_tags_run_the_commands_they_stand_for_with_the_turn_as_their_text(app: A
     hook(app, "MessageDisplay", message="[!end:99]\nNo such task.")
     app.runtime().deferred.drain()
     tasks, messages = app.container.get(Tasks), app.container.get(Messages)
-    assert tasks.find(1).title == "Fix the footer" and "overlaps" in tasks.find(1).brief and tasks.find(1).state == "done"
+    assert tasks.find(1).title == "Fix the footer" and "overlaps" in tasks.find(1).brief and tasks.find(1).state == "completed"
     assert [log.line for log in app.container.get(TaskLogs).all()][-2:] == ["Halfway: the overlap is a margin.", "The footer sits below the form now."] or any("Halfway" in log.line for log in app.container.get(TaskLogs).all())
     assert [f.text for f in app.container.get(Facts).all()] == ["The footer is 64px tall"]
     assert [m.text for m in messages.scoped() if m.author == "agent"] == ["The footer overlaps the form on narrow screens.", "Measured in the browser.", "The footer sits below the form now.", "No such task."], "a log turn stays out of the chat; the others post without their tag"
@@ -2380,7 +2380,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     reply = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})[1]
     app.runtime().deferred.drain()
     tasks = app.container.get(Tasks)
-    assert tasks.find(1).state == "done" and tasks.find(2).state == "done" and tasks.find(1).outcome.startswith("commit ")
+    assert tasks.find(1).state == "completed" and tasks.find(2).state == "completed" and tasks.find(1).outcome.startswith("commit ")
     assert "closed task 1, task 2" in reply["hookSpecificOutput"]["additionalContext"], "the commit's outcome comes back with the commit itself"
     assert not any("closed task" in line for line in keystrokes), "never typed into the prompt as a new turn"
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
@@ -4081,8 +4081,8 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     controller = app.container.get(RequestController)
     assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
     with app.container.get(Scope).environment(hub.row_id):
-        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state=TaskState.FINISHED), Actor.user(bob.row_id))
-    assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "done")], "and the requester's page reads it done once the recipient finished it"
+        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state=TaskState.COMPLETED), Actor.user(bob.row_id))
+    assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "completed")], "and the requester's page reads it done once the recipient finished it"
 
 
 def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_run_printed_cut_at_forty_lines(app: App, tmp_path):
@@ -4274,6 +4274,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
     settings.set(WorkersOptions.MODE.key, "orchestrator", Actor.user(1))
     settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, 1, Actor.user(1))
+    settings.set(WorkersOptions.VERIFIERS_MOST.key, 10, Actor.user(1))
     hook(app, "SessionStart")
 
     # a worker's job on `model`, `lines` lines over `files` files, sent back `rejections` times over `minutes`, merged now
@@ -4980,7 +4981,7 @@ def test_a_cancelled_plan_takes_its_own_open_tasks_with_it_and_leaves_shared_one
     assert "plan 1 cancelled, with tasks 1" in output
     plans, tasks = app.container.get(Plans), app.container.get(Tasks)
     assert plans.find(1).state == PlanState.CANCELLED and tasks.find(1).state == TaskState.CANCELLED
-    assert tasks.find(2).state == TaskState.FINISHED and tasks.find(3).state == TaskState.OPEN, "a done task stays done; a task the new plan holds too stays open"
+    assert tasks.find(2).state == TaskState.COMPLETED and tasks.find(3).state == TaskState.OPEN, "a done task stays done; a task the new plan holds too stays open"
     assert tasks.find(1).id not in [t.id for t in plans.free()], "a cancelled task is offered to nobody"
 
 def test_approving_a_started_plan_leaves_it_started(app: App):
@@ -5292,7 +5293,7 @@ def test_a_list_counts_a_type_in_sql_past_the_page(app: App):
     from journal.repositories.tasks import Tasks
     tasks = app.container.get(Tasks)
     for n in range(520):
-        tasks.save(Task(environment_id=1, title=f"t{n}", state=TaskState.FINISHED if n < 400 else TaskState.OPEN), Actor.user(1) if n % 2 else Actor.agent("s1"))
+        tasks.save(Task(environment_id=1, title=f"t{n}", state=TaskState.COMPLETED if n < 400 else TaskState.OPEN), Actor.user(1) if n % 2 else Actor.agent("s1"))
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks?limit=10&env=main"), timeout=5) as reply:
         counts = j.loads(reply.read())["counts"]
     assert counts == {"all": 520, "open": 120, "unread": 60}, "a count is of every row, not of the newest page"
@@ -6356,11 +6357,11 @@ def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
     console.run(["plan", "cancel", "1"], USER)
     with app.container.get(Scope).environment(1):
         cancelled = app.container.get(Tasks).find(1)
-        assert cancelled.state.value == "cancelled" and cancelled.finished_at is not None, "a cancel stamps when it finished"
+        assert cancelled.state.value == "cancelled" and cancelled.completed_at is not None, "a cancel stamps when it finished"
         connection = app.container.get(Connection)
-        connection.execute("UPDATE tasks SET finished_at = NULL WHERE id = 1")
+        connection.execute("UPDATE tasks SET completed_at = NULL WHERE id = 1")
         FinishCancelledTasks().apply(connection)
-        assert app.container.get(Tasks).find(1).finished_at is not None, "and one cancelled before that is finished by the migration"
+        assert app.container.get(Tasks).find(1).completed_at is not None, "and one cancelled before that is finished by the migration"
     with app.container.get(Scope).environment(1):
         assert app.container.get(Tasks).unfinished_count() == 1, "only the task still open is counted"
 
@@ -6743,7 +6744,7 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
         app.console().run(line, AGENT)
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "New\n\nJournal: tasks done 1 and 2 now"], cwd=root, check=True)
     hook(app, "PostToolUse", **command)
-    assert app.container.get(Tasks).find(1).state == "done" and app.container.get(Tasks).find(2).state == "paused"
+    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "paused"
 
 
 def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: App):
@@ -6760,7 +6761,7 @@ def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: 
     git("commit", "-q", "--allow-empty", "-m", "the parser\n\nJournal: tasks done 1", cwd=linked)
     command = dict(tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
     first = json.dumps(hook(app, "PostToolUse", **command)[1])
-    assert app.container.get(Tasks).find(1).state == "done", "a commit in the linked worktree closes the task its message names"
+    assert app.container.get(Tasks).find(1).state == "completed", "a commit in the linked worktree closes the task its message names"
     again = json.dumps(hook(app, "PostToolUse", **command)[1])
     assert "closed task 1" in first and "closed task 1" not in again, "the same commit noticed twice closes it once"
 
@@ -6780,13 +6781,13 @@ def test_a_task_a_worker_holds_is_never_closed_by_a_hand_merge_or_a_trailer(app:
     console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     git("commit", "-q", "--allow-empty", "-m", "the parser\n\nJournal: tasks done 1")
     answered = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})[1]
-    assert app.container.get(Tasks).find(1).state != "done" and "task 1 is worker 1's, so the commit leaves it open" in json.dumps(answered), "a trailer leaves a worker's task open, naming the worker"
+    assert app.container.get(Tasks).find(1).state != "completed" and "task 1 is worker 1's, so the commit leaves it open" in json.dumps(answered), "a trailer leaves a worker's task open, naming the worker"
     git("checkout", "-q", "-b", "side")
     git("commit", "-q", "--allow-empty", "-m", "more of the parser\n\nJournal: tasks done 1")
     git("checkout", "-q", "main")
     git("merge", "-q", "--no-ff", "--no-edit", "side")
     answered = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge side"}, tool_response={"stdout": "", "stderr": ""})[1]
-    assert app.container.get(Tasks).find(1).state != "done" and "task 1 is worker 1's" in json.dumps(answered), "so does a hand merge of a branch whose commit names it"
+    assert app.container.get(Tasks).find(1).state != "completed" and "task 1 is worker 1's" in json.dumps(answered), "so does a hand merge of a branch whose commit names it"
     assert "take its work in with journal worker merge 1" in console.run(["task", "complete", "1", "--how", "by hand"], AGENT).error, "and the agent's own completion is refused"
 
 
@@ -6805,7 +6806,7 @@ def test_a_commit_whose_own_hook_was_lost_to_a_restart_closes_its_task_at_the_ne
     git("commit", "-q", "--allow-empty", "-m", "the parser\n\nJournal: tasks done 1")
     app.container.get(CommitDetection)._head_log_times.clear()
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "", "stderr": ""})
-    assert app.container.get(Tasks).find(1).state == "done", "the commit's own hook was lost and the journal restarted, so the next tool use finds it and closes its task"
+    assert app.container.get(Tasks).find(1).state == "completed", "the commit's own hook was lost and the journal restarted, so the next tool use finds it and closes its task"
 
 
 def test_command_outputs_are_a_rolling_log_that_drops_the_oldest_with_its_folder(app: App):
@@ -7158,7 +7159,7 @@ def test_version_3_todos_become_tasks_in_their_states_with_their_work_logs(app: 
     with app.container.get(Scope).environment(MAIN):
         migrator.run(migrator.begin(Actor.user(1)), Actor.user(1))
         tasks = {t.title: t for t in app.container.get(Tasks).rows()}
-        assert tasks["done one"].state == "done" and tasks["done one"].outcome == "it shipped" and tasks["done one"].brief == "the brief"
+        assert tasks["done one"].state == "completed" and tasks["done one"].outcome == "it shipped" and tasks["done one"].brief == "the brief"
         assert tasks["in progress"].state == "paused" and tasks["waiting"].state == "blocked" and tasks["waiting"].block_reason == "the vendor's answer"
         assert tasks["still open"].state == "open" and "struck" not in tasks, "a struck to-do stays behind"
         assert [log.line for log in app.container.get(TaskLogs).rows() if log.task_id == tasks["done one"].id] == ["built it", "tested it"]
@@ -7362,7 +7363,7 @@ def test_a_plan_pauses_and_restarts_on_its_paused_task_only_once_approved_holds_
     console.run(["task", "complete", "3", "--how", "h"], AGENT)
     assert plans.find(1).state == "done"
     tasks = app.container.get(Tasks)
-    tasks.save(tasks.find(3).with_(state=TaskState.OPEN, finished_at=None, outcome=""), Actor.user(1))
+    tasks.save(tasks.find(3).with_(state=TaskState.OPEN, completed_at=None, outcome=""), Actor.user(1))
     assert plans.find(1).state == "started", "a reopened task reopens its plan"
 
 
@@ -8519,11 +8520,11 @@ def test_a_commit_made_in_a_worktree_closes_its_task_at_once_and_the_merge_that_
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m 'the page'"}, tool_response={})
     state = lambda: app.container.get(Tasks).find(1).state.value
     with app.container.get(Scope).environment(1):
-        assert state() == "done", "a commit made in the worktree closes the task its trailer names"
+        assert state() == "completed", "a commit made in the worktree closes the task its trailer names"
     git("merge", "-q", "worktree-main")
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge worktree-main"}, tool_response={})
     with app.container.get(Scope).environment(1):
-        assert state() == "done", "the merge that lands it leaves it closed"
+        assert state() == "completed", "the merge that lands it leaves it closed"
     git("merge", "-q", "worktree-main")
     status, _ = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge worktree-main"}, tool_response={})
     assert status == 200, "a merge that brings nothing new closes nothing twice"
@@ -10030,7 +10031,7 @@ def test_a_worker_is_started_only_on_a_task_whose_brief_is_its_job(app: App, mon
         assert app.container.get(Tasks).holder(app.container.get(Tasks).find(3)) == Ref(Worker.table(), 2), "and the holder moves to the worker"
     console.run(["task", "create", "the docs", "--brief", "the docs say it"], AGENT)
     console.run(["task", "complete", "4", "--how", "written by hand"], AGENT)
-    assert "task 4 is done" in send("--task", "4").error, "a closed task is refused, naming why"
+    assert "task 4 is completed" in send("--task", "4").error, "a closed task is refused, naming why"
 
 
 def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_their_task(app: App):
@@ -10381,7 +10382,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     refused = console.run(["worker", "merge", "1"], AGENT)
     assert "you have uncommitted changes to files they change: parser.py" in refused.error and "as they were" in refused.error, "a merge over the main agent's own uncommitted change is refused, naming why"
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(1).state != TaskState.FINISHED and folder.is_dir() and (root / "parser.py").read_text() == "my own draft\n", "and nothing moved"
+        assert tasks.find(1).state != TaskState.COMPLETED and folder.is_dir() and (root / "parser.py").read_text() == "my own draft\n", "and nothing moved"
     (root / "parser.py").unlink()
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
     console.run(["task", "create", "the lexer tests"], USER)
@@ -10398,7 +10399,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     assert merged.code == 0 and (root / "parser.py").exists(), merged.error
     with app.container.get(Scope).environment(MAIN):
         done = tasks.find(1)
-        assert done.state == TaskState.FINISHED and tip[:9] in done.outcome and "not done: point 2 (names need a table first)" in done.outcome, "the merge takes what the worktree has checked out, on a branch of the worker's own making too, and closes the task with the branch tip, naming the point checked as not done"
+        assert done.state == TaskState.COMPLETED and tip[:9] in done.outcome and "not done: point 2 (names need a table first)" in done.outcome, "the merge takes what the worktree has checked out, on a branch of the worker's own making too, and closes the task with the branch tip, naming the point checked as not done"
         assert workers.find(1).state == WorkerState.MERGED and tasks.holder(done) is None and folder.exists(), "the hold is released and the worktree stays for the worker's next job"
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=app.config.root, capture_output=True, text=True, timeout=30).stdout.strip()
         assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True, timeout=30).stdout.strip() == head, "moved up to the branch it was merged into"
@@ -10415,7 +10416,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
         idle = [message.text for message in app.container.get(Messages).scoped() if "work on task 2 merged" in message.text]
     assert idle == ["Worker 2, Mr. Babbage: work on task 2 merged; it is idle"], "a merge with an empty queue is one mark saying the worker is idle"
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(2).state == TaskState.FINISHED, "a worker with no worktree has its task closed by its merge alone"
+        assert tasks.find(2).state == TaskState.COMPLETED, "a worker with no worktree has its task closed by its merge alone"
     console.run(["task", "create", "the guide", "--brief", "the guide is written"], AGENT)
     console.run(["worker", "dispatch", "Mrs. Beeton", "--task", "4", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
     with app.container.get(Scope).environment(MAIN):
@@ -10426,7 +10427,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     console.run(["worker", "check", "3", "1"], AGENT)
     taken = console.run(["worker", "merge", "3"], AGENT)
     with app.container.get(Scope).environment(MAIN):
-        assert taken.code == 0 and tasks.find(4).state == TaskState.FINISHED and "no commit to merge" in tasks.find(4).outcome, "a worker whose work is journal rows, with no commit, has its task closed by its merge"
+        assert taken.code == 0 and tasks.find(4).state == TaskState.COMPLETED and "no commit to merge" in tasks.find(4).outcome, "a worker whose work is journal rows, with no commit, has its task closed by its merge"
 
 
 def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge_names_the_next(app: App, monkeypatch):
@@ -10474,7 +10475,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     with app.container.get(Scope).environment(MAIN):
         marks = [message.text for message in app.container.get(Messages).scoped() if message.data.get("card_type") == "moment"]
     assert [mark for mark in marks if "work on task 1 merged" in mark] == ["Worker 1, Mr. Babbage: work on task 1 merged; it went on to task 2"], "a merge that sends the worker on is one mark naming both tasks"
-    assert not [mark for mark in marks if mark.startswith("Finished task 1") or mark.endswith("merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
+    assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith("merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
     given = console.run(["worker", "drain", "1"], AGENT)
@@ -10537,7 +10538,7 @@ def test_a_worker_in_a_workspace_of_repositories_gets_a_worktree_of_each_and_its
     merged = console.run(["worker", "merge", "1"], AGENT)
     assert merged.code == 0 and (platform / "totals.php").is_file(), merged.error
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Tasks).find(1).state == TaskState.FINISHED and "platform" in app.container.get(Tasks).find(1).outcome, "its commit is merged into the inner repository's own branch, and the task closes"
+        assert app.container.get(Tasks).find(1).state == TaskState.COMPLETED and "platform" in app.container.get(Tasks).find(1).outcome, "its commit is merged into the inner repository's own branch, and the task closes"
 
 
 def test_the_plan_moves_on_when_a_workers_task_closes_and_its_next_task_goes_to_the_main_agent(app: App, monkeypatch):
@@ -10577,10 +10578,10 @@ def test_the_plan_moves_on_when_a_workers_task_closes_and_its_next_task_goes_to_
     merged(1)
     agent = app.container.get(Agents).session_agent("s1")
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(1).state == TaskState.FINISHED and tasks.find(3).state == TaskState.STARTED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the merge moves the plan on, its next task to the main agent"
+        assert tasks.find(1).state == TaskState.COMPLETED and tasks.find(3).state == TaskState.STARTED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the merge moves the plan on, its next task to the main agent"
     merged(2)
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(2).state == TaskState.FINISHED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the second merge leaves the main agent on its task"
+        assert tasks.find(2).state == TaskState.COMPLETED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the second merge leaves the main agent on its task"
     console.run(["task", "complete", "3", "--how", "done"], AGENT)
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
@@ -10677,7 +10678,7 @@ def test_the_user_checks_sends_back_and_merges_a_workers_work_from_the_viewer(ap
     with app.container.get(Scope).environment(MAIN):
         controller.check(posted({"point": 2}))
         controller.merge(posted({}))
-        assert tasks.find(1).state == TaskState.FINISHED and workers.find(1).state == WorkerState.MERGED, "and the viewer's merge closes the task"
+        assert tasks.find(1).state == TaskState.COMPLETED and workers.find(1).state == WorkerState.MERGED, "and the viewer's merge closes the task"
 
 
 def test_a_worker_is_started_with_hook_settings_of_its_own(app: App):
@@ -10873,7 +10874,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     two_minutes_ago = datetime.fromtimestamp(timing.time() - 120, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     commit("The footer\n\nJournal: tasks done 1", two_minutes_ago)
     hook(app, "PostToolUse", **looked)
-    assert len(cards()) == 1 and app.container.get(Tasks).find(1).state == "done", "the head moved since the last look and the session's own tool start held the commit, so it is carded and its task closed"
+    assert len(cards()) == 1 and app.container.get(Tasks).find(1).state == "completed", "the head moved since the last look and the session's own tool start held the commit, so it is carded and its task closed"
     hook(app, "PostToolUse", **looked)
     assert len(cards()) == 1, "once"
 
@@ -11760,13 +11761,13 @@ def test_a_request_declined_with_a_reason_and_one_done_show_on_the_requesters_pa
         assert b.console().run(["task", "decline", str(declined.id), "--why", "not this quarter"], bob).code == 0
         assert b.console().run(["task", "complete", str(finished.id), "--how", "checked"], bob).code == 0
         assert [log.line for log in b.container.get(TaskLogs).global_matching(task_id=declined.id)][-1:] == ["not this quarter"], "the reason is the task's log line"
-        assert eventually(lambda: titled(a, "Review the plan").is_declined() and titled(a, "Check the copy").state == "done"), "both outcomes reach the requester's journal"
+        assert eventually(lambda: titled(a, "Review the plan").is_declined() and titled(a, "Check the copy").state == "completed"), "both outcomes reach the requester's journal"
         filed = lambda: {row["title"]: row for row in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{a.server().port}/journal/requests/filed", headers={"X-Journal-Env": "main"}), timeout=5))["rows"]}
         rows = filed()
         assert (rows["Review the plan"]["standing"], rows["Review the plan"]["reason"], rows["Review the plan"]["for_whom"]) == ("declined", "not this quarter", "Bob"), "the requester's page shows a declined request with its reason and who it was for"
-        assert (rows["Check the copy"]["standing"], rows["Check the copy"]["for_whom"]) == ("done", "Bob") and rows["Check the copy"]["done_at"], "and a done request as done, with when"
+        assert (rows["Check the copy"]["standing"], rows["Check the copy"]["for_whom"]) == ("completed", "Bob") and rows["Check the copy"]["done_at"], "and a done request as done, with when"
         system = lambda: [message.text for message in a.container.get(Messages).global_matching(author=Author.SYSTEM)]
-        assert eventually(lambda: any("was declined: not this quarter" in text for text in system()) and any("is done: Check the copy" in text for text in system())), "and both are cards in their chat"
+        assert eventually(lambda: any("was declined: not this quarter" in text for text in system()) and any("is completed: Check the copy" in text for text in system())), "and both are cards in their chat"
     finally:
         for carrier in carriers:
             carrier.stop()
@@ -12692,7 +12693,7 @@ def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queu
     merged = checked_and_merged(app)
     assert merged.code == 0, merged.error
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(1).state == "done", "the merged task is closed"
+        assert tasks.find(1).state == "completed", "the merged task is closed"
         assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.find(2).state == "delegated", "the task the worker went on to stays its own, never let go by the merge of the one before"
         assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).state == "delegated", "and the merge hands it no second task: the next stays queued"
 
@@ -12737,7 +12738,7 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
     steps = [line.split(":")[0] for line in merged.text.splitlines() if line.startswith("step ")]
     assert steps == [f"step {n}/5" for n in range(1, 6)], "the merge tells each step as it starts, in order, numbered of the whole"
     with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
+        assert [tasks.find(n).state for n in (1, 2, 3)] == ["completed", "completed", "completed"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
 
 def test_worker_reports_while_plenty_is_open_lower_the_fitness_and_a_quick_one_drops_it_at_once_then_recovers(app: App):
@@ -12910,6 +12911,10 @@ def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_
         lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.tiny_job_dropped_the_fitness"]
     assert use.drop_points == 30 and "a job to do yourself" in use.drop_cause, "a job over within a minute with nothing else open costs the larger drop"
     assert len(lines) == 1 and "do a job this small yourself" in lines[0], lines
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(MAIN):
+        cards = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "fitness"]
+    assert [m.text for m in cards] == ["Fitness fell 30 points to 70"] and "a job to do yourself" in cards[0].data["detail"], "the drop is written once as a card, by the listener on the event"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
@@ -12985,7 +12990,7 @@ def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merg
     merged = console.run(["worker", "merge", "1"], AGENT)
     assert merged.code == 0, merged.error
     with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"], "one merge closes all three"
+        assert [tasks.find(n).state for n in (1, 2, 3)] == ["completed", "completed", "completed"], "one merge closes all three"
 
 
 def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_work_is_never_released_unasked(app: App, monkeypatch):
@@ -13006,7 +13011,7 @@ def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_
         tasks = app.container.get(Tasks)
         assert tasks.finished_task_ids(Ref("workers", 1)) == (1,) and [task.id for task in tasks.queue(Ref("workers", 1))] == [3]
     refused = console.run(["worker", "release", "1"], AGENT)
-    assert refused.code == 1 and "finished task 1, which wait for the merge" in refused.error and "--drop" in refused.error, "a release never opens finished work again unasked"
+    assert refused.code == 1 and "completed task 1, which wait for the merge" in refused.error and "--drop" in refused.error, "a release never opens finished work again unasked"
     assert console.run(["worker", "release", "1", "--drop"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["open", "open", "open"] and not tasks.finished_task_ids(Ref("workers", 1)), "with --drop every task of its queue is open again"
@@ -13085,7 +13090,7 @@ def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the
     with app.container.get(Scope).environment(MAIN):
         worker, tasks = app.container.get(Workers).find(1), app.container.get(Tasks)
         assert worker.state == "dispatched" and worker.brief.startswith("Your next task, 2"), "the late run writes nothing: the worker stays on its next job"
-        assert tasks.find(1).state == "done" and tasks.holder_task_ids(Ref("workers", 1)) == (2,)
+        assert tasks.find(1).state == "completed" and tasks.holder_task_ids(Ref("workers", 1)) == (2,)
 
 
 def test_a_workspace_worker_gets_worktrees_of_the_repositories_its_brief_names_as_whole_words_in_any_case(app: App, monkeypatch):
@@ -14668,7 +14673,7 @@ def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_i
     def finished_by_bob(task_id: int) -> None:
         tasks = b.container.get(Tasks)
         with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
-            tasks.save(tasks.find(task_id).finished(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2))
+            tasks.save(tasks.find(task_id).completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2))
 
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
         assert hook(a, "SessionStart")[0] == 200
@@ -14686,9 +14691,9 @@ def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_i
         a.container.get(Bus).listen(TaskClosed, ClosedTasks())
         finished_by_bob(planned.id)
         finished_by_bob(driven.id)
-        assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.FINISHED and a.container.get(Tasks).find(planned.id).state == TaskState.FINISHED), "Bob's finishes reach Ada's journal"
+        assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.COMPLETED and a.container.get(Tasks).find(planned.id).state == TaskState.COMPLETED), "Bob's finishes reach Ada's journal"
         assert synced(lambda: any(event.task_id == driven.id for event in heard)), "the driven task's finish is heard on Ada's journal"
-        assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "done", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
+        assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "completed", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
         assert "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "it reaches the agent of that environment"
         assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"
 
@@ -14733,7 +14738,7 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
             assert a.console().run(["task", "drive", str(task.id)], USER).code == 0
         a.container.get(Bus).listen(DriveEnded, EndedDrives())
         bobs(deleted.id, lambda tasks, task: tasks.delete(task, Actor.user(2)))
-        bobs(finished.id, lambda tasks, task: tasks.save(task.finished(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2)))
+        bobs(finished.id, lambda tasks, task: tasks.save(task.completed(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2)))
         assert synced(lambda: {event.row_id for event in ended} >= {deleted.id, finished.id}), "the deletion and the finish end Ada's drives as they arrive"
         a.container.get(HubDrives).renewed_at = clock.monotonic()
         lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
@@ -14743,10 +14748,10 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
         assert not a.container.get(Links).all_matching(kind=BOUND_LINK), "each binding is released"
         assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
         why = {event.row_id: event.reason for event in ended}
-        assert "deleted it on another journal" in why[deleted.id] and "marked it done on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
+        assert "deleted it on another journal" in why[deleted.id] and "marked it completed on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
         machine = a.container.get(StateMachine)
         assert all(event.environment_id == main.row_id and "s1" in {agent.session for agent in machine.audience(event)} for event in ended), "in the environment that drove it, to its agent"
-        assert a.container.get(Tasks).find(finished.id).state == TaskState.FINISHED
+        assert a.container.get(Tasks).find(finished.id).state == TaskState.COMPLETED
         for task in (finished, taken):
             refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
             assert refused.code == 1 and "is driven from here no longer" in refused.error, refused.error
@@ -16474,8 +16479,8 @@ def test_a_task_handed_to_a_worker_is_delegated_leaves_its_dispatcher_free_and_r
     tasks.release(Ref(WORKERS, worker.id), Actor.system())
     assert tasks.find(first.id).state == TaskState.OPEN, "releasing the worker opens it again"
     tasks.handover(tasks.find(first.id), Ref(WORKERS, worker.id), Actor.system())
-    tasks.save(tasks.find(first.id).finished(datetime.now(timezone.utc), "merged"), Actor.system())
-    assert tasks.find(first.id).state == TaskState.FINISHED, "merging the worker's work finishes it"
+    tasks.save(tasks.find(first.id).completed(datetime.now(timezone.utc), "merged"), Actor.system())
+    assert tasks.find(first.id).state == TaskState.COMPLETED, "merging the worker's work finishes it"
 
 
 def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and_goes_at_once_when_none_runs(app: App, monkeypatch):
@@ -17447,7 +17452,7 @@ def test_a_task_waiting_on_a_task_delegated_to_a_worker_opens_when_that_tasks_wo
     assert blocked.code == 0, blocked.error
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(2).state == TaskState.BLOCKED
-        tasks.save(tasks.find(1).finished(datetime.now(timezone.utc), "worker 1's work merged"), Actor.user(1))
+        tasks.save(tasks.find(1).completed(datetime.now(timezone.utc), "worker 1's work merged"), Actor.user(1))
     app.container.get(ListenerQueue).drain()
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(2).state == TaskState.OPEN, "the task opens when the delegated task's work is merged"
@@ -19196,7 +19201,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     with app.container.get(Scope).environment(MAIN):
         signed, going = tasks.find(parser.id), workers.find(worker.id)
         holding = tasks.holder_task_ids(Ref.build(going))
-    assert signed.state == TaskState.FINISHED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
+    assert signed.state == TaskState.COMPLETED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
     assert told_since(before) == [], "with no line to the orchestrator"
     again = clocked_out("lexer.py:4, test_splits passes")
     assert again.id == reviewer.id, "the same reviewer takes the next review"
@@ -19208,7 +19213,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     last = clocked_out("lexer.py:9, test_last_word passes")
     reviewed(last, "1 passed")
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(lexer.id).state == TaskState.FINISHED, "the work proved again is signed off"
+        assert tasks.find(lexer.id).state == TaskState.COMPLETED, "the work proved again is signed off"
     lines = told_since(before)
     assert lines.count("workers.worker_has_no_work_left") == 1 and set(lines) <= {"workers.worker_has_no_work_left", "tasks.wait_over"}, ("the orchestrator is told once, when the worker's queue runs dry, and its wait on the worker ends with it", lines)
 
@@ -19593,9 +19598,9 @@ def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_
     hook(app, "SessionStart")
     console.run(["plan", "approve", "1"], USER)
     assert console.run(["plan", "start", "1"], AGENT).code == 0
-    states = {1: TaskState.FINISHED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED, 6: TaskState.PAUSED, 7: TaskState.BLOCKED}
+    states = {1: TaskState.COMPLETED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED, 6: TaskState.PAUSED, 7: TaskState.BLOCKED}
     for number, state in states.items():
-        tasks.save(replace(tasks.find(number), state=state, finished_at=datetime.now(timezone.utc) if state == TaskState.FINISHED else None), Actor.user(1))
+        tasks.save(replace(tasks.find(number), state=state, completed_at=datetime.now(timezone.utc) if state == TaskState.COMPLETED else None), Actor.user(1))
     following = app.container.get(NextOpenTask)
     offered = []
     for _ in range(8):
@@ -19603,7 +19608,7 @@ def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_
         if offer is None:
             break
         offered.append((offer.id, offer.state))
-        tasks.save(replace(tasks.find(offer.id), state=TaskState.FINISHED), Actor.user(1))
+        tasks.save(replace(tasks.find(offer.id), state=TaskState.COMPLETED), Actor.user(1))
     assert offered == [(2, "paused"), (3, "blocked"), (4, "open"), (5, "open"), (6, "paused"), (7, "blocked"), (9, "open"), (8, "open")]
 
 
@@ -19621,7 +19626,7 @@ def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_
     assert again.code != 0 and "already in hand" in again.error + again.text, again
     app.runtime().deferred.drain()
     marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
-    assert marks == ["Started task 1: write the notes", "Finished task 1: write the notes", "Started task 2: tag it"], marks
+    assert marks == ["Started task 1: write the notes", "Completed task 1: write the notes", "Started task 2: tag it"], marks
 
 
 def test_a_reminder_set_for_a_local_time_in_a_repeated_hour_is_due_at_its_earlier_moment(monkeypatch: pytest.MonkeyPatch):

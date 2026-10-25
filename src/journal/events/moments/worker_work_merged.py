@@ -14,3 +14,4 @@ class WorkerWorkMerged(Event):
     task: int
     next_task: int
     time: float
+    lines: int = 0

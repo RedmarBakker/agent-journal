@@ -124,7 +124,7 @@ export const taskCount = (p) => p.task_count ?? rowsOf(p).length;
 
 // a plan's tasks finished as done; a task given up is closed but not done
 function doneOf(p, tasks) {
-    return rowsOf(p).filter((id) => tasks.find((t) => t.id === id)?.state === "done").length;
+    return rowsOf(p).filter((id) => tasks.find((t) => t.id === id)?.state === "completed").length;
 }
 
 // How a plan's tasks stand: how many are done and how many there are, with the words and the bar's width.

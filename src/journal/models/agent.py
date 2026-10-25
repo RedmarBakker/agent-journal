@@ -1,5 +1,5 @@
 from typing import ClassVar
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 
 from journal.events.rows.user_paused import UserPaused
 from journal.events.rows.agent_thinking import AgentThinking
@@ -24,7 +24,7 @@ from journal.models.scoped import Scoped
 
 # how many of its newest tool uses an agent's subagent dispatches, research, handovers and file edits are counted over
 WORK_WINDOW_USES = 50
-WINDOWED_USES = ("subagent_dispatch_uses", "research_uses", "handover_uses", "file_edit_uses", "merge_uses", "prepared_merge_uses", "reuse_uses", "fresh_idle_uses", "briefed_uses", "late_worker_uses", "late_task_uses")
+WINDOWED_USES = ("subagent_dispatch_uses", "research_uses", "handover_uses", "file_edit_uses", "merge_uses", "prepared_merge_uses", "reuse_uses", "fresh_idle_uses", "briefed_uses", "late_worker_uses", "late_task_uses", "task_filed_uses", "task_completed_uses")
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
 MODEL_FITS_KEPT = 10
 
@@ -32,7 +32,7 @@ MODEL_FITS_KEPT = 10
 
 class Agent(Scoped):
     shared: ClassVar[bool] = False
-    unshown_fields: ClassVar[tuple[str, ...]] = ("load",)
+    unshown_fields: ClassVar[tuple[str, ...]] = ("load", "mode_loads")
 
 
     session: str = ""
@@ -57,6 +57,10 @@ class Agent(Scoped):
     file_edit_uses: tuple[int, ...] = ()
     merge_uses: tuple[int, ...] = ()
     prepared_merge_uses: tuple[int, ...] = ()
+    own_lines: tuple[tuple[int, int], ...] = ()
+    landed_lines: tuple[tuple[int, int], ...] = ()
+    task_filed_uses: tuple[int, ...] = ()
+    task_completed_uses: tuple[int, ...] = ()
     reuse_uses: tuple[int, ...] = ()
     fresh_idle_uses: tuple[int, ...] = ()
     briefed_uses: tuple[int, ...] = ()
@@ -71,6 +75,7 @@ class Agent(Scoped):
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
     load: AgentLoad = AgentLoad()
+    mode_loads: dict = field(default_factory=dict)
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     report_use: ReportUse = ReportUse()
@@ -120,6 +125,25 @@ class Agent(Scoped):
     def with_handover(self, time: float) -> "Agent":
         return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time, handover_uses=self.windowed((*self.handover_uses, self.tool_uses)))
 
+    def lines_written(self, lines: int) -> "Agent":
+        return self.with_(own_lines=self.windowed_lines((*self.own_lines, (self.tool_uses, lines)))) if lines else self
+
+    def lines_landed(self, lines: int) -> "Agent":
+        return self.with_(landed_lines=self.windowed_lines((*self.landed_lines, (self.tool_uses, lines)))) if lines else self
+
+    def windowed_lines(self, pairs: tuple[tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
+        return tuple((use, lines) for use, lines in pairs if self.tool_uses - WORK_WINDOW_USES < use <= self.tool_uses)
+
+    def lines_since_handover(self) -> int:
+        last = self.handover_uses[-1] if self.handover_uses else 0
+        return sum(lines for use, lines in self.own_lines if use > last)
+
+    def task_filed(self) -> "Agent":
+        return self.with_(task_filed_uses=self.windowed((*self.task_filed_uses, self.tool_uses)))
+
+    def task_completed(self) -> "Agent":
+        return self.with_(task_completed_uses=self.windowed((*self.task_completed_uses, self.tool_uses)))
+
     def file_edited(self) -> "Agent":
         return self.with_(file_edit_uses=self.windowed((*self.file_edit_uses, self.tool_uses)))
 
@@ -130,7 +154,12 @@ class Agent(Scoped):
         return self.with_(research_uses=self.windowed((*self.research_uses, self.tool_uses)))
 
     def in_mode(self, mode: str) -> "Agent":
-        return self if self.mode == mode else self.with_(mode=mode, mode_started_use=self.tool_uses)
+        if self.mode == mode:
+            return self
+        loads = dict(self.mode_loads)
+        if self.mode:
+            loads[self.mode] = asdict(self.load)
+        return self.with_(mode=mode, mode_started_use=self.tool_uses, load=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
     def worker_merged(self, place: str, clocked_out_at: float) -> "Agent":
         tested = bool(self.test_run_folder) and self.test_run_folder == place and self.test_run_at >= clocked_out_at
@@ -190,7 +219,8 @@ class Agent(Scoped):
 
     def compacted(self) -> "Agent":
         shifted = {name: tuple(use - self.tool_uses for use in getattr(self, name)) for name in WINDOWED_USES}
-        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted)
+        lines = {name: tuple((use - self.tool_uses, count) for use, count in getattr(self, name)) for name in ("own_lines", "landed_lines")}
+        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted, **lines)
 
     def message_arrived(self) -> "Agent":
         return self.with_(inbox_position=self.tool_uses)

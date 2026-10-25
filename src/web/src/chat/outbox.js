@@ -5,6 +5,9 @@ import {pollNow, startPoll} from "../composables/poll.js";
 const KEY = "journal.outbox.v4";
 const DELIVERY = "journal.outbox.delivery";
 const chains = {};
+// the files of a message too big for the browser's storage, kept in this page's memory until the message is sent
+const held = new Map();
+export const STORE_BYTES = 2 * 1024 * 1024;
 let active = null;
 let polling = false;
 const listeners = [];
@@ -82,7 +85,7 @@ async function messageNumber(server, record) {
         record.asked = true;
         await stored(record);
     }
-    return record.files.length ? (await server.sentMessage(record.id).catch(notYet)).id : 0;
+    return record.files.length || record.held ? (await server.sentMessage(record.id).catch(notYet)).id : 0;
 }
 
 async function deliver(record) {
@@ -90,9 +93,10 @@ async function deliver(record) {
     record.message = record.message || (await messageNumber(server, record));
     record.uploaded = Array.isArray(record.uploaded) ? record.uploaded : [];
     await stored(record);
-    for (let n = 0; n < record.files.length; n += 1) {
+    const sources = record.files.length ? record.files.map(fileFrom) : held.get(record.id) || [];
+    for (let n = 0; n < sources.length; n += 1) {
         if (record.uploaded[n]) continue;
-        await server.upload("messages", record.message, fileFrom(record.files[n])).catch(keepTrying);
+        await server.upload("messages", record.message, sources[n]).catch(keepTrying);
         record.uploaded[n] = true;
         await stored(record);
     }
@@ -107,9 +111,13 @@ function flush(env, origin) {
             try {
                 await deliver(record);
                 await removed(record.id);
+                held.delete(record.id);
                 delivered.push(record.id);
             } catch (e) {
-                if (isRefused(e)) await removed(record.id);
+                if (isRefused(e)) {
+                    await removed(record.id);
+                    held.delete(record.id);
+                }
             }
         }
         return delivered;
@@ -150,6 +158,8 @@ export function startOutbox(env) {
 }
 
 export async function sendMessage(env, body, files = [], id = token()) {
+    const storable = files.reduce((sum, file) => sum + file.size, 0) <= STORE_BYTES;
+    if (!storable) held.set(id, files);
     const record = {
         id,
         origin: here(),
@@ -157,7 +167,8 @@ export async function sendMessage(env, body, files = [], id = token()) {
         text: body.text,
         reply_target: body.reply_target,
         on: body.on,
-        files: await Promise.all(files.map(fileRecord)),
+        files: storable ? await Promise.all(files.map(fileRecord)) : [],
+        held: storable ? 0 : files.length,
         uploaded: [],
     };
     await enqueue(record);

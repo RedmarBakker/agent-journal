@@ -5,6 +5,7 @@ from journal.features.workers.support.interruption_measure import InterruptionMe
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.support.queue_measure import QueueMeasure
 from journal.features.workers.support.fitness_score import FitnessScore
+from journal.features.workers.support.own_share_measure import OwnShareMeasure
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.models.agent import WORK_WINDOW_USES
 
@@ -19,7 +20,11 @@ class ModeProfile:
     """A work mode's ideal agent written down as measures, and an agent's newest tool uses scored against it, once it has made as many in this mode as the score counts over: each measure inside its range counts whole, one outside counts less the further off it is, weighted, so a new mode is a new profile and nothing else."""
 
     mode: str
-    measures: tuple[FitnessMeasure | LoadMeasure | InterruptionMeasure | QueueMeasure, ...]
+    measures: tuple[FitnessMeasure | LoadMeasure | InterruptionMeasure | QueueMeasure | OwnShareMeasure, ...]
+
+    @staticmethod
+    def weight(measure: object, counts: ToolUseCounts) -> int:
+        return measure.weight_of(counts) if isinstance(measure, OwnShareMeasure) else measure.weight
 
     def scored(self, counts: ToolUseCounts) -> FitnessScore:
         if counts.mode != self.mode or counts.mode_uses < WORK_WINDOW_USES:
@@ -29,7 +34,7 @@ class ModeProfile:
         weighed = [(measure, closeness) for measure in self.measures if (closeness := measure.closeness(counts)) is not None]
         if not weighed:
             return FitnessScore(self.mode, 100, is_measured=False)
-        score = max(0, round(100 * sum(measure.weight * closeness for measure, closeness in weighed) / sum(measure.weight for measure, _ in weighed)) - counts.report_use.unrecovered_points)
-        worst = sorted((pair for pair in weighed if pair[1] < 1.0), key=lambda pair: pair[1] * pair[0].weight - pair[0].weight)
+        score = max(0, round(100 * sum(self.weight(measure, counts) * closeness for measure, closeness in weighed) / sum(self.weight(measure, counts) for measure, _ in weighed)) - counts.report_use.unrecovered_points)
+        worst = sorted((pair for pair in weighed if pair[1] < 1.0), key=lambda pair: pair[1] * self.weight(pair[0], counts) - self.weight(pair[0], counts))
         gaps = tuple(measure.gap(counts) for measure, _ in worst[:GAP_COUNT])
         return FitnessScore(self.mode, score, gaps, parts=tuple((measure.label, round(100 * closeness)) for measure, closeness in weighed), drop_points=counts.report_use.unrecovered_points, drop_cause=counts.report_use.drop_cause)

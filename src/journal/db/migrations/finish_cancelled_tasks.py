@@ -10,4 +10,5 @@ class FinishCancelledTasks(Migration):
     number: ClassVar[int] = 2
 
     def apply(self, connection: Connection) -> None:
-        connection.execute("UPDATE tasks SET finished_at = updated_at WHERE state = 'cancelled' AND finished_at IS NULL")
+        column = "finished_at" if any(row["name"] == "finished_at" for row in connection.all("PRAGMA table_info(tasks)")) else "completed_at"
+        connection.execute(f"UPDATE tasks SET {column} = updated_at WHERE state = 'cancelled' AND {column} IS NULL")

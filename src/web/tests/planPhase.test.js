@@ -5,7 +5,7 @@ vi.mock("../src/api/client.js", () => ({api: {}, onWrite: vi.fn()}));
 
 const {default: PlanPhase} = await import("../src/resource/PlanPhase.vue");
 
-const task = (id) => ({table: "tasks", id, title: `Task ${id}`, state: "open", finished_at: null});
+const task = (id) => ({table: "tasks", id, title: `Task ${id}`, state: "open", completed_at: null});
 
 async function mounted(props) {
     const into = document.createElement("div");

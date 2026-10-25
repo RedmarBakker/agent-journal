@@ -32,12 +32,12 @@ WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task 
 HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
 PLAN_LINK = "in_plan"
 USER_PREFIX = "user:"
-CLOSED = (TaskState.FINISHED, TaskState.CANCELLED)
+CLOSED = (TaskState.COMPLETED, TaskState.CANCELLED)
 
 
 UNAPPROVED_PLAN_STATES = tuple(state.value for state in PlanState if state.is_unapproved())
 
-CLOSED_STATES = (TaskState.FINISHED, TaskState.CANCELLED)
+CLOSED_STATES = (TaskState.COMPLETED, TaskState.CANCELLED)
 
 class Tasks(ScopedRepository[Task]):
     model = Task
@@ -146,7 +146,7 @@ class Tasks(ScopedRepository[Task]):
         return self.query().filter(state=state).filter_absent(planned).order_descending("priority").order("id")
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:
-        return self.selected(self.query().filter(state=TaskState.FINISHED).filter_greater_equal("finished_at", start).filter_less("finished_at", end).order("id"))
+        return self.selected(self.query().filter(state=TaskState.COMPLETED).filter_greater_equal("completed_at", start).filter_less("completed_at", end).order("id"))
 
     def with_state(self, state: TaskState) -> list[Task]:
         return self.matching(state=state)
@@ -264,7 +264,7 @@ class Tasks(ScopedRepository[Task]):
         self.release_task(holder, task_id, actor)
         self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
 
-    # a finished task sent back short: it is the one in hand again, and the task the worker reported on waits for the merge in its place
+    # a completed task sent back short: it is the one in hand again, and the task the worker reported on waits for the merge in its place
     def reopened_on(self, task_id: int, holder: Ref, actor: Actor) -> None:
         for current in self.holder_task_ids(holder):
             self.finished_on(current, holder, actor)
@@ -318,7 +318,7 @@ class Tasks(ScopedRepository[Task]):
         worker_tasks = {worker: task for task, worker in holdings.items()}
         return {link.source.id: link.target.id for link in self.links.model_links("source", workers, WORKED_LINK) if worker_tasks.get(link.source.id) != link.target.id}
 
-    # the numbers of the tasks each of the workers finished on its queue, in the order it finished them
+    # the numbers of the tasks each of the workers completed on its queue, in the order it completed them
     def finished_ids(self, workers: list[Model]) -> dict[int, list[int]]:
         finished: dict[int, list[int]] = {}
         for link in sorted(self.links.model_links("source", workers, FINISHED_LINK), key=lambda link: link.row_id):

@@ -24,5 +24,5 @@ const display = taskBoard.display;
     <template v-for="s in SHOWN" :key="s.key">
         <MenuItem :on="display[s.key]" @click="display[s.key] = !display[s.key]">{{ s.label }}</MenuItem>
     </template>
-    <MenuItem :on="display.showDone" @click="display.showDone = !display.showDone">Show done tasks</MenuItem>
+    <MenuItem :on="display.showDone" @click="display.showDone = !display.showDone">Show completed tasks</MenuItem>
 </template>

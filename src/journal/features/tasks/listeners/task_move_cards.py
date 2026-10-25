@@ -19,14 +19,14 @@ MOVES = {
     "started": ("Started", CardKind.TASK_MOVES, ""),
     "resumed": ("Resumed", CardKind.TASK_MOVES, ""),
     "unblocked": ("Unblocked", CardKind.TASK_MOVES, ""),
-    "done": ("Finished", CardKind.TASK_MOVES, "outcome"),
+    "completed": ("Completed", CardKind.TASK_MOVES, "outcome"),
     "paused": ("Paused", CardKind.TASK_PAUSES, "pause_reason"),
     "blocked": ("Blocked", CardKind.TASK_PAUSES, "block_reason"),
 }
 
 
 class TaskMoveCards(Listener[RowEvent]):
-    """A task started, resumed, finished, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task, with its team when it is a hub task, and why it moved, in the chat of every environment the task is bound to as well as its own; a task given back by its worker, or closed by the merge of its work, is named by the worker's own mark instead."""
+    """A task started, resumed, completed, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task, with its team when it is a hub task, and why it moved, in the chat of every environment the task is bound to as well as its own; a task given back by its worker, or closed by the merge of its work, is named by the worker's own mark instead."""
 
     def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope, labels: RowLabels) -> None:
         self.cards, self.tasks, self.scope, self.labels = cards, tasks, scope, labels

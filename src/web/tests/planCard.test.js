@@ -3,7 +3,7 @@ import ResourceCard from "../src/resource/ResourceCard.vue";
 import {store} from "../src/state/store.js";
 import {shown} from "./shown.js";
 
-const task = (id, state) => ({table: "tasks", id, state, finished_at: state === "done" ? "2026-10-19T10:00:00+00:00" : null});
+const task = (id, state) => ({table: "tasks", id, state: state === "done" ? "completed" : state, completed_at: state === "done" ? "2026-10-19T10:00:00+00:00" : null});
 
 describe("a plan's card", () => {
     test("counts its tasks as the plan's page does, with the phase it is in beside it", async () => {

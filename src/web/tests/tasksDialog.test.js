@@ -27,7 +27,7 @@ const task = (id, title, more = {}) => ({
     plan_id: null,
     waits: [],
     block_reason: "",
-    finished_at: null,
+    completed_at: null,
     ...more,
 });
 const blocked = (id, title, waits, more = {}) => task(id, title, {state: "blocked", waits, ...more});
@@ -45,7 +45,7 @@ const plan = {
 const board = () => [
     task(1, "first", {plan_id: 31}),
     blocked(2, "second", ["tasks:1"], {plan_id: 31}),
-    task(3, "third", {plan_id: 31, state: "done", finished_at: "2026-10-21T10:00:00+00:00"}),
+    task(3, "third", {plan_id: 31, state: "completed", completed_at: "2026-10-21T10:00:00+00:00"}),
     task(4, "fourth"),
 ];
 const press = (key, target = window) => target.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles: true}));
@@ -96,7 +96,7 @@ describe("the tasks dialog", () => {
         const titles = [...document.body.querySelectorAll(".tasks-dialog .task-row .title")].map((t) => t.textContent);
         expect(titles).toEqual(["first", "second", "fourth"]);
         expect(inDialog('.task-row[data-task="2"] .wait').textContent).toBe("Blocked by task 1");
-        expect(inDialog(".hidden-done").textContent).toContain("1 done task is hidden.");
+        expect(inDialog(".hidden-done").textContent).toContain("1 completed task is hidden.");
     });
 
     test("C opens the new-task card and Enter files the task with its title", async () => {
@@ -204,7 +204,7 @@ describe("the tasks dialog's rules", () => {
     test("a started task can be paused, blocked or finished, and says why it cannot go back to open", () => {
         const choices = statusChoices(task(1, "a", {state: "started"}));
         expect(choices.filter((c) => c.act).map((c) => c.status)).toEqual(["paused", "blocked", "done"]);
-        expect(choices.find((c) => c.status === "open").note).toBe("Only a blocked or done task goes back to open");
+        expect(choices.find((c) => c.status === "open").note).toBe("Only a blocked or completed task goes back to open");
         expect(choices.find((c) => c.current).status).toBe("started");
     });
 
@@ -212,7 +212,7 @@ describe("the tasks dialog's rules", () => {
         store.rows = {tasks: board(), plans: [plan], questions: []};
         const shown = shownTasks(board(), {statuses: [], display: {showDone: true}, words: ""});
         const lines = boardLines("status", {shown, all: board(), plans: [plan], folded: {sopen: true}});
-        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Done", 3]);
+        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Completed", 3]);
     });
 
     test("grouped by plan, only tasks without a plan are under not in a plan, even when their plan row is not loaded", () => {

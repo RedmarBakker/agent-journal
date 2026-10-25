@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 # a state's name before it was renamed, which a row kept elsewhere, as the team's copy, may still carry
-FORMER_NAMES = {"parked": "paused"}
+FORMER_NAMES = {"parked": "paused", "done": "completed"}
 
 
 class TaskState(StrEnum):
@@ -11,7 +11,7 @@ class TaskState(StrEnum):
     DELEGATED = "delegated"
     PAUSED = "paused"
     BLOCKED = "blocked"
-    FINISHED = "done"
+    COMPLETED = "completed"
     CANCELLED = "cancelled"
 
     @classmethod
@@ -19,4 +19,4 @@ class TaskState(StrEnum):
         return cls(FORMER_NAMES[value]) if value in FORMER_NAMES else None
 
     def is_closed(self) -> bool:
-        return self in (TaskState.FINISHED, TaskState.CANCELLED)
+        return self in (TaskState.COMPLETED, TaskState.CANCELLED)

@@ -25,7 +25,7 @@ test("hooks a minute apart are two lines, and a row's change stands on its own b
 test("a row's change is headed by what happened to it, and a closing reads as closed", () => {
     const {heading, title} = shown([]);
     expect(heading(change(1, NOW, "created", {table: "tasks", id: 4}))).toBe("New task");
-    expect(heading(change(2, NOW, "updated", {table: "tasks", id: 4, changed: ["finished_at"]}))).toBe("Task closed");
+    expect(heading(change(2, NOW, "updated", {table: "tasks", id: 4, changed: ["completed_at"]}))).toBe("Task closed");
     expect(heading({id: 3, kind: "nudge", data: {line: "carry on"}})).toBe("Agent instruction");
     expect(title(change(1, NOW, "created", {table: "tasks", id: 4, title: "Ship it"}))).toBe("Ship it");
 });

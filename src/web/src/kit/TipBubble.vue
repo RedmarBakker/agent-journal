@@ -9,6 +9,7 @@ defineProps({
     side: {type: String, default: "below"},
     arrow: {type: String, default: "50%"},
     toggles: {type: Array, default: () => []},
+    warning: {type: String, default: ""},
 });
 </script>
 
@@ -22,6 +23,9 @@ defineProps({
         </span>
         <template v-if="line">
             <span class="tip-line">{{ line }}</span>
+        </template>
+        <template v-if="warning">
+            <span class="tip-warning">{{ warning }}</span>
         </template>
         <template v-if="toggles.length">
             <span class="tip-toggles">
@@ -70,6 +74,13 @@ defineProps({
     display: block;
     margin-top: 2px;
     color: var(--text-2);
+    text-wrap: pretty;
+}
+
+.tip-warning {
+    display: block;
+    margin-top: 4px;
+    color: var(--tone-warn);
     text-wrap: pretty;
 }
 

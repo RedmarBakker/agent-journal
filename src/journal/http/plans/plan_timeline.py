@@ -20,6 +20,6 @@ class PlanTimeline:
         rows = [TimelineMoment(log.creation_time.timestamp(), "log", task.row_id, task.title, log.line) for log in self.task_logs.logs(task)]
         if task.started_at:
             rows.append(TimelineMoment(task.started_at.timestamp(), "started", task.row_id, task.title))
-        if task.finished_at:
-            rows.append(TimelineMoment(task.finished_at.timestamp(), "done" if task.state == TaskState.FINISHED else "ended", task.row_id, task.title, task.outcome))
+        if task.completed_at:
+            rows.append(TimelineMoment(task.completed_at.timestamp(), "done" if task.state == TaskState.COMPLETED else "ended", task.row_id, task.title, task.outcome))
         return rows

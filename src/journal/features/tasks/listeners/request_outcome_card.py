@@ -22,5 +22,5 @@ class RequestOutcomeCard(Listener[SyncedUpdate]):
         name = self.labels.name("task", task)
         if task.is_declined():
             self.cards.show(person, task, f"{name} was declined: {task.outcome.removeprefix('declined: ')}")
-        elif task.state == TaskState.FINISHED:
-            self.cards.show(person, task, f"{name} is done: {task.title}")
+        elif task.state == TaskState.COMPLETED:
+            self.cards.show(person, task, f"{name} is completed: {task.title}")

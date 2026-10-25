@@ -23,7 +23,7 @@ test("the toggle folds three started plans into one strip of icon, number and pr
     store.summary = {environments: [{environment: {id: 1, name: "main"}, agent: null, task: null, questions: 0, messages: 0, tasks: 0, silent: false}]};
     store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}};
     store.rows.plans = [plan(1, "Floors"), plan(2, "Walls"), plan(3, "Roof")];
-    store.rows.tasks = [1, 2, 3].flatMap((id) => [10 * id, 10 * id + 1, 10 * id + 2, 10 * id + 3].map((n) => ({table: "tasks", id: n, state: n === 10 * id ? "done" : "open", finished_at: null})));
+    store.rows.tasks = [1, 2, 3].flatMap((id) => [10 * id, 10 * id + 1, 10 * id + 2, 10 * id + 3].map((n) => ({table: "tasks", id: n, state: n === 10 * id ? "completed" : "open", completed_at: null})));
     const host = window.document.createElement("div");
     window.document.body.append(host);
     const app = createApp(StatusBar);

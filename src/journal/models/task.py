@@ -34,7 +34,7 @@ class Task(Scoped):
     priority: int = NORMAL
     state: TaskState = TaskState.OPEN
     started_at: datetime | None = None
-    finished_at: datetime | None = None
+    completed_at: datetime | None = None
     outcome: str = ""
     pause_reason: str = ""
     block_reason: str = ""
@@ -106,7 +106,7 @@ class Task(Scoped):
         return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason), time, "paused")
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
-        return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time, outcome=outcome), time, "cancelled")
+        return self.closed(self.with_(state=TaskState.CANCELLED, completed_at=self.completed_at or time, outcome=outcome), time, "cancelled")
 
     def declined(self, time: datetime, reason: str) -> "Task":
         return self.cancelled(time, f"{DECLINED}{reason}")
@@ -130,11 +130,11 @@ class Task(Scoped):
     def unblocked(self, reason: str, time: float) -> "Task":
         return self.with_(state=TaskState.OPEN, block_reason="").with_event(TaskReopened(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))
 
-    def finished(self, time: datetime, outcome: str) -> "Task":
-        return self.closed(self.with_(state=TaskState.FINISHED, finished_at=time, outcome=outcome), time, "done")
+    def completed(self, time: datetime, outcome: str) -> "Task":
+        return self.closed(self.with_(state=TaskState.COMPLETED, completed_at=time, outcome=outcome), time, "completed")
 
-    def finished_by_merge(self, time: datetime, outcome: str, worker_id: int) -> "Task":
-        return self.closed(self.with_(state=TaskState.FINISHED, finished_at=time, outcome=outcome), time, "done", worker_id)
+    def merge_completed(self, time: datetime, outcome: str, worker_id: int) -> "Task":
+        return self.closed(self.with_(state=TaskState.COMPLETED, completed_at=time, outcome=outcome), time, "completed", worker_id)
 
     def title_words(self) -> str:
         return self.title
@@ -147,7 +147,7 @@ class Task(Scoped):
 PULLED_MOVES: dict[TaskState, Callable[[Task, Task, datetime], Task]] = {
     TaskState.STARTED: lambda previous, task, time: previous.started(time),
     TaskState.DELEGATED: lambda previous, task, time: previous.delegated(time),
-    TaskState.FINISHED: lambda previous, task, time: previous.finished(time, task.outcome),
+    TaskState.COMPLETED: lambda previous, task, time: previous.completed(time, task.outcome),
     TaskState.CANCELLED: lambda previous, task, time: previous.cancelled(time, task.outcome),
     TaskState.PAUSED: lambda previous, task, time: previous.closed(task, time, "paused"),
     TaskState.BLOCKED: lambda previous, task, time: previous.closed(task, time, "blocked"),
