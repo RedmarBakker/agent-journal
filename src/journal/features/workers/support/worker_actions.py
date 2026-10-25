@@ -103,6 +103,10 @@ class WorkerActions:
         self.proofs.save(proof.short(self.failures.under(worker, shortfall), datetime.now(timezone.utc).timestamp(), task.id, worker.id), actor)
         return task
 
+    def unrun(self, n: int, point: int) -> str:
+        worker = self.local(n)
+        return self.failures.unrun(worker, self.open_proof(self.worker_task(worker), point).text)
+
     def open_proof(self, task: Task, point: int) -> Proof:
         proofs = self.proofs.point_proofs(task, point)
         if not proofs or proofs[-1].state in CHECKED_STATES:

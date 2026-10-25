@@ -4255,6 +4255,29 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
     assert [report.row_id for report in rounds.unread(plan)] == [unread.row_id], "of the reports filed about the plan in its review only the unread one is named"
 
 
+def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_recorded_since_the_clock_out(app: App, tmp_path):
+    import time
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.failed_runs import FailedRuns
+    from journal.models.command_output import CommandOutput
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    outputs = app.container.get(CommandOutputs)
+    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"))
+    worker = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() - 100),)))
+    proof = "parser.py:12, and the test tests/test_parser.py::test_reads passes"
+    assert runs.unrun(worker, proof) == "no run of tests/test_parser.py::test_reads is recorded since worker 4 clocked out: run it before you trust the point", "no run: one line naming the test"
+    assert runs.unrun(worker, "parser.py:12 reads the grammar") == "", "a proof naming no test has nothing to run"
+    outputs.save(CommandOutput(chain="elsewhere", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o1"), ran_in=str(tmp_path / "other")), Actor.system())
+    assert runs.unrun(worker, proof), "a run in another folder is not a run of this worker's work"
+    outputs.save(CommandOutput(chain="ran", command="pytest -q tests/test_parser.py", folder=str(tmp_path / "o2"), ran_in=str(tmp_path / "tree")), Actor.system())
+    assert runs.unrun(worker, proof) == "", "with a run of the test's file in the worker's worktree no warning"
+    later = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() + 100),)))
+    assert runs.unrun(later, proof), "a run from before the clock-out does not count"
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task

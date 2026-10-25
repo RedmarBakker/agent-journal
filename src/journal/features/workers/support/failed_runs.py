@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from journal.features.shell.support.output_files import OutputFiles
@@ -8,6 +9,8 @@ from journal.repositories.command_outputs import CommandOutputs
 
 LIMIT = 40
 CLOCKED_OUT = "clocked out"
+# a test a proof names: a test file, with a test of it after ::, or the words after -k
+TEST_NAME = re.compile(r"[\w./-]*(?:test_\w+|\w+_test|\w+_run)\.py(?:::\w+)?|(?<=-k )[\w]+")
 
 
 class FailedRuns:
@@ -29,6 +32,12 @@ class FailedRuns:
             if reader and output.ended:
                 return self.cut(reader.card_lines(OutputFiles(Path(output.folder)).lines())) if output.status else []
         return []
+
+    def unrun(self, worker: Worker, proof: str) -> str:
+        clocked_out = max((time for word, time in worker.moves.steps if word == CLOCKED_OUT), default=0.0)
+        commands = [output.command for output in self.outputs.ran_in(str(self.branch.folder(worker))) if output.creation_time.timestamp() >= clocked_out]
+        missing = next((test for test in TEST_NAME.findall(proof) if not any(test.split("::")[0] in command for command in commands)), "")
+        return f"no run of {missing} is recorded since worker {worker.id} clocked out: run it before you trust the point" if missing else ""
 
     @staticmethod
     def cut(lines: list[str]) -> list[str]:

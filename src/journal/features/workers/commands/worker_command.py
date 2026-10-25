@@ -237,8 +237,9 @@ class WorkerCommand(Command):
             task = self.actions.short_check(args.n, args.point, args.short, caller.actor)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
             return 0
+        warning = self.actions.unrun(args.n, args.point) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""
         task = self.actions.check(args.n, args.point, caller.actor)
-        print(f"point {args.point} of task {task.id} checked")
+        print("\n".join(filter(None, [f"point {args.point} of task {task.id} checked", warning])))
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
