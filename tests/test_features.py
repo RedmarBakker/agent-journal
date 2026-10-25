@@ -3825,6 +3825,92 @@ def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_l
     assert app.console().run(["output", "list"], AGENT).code == 0, "and the next shell line is answered"
 
 
+def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_settings_page_shows_it_and_its_own_suite_never_waits(app: App, tmp_path):
+    import threading
+    from journal.repositories.environments import Environments
+    import time
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.shell.support.shell_runner import EXIT
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.features.workers.workers_options import TEST_BUDGET
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    settings = app.container.get(SettingRows)
+    settings.set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
+    started, gates, results = [], {n: threading.Event() for n in range(1, 6)}, {}
+
+    class Runner:
+        def run(self, request, caller, environment):
+            number = int(Path(request.cwd).name.removeprefix("wt"))
+            started.append(number)
+            gates[number].wait(10)
+            yield (f"1 failed, 4 passed in 0.2s\n{EXIT} 1\n" if number == 2 else f"5 passed in 0.2s\n{EXIT} 0\n").encode()
+
+    class Crew:
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name=f"Worker {number}")
+
+        def save(self, row, actor):
+            return row
+
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments))
+
+    def ask(number):
+        with app.container.get(Scope).environment(1):
+            results[number] = turns.take(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), f"tests/test_{number}.py", SimpleNamespace())
+
+    def until(test):
+        end = time.time() + 10
+        while not test() and time.time() < end:
+            time.sleep(0.05)
+        return test()
+
+    def asking(*numbers):
+        threads = [threading.Thread(target=ask, args=(number,)) for number in numbers]
+        for thread in threads:
+            thread.start()
+            time.sleep(0.4)
+        return threads
+
+    hour = lambda: tuple(int(count) for count in re.search(r"last hour: (\d+) passed, (\d+) failed", app.console().run(["tests", "load"], AGENT).text).groups())
+    before = hour()
+    budget = app.console().run(["tests", "budget", "2"], AGENT)
+    assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 2, budget.error
+    threads = asking(1, 2, 3)
+    assert until(lambda: len(started) == 2)
+    load = app.console().run(["tests", "load"], AGENT).text
+    assert load.startswith("load ") and " cores, " in load and " MB free" in load, load
+    assert "going: turn" in load and ", worker 1: tests/test_1.py" in load and ", worker 2: tests/test_2.py" in load, "the turns going, each with its worker and test ids"
+    assert "waiting: turn" in load and ", worker 3: tests/test_3.py" in load, "and the turn waiting"
+    hook(app, "SessionStart")
+    status, _ = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal suite"}, tool_use_id="suite-1")
+    assert status == 200, "the orchestrator's own suite goes at once while a turn waits: the budget gates only workers' turns"
+    budget = app.console().run(["tests", "budget", "1", "10"], AGENT)
+    assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TESTS_PER_RUN) == 10
+    page = got(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
+    assert (page["test_runs"], page["tests_per_run"]) == (1, 10), "the Settings page shows the budget the command set"
+    assert next(row for row in settings.project_rows() if row.key == WorkersOptions.TEST_RUNS.key).updater == AGENT.actor, "written with the caller as its actor"
+    gates[1].set()
+    gates[2].set()
+    assert until(lambda: 1 in results and 2 in results), "the runs already going end as they are"
+    assert until(lambda: len(started) == 3) and started[2] == 3, "the turn waiting starts once a run is free under the new budget"
+    more = asking(4, 5)
+    time.sleep(0.5)
+    assert len(started) == 3, "with a budget of 1 the next turns wait for the run going"
+    for number in (3, 4, 5):
+        gates[number].set()
+        assert until(lambda: number in results), "and run in turn"
+    assert started == [1, 2, 3, 4, 5]
+    for thread in [*threads, *more]:
+        thread.join(10)
+    assert hour() == (before[0] + 4, before[1] + 1), "with the runs passed and failed in the last hour"
+    settings.set(WorkersOptions.TEST_RUNS.key, WorkersOptions.TEST_RUNS.default, Actor.user(1))
+    settings.set(WorkersOptions.TESTS_PER_RUN.key, WorkersOptions.TESTS_PER_RUN.default, Actor.user(1))
+    settings.set(WorkersOptions.TESTING.key, WorkersOptions.TESTING.default, Actor.user(1))
+
+
 def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_else_waits_in_order_and_one_past_the_waiting_cap_is_refused(app: App, tmp_path):
     import threading
     import time

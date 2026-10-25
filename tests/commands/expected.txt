@@ -2342,3 +2342,20 @@ there is no worktree named calm-river at <root>/.claude/worktrees/calm-river
 $ agent: journal tests turn tests/x.py
 exit 1
 only a worker asks for a turn to run tests: the agent that sent it runs them itself
+
+$ agent: journal tests load
+exit 0
+load <machine>
+no turn going or waiting
+last hour: 0 passed, 0 failed
+
+$ agent: journal tests budget --help
+exit 0
+usage: journal tests budget [-h] runs [per_run]
+
+positional arguments:
+  runs        the test runs at once
+  per_run     the test ids one run may name
+
+options:
+  -h, --help  show this help message and exit

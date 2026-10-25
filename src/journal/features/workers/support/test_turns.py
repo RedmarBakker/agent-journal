@@ -107,6 +107,8 @@ class TestTurns:
         return text
 
     def recorded(self, turn: TestTurn, result: TestRunResult) -> None:
+        later = self.turns.find(turn.id)
+        self.turns.save(later.passed_run() if result.is_passed() else later.failed_run(result.failed), Actor.system())
         worker = self.workers.find(turn.worker)
         self.workers.save(worker.passed_run() if result.is_passed() else worker.failed_run(result.failed, time.time()), Actor.system())
 

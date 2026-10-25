@@ -22,6 +22,7 @@ VARYING = (
     (re.compile(r"\b1[78]\d{8}(\.\d+)?\b"), "<epoch>"),
     (re.compile(r"127\.0\.0\.1:\d+|localhost:\d+"), "<address>"),
     (re.compile(r"\b[0-9a-f]{12,}\b"), "<hex>"),
+    (re.compile(r"\bload [\d. ]+ on \d+ cores, [\d,]+ MB free(; [\d.]+ beyond what \d+ test runs going explain)?"), "load <machine>"),
 )
 DOCUMENT = "## The cart\n\nThe cart adds its lines and the tax once.\n\n## Rounding\n\nMoney is rounded to cents.\n"
 
