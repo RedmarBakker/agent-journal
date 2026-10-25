@@ -19390,7 +19390,7 @@ def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismi
     from journal.repositories.reader_reports import ReaderReports
     hook(app, "SessionStart")
     console, outputs = app.console(), app.container.get(CommandOutputs)
-    assert console.run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
+    assert console.run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end", "--label", "Testing the packages"], AGENT).code == 0
 
     def ran(name: str, text: str) -> int:
         folder = app.config.root / name
