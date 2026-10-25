@@ -95,7 +95,7 @@ export const workerCounts = (rows) => ({
 
 export const workerCard = (row) => ({table: "workers", id: row.id, title: workerName(row), session: "", state: isWorking(row) ? "running" : "idle", reason: ""});
 
-export const workerHolding = (task, workers) => workers.find((row) => row.id === task.worker_id) || null;
+export const workerHolding = (task, workers) => workers.find((row) => (row.holds || []).includes(task.id)) || null;
 
 // The workers that hold a task of these, each once; of two with one name, the one still out.
 export function workersHolding(tasks, workers) {

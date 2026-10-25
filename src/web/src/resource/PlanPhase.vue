@@ -26,7 +26,7 @@ const closed = computed(() => (props.running ? rows.value.filter(isClosed).lengt
 const holders = computed(() => workersHolding(rows.value, props.workers));
 const runs = computed(() => holdingRuns(rows.value, props.workers));
 const closedHolder = (worker) => FINISHED_STATES.has(workerState(worker));
-const holdersLoading = computed(() => !props.workersLoaded && rows.value.some((t) => t.worker_id));
+const holdersLoading = computed(() => !props.workersLoaded && rows.value.length > 0);
 const ROW_BARS = [{width: "58%", height: 11}];
 const HOLDER_BARS = [{width: "64px", height: 14}];
 </script>

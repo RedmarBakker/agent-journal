@@ -1,5 +1,6 @@
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_reports import WorkerReports
+from journal.http.row_list import RowList
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.http.controllers.controller import Controller
@@ -48,6 +49,13 @@ class WorkerController(Controller[Worker]):
     def complete(self, request: Request) -> Response:
         return Response.json(self.shown(self.actions.complete(request.number("id"), str(request.body.get("why", "")), request.actor)[0]))
 
+    def index(self, request: Request) -> Response:
+        if "tasks" not in request.query:
+            return super().index(request)
+        numbers = {int(n) for n in str(request.query["tasks"]).split(",") if n.strip().isdigit()}
+        rows = self.repository.numbered(sorted(self.tasks.workers_of(numbers)))
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
+
     def rows(self) -> list[Worker]:
         return self.repository.scoped()
 
@@ -66,7 +74,7 @@ class WorkerController(Controller[Worker]):
         agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks, queues = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows)
         return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])],
-                 "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
+                 "holds": [*([views[w.row_id].task_id] if w.row_id in views else []), *(task.id for task in queues.get(w.row_id, []))], "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
 
     def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}

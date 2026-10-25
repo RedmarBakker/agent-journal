@@ -22,9 +22,9 @@ export function useEveryWorker(open) {
     return {rows, loaded, refresh: usePoll("workers.every", {take, active: () => open.value})};
 }
 
-// The workers that hold any of these tasks.
+// The workers that hold or have queued any of these tasks.
 export function useWorkersHolding(tasks) {
-    const ids = computed(() => [...new Set(tasks.value.map((t) => t.worker_id).filter(Boolean))]);
+    const ids = computed(() => [...new Set(tasks.value.map((t) => t.id))]);
     const {rows, loaded, take} = workerRows();
-    return {rows, loaded, refresh: usePoll("workers.holding", {params: () => ({ids: ids.value}), take, active: () => ids.value.length > 0})};
+    return {rows, loaded, refresh: usePoll("workers.holding", {params: () => ({tasks: ids.value}), take, active: () => ids.value.length > 0})};
 }

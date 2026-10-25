@@ -235,6 +235,11 @@ class Tasks(ScopedRepository[Task]):
         refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]
         return {link.target.id: link.source.id for link in self.links.ref_links("target", refs, CURRENT_TASK_LINK) if link.source.type == WORKERS}
 
+    def workers_of(self, task_ids: set[int]) -> set[int]:
+        refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]
+        queued = {link.source.id for link in self.links.ref_links("target", refs, QUEUED_LINK) if link.source.type == WORKERS}
+        return {*self.task_worker_holdings(task_ids).values(), *queued}
+
     def worker_task_holdings(self, workers: list[Model]) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.model_links("source", workers, CURRENT_TASK_LINK)}
 

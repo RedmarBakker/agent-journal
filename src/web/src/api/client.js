@@ -14,8 +14,8 @@ function query(fields) {
 
 // which part of a list a read asks for, which keys it apart from the other parts of the same list: its newest page, a page
 // before or after a row, its changes since a moment, rows by id, and each of those among its closed rows
-const readKind = ({before, after, since, ids = [], closed = false}) =>
-    [closed ? "closed" : "", ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
+const readKind = ({before, after, since, ids = [], tasks = [], closed = false}) =>
+    [closed ? "closed" : "", tasks.length ? "tasks" : ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
 
 const NO_ENV = "the page does not know its environment yet";
 
@@ -168,9 +168,9 @@ export class ApiClient {
     }
 
     // a resource's rows: a page with its counts, one row, a new one, a change, and an act on one
-    list(table, {limit, before, after, since, ids = [], closed = false} = {}) {
-        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), closed: closed ? "1" : ""})}`);
-        return this.get(path, `${table}.${readKind({before, after, since, ids, closed})}`);
+    list(table, {limit, before, after, since, ids = [], tasks = [], closed = false} = {}) {
+        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), tasks: tasks.join(","), closed: closed ? "1" : ""})}`);
+        return this.get(path, `${table}.${readKind({before, after, since, ids, tasks, closed})}`);
     }
 
     // the own chat of a worker or a subagent, by its session
