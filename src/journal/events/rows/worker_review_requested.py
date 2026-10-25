@@ -5,7 +5,7 @@ from journal.events.rows.worker_mention import WorkerMention
 
 
 @dataclass(frozen=True, kw_only=True)
-class WorkerSentToReview(RowEvent):
+class WorkerReviewRequested(RowEvent):
     """A worker handed in its work with a proof for each point of its brief, and its report goes to the journal's reviewer rather than to the agent that sent it."""
 
     worker: WorkerMention

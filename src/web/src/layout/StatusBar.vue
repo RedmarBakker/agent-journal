@@ -273,7 +273,7 @@ async function runBar(p) {
                 <button
                     type="button"
                     class="statusbar-helpers"
-                    v-tip:verifiers="{title: 'Verifiers', line: 'Agents that judge a dismissed reader report. Opens the list.'}"
+                    v-tip:verifiers="{title: 'Verifiers', line: 'Agents the journal sends to check whether the agent was right to set a reader report aside. Opens the list.'}"
                     :aria-expanded="verifiersOpen"
                     @click.stop="toggleVerifiers"
                 >

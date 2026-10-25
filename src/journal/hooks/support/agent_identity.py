@@ -1,3 +1,4 @@
+from journal.models.helper import Helper
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.verifiers import Verifiers
 from journal.repositories.workers import Workers
@@ -32,9 +33,11 @@ class AgentIdentity:
         return not rows[0].token_hash or AgentToken.is_proof(token, rows[0].token_hash)
 
     def is_verifier_token(self, number: int, token: str | None) -> bool:
-        rows = self.verifiers.numbered(number)
-        return bool(rows) and AgentToken.is_proof(token, rows[0].token_hash)
+        return self.is_checker_token(self.verifiers.numbered(number), token)
 
     def is_reviewer_token(self, number: int, token: str | None) -> bool:
-        rows = self.reviewers.numbered(number)
+        return self.is_checker_token(self.reviewers.numbered(number), token)
+
+    @staticmethod
+    def is_checker_token(rows: list[Helper], token: str | None) -> bool:
         return bool(rows) and AgentToken.is_proof(token, rows[0].token_hash)

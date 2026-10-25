@@ -7,7 +7,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_ready import WorkerReady
-from journal.events.rows.worker_sent_to_review import WorkerSentToReview
+from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.features.tasks.states.working import Working
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.models.worker_state import WorkerState
@@ -54,5 +54,5 @@ class ClockConduct(Conduct):
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
         return self.pop()
 
-    def on_worker_sent_to_review(self, event: WorkerSentToReview, settings: Settings) -> Transition:
+    def on_worker_review_requested(self, event: WorkerReviewRequested, settings: Settings) -> Transition:
         return self.pop()

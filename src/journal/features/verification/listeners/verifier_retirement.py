@@ -12,6 +12,6 @@ class VerifierRetirement(Listener[ReaderReportJudged]):
         self.verifiers, self.runner = verifiers, runner
 
     def handle(self, event: ReaderReportJudged) -> None:
-        for verifier in self.verifiers.session_verifier(event.verifier_session):
+        for verifier in self.verifiers.session_checkers(event.verifier_session):
             self.verifiers.save(verifier.judged(), Actor.system())
             self.runner.stop(verifier)

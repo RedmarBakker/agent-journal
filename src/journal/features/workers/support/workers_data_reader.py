@@ -42,7 +42,7 @@ class WorkersDataReader:
             "worktrees_root": lambda: (self.config.home / "worktrees").resolve(),
             "worktrees": lambda: tuple(WorkerWorktree(self.branch.folder(w).name, w.row_id, w.name) for w in self.workers.scoped()),
             "session_workers": lambda: tuple(self.workers.session_worker(agent.session)) if agent.role.is_sent() else (),
-            "ready_work": lambda: tuple(ReadyWork(w.id, w.name, task, w.silence.timeout.start) for w in self.workers.delivered_workers() if not w.in_review for task in self.tasks.holder_task_ids(Ref.build(w))[:1] if self.is_unchecked(task)),
+            "ready_work": lambda: tuple(ReadyWork(w.id, w.name, task, w.silence.timeout.start) for w in self.workers.delivered_workers() if not w.review_pending for task in self.tasks.holder_task_ids(Ref.build(w))[:1] if self.is_unchecked(task)),
             "unfinished_outputs": lambda: tuple(output.row_id for worker in facts.session_workers for output in self.outputs.unfinished(Actor.worker(worker.id))),
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),

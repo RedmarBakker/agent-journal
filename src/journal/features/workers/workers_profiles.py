@@ -11,15 +11,15 @@ TASK_WAIT_SHARE = FitnessMeasure("your tool uses made while an open task waited 
 REUSE_SHARE = FitnessMeasure("your sends to idle workers among your sends and your fresh dispatches made while one sat idle", lambda counts: (counts.reuses, counts.reuses + counts.fresh_idle), 0.7, 1.0, 2, "send the next job to an idle worker with journal worker send before dispatching a fresh one")
 BRIEF_SHARE = FitnessMeasure("your handovers whose brief names a done-when and the files to change among your handovers", lambda counts: (counts.briefed, counts.handovers), 0.8, 1.0, 2, "end each brief with what it is done when and the files it changes")
 PREPARED_MERGE_SHARE = FitnessMeasure("your merges that followed a read of the proofs and a test run among your merges", lambda counts: (counts.prepared_merges, counts.merges), 0.9, 1.0, 3, "read the proofs with journal task show and run the tests before journal worker merge")
-OWN_EDIT_SHARE = FitnessMeasure("your own file edits among your tool uses", lambda counts: (counts.file_edits, counts.window_uses), 0.0, 0.2, 2, "hand the work to a worker and keep to reviewing it")
+ORCHESTRATOR_EDIT_SHARE = FitnessMeasure("your own file edits among your tool uses", lambda counts: (counts.file_edits, counts.window_uses), 0.0, 0.2, 2, "hand the work to a worker and keep to reviewing it")
 
 
 class WorkersProfiles:
     """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them."""
 
     BUILDER = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE))
-    ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, OWN_EDIT_SHARE))
-    REVIEWED_ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, OWN_EDIT_SHARE))
+    ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, ORCHESTRATOR_EDIT_SHARE))
+    REVIEWED_ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, ORCHESTRATOR_EDIT_SHARE))
     SOLO = ModeProfile("solo", (SOLO_FILE_EDIT_SHARE, SOLO_RESEARCH_SHARE))
 
     ALL = (BUILDER, ORCHESTRATOR, SOLO)

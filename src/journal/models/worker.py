@@ -11,7 +11,7 @@ from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_failed import WorkerReviewFailed
 from journal.events.rows.worker_reviewed import WorkerReviewed
-from journal.events.rows.worker_sent_to_review import WorkerSentToReview
+from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.events.rows.worker_merged import WorkerMerged
 from journal.events.rows.worker_released import WorkerReleased
 from journal.events.rows.worker_unfinished import WorkerUnfinished
@@ -59,7 +59,7 @@ class Worker(Helper):
     pool_request: int = 0
     base: str = ""
     edited_task: int = 0
-    in_review: bool = False
+    review_pending: bool = False
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
@@ -85,8 +85,8 @@ class Worker(Helper):
     def delivered(self, time: float) -> "Worker":
         return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
-    def delivered_to_review(self, time: float, report: str) -> "Worker":
-        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, in_review=True).with_event(WorkerSentToReview(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
+    def review_requested(self, time: float, report: str) -> "Worker":
+        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, review_pending=True).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
 
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
         return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, reviewed", task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))
@@ -95,9 +95,9 @@ class Worker(Helper):
         return self.review_ended(time, "review ended without a report").with_event(WorkerReviewFailed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review ended without a report", task=task, reviewer=reviewer.id))
 
     def review_ended(self, time: float, move: str) -> "Worker":
-        if not self.in_review:
+        if not self.review_pending:
             raise Rejection(f"worker {self.id} has no work in review")
-        return self.contacted(time).moved(move, time).with_(in_review=False)
+        return self.contacted(time).moved(move, time).with_(review_pending=False)
 
     def unfinished(self, time: float, text: str) -> "Worker":
         return self.moved("ended without clocking out", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out"))
@@ -116,7 +116,7 @@ class Worker(Helper):
         return instructed.with_event(instructed.pending(kind, time))
 
     def instructed(self, brief: str, time: float) -> "Worker":
-        return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, in_review=False)
+        return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, review_pending=False)
 
     def moved(self, move: str, time: float) -> "Worker":
         return self.with_(moves=self.moves.added(move, time))
@@ -143,8 +143,8 @@ class Worker(Helper):
     def is_running(self) -> bool:
         return self.state in (WorkerState.DISPATCHED, WorkerState.READY)
 
-    def is_awaited(self) -> bool:
-        return self.is_running() or self.in_review
+    def is_pending(self) -> bool:
+        return self.is_running() or self.review_pending
 
     def is_mid_turn(self) -> bool:
         return bool(self.token_hash) and self.is_running()
@@ -156,7 +156,7 @@ class Worker(Helper):
         return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
 
     def is_unanswered(self, time: float, seconds: float) -> bool:
-        return self.state == WorkerState.DELIVERED and not self.in_review and time - self.silence.timeout.start > seconds
+        return self.state == WorkerState.DELIVERED and not self.review_pending and time - self.silence.timeout.start > seconds
 
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted

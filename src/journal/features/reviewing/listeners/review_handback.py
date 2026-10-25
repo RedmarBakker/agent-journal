@@ -17,5 +17,5 @@ class ReviewHandback(Listener[ReviewerEnded]):
 
     def handle(self, event: ReviewerEnded) -> None:
         worker = self.workers.find(self.dispatch.reviewed(event.row_id).id)
-        if worker.in_review:
+        if worker.review_pending:
             self.workers.save(worker.review_failed(time.time(), self.tasks.last_task_id(Ref.build(worker))), Actor.system())

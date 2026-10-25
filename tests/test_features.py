@@ -1851,9 +1851,9 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
     clocked = worker.delivered(100.0)
     assert clocked.is_unanswered(500.0, 300), "with the reviewer off a clock-out waits on the orchestrator from the clock-out"
-    in_review = worker.delivered_to_review(100.0, "the parser is done")
-    assert not in_review.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the orchestrator"
-    reviewed = in_review.reviewed(900.0, 1, Reviewer(id=9, environment_id=1, session="r-1"), "1 passed")
+    sent = worker.review_requested(100.0, "the parser is done")
+    assert not sent.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the orchestrator"
+    reviewed = sent.reviewed(900.0, 1, Reviewer(id=9, environment_id=1, session="r-1"), "1 passed")
     assert not reviewed.is_unanswered(1000.0, 300) and reviewed.is_unanswered(1300.0, 300), "its answer time runs from the reviewer's report"
 
 
@@ -15567,7 +15567,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     reviewer = clocked_out(lovelace, "the parser is done", "parser.py:12, test_reads passes: pytest tests/test_parser.py", "parser.py:30, test_names passes")
     with app.container.get(Scope).environment(MAIN):
         sent = workers.find(1)
-    assert reviewer.name == JURAN and reviewer.pid and sent.state == WorkerState.DELIVERED and sent.in_review, "the clock-out sends the journal's reviewer, and its program runs"
+    assert reviewer.name == JURAN and reviewer.pid and sent.state == WorkerState.DELIVERED and sent.review_pending, "the clock-out sends the journal's reviewer, and its program runs"
     assert all(part in reviewer.brief for part in ("reads the grammar", "parser.py:12, test_reads passes", "the parser is done", "journal sins", "journal review")), "it is handed the brief, each proof and the report"
     assert not told("workers.work_ready") and "awaiting workers 1" in console.run(["worker", "wait", "1"], AGENT).text, "the orchestrator is not told of the clock-out, and a wait on the worker waits for its review"
     posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": reviewer.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": "a wrong token"})
@@ -15586,7 +15586,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         reviewed, sent = reviewers.find(reviewer.id), workers.find(1)
-    assert reviewed.state == ReviewerState.REVIEWED and not reviewed.token_hash and not sent.in_review and sessions.top(reviewer.session).name == "ended", "the report ends the review and the reviewer's session"
+    assert reviewed.state == ReviewerState.REVIEWED and not reviewed.token_hash and not sent.review_pending and sessions.top(reviewer.session).name == "ended", "the report ends the review and the reviewer's session"
     [line] = told("reviewing.work_reviewed")
     assert f"reviewer {reviewer.id} reviewed worker 1, Lady Lovelace, on task 1:" in line and report in line, "its one report reaches the orchestrator with each point and the tests run"
     assert not told("workers.work_ready"), "the orchestrator is told of the review alone, never of the clock-out"
@@ -15600,7 +15600,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         handed = workers.find(2)
-    assert not handed.in_review and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
+    assert not handed.review_pending and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
     assert any("worker 2, Mr. Babbage, ended without a report: task 2 waits for your own check" in line for line in told("reviewing.review_failed")), "and tells the orchestrator so"
     settings.set("reviewing.reviewer", False, Actor.user(1))
     assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
@@ -15610,7 +15610,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        assert not workers.find(1).in_review and not [r for r in reviewers.scoped() if r.is_reviewing()], "with the reviewer off no reviewer is sent"
+        assert not workers.find(1).review_pending and not [r for r in reviewers.scoped() if r.is_reviewing()], "with the reviewer off no reviewer is sent"
     assert told("workers.work_ready"), "and the orchestrator is told of the clock-out as today"
 
 
