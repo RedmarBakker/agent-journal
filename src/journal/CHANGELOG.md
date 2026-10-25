@@ -2,6 +2,16 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.60.0
+
+- A reader's progress pattern that matches a line with no number no longer crashes the journal server at startup: such a line is simply no progress.
+- The line the journal prints in place of a command it holds is never recorded as a run, judged, or answered with a reader report, so an agent is no longer asked for readers on the journal's own words in a loop; a reader of a journal command's output is refused, and any kept one is removed at the next start.
+- When Claude Code stops on "Context limit reached", the journal types /compact into its terminal once by itself, counting the notice only on the screen's last lines while the agent is not working.
+- Claude Code's Switch model? menu is confirmed in a narrow terminal too, known by its Yes, switch to option.
+- A report's, a document's and a plan's page shows how many comments are under it from the start, and reads the comments themselves only when the comment sidebar opens, every one of them however old.
+- A running check can be force stopped with `journal check stop` or the Stop button in the viewer.
+- The avatar's body is drawn as before the smoothing, so its clothing keeps its colours, with only its screen supersampled and crisp; its rope swing goes toward the camera and away.
+
 ## 4.59.1
 
 - A plugin the journal switched off for a fault is named to the agent once, and again only when its fault changes, it is switched on or upgraded, or a day has passed, never at every turn.

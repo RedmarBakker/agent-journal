@@ -13952,6 +13952,7 @@ def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_name
     from journal.features.shell.support.readers import Readers
     folder = Path(__file__).parent / "shell_corpus_reading"
     console, readers = app.console(), app.container.get(Readers)
+    assert console.run(["alias", "add", "sins", "commandments-release judge", "--about", "judges the code"], AGENT).code == 0
     for name, commands in json.loads((folder / "readers.json").read_text()).items():
         assert console.run(["reader", "add", name, "--commands", commands, "--pattern", ".", "--about", f"the {name} runs"], AGENT).code == 0
     rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
@@ -14739,6 +14740,39 @@ def test_a_progress_pattern_that_matches_a_line_with_no_number_reads_no_progress
     assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, "") == Progress(40, 100), "a line the pattern matches with no number in it is passed over, before and after the counted line"
     assert not Progress.found(r"running (\w+)", "", lines, "").is_known(), "a pattern whose match holds only words reads no progress"
     assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, r"\.") == Progress(40, 100), "and so does a run with a step pattern"
+
+
+def test_the_line_a_refused_command_becomes_is_never_recorded_or_judged_and_no_reader_reads_journal_output(app: App):
+    import os
+    from journal.features.shell.seeds.journal_output_readers import JournalOutputReaders
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    from journal.features.shell.support.readers import Readers
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    from journal.repositories.scope import Scope
+    from journal.support.refusal_command import RefusalCommand
+    from journal.support.rejection import Rejection
+    hook(app, "SessionStart")
+    readers = app.container.get(Readers)
+    readers.add(Reader("prints", "what printf prints", ".", commands=ReaderCommands(("printf",))))
+    reason = "reader report 65 is not read yet. `journal reader report <n>` before any other write"
+    line = RefusalCommand.build(reason)
+    assert RefusalCommand.is_refusal(line) and not RefusalCommand.is_refusal(f"{line} && ls"), "the refusal line is known by its shape, alone on its line"
+    shown = b"".join(app.container.get(ShellRunner).run(ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ)), AGENT, MAIN))
+    app.runtime().deferred.drain()
+    assert reason.encode() in shown, "the refusal still prints the journal's reason"
+    with app.container.get(Scope).environment(MAIN):
+        assert not app.container.get(CommandOutputs).all() and not app.container.get(ReaderReports).all(), "it is no recorded run, so no reader judges it and no report asks for a reader"
+    with pytest.raises(Rejection):
+        readers.add(Reader("own", "a journal command's output", ".", commands=ReaderCommands(("journal tests",))))
+    assert app.console().run(["alias", "add", "nap", "sleep", "--about", "waits"], AGENT).code == 0
+    readers.add(Reader("naps", "an alias's run of a program", ".", commands=ReaderCommands(("journal nap",))))
+    (app.config.readers / "own.pattern").write_text(Reader("own", "a journal command's output", ".", commands=ReaderCommands(("journal tests",))).text())
+    app.container.get(JournalOutputReaders).run()
+    assert {reader.name for reader in readers.all()} >= {"prints", "pytest", "naps"} and "own" not in {reader.name for reader in readers.all()}, "a reader kept for journal output is removed at boot, a reader of an alias's run and every other kept"
 
 
 def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(app: App):

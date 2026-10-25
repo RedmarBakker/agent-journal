@@ -18,6 +18,7 @@ from journal.features.shell.jobs.restart_wait import RestartWait
 from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.seeds.default_readers import DefaultReaders
+from journal.features.shell.seeds.journal_output_readers import JournalOutputReaders
 from journal.features.shell.shell_demands import ShellDemands
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
@@ -32,7 +33,7 @@ class Shell(Feature[ShellData]):
     commands = (OutputCommand, ReaderCommand)
     options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
-    seeds = (CutOffOutputs, DefaultReaders)
+    seeds = (CutOffOutputs, DefaultReaders, JournalOutputReaders)
     jobs = (WatchRefresh, RestartWait, RunCardStart)
     process_cards = (OutputProcessCard,)
     data = (ShellDataReader,)

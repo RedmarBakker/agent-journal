@@ -8,6 +8,7 @@ COMMANDS_PREFIX = "commands: "
 # a part whose standard output goes to a file, or that only asks the program its version or its help, shows no run of it on a card
 FILE_REDIRECT = re.compile(r"(?:^|\s)[1&]?>>?\s*\S+")
 HELP_FLAGS = ("--version", "--help", "-h", "-V")
+JOURNAL = "journal"
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,9 @@ class ReaderCommands:
 
     def text(self) -> str:
         return ", ".join(self.programs)
+
+    def journal_commands(self) -> list[str]:
+        return [" ".join(program.split()[1:2]) for program in self.programs if program.split()[:1] == [JOURNAL]]
 
     def is_read(self, line: str) -> bool:
         return bool(self.read_part(line))

@@ -1,3 +1,4 @@
+from journal.support.refusal_command import RefusalCommand
 from journal.providers.support.agent_tool_input import AgentToolInput
 import shutil
 import json
@@ -257,7 +258,7 @@ class Claude(Provider):
 
     @staticmethod
     def shell_refused(hook: Hook, decision: Decision) -> Response:
-        printing = {**hook.input, "command": f"printf '%s\\n' {shlex.quote(decision.reason)}"}
+        printing = {**hook.input, "command": RefusalCommand.build(decision.reason)}
         return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": printing}}, "error": decision.reason})
 
     def output_session(self, output: str, err: str) -> str:

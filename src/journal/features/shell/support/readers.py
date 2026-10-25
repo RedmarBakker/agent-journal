@@ -4,13 +4,12 @@ from journal.config import Config
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
 from journal.features.shell.support.reader import Reader
-from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, ReaderCommands
+from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, JOURNAL, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
 from journal.support.rejection import Rejection
 from journal.features.plugins.support.plugin_skills import STAMP
 
-JOURNAL = "journal"
 # the readers chosen as their commands' defaults, one name a line, beside the readers
 DEFAULTS_FILE = "defaults"
 
@@ -18,7 +17,7 @@ KINDS = (".pattern", ".sh")
 
 
 class Readers:
-    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships."""
+    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships; none reads a journal command's own output, an alias's run of a program aside."""
 
     def __init__(self, config: Config, aliases: Aliases) -> None:
         self.config, self.aliases = config, aliases
@@ -77,13 +76,23 @@ class Readers:
         paths = self.files(name)
         if not paths:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
-        owner = next((line.removeprefix(STAMP) for path in paths for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
+        owner = self.owner(name)
         if owner:
             raise Rejection(f"the reader {name} is the plugin {owner}'s: it goes when the plugin is removed")
         for path in paths:
             path.unlink()
         remaining = self.default_names() - {name}
         (self.config.readers / DEFAULTS_FILE).write_text("".join(f"{default}\n" for default in sorted(remaining)))
+
+    def owner(self, name: str) -> str:
+        return next((line.removeprefix(STAMP) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
+
+    def journal_readers(self) -> list[Reader]:
+        return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
+
+    def reads_journal_output(self, reader: Reader) -> bool:
+        aliases = self.aliases.index()
+        return any(name not in aliases for name in reader.commands.journal_commands())
 
     def default_names(self) -> set[str]:
         path = self.config.readers / DEFAULTS_FILE
@@ -105,13 +114,16 @@ class Readers:
         return Reader.loaded(rows[0]) if rows else None
 
     def add(self, reader: Reader) -> None:
-        self.stored_file(reader.name, ".pattern", reader.text())
+        self.stored_file(reader, ".pattern", reader.text())
 
     def add_script(self, reader: Reader, body: str) -> None:
-        self.stored_file(reader.name, ".sh", reader.script_text(body))
+        self.stored_file(reader, ".sh", reader.script_text(body))
 
     # a reader written as one kind replaces one of the other kind by its name
-    def stored_file(self, name: str, suffix: str, text: str) -> None:
+    def stored_file(self, reader: Reader, suffix: str, text: str) -> None:
+        if self.reads_journal_output(reader):
+            raise Rejection(f"the reader {reader.name} would read a journal command's output, which the journal writes and shows whole itself: a reader reads a program's own output, such as pytest or go test, or an alias's run of one")
+        name = reader.name
         self.config.readers.mkdir(parents=True, exist_ok=True)
         for kind in KINDS:
             (self.config.readers / f"{name}{kind}").unlink(missing_ok=True)
