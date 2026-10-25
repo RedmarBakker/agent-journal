@@ -15797,6 +15797,7 @@ def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_t
     assert app.console().run(["reminder", "create", "water the plants", "--at", later], USER).code == 0
     assert app.console().run(["reminder", "create", "call the plumber", "--at", earlier], USER).code == 0
     assert "--at takes a local date and time" in app.console().run(["reminder", "create", "x", "--at", "tomorrow"], USER).error
+    app.runtime().deferred.drain()
     started = json.dumps(hook(app, "SessionStart")[1])
     assert "call the plumber" in started and "water the plants" not in started, "a reminder that fell due while no agent ran is told at the session's start, one not due yet is quiet"
     app.runtime().deferred.drain()
