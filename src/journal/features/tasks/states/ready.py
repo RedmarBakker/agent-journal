@@ -78,7 +78,8 @@ class Ready(BaseState):
         tasks = data.part(TasksPart)
         pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
         wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
-        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, tasks.blocked))),) if tasks.blocked and settings.value(TasksOptions.AUTO) else ()
+        reviewable = [n for n in tasks.blocked if n not in tasks.person_waits]
+        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, reviewable))),) if reviewable and settings.value(TasksOptions.AUTO) else ()
         return (*pause_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:

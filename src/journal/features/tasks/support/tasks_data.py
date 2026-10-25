@@ -6,7 +6,7 @@ from journal.models.open_task import OpenTask
 
 @dataclass(frozen=True)
 class TasksData:
-    """The tasks feature's reading for an agent: its own task in hand, the paused, the blocked, the tasks whose wait is broken, the first open tasks and how many are open, the tasks it took in hand most recently, what a task of each hub environment is called, acme task for the hub of acme, and when each blocked or paused task last changed."""
+    """The tasks feature's reading for an agent: its own task in hand, the paused, the blocked, the tasks whose wait is broken, the first open tasks and how many are open, the tasks it took in hand most recently, what a task of each hub environment is called, acme task for the hub of acme, when each blocked or paused task that waits on no person last changed, and the blocked or paused tasks that wait on a person."""
 
     current_task: int
     last_log_line: str
@@ -27,3 +27,4 @@ class TasksData:
     agent_tasks: tuple[int, ...] = ()
     task_nouns: Mapping[int, str] = field(default_factory=dict)
     held_since: Mapping[int, float] = field(default_factory=dict)
+    person_waits: tuple[int, ...] = ()

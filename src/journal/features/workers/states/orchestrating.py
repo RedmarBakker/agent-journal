@@ -44,7 +44,7 @@ class Orchestrating(PlansReady):
 
 
 def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
-    queue = (*tasks.paused, *tasks.blocked)
+    queue = tuple(n for n in (*tasks.paused, *tasks.blocked) if n not in tasks.person_waits)
     return (WorkersNudges.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
 
 

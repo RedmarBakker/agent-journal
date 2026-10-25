@@ -4,6 +4,7 @@ from journal.models.open_task import OpenTask
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.entries import Entries
+from journal.features.tasks.support.person_wait import PersonWait
 from journal.repositories.plans import Plans
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.tasks import Tasks
@@ -25,12 +26,12 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels) -> None:
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait) -> None:
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
-        self.scope, self.stages = scope, stages
+        self.scope, self.stages, self.people = scope, stages, people
 
     def read(self, agent: Agent) -> LazyFacts:
-        return LazyFacts("tasks", {
+        facts = LazyFacts("tasks", {
             "current_task": lambda: self.current_id(agent),
             "last_log_line": lambda: self.current_log(agent),
             "paused": lambda: tuple(t.row_id for t in self.tasks.paused_tasks()),
@@ -49,8 +50,10 @@ class TasksDataReader:
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_HELD_TASKS),
             "task_nouns": lambda: self.labels.hub_nouns("task"),
-            "held_since": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks())},
+            "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_on_a_person(t)),
+            "held_since": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
+        return facts
 
     def current_id(self, agent: Agent) -> int:
         current = self.tasks.current(agent)

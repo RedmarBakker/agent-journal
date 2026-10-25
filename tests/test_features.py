@@ -11640,6 +11640,29 @@ def test_the_orchestrator_fitness_scores_waits_with_on_or_until_well_waits_in_wo
     assert len([entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]) == 1, "a missing wait is named once"
 
 
+def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_still_nor_at_the_stop(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.repositories.entries import NUDGE, Entries
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    for title in ("the colour", "the parser"):
+        console.run(["task", "create", title, "--brief", "b"], AGENT)
+    assert console.run(["task", "block", "1", "waits for the user's word on the colour"], AGENT).code == 0
+    assert console.run(["task", "block", "2", "the schema has to settle"], AGENT).code == 0
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("tasks.auto", True, Actor.user(1))
+    now = timing.time()
+    monkeypatch.setattr(Clock, "time", lambda self, at=now + 61 * 60: at)
+    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + 61 * 60, silence_seconds=1.0))
+    app.runtime().deferred.drain()
+    still = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.blocked_work_stands_still"]
+    assert still == ["these blocked or paused tasks stand still: 2; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"], f"after the interval the task waiting on the user is not named as standing still, the other is: {still}"
+    stopped = json.dumps(hook(app, "Stop")[1])
+    assert "tasks 2 are blocked" in stopped and "tasks 1" not in stopped and "1, 2" not in stopped, f"the stop names the blocked task a command or a decision of the agent's can move, not the one waiting on the user: {stopped}"
+
+
 def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_plan_with_no_dependencies_are_named_to_the_orchestrator(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
