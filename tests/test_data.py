@@ -1497,6 +1497,8 @@ def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_t
     from journal.db.migration import Migration
     from journal.db.migration_failures import MigrationFailures
     from journal.db.migrator import Migrator
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
 
     class Makes(Migration):
         def __init__(self, number: int, table: str, fails: bool = False) -> None:
