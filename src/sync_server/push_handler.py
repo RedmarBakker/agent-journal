@@ -6,6 +6,7 @@ from sync_server.db.store import Store
 from sync_server.devices import Devices
 from sync_server.file_store import FileStore
 from sync_server.host_requests import HostRequests
+from sync_server.hub_doc_rules import HubDocRules
 from sync_server.logged_change import LoggedChange
 from sync_server.push_answer import PushAnswer
 from sync_server.push_request import PushRequest
@@ -20,10 +21,10 @@ USER_PREFIX = "user:"
 
 
 class PushHandler:
-    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is stored, unless the device is the hosted journal or the host that made a write that person asked of it; a change the device sent before, known by its local number, is answered as it was the first time and stored once. A withdrawn row's files are removed once its withdrawal is stored."""
+    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is stored, unless the device is the hosted journal or the host that made a write that person asked of it; a change the device sent before, known by its local number, is answered as it was the first time and stored once. A withdrawn row's files are removed once its withdrawal is stored. A change to a document in the hub that breaks the hub document's rules is stored without the fields it may not set, which are sent back as rejected."""
 
-    def __init__(self, store: Store, log: ChangeLog, devices: Devices, results: PushResults, requests: HostRequests, files: FileStore) -> None:
-        self.store, self.log, self.devices, self.results, self.requests, self.files = store, log, devices, results, requests, files
+    def __init__(self, store: Store, log: ChangeLog, devices: Devices, results: PushResults, requests: HostRequests, files: FileStore, rules: HubDocRules) -> None:
+        self.store, self.log, self.devices, self.results, self.requests, self.files, self.rules = store, log, devices, results, requests, files, rules
 
     def answer(self, token: str, request: PushRequest, received_at: float) -> PushAnswer:
         device, person = self.devices.device(token), self.devices.person(token)
@@ -59,8 +60,10 @@ class PushHandler:
             return settlement
 
     def settlement(self, change: LoggedChange) -> Settlement:
-        settlement = RowSettlement.outcome(change, self.log.row(change.row_table, change.row), self.log.is_deleted(change.row_table, change.row))
-        rejected = tuple(self.add_writer_name(field) for field in settlement.rejected)
+        current = self.log.row(change.row_table, change.row)
+        refused = self.rules.refused(change, current)
+        settlement = RowSettlement.outcome(change.without({field.field for field in refused}), current, self.log.is_deleted(change.row_table, change.row))
+        rejected = tuple(self.add_writer_name(field) for field in (*refused, *settlement.rejected))
         if settlement.is_empty():
             return Settlement(settlement.change, rejected)
         return Settlement(self.log.appended(settlement.change), rejected)

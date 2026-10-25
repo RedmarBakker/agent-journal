@@ -4,6 +4,7 @@ from sync_server.account import ADMIN, MEMBER
 from sync_server.accounts import Accounts
 from sync_server.change_log import ChangeLog
 from sync_server.devices import FAILURES_ALLOWED, LOCKOUT_SECONDS, Devices
+from sync_server.hub_doc_rules import HubDocRules
 from sync_server.id_ranges import IdRanges
 from sync_server.logged_change import LoggedChange
 from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, VERSION_HEADER
@@ -144,7 +145,7 @@ def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_
     _, ada = devices.login("ada@example.com", PASSWORD, "ada's laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "bob's laptop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"), HubDocRules(log, accounts))
 
     def request(action, actor, fields, seconds, clock_offset=0.0):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], clock_offset)
@@ -220,6 +221,48 @@ def test_over_http_a_pull_waits_and_wakes_on_a_push_while_other_requests_go_on_a
         team.store.close()
 
 
+def test_a_stale_offline_edit_to_a_hub_document_that_became_read_only_is_refused_and_sent_back_with_what_stands(store, tmp_path):
+    from sync_server.file_store import FileStore
+    from sync_server.db.push_result_rows import PushResultRows
+    from sync_server.push_handler import PushHandler
+    from sync_server.host_requests import HostRequests
+    from sync_server.db.host_request_rows import HostRequestRows
+    from sync_server.push_request import PushRequest
+    from sync_server.push_results import PushResults
+    from sync_server.rejected_field import RejectedField
+
+    accounts, devices = people(store)
+    accounts.create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    accounts.create("bob@example.com", "Bob", PASSWORD, MEMBER, 1.0)
+    accounts.create("carol@example.com", "Carol", PASSWORD, MEMBER, 1.0)
+    _, ada = devices.login("ada@example.com", PASSWORD, "ada's laptop", "10.0.0.1", 2.0)
+    _, bob = devices.login("bob@example.com", PASSWORD, "bob's laptop", "10.0.0.2", 2.0)
+    _, carol = devices.login("carol@example.com", PASSWORD, "carol's laptop", "10.0.0.3", 2.0)
+    log = ChangeLog(store, ChangeRows(store), RowValues(store))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"), HubDocRules(log, accounts))
+
+    def send(device, table, row, action, actor, fields, seconds):
+        return push.answer(device, PushRequest.parsed([{"row_table": table, "row": row, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], 0.0), seconds + 1)
+
+    send(ada, "environments", 3, "created", "user:1", {"kind": "hub", "team_name": "acme"}, 1.0)
+    send(ada, "environments", 4, "created", "user:1", {"kind": "local", "team_name": "ada-main"}, 1.0)
+    send(ada, "docs", 9, "created", "user:1", {"environment_id": 3, "title": "Handbook", "body": "first words", "edit_mode": "free", "owner": 1}, 2.0)
+    send(ada, "docs", 8, "created", "user:1", {"environment_id": 4, "title": "Mine", "body": "a personal document", "edit_mode": "local", "owner": 0}, 2.0)
+    assert send(bob, "docs", 9, "updated", "user:2", {"body": "Bob's edit made while it was free"}, 3.0).rejected == (), "anyone edits a document free to edit"
+    send(ada, "docs", 9, "updated", "user:1", {"edit_mode": "read_only"}, 4.0)
+    stale = send(bob, "docs", 9, "updated", "user:2", {"body": "Bob's stale offline edit", "title": "Bob's title"}, 3.5)
+    assert {field.field for field in stale.rejected} == {"body", "title"} and stale.sequences == (0,), "a stale edit to a document that became read-only is refused whole and the sender told"
+    assert {field.field: field.value for field in stale.rejected} == {"body": "Bob's edit made while it was free", "title": "Handbook"}, "with the values that stand, which the sender puts back in its copy"
+    assert log.row("docs", 9).fields["body"] == "Bob's edit made while it was free" and log.row("docs", 9).fields["edit_mode"] == "read_only", "and the server keeps what it held"
+    assert [field.field for field in send(bob, "docs", 9, "updated", "user:2", {"edit_mode": "free"}, 5.0).rejected] == ["edit_mode"], "another member does not change who may edit it"
+    assert send(carol, "docs", 9, "updated", "user:3", {"body": "Carol, a late joiner"}, 6.0).rejected[0].field == "body", "nor does a member who joined later"
+    assert send(ada, "docs", 9, "updated", "user:1", {"body": "the owner edits"}, 7.0).rejected == (), "its owner edits it"
+    accounts.create("dan@example.com", "Dan", PASSWORD, ADMIN, 1.0)
+    _, dan = devices.login("dan@example.com", PASSWORD, "dan's laptop", "10.0.0.4", 2.0)
+    assert send(dan, "docs", 9, "updated", "user:4", {"body": "an admin edits it"}, 8.0).rejected == (), "and so does an admin who is not its owner"
+    assert send(bob, "docs", 8, "updated", "user:2", {"body": "outside the hub"}, 9.0).rejected == (), "a document outside the hub is no business of the rules"
+
+
 def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_first_time(store, tmp_path):
     from sync_server.file_store import FileStore
     from sync_server.db.push_result_rows import PushResultRows
@@ -235,7 +278,7 @@ def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_
     _, ada = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "desktop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log), FileStore(tmp_path / "files"), HubDocRules(log, accounts))
 
     def request(local_number, actor, title, seconds):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": "updated", "actor": actor, "fields": {"title": title}, "changed_at": {"title": seconds}, "local_number": local_number}])

@@ -36,6 +36,7 @@ from sync_server.login_handler import LoginHandler
 from sync_server.setup_page import SetupPage
 from sync_server.people_handler import PeopleHandler
 from sync_server.pull_handler import PullHandler
+from sync_server.hub_doc_rules import HubDocRules
 from sync_server.push_handler import PushHandler
 from sync_server.push_results import PushResults
 from sync_server.backup_handler import BackupHandler
@@ -70,7 +71,7 @@ class TeamServer:
         self.signins = SigninLinks(self.devices, self.accounts)
         self.host_requests = HostRequests(HostRequestRows(self.store), PoolCapacityRows(self.store), self.devices, self.log)
         self.uploads = UploadHandler(self.store, self.log, self.ranges, self.devices, self.details)
-        self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests, self.files)
+        self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests, self.files, HubDocRules(self.log, self.accounts))
         self.pulls = PullHandler(self.log, self.devices, self.clock, self.details, self.host_requests)
         self.people = PeopleHandler(self.accounts, self.devices)
         self.agent_views = AgentViews(self.devices)
