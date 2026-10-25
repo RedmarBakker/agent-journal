@@ -17,7 +17,7 @@ import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, doneCount, todoTotal} from "../domain/workerTurn.js";
-import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
+import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {go, peek} from "../route.js";
@@ -45,7 +45,7 @@ const worktree = (row) => (row.worktree ? (row.branch ? `Own worktree, branch ${
 const pool = (row) => (row.pool_request ? (row.device ? `Runs on machine ${row.device}, from request ${row.pool_request}` : `Waiting for a machine to take request ${row.pool_request}`) : "");
 const facts = computed(() => {
     const row = props.resource;
-    return [workerLine(row) || "Its profile's model", worktree(row), pool(row), workerReusesLine(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
+    return [workerLine(row) || "Its profile's model", worktree(row), pool(row), workerReusesLine(row), workerQueueLine(row) || workerReportsWhen(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
 });
 const parts = computed(() => [
     {key: "brief", title: "Brief", text: props.resource.brief, sub: `sent at ${clock(props.resource.created_at)}`, none: "No brief"},

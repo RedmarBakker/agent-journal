@@ -77,6 +77,15 @@ export const workerLine = (row) => [row.provider ? providerName(row.provider, ro
 export const workerName = (row) => row.name || `Worker ${row.id}`;
 
 export const workerReuses = (row) => (row.reuse_count ? `Reused ${row.reuse_count} ${row.reuse_count === 1 ? "time" : "times"}` : "");
+// when a worker on a queue reports: after each task, after every so many, or once its queue is empty
+export function workerReportsWhen(row) {
+    const tasks = row.report_choice?.tasks ?? 1;
+    return tasks === 1 ? "Reports after each task" : tasks ? `Reports after every ${tasks} tasks` : "Reports when its queue is empty";
+}
+
+// where a worker stands in its queue: the task it works on among the tasks it holds, and when it reports
+export const workerQueueLine = (row) => ((row.holds || []).length > 1 ? `Task 1 of ${row.holds.length}, ${workerReportsWhen(row).replace(/^R/, "r")}` : "");
+
 export const workerReport = (row) => row.report || "";
 
 const SECTION_OF = {running: "working", ready: "idle", unfinished: "idle", reported: "idle", finished: "retired"};

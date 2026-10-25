@@ -1,7 +1,7 @@
 import {ago} from "../format/time.js";
 import {seconds} from "./row.js";
 import {judgedLine, verifierName, verifierWord} from "./verifiers.js";
-import {WORKER_WORDS, stateAt, workerEnding, workerName, workerState} from "./workers.js";
+import {WORKER_WORDS, stateAt, workerEnding, workerName, workerQueueLine, workerState} from "./workers.js";
 
 // What each kind of sent agent shows in the one agent dropdown: its name, its state in words, a tone, when it was last active and what it worked on or judged
 const REVIEWER_WORDS = {reviewing: "Reviewing", reviewed: "Idle", "ended without a review": "Ended without a review", retired: "Retired"};
@@ -13,7 +13,7 @@ const activeAt = (row) => seconds(row.updated_at) || seconds(row.created_at);
 
 export const workerEntry = (row) => {
     const state = workerState(row);
-    return {id: row.id, name: workerName(row), state: state === "finished" ? workerEnding(row) : WORKER_WORDS[state], tone: state === "running" ? "active" : state === "finished" ? "ended" : "idle", active: active(stateAt(row)), work: row.brief || ""};
+    return {id: row.id, name: workerName(row), state: state === "finished" ? workerEnding(row) : WORKER_WORDS[state], tone: state === "running" ? "active" : state === "finished" ? "ended" : "idle", active: active(stateAt(row)), work: [workerQueueLine(row), row.brief].filter(Boolean).join(" · ")};
 };
 
 export const verifierEntry = (row) => ({id: row.id, name: verifierName(row), state: verifierWord(row), tone: VERIFIER_TONES[row.state] || "ended", active: active(activeAt(row)), work: judgedLine(row)});
