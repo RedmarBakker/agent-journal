@@ -721,6 +721,10 @@ export class ApiClient {
 
 
 
+    gitHooks() {
+        return this.get(this.here("/git-hooks"));
+    }
+
     agentProfiles() {
         return this.get("/profiles");
     }

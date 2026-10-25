@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-Bcg07cfx.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-BHgtqGFD.js";import{e as al}from"./tokens-DDFs0RK0.js";import"./tip-zqnizcoc.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-Cx0b7Nyy.js";import{e as al}from"./tokens-DDFs0RK0.js";import"./tip-DDJbOzXF.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 78750736b (Task 3281: The Checks page lists the git hooks):src/web/dist/assets/figure-B-iS1_uI.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT

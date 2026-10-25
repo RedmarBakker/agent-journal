@@ -24,6 +24,7 @@ from journal.http.controllers.team_chat import TeamChatController
 from journal.http.controllers.notices import NoticeController
 from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
+from journal.http.controllers.git_hooks import GitHookController
 from journal.http.controllers.outputs import OutputController
 from journal.http.controllers.docks import DockController
 from journal.http.controllers.process_cards import ProcessCardController
@@ -192,6 +193,7 @@ class Routes:
         checks, sequences, triggers = get(CheckController), get(SequenceController), get(TriggerController)
         self.resource(router, "checks", checks)
         self.acts(router, "checks", checks, "run", "stop")
+        router.get(f"{API}/git-hooks", get(GitHookController).index)
         self.listed(router, "sequences", sequences)
         self.acts(router, "sequences", sequences, "starts", "steps")
         self.resource(router, "triggers", triggers)

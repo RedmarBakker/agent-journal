@@ -16,6 +16,7 @@ import RowGroups from "../resource/RowGroups.vue";
 import ResourceCard from "../resource/ResourceCard.vue";
 import ResourceEnd from "../resource/ResourceEnd.vue";
 import CheckCard from "../resource/CheckCard.vue";
+import GitHooks from "../resource/GitHooks.vue";
 import NewResource from "../resource/NewResource.vue";
 import TextInput from "../kit/TextInput.vue";
 import Segmented from "../kit/Segmented.vue";
@@ -167,6 +168,9 @@ function select(id) {
                 </template>
             </SwitchCase>
         </PagedList>
+        <template v-if="table === 'checks'">
+            <GitHooks />
+        </template>
     </section>
 </template>
 

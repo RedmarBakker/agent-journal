@@ -20769,3 +20769,27 @@ def test_a_reader_the_journal_ships_is_locked_and_refused_before_anything_is_wri
     edited = app.console().run(["reader", "add", "pytest", "--about", "mine", "--pattern", "."], AGENT)
     assert edited.code != 0 and "locked" in edited.error, "the agent cannot replace one by the command"
     assert "pytest" in app.console().run(["reader", "list"], USER).text and "(locked)" in app.console().run(["reader", "list"], USER).text
+
+
+def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_they_run_and_what_they_run(app: App):
+    import os
+    import subprocess
+    root = app.config.root
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    hooks = root / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-push").write_text("#!/bin/sh\n# the push gate: the tests must pass before a push\npython3 scripts/suite.py\n")
+    os.chmod(hooks / "pre-push", 0o755)
+    (hooks / "commit-msg").write_text("#!/bin/sh\n# a commit message names its task\ngrep -q Task \"$1\"\n")
+    os.chmod(hooks / "commit-msg", 0o644)
+    (hooks / "pre-commit.sample").write_text("#!/bin/sh\n")
+    status, listed = got(app, "/journal/git-hooks", {"X-Journal-Env": "main"})
+    by_name = {hook["name"]: hook for hook in listed}
+    assert status == 200 and sorted(by_name) == ["commit-msg", "pre-push"], "each hook by its name, the samples left out"
+    assert by_name["pre-push"]["is_active"] is True and by_name["commit-msg"]["is_active"] is False, "a hook that is not executable is listed as not running"
+    assert by_name["pre-push"]["purpose"].startswith("the push gate") and by_name["pre-push"]["commands"] == ["python3 scripts/suite.py"], "what its comments say and what it runs"
+    subprocess.run(["git", "config", "core.hooksPath", "tools/hooks"], cwd=root, check=True)
+    (root / "tools" / "hooks").mkdir(parents=True)
+    (root / "tools" / "hooks" / "post-commit").write_text("#!/bin/sh\necho done\n")
+    os.chmod(root / "tools" / "hooks" / "post-commit", 0o755)
+    assert [hook["name"] for hook in got(app, "/journal/git-hooks", {"X-Journal-Env": "main"})[1]] == ["post-commit"], "core.hooksPath names the folder git uses"
