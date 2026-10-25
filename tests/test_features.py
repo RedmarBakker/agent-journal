@@ -1813,7 +1813,12 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
 
     settings.set("workers.mode", "solo", Actor.user(1))
     settings.set("workers.solo_dispatches", 2, Actor.user(1))
-    dispatch = lambda: said("PreToolUse", tool_name="Agent", tool_input={"model": "haiku", "subagent_type": "journal-researcher", "description": "find the footer", "prompt": "find it"})
+
+    def dispatch() -> str:
+        before = said("PreToolUse", tool_name="Agent", tool_input={"model": "haiku", "subagent_type": "journal-researcher", "description": "find the footer", "prompt": "find it"})
+        app.runtime().deferred.drain()
+        return before
+
     assert "you are solo" not in dispatch()
     assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
 
