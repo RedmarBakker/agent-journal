@@ -3,6 +3,7 @@ import time
 from journal.config import Config
 from journal.events.announcer import Announcer
 from journal.events.moments.boot_failed import BootFailed
+from journal.version import VERSION
 
 BOOT_NOTICE = "boot_failures.txt"
 BOOT_SECONDS = "boot_seconds"
@@ -20,7 +21,7 @@ class BootNotices:
 
     def announce(self) -> None:
         notice = self.config.home / "runtime" / BOOT_NOTICE
-        lines = notice.read_text().splitlines() if notice.is_file() else []
+        lines = notice.read_text().replace("{version}", VERSION).splitlines() if notice.is_file() else []
         notice.unlink(missing_ok=True)
         faults, self._faults = [*lines, *self._faults], []
         for text in faults:

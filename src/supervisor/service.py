@@ -68,7 +68,7 @@ class Service:
             self.restart()
             return f"{self.name} did not boot in time ({fault}): started again"
         if self._boot_failures == 2 and self.boot.has_copy():
-            self.boot.tell(f"The journal failed to boot twice, so the last version that booted runs instead. What failed: {fault}")
+            self.boot.tell(f"The journal failed to boot twice, so the last version that booted, {version}, runs instead. What failed: {fault}")
             self.command, self._on_copy = list(self.boot.fallback_command), True
             self.restart()
             return f"{self.name} did not boot again ({fault}): started from the last version that booted"

@@ -15751,6 +15751,7 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
     from journal.events.bus import Bus
     from journal.events.moments.boot_failed import BootFailed
     from journal.features.seed import Seed
+    from journal.version import VERSION
 
     class RemovedReader(Seed):
         def run(self) -> None:
@@ -15763,9 +15764,9 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
     assert "ValueError: a removed reader" in capsys.readouterr().err, "the traceback is logged"
     notice = app.container.get(Config).home / "runtime" / BOOT_NOTICE
     notice.parent.mkdir(parents=True, exist_ok=True)
-    notice.write_text("The journal failed to boot twice, so the last version that booted runs instead.\n")
+    notice.write_text("The journal failed to boot twice, so the last version that booted, {version}, runs instead.\n")
     app.container.get(BootNotices).announce()
-    assert told == ["The journal failed to boot twice, so the last version that booted runs instead.", "RemovedReader raised at boot and was skipped: ValueError: a removed reader"], "the supervisor's line and the seed's fault are told"
+    assert told == [f"The journal failed to boot twice, so the last version that booted, {VERSION}, runs instead.", "RemovedReader raised at boot and was skipped: ValueError: a removed reader"], "the supervisor's line and the seed's fault are told"
     assert not notice.exists(), "and told once"
     app.container.get(BootNotices).announce()
     assert len(told) == 2
