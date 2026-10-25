@@ -27,6 +27,9 @@ class Doc(Scoped):
     def local_copy(self) -> "Doc":
         return Doc(title=self.title, abstract=self.abstract, body=self.body, is_copy=True)
 
+    def taken_back(self, environment_id: int) -> "Doc":
+        return self.with_(environment_id=environment_id, edit_mode=DocEditMode.LOCAL, owner=0)
+
     def is_withheld(self) -> bool:
         return self.is_copy
 

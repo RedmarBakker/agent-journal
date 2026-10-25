@@ -7,6 +7,7 @@ from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
+from journal.features.docs.support.doc_sources import ATTACHED, COPIED_FROM, DocSources
 from journal.features.docs.support.hub_move import HubMove
 from journal.models.doc import Doc
 from journal.models.doc_edit_mode import DocEditMode
@@ -21,16 +22,14 @@ from journal.engine.clock import Clock
 from journal.sync.team_account import TeamAccount
 
 
-ATTACHED = "attached_to"
-COPIED_FROM = "copied_from"
 
 
 class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove) -> None:
-        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.hub_move = docs, revisions, clock, hub_rows, hub, account, links, scope, hub_move
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove, sources: DocSources) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.hub_move, self.sources = docs, revisions, clock, hub_rows, hub, account, links, scope, hub_move, sources
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -64,6 +63,8 @@ class DocCommand(Command):
         copying.add_argument("n", type=int)
         attaching = self.verb(verbs, "attach", "attach a hub document that is free to edit to this environment: it is edited in place, on the hub")
         attaching.add_argument("n", type=int)
+        unsharing = self.verb(verbs, "unshare", "take a document back off the hub, to this environment, where it is a document of your own again; the other members' journals let it go, and a copy or an attachment of it there stays, its source shown as removed")
+        unsharing.add_argument("n", type=int)
         imported = self.verb(verbs, "import", "bring in the documents version 3 kept, each folder's doc.md; one titled as a document here already is left")
         imported.add_argument("folder", help="version 3's project/doc folder")
 
@@ -80,7 +81,7 @@ class DocCommand(Command):
 
     def show(self, args: Namespace, caller: Caller) -> int:
         doc = self.docs.find(self.hub_rows.number(args.n))
-        print("\n".join([*filter(None, (f"doc {doc.id}: {doc.title}", doc.abstract)), *Outline.build(doc.body).summary(args)]))
+        print("\n".join([*filter(None, (f"doc {doc.id}: {doc.title}", doc.abstract, self.sources.copied(doc))), *Outline.build(doc.body).summary(args)]))
         return 0
 
     def revisions(self, args: Namespace, caller: Caller) -> int:
@@ -142,6 +143,12 @@ class DocCommand(Command):
             raise Rejection(f"doc {doc.id} is not on the hub: journal doc share {doc.id} puts it there")
         return doc
 
+    def unshare(self, args: Namespace, caller: Caller) -> int:
+        doc = self.on_hub(args.n)
+        back = self.hub_move.take_back(doc, self.scope.id, caller.actor)
+        print(f"doc {back.id} is off the hub and a document of this environment again")
+        return 0
+
     def mode(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
         self.docs.save(doc.with_(edit_mode=DocEditMode(args.mode)), caller.actor)
@@ -150,7 +157,9 @@ class DocCommand(Command):
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for doc in self.docs.all():
-            print(f"{doc.id:>4}  {doc.title}")
+            print(f"{doc.id:>4}  {doc.title}" + (f"  ({self.sources.copied(doc)})" if doc.is_copy else ""))
+        for line in self.sources.attached():
+            print(line)
         return 0
 
     def import_(self, args: Namespace, caller: Caller) -> int:

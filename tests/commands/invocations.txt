@@ -97,6 +97,7 @@ agent doc share 1
 agent doc mode 1 free
 agent doc copy 1
 agent doc attach 1
+agent doc unshare 1
 agent doc import --help
 agent report create "What the cart test found" --body "The total adds the tax twice" --about tasks:2
 agent report list

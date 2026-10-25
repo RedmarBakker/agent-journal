@@ -21,19 +21,27 @@ STAMP_COLUMNS = ("updated_at", "updater")
 
 
 class RecordOutgoingChange(Listener[ModelEvent]):
-    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, with every link that now joins it to a row of the team."""
+    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, with every link that now joins it to a row of the team, and one an update takes out of it is withdrawn with its links, kept by whoever took it."""
 
     def __init__(self, changes: OutgoingChanges, account: TeamAccount, placement: TeamPlacement, links: Links, hooks: ServiceHooks) -> None:
         self.changes, self.account, self.placement, self.links, self.hooks = changes, account, placement, links, hooks
 
     def handle(self, event: ModelEvent) -> None:
         action = ACTIONS.get(type(event))
+        if action == UPDATED and self.account.is_joined() and event.previous is not None and self.placement.is_sent(event.previous) and not self.placement.is_sent(event.model):
+            self.left(event)
+            return
         if action is None or not self.account.is_joined() or not self.placement.is_sent(event.model):
             return
         if action == UPDATED and event.previous is not None and not self.placement.is_sent(event.previous):
             self.entered(event)
             return
         self.queued(event.model, action, self.names(event, action), event.actor)
+
+    def left(self, event: Updated) -> None:
+        for row in (event.model, *self.links.link_rows(event.model)):
+            self.changes.queued(OutgoingChange.withdrawal(row, event.actor.stamp, event.actor.stamp), event.actor)
+        self.changes.commit_callback(partial(self.hooks.post, ServiceEvent(CHANGE_QUEUED)))
 
     def entered(self, event: Updated) -> None:
         for row in (event.model, *(link for link in self.links.link_rows(event.model) if self.placement.is_sent(link))):

@@ -12689,6 +12689,42 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         team.close(server)
 
 
+def test_a_document_is_taken_back_off_the_hub_and_a_copy_and_an_attachment_of_a_removed_one_stay_with_their_source_shown_as_removed(app: App, tmp_path):
+    from journal.models.environment import Environment
+    from journal.models.doc_edit_mode import DocEditMode
+    from journal.repositories.docs import Docs
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
+    hook(app, "SessionStart")
+    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+    console, docs, scope = app.console(), app.container.get(Docs), app.container.get(Scope)
+    page = tmp_path / "doc.md"
+    page.write_text("# Notes\n\nthe words\n")
+    for title in ("Taken back", "Source", "Attached"):
+        assert console.run(["doc", "create", title, "--file", str(page)], USER).code == 0
+    number = lambda title: next(doc.id for doc in docs.global_matching(title=title) if not doc.is_copy)
+    assert console.run(["doc", "share", str(number("Taken back")), "--mode", "free"], USER).code == 0
+    assert console.run(["doc", "share", str(number("Source")), "--mode", "read_only"], USER).code == 0
+    assert console.run(["doc", "share", str(number("Attached")), "--mode", "free"], USER).code == 0
+    with scope.environment(hub.row_id):
+        assert {doc.title for doc in docs.all() if doc.environment_id == hub.row_id} == {"Taken back", "Source", "Attached"}
+    back = console.run(["doc", "unshare", str(number("Taken back"))], USER)
+    assert back.code == 0, back.error
+    restored = docs.find(number("Taken back"))
+    assert restored.environment_id == 1 and restored.edit_mode == DocEditMode.LOCAL and restored.body.endswith("the words\n"), "the document is a local one again, its text kept"
+    with scope.environment(hub.row_id):
+        assert "Taken back" not in {doc.title for doc in docs.all() if doc.environment_id == hub.row_id}, "and the hub holds no row of it"
+    assert console.run(["doc", "copy", str(number("Source"))], USER).code == 0 and console.run(["doc", "attach", str(number("Attached"))], USER).code == 0
+    copy = next(doc for doc in docs.global_matching(title="Source") if doc.is_copy)
+    assert "(on the hub)" in console.run(["doc", "show", str(copy.id)], USER).text
+    docs.delete(docs.find(number("Source")), Actor.system())
+    docs.delete(docs.find(number("Attached")), Actor.system())
+    shown, listed = console.run(["doc", "show", str(copy.id)], USER), console.run(["doc", "list"], USER)
+    assert shown.code == 0 and "copied from doc" in shown.text and "(removed)" in shown.text and "the words" not in shown.error, shown.error
+    assert listed.code == 0 and f"{copy.id}" in listed.text and "Source" in listed.text and "(removed)" in listed.text, "the copy is still listed, its source shown as removed"
+    assert "attached here: doc" in listed.text and listed.text.count("(removed)") == 2, "and so is the attachment of a removed document"
+
+
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
     from journal.features.etiquette.feature import Etiquette
     from journal.features.messages.feature import Messages as MessagesFeature
