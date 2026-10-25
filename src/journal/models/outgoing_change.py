@@ -27,6 +27,10 @@ class OutgoingChange(Model):
     is_sending: bool = False
     kept_by: str = ""
 
+    @classmethod
+    def withdrawal(cls, row: Model, writer: str, kept_by: str) -> "OutgoingChange":
+        return cls(row_table=row.table(), row=row.row_id, action=WITHDRAWN, fields={}, changed_at={}, writer=writer, kept_by=kept_by)
+
     def merged(self, later: "OutgoingChange") -> "OutgoingChange | None":
         if later.action in (DELETED, WITHDRAWN):
             return None if self.action == CREATED else self.with_(action=later.action, fields={}, changed_at={}, writer=later.writer, kept_by=later.kept_by)

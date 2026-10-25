@@ -707,21 +707,12 @@ def test_a_withdrawn_change_the_journal_keeps_is_never_read_as_a_deletion_or_an_
     assert update.with_(action="created").merged(withdrawal) is None, "a row withdrawn before it was ever sent is sent not at all"
 
 
-def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_server_and_the_colleague_and_the_owner_keeps_them(tmp_path):
+def served_team_journals(tmp_path):
+    """Ada's and Bob's team journals joined to one team server in this process, and the step that carries Ada's waiting writes through the server into Bob's journal."""
     import json
-    from journal.config import Config
-    from journal.features.team.support.environment_sharing import EnvironmentSharing
-    from journal.models.environment import Environment
-    from journal.models.message import Message
-    from journal.models.plan import Plan
-    from journal.models.user import User
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.shared_tables import SharedTables
-    from journal.repositories.users import Users
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.team_account import TEAM_FILE
     from journal.sync.team_change import TeamChange
     from sync_server.account import ADMIN, MEMBER
-    from sync_server.file_place import FilePlace
     from sync_server.push_request import PushRequest
     from sync_server.team_server import TeamServer
 
@@ -731,13 +722,10 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "10.0.0.1", 2.0)
     bob, _ = team.devices.login("bob@example.com", "correct horse battery", "desktop", "10.0.0.2", 2.0)
-    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
-    _, scope_b, tasks_b, outgoing_b, incoming_b = team_journal(tmp_path, "b")
+    journal_a, journal_b = team_journal(tmp_path, "a"), team_journal(tmp_path, "b")
     (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 1}))
     (tmp_path / "b" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2}))
-    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
-    links_a, links_b = Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
-    pulled = [0]
+    outgoing_a, incoming_b, pulled = journal_a[3], journal_b[4], [0]
 
     def carried():
         changes = outgoing_a.waiting()
@@ -745,6 +733,26 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
         outgoing_a.sent(changes)
         incoming_b.apply([TeamChange.logged(change) for change in team.log.pull_page(pulled[0], bob.id)])
         pulled[0] = team.log.head()
+
+    return team, journal_a, journal_b, carried
+
+
+def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_server_and_the_colleague_and_the_owner_keeps_them(tmp_path):
+    from journal.config import Config
+    from journal.features.team.support.environment_sharing import EnvironmentSharing
+    from journal.models.environment import Environment
+    from journal.models.message import Message
+    from journal.models.plan import Plan
+    from journal.models.user import User
+    from journal.repositories.environment_owners import EnvironmentOwners
+    from journal.repositories.shared_tables import SharedTables
+    from journal.repositories.users import Users
+    from journal.sync.team_account import TeamAccount
+    from sync_server.file_place import FilePlace
+
+    team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, outgoing_b, _), carried = served_team_journals(tmp_path)
+    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
+    links_a, links_b = Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
 
     hub = scope_a.environments.save(Environment(name="hub", is_team_chat=True), USER)
     shared = scope_a.environments.save(Environment(name="mine"), USER)
@@ -778,6 +786,43 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     assert outgoing_b.waiting() == [], "the colleague sends nothing back for what it let go"
     assert {(table, id) for table, id in withdrawn if rows_a.rows(table).matching(id=id)} == set(withdrawn) and links_a.connecting(task, hub_task), "the owner keeps every row and its link to the hub's task"
     assert (tmp_path / "a" / ".journal" / "files" / "message" / str(messages[0].id) / "note.txt").read_bytes() == b"a note", "and its file"
+    team.store.close()
+
+
+def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_and_every_journal_keeps_its_copy(tmp_path):
+    from journal.models.check import Check
+    from journal.models.environment import Environment
+    from journal.models.rule import Rule
+    from journal.models.sequence import Sequence
+    from journal.models.template import Template
+    from journal.models.trigger import Trigger
+    from journal.models.user import User
+    from journal.repositories.shared_tables import SharedTables
+    from journal.services.service_hooks import ServiceHooks
+    from journal.sync.migration_withdrawal import MigrationWithdrawal
+
+    team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, outgoing_b, _), carried = served_team_journals(tmp_path)
+    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
+    kept = [rows_a.rows(row.table()).save(row, USER) for row in (Rule(text="a rule"), Template(title="a template"), Trigger(phrases=("a phrase",)), Check(title="a check", command="true"), Sequence(title="a sequence"))]
+    private = scope_a.environments.save(Environment(name="private"), USER)
+    shared = scope_a.environments.save(Environment(name="open", is_shared_with_team=True), USER)
+    chat = scope_a.environments.save(Environment(name="team", is_team_chat=True), USER)
+    owner = Links(tasks_a.connection, tasks_a.bus).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
+    with scope_a.environment(shared.id):
+        task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)
+    carried()
+    withdrawn = [*((row.table(), row.id) for row in kept), ("environments", private.id), ("links", owner.id)]
+    on_server = lambda: {(row.row_table, row.row) for row in team.log.copied_rows()}
+    assert set(withdrawn) <= on_server(), "before the migration the team server holds them all"
+
+    MigrationWithdrawal(outgoing_a, rows_a, Links(tasks_a.connection, tasks_a.bus), ServiceHooks()).withdraw(Actor.system())
+    carried()
+    assert not set(withdrawn) & on_server() and {("environments", shared.id), ("environments", chat.id), ("tasks", task.id)} <= on_server(), "the server forgets the rules, templates, triggers, checks, sequences and the unshared environment, and keeps the shared ones and their rows"
+    assert not team.store.all("SELECT * FROM rows WHERE fields LIKE '%private%'") and not team.store.all("SELECT * FROM changes WHERE fields LIKE '%private%'"), "no unshared environment's name is left on the server"
+    assert not any((tmp_path / "server" / "files" / table / str(id)).exists() for table, id in withdrawn), "nor any file of a withdrawn row"
+    for rows in (rows_a, rows_b):
+        assert all(rows.rows(table).matching(id=id) for table, id in withdrawn), "every journal keeps its copy of each"
+    assert outgoing_a.waiting() == [] and outgoing_b.waiting() == [], "nothing goes back to the team for what every journal keeps"
     team.store.close()
 
 

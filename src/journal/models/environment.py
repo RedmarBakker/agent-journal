@@ -31,6 +31,9 @@ class Environment(Model):
     def is_personal(self) -> bool:
         return self.kind == EnvironmentKind.LOCAL and not self.is_team_chat
 
+    def is_private(self) -> bool:
+        return self.is_personal() and not self.is_shared_with_team
+
     def local_ready(self) -> "Environment":
         return self.with_(name=self.team_name) if self.team_name is not None else self
 

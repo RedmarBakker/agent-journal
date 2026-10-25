@@ -5,7 +5,7 @@ from journal.events.rows.environment_unshared import EnvironmentUnshared
 from journal.models.all_models import AllModels
 from journal.models.environment import Environment
 from journal.models.model import Model
-from journal.models.outgoing_change import WITHDRAWN, OutgoingChange
+from journal.models.outgoing_change import OutgoingChange
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.links import Links
 from journal.repositories.outgoing_changes import OutgoingChanges
@@ -30,7 +30,7 @@ class RecordWithdrawal(Listener[EnvironmentUnshared]):
         keeper = Actor.user(self.owners.owner_number(event.environment_id) or self.account.user_number()).stamp
         actor = Actor.parse(event.actor)
         for row in [*self.links.touching_any(rows), *rows]:
-            self.changes.queued(OutgoingChange(row_table=row.table(), row=row.row_id, action=WITHDRAWN, fields={}, changed_at={}, writer=actor.stamp, kept_by=keeper), actor)
+            self.changes.queued(OutgoingChange.withdrawal(row, actor.stamp, keeper), actor)
         self.changes.commit_callback(partial(self.hooks.post, ServiceEvent(CHANGE_QUEUED)))
 
     def team_rows(self, environment_id: int) -> list[Model]:
