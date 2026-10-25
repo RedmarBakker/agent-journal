@@ -8912,7 +8912,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     from journal.repositories.entries import Entries
     with app.container.get(Scope).environment(MAIN):
         said = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_place_free"]
-    assert said and "the lexer tests" in said[-1], "a merged worker frees a place, and the orchestrator is told at once with the open tasks"
+    assert said and "is done; 1 tasks are open; next: " in said[-1], "a merged worker frees a place, and the orchestrator is told at once the count of open tasks and the next ones by number"
     with app.container.get(Scope).environment(MAIN):
         reopened = [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "tasks.task_reopened"]
     assert not reopened, "a merge finishes its task before it lets the worker go, so the task never opens again on the way"
@@ -12053,6 +12053,7 @@ def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_th
     from urllib.error import HTTPError
     from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
     from journal.http.support.member_sessions import MemberSessions
+    from sync_server.protocol import PROTOCOL, PROTOCOL_HEADER
     from journal.repositories.id_blocks import IdBlocks
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from sync_server.account import ADMIN, MEMBER, RELAY
@@ -12093,7 +12094,7 @@ def test_a_removed_member_of_a_hosted_journal_is_refused_by_their_session_and_th
 
     def token_status(token):
         try:
-            with opener.open(HttpRequest(address + "/people", headers={"Authorization": f"Bearer {token}"}), timeout=10) as answer:
+            with opener.open(HttpRequest(address + "/people", headers={"Authorization": f"Bearer {token}", PROTOCOL_HEADER: str(PROTOCOL)}), timeout=10) as answer:
                 return answer.status
         except HTTPError as refused:
             return refused.code
