@@ -11578,6 +11578,7 @@ def test_a_job_sent_to_a_worker_that_reported_puts_the_dispatcher_back_in_its_wa
 
 def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: App, tmp_path, monkeypatch):
     import subprocess
+    from journal.models.message import Message
     from journal.repositories.messages import Messages
     from journal.repositories.workers import Workers
     home = tmp_path / "home"
@@ -11605,11 +11606,12 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
     console.run(["worker", "complete", "1"], AGENT)
     assert marks() == [
         ("Worker 1, Mr. Wedgwood: sent its next job", "", "the jug"),
-        ("Worker 1, Mr. Wedgwood: sent a message in its session", "", "a blue glaze"),
         ("Worker 1, Mr. Wedgwood: started again in its last session", "", "the teapot"),
         ("Worker 1, Mr. Wedgwood: retired, its report acted on", "", ""),
     ]
     assert all(len(text) <= 80 for text, _, _ in marks())
+    sent = [(m.text, m.session, m.data.get(Message.RECIPIENT_KEY)) for m in messages.scoped() if m.data.get("kind") == Message.PEER]
+    assert sent == [("a blue glaze", "s1", "worker 1, Mr. Wedgwood")], "a notify is a message sent to the worker in the dispatcher's chat, its whole text, as a message to any other agent is, never a worker mark"
 
 
 def test_the_files_a_worker_touched_are_read_from_its_branch_when_it_reports_a_rename_under_both_names(app: App):

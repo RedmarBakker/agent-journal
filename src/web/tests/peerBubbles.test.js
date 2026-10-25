@@ -20,6 +20,7 @@ const messages = [
     card(1, 10, {kind: "peer", peer: "Coco"}, "the report is ready"),
     card(2, 20, {kind: "peer", sent_to: "Coco"}, "thanks, merging now"),
     card(3, 30, {kind: "peer", sent_to: "Coco", failure: "the socket is stale"}, "thanks, merging now"),
+    card(4, 40, {kind: "peer", sent_to: "worker 1127, Mrs. Harrison", address: "workers:1127"}, "a blue glaze on the jug as well, and the handle a little thicker than the last one"),
 ];
 const scope = {env: "", api: {}, rows: () => messages, loaded: () => true, holding: () => {}, earlier: () => {}};
 
@@ -59,6 +60,14 @@ test("what the agent sends to another agent sits on the agent's side and names w
     const shown = await drawn(sent);
     expect(shown.mine).toBe(false);
     expect(shown.head).toContain("Message sent to Coco");
+});
+
+test("a message to a worker is the same sent-message card as one to any agent, its whole text shown when it grows", async () => {
+    const [, sent, , toWorker] = threadTurns(messages, []).turns;
+    const [shown, other] = [await drawn(toWorker), await drawn(sent)];
+    expect(shown.head).toContain("Message sent to worker 1127, Mrs. Harrison");
+    expect(shown.expanded).toBe(true);
+    expect([shown.mine, shown.bubble, shown.header, shown.red]).toEqual([other.mine, other.bubble, other.header, other.red]);
 });
 
 test("a send that failed says so in red with the tool's reason, never as sent", async () => {

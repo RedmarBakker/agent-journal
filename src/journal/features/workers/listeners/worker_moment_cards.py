@@ -1,6 +1,5 @@
 from journal.events.listener import Listener
 from journal.events.rows.row_event import RowEvent
-from journal.events.rows.worker_notified import WorkerNotified
 from journal.events.rows.worker_queue_drained import WorkerQueueDrained
 from journal.events.rows.worker_rebased import WorkerRebased
 from journal.events.rows.worker_retired import WorkerRetired
@@ -17,7 +16,6 @@ from journal.repositories.tasks import Tasks
 MOMENTS = {
     WorkerReused: ("sent its next job", "brief"),
     WorkerRevived: ("started again in its last session", "brief"),
-    WorkerNotified: ("sent a message in its session", "text"),
     WorkerRetired: ("retired, its report acted on", ""),
     WorkerQueueDrained: ("its queue given back", "tasks"),
     WorkerRebased: ("rebased by the journal", "outcome"),
@@ -25,13 +23,13 @@ MOMENTS = {
 
 
 class WorkerMomentCards(Listener[RowEvent]):
-    """Each moment of a worker after its dispatch is one new mark in the chat naming the task the worker holds: sent its next job, started again, sent a message, retired, its queue given back, rebased by the journal."""
+    """Each moment of a worker after its dispatch is one new mark in the chat naming the task the worker holds: sent its next job, started again, retired, its queue given back, rebased by the journal; a message sent to it is the worker chat's."""
 
     def __init__(self, cards: MomentCards, tasks: Tasks) -> None:
         self.cards, self.tasks = cards, tasks
 
     def handle(self, event: RowEvent) -> None:
-        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired, WorkerQueueDrained, WorkerRebased)) or isinstance(event, WorkerSentOn):
+        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerRetired, WorkerQueueDrained, WorkerRebased)) or isinstance(event, WorkerSentOn):
             return
         text, detail = MOMENTS[type(event)]
         worker = event.worker

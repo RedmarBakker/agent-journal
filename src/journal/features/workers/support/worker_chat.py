@@ -1,3 +1,4 @@
+from journal.events.rows.worker_mention import WorkerMention
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.models.agent_role import AgentRole
 from journal.models.author import Author
@@ -12,13 +13,18 @@ from journal.support.voice_key import VoiceKey
 
 
 class WorkerChat:
-    """A worker's own chat: what it is informed, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in the workers' chat; nothing is read of a conversation another agent now holds, as when a worker's session was resumed as the main agent."""
+    """A worker's own chat: what it is informed, shown in the chat of the agent that dispatched it as a message sent to it, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in the workers' chat; nothing is read of a conversation another agent now holds, as when a worker's session was resumed as the main agent."""
 
     def __init__(self, messages: Messages, workers: Workers, providers: Providers, branch: WorkerBranch, agents: Agents) -> None:
         self.messages, self.workers, self.providers, self.branch, self.agents = messages, workers, providers, branch, agents
 
     def instruction(self, worker: Worker, text: str, actor: Actor) -> Message:
         return self.messages.save(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=AgentRole.WORKER), actor)
+
+    def sent(self, worker: WorkerMention, text: str, actor: Actor) -> Message:
+        roles = self.agents.session_roles(worker.dispatcher) if worker.dispatcher else []
+        message = Message.outgoing(worker.title(), text, worker.dispatcher, worker.ref())
+        return self.messages.save(message.with_(agent_role=roles[0]) if roles else message, actor)
 
     def read(self, worker: Worker) -> Worker:
         if not worker.conversation() or self.is_agent_session(worker):
