@@ -34,6 +34,7 @@ from journal.repositories.workers import Workers
 from journal.repositories.templates import Templates
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.engine.command_events import CommandEvents
+from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
@@ -58,7 +59,8 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets) -> None:
+        self.targets = targets
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
@@ -106,7 +108,9 @@ class WorkerCommand(Command):
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
         notify.add_argument("n", type=int)
         notify.add_argument("text")
-        self.verb(verbs, "wait", "wait until these workers have reported").add_argument("on", type=int, nargs="+")
+        wait = self.verb(verbs, "wait", "wait until these workers have reported")
+        wait.add_argument("on", type=int, nargs="+")
+        wait.add_argument("--output", type=int, action="append", default=[], metavar="N", help="a command's output the same wait also ends on, such as a test run; more than one waits for all")
         for verb, help in (("stop", "end a worker"), ("complete", "a worker's report acted on: merged, used or set aside, so it is no longer named")):
             retire = self.verb(verbs, verb, help)
             retire.add_argument("n", type=int)
@@ -303,10 +307,13 @@ class WorkerCommand(Command):
             if not worker.is_pending():
                 print(self.state_line(worker))
         crew = [worker for worker in workers if worker.is_pending()]
-        if crew:
+        runs = self.targets.outputs.unended_outputs(args.output)
+        if crew or runs:
             numbers = ", ".join(str(worker.id) for worker in crew)
-            self.events.wait_declared(f"the work of workers {numbers}", ",".join(worker.mention().ref() for worker in crew), caller)
-            print(f"awaiting workers {numbers}: you are told as each reports, and when the last is back")
+            focus = f"the work of workers {numbers}" if crew else "the test run"
+            refs = [worker.mention().ref() for worker in crew] + [self.targets.ref(run) for run in runs]
+            self.events.wait_declared(focus + "".join(f" and output {run.id}" for run in runs), ",".join(refs), caller)
+            print(f"awaiting {', '.join([f'workers {numbers}'] * bool(crew) + [f'output {run.id}' for run in runs])}: you are told as each ends, and when the last is done")
         return 0
 
     def state_line(self, worker: Worker) -> str:

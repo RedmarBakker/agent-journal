@@ -12628,6 +12628,21 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a
     assert "clocked out and their work waits" not in body.get("reason", ""), "a run started by a cd into the worker's worktree counts as a run in it"
 
 
+def test_one_wait_holds_a_test_run_and_the_workers_still_out(app: App, monkeypatch):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.features.tasks.states.external_wait import ExternalWait
+    workspace_made(app, ("platform",))
+    worktree_worker(app, monkeypatch, "platform totals")
+    with app.container.get(Scope).environment(MAIN):
+        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-both", command="python3 scripts/suite.py", session="s1"), Actor.agent("s1"))
+    waited = app.console().run(["worker", "wait", "1", "--output", str(run.id)], AGENT)
+    assert waited.code == 0, waited.error
+    assert f"output {run.id}" in waited.output and "workers 1" in waited.output, waited.output
+    refs = hook(app, "Stop")[1]
+    assert "journal worker wait" not in refs.get("reason", ""), "a stop while one wait holds the run and the worker is let through"
+
+
 def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_to_wait_while_its_workers_are_out(app: App, monkeypatch):
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
