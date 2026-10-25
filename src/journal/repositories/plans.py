@@ -18,6 +18,7 @@ from journal.repositories.tasks import CLOSED_STATES, CURRENT_TASK_LINK, PLAN_LI
 from journal.repositories.workers import Workers
 from journal.models.phase_states import PhaseStates
 from journal.models.support.ref import Ref
+from journal.support.time_source import TimeSource
 
 
 PHASE_LINK = "in_phase"
@@ -28,8 +29,8 @@ class Plans(ScopedRepository[Plan]):
 
     model = Plan
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, tasks: Tasks, phases: Phases, workers: Workers) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, tasks: Tasks, phases: Phases, workers: Workers, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
 
     def approve(self, plan: Plan, actor: Actor) -> Plan:

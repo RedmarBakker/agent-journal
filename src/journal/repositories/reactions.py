@@ -10,6 +10,7 @@ from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.support.time_source import TimeSource
 
 REACTS = "reacts"
 
@@ -17,8 +18,8 @@ REACTS = "reacts"
 class Reactions(ScopedRepository[Reaction]):
     model = Reaction
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links = links
 
     def reactions(self, message: Message) -> list[Reaction]:

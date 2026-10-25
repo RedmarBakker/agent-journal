@@ -9,6 +9,7 @@ from journal.repositories.rows import Rows
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 
 MEMBER_LINK = "member"
 OWNER_LINK = "collection"
@@ -19,8 +20,8 @@ class Collections(ScopedRepository[Collection]):
 
     model = Collection
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, rows: Rows) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, rows: Rows, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links, self.rows = links, rows
 
     def members(self, collection: Collection) -> list[Ref]:

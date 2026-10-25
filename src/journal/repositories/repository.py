@@ -30,6 +30,7 @@ from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.support.title import Title
 from journal.support.missing_row import MissingRow
+from journal.support.time_source import TimeSource
 
 M = TypeVar("M", bound=Model)
 
@@ -43,8 +44,8 @@ class Repository(Generic[M]):
 
     model: type[M]
 
-    def __init__(self, connection: Connection, bus: Bus) -> None:
-        self.connection, self.bus = connection, bus
+    def __init__(self, connection: Connection, bus: Bus, time_source: TimeSource) -> None:
+        self.connection, self.bus, self.time_source = connection, bus, time_source
         self.columns: tuple[Column, ...] = Schema.columns(self.model)
         self.column_map = {column.name: column for column in self.columns}
         self.table = self.model.table()
@@ -358,6 +359,5 @@ class Repository(Generic[M]):
         for query in reads:
             self.connection.rewritten(query.tables(), *query.select(), [new_row])
 
-    @staticmethod
-    def _time() -> datetime:
-        return datetime.now(timezone.utc)
+    def _time(self) -> datetime:
+        return self.time_source.moment()

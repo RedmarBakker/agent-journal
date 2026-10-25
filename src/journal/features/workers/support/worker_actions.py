@@ -1,7 +1,6 @@
 from journal.events.worker_merge_result import WorkerMergeResult
 from journal.events.worker_merging import WorkerMerging
 from journal.engine.command_events import CommandEvents
-from datetime import datetime, timezone
 
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_sent_on import WorkerSentOn
@@ -11,6 +10,7 @@ from journal.features.workers.support.failed_runs import FailedRuns
 from journal.events.moments.worker_merge_refused import WorkerMergeRefused
 from journal.features.workers.support.merge_clash import MergeClash
 from journal.support.merger import Merger
+from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -55,9 +55,9 @@ REDO_MOVE = REJECTION_MOVE
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account, self.moves, self.failures, self.settings, self.merger = account, moves, failures, settings, merger
+        self.account, self.moves, self.failures, self.settings, self.merger, self.time_source = account, moves, failures, settings, merger, time_source
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -133,7 +133,7 @@ class WorkerActions:
         if not self.moves.is_remote_run(worker):
             self.resumable(worker)
         shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
-        self.proofs.save(proof.short(self.failures.with_output(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher, prior_shortfalls, worker.model), actor)
+        self.proofs.save(proof.short(self.failures.with_output(worker, shortfall_lines), self.time_source.moment().timestamp(), task.id, worker.id, worker.dispatcher, prior_shortfalls, worker.model), actor)
         return task
 
     def unrun(self, n: int, point: int, task_id: int = 0) -> str:
@@ -166,11 +166,11 @@ class WorkerActions:
             merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
             outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
             steps.started(3)
-            closed = self.tasks.save(task.merge_completed(datetime.now(timezone.utc), outcome, worker.id), actor)
+            closed = self.tasks.save(task.merge_completed(self.time_source.moment(), outcome, worker.id), actor)
             self.tasks.release_task(Ref.build(worker), task.id, actor)
-            closed_queue = tuple(self.tasks.save(queued_task.merge_completed(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
+            closed_queue = tuple(self.tasks.save(queued_task.merge_completed(self.time_source.moment(), merged, worker.id), actor) for queued_task in finished)
             self.tasks.unfinished(Ref.build(worker), actor)
-            self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
+            self.workers.save(worker.merged(task.id, self.time_source.moment().timestamp()), actor)
             self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
             self.moves.cleared(worker)
             steps.started(4)
@@ -178,8 +178,8 @@ class WorkerActions:
         steps.started(5)
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         if not next_task:
-            self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)
-        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp(), lines=merged_total))
+            self.workers.save(self.workers.find(worker.id).queue_emptied(self.time_source.moment().timestamp()), actor)
+        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total))
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
 
     def queue_note(self) -> str:
@@ -283,7 +283,7 @@ class WorkerActions:
             self.tasks.release(Ref.build(worker), actor)
             self.tasks.unqueued(Ref.build(worker), actor)
             self.moves.cleared(worker)
-            return self.workers.save(worker.released(datetime.now(timezone.utc).timestamp()), actor)
+            return self.workers.save(worker.released(self.time_source.moment().timestamp()), actor)
 
     def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str, reused: type[WorkerReused] = WorkerReused) -> Worker:
         revival = worker.state == WorkerState.STOPPED or self.runner.is_ended(worker)
@@ -292,7 +292,7 @@ class WorkerActions:
         self.resumable(worker)
         brief = self.rebase_note(worker) + (EDITED_NOTE.format(task=worker.edited_task) if worker.edited_task else "") + brief
         repositories = self.renewal(worker, brief)
-        moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories, edited_task=0), datetime.now(timezone.utc).timestamp()
+        moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories, edited_task=0), self.time_source.moment().timestamp()
         if self.is_session_busy(worker):
             self.inbox.deliver(worker.pid, worker.resume, "the agent that dispatched you", brief)
             return self.workers.save(moved.redirected(brief, time, reused, move), actor)
@@ -348,7 +348,7 @@ class WorkerActions:
         if refusal:
             raise Rejection(refusal.format(n=worker.id, name=worker.name, provider=worker.provider.capitalize()))
         self.inbox.deliver(worker.pid, worker.resume, sender, text)
-        return self.workers.save(worker.notified(text, datetime.now(timezone.utc).timestamp(), actor.stamp), actor)
+        return self.workers.save(worker.notified(text, self.time_source.moment().timestamp(), actor.stamp), actor)
 
     def notify_refusal(self, worker: Worker) -> str:
         if worker.state in NOTIFY_REFUSALS:
@@ -364,7 +364,7 @@ class WorkerActions:
             worker = self.local(n)
             if self.moves.is_remote(worker):
                 return self.pool_stop(worker, reason, actor)
-            worker = self.workers.save(worker.stopped(datetime.now(timezone.utc).timestamp(), reason), actor)
+            worker = self.workers.save(worker.stopped(self.time_source.moment().timestamp(), reason), actor)
             self.runner.stop(worker)
             self.moves.cleared(worker)
             return worker
@@ -386,7 +386,7 @@ class WorkerActions:
 
     def retired(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
         with self.runner.lock(n):
-            worker = self.workers.save(self.local(n).finished(datetime.now(timezone.utc).timestamp(), reason), actor)
+            worker = self.workers.save(self.local(n).finished(self.time_source.moment().timestamp(), reason), actor)
             self.runner.stop(worker)
             self.tasks.release(Ref.build(worker), actor)
             self.moves.cleared(worker)

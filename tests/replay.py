@@ -15,6 +15,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import posted
+from journal.support.time_source import TimeSource
 
 RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
@@ -50,18 +51,17 @@ def catch_typed(app, monkeypatch, keystrokes: list) -> None:
 
 
 def drive_the_clock(app, monkeypatch) -> None:
-    """The engine's clock held at the moment the replay starts, so every hook notes its time there and a tick says how long after it was."""
+    """The journal's time source pinned at the moment the replay starts, so every hook and every row notes its time there and a tick says how long after it was."""
     clock = app.container.get(Clock)
-    clock.driven_at = timing.time()
-    clock.held_at = clock.driven_at
-    monkeypatch.setattr(Clock, "time", lambda self: getattr(self, "driven_at", timing.time()))
+    clock.held_at = timing.time()
+    monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", clock.held_at)
 
 
 def pass_time(app, seconds: float) -> None:
     """The held moment moved on, so the hooks after it come so many seconds later."""
     clock = app.container.get(Clock)
     clock.held_at += seconds
-    clock.driven_at = clock.held_at
+    app.container.get(TimeSource).pin(clock.held_at)
 
 
 def tick_after(app, silent: float) -> list:
@@ -75,12 +75,13 @@ def tick_at(app, later: float, silence_seconds: float) -> list:
     app.runtime().deferred.drain()
     clock = app.container.get(Clock)
     environment = app.container.get(Environments).lookup("main").id
+    source = app.container.get(TimeSource)
     with clock.tick_lock:
-        clock.driven_at = clock.held_at + later
+        source.pin(clock.held_at + later)
         try:
-            return clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=silence_seconds))
+            return clock.ticked(Ticked(session="s1", environment_id=environment, time=source.seconds(), silence_seconds=silence_seconds))
         finally:
-            clock.driven_at = clock.held_at
+            source.pin(clock.held_at)
 
 
 class Replay:

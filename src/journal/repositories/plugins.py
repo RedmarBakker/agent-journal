@@ -3,6 +3,7 @@ from journal.events.bus import Bus
 from journal.models.plugin import Plugin
 from journal.support.actor import Actor
 from journal.repositories.repository import Repository
+from journal.support.time_source import TimeSource
 
 
 class Plugins(Repository[Plugin]):
@@ -10,8 +11,8 @@ class Plugins(Repository[Plugin]):
 
     model = Plugin
 
-    def __init__(self, connection: Connection, bus: Bus) -> None:
-        super().__init__(connection, bus)
+    def __init__(self, connection: Connection, bus: Bus, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, time_source)
         self.live: list[Plugin] | None = None
 
     def save(self, row: Plugin, actor: Actor) -> Plugin:

@@ -78,6 +78,7 @@ from journal.features.briefing.feature import Briefing as BriefingFeature
 from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
 from journal.engine.nudge_registry import NudgeRegistry
+from journal.support.time_source import TimeSource
 from journal.events.agent.session_started import SessionStarted
 from tests.in_process import posted
 from journal.events.agent.prompt_submitted import PromptSubmitted
@@ -480,7 +481,7 @@ def test_a_renamed_state_answers_as_before_through_its_on_listeners_and_a_plain_
 
 
 def test_the_stack_is_seeded_from_the_state_and_its_pause_chain_unwound_with_idle_at_the_bottom(connection, bus, scope):
-    agents = Agents(connection, bus, scope)
+    agents = Agents(connection, bus, scope, TimeSource())
     stuck = agents.save(Agent(environment_id=1, session="s9", state="stuck", data={"resume": {"state": "working", "data": {"task_id": 3, "resume": {"state": "idle", "data": {}}}}}), Actor.system())
     missing = agents.save(Agent(environment_id=1, session="s8", state="gone", data={}), Actor.system())
     StackSeed().apply(connection)
@@ -2262,7 +2263,7 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
     for command in ("pytest tests/test_x.py", "npm test", "npx vitest run", "journal suite"):
         status, body = worker_runs(command)
         assert status == 409 and "the journal runs your tests" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
-    assert worker_runs("git status")[0] == 200, "a command that runs no test passes"
+    assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
     with scope.environment(1):
         app.container.get(SettingRows).set("workers.testing", "Hand the tests over", Actor.user(1))
     status, body = worker_runs("pytest tests/test_x.py")
@@ -2299,7 +2300,7 @@ def test_the_test_budget_choice_refuses_a_workers_direct_test_run_with_the_line_
     for command in ("pytest tests/test_x.py", "npx vitest run"):
         status, body = worker_runs(command)
         assert status == 409 and "journal tests turn" in body["error"], f"{command} is refused with the line that names the turn"
-    assert worker_runs("git status")[0] == 200, "a command that runs no test passes"
+    assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
 
 
 def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
@@ -2729,3 +2730,24 @@ def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_al
     assert allowed.clamped("codex", "journal-medior", "gpt-6-luna")[0] == "gpt-5.6-sol" and allowed.clamped("codex", "journal-medior", "gpt-6.1-sol")[0] == "gpt-6-astra", "Codex is held to the same from its own list"
     assert allowed.clamped("claude", "journal-medior", "some-unranked-model") == ("some-unranked-model", ""), "a model not on the provider's list is not judged"
     assert allowed.strongest("claude", "verifier") == "opus" and allowed.strongest("claude", "reviewer") == "sonnet"
+
+
+def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_written(app: App):
+    from datetime import datetime, timezone
+    import time as timing
+    from journal.engine.clock import Clock
+    from journal.repositories.tasks import Tasks
+    from journal.support.time_source import TimeSource
+    source = app.container.get(TimeSource)
+    moment = 1_800_000_000.0
+    source.pin(moment)
+    try:
+        hook(app, "SessionStart")
+        app.console().run(["task", "create", "the pinned task"], AGENT)
+        with app.container.get(Scope).environment(1):
+            task = app.container.get(Tasks).all()[-1]
+        assert app.container.get(Clock).time() == moment, "the clock reads the pinned moment"
+        assert task.created_at == datetime.fromtimestamp(moment, timezone.utc) and task.updated_at == task.created_at, "a row written is stamped with it"
+    finally:
+        source.unpin()
+    assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"

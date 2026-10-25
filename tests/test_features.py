@@ -12215,16 +12215,19 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
     app.runtime().deferred.add(held.wait)
     clock, environment = app.container.get(Clock), app.container.get(Environments).lookup("main").id
 
+    from journal.support.time_source import TimeSource
+    source = app.container.get(TimeSource)
+
     def side_by_side(minutes: int) -> None:
-        clock.driven_at = clock.held_at + minutes * 60
+        source.pin(clock.held_at + minutes * 60)
         start = threading.Barrier(2)
-        tick = lambda: (start.wait(), clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=minutes * 60)))
+        tick = lambda: (start.wait(), clock.ticked(Ticked(session="s1", environment_id=environment, time=source.seconds(), silence_seconds=minutes * 60)))
         threads = [threading.Thread(target=tick) for _ in range(2)]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join(timeout=30)
-        clock.driven_at = clock.held_at
+        source.pin(clock.held_at)
 
     try:
         for _ in range(20):

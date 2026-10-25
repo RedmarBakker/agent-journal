@@ -9,6 +9,7 @@ from journal.repositories.doc_scope import DocScope
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.unacted_writing import UnactedWriting
+from journal.support.time_source import TimeSource
 
 
 class Docs(ScopedRepository[Doc], UnactedWriting):
@@ -17,8 +18,8 @@ class Docs(ScopedRepository[Doc], UnactedWriting):
     def unsigned_query(self) -> Query:
         return self.query().filter(settled_reason="")
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, visible: DocScope) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, visible: DocScope, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.visible = visible
 
     def of_project(self, doc: Doc, actor: Actor) -> Doc:

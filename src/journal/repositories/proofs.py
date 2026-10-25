@@ -7,6 +7,7 @@ from journal.repositories.linked_rows import LinkedRows
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.support.time_source import TimeSource
 
 PROOF_LINK = "proves"
 
@@ -15,8 +16,8 @@ class Proofs(ScopedRepository[Proof], LinkedRows):
     link_kind = PROOF_LINK
     model = Proof
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links = links
 
     def task_proofs(self, task: Task) -> list[Proof]:

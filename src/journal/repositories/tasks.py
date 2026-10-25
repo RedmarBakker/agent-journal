@@ -22,6 +22,7 @@ from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.support.time_source import TimeSource
 
 WAIT_LINK = "waits_on"
 CURRENT_TASK_LINK = "in_hand"
@@ -45,8 +46,8 @@ class Tasks(ScopedRepository[Task]):
     model = Task
     member_links = (PLAN_LINK,)
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, questions: Questions, checks: Checks, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links, self.checks = links, checks
         self.awaitable: dict[str, Tasks | Questions | Checks] = {Task.table(): self, Question.table(): questions, Check.table(): checks}
 

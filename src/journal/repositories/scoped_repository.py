@@ -10,6 +10,7 @@ from journal.models.scoped import Scoped
 from journal.models.support.ref import Ref
 from journal.repositories.repository import Repository
 from journal.repositories.scope import PROJECT, Scope
+from journal.support.time_source import TimeSource
 
 S = TypeVar("S", bound=Scoped)
 
@@ -19,8 +20,8 @@ class ScopedRepository(Repository[S]):
 
     member_links: tuple[str, ...] = ()
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope) -> None:
-        super().__init__(connection, bus)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, time_source)
         self.scope = scope
 
     def with_project(self, query: Query) -> list[S]:

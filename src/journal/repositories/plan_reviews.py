@@ -5,6 +5,7 @@ from journal.models.plan_review import PlanReview
 from journal.repositories.links import Links
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.scope import Scope
+from journal.support.time_source import TimeSource
 
 REVIEWS = "reviews"
 FILED = "filed"
@@ -13,8 +14,8 @@ FILED = "filed"
 class PlanReviews(ScopedRepository[PlanReview]):
     model = PlanReview
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links = links
 
     def reviews(self, plan: Plan) -> list[PlanReview]:

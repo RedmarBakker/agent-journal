@@ -16,6 +16,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.environment_owners import EnvironmentOwners
+from journal.support.time_source import TimeSource
 
 
 # the most rows one page of the chat holds, its written messages and the marks between them together
@@ -32,9 +33,9 @@ class Messages(ScopedRepository[Message]):
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, agents: Agents) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, agents: Agents, time_source: TimeSource) -> None:
         self.owners, self.agents = owners, agents
-        super().__init__(connection, bus, scope)
+        super().__init__(connection, bus, scope, time_source)
         self.reactions, self.links = reactions, links
 
     def save(self, row: Message, actor: Actor) -> Message:

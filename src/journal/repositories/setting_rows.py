@@ -7,6 +7,7 @@ from journal.support.wrong_setting_kind import WrongSettingKind
 from journal.models.setting import Setting
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.support.time_source import TimeSource
 
 
 
@@ -15,8 +16,8 @@ class SettingRows(ScopedRepository[Setting]):
 
     model = Setting
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self._kept: dict[int, list[Setting]] = {}
         self._values: dict[int, dict[str, object]] = {}
         self._clear_count = 0

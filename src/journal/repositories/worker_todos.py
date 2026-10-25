@@ -7,6 +7,7 @@ from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 
 TODO_LINK = "todo"
 
@@ -15,8 +16,8 @@ class WorkerTodos(ScopedRepository[WorkerTodo], LinkedRows):
     link_kind = TODO_LINK
     model = WorkerTodo
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links = links
 
     def appended(self, task: Task, text: str, actor: Actor) -> WorkerTodo:

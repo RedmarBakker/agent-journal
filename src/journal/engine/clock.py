@@ -1,5 +1,4 @@
 import threading
-import time as timing
 
 from journal.engine.job import Job
 from journal.events.agent.ticked import Ticked
@@ -10,6 +9,7 @@ from journal.models.agent import Agent
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
+from journal.support.time_source import TimeSource
 
 
 class Clock(Job):
@@ -17,12 +17,12 @@ class Clock(Job):
 
     interval_seconds = 5.0
 
-    def __init__(self, agents: Agents, bus: Bus, supervisor: SupervisorLink, scope: Scope) -> None:
-        self.agents, self.bus, self.supervisor, self.scope = agents, bus, supervisor, scope
+    def __init__(self, agents: Agents, bus: Bus, supervisor: SupervisorLink, scope: Scope, time_source: TimeSource) -> None:
+        self.agents, self.bus, self.supervisor, self.scope, self.time_source = agents, bus, supervisor, scope, time_source
         self.tick_lock = threading.RLock()
 
     def time(self) -> float:
-        return timing.time()
+        return self.time_source.seconds()
 
     def tick(self, time: float) -> None:
         self.bus.dispatch_guarded(ClockTicked(time=time))

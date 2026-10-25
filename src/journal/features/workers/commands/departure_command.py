@@ -1,5 +1,4 @@
 from argparse import Namespace
-from datetime import datetime, timezone
 
 from journal.console.command import WORKER_KINDS, Command
 from journal.engine.command_events import CommandEvents
@@ -7,6 +6,7 @@ from journal.events.worker_clocking_out import WorkerClockingOut
 from journal.events.worker_delivering import WorkerDelivering
 from journal.events.worker_merging import WorkerMerging
 from journal.features.plugins.plugins_options import PluginsOptions
+from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.features.workers.support.test_turns import TestTurns
@@ -38,9 +38,9 @@ class DepartureCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource) -> None:
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
-        self.turns, self.settings, self.logs, self.events = turns, settings, logs, events
+        self.turns, self.settings, self.logs, self.events, self.time_source = turns, settings, logs, events, time_source
 
     def arguments(self, verbs) -> None:
         record = self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof")
@@ -70,7 +70,7 @@ class DepartureCommand(Command):
         if self.branch.worktree_heads(worker) != start_heads:
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if worker.rebase_due:
-            self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", datetime.now(timezone.utc).timestamp()), caller.actor)
+            self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", self.time_source.moment().timestamp()), caller.actor)
         if self.is_journal_testing(worker):
             self.tested(worker, task, args.tests, caller)
         self.plugin_check(WorkerDelivering, worker, task, DELIVERY_HELD)
@@ -105,7 +105,7 @@ class DepartureCommand(Command):
         turn, run_lines = self.turns.checked(worker, tests.strip(), caller)
         if turn.outcome != TestOutcome.PASSED:
             raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")
-        self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", datetime.now(timezone.utc).timestamp()), caller.actor)
+        self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", self.time_source.moment().timestamp()), caller.actor)
 
     # a worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked
     def continues_queue(self, worker: Worker, task: Task, waiting: list[Task]) -> bool:
@@ -116,7 +116,7 @@ class DepartureCommand(Command):
         holder = Ref(Worker.table(), worker.id)
         self.tasks.finish_holder_task(task.id, holder, caller.actor)
         self.tasks.handover(next_task, holder, caller.actor)
-        moment = datetime.now(timezone.utc).timestamp()
+        moment = self.time_source.moment().timestamp()
         self.workers.save(self.workers.find(worker.id).moved(f"moved on to task {next_task.id}", moment).with_(began=moment), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
         print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")

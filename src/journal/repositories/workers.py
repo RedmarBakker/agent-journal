@@ -11,6 +11,7 @@ from journal.repositories.rows import Rows
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.tasks import Tasks
+from journal.support.time_source import TimeSource
 
 
 
@@ -18,8 +19,8 @@ from journal.repositories.tasks import Tasks
 class Workers(ScopedRepository[Worker]):
     model = Worker
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, rows: Rows, tasks: Tasks) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, rows: Rows, tasks: Tasks, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links, self.rows, self.tasks = links, rows, tasks
 
     def open_workers(self) -> list[Worker]:

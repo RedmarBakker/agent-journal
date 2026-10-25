@@ -10,6 +10,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 REVISION_LINK = "revision_of"
 
@@ -20,8 +21,8 @@ class DocRevisions(ScopedRepository[DocRevision], LinkedRows):
     link_kind = REVISION_LINK
     model = DocRevision
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, visible: DocScope) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, links: Links, visible: DocScope, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
         self.links, self.visible = links, visible
 
     def _scoped(self, query: Query) -> Query:

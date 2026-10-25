@@ -1,6 +1,6 @@
 from argparse import Namespace
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime
 
 from journal.console.command import HELPER_KINDS, SUBAGENT_KINDS, WORKER_KINDS, Command
 from journal.console.support.hub_choice import HubChoice
@@ -32,6 +32,7 @@ from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.sync.team_account import TeamAccount
+from journal.support.time_source import TimeSource
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
@@ -42,8 +43,8 @@ class TaskCommand(Command):
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination) -> None:
-        self.clock, self.next_task, self.reminder = clock, next_task, reminder
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource) -> None:
+        self.clock, self.next_task, self.reminder, self.time_source = clock, next_task, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
         self.destination = destination
@@ -281,6 +282,5 @@ state: {task.state}
         if next_open:
             print(next_open.line())
 
-    @staticmethod
-    def _time() -> datetime:
-        return datetime.now(timezone.utc)
+    def _time(self) -> datetime:
+        return self.time_source.moment()

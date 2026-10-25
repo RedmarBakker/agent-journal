@@ -29,6 +29,7 @@ from journal.support.actor import Actor
 from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
 from journal.features.voices.voices_options import VoicesOptions
+from journal.support.time_source import TimeSource
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
@@ -121,7 +122,7 @@ def copied(template: Path, root: Path) -> Path:
 
 @pytest.fixture
 def scope(connection: Connection, bus: Bus) -> Scope:
-    return Scope(Environments(connection, bus), Links(connection, bus))
+    return Scope(Environments(connection, bus, TimeSource()), Links(connection, bus, TimeSource()))
 
 
 # the shard of a parallel suite this run is, as index/count, set by scripts/suite.py

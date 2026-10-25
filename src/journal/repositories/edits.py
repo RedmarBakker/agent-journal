@@ -5,6 +5,7 @@ from journal.support.actor import Actor
 from journal.models.edit import Edit
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.support.time_source import TimeSource
 
 EDIT_ROWS = 500
 
@@ -12,8 +13,8 @@ EDIT_ROWS = 500
 class Edits(ScopedRepository[Edit]):
     model = Edit
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope) -> None:
-        super().__init__(connection, bus, scope)
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource) -> None:
+        super().__init__(connection, bus, scope, time_source)
 
     def record(self, edit: Edit, actor: Actor) -> Edit:
         stored = self.save(edit, actor)

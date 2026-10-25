@@ -46,6 +46,7 @@ from journal.repositories.tasks import Tasks
 from journal.support.scope_missing import ScopeMissing
 from journal.features.voices.voices_options import VoicesOptions
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.time_source import TimeSource
 
 USER = Actor.user(1)
 AGENT = Actor.agent("abc")
@@ -60,7 +61,7 @@ class Heard(Listener[ModelEvent]):
 
 
 def tasks_of(connection, bus, scope) -> Tasks:
-    return Tasks(connection, bus, scope, Links(connection, bus), Questions(connection, bus, scope), Checks(connection, bus))
+    return Tasks(connection, bus, scope, Links(connection, bus, TimeSource()), Questions(connection, bus, scope, TimeSource()), Checks(connection, bus, TimeSource()), TimeSource())
 
 
 class SayNo(Listener[Creating]):
@@ -115,7 +116,7 @@ def test_a_refusing_listener_stops_the_write(connection, bus, scope):
 
 
 def test_links_join_any_two_rows_and_leave_with_a_deleted_row(connection, bus, scope):
-    tasks, links = tasks_of(connection, bus, scope), Links(connection, bus)
+    tasks, links = tasks_of(connection, bus, scope), Links(connection, bus, TimeSource())
     bus.listen(Deleted, UnlinkDeleted(links))
     item = tasks.save(Task(environment_id=1, title="a"), actor=USER)
     b = tasks.save(Task(environment_id=1, title="b"), actor=USER)
@@ -195,8 +196,8 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
         db.execute("INSERT INTO messages (environment_id, author, text, created_at, updated_at, creator, updater) VALUES (1, 'user', 'old', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'user:1', 'user:1')")
     Schema(old, AllModels.MODELS).create()
     bus = Bus()
-    scope = Scope(Environments(old, bus), Links(old, bus))
-    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus)), Links(old, bus), EnvironmentOwners(Links(old, bus), Users(old, bus), Environments(old, bus)), Agents(old, bus, scope)).find(1)
+    scope = Scope(Environments(old, bus, TimeSource()), Links(old, bus, TimeSource()))
+    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus, TimeSource()), TimeSource()), Links(old, bus, TimeSource()), EnvironmentOwners(Links(old, bus, TimeSource()), Users(old, bus, TimeSource()), Environments(old, bus, TimeSource())), Agents(old, bus, scope, TimeSource()), TimeSource()).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
 
@@ -518,14 +519,14 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
     class PlanRows(ScopedRepository[Plan]):
         model = Plan
 
-    tasks, links = tasks_of(connection, bus, scope), Links(connection, bus)
+    tasks, links = tasks_of(connection, bus, scope), Links(connection, bus, TimeSource())
     with scope.environment(1):
         free = tasks.save(Task(environment_id=1, title="free"), actor=USER)
         drafted = tasks.save(Task(environment_id=1, title="in a draft plan"), actor=USER)
         blocked = tasks.save(Task(environment_id=1, title="blocked", state=TaskState.BLOCKED), actor=USER)
         paused = tasks.save(Task(environment_id=1, title="paused", state=TaskState.PAUSED), actor=USER)
         done = tasks.save(Task(environment_id=1, title="done", state=TaskState.COMPLETED), actor=USER)
-        draft = PlanRows(connection, bus, scope).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
+        draft = PlanRows(connection, bus, scope, TimeSource()).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
         links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), kind=PLAN_LINK), actor=USER)
         assert [task.id for task in tasks.open_tasks()] == [free.id], "a task of an unapproved plan is no open work"
         assert [task.id for task in tasks.blocked_tasks()] == [blocked.id]
@@ -550,7 +551,7 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
     from journal.sync.team_account import TEAM_FILE, TeamAccount
 
     config = Config(tmp_path)
-    changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
+    changes, tasks = OutgoingChanges(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
     bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, changes))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
@@ -575,7 +576,7 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
         assert [change.fields["title"] for change in changes.waiting()] == ["again"], "a change being sent is never merged into"
         tasks.delete(before, USER)
         assert changes.waiting()[0].action == "deleted" and changes.waiting()[0].fields == {}
-        ReleaseMessages(connection, bus).save(ReleaseMessage(version="9.9.9", text="local"), USER)
+        ReleaseMessages(connection, bus, TimeSource()).save(ReleaseMessage(version="9.9.9", text="local"), USER)
         assert [change.row_table for change in changes.waiting()] == ["tasks"], "a model kept on one machine is never queued"
 
 
@@ -594,7 +595,7 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
     from journal.sync.block_numbers import BlockNumbers
     from journal.sync.team_account import TEAM_FILE, TeamAccount
 
-    config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus), tasks_of(connection, bus, scope)
+    config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
     bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
     with scope.environment(1):
         assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
@@ -606,7 +607,7 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
         assert blocks.is_wanted("tasks") and blocks.is_wanted("messages"), "nine numbers left of a block of ten wants another, and a table with no block wants one"
         blocks.add("tasks", 3001, 3010)
         assert not blocks.is_wanted("tasks"), "a block and a fifth of one left is enough"
-        assert ReleaseMessages(connection, bus).save(ReleaseMessage(version="9.9.9"), USER).id == 1, "a model kept on one machine is numbered by SQLite"
+        assert ReleaseMessages(connection, bus, TimeSource()).save(ReleaseMessage(version="9.9.9"), USER).id == 1, "a model kept on one machine is numbered by SQLite"
         for _ in range(19):
             tasks.save(Task(environment_id=1, title="more"), actor=USER)
         with pytest.raises(NumberShortage):
@@ -625,8 +626,8 @@ def block_numbers(connection, bus, scope, config, blocks):
     from journal.sync.team_accounts import TeamAccounts
     from journal.sync.team_server_link import TeamServerLink
 
-    supply = BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))
-    return BlockNumbers(blocks, TeamAccount(config), supply, team_placement(connection, bus, scope, config), TeamAccounts(config, Environments(connection, bus)))
+    supply = BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus, TimeSource()), TeamAccount(config))
+    return BlockNumbers(blocks, TeamAccount(config), supply, team_placement(connection, bus, scope, config), TeamAccounts(config, Environments(connection, bus, TimeSource())))
 
 
 def outgoing_recorder(connection, bus, scope, config, changes):
@@ -641,11 +642,11 @@ def outgoing_recorder(connection, bus, scope, config, changes):
     from journal.sync.team_account import TeamAccount
     from journal.sync.team_server_link import TeamServerLink
 
-    account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus), SharedTables(connection, bus)
+    account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus, TimeSource()), SharedTables(connection, bus, TimeSource())
     renumbering = RowRenumbering(connection, blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
     from journal.repositories.environments import Environments
     from journal.sync.team_accounts import TeamAccounts
-    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus), tables, renumbering, TeamAccounts(config, Environments(connection, bus)), ServiceHooks())
+    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus, TimeSource()), tables, renumbering, TeamAccounts(config, Environments(connection, bus, TimeSource())), ServiceHooks())
 
 
 def team_placement(connection, bus, scope, config):
@@ -653,7 +654,7 @@ def team_placement(connection, bus, scope, config):
     from journal.sync.team_account import TeamAccount
     from journal.sync.team_placement import TeamPlacement
 
-    return TeamPlacement(SharedTables(connection, bus), team_scopes(connection, bus, scope), TeamAccount(config))
+    return TeamPlacement(SharedTables(connection, bus, TimeSource()), team_scopes(connection, bus, scope), TeamAccount(config))
 
 
 def team_scopes(connection, bus, scope):
@@ -662,7 +663,7 @@ def team_scopes(connection, bus, scope):
     from journal.repositories.setting_rows import SettingRows
     from journal.sync.setting_scopes import SettingScopes
 
-    return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope)))
+    return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope, TimeSource())))
 
 
 def environment_withdrawal(config, connection, bus, scope):
@@ -672,7 +673,7 @@ def environment_withdrawal(config, connection, bus, scope):
     from journal.sync.environment_withdrawal import EnvironmentWithdrawal
     from journal.sync.team_account import TeamAccount
 
-    return EnvironmentWithdrawal(TeamAccount(config), SharedTables(connection, bus), Links(connection, bus), EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments), team_scopes(connection, bus, scope))
+    return EnvironmentWithdrawal(TeamAccount(config), SharedTables(connection, bus, TimeSource()), Links(connection, bus, TimeSource()), EnvironmentOwners(Links(connection, bus, TimeSource()), Users(connection, bus, TimeSource()), scope.environments), team_scopes(connection, bus, scope))
 
 
 def team_migration(tmp_path, name: str, scope, tasks, outgoing):
@@ -696,10 +697,10 @@ def team_migration(tmp_path, name: str, scope, tasks, outgoing):
     from journal.sync.team_server_link import TeamServerLink
 
     config, connection, bus = Config(tmp_path / name), tasks.connection, tasks.bus
-    tables, scopes, account, visible = SharedTables(connection, bus), team_scopes(connection, bus, scope), TeamAccount(config), DocScope(scope.environments, scope)
+    tables, scopes, account, visible = SharedTables(connection, bus, TimeSource()), team_scopes(connection, bus, scope), TeamAccount(config), DocScope(scope.environments, scope)
     withdrawal = MigrationWithdrawal(outgoing, tables, environment_withdrawal(config, connection, bus, scope), scopes, ServiceHooks())
-    owners = EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments)
-    docs, revisions = Docs(connection, bus, scope, visible), DocRevisions(connection, bus, scope, Links(connection, bus), visible)
+    owners = EnvironmentOwners(Links(connection, bus, TimeSource()), Users(connection, bus, TimeSource()), scope.environments)
+    docs, revisions = Docs(connection, bus, scope, visible, TimeSource()), DocRevisions(connection, bus, scope, Links(connection, bus, TimeSource()), visible, TimeSource())
     return TeamMigration(account, TeamServerLink(account, Schema(connection, AllModels.MODELS)), scope.environments, owners, withdrawal, TeamPlacement(tables, scopes, account), docs, revisions, HubMove(docs, revisions), tables, JournalBackup(connection), config)
 
 
@@ -756,20 +757,20 @@ def team_journal(tmp_path, name: str):
     connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
     Schema(connection, AllModels.MODELS).create()
     bus = Bus()
-    scope = Scope(Environments(connection, bus), Links(connection, bus))
-    outgoing = OutgoingChanges(connection, bus)
+    scope = Scope(Environments(connection, bus, TimeSource()), Links(connection, bus, TimeSource()))
+    outgoing = OutgoingChanges(connection, bus, TimeSource())
     bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, outgoing))
     bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
-    blocks = IdBlocks(connection, bus)
+    blocks = IdBlocks(connection, bus, TimeSource())
     base = (ord(name[0]) - ord("a")) * 100_000
     for model in AllModels.MODELS:
         if model.shared:
             blocks.add(model.table(), base + 1, base + 99_999)
     bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
-    bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
+    bus.listen(Deleted, UnlinkDeleted(Links(connection, bus, TimeSource())))
     bus.listen(EnvironmentUnshared, RecordWithdrawal(outgoing, TeamAccount(config), environment_withdrawal(config, connection, bus, scope), ServiceHooks()))
-    bus.listen(SyncedDeletion, PulledFileRemoval(Attachments(config, PendingUploads(connection, bus), TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)))))
-    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus), TeamAccount(config), JournalBackup(connection), config)
+    bus.listen(SyncedDeletion, PulledFileRemoval(Attachments(config, PendingUploads(connection, bus, TimeSource()), TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)))))
+    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus, TimeSource()), outgoing, Links(connection, bus, TimeSource()), TeamAccount(config), JournalBackup(connection), config)
 
 
 def team_changes(outgoing):
@@ -885,15 +886,15 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     from sync_server.file_place import FilePlace
 
     team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, outgoing_b, _), carried = served_team_journals(tmp_path)
-    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
-    links_a, links_b = Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
+    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
+    links_a, links_b = Links(tasks_a.connection, tasks_a.bus, TimeSource()), Links(tasks_b.connection, tasks_b.bus, TimeSource())
 
     hub = scope_a.environments.save(Environment(name="hub", kind=EnvironmentKind.SESSION), USER)
     shared = scope_a.environments.save(Environment(name="mine"), USER)
     links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), kind="owner"), USER)
     with scope_a.environment(hub.id):
         hub_task = tasks_a.save(Task(environment_id=hub.id, title="the hub's task"), actor=USER)
-    sharing = EnvironmentSharing(scope_a.environments, EnvironmentOwners(links_a, Users(tasks_a.connection, tasks_a.bus), scope_a.environments), TeamAccount(Config(tmp_path / "a")))
+    sharing = EnvironmentSharing(scope_a.environments, EnvironmentOwners(links_a, Users(tasks_a.connection, tasks_a.bus, TimeSource()), scope_a.environments), TeamAccount(Config(tmp_path / "a")))
     shared = sharing.shared(shared, USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
@@ -937,7 +938,7 @@ def test_a_journal_backs_up_before_it_deletes_withdrawn_rows_and_one_restored_fr
     shared = scope_a.environments.save(Environment(name="mine", team_key="k1"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
-        message = SharedTables(tasks_a.connection, tasks_a.bus).rows("messages").save(Message(environment_id=shared.id, text="hello"), USER)
+        message = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()).rows("messages").save(Message(environment_id=shared.id, text="hello"), USER)
     carried()
     before = team.log.head()
     withdrawn = [("environments", shared.id), ("tasks", task.id), ("messages", message.id)]
@@ -947,14 +948,14 @@ def test_a_journal_backs_up_before_it_deletes_withdrawn_rows_and_one_restored_fr
     held = sqlite3.connect(backup)
     assert all(held.execute(f"SELECT 1 FROM {table} WHERE id = ?", (id,)).fetchone() for table, id in withdrawn), "the backup is written before the withdrawn rows are deleted, so it holds every one of them"
     held.close()
-    rows_b = SharedTables(tasks_b.connection, tasks_b.bus)
+    rows_b = SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
     assert not any(rows_b.rows(table).matching(id=id) for table, id in withdrawn), "and then they are deleted"
 
     (tmp_path / "c").mkdir()
     shutil.copy(backup, tmp_path / "c" / "journal.db")
     _, _, tasks_c, _, incoming_c = team_journal(tmp_path, "c")
     (tmp_path / "c" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2}))
-    rows_c = SharedTables(tasks_c.connection, tasks_c.bus)
+    rows_c = SharedTables(tasks_c.connection, tasks_c.bus, TimeSource())
     assert all(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "the restored journal holds the withdrawn rows again"
     pulled = [TeamChange.logged(change) for change in team.log.pull_page(before, 0)]
     incoming_c.apply(pulled)
@@ -975,12 +976,12 @@ def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_an
     from journal.repositories.shared_tables import SharedTables
 
     team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, outgoing_b, _), carried = served_team_journals(tmp_path)
-    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus)
+    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
     kept = [rows_a.rows(row.table()).save(row, USER) for row in (Rule(text="a rule"), Template(title="a template"), Trigger(phrases=("a phrase",)), Check(title="a check", command="true"), Sequence(title="a sequence"))]
     private = scope_a.environments.save(Environment(name="private"), USER)
     shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
     chat = scope_a.environments.save(Environment.session(team.details.answer().key, "team"), USER)
-    owner = Links(tasks_a.connection, tasks_a.bus).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
+    owner = Links(tasks_a.connection, tasks_a.bus, TimeSource()).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)
     carried()
@@ -1005,7 +1006,7 @@ def test_a_wiped_environment_and_a_deleted_rows_links_reach_the_other_journal(tm
 
     _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    environments_a, links_a, links_b = scope_a.environments, Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
+    environments_a, links_a, links_b = scope_a.environments, Links(tasks_a.connection, tasks_a.bus, TimeSource()), Links(tasks_b.connection, tasks_b.bus, TimeSource())
     environments_a.save(Environment(name="main"), USER)
     second = environments_a.save(Environment(name="second"), USER)
     with scope_a.environment(1):
@@ -1021,7 +1022,7 @@ def test_a_wiped_environment_and_a_deleted_rows_links_reach_the_other_journal(tm
     environments_a.wipe(second, USER)
     incoming_b.apply(team_changes(outgoing_a))
     assert [task.title for task in tasks_b.global_matching(environment_id=1)] == ["other"] and tasks_b.global_matching(environment_id=second.id) == [] and links_b.rows() == [], "the deleted task's links and the wiped environment's rows are gone on the other journal too"
-    assert [environment.name for environment in Environments(tasks_b.connection, tasks_b.bus).rows()] == [environment.name for environment in environments_a.rows()]
+    assert [environment.name for environment in Environments(tasks_b.connection, tasks_b.bus, TimeSource()).rows()] == [environment.name for environment in environments_a.rows()]
 
 
 def test_a_shipped_template_is_written_once_for_the_team_by_the_machine_that_holds_the_upgrade(tmp_path):
@@ -1035,7 +1036,7 @@ def test_a_shipped_template_is_written_once_for_the_team_by_the_machine_that_hol
     _, _, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, _, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
     (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"device": "a", "upgrade": True}))
-    templates_a, templates_b = Templates(tasks_a.connection, tasks_a.bus), Templates(tasks_b.connection, tasks_b.bus)
+    templates_a, templates_b = Templates(tasks_a.connection, tasks_a.bus, TimeSource()), Templates(tasks_b.connection, tasks_b.bus, TimeSource())
     BuiltinTemplates(templates_a, TeamAccount(Config(tmp_path / "a"))).run()
     BuiltinTemplates(templates_b, TeamAccount(Config(tmp_path / "b"))).run()
     assert templates_b.rows() == [], "a machine without the upgrade writes no shipped row of its own"
@@ -1049,7 +1050,7 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
 
     _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
+    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a, TimeSource()), SettingRows(tasks_b.connection, tasks_b.bus, scope_b, TimeSource())
     settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
     settings_a.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make env"], USER)
     settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
@@ -1058,10 +1059,10 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     from journal.repositories.shared_tables import SharedTables
     from journal.sync.journal_copy import JournalCopy
     from sync_server.copied_row import CopiedRow
-    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus), team_scopes(tasks_a.connection, tasks_a.bus, scope_a), team_placement(tasks_a.connection, tasks_a.bus, scope_a, Config(tmp_path / "a"))).rows()
+    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), team_scopes(tasks_a.connection, tasks_a.bus, scope_a), team_placement(tasks_a.connection, tasks_a.bus, scope_a, Config(tmp_path / "a"))).rows()
     assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersOptions.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
     settings_b.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make mine"], USER)
-    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b), team_placement(tasks_b.connection, tasks_b.bus, scope_b, Config(tmp_path / "b")))
+    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus, TimeSource()), team_scopes(tasks_b.connection, tasks_b.bus, scope_b), team_placement(tasks_b.connection, tasks_b.bus, scope_b, Config(tmp_path / "b")))
     stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersOptions.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
     former = [CopiedRow("tasks", 901, {"environment_id": 1, "title": "kept from before the rename", "state": "parked"}, {})]
     copy_b.replace_whole(tuple(copied) + tuple(stray) + tuple(former))
@@ -1086,7 +1087,7 @@ def test_a_full_copy_of_thousands_of_rows_and_the_writes_waiting_on_it_is_laid_i
 
     bus, scope, tasks, _, _ = team_journal(tmp_path, "b")
     config = Config(tmp_path / "b")
-    tables = SharedTables(tasks.connection, tasks.bus)
+    tables = SharedTables(tasks.connection, tasks.bus, TimeSource())
     copy = JournalCopy(tables, team_scopes(tasks.connection, bus, scope), team_placement(tasks.connection, bus, scope, config))
     rows = tuple(CopiedRow("tasks", number, {"environment_id": 1, "title": f"task {number}"}, {}) for number in range(1, 3001))
     waiting = [
@@ -1115,9 +1116,9 @@ def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_a
     team, (_, scope_a, tasks_a, outgoing_a, _), _, carried = served_team_journals(tmp_path)
     server = team.started("127.0.0.1", 0)
     served_link(team, server, tmp_path, "a", "ada@example.com", 1)
-    links_a = Links(tasks_a.connection, tasks_a.bus)
+    links_a = Links(tasks_a.connection, tasks_a.bus, TimeSource())
     try:
-        rule = SharedTables(tasks_a.connection, tasks_a.bus).rows("rules").save(Rule(text="a rule"), USER)
+        rule = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()).rows("rules").save(Rule(text="a rule"), USER)
         private = scope_a.environments.save(Environment(name="mine"), USER)
         links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
         shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
@@ -1163,7 +1164,7 @@ def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its
     team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, _, _), carried = served_team_journals(tmp_path)
     server = team.started("127.0.0.1", 0)
     served_link(team, server, tmp_path, "a", "ada@example.com", 1)
-    rows_a, rows_b, links_a = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus), Links(tasks_a.connection, tasks_a.bus)
+    rows_a, rows_b, links_a = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource()), Links(tasks_a.connection, tasks_a.bus, TimeSource())
     migration = team_migration(tmp_path, "a", scope_a, tasks_a, outgoing_a)
     try:
         ada_own, bob_own = (scope_a.environments.save(Environment(name=name), USER) for name in ("ada-own", "bob-own"))
@@ -1209,7 +1210,7 @@ def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_be
     from journal.sync.pulled_settings import PulledSettings
 
     team, (_, scope_a, tasks_a, outgoing_a, _), (bus_b, scope_b, tasks_b, _, _), carried = served_team_journals(tmp_path)
-    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
+    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a, TimeSource()), SettingRows(tasks_b.connection, tasks_b.bus, scope_b, TimeSource())
     bus_b.listen(Synced, PulledSettings(settings_b))
     on_server = lambda: {row.fields["key"]: row.fields["value"] for row in team.log.copied_rows() if row.row_table == "settings"}
     settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
@@ -1248,9 +1249,9 @@ def test_team_placement_puts_each_row_in_its_team_or_in_none(tmp_path):
     (config.home / TEAM_FILE).unlink()
     (config.home / TEAMS_FOLDER).mkdir()
     (config.home / TEAMS_FOLDER / "k1.json").write_text(json.dumps({"team_key": "k1"}))
-    environments = Environments(tasks.connection, bus)
+    environments = Environments(tasks.connection, bus, TimeSource())
     hub, session, shared, private = (environments.save(row, USER) for row in (Environment.hub("k1", "acme"), Environment.session("k1", "team"), Environment(name="open", team_key="k1"), Environment(name="mine")))
-    placement = TeamPlacement(SharedTables(tasks.connection, bus), team_scopes(tasks.connection, bus, scope), TeamAccount(config))
+    placement = TeamPlacement(SharedTables(tasks.connection, bus, TimeSource()), team_scopes(tasks.connection, bus, scope), TeamAccount(config))
     placed = lambda *rows: [placement.team_key(row) for row in rows]
 
     work = {}
@@ -1259,7 +1260,7 @@ def test_team_placement_puts_each_row_in_its_team_or_in_none(tmp_path):
             work[environment.name] = tasks.save(Task(environment_id=environment.row_id, title=f"in {environment.name}"), USER)
     assert placed(hub, session, shared, private) == ["k1", "k1", "k1", ""], "an environment is in its team when it is the hub, a session or shared, and a private one in none"
     assert placed(*(work[name] for name in ("acme", "team", "open", "mine"))) == ["k1", "k1", "k1", ""], "a row of an environment is placed with its environment, whose chat is shared or not"
-    links = Links(tasks.connection, bus)
+    links = Links(tasks.connection, bus, TimeSource())
     together = links.save(Link(source=Ref.build(work["acme"]), target=Ref.build(work["team"]), kind="mentions"), USER)
     apart = links.save(Link(source=Ref.build(work["mine"]), target=Ref.build(work["acme"]), kind="copied_from"), USER)
     owner = links.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
@@ -1278,7 +1279,7 @@ def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_every
 
     _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    environments_a, environments_b = Environments(tasks_a.connection, tasks_a.bus), Environments(tasks_b.connection, tasks_b.bus)
+    environments_a, environments_b = Environments(tasks_a.connection, tasks_a.bus, TimeSource()), Environments(tasks_b.connection, tasks_b.bus, TimeSource())
     side = environments_a.save(Environment(name="side"), USER)
     with scope_a.environment(side.row_id):
         task = tasks_a.save(Task(environment_id=side.row_id, title="in the side line"), USER)
@@ -1296,7 +1297,7 @@ def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is
 
     _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    checks_a, checks_b = Checks(tasks_a.connection, tasks_a.bus), Checks(tasks_b.connection, tasks_b.bus)
+    checks_a, checks_b = Checks(tasks_a.connection, tasks_a.bus, TimeSource()), Checks(tasks_b.connection, tasks_b.bus, TimeSource())
     check = checks_a.save(Check(title="lint", command="true", interval=5), USER)
     sent = len(outgoing_a.waiting())
     checks_a.save(check.completed(True, "all clean", datetime.now(timezone.utc), 0.1, None, ""), USER)
@@ -1312,7 +1313,7 @@ def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connec
     from journal.repositories.outgoing_changes import OutgoingChanges
 
     connection.execute("ALTER TABLE tasks ADD COLUMN headline TEXT")
-    outgoing = OutgoingChanges(connection, bus)
+    outgoing = OutgoingChanges(connection, bus, TimeSource())
     outgoing.queued(OutgoingChange(row_table="tasks", row=7, action=UPDATED, fields={"headline": {"words": "kept whole"}, "state": "open"}, changed_at={"headline": 1.0, "state": 1.0}, writer="user:2"), Actor.system())
     with connection.transaction():
         Migration.column_rename(connection, "tasks", "headline", "subtitle")
@@ -1341,7 +1342,7 @@ def test_a_transaction_reads_its_own_writes_even_when_another_thread_stored_the_
     """Two links made in one transaction once took one number: a reader on another thread stored the blocks as committed, and the writer read that copy back, missing its own write."""
     import threading
     from journal.repositories.id_blocks import IdBlocks
-    blocks = IdBlocks(connection, bus)
+    blocks = IdBlocks(connection, bus, TimeSource())
     blocks.add("links", 100, 199)
     taken = []
     with connection.transaction():
@@ -1366,7 +1367,7 @@ def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_wo
     """A write keeps the reads it changed: the next find and session read of the row load nothing and return what a load returns; a rolled-back write, a write superseded in its transaction and a write a secret was masked out of keep nothing, and a session two rows share keeps answering the first."""
     from journal.models.agent import Agent
     from journal.repositories.load_tally import LoadTally
-    agents = Agents(connection, bus, scope)
+    agents = Agents(connection, bus, scope, TimeSource())
     with scope.environment(1):
         agent = agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
         agents.session_agent("s1")
@@ -1411,7 +1412,7 @@ def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_n
     from datetime import timedelta
     from journal.models.agent import Agent
     from journal.models.agent_role import AgentRole
-    agents = Agents(connection, bus, scope)
+    agents = Agents(connection, bus, scope, TimeSource())
     with scope.environment(1):
         own = agents.save(Agent(environment_id=1, session="own", provider="claude"), USER)
         agents.save(Agent(environment_id=1, session="peer", provider="claude"), USER)
@@ -1431,7 +1432,7 @@ def test_a_read_that_leaves_columns_or_keys_out_loads_its_rows_with_those_fields
     from journal.repositories.entries import Entries
     from journal.repositories.load_tally import LoadTally
     from journal.repositories.reports import Reports
-    reports, entries = Reports(connection, bus, scope), Entries(connection, bus, scope)
+    reports, entries = Reports(connection, bus, scope, TimeSource()), Entries(connection, bus, scope, TimeSource())
     with scope.environment(1):
         reports.save(Report(title="the parser", abstract="what it reads", body="a long body " * 200, items=({"section": "done", "ref": "tasks:1", "title": "t"},)), USER)
         entries.save(Entry(environment_id=1, kind="ToolStarting", actor=Actor.agent("s1"), data={"tool_name": "Read", "tool_input": {"file_path": "x" * 3000}, "call": {"read_paths": ["x"]}}), USER)
@@ -1454,7 +1455,7 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
     from journal.models.support.agent_load import AgentLoad
     from journal.repositories.entries import Entries
     from journal.repositories.load_tally import LoadTally
-    agents, entries = Agents(connection, bus, scope), Entries(connection, bus, scope)
+    agents, entries = Agents(connection, bus, scope, TimeSource()), Entries(connection, bus, scope, TimeSource())
     bus.listen(Updated, RecordChanges(entries))
     with scope.environment(1):
         agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
@@ -1472,7 +1473,7 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
 def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_of_the_write_reads_what_it_wrote(connection, bus, scope):
     from journal.repositories.load_tally import LoadTally
     from journal.repositories.setting_rows import SettingRows
-    settings = SettingRows(connection, bus, scope)
+    settings = SettingRows(connection, bus, scope, TimeSource())
 
     class ModeReader(Listener[Saved]):
         def __init__(self) -> None:
