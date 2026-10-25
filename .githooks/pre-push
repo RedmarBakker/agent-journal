@@ -16,3 +16,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     esac
 done
 python3 scripts/checks/viewer_built.py
+# every route and hook kind is timed against the saved full project in one process, and one over its budget, or a run past
+# its time limit, refuses the push; a commit is never refused for it, so no work is lost
+perl -e 'alarm shift; exec @ARGV' 300 python3 -m pytest -q -p no:warnings tests/route_points_run.py ||
+    { echo "push refused: a route or hook spent more than its 30 points, or the run passed 300 seconds (python3 -m pytest -q tests/route_points_run.py)" >&2; exit 1; }

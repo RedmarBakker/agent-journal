@@ -2513,3 +2513,17 @@ def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_mo
     assert WorkComplexity(0, 0, 0, 5, 1, 0, True).fit(ModelTier.STRONGEST).measured == "", "work with no edit recorded is not judged, so no line is drawn from it"
     assert WorkComplexity(20, 1, 0, 15, 10, 1, False).points() == small.points() + 1, "a brief that names no files makes the work harder"
     assert small.fit(ModelTier.UNKNOWN).measured == "" and [Claude().tier(model) for model in ("claude-haiku-5-5", "sonnet", "claude-opus-5-5", "fable")] == [ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST, ModelTier.UNKNOWN]
+
+
+def test_a_watched_progress_that_stands_still_past_twenty_seconds_is_noted_and_one_that_moves_is_not():
+    from journal.features.shell.support.progress_stalls import ProgressStalls
+    stalls = ProgressStalls()
+    for second, fraction in ((0, 0.1), (5, 0.1), (10, 0.2), (15, 0.3)):
+        stalls.seen(7, fraction, float(second))
+    assert stalls.longest_seconds(7) == 5.0, "a progress that keeps moving stands still only between its steps"
+    for second in range(15, 50, 5):
+        stalls.seen(7, 0.3, float(second))
+    assert stalls.longest_seconds(7) == 30.0, "one that sits at a figure while the run goes on is noted for how long it sat"
+    stalls.seen(8, 0.0, 0.0)
+    stalls.seen(8, 0.0, 60.0)
+    assert stalls.longest_seconds(8) == 0.0, "a run that shows no figure at all is the missing-progress finding's, not this one's"

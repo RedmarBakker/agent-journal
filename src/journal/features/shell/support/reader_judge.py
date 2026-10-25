@@ -4,6 +4,7 @@ from pathlib import Path
 
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.output_files import OutputFiles
+from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
@@ -14,6 +15,8 @@ from journal.support.command_shape import CommandShape
 
 # a run at least this long needed its progress shown while it ran
 PROGRESS_SECONDS = 30
+# the longest a shown progress may stand still while its run goes on
+STALL_SECONDS = 20
 # the poor lines a report quotes
 QUOTED_LINES = 3
 # the newest runs looked through for a stored output of the command a new reader reads
@@ -22,14 +25,15 @@ COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
 PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]")
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
 PROGRESS_MISSING = "its card showed no progress"
+PROGRESS_STALLED = "its progress stood still for"
 SUMMARY_MISSING = "the card ended with no line of its own"
 
 
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs) -> None:
-        self.readers, self.outputs = readers, outputs
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls) -> None:
+        self.readers, self.outputs, self.stalls = readers, outputs, stalls
 
     def latest_stored_run(self, reader: Reader) -> CommandOutput | None:
         runs = self.outputs.latest(NEWEST_RUNS)
@@ -41,7 +45,7 @@ class ReaderJudge:
         if reader is None or reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        shortfalls = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.missing_summary(reader, output, lines)]
+        shortfalls = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines)]
         if not shortfalls:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
@@ -64,6 +68,12 @@ class ReaderJudge:
         if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known() or not self.has_progress(lines):
             return []
         return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
+
+    def stalled_progress(self, output: CommandOutput) -> list[tuple[str, str]]:
+        seconds = self.stalls.longest_seconds(output.row_id)
+        if seconds <= STALL_SECONDS:
+            return []
+        return [(f"{PROGRESS_STALLED} {seconds:.0f} seconds while the run went on", "make the run print its progress as it goes, not only when a part of it ends, or give the reader a --progress pattern that picks a figure printed more often")]
 
     @staticmethod
     def has_progress(lines: list[str]) -> bool:
@@ -102,6 +112,8 @@ class ReaderJudge:
         progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:
             fixes.append(self.progress_fix(output.command, lines))
+        if any(PROGRESS_STALLED in finding for finding in report.findings) and self.stalls.longest_seconds(output.row_id) > STALL_SECONDS:
+            fixes.append(f"{PROGRESS_STALLED} {self.stalls.longest_seconds(output.row_id):.0f} seconds while the run went on: make it print its progress as it goes")
         summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")
         summary_unpicked = any(SUMMARY_MISSING in finding for finding in report.findings) and bool(summary) and not reader.variant(output.stage()).card_lines(lines)
         if summary_unpicked:
