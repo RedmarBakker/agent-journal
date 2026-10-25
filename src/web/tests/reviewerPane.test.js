@@ -37,6 +37,8 @@ beforeEach(() => {
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     store.summary = {environments: [{environment: {id: 1, name: "main"}, agent: null, task: null, questions: 0, messages: 0, tasks: 0, silent: false}]};
     vi.spyOn(api, "list").mockImplementation(async (table) => ({rows: table === "reviewers" ? [{table: "reviewers", id: 7, name: "Mr. Juran, keeper of the quality ledger", session: "r-1", state: "reviewed"}] : [], is_last_page: true, counts: {}}));
+    vi.spyOn(api, "saveSettings").mockResolvedValue(null);
+    vi.spyOn(api, "settings").mockImplementation(async () => store.settings);
     vi.spyOn(api, "chat").mockImplementation(async (session) => ({rows: session === "r-1" ? STEPS : [], is_last_page: true, counts: {}}));
 });
 
