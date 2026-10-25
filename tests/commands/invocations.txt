@@ -19,6 +19,7 @@ agent task release 1
 agent task complete 1 --how "the footer names the shop"
 agent task start 2
 agent task cancel 2 --why "the tax rates changed"
+agent task decline 2 --why "not this quarter"
 agent task list --all
 agent todo --help
 agent todo add --help

@@ -11168,6 +11168,69 @@ def test_with_every_place_full_a_clocked_out_worker_is_named_as_the_work_to_chec
     assert refused.code == 1 and "places full; check worker 1 first" in refused.error, "a dispatch past the limit says the same"
 
 
+def test_a_request_declined_with_a_reason_and_one_done_show_on_the_requesters_page_and_as_cards_in_their_chat(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.models.author import Author
+    from journal.repositories.messages import Messages
+    from journal.repositories.task_logs import TaskLogs
+    from journal.repositories.tasks import Tasks
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "ab")
+    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
+    bob = replace(USER, person=2)
+    try:
+        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
+        invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
+        assert b.console().run(["team", "join", invited, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
+        for title in ("Review the plan", "Check the copy"):
+            assert a.console().run(["task", "create", title, "--brief", "b", "--to", "Bob"], USER).code == 0
+        titled = lambda journal, title: next(iter(journal.container.get(Tasks).global_matching(title=title)), None)
+        assert eventually(lambda: titled(b, "Review the plan") and titled(b, "Check the copy")), "both requests reach Bob's journal"
+        declined, finished = titled(b, "Review the plan"), titled(b, "Check the copy")
+        refused = a.console().run(["task", "decline", str(declined.id), "--why", "not mine"], USER)
+        assert refused.code == 1 and "is no request filed for you" in refused.error, "only the person a request is for declines it"
+        assert b.console().run(["task", "decline", str(declined.id), "--why", "not this quarter"], bob).code == 0
+        assert b.console().run(["task", "complete", str(finished.id), "--how", "checked"], bob).code == 0
+        assert [log.line for log in b.container.get(TaskLogs).global_matching(task_id=declined.id)][-1:] == ["not this quarter"], "the reason is the task's log line"
+        assert eventually(lambda: titled(a, "Review the plan").is_declined() and titled(a, "Check the copy").state == "done"), "both outcomes reach the requester's journal"
+        filed = lambda: {row["title"]: row for row in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{a.server().port}/journal/requests/filed", headers={"X-Journal-Env": "main"}), timeout=5))["rows"]}
+        rows = filed()
+        assert (rows["Review the plan"]["standing"], rows["Review the plan"]["reason"], rows["Review the plan"]["for_whom"]) == ("declined", "not this quarter", "Bob"), "the requester's page shows a declined request with its reason and who it was for"
+        assert (rows["Check the copy"]["standing"], rows["Check the copy"]["for_whom"]) == ("done", "Bob") and rows["Check the copy"]["done_at"], "and a done request as done, with when"
+        system = lambda: [message.text for message in a.container.get(Messages).global_matching(author=Author.SYSTEM)]
+        assert eventually(lambda: any("was declined: not this quarter" in text for text in system()) and any("is done: Check the copy" in text for text in system())), "and both are cards in their chat"
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []

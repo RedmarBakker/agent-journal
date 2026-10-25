@@ -30,6 +30,7 @@ from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
 from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.sync.hub_drives import HubDrives
+from journal.sync.team_account import TeamAccount
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
@@ -39,10 +40,10 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives, account: TeamAccount) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels, self.hub, self.filing, self.drives = check, labels, hub, filing, drives
+        self.check, self.labels, self.hub, self.filing, self.drives, self.account = check, labels, hub, filing, drives, account
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -77,6 +78,9 @@ class TaskCommand(Command):
         dropped = self.verb(verbs, "cancel", "give a task up, undone, with why")
         dropped.add_argument("n", type=int)
         dropped.add_argument("--why", required=True)
+        declined = self.verb(verbs, "decline", "turn down a request filed for you, with why: the task is cancelled, its requester sees the reason, and your agent is not told")
+        declined.add_argument("n", type=int)
+        declined.add_argument("--why", required=True)
         block = self.verb(verbs, "block", "a task waits on something outside your hands: blocked, with why, it is neither offered nor nudged")
         block.add_argument("n", type=int)
         block.add_argument("why", nargs="?", default="")
@@ -203,6 +207,15 @@ class TaskCommand(Command):
         task = self.tasks.save(self.tasks.find(args.n).cancelled(self._time(), args.why), caller.actor)
         print(f"{self.labels.name('task', task)} cancelled")
         self._name_next(task)
+        return 0
+
+    def decline(self, args: Namespace, caller: Caller) -> int:
+        task = self.tasks.find(args.n)
+        if not self.filing.is_for(task, self.account.user_number()):
+            raise Rejection(f"{self.labels.name('task', task)} is no request filed for you")
+        declined = self.tasks.save(task.declined(self._time(), args.why), caller.actor)
+        self.logs.save(TaskLog.build(declined, args.why, self.clock.time()), caller.actor)
+        print(f"{self.labels.name('task', declined)} declined")
         return 0
 
     def readable(self, n: int, caller: Caller) -> Task:

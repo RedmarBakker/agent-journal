@@ -2,6 +2,7 @@
 import {onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import {peek} from "../route.js";
+import {standingLine} from "../domain/requests.js";
 
 const requests = ref(null);
 const filed = ref([]);
@@ -23,7 +24,7 @@ onMounted(async () => {
         <template v-if="filed.length">
             <h3 class="head">You asked</h3>
             <template v-for="task in filed" :key="task.id">
-                <button type="button" class="line" data-filed @click="peek('tasks', task.id)">Task {{ task.id }}: {{ task.title }} · {{ task.state }}</button>
+                <button type="button" class="line" data-filed @click="peek('tasks', task.id)">Task {{ task.id }}: {{ task.title }} · {{ standingLine(task) }}</button>
             </template>
         </template>
     </div>

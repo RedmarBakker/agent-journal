@@ -22,6 +22,8 @@ from journal.support.rejection import Rejection
 BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
 INLINE_POINTS = re.compile(r"\bpoints:\s*(.+)$", re.IGNORECASE | re.DOTALL)
 POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
+# how the outcome of a request its recipient turned down begins: the task is cancelled, since a task has no declined state
+DECLINED = "declined: "
 
 @dataclass(frozen=True)
 class Task(Scoped):
@@ -105,6 +107,12 @@ class Task(Scoped):
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time, outcome=outcome), time, "cancelled")
+
+    def declined(self, time: datetime, reason: str) -> "Task":
+        return self.cancelled(time, f"{DECLINED}{reason}")
+
+    def is_declined(self) -> bool:
+        return self.state == TaskState.CANCELLED and self.outcome.startswith(DECLINED)
 
     def closed(self, task: "Task", time: datetime, manner: str, worker_id: int = 0) -> "Task":
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))

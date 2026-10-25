@@ -24,6 +24,9 @@ class HubFiling:
     def is_filing(args: Namespace) -> bool:
         return bool(args.to or args.to_team or args.issue)
 
+    def is_for(self, task: Task, person: int) -> bool:
+        return any(link.kind == TEAM_REQUEST or link.target.id == person for link in self.links.link_rows(task) if link.source == Ref.build(task) and link.kind in (REQUESTED_OF, TEAM_REQUEST))
+
     def team(self, args: Namespace) -> str:
         return self.choice.hub(args.team).team_name if self.is_filing(args) else args.team
 
