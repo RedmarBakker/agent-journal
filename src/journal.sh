@@ -35,7 +35,7 @@ fi
 if [ -n "$port" ]; then
     request_at=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
     { line=$({ env -0; printf '\0\0'; for word in "$@"; do printf '%s\0' "$word"; done; } \
-        | { curl -s --connect-timeout 2 -X POST "http://127.0.0.1:$port/cli/run" -H "Content-Type: application/octet-stream" -H "X-Journal-Env: $JOURNAL_ENV" -H "X-Journal-Actor: ${JOURNAL_ACTOR:-agent}" -H "X-Journal-Thread: ${CODEX_THREAD_ID:-}" -H "X-Journal-Request-At: $request_at" --data-binary @- || echo "__journal_unanswered $?"; } \
+        | { curl -sN --connect-timeout 2 -X POST "http://127.0.0.1:$port/cli/run" -H "Content-Type: application/octet-stream" -H "X-Journal-Env: $JOURNAL_ENV" -H "X-Journal-Actor: ${JOURNAL_ACTOR:-agent}" -H "X-Journal-Thread: ${CODEX_THREAD_ID:-}" -H "X-Journal-Request-At: $request_at" --data-binary @- || echo "__journal_unanswered $?"; } \
         | awk '/^__journal_exec / { print substr($0, 16) | "cat >&3"; next } /^__journal_exit / { ended = $0; next } /^__journal_unanswered / { unanswered = substr($0, 22); next } { print; fflush(); printed++ } END { if (!printed && ended == "" && (unanswered == "" || unanswered ~ /^(7|28)$/)) exit 255; if (unanswered != "") { print "the journal server took the command and broke off before answering (curl " unanswered "); it may still be running it, so it was not run a second time: look at its outcome before running it again" > "/dev/stderr"; exit 1 } if (ended == "") { print "the journal server stopped answering before the command ended" > "/dev/stderr"; exit 1 } split(ended, exit_line, " "); exit exit_line[2] + 0 }' 3>&1 >&4); } 4>&1
     status=$?
     [ -n "$line" ] && cd "$root" && exec sh -c "$line"

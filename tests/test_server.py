@@ -1768,9 +1768,14 @@ def test_a_background_journal_command_streams_each_line_it_prints_before_it_ends
     with urlopen(request, timeout=10) as reply:
         first = reply.readline().decode()
         early = time.monotonic() - began < 3
+        asked = time.monotonic()
+        with urlopen(f"http://127.0.0.1:{server.port}/journal/health", timeout=4) as health:
+            health.read()
+        answered = time.monotonic() - asked
         released.set()
         rest = reply.read().decode().splitlines()
     assert early and first.startswith("step 1/5: asking the plugins about its branch"), "the step reaches the shell while the merge still waits"
+    assert answered < 1, f"the journal answers its health check while the merge waits, in {answered:.1f} s"
     assert rest[-2:] == ["held by the test", "__journal_exit 1"], rest
 
 

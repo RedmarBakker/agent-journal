@@ -50,3 +50,30 @@ def test_a_command_no_server_could_take_is_run_by_the_package(tmp_path: Path):
     closed.close()
     ran = shim_run(shim, tmp_path)
     assert (tmp_path / "ran-here").read_text() == "yes", ran.stderr
+
+
+def slow_server() -> int:
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    def answered() -> None:
+        connection, _ = listener.accept()
+        connection.recv(65536)
+        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nstep 1/5: asking the plugins\n")
+        threading.Event().wait(3)
+        connection.sendall(b"__journal_exit 0\n")
+        connection.close()
+    threading.Thread(target=answered, daemon=True).start()
+    return listener.getsockname()[1]
+
+
+def test_a_line_the_server_streams_reaches_the_shims_output_before_the_command_ends(tmp_path: Path):
+    import time
+    shim = shim_copy(tmp_path)
+    (tmp_path / ".journal" / "port").write_text(str(slow_server()))
+    began = time.monotonic()
+    process = subprocess.Popen(["sh", str(shim), "worker", "merge", "1"], cwd=tmp_path, env={"PATH": "/usr/bin:/bin", "JOURNAL_ROOT": str(tmp_path), "JOURNAL_ENV": "main"}, stdout=subprocess.PIPE, text=True)
+    first = process.stdout.readline()
+    arrived = time.monotonic() - began
+    process.wait(timeout=10)
+    assert first.startswith("step 1/5") and arrived < 2, f"the step arrived after {arrived:.1f} s"
