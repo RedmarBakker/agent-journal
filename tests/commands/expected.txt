@@ -1614,7 +1614,7 @@ workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; {{count}}
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-229 nudges
+233 nudges
 
 $ agent: journal worker list
 exit 0
