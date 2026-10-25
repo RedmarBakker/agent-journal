@@ -1034,7 +1034,7 @@ def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_st
         console.run(["check", "run", "1"], USER)
         app.runtime().deferred.drain()
         hook(app, "Stop")
-    assert sum("check 1, it is broken" in line for line in keystrokes) == 1
+    assert sum("check 1 failed" in line for line in keystrokes) == 1
     console.run(["task", "create", "t", "--start"], AGENT)
     console.run(["stuck", "the build is broken"], AGENT)
     console.run(["check", "create", "also broken", "--command", "exit 1"], USER)
@@ -1773,7 +1773,7 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     hook(app, "Stop")
     hook(app, "Stop")
     stalled = lines("workers.plan_stalled")
-    assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id}, release, has not moved since") and "over 60 minutes, while another started plan moves" in stalled[0], "a plan untouched past the setting is named once as stalled, while the other moves"
+    assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id} stalled since") and stalled[0].endswith("60 min"), "a plan untouched past the setting is named once as stalled, while the other moves"
     told = lines("workers.started_plans") + stalled
     assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
 
@@ -10974,7 +10974,7 @@ def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: 
     assert quiet() == [], "nineteen minutes is not yet quiet"
     tick_after(app, 21 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and "worker 1, Mr. Harrison" in quiet()[0] and "journal worker notify 1" in quiet()[0]
+    assert len(quiet()) == 1 and "worker 1 quiet 20 min" in quiet()[0]
     tick_after(app, 25 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and workers.find(1).silence.is_reported, "it is named once for each quiet span"

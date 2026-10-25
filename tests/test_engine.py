@@ -624,7 +624,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert agents.session_agent("w1").stack == stack and agents.session_agent("s1").stack[-1]["state"] == "following_plan", "a row event for the environment reaches the main agent alone"
 
 
-def test_a_worker_clocks_in_on_its_task_and_the_main_agent_hears_it(app: App, monkeypatch):
+def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what_it_dispatched(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.models.agent import Agent
     from journal.models.agent_role import AgentRole
@@ -648,7 +648,7 @@ def test_a_worker_clocks_in_on_its_task_and_the_main_agent_hears_it(app: App, mo
     assert app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in moves the worker to Working on its task"
     with scope.environment(1):
         assert tasks.find(task.id).state == "delegated", "and keeps the task delegated to it"
-    assert any("worker 1, Mr. Babbage, clocked in" in line for line in typed), "the main agent hears that the worker is at work"
+    assert not any("clocked in" in line for line in typed), "the main agent dispatched the worker, so it is not told the worker is at work"
     assert "a worker clocks in once each time it is sent" in app.console().run(["clock-in"], babbage).error
     with scope.environment(1):
         workers.save(workers.find(worker.id).with_(state=WorkerState.DISPATCHED), Actor.system())
