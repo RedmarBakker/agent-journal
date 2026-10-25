@@ -160,6 +160,24 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
         app.container.get(NudgeRegistry).lookup("nowhere.unregistered")
 
 
+def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_chat_and_cleared(app: App):
+    from journal.events.agent_event import AgentEvent
+    from journal.features.record.listeners.bypass_notice import BypassNotice
+    from journal.repositories.messages import Messages
+    app.container.get(Bus).listen(AgentEvent, app.container.get(BypassNotice))
+    log = app.config.home / "runtime" / "bypass.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("1761393836 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
+    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
+    app.container.get(ListenerQueue).drain()
+    marks = [m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]
+    assert len(marks) == 1 and marks[0].text == "The journal did not answer in time: 1 hook let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded", [m.text for m in marks]
+    assert marks[0].data["lines"][1].endswith("ran in the shell itself: git status") and marks[0].data["tone"] == "bad", marks[0].data
+    assert not log.exists(), "what was named is cleared"
+    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
+    app.container.get(ListenerQueue).drain()
+    assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]) == 1, "named once: the next answer says nothing more"
+
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/cli", data=json.dumps({"argv": argv, "env": "main", "session": session, **(body or {})}).encode(), method="POST", headers={"Content-Type": "application/json", **(headers or {})})
     try:

@@ -4,6 +4,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- The hooks and shell commands that went around a journal that did not answer are named once in the chat, in one red mark that counts each kind and lists each with its time and command, at the journal's next answer; what it named is cleared from runtime/bypass.log.
 - Colleagues' environments are no longer shown unless their chat is shared.
 
 ## 4.60.0

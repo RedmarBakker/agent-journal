@@ -167,3 +167,23 @@ def test_the_runner_agrees_with_the_shell_on_every_line_of_the_corpus(tmp_path: 
         assert not differences, "\n".join(repr(d) for d in differences)
     finally:
         app.runtime().stop()
+
+
+def test_a_journal_that_takes_the_line_and_never_answers_is_gone_around_and_the_line_runs_in_the_shell(tmp_path: Path):
+    import socket
+    from journal.features.record.support.bypass_log import BypassLog
+    silent = socket.socket()
+    silent.bind(("127.0.0.1", 0))
+    silent.listen(8)
+    (tmp_path / ".journal" / "runtime").mkdir(parents=True)
+    (tmp_path / ".journal" / "src").symlink_to(SRC)
+    (tmp_path / ".journal" / "port").write_text(str(silent.getsockname()[1]))
+    runner, cwd = str(tmp_path / ".journal" / "src" / "journal" / "hooks" / "run.sh"), tmp_path / "cwd"
+    began = time.monotonic()
+    ran = subprocess.run(["sh", runner, wrapped("echo went around", cwd)], capture_output=True, text=True, cwd=tmp_path, env={**os.environ, "JOURNAL_ENV": "main", "SHELL": "/bin/sh"}, timeout=30)
+    silent.close()
+    assert ran.returncode == 0 and ran.stdout == "went around\n" and time.monotonic() - began < 5, (ran.returncode, ran.stdout, ran.stderr, time.monotonic() - began)
+    assert cwd.read_text().strip() == str(tmp_path.resolve()), "the agent's own pwd still lands in its file"
+    bypasses = BypassLog(Config(tmp_path)).taken()
+    assert [bypass.described().split(" ", 1)[1] for bypass in bypasses] == ["ran in the shell itself: echo went around"], "the miss is noted, and the journal reads it back as the agent's own command"
+    assert not (tmp_path / ".journal" / "runtime" / "bypass.log").exists(), "taken once, the log is cleared"

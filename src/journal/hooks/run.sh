@@ -14,7 +14,7 @@ waited=$(journal_boot_wait "$root")
 port=$(cat "$root/port" 2>/dev/null) || exec "${SHELL:-bash}" -c "$1"
 # a journal that does not answer its health in two seconds is gone around: the line runs here, and the miss is noted for the journal to say
 curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" || {
-    mkdir -p "$root/runtime" && printf '%s shell %.200s\n' "$(date +%s)" "$1" >> "$root/runtime/bypass.log"
+    mkdir -p "$root/runtime" && printf '%s shell %s\n' "$(date +%s)" "$(printf '%s' "$1" | tr '\n' ' ')" >> "$root/runtime/bypass.log"
     exec "${SHELL:-bash}" -c "$1"
 }
 request_at=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
