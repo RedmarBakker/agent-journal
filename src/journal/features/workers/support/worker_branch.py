@@ -154,7 +154,7 @@ class WorkerBranch:
         changed = self.git("diff", "--name-only", f"HEAD...{self.tip(repository, worker)}", cwd=repository.checkout).stdout.split()
         return "; ".join(self.commits(repository, worker)) + f" (files: {', '.join(changed[:20])}{', and more' if len(changed) > 20 else ''})"
 
-    def landed_lines(self, worker: Worker) -> int:
+    def merged_lines(self, worker: Worker) -> int:
         total = 0
         for repository in self.repositories(worker):
             tip = self.tip(repository, worker)

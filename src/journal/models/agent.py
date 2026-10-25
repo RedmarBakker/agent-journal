@@ -57,8 +57,8 @@ class Agent(Scoped):
     file_edit_uses: tuple[int, ...] = ()
     merge_uses: tuple[int, ...] = ()
     prepared_merge_uses: tuple[int, ...] = ()
-    own_lines: tuple[tuple[int, int], ...] = ()
-    landed_lines: tuple[tuple[int, int], ...] = ()
+    edited_lines: tuple[tuple[int, int], ...] = ()
+    merged_lines: tuple[tuple[int, int], ...] = ()
     task_filed_uses: tuple[int, ...] = ()
     task_completed_uses: tuple[int, ...] = ()
     reuse_uses: tuple[int, ...] = ()
@@ -125,18 +125,18 @@ class Agent(Scoped):
     def with_handover(self, time: float) -> "Agent":
         return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time, handover_uses=self.windowed((*self.handover_uses, self.tool_uses)))
 
-    def lines_written(self, lines: int) -> "Agent":
-        return self.with_(own_lines=self.windowed_lines((*self.own_lines, (self.tool_uses, lines)))) if lines else self
+    def lines_edited(self, lines: int) -> "Agent":
+        return self.with_(edited_lines=self.windowed_lines((*self.edited_lines, (self.tool_uses, lines)))) if lines else self
 
-    def lines_landed(self, lines: int) -> "Agent":
-        return self.with_(landed_lines=self.windowed_lines((*self.landed_lines, (self.tool_uses, lines)))) if lines else self
+    def lines_merged(self, lines: int) -> "Agent":
+        return self.with_(merged_lines=self.windowed_lines((*self.merged_lines, (self.tool_uses, lines)))) if lines else self
 
     def windowed_lines(self, pairs: tuple[tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
         return tuple((use, lines) for use, lines in pairs if self.tool_uses - WORK_WINDOW_USES < use <= self.tool_uses)
 
-    def lines_since_handover(self) -> int:
+    def handover_lines(self) -> int:
         last = self.handover_uses[-1] if self.handover_uses else 0
-        return sum(lines for use, lines in self.own_lines if use > last)
+        return sum(lines for use, lines in self.edited_lines if use > last)
 
     def task_filed(self) -> "Agent":
         return self.with_(task_filed_uses=self.windowed((*self.task_filed_uses, self.tool_uses)))
@@ -219,7 +219,7 @@ class Agent(Scoped):
 
     def compacted(self) -> "Agent":
         shifted = {name: tuple(use - self.tool_uses for use in getattr(self, name)) for name in WINDOWED_USES}
-        lines = {name: tuple((use - self.tool_uses, count) for use, count in getattr(self, name)) for name in ("own_lines", "landed_lines")}
+        lines = {name: tuple((use - self.tool_uses, count) for use, count in getattr(self, name)) for name in ("edited_lines", "merged_lines")}
         return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted, **lines)
 
     def message_arrived(self) -> "Agent":

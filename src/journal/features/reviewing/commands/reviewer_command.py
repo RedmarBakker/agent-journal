@@ -30,9 +30,9 @@ class ReviewerCommand(Command):
     def add(self, args: Namespace, caller: Caller) -> int:
         if not self.routing.is_enabled():
             raise Rejection("the reviewer is off: turn the Reviewer switch on, in orchestrator mode, first")
-        most = self.settings.integer(WorkersOptions.REVIEWERS_MOST)
-        if len(self.reviewers.active()) >= most:
-            raise Rejection(f"{most} reviewers are out, the most workers.reviewers_most allows; {self.standing()}")
+        limit = self.settings.integer(WorkersOptions.REVIEWER_LIMIT)
+        if len(self.reviewers.active()) >= limit:
+            raise Rejection(f"{limit} reviewers are out, the limit workers.reviewers_most sets; {self.standing()}")
         added = self.dispatch.added(self.scope.id)
         self.queue.assigned(self.scope.id)
         print(f"reviewer {added.id} added; {self.standing()}")

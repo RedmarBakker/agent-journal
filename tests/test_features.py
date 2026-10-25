@@ -4274,7 +4274,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
     settings.set(WorkersOptions.MODE.key, "orchestrator", Actor.user(1))
     settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, 1, Actor.user(1))
-    settings.set(WorkersOptions.VERIFIERS_MOST.key, 10, Actor.user(1))
+    settings.set(WorkersOptions.VERIFIER_LIMIT.key, 10, Actor.user(1))
     hook(app, "SessionStart")
 
     # a worker's job on `model`, `lines` lines over `files` files, sent back `rejections` times over `minutes`, merged now

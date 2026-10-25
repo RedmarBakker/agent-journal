@@ -1195,7 +1195,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_MAY_SUBAGENTS.key: True, WorkersOptions.BUILDER_MAY_DISPATCH.key: True, WorkersOptions.BUILDER_MAY_QUEUE.key: True, WorkersOptions.BUILDER_LINES_PER_HANDOVER.key: 50, WorkersOptions.BUILDER_HANDOVER_LIMIT.key: 2, WorkersOptions.FITNESS_THRESHOLD.key: 70, "tasks.auto": False, "reviewing.reviewer": False})
+    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.BUILDER_HANDOVER_LIMIT.key: 2, WorkersOptions.FITNESS_THRESHOLD.key: 70, "tasks.auto": False, "reviewing.reviewer": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
@@ -2576,10 +2576,10 @@ def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allo
         from journal.support.command_part import CommandPart
         call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
         return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=lines)}))
-    allowed = {WorkersOptions.BUILDER_MAY_DISPATCH.key: True, WorkersOptions.BUILDER_MAY_QUEUE.key: True, WorkersOptions.BUILDER_MAY_SUBAGENTS.key: True, WorkersOptions.SOLO_MAY_SUBAGENTS.key: True, WorkersOptions.BUILDER_LINES_PER_HANDOVER.key: 50}
+    allowed = {WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.SOLO_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_HANDOVER_LINES.key: 50}
     builder = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder"})
     assert capability_check(Ready(), event("journal worker dispatch 1"), builder).refusal is None
-    off = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_MAY_DISPATCH.key: False, WorkersOptions.BUILDER_MAY_QUEUE.key: False})
+    off = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: False, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: False})
     assert "may not dispatch a worker" in capability_check(Ready(), event("journal worker dispatch 1"), off).refusal.rendered()
     assert "may not queue a worker's next task" in capability_check(Ready(), event("journal worker queue 1 2"), off).refusal.rendered()
     assert [n.rendered() for n in budget_check(Ready(), event("journal worker dispatch 1", 20), builder).nudges] == ["you wrote 20 lines since your last handover, under the 50 one worker out is worth: write the next piece yourself"]
@@ -2629,8 +2629,8 @@ def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
     dispatch = VerifierDispatch(verifiers, None, runner, SimpleNamespace(default=lambda: SimpleNamespace(name="claude")), None, SimpleNamespace(integer=lambda option: 1))
     dispatch.judging = lambda verifier, target, resume: (rows.append(verifier), runner.start(verifier, resume))[1]
     target = SimpleNamespace(environment_id=1)
-    first = dispatch.sent_on(target, "one", "sonnet")
-    assert first is not None and dispatch.sent_on(target, "two", "sonnet") is None and len(dispatch.waiting) == 1, "past the most the verdict waits"
+    first = dispatch.dispatched_with(target, "one", "sonnet")
+    assert first is not None and dispatch.dispatched_with(target, "two", "sonnet") is None and len(dispatch.waiting) == 1, "past the most the verdict waits"
     rows[0] = rows[0].judged()
     dispatch.released()
     assert dispatch.waiting == [] and [brief for brief, _ in sent] == ["one", "two"], "once one is free the waiting verdict goes to it"
@@ -2638,17 +2638,17 @@ def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
 
 def test_the_builder_is_scored_on_the_share_of_the_code_it_wrote_itself_against_what_its_workers_merges_brought_with_the_range_and_weight_the_user_sets():
     from dataclasses import replace
-    from journal.features.workers.support.own_share_limits import OwnShareLimits
+    from journal.features.workers.support.code_share_limits import CodeShareLimits
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_options import WorkersOptions
-    from journal.features.workers.workers_profiles import OWN_CODE_SHARE, WorkersProfiles
-    counts = lambda own, landed: ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, own_lines=own, landed_lines=landed)
-    assert OWN_CODE_SHARE in WorkersProfiles.BUILDER.measures
-    assert OWN_CODE_SHARE.closeness(counts(80, 20)) == 1.0, "two thirds or more of its own is whole"
-    assert OWN_CODE_SHARE.closeness(counts(30, 70)) == 0.0, "under a third it scores nothing"
-    assert round(OWN_CODE_SHARE.closeness(counts(50, 50)), 2) == 0.5 and OWN_CODE_SHARE.closeness(counts(5, 5)) is None, "between the two it falls straight, and under twenty lines it is not scored"
+    from journal.features.workers.workers_profiles import CODE_SHARE, WorkersProfiles
+    counts = lambda own, landed: ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, edited_lines=own, merged_lines=landed)
+    assert CODE_SHARE in WorkersProfiles.BUILDER.measures
+    assert CODE_SHARE.closeness(counts(80, 20)) == 1.0, "two thirds or more of its own is whole"
+    assert CODE_SHARE.closeness(counts(30, 70)) == 0.0, "under a third it scores nothing"
+    assert round(CODE_SHARE.closeness(counts(50, 50)), 2) == 0.5 and CODE_SHARE.closeness(counts(5, 5)) is None, "between the two it falls straight, and under twenty lines it is not scored"
     mine, handed = WorkersProfiles.BUILDER.scored(counts(80, 20)), WorkersProfiles.BUILDER.scored(counts(10, 90))
     assert handed.score < mine.score and any("write the next piece yourself" in line for line in handed.lines), (mine.score, handed.score)
-    heavier = WorkersProfiles.BUILDER.scored(replace(counts(10, 90), own_share=OwnShareLimits(0.67, 0.33, 12)))
+    heavier = WorkersProfiles.BUILDER.scored(replace(counts(10, 90), code_share=CodeShareLimits(0.67, 0.33, 12)))
     assert heavier.score < handed.score, "the weight is the user's setting"
-    assert all(option.title.startswith("Fitness: ") for option in (WorkersOptions.OWN_SHARE_FULL, WorkersOptions.OWN_SHARE_ZERO, WorkersOptions.OWN_SHARE_WEIGHT)), "the settings are among those under Fitness:"
+    assert all(option.title.startswith("Fitness: ") for option in (WorkersOptions.CODE_SHARE_FULL, WorkersOptions.CODE_SHARE_ZERO, WorkersOptions.CODE_SHARE_WEIGHT)), "the settings are among those under Fitness:"

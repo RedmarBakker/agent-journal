@@ -26,13 +26,13 @@ class VerifierDispatch:
         self.waiting: list[tuple[Scoped, str, str]] = []
 
     def sent(self, target: Scoped, brief: str) -> Verifier | None:
-        return self.sent_on(target, brief, self.general_model())
+        return self.dispatched_with(target, brief, self.general_model())
 
-    def sent_on(self, target: Scoped, brief: str, model: str) -> Verifier | None:
+    def dispatched_with(self, target: Scoped, brief: str, model: str) -> Verifier | None:
         idle = [verifier for verifier in self.verifiers.idle() if verifier.model == model]
         if idle:
             return self.judging(idle[0].next_judgement(brief), target, idle[0].session)
-        if len(self.verifiers.out()) >= self.settings.integer(WorkersOptions.VERIFIERS_MOST):
+        if len(self.verifiers.working()) >= self.settings.integer(WorkersOptions.VERIFIER_LIMIT):
             self.waiting.append((target, brief, model))
             return None
         return self.judging(Verifier(environment_id=target.environment_id, name=DIOGENES, brief=brief, provider=self.providers.default().name, model=model), target, "")
@@ -40,7 +40,7 @@ class VerifierDispatch:
     def released(self) -> None:
         while self.waiting:
             target, brief, model = self.waiting[0]
-            if self.sent_on(target, brief, model) is None:
+            if self.dispatched_with(target, brief, model) is None:
                 return
             self.waiting.pop(0)
 

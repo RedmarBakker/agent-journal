@@ -449,7 +449,7 @@ def is_full(dispatched: tuple, limit: int) -> bool:
     return limit > 0 and len(dispatched) >= limit
 
 
-HANDOVERS = {"journal worker dispatch": ("dispatch a worker", WorkersOptions.BUILDER_MAY_DISPATCH), "journal worker queue": ("queue a worker's next task", WorkersOptions.BUILDER_MAY_QUEUE)}
+HANDOVERS = {"journal worker dispatch": ("dispatch a worker", WorkersOptions.BUILDER_DISPATCH_ALLOWED), "journal worker queue": ("queue a worker's next task", WorkersOptions.BUILDER_QUEUE_ALLOWED)}
 
 
 def capability_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -457,25 +457,26 @@ def capability_check(state: BaseState, event: ToolStarting, settings: Settings) 
     if event.subagent:
         return state.none()
     if isinstance(event.call.operation, SubagentDispatch):
-        allowed = {"builder": WorkersOptions.BUILDER_MAY_SUBAGENTS, "solo": WorkersOptions.SOLO_MAY_SUBAGENTS}.get(mode)
-        return state.refuse(WorkersNudges.MODE_MAY_NOT.create(mode=mode, act="send subagents")) if allowed is not None and not settings.value(allowed) else state.none()
+        allowed = {"builder": WorkersOptions.BUILDER_SUBAGENTS_ALLOWED, "solo": WorkersOptions.SOLO_SUBAGENTS_ALLOWED}.get(mode)
+        return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act="send subagents")) if allowed is not None and not settings.value(allowed) else state.none()
     if mode != "builder":
         return state.none()
     for part in event.call.parts:
         for command, (act, option) in HANDOVERS.items():
             if part.text.startswith(command) and not settings.value(option):
-                return state.refuse(WorkersNudges.MODE_MAY_NOT.create(mode=mode, act=act))
+                return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act=act))
     return state.none()
 
 
 def budget_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     if event.subagent or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
         return state.none()
-    budget, lines = settings.integer(WorkersOptions.BUILDER_LINES_PER_HANDOVER), event.data.part(WorkersPart).code_lines
+    budget, lines = settings.integer(WorkersOptions.BUILDER_HANDOVER_LINES), event.data.part(WorkersPart).code_lines
     return state.none(WorkersNudges.BUILDER_BUDGET.create(lines=lines, budget=budget)) if 0 < budget and lines < budget else state.none()
 
 
 HANDOVER_LINES = ("journal worker dispatch", "journal worker queue")
+
 
 
 def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

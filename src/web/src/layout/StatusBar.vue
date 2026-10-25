@@ -70,11 +70,16 @@ const workersAnchor = ref(null);
 
 const fitness = computed(() => agent.value?.fitness || null);
 const fitnessShown = computed(() => (fitness.value.is_measured ? fitness.value.score : "–"));
+// the line the builder is told when it hands work out under its budget of its own lines, in the same words
+const budgetWarning = computed(() => {
+    const spent = agent.value?.handover_budget;
+    return spent ? `you wrote ${spent.lines} lines since your last handover, under the ${spent.budget} one worker out is worth: write the next piece yourself` : "";
+});
 const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
         label: one.label,
-        tip: {title: one.label, toggles: toggles(one.key), warning: one.key === "builder" ? agent.value?.handover_budget || "" : "", line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
+        tip: {title: one.label, toggles: toggles(one.key), warning: one.key === "builder" ? budgetWarning.value : "", line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
     }))
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default

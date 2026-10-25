@@ -41,10 +41,10 @@ class LoadItems:
                 pending, repeat = None, word == REJECTION_MOVE
         return [*items, *([pending] if pending is not None else [])]
 
-    def message_items(self, since: datetime) -> list[LoadItem]:
+    def message_items(self, begin: datetime) -> list[LoadItem]:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)
-        asked = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", since).order("created_at").order("id"))
+        user_messages = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", begin).order("created_at").order("id"))
         replied: dict[int, float] = {}
-        for reply in self.messages.recent_replies(since):
+        for reply in self.messages.recent_replies(begin):
             replied.setdefault(reply.reply_target, reply.creation_time.timestamp())
-        return [LoadItem(str(Ref.build(message)), message.creation_time.timestamp(), weight, replied.get(message.row_id, 0.0)) for message in asked]
+        return [LoadItem(str(Ref.build(message)), message.creation_time.timestamp(), weight, replied.get(message.row_id, 0.0)) for message in user_messages]

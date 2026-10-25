@@ -8,24 +8,24 @@ LEAST_LINES = 20
 
 
 @dataclass(frozen=True)
-class OwnShareMeasure:
+class CodeShareMeasure:
     """The measure of how much of the code landed in the window the builder wrote itself: its own edited lines against the lines merged from its workers, whole at the full-score share and falling straight to nothing at the zero-score share; both and its weight are the user's settings."""
 
     label: str
     advice: str
 
-    def weight_of(self, counts: ToolUseCounts) -> int:
-        return counts.own_share.weight
+    def weighted(self, counts: ToolUseCounts) -> int:
+        return counts.code_share.weight
 
     def closeness(self, counts: ToolUseCounts) -> float | None:
-        total = counts.own_lines + counts.landed_lines
+        total = counts.edited_lines + counts.merged_lines
         if total < LEAST_LINES:
             return None
-        share, limits = counts.own_lines / total, counts.own_share
+        share, limits = counts.edited_lines / total, counts.code_share
         if share >= limits.full:
             return 1.0
         return max(0.0, (share - limits.zero) / max(limits.full - limits.zero, 0.01))
 
     def gap(self, counts: ToolUseCounts) -> FitnessGap:
-        total = max(counts.own_lines + counts.landed_lines, 1)
-        return FitnessGap(self.label, round(100 * counts.own_lines / total), round(100 * counts.own_share.zero), 100, self.advice)
+        total = max(counts.edited_lines + counts.merged_lines, 1)
+        return FitnessGap(self.label, round(100 * counts.edited_lines / total), round(100 * counts.code_share.zero), 100, self.advice)

@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 
 from journal.models.agent import WORK_WINDOW_USES, Agent
-from journal.features.workers.support.own_share_limits import OwnShareLimits
+from journal.features.workers.support.code_share_limits import CodeShareLimits
 from journal.models.support.agent_load import AgentLoad
 from journal.models.support.queue_use import QueueUse
 from journal.models.support.report_use import ReportUse
@@ -15,7 +15,7 @@ HANDOVER_COMMANDS = ("journal worker dispatch", "journal worker send", "journal 
 SEND_COMMANDS = ("journal worker send",)
 DISPATCH_COMMANDS = ("journal worker dispatch",)
 MERGE_COMMANDS = ("journal worker merge",)
-TASK_FILING_COMMANDS = ("journal task create",)
+TASK_ADDITION_COMMANDS = ("journal task create",)
 TASK_COMPLETION_COMMANDS = ("journal task complete", "journal worker merge")
 PROOF_COMMANDS = ("journal task show",)
 TEST_COMMANDS = ("journal suite", "scripts/suite.py", "pytest", "python3 -m pytest", "npm test", "npx vitest", "go test", "phpunit", "cargo test")
@@ -41,9 +41,9 @@ class ToolUseCounts:
     briefed: int = 0
     late_workers: int = 0
     late_tasks: int = 0
-    own_lines: int = 0
-    landed_lines: int = 0
-    own_share: OwnShareLimits = OwnShareLimits()
+    edited_lines: int = 0
+    merged_lines: int = 0
+    code_share: CodeShareLimits = CodeShareLimits()
     tasks_filed: int = 0
     tasks_completed: int = 0
     mode: str = ""
@@ -62,7 +62,7 @@ class ToolUseCounts:
                    handovers=len(agent.windowed(agent.handover_uses)), file_edits=len(agent.windowed(agent.file_edit_uses)),
                    merges=len(agent.windowed(agent.merge_uses)), prepared_merges=len(agent.windowed(agent.prepared_merge_uses)), reuses=len(agent.windowed(agent.reuse_uses)),
                    fresh_idle=len(agent.windowed(agent.fresh_idle_uses)), briefed=len(agent.windowed(agent.briefed_uses)),
-                   late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)), own_lines=sum(lines for _, lines in agent.windowed_lines(agent.own_lines)), landed_lines=sum(lines for _, lines in agent.windowed_lines(agent.landed_lines)), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
+                   late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)), edited_lines=sum(lines for _, lines in agent.windowed_lines(agent.edited_lines)), merged_lines=sum(lines for _, lines in agent.windowed_lines(agent.merged_lines)), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
                    mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use, queue_use=agent.queue_use)
 
     @staticmethod
@@ -90,8 +90,8 @@ class ToolUseCounts:
         return call.command.startswith(PROOF_COMMANDS)
 
     @staticmethod
-    def is_task_filing(call: RecordedCall) -> bool:
-        return call.command.startswith(TASK_FILING_COMMANDS)
+    def is_task_addition(call: RecordedCall) -> bool:
+        return call.command.startswith(TASK_ADDITION_COMMANDS)
 
     @staticmethod
     def is_task_completion(call: RecordedCall) -> bool:

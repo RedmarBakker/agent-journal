@@ -92,8 +92,8 @@ class ToolUses:
         agent = agent.task_waited() if mode == "orchestrator" and self.has_late_task(time) else agent
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
         agent = agent.file_edited() if call.edited_paths else agent
-        agent = agent.lines_written(call.operation.changed_lines()[0]) if CodeFiles.has_code(call.edited_paths) else agent
-        agent = agent.task_filed() if ToolUseCounts.is_task_filing(call) else agent
+        agent = agent.lines_edited(call.operation.changed_lines()[0]) if CodeFiles.has_code(call.edited_paths) else agent
+        agent = agent.task_filed() if ToolUseCounts.is_task_addition(call) else agent
         agent = agent.task_completed() if ToolUseCounts.is_task_completion(call) else agent
         agent = agent.subagent_dispatched() if ToolUseCounts.is_subagent_dispatch(call) else agent
         return agent.researched() if ToolUseCounts.is_research(call) else agent
