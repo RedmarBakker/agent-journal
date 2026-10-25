@@ -5,7 +5,11 @@ import shlex
 from pathlib import Path
 from dataclasses import dataclass, replace
 
-FILTERS = {"tail", "head", "grep", "egrep", "fgrep"}
+# the programs that shape a command's output at the end of a pipe, taken off so the whole output is kept and the shaping applies to what is shown
+FILTERS = {"tail", "head", "grep", "egrep", "fgrep", "rg", "ag", "ack", "cut", "sort", "uniq", "wc", "tr", "column", "fold", "fmt", "nl", "less", "more", "cat", "rev", "expand", "unexpand", "paste", "colrm", "pr", "strings", "jq", "yq", "sed", "awk", "gawk", "perl"}
+# a filter that writes the file in place is a command of its own, never a shaping of the output
+IN_PLACE_FILTERS = {"sed", "perl", "awk", "gawk"}
+IN_PLACE = re.compile(r"\s(-[a-zA-Z]*i|--in-place)")
 READERS = {"cat", "sed", "grep", "egrep", "fgrep", "rg", "ag", "head", "tail", "less", "more", "bat", "awk", "jq", "wc", "ls", "find", "tree", "diff", "stat", "file", "nl", "sqlite3"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "find", "ls", "tree"}
 GIT_READS = {"show", "diff", "log", "status", "blame", "grep", "ls-files"}
@@ -136,7 +140,7 @@ class Part:
     @staticmethod
     def is_filter(command: str) -> bool:
         program = command.split()[:1]
-        return bool(program) and program[0] in FILTERS and "-f" not in command.split() and not SEPARATOR.search(command)
+        return bool(program) and program[0] in FILTERS and "-f" not in command.split() and not SEPARATOR.search(command) and not (program[0] in IN_PLACE_FILTERS and IN_PLACE.search(command))
 
     def is_subshell(self) -> bool:
         text = self.text.strip()

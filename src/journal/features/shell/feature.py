@@ -86,7 +86,7 @@ Every shell command you run goes through the journal's runner.
   line naming the output to read by its number, with its lines, its characters and the part of the line it belongs to. A command that reads (cat, grep, sed, git diff) is shown up to 8,000
   characters, past that by its two ends. A line of journal commands is shown in full and stored as no output.
 - A command that only reads or edits the project's own code, a file, a folder or a glob under the project and outside .journal, runs as written, pipes and all,
-  in the shell itself: nothing of it is captured, recorded or stored, and `grep -n x src/app.py | tail -5` answers at once. Any other command's trailing `| tail` or `| head` is removed from the line: the command runs in full, the
+  in the shell itself: nothing of it is captured, recorded or stored, and `grep -n x src/app.py | tail -5` answers at once. Any other command's trailing output shapers, `| tail`, `| head`, `| grep`, `| cut`, `| sort`, `| uniq`, `| wc`, `| sed -n`, `| awk`, `| jq` and the like, are removed from the line: the command runs in full, the
   whole output is stored under its number, and your cut is applied to it and shown before the one line naming the
   number, so the lines you asked for come back and the rest stays readable.
 - An alias names a command line of the project: `journal alias add <name> "<line>" [--reader <name>] [--about "<what

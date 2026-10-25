@@ -6777,7 +6777,7 @@ def test_a_trailing_tail_or_head_is_taken_off_the_line_and_kept_as_the_cut_to_ap
     assert (app.config.root / "head" / "0.part").read_text() == "git log --oneline" and (app.config.root / "head" / "0.cut").read_text() == "head -3", "a head is a cut like a tail"
     assert not (app.config.root / "quoted" / "0.cut").exists(), "a pipe inside quotes is text"
     assert (app.config.root / "subshell" / "0.part").read_text() == "(cd src/web && npx vitest run x 2>&1)" and (app.config.root / "subshell" / "0.cut").read_text() == "grep y | head -5", "a subshell's trailing cut comes off too, its redirect kept inside it, so the run's whole output is kept"
-    assert [Part(line).cut() for line in ("(cd x && a | tail -2; b)", "(a | tail -1) | wc -l", "(cd x && git filter-repo --force 2>&1 | tail -4)")] == ["", "", "| tail -4"], "only the subshell's last command loses its cut, and a subshell piped on is a plain line"
+    assert [Part(line).cut() for line in ("(cd x && a | tail -2; b)", "(a | tail -1) | wc -l", "(cd x && git filter-repo --force 2>&1 | tail -4)")] == ["", "| wc -l", "| tail -4"], "only the subshell's last command loses its cut, and a subshell piped on keeps its own and loses only the shaper after it, as a plain line"
     assert ShellVerbs(app).forget("cut", 120) == "kept", "a cut line's whole output is kept whatever its size"
 
 
@@ -17604,6 +17604,27 @@ def test_every_line_of_the_command_corpus_carries_every_expectation():
     expected = {"work", "reader", "needs", "cut", "label"}
     half = [n for n, row in enumerate(rows, 1) if not isinstance(row.get("line"), str) or not isinstance(row.get("parts"), list) or set(row.get("reading", {})) != expected or not all(isinstance(value, str) for value in row["reading"].values())]
     assert not half, f"{len(half)} corpus lines lack an expectation (line, parts, and a reading of work, reader, needs, cut and label), the first: {half[:5]}"
+
+
+def test_the_output_shapers_ending_a_line_are_taken_off_and_an_in_place_edit_is_not():
+    from journal.support.part import Part
+    shaped = {"make 2>&1 | cut -c1-80": "cut -c1-80", "npm test | sort | uniq -c": "sort | uniq -c", "git log | sed -n 1,5p": "sed -n 1,5p", "docker logs api | grep -i error | tail -5": "grep -i error | tail -5",
+              "kubectl get pods -o json | jq '.items[].metadata.name'": "jq '.items[].metadata.name'", "go test ./... | awk '/FAIL/'": "awk '/FAIL/'", "env | sort | column -t": "sort | column -t", "cargo build 2>&1 | wc -l": "wc -l", "cargo tree | nl": "nl"}
+    for line, cut in shaped.items():
+        assert Part(line).cut_command() == cut, f"{line} is shaped by {cut}, taken off so its whole output is kept"
+    for line in ("ls | sed -i s/a/b/ f", "x | perl -pi -e s/a/b/ f", "x | tee log.txt", "x | xargs rm", "tail -f app.log | grep error"):
+        assert Part(line).cut_command() in ("", "grep error") and Part(line).uncut().text.startswith(line.split(" | ")[0]), f"{line} keeps what writes a file, runs a command or follows a file"
+
+
+def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words():
+    from journal.features.shell.support.activity_label import ActivityLabel
+    labels = {"npx jest --ci": "testing", "bundle exec rspec spec/models": "testing", "sudo apt-get install -y curl": "installing", "CI=true npm run build": "building",
+              "docker compose run --rm web pytest -n auto": "testing", "docker run --rm -v \"$PWD\":/app -w /app node:20 npm test": "testing", "kubectl exec deploy/api -- pytest tests/smoke": "testing",
+              "timeout 300 make test": "testing", "nix develop -c cargo test": "testing", "docker run --rm alpine sh -c 'echo a; echo b'": "running docker", "time (journal todo all)": "journalling",
+              "./gradlew assembleDebug": "building", "mvn -pl core test": "testing", "dotnet restore": "installing", "mix deps.get": "installing", "uv sync --frozen": "installing", "docker build -t app .": "building",
+              "ruff check src": "checking code", "npx tsc --noEmit": "checking code", "golangci-lint run ./...": "checking code", "npm run test:unit": "testing", "echo x >> .gitignore": "writing a file"}
+    wrong = {line: got for line, label in labels.items() if (got := ActivityLabel.line_label(line)) != label}
+    assert not wrong, f"named otherwise than what they do: {wrong}"
 
 
 def test_every_line_of_the_command_corpus_is_labelled_by_what_its_working_part_does():
