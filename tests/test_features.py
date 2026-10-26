@@ -13115,6 +13115,14 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     tests = [run(4, "journal suite", "3 passed\n"), run(5, "timeout 60 python3 -m pytest -q", "3 passed\n")]
     assert judge(tests, aliases).mixed_title(reader, tests[0]) == [], "an alias is judged by the line it runs, so journal suite and python3 -m pytest are one program"
     assert judge([run(6, "npm run build", "built in 3s\n"), run(7, "journal suite", "3 passed\n")], aliases).mixed_title(reader, tests[0]), "a build and an aliased test run still raise one"
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    install = Reader("install-run", "an install", label="Installing the journal", commands=ReaderCommands.parsed("install.sh, sh install.sh"))
+    chained = run(8, "git checkout -q main && sh install.sh", "installed commit 942b841\n")
+    (Path(chained.folder) / "parts").write_text("R-\nR-\n")
+    (Path(chained.folder) / "0.part").write_text("git checkout -q main")
+    (Path(chained.folder) / "1.part").write_text("sh install.sh")
+    (Path(chained.folder) / "1.out").write_text("installed commit 942b841\n")
+    assert judge([chained, run(9, "sh install.sh", "installed commit 942b841\n")]).mixed_title(install, chained) == [], "a chain is named by the part its reader reads, so git before the install is not a second program (reader reports 196 and 197)"
 
 
 @pytest.mark.parametrize("lines, fraction", [

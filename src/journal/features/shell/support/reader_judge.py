@@ -189,12 +189,18 @@ class ReaderJudge:
 
     def mixed_title(self, reader: Reader, output: CommandOutput) -> list[tuple[str, str]]:
         runs = self.history.reader_ended(reader.name, MIXED_RUNS)
-        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(Alias.resolved(run.command, self.aliases.index())))})
+        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(self.read_command(reader, run)))})
         kinds = sorted({kind for run in runs if (kind := self.work_kind(run))})
         if len(programs) < 2 and len(kinds) < 2:
             return []
         kinds_text = f"the programs {', '.join(programs)}" if len(programs) > 1 else f"runs that print {' and '.join(kinds)}"
         return [(f"{MIXED_TITLE}: \"{output.watch_title or reader.label}\" named for {kinds_text}", "narrow the reader's --commands to the one program it reads, and give the other run a reader of its own with a title that says what it does")]
+
+    # the command of the part of a run's chain the reader reads, so a chain that runs git before the install is named for the install
+    def read_command(self, reader: Reader, run: CommandOutput) -> str:
+        files = OutputFiles(Path(run.folder))
+        read = [files.part_text(i) for i in files.recorded() if reader.commands.reads(files.part_text(i))] if files.is_stored() else []
+        return read[0] if read else Alias.resolved(run.command, self.aliases.index())
 
     @staticmethod
     def work_kind(run: CommandOutput) -> str:
