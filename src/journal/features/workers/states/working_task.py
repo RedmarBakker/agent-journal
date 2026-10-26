@@ -1,4 +1,6 @@
-from journal.engine.conduct import Conduct
+from dataclasses import dataclass
+
+from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.command_ended import CommandEnded
@@ -6,37 +8,34 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
-from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
-from journal.features.tasks.states.working import Working
-from journal.features.workers.listeners.worker_task_changes import RELEASING
-from journal.models.worker_state import WorkerState
-from journal.features.tasks.tasks_part import TasksPart
-from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_part import WorkersPart
-from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 from journal.features.shell.support.activity_label import ActivityLabel
+from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.listeners.worker_task_changes import RELEASING
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_part import WorkersPart
+
+TESTING_REFUSALS = {MERGER_TESTING: WorkersNudges.TEST_HANDOVER, TEST_BUDGET: WorkersNudges.TEST_BUDGET_REFUSAL, JOURNAL_TESTING: WorkersNudges.JOURNAL_TESTS_REFUSAL}
 
 
-class ClockConduct(Conduct):
-    """A worker's own conduct in every state: its writes wait until it clocks in, with that as the only message; clocking in puts it to work on the task it owns, a stop is blocked while an output of its own runs and the worker is informed the end of one that ended, and informed the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop, whether its work goes to the agent or to the journal's reviewer."""
+@dataclass(frozen=True)
+class WorkingTask(BaseState):
+    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, and it is told the end of each of its outputs."""
+
+    name = "working_task"
+    title = "At work on its task"
+    task_id: int = 0
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         rows = event.data.part(WorkersPart).session_workers
-        if event.call.writes and rows and rows[0].state == WorkerState.DISPATCHED:
-            return self.refuse(WorkersNudges.READINESS.create())
         if event.call.writes and rows and rows[0].edit_lock:
             return self.refuse(WorkersNudges.EDIT_LOCK.create())
-        if rows and any(part.is_git for part in event.call.parts):
+        if any(part.is_git for part in event.call.parts):
             return self.refuse(WorkersNudges.WORKER_GIT_REFUSAL.create())
         tests = ActivityLabel.test_runs(tuple(part.text for part in event.call.parts))
-        if rows and tests and settings.value(WorkersOptions.TESTING) == MERGER_TESTING:
-            return self.refuse(WorkersNudges.TEST_HANDOVER.create(command=tests[0]))
-        if rows and tests and settings.value(WorkersOptions.TESTING) == TEST_BUDGET:
-            return self.refuse(WorkersNudges.TEST_BUDGET_REFUSAL.create(command=tests[0]))
-        if rows and tests and settings.value(WorkersOptions.TESTING) == JOURNAL_TESTING:
-            return self.refuse(WorkersNudges.JOURNAL_TESTS_REFUSAL.create(command=tests[0]))
-        return self.none()
+        refusal = TESTING_REFUSALS.get(str(settings.value(WorkersOptions.TESTING)))
+        return self.refuse(refusal.create(command=tests[0])) if tests and refusal else self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         unfinished = event.data.part(WorkersPart).unfinished_outputs
@@ -53,16 +52,12 @@ class ClockConduct(Conduct):
             return self.none()
         return self.pop(WorkersNudges.USER_CLOSURE.create(task=event.task_id))
 
-    def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
-        holdings = event.data.part(TasksPart).agent_tasks
-        return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings and is_hearers(event) else self.none()
-
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
-        return self.pop() if is_hearers(event) else self.none()
+        return self.pop() if is_mine(event) else self.none()
 
     def on_worker_review_requested(self, event: WorkerReviewRequested, settings: Settings) -> Transition:
-        return self.pop() if is_hearers(event) else self.none()
+        return self.pop() if is_mine(event) else self.none()
 
 
-def is_hearers(event: WorkerReady | WorkerDelivered | WorkerReviewRequested) -> bool:
+def is_mine(event: WorkerDelivered | WorkerReviewRequested) -> bool:
     return event.worker.id in {worker.id for worker in event.data.part(WorkersPart).session_workers}

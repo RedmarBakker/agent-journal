@@ -25,6 +25,6 @@ class HookAnswer(AgentListener[AgentEvent]):
         self.delivery.silence(event)
         reply = self.machine.reply(agent, event)
         self.delivery.applied(reply, event.typing_delay)
-        if agent.role.is_sent():
+        if agent.role.is_helper():
             return self.machine.worker_decision(agent.row_id, reply.decision, event)
         return self.delivery.hook_decision(event, reply.decision)

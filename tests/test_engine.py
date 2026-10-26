@@ -604,11 +604,11 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert write(app)[0] == 409, "the main agent's pause holds its own write"
     assert worker_hook("SessionStart", source="startup") == (200, {}), "a worker owes no overview"
     status, body = worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and "your writes wait until you clock in" in body["error"] and "paused" not in body["error"], "its first write is held with the clock-in line alone"
+    assert status == 409 and "you are not at work" in body["error"] and "paused" not in body["error"], "before it clocks in a worker rests on Void, which holds every tool but a journal command with its own line alone"
     assert worker_hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"})[0] == 200, "the clock-in call itself passes"
     with scope.environment(1):
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-    assert agents.session_agent("w1").stack[-1]["state"] == "working" and app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in puts it to work on the task it holds"
+    assert agents.session_agent("w1").stack[-1]["state"] == "working_task" and app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in puts it to work on the task it holds"
     with scope.environment(1):
         app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text="for the main agent"), Actor.user(1))
         messages = posted()
@@ -625,7 +625,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
         assert status == 409 and "you never run git: the journal commits your work" in body["error"], (line, body)
     with scope.environment(1):
         workers.save(workers.find(worker.id).delivered(2.0), Actor.worker(worker.id))
-    assert agents.session_agent("w1").stack[-1]["state"] != "working" and "decision" not in worker_hook("Stop")[1], "clocked out, it may stop"
+    assert agents.session_agent("w1").stack[-1]["state"] == "void" and "decision" not in worker_hook("Stop")[1], "clocked out, it falls back to Void and may stop"
     with scope.environment(1):
         assert posted() == messages, "none of its hooks is posted in the chat, only its marks"
         assert {"SessionStart", "PreToolUse", "Stop"} <= {entry.data["hook_event_name"] for entry in app.container.get(Entries).all() if entry.data.get("session_id") == "w1"}, "its hooks are recorded"
@@ -650,15 +650,15 @@ def test_a_worker_clocking_out_leaves_another_workers_stack_alone(app: App):
         second = workers.save(Worker(environment_id=1, name="Mr. B", brief="b", session="wb", token_hash=AgentToken.hashed("tb")), Actor.system())
         for worker, title in ((first, "the parser"), (second, "the lexer")):
             tasks.handover(tasks.save(Task(environment_id=1, title=title, brief=f"{title} reads"), Actor.system()), Ref.build(worker), Actor.system())
-            agents.save(Agent(environment_id=1, session=worker.session, provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+            agents.save(Agent(environment_id=1, session=worker.session, provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     with scope.environment(1):
         workers.save(workers.find(first.id).ready(1.0), Actor.worker(first.id))
         workers.save(workers.find(second.id).ready(1.0), Actor.worker(second.id))
-    assert agents.session_agent("wa").stack[-1]["state"] == agents.session_agent("wb").stack[-1]["state"] == "working", "each worker clocked in works on its own task"
+    assert agents.session_agent("wa").stack[-1]["state"] == agents.session_agent("wb").stack[-1]["state"] == "working_task", "each worker clocked in works on its own task"
     second_stack = agents.session_agent("wb").stack
     with scope.environment(1):
         workers.save(workers.find(first.id).delivered(2.0), Actor.worker(first.id))
-    assert agents.session_agent("wa").stack[-1]["state"] != "working", "the worker that clocked out leaves its work"
+    assert agents.session_agent("wa").stack[-1]["state"] == "void", "the worker that clocked out leaves its work"
     assert agents.session_agent("wb").stack == second_stack, "the other worker's stack is left as it was"
 
 
@@ -680,7 +680,7 @@ def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what
         worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", dispatcher="s1"), Actor.system())
         task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
         tasks.handover(task, Ref.build(worker), Actor.system())
-        agents.save(Agent(environment_id=1, session="w1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+        agents.save(Agent(environment_id=1, session="w1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     babbage = Caller.worker("main", worker.id, "w1", "claude")
     assert app.console().run(["clock-in"], babbage).code == 0
     assert app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in moves the worker to Working on its task"
@@ -768,6 +768,7 @@ def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
         task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
         tasks.handover(task, Ref.build(worker), Actor.system())
     babbage, console = Caller.worker("main", worker.id, "w1", "claude"), app.console()
+    assert console.run(["clock-in"], babbage).code == 0, "the worker clocks in on its task, so its stop is its working state's"
     for item in ("write the grammar", "write the test", "run it"):
         assert console.run(["todo", "add", item], babbage).code == 0
     assert console.run(["todo", "check", "2"], babbage).code == 0 and "has 3 items" in console.run(["todo", "check", "7"], babbage).error
@@ -791,9 +792,15 @@ def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: 
     from journal.repositories.workers import Workers
     from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.tasks import Tasks
     scope = app.container.get(Scope)
     with scope.environment(1):
         worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
+        tasks = app.container.get(Tasks)
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
+        app.container.get(Workers).save(app.container.get(Workers).find(worker.id).ready(1.0), Actor.worker(worker.id))
     def worker_stop() -> dict:
         data = json.dumps({"hook_event_name": "Stop", "session_id": "w1"}).encode()
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
@@ -833,7 +840,7 @@ def test_the_users_edits_and_closes_of_a_workers_task_reach_the_worker(app: App)
             worker = workers.save(Worker(environment_id=1, name=f"worker on {title}", brief="b", session=session), Actor.system())
             task = tasks.save(Task(environment_id=1, title=title, brief="- reads the grammar\n- names each rule"), Actor.system())
             tasks.handover(task, Ref.build(worker), Actor.system())
-            agents.save(Agent(environment_id=1, session=session, provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+            agents.save(Agent(environment_id=1, session=session, provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
         app.console().run(["clock-in"], Caller.worker("main", worker.id, session, "claude"))
         return worker, task
     worker, task = worker_on("the parser", "w1")
@@ -1778,11 +1785,11 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
 
     catalogue = StatesCatalogue(ModeRegistry())
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
-    from journal.engine.states.duty import Duty
+    from journal.engine.states.void import Void
     from journal.models.agent_role import AgentRole
-    from journal.features.tasks.states.working import Working
-    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator"), AgentRole.WORKER).states for layers in ((Orchestrating(), Working(task_id=4)), (Working(task_id=4),), (Duty(),))]
-    assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Duty, Working], [Duty, Working], [Duty]], "a worker's stack rests on Duty, never on the main agent's mode, and keeps the work above it"
+    from journal.features.workers.states.working_task import WorkingTask
+    worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator"), AgentRole.WORKER).states for layers in ((Orchestrating(), WorkingTask(task_id=4)), (WorkingTask(task_id=4),), (Void(),))]
+    assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Void, WorkingTask], [Void, WorkingTask], [Void]], "a helper's stack rests on Void, never on the main agent's mode, and keeps its work above it"
     planned = Orchestrating().respond(SessionStarted(time=1.0).with_data(of(started)), settings("orchestrator"))
     assert isinstance(planned.pushed, OrchestratingPlan) and planned.pushed.plan_id == 2, "a started plan is pushed over the mode state as the orchestrator's plan state"
     assert type(catalogue.apply_mode(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
@@ -1943,7 +1950,7 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
     with scope.environment(1):
         worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         workers.save(workers.find(worker.id).dispatched(1.0), Actor.agent("s1"))
-    data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}).encode()
+    data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": "journal clock-in"}}).encode()
     urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"}), timeout=5).read()
     app.runtime().deferred.drain()
     chat = lambda: [(m.author, m.text) for m in messages.all() if m.agent_role == AgentRole.WORKER and m.session == "w1"]
@@ -2835,7 +2842,7 @@ def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_a
 
 
 HELPER_CONDUCTS = {
-    "worker": ["ClockConduct", "DemandConduct", "SafetyConduct", "TaskEditConduct"],
+    "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct"],
     "verifier": ["DemandConduct", "SafetyConduct"],
     "reviewer": ["DemandConduct", "SafetyConduct"],
 }
@@ -2857,7 +2864,7 @@ def test_what_reaches_each_helper_today_is_recorded_before_the_helper_files_take
     registry = app.container.get(Registry)
     conducts = {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)}
     assert conducts == HELPER_CONDUCTS, conducts
-    assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS, "a worker's floor is the engine's Duty; a verifier and a reviewer rest on their own states"
+    assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS, "every helper rests on the engine's Void; a verifier and a reviewer work in their own states from their start, and ClockConduct became the worker's own state, WorkingTask, on purpose (plan 1035)"
     listeners = sorted({listener.__name__ for feature in registry.features for listener in feature.listeners if getattr(listener, "is_worker_listener", False)} | {"HookAnswer"})
     assert listeners == HELPER_LISTENERS, listeners
     commands = [*registry.standard_commands, *(command for feature in registry.features for command in feature.commands)]
@@ -2882,3 +2889,36 @@ def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_eng
     second = type("Second", (Feature,), {"name": "second", "listeners": (shared,)})
     with pytest.raises(DoubleRegistration, match="SharedListener is registered by the features first and second"):
         Registry((first, second), app.container.get(SettingRows))
+
+
+def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command(app: App):
+    from journal.engine.support.session_agents import SessionAgents
+    from journal.models.agent_role import AgentRole
+    sessions = app.container.get(SessionAgents)
+    hook(app, "SessionStart")
+    floors = {role: [layer["state"] for layer in app.container.get(StatesCatalogue).stack(sessions.helper_agent(f"h-{role.value}", 1, "claude", role)).serialized()] for role in (AgentRole.WORKER, AgentRole.REVIEWER, AgentRole.VERIFIER)}
+    assert floors[AgentRole.WORKER] == ["void"], "a worker the journal has not put to work rests on Void alone"
+    assert floors[AgentRole.REVIEWER][0] == floors[AgentRole.VERIFIER][0] == "void", "a reviewer and a verifier rest on Void too, their own state over it"
+    from journal.engine.states.void import Void
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.providers.claude import Claude
+    read = Void().respond(ToolStarting(call=Claude().call("Read", {"file_path": "a.py"}, frozenset())).with_data(FeatureData(())), SettingsValue({}))
+    assert read.refusal is not None and "you are not at work" in read.refusal.rendered(), "a read in Void is refused with the line that says the helper has no job"
+    command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset())).with_data(FeatureData(())), SettingsValue({}))
+    assert command.refusal is None, "a journal command passes, so a worker can clock in"
+
+
+def test_stored_helper_stacks_move_onto_void(connection):
+    from journal.db.migrations.void_helper_floors import VoidHelperFloors
+    rows = [
+        ("worker", "working", '{"task_id": 7}', json.dumps([{"state": "duty", "data": {}}, {"state": "working", "data": {"task_id": 7, "logged_at": 1.0}}])),
+        ("worker", "duty", "{}", "[]"),
+        ("reviewer", "reviewing", "{}", json.dumps([{"state": "reviewing", "data": {}}])),
+        ("main", "duty", "{}", json.dumps([{"state": "duty", "data": {}}])),
+    ]
+    for role, state, data, stack in rows:
+        connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator) VALUES (1, ?, ?, ?, ?, ?, '2026-10-26', 'system')", (f"s-{role}-{state}", role, state, data, stack))
+    VoidHelperFloors().apply(connection)
+    stacks = [[layer["state"] for layer in json.loads(row["stack"])] for row in connection.all("SELECT stack FROM agents ORDER BY id")]
+    assert stacks == [["void", "working_task"], ["void"], ["void", "reviewing"], ["idle"]], stacks
+    assert json.loads(connection.all("SELECT stack FROM agents ORDER BY id")[0]["stack"])[1]["data"] == {"task_id": 7}, "the worker keeps the task it worked on"

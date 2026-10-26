@@ -124,7 +124,7 @@ class TaskCommand(Command):
         return task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
 
     def link_creation(self, message: int, task: Task, caller: Caller) -> None:
-        if not message:
+        if not message or Ref.build(task) in self.links.targets(self.messages.find(message), Messages.SUBJECT_LINK):
             return
         if len(self.links.typed_sources(task, Messages.SUBJECT_LINK, Message.table())) > len(self.links.typed_sources(task, Messages.EDIT_LINK, Message.table())):
             raise Rejection(f"task {task.id} was created from a message already, and its creation is marked once")

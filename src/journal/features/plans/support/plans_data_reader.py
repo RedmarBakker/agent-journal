@@ -25,7 +25,7 @@ class PlansDataReader:
         self.scope, self.stages, self.rounds = scope, stages, rounds
 
     def read(self, agent: Agent) -> LazyFacts:
-        return self.sent_agent(agent) if agent.role.is_sent() else LazyFacts("plans", {
+        return self.sent_agent(agent) if agent.role.is_helper() else LazyFacts("plans", {
             "approved": lambda: tuple(p.row_id for p in self.plans.approved()),
             "started": lambda: self.started(),
             "review_plan": lambda: self.review_plan(agent),

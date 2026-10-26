@@ -3324,6 +3324,8 @@ def test_a_row_the_agent_writes_right_after_replying_to_a_message_is_linked_to_i
     assert Ref("tasks", 3) not in links.targets(messages.find(1), Messages.EDIT_LINK), "a task created from the message and then edited stays created from it"
     console.run(["task", "edit", "2", "--priority", "high"], AGENT)
     assert Ref("tasks", 2) not in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a change of priority alone, often asked by the journal, is never put down to the message"
+    created = console.run(["task", "create", "the sidebar", "--from", "1"], AGENT)
+    assert created.code == 0 and Ref("tasks", 4) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created with --from right after the reply is linked once, never refused for the link the reply already made"
 
 
 def test_a_message_read_through_a_pipe_is_refused(app: App):
@@ -9912,8 +9914,14 @@ def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugi
     echo(app, "watcher", hears=["file_edited"], reaches={"file_edited": ["workers"]})
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(1):
-        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
+        babbage = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
+        tasks = app.container.get(Tasks)
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(babbage), Actor.system())
+        app.container.get(Workers).save(babbage.ready(1.0), Actor.worker(babbage.id))
     edit = {"file_path": str(app.config.root / "sinful.py"), "old_string": "x", "new_string": "y"}
     patch = {"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": ["-x", "+y"]}]}
     worker = lambda kind, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
@@ -10040,7 +10048,7 @@ def test_one_link_holds_a_task_for_its_worker_until_it_is_released(app: App, mon
     refused = console.run(["task", "start", "1"], AGENT)
     assert refused.code == 1 and "task 1 is held by worker 1" in refused.error, "no agent takes a held task by starting it"
     with app.container.get(Scope).environment(MAIN):
-        worker_agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+        worker_agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
         assert app.container.get(TasksDataReader).read(worker_agent).agent_tasks == (1,), "a worker's agent reads the task its worker holds as its own"
     console.run(["worker", "complete", "1", "--why", "merged"], AGENT)
     with app.container.get(Scope).environment(MAIN):
@@ -10090,7 +10098,7 @@ def test_a_workers_stop_hears_nothing_of_an_approved_plan_waiting(app: App):
     console.run(["plan", "approve", "1"], USER)
     assert "journal plan start 1" in json.dumps(hook(app, "Stop")[1]), "the main agent is told the approved plan waits"
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+        app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     worker_stop = posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": "w-1"}, {"X-Journal-Env": "main"})[1]
     assert "journal plan start" not in json.dumps(worker_stop) and "is approved and not started" not in json.dumps(worker_stop), "a worker is never told to start, approve or ready a plan"
 
@@ -10839,7 +10847,7 @@ def test_a_workers_agent_row_is_never_the_main_agent_and_ends_with_its_process(a
     hook(app, "SessionStart")
     agents = app.container.get(Agents)
     for session in ("w-1", "w-2"):
-        agents.save(Agent(environment_id=1, session=session, provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+        agents.save(Agent(environment_id=1, session=session, provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     with app.container.get(Scope).environment(MAIN):
         assert agents.current().session == "s1", "the newest worker row never becomes the current agent"
         main = agents.session_agent("s1")
@@ -17829,7 +17837,7 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
     from journal.repositories.messages import Messages
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
-    agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+    agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w-1"), Actor.system())
     messages = app.container.get(Messages)
     messages.save(Message(environment_id=1, author="agent", text="Reading the lexer.", session="w-1", agent_role=AgentRole.WORKER), Actor.agent("w-1"))
@@ -17890,7 +17898,7 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
     from journal.support.rejection import Rejection
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(Agents).save(Agent(environment_id=MAIN, session="worker-s", provider="claude", role=AgentRole.WORKER, state="duty"), Actor.system())
+        app.container.get(Agents).save(Agent(environment_id=MAIN, session="worker-s", provider="claude", role=AgentRole.WORKER, state="void"), Actor.system())
         with pytest.raises(Rejection, match="has its kind"):
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="something happened"), Actor.system())
         with pytest.raises(Rejection, match="its agent's own chat"):
@@ -18974,7 +18982,7 @@ def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_fai
         run = lambda command, status=0: outputs.save(CommandOutput(chain=command, command=command, folder=str(tmp_path / command.replace(" ", "_")[:40]), ended=True, status=status, moved=True), Actor.system())
         assert cardless.is_cardless(run("grep -rn needle src | head")) and cardless.is_cardless(run("cd src && ls -la")), "a quick search or listing shows no card"
         assert cardless.is_cardless(run("git add -A && git status")) and cardless.is_cardless(run("git switch topic")), "nor does everyday git, chained or not"
-        assert not cardless.is_cardless(run("git push -q origin development")) and not cardless.is_cardless(run("git add -A && git commit -m x")), "but a push and a commit have a live card of their own"
+        assert not cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x")), "but a push has a live card of its own, while a commit's mark alone says it"
         assert card.card_contents(run("git status")) is None, "so no card is written for everyday git"
         assert not cardless.is_cardless(run("git push origin topic", status=1)), "a git line that failed shows its card"
         assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"

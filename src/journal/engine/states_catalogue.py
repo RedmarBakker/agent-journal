@@ -4,7 +4,7 @@ from journal.models.agent import Agent
 from journal.engine.states.panicking import Panicking
 from journal.engine.states.wait import Wait
 from journal.engine.states.compacting import Compacting
-from journal.engine.states.duty import Duty
+from journal.engine.states.void import Void
 from journal.engine.states.ended import Ended
 from journal.engine.states.demand_block import DemandBlock
 from journal.engine.support.feature_registry import FeatureRegistry
@@ -13,9 +13,9 @@ from journal.models.agent_role import AgentRole
 
 
 class StatesCatalogue:
-    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode a feature's setting picks, Idle when none does, while a worker's is Duty."""
+    """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode a feature's setting picks, Idle when none does, while every helper's is Void, with the state its role works in from its start pushed over it when it has one."""
 
-    ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Duty, DemandBlock, Panicking)
+    ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Void, DemandBlock, Panicking)
 
     def __init__(self, features: FeatureRegistry) -> None:
         self._states: dict[str, type[BaseState]] = {}
@@ -62,7 +62,7 @@ class StatesCatalogue:
         return self.restored("idle", {})
 
     def sent_first(self, role: AgentRole) -> BaseState:
-        return self.role_floors.get(role, Duty)()
+        return self.role_floors.get(role, Void)()
 
     def mode_state(self, settings: Settings) -> type[BaseState]:
         picks = [modes.states.get(str(settings.value(modes.option))) for modes in self.modes]
@@ -72,30 +72,29 @@ class StatesCatalogue:
         return any(type(state) in modes.states.values() for modes in self.modes)
 
     def floor(self, stack: Stack, settings: Settings, role: AgentRole) -> Stack:
-        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack, self.role_floors.get(role, Duty))
+        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.helper_floor(stack)
 
-    def helper_floor(self, stack: Stack, base_state: type[BaseState]) -> Stack:
+    def helper_floor(self, stack: Stack) -> Stack:
         bottom = stack.states[0]
-        if isinstance(bottom, base_state):
+        if isinstance(bottom, Void):
             return stack
-        return Stack((base_state(), *(stack.states[1:] if self.is_bottom(bottom) else stack.states)))
+        return Stack((Void(), *(stack.states[1:] if self.is_bottom(bottom) else stack.states)))
 
     def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
         state = self.mode_state(settings)
-        if type(stack.states[0]) is state or isinstance(stack.states[0], Duty):
+        if type(stack.states[0]) is state:
             return stack
         return Stack((state.restored(stack.states[0].serialized()), *stack.states[1:]))
 
     def is_bottom(self, state: BaseState) -> bool:
-        return isinstance(state, (self.bottom_root(), Duty, *self.role_floors.values()))
+        return isinstance(state, (self.bottom_root(), Void))
 
     def bottom_root(self) -> type[BaseState]:
         return [base for base in type(self.first()).__mro__ if getattr(base, "name", "") == "idle"][-1]
 
     def stack(self, agent: Agent) -> Stack:
-        if not agent.stack:
-            return self.stack_base(self.restored(agent.state, agent.data))
-        return Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack))
+        stored = Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.restored(agent.state, agent.data))
+        return self.helper_floor(stored) if agent.role.is_helper() else stored
 
     def stack_base(self, state: BaseState) -> Stack:
         layers = [state]

@@ -64,7 +64,7 @@ class StateMachine:
 
     @staticmethod
     def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
-        return nudge.is_remark and not event.has_hook_lines() and not agent.role.is_sent()
+        return nudge.is_remark and not event.has_hook_lines() and not agent.role.is_helper()
 
     def row_replies(self, event: RowEvent) -> list[MachineReply]:
         replies = []

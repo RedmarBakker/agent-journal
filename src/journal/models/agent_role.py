@@ -11,9 +11,9 @@ class AgentRole(StrEnum):
     SUBAGENT = "subagent"
     PEOPLE = "people"
 
-    def is_sent(self) -> bool:
-        return self in AgentRole.sent()
+    def is_helper(self) -> bool:
+        return self in AgentRole.helpers()
 
     @staticmethod
-    def sent() -> tuple["AgentRole", ...]:
-        return (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)
+    def helpers() -> tuple["AgentRole", ...]:
+        return (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER, AgentRole.SUBAGENT)

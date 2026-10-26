@@ -35,7 +35,7 @@ class WorkerChat:
         return worker if blocks.time == worker.transcript_bytes else self.workers.touch(worker, Actor.system(), transcript_bytes=blocks.time)
 
     def is_agent_session(self, worker: Worker) -> bool:
-        return any(not role.is_sent() for role in self.agents.session_roles(worker.conversation()))
+        return any(not role.is_helper() for role in self.agents.session_roles(worker.conversation()))
 
     def turn(self, worker: Worker, text: str, key: str) -> None:
         self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=AgentRole.WORKER, idempotency=key), Actor.agent(worker.conversation()))

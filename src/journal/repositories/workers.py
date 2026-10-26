@@ -89,7 +89,7 @@ class Workers(ScopedRepository[Worker]):
         return {task: rows[worker] for task, worker in holdings.items() if worker in rows}
 
     def agent_holder(self, agent: Agent) -> Ref:
-        rows = self.session_worker(agent.session) if agent.role.is_sent() else []
+        rows = self.session_worker(agent.session) if agent.role.is_helper() else []
         return Ref.build(rows[0]) if rows else Ref.build(agent)
 
     def session_worker(self, session: str) -> list[Worker]:

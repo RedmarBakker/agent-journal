@@ -9,6 +9,7 @@ from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent.command_moved import CommandMoved
 from journal.events.agent.impasse_report import ImpasseReport
+from journal.events.agent.helper_assignment import HelperAssignment
 from journal.events.bus import Bus
 from journal.models.agent import Agent
 from journal.models.command_output import CommandOutput
@@ -17,7 +18,7 @@ from journal.support.caller import Caller
 
 
 class CommandEvents:
-    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
+    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a helper given its job by the journal, a worker's merge about to happen, which a listener may block, its result, and its refusal on a clash."""
 
     def __init__(self, bus: Bus, clock: Clock, scope: Scope) -> None:
         self.bus, self.clock, self.scope = bus, clock, scope
@@ -33,6 +34,9 @@ class CommandEvents:
 
     def wait_cleared(self, caller: Caller) -> None:
         self.bus.dispatch(WaitCleared().placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+
+    def helper_assigned(self, assignment: HelperAssignment, session: str, provider: str) -> None:
+        self.bus.dispatch(assignment.placed(session, self.scope.id, provider, None, self.clock.time()))
 
     def worker_merging(self, event: WorkerMerging) -> list[str]:
         return [answer.reason for answer in self.bus.dispatch(event) if isinstance(answer, Decision) and not answer.allowed]

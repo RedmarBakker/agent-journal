@@ -18,7 +18,7 @@ class RowEventDelivery(Listener[RowEvent]):
         self.delivery.applied(reply, 0.0)
         if not reply.decision.context:
             return
-        if reply.agent.role.is_sent():
+        if reply.agent.role.is_helper():
             self.machine.queue_lines(reply.agent, reply.decision.context)
             return
         self.delivery.lines(reply.agent.environment_id, reply.decision.context, 0.0)
