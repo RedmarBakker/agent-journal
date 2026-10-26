@@ -72,3 +72,10 @@ test("a subagent that said it could not do the job is an orange mark with its ow
     app.unmount();
     host.remove();
 });
+
+test("a subagent that came back opens on a click to the whole text it returned", async () => {
+    const shown = await drawn({task: "review plan 3", kind: "journal-plan-reviewer", model: "sonnet", finished: true, returned: "Phase 2 misses its tests.\nPhase 3 is sound.", time: 10});
+    expect(shown.text).toContain("Subagent finished");
+    expect(shown.text).toContain("Phase 2 misses its tests.");
+    expect(shown.text).toContain("Phase 3 is sound.");
+});

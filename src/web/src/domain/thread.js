@@ -67,6 +67,7 @@ const SYSTEM_TURNS = {
             failed: card.state === "failed",
             unfinished: card.state === "unfinished",
             reason: card.reason || "",
+            returned: card.returned || "",
         },
     }),
     card: (card, label) => ({

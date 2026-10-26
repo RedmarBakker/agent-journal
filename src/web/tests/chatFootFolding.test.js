@@ -30,7 +30,8 @@ test("scrolled up, messages that arrive are held off the screen and counted, and
 
 test("a turn that arrives while the reader follows grows into its height with the pane held at its foot, so the chat slides up instead of jumping; the user's own message shows at once", () => {
     expect(thread).toContain(`@enter="growIn"`);
-    expect(thread).toContain("const arrivalPane = () => ({pane: scroller.value, follows: () => settledOnce.value && !away.value});");
+    expect(thread).toContain("const following = () => settledOnce.value && !away.value && !ui.away.tabHidden && !ui.away.readingLatest;");
+    expect(thread).toContain("const arrivalPane = () => ({pane: scroller.value, follows: following});");
     expect(thread).toContain("const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));");
 });
 

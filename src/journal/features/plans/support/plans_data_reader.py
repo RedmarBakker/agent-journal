@@ -78,7 +78,7 @@ class PlansDataReader:
         return current.open_count() > 1 and current.has_work_completed()
 
     def next_task(self, plan: Plan) -> int:
-        task = self.plans.resumable(plan)
+        task = self.plans.following_task(plan)
         return task.row_id if task else 0
 
     def started_task(self, plan: Plan) -> int:

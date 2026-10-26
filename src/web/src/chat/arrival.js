@@ -72,7 +72,7 @@ export function arrivalQueue({gap = QUEUE_GAP_MS, later = setTimeout} = {}) {
         item.el.style.display = item.display;
         item.arrival(item.el, item.options, () => finish(item));
     }
-    return (el, options, done, arrival = arrive) => {
+    const enqueue = (el, options, done, arrival = arrive) => {
         if (!options.pane || !options.follows()) return done();
         const item = {el, options, done, arrival, display: el.style.display || ""};
         if (!running) {
@@ -82,6 +82,14 @@ export function arrivalQueue({gap = QUEUE_GAP_MS, later = setTimeout} = {}) {
         el.style.display = "none";
         waiting.push(item);
     };
+    // every turn still waiting is shown at once, as when the tab is hidden and nobody sees them come in
+    enqueue.flush = () => {
+        for (const item of waiting.splice(0)) {
+            item.el.style.display = item.display;
+            item.done();
+        }
+    };
+    return enqueue;
 }
 
 // A turn that goes: its height closes while it fades, so the turns around it come together smoothly instead of jumping.

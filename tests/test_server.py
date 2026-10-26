@@ -185,6 +185,7 @@ def test_a_documents_saves_fold_into_its_open_revision_keep_closes_it_and_the_ne
         assert "## Risks" in console.run(["doc", "revision", "1", "1"], user).text and "## Risks" not in console.run(["doc", "revision", "1", "2"], user).text
         assert console.run(["doc", "revision", "1", "3"], user).error.strip() == "doc 1 has revisions 1 to 2"
         call(server, "POST", "/journal/settings", {"docs": {"revision_window": 0}})
+        assert call(server, "POST", "/journal/settings", {"viewer": {"flash": False}})[1]["viewer"]["flash"] is False and call(server, "GET", "/journal/settings")[1]["viewer"]["flash"] is False, "the switch of the journal's name on a tab return is kept and read back"
         written("Intro.\n\n## Goals\n\nShip it now\n")
         written("Intro, again.\n\n## Goals\n\nShip it now\n")
         revisions = call(server, "GET", "/journal/docs/1/revisions")[1]
@@ -876,6 +877,41 @@ def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_
         under = call(server, "GET", f"/journal/messages?on=messages:{first}")[1]["rows"]
         assert [c["text"] for c in under] == ["and the footer too"], "a message's comments are its replies"
         assert call(server, "POST", "/journal/messages", {"on": "messages:99999", "text": "x"})[0] >= 400, "a message that is not there is refused"
+    finally:
+        app.runtime().stop()
+
+
+def test_a_message_asked_about_a_docked_run_refers_to_its_row_and_the_agent_reads_which(tmp_path: Path):
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    server = app.server()
+    try:
+        app.console().run(["check", "create", "the suite", "--command", "true"], Caller.user("main"))
+        status, message = call(server, "POST", "/journal/messages", {"text": "> Check the suite failed\n\nwhy did it fail?", "refers": ["checks:1"]})
+        assert status == 201
+        read = app.console().run(["message", "read", str(message["id"])], Caller.agent("main", "s1", "claude"))
+        assert "refers_to checks:1" in read.text, "the agent reads which run the user asks about"
+        assert call(server, "POST", "/journal/messages", {"text": "x", "refers": ["checks:999"]})[0] >= 400, "a row that is not there is refused"
+    finally:
+        app.runtime().stop()
+
+
+def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp_path: Path):
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
+    from journal.repositories.scope import Scope
+    from journal.support.actor import Actor
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    server = app.server()
+    try:
+        with app.container.get(Scope).environment(1):
+            for time in (10.0, 20.0, 30.0):
+                app.container.get(Entries).save(Entry(environment_id=1, kind="nudge", actor=Actor.system(), data={"key": "tasks.log_due", "session": "s1", "line": "log", "time": time}), Actor.system())
+            app.container.get(Entries).save(Entry(environment_id=1, kind="nudge", actor=Actor.system(), data={"key": "messages.unread", "session": "s1", "line": "read", "time": 15.0}), Actor.system())
+        agents = call(server, "GET", "/journal/developer/nudges")[1]["agents"]
+        assert [(a["session"], [(n["key"], n["count"], n["last_at"]) for n in a["nudges"]]) for a in agents] == [("s1", [("tasks.log_due", 3, 30.0), ("messages.unread", 1, 15.0)])], "each nudge is counted once per agent, with when it last fired"
+        assert call(server, "POST", "/journal/developer/nudges/reset")[1]["agents"] == [], "the reset sets the counts back to zero"
     finally:
         app.runtime().stop()
 

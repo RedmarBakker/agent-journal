@@ -13,7 +13,7 @@ const attrs = useAttrs();
 const passed = computed(() => Object.fromEntries(Object.entries(attrs).filter(([name]) => name !== "onClick")));
 // a mark is one line: its second line shows once a click opens it, and a second click folds it again; a mark given `open` is opened by its owner
 const expanded = ref(false);
-const hasSecondLine = computed(() => Boolean(props.mark.detail || props.mark.command));
+const hasSecondLine = computed(() => Boolean(props.mark.detail || props.mark.command || props.mark.body));
 const owned = computed(() => props.open !== undefined);
 const folded = computed(() => (owned.value ? !props.open : hasSecondLine.value && !expanded.value));
 const tag = computed(() => (attrs.onClick || hasSecondLine.value || owned.value ? "button" : "span"));
@@ -91,6 +91,9 @@ const tint = computed(() => ({
         </template>
         <template v-if="mark.detail && !folded">
             <TextDisplay class="detail" :text="mark.detail" inline :row-names="false" />
+        </template>
+        <template v-if="mark.body && !folded">
+            <TextDisplay class="detail body" :text="mark.body" :row-names="false" />
         </template>
         <template v-if="mark.command && !folded">
             <code class="detail command" :title="mark.command">{{ mark.command }}</code>

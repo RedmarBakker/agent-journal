@@ -1,5 +1,5 @@
 import {readFileSync} from "node:fs";
-import {createApp, h, ref} from "vue";
+import {createApp, h, reactive, ref} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
 
@@ -199,4 +199,36 @@ test("a docked merge says what is happening now, one line for the journal and on
     message.value = {...merge, data: {...merge.data, ending: "merged"}};
     await flush();
     expect(host.querySelector(".watch-dock-statuses")).toBeNull();
+});
+
+test("a card the journal docked by itself stays docked once the user opened it, collapsed again, its run ended and a newer dock came, until the user closes it", async () => {
+    const {dockedRows} = await import("../src/domain/docks.js");
+    vi.spyOn(api, "readOutput").mockResolvedValue({lines: [], start: 0, next: 0});
+    const act = vi.spyOn(api, "act").mockResolvedValue({});
+    const docked = reactive({...watched, data: {...watched.data, auto_docked: true, dock_at: 100}});
+    const host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(WatchDock, {message: docked})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    host.querySelector(".watch-dock-label").click();
+    await flush();
+    host.querySelector(".watch-dock-label").click();
+    await flush();
+    expect(act).toHaveBeenCalledTimes(1);
+    expect(act).toHaveBeenCalledWith("messages", 7, "dock");
+    const ended = {...docked, data: {...docked.data, ending: "finished", outcome: "passed"}};
+    const newer = {...watched, id: 9, created_at: "2030-01-01T00:00:00Z", data: {...watched.data, output: 13}};
+    expect(dockedRows([ended, newer], 10 ** 10).map((m) => m.id)).toEqual([7, 9]);
+});
+
+test("a docked run's Ask about this button starts a question in the composer that refers to the run's row", async () => {
+    const {store} = await import("../src/state/store.js");
+    const host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(WatchDock, {message: watched})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    host.querySelector(".watch-dock-ask").click();
+    expect(store.quoting).toEqual({text: "Running the tests", ref: "", refers: ["command_outputs:12"], label: "Asking about"});
 });

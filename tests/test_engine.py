@@ -965,7 +965,7 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         assert plan.current_phase(states) == 2 and plan.checkpoint_phase(states).number == 1, "phase one done and phase two not begun: the checkpoint"
         assert plans.next_task(plan).id == rows[2].id and plans.remaining_count(plan) == 2 and not plans.is_stalled(plan)
         tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)).paused("later", datetime.now(timezone.utc)), actor)
-        assert plans.resumable(plan).id == rows[2].id and plans.next_task(plan).id == rows[3].id, "a paused task is resumed before the open one under no phase"
+        assert plans.following_task(plan).id == rows[2].id and plans.next_task(plan).id == rows[3].id, "a paused task is resumed before the open one under no phase"
         tasks.save(tasks.find(rows[2].id).started(datetime.now(timezone.utc)), actor)
         assert plans.checkpoint_plans(plan) is None and plans.started_task(plan).id == rows[2].id, "phase two begun"
 
@@ -2418,7 +2418,7 @@ def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one
 def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_clearings():
     from journal.features.workers.support.load_item import LoadItem
     from journal.features.workers.support.load_series import LoadSeries
-    series, now = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, quiet_at=0.5), 100000.0
+    series, now = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, low_at=0.5), 100000.0
     # an item every 3 minutes, each cleared a minute and a half after it came: busy half the time
     steady = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 90) for n in range(60)]
     load = series.measured(steady, [], now)
@@ -2430,15 +2430,15 @@ def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_
     flooded = [LoadItem(f"workers:{n}", now - 2 * 3600 + n * 60, 1.0, now - 2 * 3600 + n * 60 + 300) for n in range(118)]
     busy = series.measured(flooded, [], now)
     assert busy.rho > 0.95 and abs(busy.wait_minutes - 5) < 0.01 and abs(busy.little - 5) < 0.2, "saturated: ρ near 1 and λW near the five that wait"
-    assert busy.over_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117") and busy.waiting_items == 2, "over 0.8 the whole stretch, and what waits now oldest first"
+    assert busy.busy_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117") and busy.waiting_items == 2, "over 0.8 the whole stretch, and what waits now oldest first"
     # a user's message waits unanswered, weighted 3: dispatches made while the queue grows under a high load count against, one while calm counts for
     oldest = series.measured([*flooded, LoadItem("messages:553", now - 600, 3.0)], [], now)
     assert oldest.waiting_refs[0] == "messages:553" and oldest.waiting == 5.0, "the message is the oldest that waits, weighted 3"
     growing = series.measured([*flooded, LoadItem("messages:553", now - 200, 3.0)], [now - 120, now - 60], now)
-    assert growing.dispatches_against == 2 and growing.dispatches_for == 0, "both dispatches made while the queue grew over 0.8"
+    assert growing.busy_dispatches == 2 and growing.calm_dispatches == 0, "both dispatches made while the queue grew over 0.8"
     quiet = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 30) for n in range(60)]
     calm = series.measured(quiet, [now - 300], now)
-    assert calm.rho < 0.5 and calm.dispatches_for == 1 and calm.dispatches_against == 0, "a dispatch while the load is low counts for"
+    assert calm.rho < 0.5 and calm.calm_dispatches == 1 and calm.busy_dispatches == 0, "a dispatch while the load is low counts for"
 
 
 def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_none():
@@ -2487,16 +2487,16 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
     from journal.features.workers.workers_conduct import WorkersConduct
     from journal.models.support.agent_load import AgentLoad
     scaling, now = PlaceScaling(up_dwell_minutes=10, down_dwell_minutes=20, floor=2, ceiling=5), 10000.0
-    high = AgentLoad(rho=0.92, over_minutes=12, measured_at=now)
+    high = AgentLoad(rho=0.92, busy_minutes=12, measured_at=now)
     assert scaling.opens(high, 3, now), "over 0.8 for 12 minutes: a place opens"
-    assert not scaling.opens(replace(high, over_minutes=6), 3, now), "not before the 10 minute dwell"
+    assert not scaling.opens(replace(high, busy_minutes=6), 3, now), "not before the 10 minute dwell"
     assert not scaling.opens(high, 5, now), "never past the ceiling"
     opened = replace(high, scaled_at=now)
-    assert not scaling.opens(replace(opened, over_minutes=17), 4, now + 7 * 60), "a second opening waits the dwell again"
-    assert scaling.opens(replace(opened, over_minutes=22), 4, now + 10 * 60)
-    low = AgentLoad(rho=0.3, under_minutes=25, measured_at=now)
+    assert not scaling.opens(replace(opened, busy_minutes=17), 4, now + 7 * 60), "a second opening waits the dwell again"
+    assert scaling.opens(replace(opened, busy_minutes=22), 4, now + 10 * 60)
+    low = AgentLoad(rho=0.3, low_minutes=25, measured_at=now)
     assert scaling.closes(low, 3, False, now), "under 0.5 for 25 minutes: a place closes"
-    assert not scaling.closes(replace(low, under_minutes=15), 3, False, now), "not before the 20 minute dwell"
+    assert not scaling.closes(replace(low, low_minutes=15), 3, False, now), "not before the 20 minute dwell"
     assert not scaling.closes(low, 3, True, now), "never while a worker holds a task"
     assert not scaling.closes(replace(low, waiting=1.0), 3, False, now), "nor while anything waits"
     assert not scaling.closes(low, 2, False, now), "never under the floor"
@@ -2878,12 +2878,12 @@ def test_each_modes_band_moves_with_hysteresis_holds_five_minutes_and_leaves_hig
 def test_load_held_high_ends_the_minute_nothing_waits_though_the_smoothed_load_is_still_high():
     from journal.features.workers.support.load_item import LoadItem
     from journal.features.workers.support.load_series import LoadSeries
-    series = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, quiet_at=0.5)
+    series = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, low_at=0.5)
     items = [LoadItem(ref=f"workers:{n}", arrived_at=n * 60.0, weight=1.0) for n in range(20)]
     waiting = series.measured(items, [], 1800.0)
     cleared = series.measured([item.cleared(1800.0) for item in items], [], 1860.0)
-    assert waiting.rho >= 0.8 and waiting.over_minutes > 0, waiting
-    assert cleared.rho >= 0.8 and cleared.over_minutes == 0.0, "an empty queue ends load held high within one tick, while the smoothed load is still over the line"
+    assert waiting.rho >= 0.8 and waiting.busy_minutes > 0, waiting
+    assert cleared.rho >= 0.8 and cleared.busy_minutes == 0.0, "an empty queue ends load held high within one tick, while the smoothed load is still over the line"
 
 
 def test_a_measure_turns_failing_and_passing_once_each_at_its_levels_a_stretch_is_not_smoothed_and_nothing_to_measure_stays_unmeasured():
@@ -3006,8 +3006,8 @@ def test_a_held_high_worker_queue_opens_a_place_at_the_dwell_and_says_its_line_f
         state, held, opened, failing = MeasureState(spec.key), None, None, None
         for minute in range(40):
             queue = series.measured(items, [], minute * 60.0)
-            held = held if held is not None or not queue.over_minutes else minute - queue.over_minutes
-            state = ModeMeasures.stepped(spec, state, queue.over_minutes, minute * 60.0)
+            held = held if held is not None or not queue.busy_minutes else minute - queue.busy_minutes
+            state = ModeMeasures.stepped(spec, state, queue.busy_minutes, minute * 60.0)
             opened = opened if opened is not None or not scaling.opens(queue, 1, minute * 60.0) else minute
             failing = failing if failing is not None or not state.is_failing else minute
         return held, opened - held, failing - held
@@ -3547,7 +3547,7 @@ def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name
     assert agents.session_agent("s1").tool_uses == main_uses, "and the main agent's count does not move"
 
 
-def test_a_subagents_tool_use_lands_on_its_own_row_researching_and_its_end_pops_it(app: App):
+def test_a_subagents_tool_use_lands_on_its_own_row_researching_and_a_resume_finds_it_at_work_again(app: App):
     from journal.support.agent_role import AgentRole
     agents, catalogue = app.container.get(Agents), app.container.get(StatesCatalogue)
     stack = lambda session: [state.name for state in catalogue.stack(agents.session_agent(session)).states]
@@ -3561,7 +3561,9 @@ def test_a_subagents_tool_use_lands_on_its_own_row_researching_and_its_end_pops_
         assert any(entry.data.get("session_id") == "s1:sub1" for entry in app.container.get(Entries).kind_entries("ToolStarting")), "and recorded as its own"
     assert stack("s1") == main_before, "the main agent's stack does not move"
     hook(app, "SubagentStop", agent_id="sub1", last_assistant_message="found it")
-    assert stack("s1:sub1") == ["void", "ended"], "its end pops Researching back to Void and ends its row"
+    assert stack("s1:sub1") == ["void", "researching", "ended"], "its end leaves it researching and ends its row"
+    resumed = hook(app, "PreToolUse", agent_id="sub1", tool_name="Read", tool_input={"file_path": "a.py"})
+    assert resumed[0] == 200 and "not at work" not in json.dumps(resumed[1]) and stack("s1:sub1") == ["void", "researching"], "a message that resumes it finds it at work: its read goes through"
     hook(app, "SubagentStart", agent_id="sub2", agent_type="Explore")
     hook(app, "SessionEnd", reason="exit")
     assert stack("s1:sub2")[-1] == "ended" and not [row for row in agents.unended() if row.role == AgentRole.SUBAGENT], "a subagent left running ends with its main session, so no researcher row is left to hear row events"

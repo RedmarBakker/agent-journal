@@ -219,10 +219,14 @@ class Agent(Scoped):
         return self.with_(work_queue=replace(work_queue, scaled_at=self.work_queue.scaled_at), message_queue=message_queue)
 
     def place_opened(self, places: int, time: float) -> "Agent":
-        return self.with_(work_queue=self.work_queue.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=self.work_queue.over_minutes, opened=True))
+        return self.places_scaled(places, time, self.work_queue.busy_minutes, True)
 
     def place_closed(self, places: int, time: float) -> "Agent":
-        return self.with_(work_queue=self.work_queue.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=self.work_queue.under_minutes, opened=False))
+        return self.places_scaled(places, time, self.work_queue.low_minutes, False)
+
+    def places_scaled(self, places: int, time: float, minutes: float, opened: bool) -> "Agent":
+        event = PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=minutes, opened=opened)
+        return self.with_(work_queue=self.work_queue.scaled(time)).with_event(event)
 
     def compacted(self) -> "Agent":
         return self.with_(tool_uses=0, inbox_position=0)

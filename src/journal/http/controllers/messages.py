@@ -21,6 +21,7 @@ from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
 from journal.support.message_thread import MessageThread
 from journal.http.support.comment_target import REPLIED, CommentTarget
+from journal.http.support.message_reference import MessageReference
 from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -30,8 +31,8 @@ class MessageController(Controller[Message]):
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions, links: Links, targets: CommentTarget) -> None:
-        self.agents, self.environments, self.hosts, self.mentions, self.links, self.targets = agents, environments, hosts, mentions, links, targets
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions, links: Links, targets: CommentTarget, references: MessageReference) -> None:
+        self.agents, self.environments, self.hosts, self.mentions, self.links, self.targets, self.references = agents, environments, hosts, mentions, links, targets, references
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def index(self, request: Request) -> Response:
@@ -80,7 +81,11 @@ class MessageController(Controller[Message]):
         if not self.hosts.is_host(environment):
             self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
             return Response.json({"idempotency": message.idempotency, "notice": self.hosts.waiting_notice(environment)}, 202)
-        return Response.json(self.shown(self.repository.posted(message, request.actor)), 201)
+        referred = [self.references.checked(reference) for reference in request.body.get("refers", [])]
+        posted = self.repository.posted(message, request.actor)
+        for target in referred:
+            self.links.linked(Ref.build(posted), target, Messages.REFERENCE_LINK, request.actor)
+        return Response.json(self.shown(posted), 201)
 
     def comment(self, target: Ref, request: Request) -> Response:
         if target.type == REPLIED:

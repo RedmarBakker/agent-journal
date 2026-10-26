@@ -1,3 +1,5 @@
+import re
+
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.repositories.checks import Checks
@@ -18,7 +20,7 @@ from journal.repositories.templates import Templates
 from journal.repositories.triggers import Triggers
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.chat.process_cards import AUTO_DOCKED, DOCKED
+from journal.chat.process_cards import AUTO_DOCKED, DOCKED, UNDOCK_TIME_KEY
 from journal.chat.row_process_card import RowProcessCard
 from journal.events.announcer import Announcer
 from journal.events.moments.row_docked import RowDocked
@@ -26,6 +28,9 @@ from journal.models.support.ref import Ref
 from journal.support.rejection import Rejection
 from journal.models.support.row_card import RowCard
 from journal.repositories.scope import Scope
+
+# a link that names a row of the journal, table:number
+ROW_LINK = re.compile(r"^[a-z_]+:\d+$")
 
 
 
@@ -40,6 +45,14 @@ class Docking:
 
     def nouns(self) -> tuple[str, ...]:
         return tuple(self.kinds)
+
+    def is_row_link(self, link: str) -> bool:
+        return ROW_LINK.match(link) is not None and link.partition(":")[0] in self.tables
+
+    def dock_line(self, link: str) -> str:
+        ref = Ref.parse(link)
+        noun = self.tables[ref.type].model.noun()
+        return f"{link} is a row of the journal: dock it at the bottom of the chat with journal {noun} dock {ref.id}; pin it above the chat only when the user asked for a pin, with --user-asked"
 
     def dock(self, noun: str, n: int, actor: Actor) -> Message:
         return self.dock_row(self.kinds[noun].find(n), actor)
@@ -65,7 +78,7 @@ class Docking:
         return self.saved_with(message, {**RowCard.build(row).as_data(), DOCKED: True}, actor)
 
     def pin_message(self, message: Message, actor: Actor) -> Message:
-        return self.saved_with(message, {DOCKED: True, AUTO_DOCKED: False}, actor)
+        return self.saved_with(message, {DOCKED: True, AUTO_DOCKED: False, UNDOCK_TIME_KEY: None}, actor)
 
     def release(self, message: Message, actor: Actor) -> Message:
         return self.saved_with(message, {DOCKED: False, AUTO_DOCKED: False}, actor)

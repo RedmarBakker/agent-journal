@@ -142,3 +142,8 @@ describe("sending a large file", () => {
         expect(queued().map((r) => [r.id, r.files.length, r.held])).toEqual([["big-2", 0, 1]]);
     });
 });
+
+test("a message asked about a docked run carries the run's row to the server", async () => {
+    expect(await delivered("main", {text: "> Running the tests\n\nwhy?", refers: ["command_outputs:12"]}, [], "a-1")).toBe(true);
+    expect(server.create).toHaveBeenCalledWith("messages", {text: "> Running the tests\n\nwhy?", reply_target: undefined, on: undefined, refers: ["command_outputs:12"], idempotency: "a-1"});
+});

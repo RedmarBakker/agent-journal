@@ -31,6 +31,7 @@ class Messages(ScopedRepository[Message]):
     SUBJECT_LINK = "about"
     EDIT_LINK = "edited"
     COMMENT_LINK = "comments_on"
+    REFERENCE_LINK = "refers_to"
 
     model = Message
 

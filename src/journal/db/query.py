@@ -179,6 +179,11 @@ class Query:
         text, params = self._read(f"{self.expression(column)} AS value, count(*) AS total")
         return f"{text} GROUP BY value", params
 
+    def grouped_tally(self, columns: tuple[str, ...], latest: str) -> tuple[str, tuple]:
+        selections = ", ".join(f"{self.expression(column)} AS value{index}" for index, column in enumerate(columns))
+        text, params = self._read(f"{selections}, count(*) AS total, MAX({self.expression(latest)}) AS latest")
+        return f"{text} GROUP BY {', '.join(f'value{index}' for index in range(len(columns)))}", params
+
     def grouped_sum(self, column: str, *summed: str) -> tuple[str, tuple]:
         total = " + ".join(f"COALESCE(SUM({self.expression(name)}), 0)" for name in summed)
         text, params = self._read(f"{self.expression(column)} AS value, {total} AS total")

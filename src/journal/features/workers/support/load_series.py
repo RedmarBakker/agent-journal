@@ -21,7 +21,7 @@ class LoadSeries:
     window_minutes: float
     half_life_minutes: float
     busy_at: float
-    quiet_at: float
+    low_at: float
 
     def measured(self, items: list[LoadItem], dispatches: list[float], moment: float) -> AgentLoad:
         window = self.window_minutes * 60
@@ -32,20 +32,20 @@ class LoadSeries:
         counted = [item for item in items if item.is_cleared_in(moment - window, moment)]
         sorted_waiting = sorted((item for item in items if item.is_waiting(moment)), key=lambda item: (item.arrived_at, item.ref))
         calm_dispatches, busy_dispatches = self.dispatch_counts(series, [time for time in dispatches if moment - window < time <= moment])
-        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings or 0.0, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting), oldest_wait_minutes=round(sum((moment - item.arrived_at) / 60 for item in sorted_waiting[:1]), 2),
-                         wait_minutes=round(wait or 0.0, 2), little=round(arrivals * (wait or 0.0) / 60, 2), over_minutes=self.stretch(series, lambda point: point[1] >= self.busy_at and point[2] > 0),
-                         under_minutes=self.stretch(series, lambda point: point[1] < self.quiet_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),
-                         clearings_counted=len(counted), removals=sum(1 for item in items if item.is_removal(moment - window, moment)), dispatches_for=calm_dispatches, dispatches_against=busy_dispatches, measured_at=moment)
+        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting), oldest_wait_minutes=round(sum((moment - item.arrived_at) / 60 for item in sorted_waiting[:1]), 2),
+                         wait_minutes=round(wait, 2), little=round(arrivals * wait / 60, 2), busy_minutes=self.stretch(series, lambda point: point[1] >= self.busy_at and point[2] > 0),
+                         low_minutes=self.stretch(series, lambda point: point[1] < self.low_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),
+                         clearings_counted=len(counted), removals=sum(1 for item in items if item.is_removal(moment - window, moment)), calm_dispatches=calm_dispatches, busy_dispatches=busy_dispatches, measured_at=moment)
 
     def walk(self, items: list[LoadItem], moment: float, horizon: float) -> QueueWalk:
         window = self.window_minutes * 60
-        times = [moment - horizon + step * STEP_SECONDS for step in range(int(horizon // STEP_SECONDS) + 1)]
-        if times[-1] < moment:
-            times.append(moment)
+        instants = [moment - horizon + step * STEP_SECONDS for step in range(int(horizon // STEP_SECONDS) + 1)]
+        if instants[-1] < moment:
+            instants.append(moment)
         half_life = HalfLife(self.half_life_minutes)
         arrivals = clearings = wait = None
         series: list[tuple[float, float, float]] = []
-        for time in times:
+        for time in instants:
             raw_arrivals = self.arrived(items, time - window, time) / (window / 3600)
             arrivals = raw_arrivals if arrivals is None else half_life.folded(arrivals, raw_arrivals, STEP_SECONDS)
             busy = self.busy_seconds(items, time - window, time)
@@ -56,8 +56,8 @@ class LoadSeries:
             raw_wait = self.waited(items, time - window, time)
             if raw_wait is not None:
                 wait = raw_wait if wait is None else half_life.folded(wait, raw_wait, STEP_SECONDS)
-            series.append((time, arrivals / (clearings or self.least_clearings()), waiting))
-        return QueueWalk(tuple(series), arrivals, clearings, wait)
+            series.append((time, arrivals / self.clearing_rate(clearings), waiting))
+        return QueueWalk(tuple(series), arrivals, 0.0 if clearings is None else clearings, 0.0 if wait is None else wait)
 
     @staticmethod
     def arrived(items: list[LoadItem], start: float, end: float) -> float:
@@ -78,37 +78,41 @@ class LoadSeries:
         spans = sorted((max(item.arrived_at, start), min(item.cleared_at or end, end)) for item in items if item.arrived_at < end and (item.cleared_at or end) > start)
         total, reached = 0.0, start
         for begin, finish in spans:
-            if finish > reached:
-                total += finish - max(begin, reached)
-                reached = finish
+            if finish <= reached:
+                continue
+            total += finish - max(begin, reached)
+            reached = finish
         return total
 
     def least_clearings(self) -> float:
         return 60 / self.window_minutes
 
+    def clearing_rate(self, clearings: float | None) -> float:
+        return clearings if clearings is not None and clearings > 0 else self.least_clearings()
+
     @staticmethod
-    def stretch(series: list[tuple[float, float, float]], holds) -> float:
-        if not holds(series[-1]):
+    def stretch(series: list[tuple[float, float, float]], condition) -> float:
+        if not condition(series[-1]):
             return 0.0
         first_time = series[-1][0]
         for point in reversed(series):
-            if not holds(point):
+            if not condition(point):
                 break
             first_time = point[0]
         return round((series[-1][0] - first_time) / 60, 1)
 
     @staticmethod
     def was_oldest(items: list[LoadItem], item: LoadItem) -> bool:
-        before = item.cleared_at - 1e-6
-        waiting = [other for other in items if other.is_waiting(before)]
-        return bool(waiting) and min(waiting, key=lambda other: (other.arrived_at, other.ref)) == item
+        prior_instant = item.cleared_at - 1e-6
+        waiting = [candidate for candidate in items if candidate.is_waiting(prior_instant)]
+        return bool(waiting) and min(waiting, key=lambda candidate: (candidate.arrived_at, candidate.ref)) == item
 
     def dispatch_counts(self, series: list[tuple[float, float, float]], dispatches: list[float]) -> tuple[int, int]:
         calm_count = busy_count = 0
         for time in dispatches:
             current, base = self.point(series, time), self.point(series, time - GROWTH_SECONDS)
             busy_count += current[1] > self.busy_at and current[2] > base[2]
-            calm_count += current[1] < self.quiet_at
+            calm_count += current[1] < self.low_at
         return calm_count, busy_count
 
     @staticmethod

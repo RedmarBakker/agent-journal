@@ -116,6 +116,15 @@ export class ApiClient {
         return this.post("/developer/reset");
     }
 
+    // the nudges each agent was sent, counted since the last reset
+    developerNudges() {
+        return this.get("/developer/nudges");
+    }
+
+    developerNudgesReset() {
+        return this.post("/developer/nudges/reset");
+    }
+
     settings() {
         return this.get(this.here("/settings"));
     }

@@ -63,7 +63,7 @@ class CheckRunner:
             current = self.checks.find(check.row_id)
             if not current.has_run_start(started):
                 return current
-            return self.checks.rewritten(current, actor, lambda row: row.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], self.time_source.moment(), elapsed, self.report(report), ended.fault))
+            return self.checks.rewritten(current, actor, lambda row: row.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], self.time_source.moment(), elapsed, self.report(report), ended.fault, started))
 
     def executed(self, check: Check, report: Path, started: float, actor: Actor) -> FinishedRun:
         process = subprocess.Popen(check.command, shell=True, cwd=self.config.root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",

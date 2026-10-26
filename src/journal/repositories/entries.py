@@ -4,6 +4,7 @@ from datetime import datetime
 from journal.support.moment import Moment
 from journal.db.query import Query
 from journal.models.entry import Entry
+from journal.models.support.nudge_tally import NudgeTally
 from journal.support.actor import Actor
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.agent_message import AgentMessage
@@ -164,6 +165,10 @@ class Entries(ScopedRepository[Entry]):
     def recent_line_entries(self, session: str, key: str) -> int:
         newest = self.maximum(self.lines(session).filter_json("data->key", key), "id", 0)
         return self.counted(self.lines(session).filter_greater("id", newest))
+
+    def nudge_tallies(self, cutoff: datetime) -> list[NudgeTally]:
+        query = self.query().filter(kind=NUDGE).filter_greater("created_at", cutoff)
+        return [NudgeTally(row["value0"], row["value1"], row["total"], row["latest"]) for row in self.tallied_globally(query, ("data->session", "data->key"), "data->time")]
 
     def kind_entries(self, kind: str, last: int = 50) -> list[Entry]:
         return self.selected(self.query().filter(kind=kind).order_descending("id").limit(last))

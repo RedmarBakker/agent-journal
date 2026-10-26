@@ -40,7 +40,7 @@ class MeasureSource:
         return len(self.tasks.recent_completions(*moments)) / (seconds / 3600) if seconds > 0 else None
 
     def high_queue_minutes(self) -> float | None:
-        return self.agent.work_queue.over_minutes if self.agent.work_queue.is_measured() else None
+        return self.agent.work_queue.busy_minutes if self.agent.work_queue.is_measured() else None
 
     def clearing_wait(self) -> float | None:
         return self.agent.work_queue.oldest_wait_minutes if self.agent.work_queue.is_measured() else None

@@ -79,7 +79,7 @@ const notYet = (e) => {
 
 async function messageNumber(server, record) {
     if (!record.asked) {
-        const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, on: record.on, idempotency: record.id});
+        const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, on: record.on, refers: record.refers, idempotency: record.id});
         if (message.id) return message.id;
         if (message.notice) noticed(message.notice);
         record.asked = true;
@@ -167,6 +167,7 @@ export async function sendMessage(env, body, files = [], id = token()) {
         text: body.text,
         reply_target: body.reply_target,
         on: body.on,
+        refers: body.refers,
         files: storable ? await Promise.all(files.map(fileRecord)) : [],
         held: storable ? 0 : files.length,
         uploaded: [],

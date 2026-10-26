@@ -9,7 +9,8 @@ from journal.features.checks.listeners.run_due_checks import RunDueChecks
 from journal.features.checks.checks_conduct import ChecksConduct
 from journal.features.feature import Feature
 from journal.features.checks.listeners.check_failure_record import CheckFailureRecord
-from journal.features.checks.listeners.check_card import CheckCard
+from journal.features.checks.listeners.check_run_card import CheckRunCard
+from journal.features.checks.support.check_run_process_card import CheckRunProcessCard
 from journal.support.skill import Skill
 from journal.features.checks.checks_nudges import ChecksNudges
 from journal.features.checks.checks_options import ChecksOptions
@@ -22,7 +23,8 @@ class Checks(Feature):
     title = "Checks"
     help = "Scripts that pass or fail, run by hand or on a schedule; a failure is told to the agent."
     commands = (CheckCommand,)
-    listeners = (RunDueChecks, CheckFailureRecord, CheckCard)
+    listeners = (RunDueChecks, CheckFailureRecord, CheckRunCard)
+    process_cards = (CheckRunProcessCard,)
     conduct = (ChecksConduct,)
 
     options = (ChecksOptions.REPEAT,)

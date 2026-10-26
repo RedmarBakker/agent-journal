@@ -30,6 +30,10 @@ class ScopedRepository(Repository[S]):
     def global_matching(self, **fields) -> list[S]:
         return self.selected_globally(self.query().filter(**fields).order("id"))
 
+    def tallied_globally(self, query: Query, columns: tuple[str, ...], latest: str) -> list:
+        with self.connection.unlisted():
+            return self.connection.all(*query.grouped_tally(columns, latest))
+
     def selected_globally(self, query: Query) -> list[S]:
         return self._selected(query)
 

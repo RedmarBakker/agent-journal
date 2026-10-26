@@ -28,6 +28,7 @@ from journal.http.controllers.git_hooks import GitHookController
 from journal.http.controllers.outputs import OutputController
 from journal.http.controllers.docks import DockController
 from journal.http.controllers.process_cards import ProcessCardController
+from journal.http.controllers.nudge_counts import NudgeCountController
 from journal.http.controllers.plans import PlanController
 from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
@@ -102,6 +103,8 @@ class Routes:
         for path, handler in (("manifest", journal.manifest), ("identity", journal.identity), ("health", journal.health), ("journals", journal.journals), ("summary", journal.summary), ("bar", journal.bar), ("developer", journal.developer)):
             router.get(f"{API}/{path}", handler)
         router.post(f"{API}/developer/reset", journal.developer_reset)
+        router.get(f"{API}/developer/nudges", get(NudgeCountController).index)
+        router.post(f"{API}/developer/nudges/reset", get(NudgeCountController).reset)
         router.post(f"{API}/client-errors", get(ClientErrorController).store)
         router.get(f"{API}/settings", settings.index)
         router.post(f"{API}/settings", settings.store)

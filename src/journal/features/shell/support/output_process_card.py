@@ -5,7 +5,8 @@ from pathlib import Path
 
 from journal.chat.docking import Docking
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import DOCK_TIME_KEY, AUTO_DOCKED, DOCKED, FINAL
+from journal.chat.auto_dock import AutoDock
+from journal.chat.process_cards import FINAL
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
 from journal.features.shell.support.activity_label import ActivityLabel
@@ -25,12 +26,8 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.command_text import CommandText
 from journal.features.shell.shell_options import ShellOptions
-from journal.support.time_source import TimeSource
 
 HEADLINE_CHARACTERS = 60
-ENDED_DOCK_SECONDS = 5
-DOCK_DELAY_SECONDS = 5
-UNDOCK_TIME_KEY = "undock_at"
 
 
 class OutputProcessCard(ProcessCard):
@@ -38,8 +35,8 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, time_source: TimeSource, git_titles: GitTitles) -> None:
-        self.time_source, self.git_titles = time_source, git_titles
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles) -> None:
+        self.auto_dock, self.git_titles = auto_dock, git_titles
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
@@ -69,14 +66,8 @@ class OutputProcessCard(ProcessCard):
     def dock_state(self, output: CommandOutput) -> dict:
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())
         if not cards:
-            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: output.creation_time.timestamp() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
-        if not output.ended or not cards[0].data.get(AUTO_DOCKED):
-            return {}
-        return {UNDOCK_TIME_KEY: cards[0].data.get(UNDOCK_TIME_KEY) or self.undock_time(cards[0].data.get(DOCK_TIME_KEY, 0))}
-
-    def undock_time(self, dock_time: float) -> float:
-        current_time = self.time_source.seconds()
-        return dock_time if current_time < dock_time else current_time + ENDED_DOCK_SECONDS
+            return self.auto_dock.dock_fields(output.creation_time.timestamp()) if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
+        return self.auto_dock.undock_fields(cards[0]) if output.ended else {}
 
     @staticmethod
     def outcome(output: CommandOutput) -> CardOutcome:

@@ -12,12 +12,12 @@ class PlaceScaling:
     floor: int
     ceiling: int
 
-    def opens(self, load: AgentLoad, places: int, now: float) -> bool:
-        return places < self.ceiling and load.over_minutes >= self.up_dwell_minutes and self.dwelt(load, now, self.up_dwell_minutes)
+    def opens(self, queue: AgentLoad, places: int, moment: float) -> bool:
+        return places < self.ceiling and queue.busy_minutes >= self.up_dwell_minutes and self.dwelt(queue, moment, self.up_dwell_minutes)
 
-    def closes(self, load: AgentLoad, places: int, holding: bool, now: float) -> bool:
-        return places > self.floor and not holding and not load.waiting and load.under_minutes >= self.down_dwell_minutes and self.dwelt(load, now, self.down_dwell_minutes)
+    def closes(self, queue: AgentLoad, places: int, has_worker_task: bool, moment: float) -> bool:
+        return places > self.floor and not has_worker_task and not queue.waiting and queue.low_minutes >= self.down_dwell_minutes and self.dwelt(queue, moment, self.down_dwell_minutes)
 
     @staticmethod
-    def dwelt(load: AgentLoad, now: float, minutes: float) -> bool:
-        return now - load.scaled_at >= minutes * 60
+    def dwelt(queue: AgentLoad, moment: float, minutes: float) -> bool:
+        return moment - queue.scaled_at >= minutes * 60

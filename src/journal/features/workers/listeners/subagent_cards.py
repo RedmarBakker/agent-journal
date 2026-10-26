@@ -21,7 +21,7 @@ from journal.support.time_source import TimeSource
 
 
 class SubagentCards(AgentListener[AgentEvent]):
-    """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the last thing it sent or the tool's error."""
+    """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the text it returned or the tool's error, which the mark opens to."""
 
     def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, agents: Agents, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -50,5 +50,5 @@ class SubagentCards(AgentListener[AgentEvent]):
         if self.cards.is_shown(key, actor):
             return
         report = self.subagents.report(event.session, row)
-        data = SubagentCard.built(event.session, agent, row, row.state, row.reason).as_data()
+        data = {**SubagentCard.built(event.session, agent, row, row.state, row.reason).as_data(), "returned": report}
         self.cards.show_fields(event.environment_id, event.session, f"Subagent {row.agent_type} ended: {row.task}", data, actor, CardKind.SUBAGENTS, report or row.task, key)

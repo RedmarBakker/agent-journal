@@ -20,4 +20,4 @@ class QueueView:
     def measured(cls, queue: AgentLoad) -> "QueueView | None":
         if not queue.is_measured():
             return None
-        return cls(queue.rho, queue.arrivals, queue.clearings, queue.waiting, queue.wait_minutes, queue.little, queue.waiting_refs, queue.over_minutes)
+        return cls(queue.rho, queue.arrivals, queue.clearings, queue.waiting, queue.wait_minutes, queue.little, queue.waiting_refs, queue.busy_minutes)

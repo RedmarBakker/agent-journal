@@ -11,6 +11,7 @@ PROCESS = "process"
 DOCKED = "docked"
 AUTO_DOCKED = "auto_docked"
 DOCK_TIME_KEY = "dock_at"
+UNDOCK_TIME_KEY = "undock_at"
 # the mark a card takes when the process it shows ran and ended, done or failed: from then on it is never written again
 FINAL = "final"
 

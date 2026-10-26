@@ -13,6 +13,7 @@ const props = defineProps({
     failed: {type: Boolean, default: false},
     unfinished: {type: Boolean, default: false},
     reason: {type: String, default: ""},
+    returned: {type: String, default: ""},
     refusal: {type: String, default: ""},
     report: {type: Number, default: 0},
     agent: {type: Number, default: 0},
@@ -48,6 +49,8 @@ const mark = computed(() => ({
     name: name.value,
     time: props.time,
     detail: detail.value,
+    // a subagent that came back opens to the whole text it returned, as a message's mark opens to its words
+    body: props.finished ? props.returned : "",
 }));
 const openable = computed(() => ({...mark.value, title: "Open the subagent"}));
 const reported = computed(() => ({...mark.value, card: card.value}));

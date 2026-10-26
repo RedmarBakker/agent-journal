@@ -6,6 +6,7 @@ from journal.support.check_progress import CheckProgress
 from journal.support.check_report import CheckReport
 from journal.events.rows.check_completed import CheckCompleted
 from journal.events.rows.check_failed import CheckFailed
+from journal.events.rows.check_run_changed import CheckRunChanged
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.model import Model
 from journal.support.rejection import Rejection
@@ -39,7 +40,10 @@ class Check(Model):
         return self.with_(title=title, brief=brief, command=command, interval=interval_minutes)
 
     def started(self, time: float) -> "Check":
-        return self.with_(progress=CheckProgress(time))
+        return self.with_(progress=CheckProgress(time)).with_event(self.run_changed(time, time))
+
+    def run_changed(self, time: float, run_start: float) -> CheckRunChanged:
+        return CheckRunChanged(environment_id=0, time=time, check_id=self.row_id, run_start=run_start, wait_target=self.wait_target)
 
     def is_running(self, moment: float) -> bool:
         return self.progress is not None and moment - self.progress.time < RUN_LIMIT_SECONDS
@@ -50,16 +54,17 @@ class Check(Model):
     def stopped(self, time: datetime) -> "Check":
         if self.progress is None:
             raise Rejection(f"check {self.id} is not running")
-        return self.with_(last_passed=None, last_stopped=True, last_output=self.progress.output, last_run_at=time, last_duration=time.timestamp() - self.progress.time, last_report=None, progress=None, last_fault="")
+        stopped = self.with_(last_passed=None, last_stopped=True, last_output=self.progress.output, last_run_at=time, last_duration=time.timestamp() - self.progress.time, last_report=None, progress=None, last_fault="")
+        return stopped.with_event(self.run_changed(time.timestamp(), self.progress.time))
 
     def verdict(self) -> str:
         if self.last_stopped:
             return "stopped"
         return {True: "passed", False: "failed", None: "not run"}[self.last_passed]
 
-    def completed(self, passed: bool, output: str, time: datetime, elapsed: float, report: CheckReport | None, fault: str) -> "Check":
+    def completed(self, passed: bool, output: str, time: datetime, elapsed: float, report: CheckReport | None, fault: str, run_start: float) -> "Check":
         executed = CheckCompleted(environment_id=0, time=time.timestamp(), check_id=self.row_id, title=self.title, passed=passed, output=output, prior_failure=self.last_passed is False, wait_target=self.wait_target, failure_reported_at=self.failure_reported_at)
-        recorded = self.with_(last_passed=passed, last_stopped=False, last_output=output, last_run_at=time, last_duration=elapsed, last_report=report, progress=None, last_fault=fault).with_event(executed)
+        recorded = self.with_(last_passed=passed, last_stopped=False, last_output=output, last_run_at=time, last_duration=elapsed, last_report=report, progress=None, last_fault=fault).with_event(executed).with_event(self.run_changed(time.timestamp(), run_start))
         if not passed:
             recorded = recorded.with_event(CheckFailed(environment_id=0, time=time.timestamp(), check_id=self.row_id))
         if self.wait_target and passed and not self.is_resolved():

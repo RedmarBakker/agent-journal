@@ -1,11 +1,14 @@
 <script setup>
 import {computed, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
+import Btn from "../kit/Btn.vue";
 import CloseButton from "../kit/CloseButton.vue";
+import Icon from "../kit/Icon.vue";
+import {store} from "../state/store.js";
 import Dot from "../kit/Dot.vue";
 import OutputLines from "../kit/OutputLines.vue";
 import {useScope} from "../composables/scope.js";
-import {undock} from "../actions/docking.js";
+import {keepDocked, undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
 import {createdAt} from "../domain/row.js";
 import {watchLines} from "../domain/watchStatus.js";
@@ -39,9 +42,12 @@ const shown = ref(false);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
 const takeDown = () => undock(scope, props.message);
+// a question about this run starts in the composer with the run quoted, and the message sent refers to the run's row for the agent to read
+const askedRow = computed(() => (card.value.output ? `command_outputs:${card.value.output}` : `checks:${card.value.check}`));
+const askAbout = () => (store.quoting = {text: props.message.text, ref: "", refers: [askedRow.value], label: "Asking about"});
 
 async function read() {
-    if (!colleague.value) await pages.poll();
+    if (!colleague.value && card.value.output) await pages.poll();
 }
 
 function toggle() {
@@ -50,6 +56,7 @@ function toggle() {
         shown.value = true;
         read();
     }
+    if (card.value.auto_docked) keepDocked(scope, props.message);
 }
 
 watch(
@@ -74,6 +81,7 @@ watch(
             <template v-if="ranFor">
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
+            <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout"><Icon name="bubble" /></Btn>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
         <template v-if="statuses.length">

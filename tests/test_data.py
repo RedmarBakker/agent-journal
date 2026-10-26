@@ -1326,7 +1326,7 @@ def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is
     checks_a, checks_b = Checks(tasks_a.connection, tasks_a.bus, TimeSource()), Checks(tasks_b.connection, tasks_b.bus, TimeSource())
     check = checks_a.save(Check(title="lint", command="true", interval=5), USER)
     sent = len(outgoing_a.waiting())
-    checks_a.save(check.completed(True, "all clean", datetime.now(timezone.utc), 0.1, None, ""), USER)
+    checks_a.save(check.completed(True, "all clean", datetime.now(timezone.utc), 0.1, None, "", 0.0), USER)
     assert len(outgoing_a.waiting()) == sent, "a run's results leave no change for the team, not even its stamps"
     incoming_b.apply(team_changes(outgoing_a))
     arrived = checks_b.find(check.row_id)
@@ -1644,3 +1644,15 @@ def test_a_sequence_step_stored_or_pulled_as_a_string_loads_as_a_step_record_wit
     steps = column.parsed(json.dumps(["tag it", {"title": "Push", "instructions": "push it", "file_edits_allowed": False, "allowed_commands": ["^git push"]}]))
     assert steps == (SequenceStep(instructions="tag it"), SequenceStep(title="Push", instructions="push it", file_edits_allowed=False, allowed_commands=("^git push",))), "a string from a peer on the old version is its instructions, file edits allowed"
     assert json.loads(column.sql(steps))[1]["allowed_commands"] == ["^git push"], "and a record is stored as a record"
+
+
+def test_the_load_dispatch_counts_migration_renames_the_keys_of_every_stored_load(connection):
+    from journal.db.migrations.load_dispatch_counts import LoadDispatchCounts
+    from journal.models.support.agent_load import AgentLoad
+    old = {"rho": 0.9, "dispatches_for": 1, "dispatches_against": 2, "over_minutes": 12.0, "under_minutes": 3.0}
+    connection.execute("INSERT INTO agents (session, work_queue, message_queue, mode_loads, created_at, creator) VALUES ('s1', ?, ?, ?, '2026-10-26', 'system')", (json.dumps(old), json.dumps({}), json.dumps({"builder": old})))
+    LoadDispatchCounts().apply(connection)
+    row = connection.one("SELECT work_queue, mode_loads FROM agents")
+    load = AgentLoad.parsed(json.loads(row["work_queue"]))
+    assert (load.calm_dispatches, load.busy_dispatches, load.busy_minutes, load.low_minutes) == (1, 2, 12.0, 3.0), "the counts and stretches keep their values under their plain names"
+    assert AgentLoad.parsed(json.loads(row["mode_loads"])["builder"]).busy_dispatches == 2, "and so does the load of each work mode"

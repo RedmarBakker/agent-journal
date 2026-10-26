@@ -1097,6 +1097,35 @@ def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch)
     assert outcomes.get("Check it is broken failed") == "failed" and outcomes.get("Check it is fine passed") == "passed", outcomes
 
 
+def test_a_running_check_is_a_docked_card_with_its_progress_that_becomes_its_result_mark(app: App):
+    from datetime import datetime, timezone
+    from journal.features.checks.support.check_run_process_card import CheckRunProcessCard
+    from journal.repositories.checks import Checks
+    from journal.repositories.messages import Messages
+    from journal.support.check_progress import CheckProgress
+    console, checks = app.console(), app.container.get(Checks)
+    hook(app, "SessionStart")
+    console.run(["check", "create", "the suite", "--command", "true"], USER)
+    check = checks.find(1)
+    run_start = timing.time()
+    checks.rewritten(check, Actor.user(1), lambda row: row.started(run_start))
+    app.runtime().deferred.drain()
+
+    def card():
+        with app.container.get(Scope).environment(MAIN):
+            return app.container.get(Messages).with_key(f"check-run:1:{run_start}")[0]
+
+    running = card()
+    assert running.text == "Check the suite running" and running.data["active"] and running.data["docked"] and running.data["auto_docked"], "a check that starts is a live card, docked at the bottom of the chat"
+    checks.touch(checks.find(1), Actor.user(1), progress=CheckProgress(run_start, "...F\n", 3, 10, 30.0))
+    fields = app.container.get(CheckRunProcessCard).refresh(running)
+    assert fields["count"] == "3/10" and fields["fraction"] == 0.3 and fields["active"], "its card shows the progress the Checks page reads"
+    checks.rewritten(checks.find(1), Actor.user(1), lambda row: row.completed(True, "10 passed", datetime.now(timezone.utc), 2.0, None, "", run_start))
+    app.runtime().deferred.drain()
+    ended = card()
+    assert ended.text == "Check the suite passed" and ended.data["final"] and not ended.data["active"] and ended.data["outcome"] == "passed" and "undock_at" in ended.data, "its end turns the card into the result mark, which leaves the dock by itself"
+
+
 def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_stuck(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -1296,6 +1325,13 @@ def test_a_subagents_dispatch_and_its_end_are_two_marks_in_the_chat(app: App):
     hook(app, "SubagentStop", agent_id="ag1", agent_type="journal-researcher", last_assistant_message="amber")
     app.runtime().deferred.drain()
     assert marks()[2:] == [("say a colour", "running"), ("amber", "done")], "a subagent that reported ends with a mark carrying the last thing it said"
+    hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-plan-reviewer", "description": "review plan 3", "prompt": "review", "model": "sonnet", "run_in_background": True}, tool_use_id="t-r")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-plan-reviewer", "description": "review plan 3", "prompt": "review", "model": "sonnet", "run_in_background": True}, tool_response={"agentId": "ag2"}, tool_use_id="t-r")
+    hook(app, "SubagentStart", agent_id="ag2", agent_type="journal-plan-reviewer")
+    hook(app, "SubagentStop", agent_id="ag2", agent_type="journal-plan-reviewer", last_assistant_message="Phase 2 misses its tests.\nPhase 3 is sound.")
+    app.runtime().deferred.drain()
+    returned = [m.data.get("returned") for m in app.container.get(Messages).all() if m.data.get("kind") == "subagent" and m.data["state"] == "done"]
+    assert returned[-1] == "Phase 2 misses its tests.\nPhase 3 is sound.", "a reviewer's end mark carries the whole text it returned, for the mark to open to"
 
 
 def test_a_dispatch_that_failed_ends_with_a_mark_carrying_the_tools_error(app: App):
@@ -4893,6 +4929,46 @@ def test_paused_work_beside_an_open_task_is_chosen_at_the_stop_declined_by_comma
     hook(app, "UserPromptSubmit", prompt="do the docs now")
     app.runtime().deferred.drain()
     assert top() != "choosing_paused_work" and app.container.get(Agents).session_agent("s1").paused_declined, "the user's own words end the choice and set the paused work aside"
+
+
+def test_a_plan_takes_its_tasks_up_in_phase_order_whether_open_or_paused(app: App):
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["settings", "set", "plans.test_commands", "true"], USER)
+    console.run(["plan", "create", "release", "--brief", "b"], USER)
+    for title in ("first", "second", "later"):
+        console.run(["plan", "add", "1", title], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
+    console.run(["plan", "phase", "1", "two", "--when", "w"], USER)
+    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
+    console.run(["plan", "todos", "1", "2", "3"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["task", "start", "3"], AGENT)
+    console.run(["task", "pause", "3", "a later phase"], AGENT)
+    started = console.run(["plan", "start", "1"], AGENT)
+    assert "task 1" in started.text, f"the plan starts at its first phase, not at a paused task of a later one: {started.text}"
+    console.run(["task", "complete", "1", "--how", "h"], AGENT)
+    app.runtime().deferred.drain()
+    tasks = app.container.get(Tasks)
+    assert tasks.find(2).state == "started" and tasks.find(3).state == "paused", "the next task is the first in phase order, open, before a paused task of a later phase"
+    console.run(["task", "complete", "2", "--how", "h"], AGENT)
+    app.runtime().deferred.drain()
+    assert tasks.find(3).state == "started", "and the paused task of the next phase comes in its turn"
+
+
+def test_a_journal_row_the_agent_would_pin_is_docked_instead_unless_the_user_asked_for_a_pin(app: App, tmp_path):
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "release", "--brief", "b"], USER)
+    refused = console.run(["notice", "create", "The release plan", "--link", "plans:1"], AGENT)
+    assert refused.code != 0 and "dock it at the bottom of the chat with journal plan dock 1" in refused.error, "a row of the journal is docked, never pinned by default"
+    asked = console.run(["notice", "create", "The release plan", "--link", "plans:1", "--user-asked"], AGENT)
+    assert asked.code == 0 and "pinned" in asked.text, "a pin the user asked for is made"
+    assert console.run(["notice", "create", "The design", "--link", "https://example.com/design"], AGENT).code == 0, "an outside address is pinned as before"
+    assert console.run(["notice", "create", "The plan", "--link", "plans:1"], USER).code == 0, "the user pins a row when they want"
 
 
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
@@ -11444,6 +11520,11 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
     end(auto)
     ended = card(auto).data
     assert ended["docked"] is True and ended["auto_docked"] is True and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Docking).pin_message(card(auto), Actor.user(1))
+    end(auto)
+    opened = card(auto).data
+    assert opened["docked"] is True and not opened["auto_docked"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
     kept = run("kept")
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Docking).pin_message(card(kept), Actor.user(1))

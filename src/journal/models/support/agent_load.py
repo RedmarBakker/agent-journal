@@ -14,13 +14,13 @@ class AgentLoad:
     oldest_wait_minutes: float = 0.0
     wait_minutes: float = 0.0
     little: float = 0.0
-    over_minutes: float = 0.0
-    under_minutes: float = 0.0
+    busy_minutes: float = 0.0
+    low_minutes: float = 0.0
     oldest_first: int = 0
     clearings_counted: int = 0
     removals: int = 0
-    dispatches_for: int = 0
-    dispatches_against: int = 0
+    calm_dispatches: int = 0
+    busy_dispatches: int = 0
     measured_at: float = 0.0
     scaled_at: float = 0.0
 

@@ -190,9 +190,6 @@ class Plans(ScopedRepository[Plan]):
     def finished(self, plan: Plan) -> bool:
         return plan.is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
-    def resumable(self, plan: Plan) -> Task | None:
-        return self.first_task(plan, TaskState.PAUSED, self.tasks.query()) or self.next_task(plan)
-
     def started_task(self, plan: Plan) -> Task | None:
         started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False).order("id").limit(1))
         return started[0] if started else None
@@ -209,16 +206,22 @@ class Plans(ScopedRepository[Plan]):
             queued.append(task)
         return queued
 
-    # the order a plan's work is taken up in: a paused task whose waits are over first, then the next open one; a blocked task, or a paused
-    # one still waiting, never stops the plan
+    # the task a plan takes up next: the first in the plan's order, phase by phase, a paused task whose waits are over and an open one alike;
+    # a blocked task, or a paused one still waiting, never stops the plan
     def following_task(self, plan: Plan) -> Task | None:
-        paused = self.first_task(plan, TaskState.PAUSED, self.tasks.query().filter_unlisted("id", sorted(self.waiting_task_ids(plan))))
-        return paused if paused is not None else self.next_task(plan)
+        return self.first_planned(plan, self.takeable_tasks(plan))
 
-    # the plan's first task in its order that is in the state and matches the candidates: its phases' tasks phase by phase, each in the order
+    # the plan's tasks it may take up next, open or paused alike, so the first in the plan's order comes first whichever it is
+    def takeable_tasks(self, plan: Plan) -> Query:
+        takeable = self.tasks.query().filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False)
+        return takeable.filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+
+    # the plan's first task in its order that matches: its phases' tasks phase by phase, each in the order
     # it joined its phase, then its tasks under no phase in the order they joined the plan; the first phase holding one is found in one read
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
-        matching = candidates.filter(state=state)
+        return self.first_planned(plan, candidates.filter(state=state))
+
+    def first_planned(self, plan: Plan, matching: Query) -> Task | None:
         phase_links = self.links.query().filter(kind=PHASE_LINK)
         task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_named(phase_links, "source"))
         first_phase = self.phases.selected(self.plan_phase_query(plan).filter_existing(task_links).order("id").limit(1))
@@ -257,7 +260,7 @@ class Plans(ScopedRepository[Plan]):
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = self.time_source.moment()
-        task = self.resumable(plan)
+        task = self.following_task(plan)
         if task is None or self.is_complete(plan):
             return self.opened(plan, actor)
         following = task.plan_started(time, plan.row_id)

@@ -9,11 +9,11 @@ from journal.engine.no_task_assigner import NoTaskAssigner
 
 @dataclass(frozen=True)
 class Researching(BaseState):
-    """A subagent of Claude Code at work on its own row, over Void from its start and popped back to Void at its end: it reads and answers, and its tool uses are its own, never the main agent's."""
+    """A subagent of Claude Code at work on its own row, over Void from its start: it reads and answers, and its tool uses are its own, never the main agent's. Its end leaves it researching under the end of its session, so a message that resumes it finds it at work again."""
 
     name = "researching"
     assigner = NoTaskAssigner
     title = "Researching"
 
     def on_subagent_ended(self, event: SubagentEnded, settings: Settings) -> Transition:
-        return self.pop()
+        return self.none()

@@ -347,13 +347,23 @@ function restAtFoot() {
 }
 
 // a turn that arrives while the reader follows the foot is pushed in by the chat gliding up first, then faded in (arrival.js); one that
-// arrives while the reader is away, or before the chat settled, just appears
+// arrives while the reader is away, while the tab is hidden or its latest page is read on return, or before the chat settled, just appears
 // a message the user just sent, drawn before the journal has it, whose key is its placeholder's
 const isOwnSent = (el) => (el.dataset?.ref || el.querySelector?.("[data-ref]")?.dataset.ref || "").startsWith("pending:");
-const arrivalPane = () => ({pane: scroller.value, follows: () => settledOnce.value && !away.value});
+const following = () => settledOnce.value && !away.value && !ui.away.tabHidden && !ui.away.readingLatest;
+const arrivalPane = () => ({pane: scroller.value, follows: following});
 const comeIn = arrivalQueue();
+watch(
+    () => ui.away.tabHidden,
+    (tabHidden) => tabHidden && comeIn.flush()
+);
+// back on the tab, a reader who followed the foot is at the foot of the latest page at once, with no glide
+watch(
+    () => ui.away.readingLatest,
+    (reading) => reading || away.value || toFoot()
+);
 const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));
-const closeUp = (el, done) => (settledOnce.value && !away.value ? depart(el, done) : done());
+const closeUp = (el, done) => (following() ? depart(el, done) : done());
 
 function watchScroll() {
     const s = scroller.value;
@@ -397,7 +407,7 @@ async function post(text, files) {
     toFoot();
     let sent;
     try {
-        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo}, files, id);
+        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo, refers: replying.refers}, files, id);
     } catch (e) {
         drop(placeholder);
         if (!quote.value.ref && !quote.value.text) quote.value = replying;
@@ -501,7 +511,7 @@ const {colleague, me} = useColleague();
                         :send="post"
                         :waiting="waitingNow"
                         :quote="quote.text"
-                        quote-label="Replying to"
+                        :quote-label="quote.label || 'Replying to'"
                         @unquote="quote = {text: '', ref: ''}"
                         @typing="toBottom(true)"
                         :preset="editing ? editing.text : ''"
