@@ -21191,3 +21191,15 @@ def test_a_document_written_in_two_parts_shows_being_written_after_the_first_and
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Messages).with_key("made:doc:1")[0].data["status"] == "Ready", "journal doc ready makes it ready"
+
+
+def test_the_workers_recent_activity_is_their_marks_newest_first_and_no_other(app: App):
+    from journal.chat.moment_cards import MomentCards
+    from journal.support.card_kind import CardKind
+    with app.container.get(Scope).environment(MAIN):
+        cards = app.container.get(MomentCards)
+        cards.show_fields(MAIN, None, "Worker 1, A: sent its next job", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardKind.WORKER_STEPS)
+        cards.show(MAIN, None, "Not a worker's", "", shows=CardKind.COMMANDS)
+        cards.show_fields(MAIN, None, "Worker 1, A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardKind.WORKER_TESTS)
+    status, body = got(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
+    assert status == 200 and [row["text"] for row in body["rows"]] == ["Worker 1, A: its tests passed", "Worker 1, A: sent its next job"]

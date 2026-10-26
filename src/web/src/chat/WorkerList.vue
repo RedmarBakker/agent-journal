@@ -1,7 +1,7 @@
 <script setup>
 import {workerCounts, workersBySection} from "../domain/workers.js";
-import {workerEntry} from "../domain/agentEntries.js";
-import {computed} from "vue";
+import {momentEntry, workerEntry} from "../domain/agentEntries.js";
+import {computed, ref} from "vue";
 import AgentDropdown from "./AgentDropdown.vue";
 import TestTurns from "./TestTurns.vue";
 import {TEST_BUDGET} from "../domain/testTurns.js";
@@ -10,9 +10,15 @@ import {TESTINGS} from "../domain/modes.js";
 import {workTesting} from "../composables/settings.js";
 import {saveSettings} from "../actions/settings.js";
 
-const props = defineProps({rows: {type: Array, default: () => []}, loading: Boolean});
+const props = defineProps({rows: {type: Array, default: () => []}, loading: Boolean, moments: {type: Array, default: () => []}, momentsLoading: Boolean});
+const TABS = [
+    {key: "workers", label: "Workers"},
+    {key: "activity", label: "Recent activity"},
+];
+const tab = ref("workers");
 const emit = defineEmits(["close"]);
 const entries = computed(() => Object.values(workersBySection(props.rows)).flat().map(workerEntry));
+const momentEntries = computed(() => props.moments.map(momentEntry));
 const counts = computed(() => workerCounts(props.rows));
 const countsLine = computed(() =>
     [counts.value.working && `${counts.value.working} working`, counts.value.idle && `${counts.value.idle} idle`]
@@ -25,18 +31,36 @@ const pickTesting = (key) => saveSettings({workers: {testing: key}});
 </script>
 
 <template>
-    <AgentDropdown title="Workers" table="workers" :entries="entries" :counts="countsLine" none="No workers have been sent from here." :loading="loading" @close="emit('close')">
-        <div class="workers-testing">
-            <span class="workers-testing-label">How workers test</span>
-            <Segmented :options="testingOptions" :value="workTesting" wrap @pick="pickTesting" />
+    <AgentDropdown
+        title="Workers"
+        table="workers"
+        :entries="tab === 'workers' ? entries : momentEntries"
+        :counts="tab === 'workers' ? countsLine : ''"
+        :none="tab === 'workers' ? 'No workers have been sent from here.' : 'No worker has done anything noteworthy yet.'"
+        :loading="tab === 'workers' ? loading : momentsLoading"
+        @close="emit('close')"
+    >
+        <div class="workers-tabs">
+            <Segmented :options="TABS" :value="tab" fill @pick="tab = $event" />
         </div>
-        <template v-if="workTesting === TEST_BUDGET">
+        <template v-if="tab === 'workers'">
+            <div class="workers-testing">
+                <span class="workers-testing-label">How workers test</span>
+                <Segmented :options="testingOptions" :value="workTesting" wrap @pick="pickTesting" />
+            </div>
+        </template>
+        <template v-if="tab === 'workers' && workTesting === TEST_BUDGET">
             <TestTurns :workers="rows" />
         </template>
     </AgentDropdown>
 </template>
 
 <style scoped>
+.workers-tabs {
+    flex: none;
+    padding: 8px 8px 0;
+}
+
 .workers-testing {
     display: flex;
     flex: none;

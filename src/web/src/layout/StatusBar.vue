@@ -28,7 +28,7 @@ import Toast from "../kit/Toast.vue";
 import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
 import WorkerList from "../chat/WorkerList.vue";
-import {useEveryWorker, useWorkers} from "../composables/workers.js";
+import {useEveryWorker, useWorkerActivity, useWorkers} from "../composables/workers.js";
 import {useEveryVerifier} from "../composables/verifiers.js";
 import {useEveryReviewer} from "../composables/reviewers.js";
 import AgentDropdown from "../chat/AgentDropdown.vue";
@@ -66,6 +66,7 @@ const workersHeight = Math.min(520, Math.round(window.innerHeight * 0.7));
 const workersOut = computed(() => workers.value.filter(isWorking).length);
 const workersOpen = ref(false);
 const {rows: everyWorker, loaded: everyWorkerLoaded, refresh: refreshEveryWorker} = useEveryWorker(workersOpen);
+const {rows: workerMoments, loaded: workerMomentsLoaded, refresh: refreshWorkerMoments} = useWorkerActivity(workersOpen);
 const workersAnchor = ref(null);
 
 const fitness = computed(() => agent.value?.fitness || null);
@@ -199,7 +200,7 @@ const reviewing = computed(() => everyReviewer.value.filter((row) => row.state =
 function toggleWorkers(e) {
     workersAnchor.value = e.currentTarget;
     workersOpen.value = !workersOpen.value;
-    if (workersOpen.value) refreshEveryWorker();
+    if (workersOpen.value) refreshEveryWorker(), refreshWorkerMoments();
 }
 
 const waiting = computed(() => queued(rows("tasks"), autoOn.value));
@@ -360,7 +361,7 @@ async function runBar(p) {
                     @click.stop
                     @close="workersOpen = false"
                 >
-                    <WorkerList :rows="everyWorker" :loading="!everyWorkerLoaded" @changed="refreshEveryWorker(), refreshWorkers()" @close="workersOpen = false" />
+                    <WorkerList :rows="everyWorker" :loading="!everyWorkerLoaded" :moments="workerMoments" :moments-loading="!workerMomentsLoaded" @changed="refreshEveryWorker(), refreshWorkers()" @close="workersOpen = false" />
                 </MenuPanel>
             </template>
             <template v-if="fitnessOpen && fitness">

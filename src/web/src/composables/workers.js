@@ -22,6 +22,11 @@ export function useEveryWorker(open) {
     return {rows, loaded, refresh: usePoll("workers.every", {take, active: () => open.value})};
 }
 
+export function useWorkerActivity(open) {
+    const {rows, loaded, take} = workerRows();
+    return {rows, loaded, refresh: usePoll("workers.activity", {take, active: () => open.value})};
+}
+
 // The workers that hold or have queued any of these tasks.
 export function useWorkersHolding(tasks) {
     const ids = computed(() => [...new Set(tasks.value.map((t) => t.id))]);

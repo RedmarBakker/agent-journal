@@ -539,6 +539,12 @@ export class ApiClient {
     }
 
     // one page of an output: the newest, the lines after a position, or the page before one
+    // the workers' noteworthy moments, newest first, read from the marks written for them in the chat
+    workerActivity() {
+        const path = this.here("/workers/activity");
+        return this.get(path, path);
+    }
+
     readOutput(id, {after, before} = {}) {
         const path = this.here(`/outputs/${id}${query({after, before})}`);
         return this.get(path, path);

@@ -20,5 +20,8 @@ export const verifierEntry = (row) => ({id: row.id, name: verifierName(row), sta
 
 export const reviewerEntry = (row) => ({id: row.id, name: row.name || `Reviewer ${row.id}`, state: REVIEWER_WORDS[row.state] || row.state, tone: REVIEWER_TONES[row.state] || "ended", active: active(activeAt(row)), work: row.brief || ""});
 
+// a noteworthy moment of a worker, from the mark written for it: what happened, in the mark's words, and when; it opens the worker its mark names
+export const momentEntry = (message) => ({key: `moment-${message.id}`, id: Number(String(message.data.row || "").split(":")[1]) || 0, name: message.text, state: message.data.detail || message.data.summary || "", tone: "idle", active: ago(seconds(message.created_at)) || ""});
+
 // newest first, so the agent sent last is on top
 export const newestFirst = (entries) => [...entries].sort((a, b) => b.id - a.id);

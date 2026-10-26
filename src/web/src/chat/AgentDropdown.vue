@@ -8,7 +8,7 @@ const props = defineProps({title: {type: String, required: true}, entries: {type
 const emit = defineEmits(["close"]);
 
 function inspect(entry) {
-    if (!props.table) return;
+    if (!props.table || !entry.id) return;
     peek(props.table, entry.id);
     emit("close");
 }
@@ -31,7 +31,7 @@ function inspect(entry) {
             <template v-else-if="!entries.length">
                 <p class="agents-none">{{ none }}</p>
             </template>
-            <template v-for="entry in entries" :key="entry.id">
+            <template v-for="entry in entries" :key="entry.key ?? entry.id">
                 <component :is="table ? Btn : 'div'" v-bind="table ? {kind: 'text'} : {}" :class="['agent', entry.tone]" @click="inspect(entry)">
                     <span :class="['agent-dot', entry.tone]" />
                     <span class="agent-what">

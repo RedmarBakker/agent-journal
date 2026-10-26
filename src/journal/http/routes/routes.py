@@ -62,6 +62,7 @@ from journal.http.controllers.subagents import SubagentController
 from journal.http.controllers.verifiers import VerifierController
 from journal.http.controllers.reviewers import ReviewerController
 from journal.http.controllers.test_turns import TestTurnController
+from journal.http.controllers.worker_activity import WorkerActivityController
 from journal.http.controllers.workers import WorkerController
 from journal.http.router import Router
 
@@ -203,6 +204,7 @@ class Routes:
         self.acts(router, "sequences", sequences, "starts", "steps")
         self.resource(router, "triggers", triggers)
         self.listed(router, "templates", get(TemplateController))
+        router.get(f"{API}/workers/activity", get(WorkerActivityController).recent)
         self.listed(router, "workers", get(WorkerController))
         self.listed(router, "subagents", get(SubagentController))
         self.acts(router, "workers", get(WorkerController), "send", "message", "stop", "complete", "check", "short_check", "merge", "release", "report_choice")

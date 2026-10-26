@@ -118,6 +118,7 @@ export const POLLERS = Object.freeze({
     "outbox.retry": {read: ({retry}) => retry(), every: 5000},
     "tour.start": {read: ({clear}) => clear(), every: 800},
     "workers.index": {read: () => workerChanges("workers.index", pageOf("workers")), every: 5000},
+    "workers.activity": {read: () => api.workerActivity().then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => workerChanges("workers.every", 200), every: 5000},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewers.every": {read: () => api.list("reviewers", {limit: 200}).then((got) => got.rows || []), every: 5000},
