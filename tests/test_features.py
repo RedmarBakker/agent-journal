@@ -11252,7 +11252,7 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
     assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
 
 
-def test_a_reader_report_is_owed_a_read_and_then_a_fix_or_a_dismissal_each_counted_down_to_the_write_hold(app: App):
+def test_a_reader_report_is_told_once_and_never_holds_a_write_and_none_is_raised_on_a_locked_reader(app: App):
     from journal.models.reader_report import ReaderReport
     from journal.repositories.reader_reports import ReaderReports
     console, reports = app.console(), app.container.get(ReaderReports)
@@ -11262,25 +11262,17 @@ def test_a_reader_report_is_owed_a_read_and_then_a_fix_or_a_dismissal_each_count
     assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
     with app.container.get(Scope).environment(1):
         report = reports.save(ReaderReport(environment_id=1, reader="naps", output=7, command="sleep 40", session="s1", findings=("the run took 40 seconds and its card showed no progress",), fixes=("make it print its steps",)), Actor.system())
+        locked = reports.save(ReaderReport(environment_id=1, reader="pytest", output=9, command="pytest", session="s1", findings=("x",), fixes=("y",)), Actor.system())
     read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    lines = [read() for _ in range(5)]
-    assert all(f"read reader report {report.id}" in line for line in lines) and f"read reader report {report.id} before your next write" in lines[-1], lines
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and f"reader report {report.id} is not read yet" in body["error"]
+    lines = [read() for _ in range(12)]
+    assert sum(f"reader report {report.id}: its reader showed a run poorly" in line for line in lines) == 1, "the report is told once"
+    assert not any(f"reader report {locked.id}" in line for line in lines), "a report on a reader the journal or a plugin ships is never told"
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "and no report ever holds a write"
     shown = console.run(["reader", "report", str(report.id)], AGENT).text
     assert "showed no progress" in shown and "make it print its steps" in shown and "journal reader dismiss" in shown, "the report says what fell short and how to fix it"
-    lines = [read() for _ in range(10)]
-    assert all(f"fix due for reader report {report.id}" in line for line in lines[:9]), "once read, the fix is counted down"
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and "read but not acted on" in body["error"]
-    timing.sleep(0.01)
-    assert console.run(["reader", "add", "naps", "--pattern", "slept|woke", "--progress", "(\\d+)/(\\d+)"], AGENT).code == 0
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "the reader written anew meets it"
     with app.container.get(Scope).environment(1):
         other = reports.save(ReaderReport(environment_id=1, reader="naps", output=8, command="sleep 50", session="s1", findings=("x",), fixes=("y",)), Actor.system())
-    console.run(["reader", "report", str(other.id)], AGENT)
     assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints nothing to count"], AGENT).code == 0
-    assert "fix due" not in read(), "a dismissal meets it, its reason kept"
     with app.container.get(Scope).environment(1):
         assert reports.find(other.id).dismissal == "the run prints nothing to count"
 
@@ -12497,7 +12489,7 @@ def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variabl
         assert first not in SETUP_COMMANDS or not ("&&" in part or ";" in part) or "<<" in part, ("a chain is known by the command past its setup", part, bare)
 
 
-def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_counted_down_to_the_write_hold(app: App):
+def test_a_command_run_in_the_background_that_no_reader_reads_is_told_once_to_get_one_and_never_held(app: App):
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
     from journal.repositories.command_outputs import CommandOutputs
@@ -12513,18 +12505,16 @@ def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_c
     moved = b"".join(runner.run(request("(cd . && sh test_naps.sh)"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
     assert re.search(r"output \d+", moved), moved
     lines = [json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]) for _ in range(5)]
-    assert all("reader due for test_naps.sh" in line for line in lines) and "reader due for test_naps.sh: 0" in lines[-1], lines
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and "no reader reads test_naps.sh" in body["error"], body
+    assert sum("no reader reads test_naps.sh" in line for line in lines) == 1, lines
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "it never holds a write"
     assert console.run(["reader", "add", "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "a reader with a label meets it"
     again = b"".join(runner.run(request("sh test_naps.sh"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
     output = app.container.get(CommandOutputs).find(int(re.search(r"output (\d+)", again).group(1)))
     assert output.is_watched and output.watch_reader == "naps", "the next run moves at once and is watched through its reader"
-    assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
+    assert "no reader reads" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
     outputs = app.container.get(CommandOutputs)
     outputs.save(CommandOutput(environment_id=output.environment_id, chain="j", command="journal sins --changes", session=output.session, folder=output.folder, moved=True), Actor.system())
-    assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a journal command run in the background is never owed a reader"
+    assert "no reader reads" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a journal command run in the background is never owed a reader"
 
 
 def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
@@ -16129,7 +16119,7 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
     assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
     short = {"workers.work_ready": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
-             "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
+             "shell.reader_report_raised": 100, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
     values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
     for key, limit in short.items():
         line = nudges[key].create(**values).rendered()
@@ -19265,7 +19255,7 @@ def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_o
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
     b"".join(runner.run(request(f"sh {elsewhere / 'test_scan.sh'} {app.config.root}"), AGENT, MAIN))
     said = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1])
-    assert "reader due for test_scan.sh" in said, "a test script is owed a reader on its first run in the background"
+    assert "no reader reads test_scan.sh" in said, "a test script is told it has no reader on its first run in the background"
     console.run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
     assert app.container.get(Readers).reading(f"python3 {elsewhere / 'scan.py'} {app.config.root}").name == "scans", "a script run through python3 is known by its file name"
 
@@ -19645,7 +19635,7 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
     assert guess.guessed(blank, "cat notes") is None, "a run with nothing to pick is given none"
 
 
-def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_holds_the_agents_next_write(app: App):
+def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_is_told_to_the_agent(app: App):
     from journal.features.shell.support.output_log import OutputLog
     from journal.support.agent_role import AgentRole
     from journal.models.reader_report import ReaderReport
@@ -19720,11 +19710,11 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     while verifiers.find(verifier.id).pid and timing.time() < deadline:
         timing.sleep(0.02)
     status, body = write()
-    assert status == 409 and "found wrong" in body["error"] and "120-character compiler command" in body["error"] and "verifier" not in body["error"], "the next write is held at once, with the reason, and never names a verifier"
+    told = json.dumps(body)
+    assert status == 200 and "found wrong" in told and "120-character compiler command" in told and "verifier" not in told, "the next tool use is told the refutation with its reason, never held, and never names a verifier"
     assert console.run(["reader", "dismiss", str(report.id), "--why", "it is still wrong"], AGENT).code != 0, "a refuted report is never dismissed again"
     timing.sleep(0.01)
     assert console.run(["reader", "add", "builds", "--pattern", "^(built|failed)\\b"], AGENT).code == 0
-    assert write()[0] == 200, "only the reader written anew releases the hold"
     sound, kept_verifier = dismissed("the reader now picks only the line that starts with built")
     assert kept_verifier.id == verifier.id and kept_verifier.session == verifier.session and len(verifiers.scoped()) == 1 and kept_verifier.brief != verifier.brief, "the idle verifier takes the next judgement in its own session, with its new brief"
     verifier_hook(kept_verifier, "SessionStart")
@@ -21354,3 +21344,4 @@ def test_a_report_and_a_document_need_a_short_abstract_shown_as_their_summary_li
     note.write_text("## Why\n\nthe parser\n")
     assert console.run(["doc", "create", "The parser", "--file", str(note)], AGENT).code != 0, "a document without an abstract is refused too"
     assert console.run(["doc", "create", "The parser", "--file", str(note), "--abstract", "How the parser reads a line"], AGENT).code == 0
+

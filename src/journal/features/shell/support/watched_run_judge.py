@@ -5,7 +5,7 @@ from journal.features.shell.support.count_forms import CountForms
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_judge import PROGRESS_MISSING, STOPPED_PICKING, UNFILTERED, ReaderJudge
-from journal.features.shell.support.readers import SHIPPED_READERS, Readers
+from journal.features.shell.support.readers import Readers
 from journal.features.shell.shell_options import ShellOptions
 from journal.models.command_output import CommandOutput
 from journal.models.reader_report import ReaderReport
@@ -30,7 +30,7 @@ class WatchedRunJudge:
     def judged(self, output: CommandOutput, time: datetime) -> None:
         reader = self.readers.found(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if reader is None or reader.script or reader.name in SHIPPED_READERS or not files.is_stored():
+        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored():
             return
         shortfalls = [shortfall for shortfall in self.findings(reader, ReaderJudge.read_lines(reader, files)) if not self.reports.open_with_output_finding(output.row_id, shortfall[0])]
         if not shortfalls:

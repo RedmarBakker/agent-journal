@@ -12,7 +12,7 @@ from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.run_processes import RunProcesses
-from journal.features.shell.support.readers import SHIPPED_READERS, Readers
+from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
 from journal.models.command_output import ACTIVE, FAILED, FINISHED, CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
@@ -71,7 +71,7 @@ class ReaderJudge:
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.found(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if reader is None or reader.script or reader.name in SHIPPED_READERS or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
+        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]

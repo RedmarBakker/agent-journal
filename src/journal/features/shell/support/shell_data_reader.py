@@ -52,9 +52,9 @@ class ShellDataReader:
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "unwatched_commands": lambda: self.unwatched_commands(agent),
-            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session)),
-            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions())),
-            "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.revisions())),
+            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session) if not self.readers.is_locked(report.reader)),
+            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),
+            "refuted_reports": lambda: tuple(report for report in self.reports.refuted(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),
             "uncut_verbs": lambda: self.registry.uncut_verbs(),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
@@ -78,7 +78,7 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.SILENT_RUN_HINT)
+        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.READER_NEEDED, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def last_ending_line(self, agent: Agent) -> Moment:

@@ -22,6 +22,7 @@ from journal.support.timeout import Timeout
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
+from journal.features.shell.support.shell_data import ShellData
 
 # the flag of an output read that picks lines by a pattern, the one kind of read a reader can stand for
 PATTERN_READ = "--grep"
@@ -38,7 +39,7 @@ class ShellConduct(Conduct):
     """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs is pointed at the alias and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
+        return Transition.merged(self, [journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         watch = event.data.part(ShellPart).watch
@@ -156,6 +157,18 @@ def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Tra
     if not interval.reset(shell.last_ending_line).has_passed(Moment(seconds=event.time, tool_uses=shell.tool_uses)):
         return state.none()
     return state.none(ShellNudges.UNREAD_OUTPUT.create(outputs=outcome_text(shell.unread), n=shell.unread[0].id))
+
+
+def reader_report_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    shell = event.data.part(ShellPart)
+    return state.none(*(line for line in reader_lines(shell) if line.rendered() not in shell.tipped))
+
+
+def reader_lines(shell: ShellData) -> list[Nudge]:
+    needed = [ShellNudges.READER_NEEDED.create(commands=", ".join(commands)) for commands in (shell.unwatched_commands,) if commands]
+    raised = [ShellNudges.REPORT_RAISED.create(n=n) for n in sorted({*shell.unread_reports, *shell.unfixed_reports})]
+    refuted = [ShellNudges.REPORT_REFUTED.create(verdicts=ShellNudges.report_refutations(reports)) for reports in (shell.refuted_reports,) if reports]
+    return [*needed, *raised, *refuted]
 
 
 def silent_run_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
