@@ -93,7 +93,7 @@ class ReaderCommand(Command):
     def tried(self, reader: Reader) -> None:
         self.probed(reader)
         for run in [run for run in self.judge.stored_runs(reader) if run.ended][:QUICK_RUNS]:
-            misses = self.judge.misses(reader, OutputFiles(Path(run.folder)).lines())
+            misses = self.judge.misses(reader, self.judge.read_lines(reader, OutputFiles(Path(run.folder))))
             if misses:
                 raise Rejection(f"reader {reader.name} is refused, tried on output {run.id}: {'; '.join(misses)}")
 

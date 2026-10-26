@@ -1,6 +1,6 @@
 import re
 
-from journal.support.command_shape import GROUP_PATTERN as GROUP_START, LOOP_PATTERN as LOOP_START, SETUP_COMMANDS, CommandShape
+from journal.support.command_shape import GROUP_PATTERN as GROUP_START, LOOP_PATTERN as LOOP_START, CommandShape
 from journal.support.part import Part
 
 # Claude Code quotes the command it evals, unless the command is one word its quoting leaves bare, such as ./scripts/test.sh
@@ -36,8 +36,8 @@ class Chain:
     @classmethod
     def choosing_parts(cls, line: str) -> list[str]:
         commands = [segment for part in cls.parts(line) if part.recorded for segment in cls.commands(part.text)]
-        with_programs = [(segment, shape.split()[0]) for segment in commands if (shape := CommandShape.build(segment))]
-        working = [text for text, program in with_programs if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
+        with_programs = [(segment, shape) for segment in commands if (shape := CommandShape.build(segment))]
+        working = [text for text, program in with_programs if not CommandShape.is_setup(program) and program.split()[0] not in IDLE_COMMANDS]
         return working or [text for text, _ in with_programs]
 
     # the commands of a part a reader may read, one by one: its alternatives after ||, the commands of a pipe, and the first line of a

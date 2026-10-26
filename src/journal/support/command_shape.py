@@ -44,13 +44,18 @@ GIT_OPTION_PATTERN = re.compile(r"^(\s*git)(?:\s+(?:-C|-c|--git-dir|--work-tree)
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
 SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read", "rm"}
+BRANCH_SWITCH = re.compile(r"^git\s+(?:checkout|switch)\b")
 SEPARATORS = ("&&", "||", ";", "|")
 CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
-SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true)(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")
+SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true|git\s+(?:checkout|switch))(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")
 
 
 class CommandShape:
     """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export."""
+
+    @staticmethod
+    def is_setup(command: str) -> bool:
+        return command.split()[0] in SETUP_COMMANDS or bool(BRANCH_SWITCH.match(command))
 
     @staticmethod
     def unwrapped(part: str) -> str:
@@ -64,7 +69,7 @@ class CommandShape:
         if not GROUP_PATTERN.match(part) or part.strip().startswith("(("):
             return part
         commands = [bare for command in cls.commands(cls.unwrapped(part)) if (bare := cls.unbracketed(command))]
-        return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)
+        return next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else part)
 
     @classmethod
     def shown(cls, part: str) -> str:
@@ -88,12 +93,12 @@ class CommandShape:
     @staticmethod
     def past_setup(chain: str) -> str:
         commands = [command.strip() for command in CHAIN_SEPARATOR.split(chain) if command.strip()]
-        return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else chain)
+        return next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else chain)
 
     @classmethod
     def chain_shape(cls, parts: tuple[str, ...]) -> str:
         shapes = [shape for shape in (cls.build(part) for part in parts) if shape]
-        return next((shape for shape in shapes if shape.split()[0] not in SETUP_COMMANDS), shapes[0] if shapes else "")
+        return next((shape for shape in shapes if not CommandShape.is_setup(shape)), shapes[0] if shapes else "")
 
     @classmethod
     def command_name(cls, part: str) -> str:
@@ -104,7 +109,7 @@ class CommandShape:
             return ""
         if GROUP_PATTERN.match(part):
             commands = [command.strip("(){}; ") for command in cls.commands(cls.unwrapped(part)) if command.strip("(){}; ")]
-            return cls.command_name(next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else ""))
+            return cls.command_name(next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else ""))
         text = REDIRECT_PATTERN.sub("", cls.inner(SETUP_PREFIX.sub("", part.strip())).split("<<", 1)[0])
         script = SCRIPT_PATTERN.match(text)
         if script:
@@ -161,7 +166,7 @@ class CommandShape:
     @classmethod
     def looped(cls, part: str) -> str:
         commands = [cls.unbracketed(CASE_PATTERN.sub("", CONTROL_PATTERN.sub("", command, count=1), count=1)) for command in cls.commands(part)]
-        working = [command for command in commands if (shape := cls.plain_shape(command)) and shape.split()[0] not in SETUP_COMMANDS]
+        working = [command for command in commands if (shape := cls.plain_shape(command)) and not CommandShape.is_setup(shape)]
         return next((command for command in working if cls.plain_shape(command).split()[0] not in LOOP_IDLE), working[0] if working else "")
 
     # a loop whose every command is a sleep or the shell's own words and tests, so all it does is wait

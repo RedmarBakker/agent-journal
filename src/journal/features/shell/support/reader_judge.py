@@ -7,7 +7,7 @@ from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
-from journal.features.shell.support.output_files import OutputFiles
+from journal.features.shell.support.output_files import STYLE_CODES, OutputFiles
 from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
@@ -203,6 +203,9 @@ class ReaderJudge:
         if any(TEST_TOTALS.search(line) for line in lines):
             return "test totals"
         return "a build line" if any(BUILD_LINE.search(line) for line in lines) else ""
+
+    def read_lines(self, reader: Reader, files: OutputFiles) -> list[str]:
+        return [STYLE_CODES.sub("", line) for i in files.recorded() if reader.commands.reads(files.part_text(i)) for line in files.output_text(i).splitlines()]
 
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
