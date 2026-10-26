@@ -25,6 +25,7 @@ from journal.events.rows.row_event import RowEvent
 from journal.events.models.updating import Updating
 from journal.events.bus import Bus
 from journal.support.actor import Actor
+from journal.support.rejection import Rejection
 from journal.models.link import Link
 from journal.models.model import Model
 from journal.models.support.ref import Ref
@@ -193,6 +194,8 @@ class Repository(Generic[M]):
             yield
 
     def save(self, row: M, actor: Actor) -> M:
+        if refusal := row.refusal():
+            raise Rejection(refusal)
         with self.connection.transaction():
             self.bus.dispatch(Saving(model=row, actor=actor))
             saved = self._insert(row.with_events((*row.events, *row.creation_events())), actor, self._time()) if row.is_new else self._update(row, actor)
@@ -254,13 +257,13 @@ class Repository(Generic[M]):
 
     def _team_row(self, id: int, fields: dict) -> M:
         parsed = self._parsed(fields)
-        row = self.model(**{**parsed, "id": id, "updated_at": self._time()})
+        row = self.model(**{**parsed, "id": id, "updated_at": self._time()}).arrived()
         return row.local_ready() if any(name not in parsed for name in row.local_fields) else row
 
     def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
         with self.connection.transaction():
             previous_rows = self._loaded(self.query().filter(id=id))
-            parsed = {name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields}
+            parsed = self.model.arrived_fields({name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields})
             if parsed:
                 self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
             self.stored()

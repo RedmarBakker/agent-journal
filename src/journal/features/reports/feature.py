@@ -27,8 +27,10 @@ class ReportsFeature(Feature[ReportsData]):
 
 A report holds what was just checked or researched; lasting knowledge goes in a doc, ordered work in a plan.
 
-- `journal report create "<title>" --file <path> --about plans:1` writes one from a markdown file, its `##`
-  headings as sections, linked to the rows it is about; `--body "<text>"` for a short one. A report still being written takes `--part`, so its card says
+- `journal report create "<title>" --abstract "<what it found, in one short line>" --file <path> --about plans:1` writes one
+  from a markdown file, its `##` headings as sections, linked to the rows it is about; `--body "<text>"` for a short one.
+  The abstract is required, at most 200 characters, and is the line its card and the reports list show;
+  `journal report update <n> --abstract "<line>"` writes it anew, with `--file` its whole text too. A report still being written takes `--part`, so its card says
   being written until `journal report ready <n>`.
 - `journal report show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with

@@ -17,10 +17,19 @@ class Column:
 
     name: str
     kind: type
+    characters: tuple[int, ...] = ()
 
     @classmethod
-    def build(cls, name: str, annotation) -> "Column":
-        return cls(name, cls._plain_type(annotation))
+    def build(cls, name: str, annotation, characters: tuple[int, ...] = ()) -> "Column":
+        return cls(name, cls._plain_type(annotation), characters)
+
+    # the column as a table is made with it: its type, and for a text the database bounds, its length checked
+    @property
+    def definition(self) -> str:
+        if not self.characters:
+            return self.sql_type
+        minimum_length, maximum_length = self.characters
+        return f"{self.sql_type} NOT NULL CHECK (length({self.name}) BETWEEN {minimum_length} AND {maximum_length})"
 
     @property
     def sql_type(self) -> str:

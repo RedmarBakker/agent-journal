@@ -189,12 +189,12 @@ def hooks(app: App, words: random.Random) -> None:
 def writing(app: App, words: random.Random, plan_tasks: list[int]) -> None:
     for kind, count in (("docs", DOCS), ("reports", REPORTS)):
         for _ in range(count):
-            posted(app, f"/journal/{kind}", {"title": phrase(words, 4), "body": "\n\n".join(sentence(words) for _ in range(12))}, MAIN)
+            posted(app, f"/journal/{kind}", {"title": phrase(words, 4), "abstract": phrase(words, 6), "body": "\n\n".join(sentence(words) for _ in range(12))}, MAIN)
     with tempfile.TemporaryDirectory() as folder:
         body = Path(folder) / "report.md"
         for n in range(ABOUT_REPORTS):
             body.write_text("\n\n".join(sentence(words) for _ in range(8)))
-            app.console().run(["report", "create", phrase(words, 4), "--file", str(body), "--about", f"plans:{n % PLANS + 1}", f"tasks:{plan_tasks[n]}"], AGENT)
+            app.console().run(["report", "create", phrase(words, 4), "--abstract", phrase(words, 6), "--file", str(body), "--about", f"plans:{n % PLANS + 1}", f"tasks:{plan_tasks[n]}"], AGENT)
 
 
 def memory(app: App, words: random.Random) -> None:

@@ -1,8 +1,9 @@
-from dataclasses import dataclass
-from typing import ClassVar
+from dataclasses import dataclass, field
+from typing import ClassVar, Self
 
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.scoped import Scoped
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS, AbstractText
 
 
 @dataclass(frozen=True)
@@ -12,7 +13,7 @@ class Doc(Scoped):
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
     title: str = ""
-    abstract: str = ""
+    abstract: str = field(default="", metadata={"characters": (1, ABSTRACT_LENGTH_CHARACTERS)})
     body: str = ""
     edit_mode: DocEditMode = DocEditMode.LOCAL
     owner: int = 0
@@ -53,5 +54,15 @@ class Doc(Scoped):
     def title_words(self) -> str:
         return self.title
 
+    def refusal(self) -> str:
+        return AbstractText.refusal(self.abstract)
+
+    def arrived(self) -> Self:
+        return self.with_(abstract=AbstractText.fitted(self.abstract, self.body, self.title))
+
+    @classmethod
+    def arrived_fields(cls, fields: dict) -> dict:
+        return {name: value for name, value in fields.items() if name != "abstract" or not AbstractText.refusal(value)}
+
     def summary_line(self) -> str:
-        return self.abstract or self.opening_line(self.body)
+        return self.abstract

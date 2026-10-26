@@ -553,7 +553,7 @@ def test_a_command_the_server_fails_on_prints_the_fault_and_exits_non_zero(app: 
     server.start()
     try:
         missing = tmp_path / "gone.md"
-        outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "doc", "create", "Notes", "--file", str(missing)], env=environ, capture_output=True, text=True, timeout=10)
+        outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "doc", "create", "Notes", "--abstract", "The notes", "--file", str(missing)], env=environ, capture_output=True, text=True, timeout=10)
         assert outcome.returncode == 1 and "gone.md" in outcome.stderr, "a fault is printed with what it names, never a silent success"
     finally:
         server.stop()

@@ -1354,7 +1354,7 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
     console.run(["environment", "overview"], AGENT)
     user_set(app, "workers.mode", "orchestrator")
     for title in ("What the login check found", "The payment notes", "The cache survey"):
-        assert console.run(["report", "create", title, "--body", "## Found\nSomething.\n"], AGENT).code == 0
+        assert console.run(["report", "create", title, "--abstract", "What it says, in one line", "--body", "## Found\nSomething.\n"], AGENT).code == 0
     console.run(["plan", "create", "release", "--brief", "built on report 2"], USER)
     console.run(["task", "create", "speed it up", "--brief", "start from report 3"], USER)
     app.runtime().deferred.drain()
@@ -1397,12 +1397,12 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
 def test_a_report_the_agent_writes_is_a_made_message_docked_above_the_chat(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
-    app.console().run(["report", "create", "What the check found", "--body", "## Found\nThree faults.\n"], AGENT)
-    app.console().run(["report", "create", "Yours", "--body", "the user's own"], USER)
+    app.console().run(["report", "create", "What the check found", "--abstract", "Three faults, two fixed", "--body", "## Found\nThree faults.\n"], AGENT)
+    app.console().run(["report", "create", "Yours", "--abstract", "What it says, in one line", "--body", "the user's own"], USER)
     app.runtime().deferred.drain()
     [produced] = [m for m in app.container.get(Messages).all() if m.data.get("kind") == "made"]
     assert produced.text == "Created report 1: What the check found" and produced.data["kind"] == "made" and produced.data["made_type"] == "reports" and produced.data["row"] == "reports:1", "the agent's report is marked in the chat; the user's own is not"
-    assert produced.data["docked"] is True and produced.data["heading"] == "Report 1: What the check found" and produced.data["summary"] == "Three faults."
+    assert produced.data["docked"] is True and produced.data["heading"] == "Report 1: What the check found" and produced.data["summary"] == "Three faults, two fixed"
     assert produced.data["key"] == "made:report:1" and produced.data["dock"]["buttons"][0] == {"label": "Open", "act": "open"}
     assert app.console().run(["report", "1", "undock"], USER).code == 0 and app.container.get(Messages).find(produced.id).data["docked"] is False
 
@@ -2563,11 +2563,11 @@ def test_a_document_is_read_and_listed_in_any_environment_when_it_is_the_project
     other = app.container.get(Environments).save(Environment(name="other"), Actor.system())
     docs, scope = app.container.get(Docs), app.container.get(Scope)
     with scope.environment(0):
-        project = docs.save(Doc(title="Project guide", body="x"), Actor.system())
+        project = docs.save(Doc(title="Project guide", abstract="The project guide", body="x"), Actor.system())
     with scope.environment(hub.row_id):
-        shared = docs.save(Doc(title="Hub handbook", body="x"), Actor.system())
+        shared = docs.save(Doc(title="Hub handbook", abstract="The hub handbook", body="x"), Actor.system())
     with scope.environment(other.row_id):
-        docs.save(Doc(title="Other's notes", body="x"), Actor.system())
+        docs.save(Doc(title="Other's notes", abstract="Notes", body="x"), Actor.system())
     listed = app.console().run(["doc", "list"], AGENT).text
     assert "Project guide" in listed and "Hub handbook" in listed and "Other's notes" not in listed, "a personal environment lists the project's and the hub's documents, not another environment's"
     assert "Project guide" in app.console().run(["doc", "show", str(project.id)], AGENT).text and "Hub handbook" in app.console().run(["doc", "show", str(shared.id)], AGENT).text
@@ -2586,7 +2586,7 @@ def test_a_document_put_on_the_hub_in_each_mode_is_found_there_with_that_mode_an
     text.write_text("# Notes\n\nthe body\n")
     console, docs, scope = app.console(), app.container.get(Docs), app.container.get(Scope)
     for title in ("Read only one", "Free one", "Kept one"):
-        console.run(["doc", "create", title, "--file", str(text)], USER)
+        console.run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(text)], USER)
     assert console.run(["doc", "share", "1", "--mode", "read_only"], USER).code == 0
     assert console.run(["doc", "share", "2", "--mode", "free"], USER).code == 0
     assert console.run(["doc", "share", "3", "--keep-copy"], USER).code == 0
@@ -2622,8 +2622,8 @@ def test_a_document_is_read_whole_with_all_and_by_its_outline_without(app: App, 
 def test_a_report_is_read_whole_with_all(app: App):
     hook(app, "SessionStart")
     console = app.console()
-    console.run(["report", "create", "What the check found", "--body", "## Found\nThree faults.\n\n## Fixed\nTwo of them.\n"], AGENT)
-    assert console.run(["report", "show", "1", "--all"], AGENT).text == "report 1: What the check found\n## Found\nThree faults.\n\n## Fixed\nTwo of them.\n"
+    console.run(["report", "create", "What the check found", "--abstract", "What it says, in one line", "--body", "## Found\nThree faults.\n\n## Fixed\nTwo of them.\n"], AGENT)
+    assert console.run(["report", "show", "1", "--all"], AGENT).text == "report 1: What the check found\nWhat it says, in one line\n## Found\nThree faults.\n\n## Fixed\nTwo of them.\n"
     assert "Two of them." not in console.run(["report", "show", "1"], AGENT).text
 
 
@@ -3827,7 +3827,7 @@ def test_a_report_is_written_from_a_file_and_linked_to_what_it_is_about(app: App
     app.console().run(["plan", "create", "p", "--brief", "g"], USER)
     body = tmp_path / "critique.md"
     body.write_text("What two readers found.\n\n## Phase 1\n\n- a gap\n\n## Phase 2\n\n- another\n")
-    output = app.console().run(["report", "create", "Critique of plan 1", "--file", str(body), "--about", "plans:1"], AGENT).text
+    output = app.console().run(["report", "create", "Critique of plan 1", "--abstract", "What it says, in one line", "--file", str(body), "--about", "plans:1"], AGENT).text
     assert output.startswith("report 1: Critique of plan 1, about plans:1")
     app.runtime().deferred.drain()
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/reports/1", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
@@ -4562,7 +4562,7 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
     plan = app.container.get(Plans).save(Plan(title="the hub"), Actor.user(1))
     rounds, reports, links = app.container.get(ReviewRounds), app.container.get(Reports), app.container.get(Links)
     rounds.begin(plan, Actor.user(1))
-    unread, read = (reports.save(Report(title=title), Actor.agent("s1")) for title in ("reviewer one", "researcher two"))
+    unread, read = (reports.save(Report(title=title, abstract=title), Actor.agent("s1")) for title in ("reviewer one", "researcher two"))
     for report in (unread, read):
         links.save(Link(source=Ref.build(report), target=Ref.build(plan), kind=Messages.SUBJECT_LINK), Actor.agent("s1"))
     reports.save(read.read(datetime.now(timezone.utc)), Actor.user(1))
@@ -4922,7 +4922,7 @@ def test_each_review_round_is_kept_on_the_plan_with_its_reviewers_report_and_cha
     console.run(["plan", "review", "1"], AGENT)
     hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "Lady Lovelace reads plan 1", "prompt": "read plan 1", "model": "sonnet"}, tool_use_id="t-1")
     hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "Lady Lovelace reads plan 1", "prompt": "read plan 1"}, tool_use_id="t-1", tool_response="found two gaps")
-    console.run(["report", "create", "Plan 1, first review", "--body", "two gaps", "--about", "plans:1"], AGENT)
+    console.run(["report", "create", "Plan 1, first review", "--abstract", "What it says, in one line", "--body", "two gaps", "--about", "plans:1"], AGENT)
     assert "--changed" in console.run(["plan", "ready", "1"], AGENT).error, "a plan back from review says what the round changed"
     assert "ready" in console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).text
     console.run(["plan", "review", "1"], AGENT)
@@ -5390,11 +5390,11 @@ def test_a_report_about_several_rows_links_each_and_refuses_one_it_cannot_read(a
     console = app.console()
     for title in ("one", "two"):
         console.run(["plan", "create", title, "--brief", "b"], USER)
-    produced = console.run(["report", "create", "Both", "--body", "words", "--about", "plans:1,plans:2"], USER)
+    produced = console.run(["report", "create", "Both", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1,plans:2"], USER)
     assert produced.code == 0 and "about plans:1, plans:2" in produced.text, "rows apart by commas are each linked"
-    spaced = console.run(["report", "create", "Both again", "--body", "words", "--about", "plans:1", "plans:2"], USER)
+    spaced = console.run(["report", "create", "Both again", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1", "plans:2"], USER)
     assert spaced.code == 0 and "about plans:1, plans:2" in spaced.text, "and so are rows apart by spaces"
-    refused = console.run(["report", "create", "Wrong", "--body", "words", "--about", "plans:1,the second plan"], USER)
+    refused = console.run(["report", "create", "Wrong", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1,the second plan"], USER)
     assert refused.code == 1 and "not a row: the second plan" in refused.error, "a row it cannot read is refused by name, and no report is made"
 
 def test_the_mcp_page_shows_a_servers_state_as_last_checked_and_check_all_reads_it_anew(app: App, monkeypatch):
@@ -7670,7 +7670,7 @@ def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its
     hook(app, "SessionStart")
     notes = tmp_path / "notes.md"
     notes.write_text("The ideas, sorted.\n")
-    console.run(["doc", "create", "Ideas", "--file", str(notes)], AGENT)
+    console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT)
     console.run(["task", "create", "the parser"], AGENT)
     assert console.run(["collection", "create", "The parser work", "--abstract", "what the parser needs"], AGENT).text.startswith("collection 1: The parser work")
     assert console.run(["collection", "add", "1", "docs:1", "tasks:1"], AGENT).code == 0
@@ -7707,7 +7707,7 @@ def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: A
     assert app.container.get(SessionAgents).top("s1").name == "sorting_dump", "the user's dump moves the agent into sorting it"
     stop = hook(app, "Stop")[1]
     assert stop.get("decision") == "block" and "dump 1 is not filed yet" in stop.get("reason", ""), "the stop is held while the dump is open"
-    made(console.run(["doc", "create", "Ideas", "--file", str(notes)], AGENT))
+    made(console.run(["doc", "create", "Ideas", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT))
     sorting.attach(1, "a.png", Caller.user("main").actor)
     assert "text: not read yet" in console.run(["dump", "items", "1"], AGENT).text and "a.png: not read yet" in console.run(["dump", "items", "1"], AGENT).text
     link = app.container.get(SupervisorLink)
@@ -10151,9 +10151,9 @@ def test_a_worker_runs_the_workers_verbs_on_its_own_rows_alone(app: App, monkeyp
     assert refused.code == 1 and refused.error.startswith("a worker may not run journal message send"), "a worker never speaks in the chat"
     notes = app.config.root / "notes.md"
     notes.write_text("## Grammar\nthe rules\n")
-    assert console.run(["doc", "create", "Grammar notes", "--file", str(notes)], lovelace).code == 0 and console.run(["doc", "update", "1", "--file", str(notes)], lovelace).code == 0, "writing is a worker's job: it writes and updates a document"
-    assert console.run(["report", "create", "Parser findings", "--body", "the grammar is ambiguous"], lovelace).code == 0, "and files a report"
-    assert console.run(["doc", "create", "Scout notes", "--file", str(notes)], AGENT.subagent_caller()).error.startswith("a subagent may not run journal doc create"), "a subagent still only reads"
+    assert console.run(["doc", "create", "Grammar notes", "--abstract", "What it says, in one line", "--file", str(notes)], lovelace).code == 0 and console.run(["doc", "update", "1", "--file", str(notes)], lovelace).code == 0, "writing is a worker's job: it writes and updates a document"
+    assert console.run(["report", "create", "Parser findings", "--abstract", "What it says, in one line", "--body", "the grammar is ambiguous"], lovelace).code == 0, "and files a report"
+    assert console.run(["doc", "create", "Scout notes", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT.subagent_caller()).error.startswith("a subagent may not run journal doc create"), "a subagent still only reads"
 
 
 def test_a_worker_is_started_only_on_a_task_whose_brief_is_its_job(app: App, monkeypatch):
@@ -14157,7 +14157,7 @@ def test_a_new_document_and_a_new_report_dock_themselves_at_the_bottom_of_the_ch
     page.write_text("## What\\n\\nThe words.\\n")
     hook(app, "SessionStart")
     console = app.console()
-    created = [console.run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], AGENT), console.run(["report", "create", "The review", "--body", "what was found"], AGENT)]
+    created = [console.run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], AGENT), console.run(["report", "create", "The review", "--abstract", "What the review found", "--body", "what was found"], AGENT)]
     assert [outcome.code for outcome in created] == [0, 0], [outcome.error for outcome in created]
     app.runtime().deferred.drain()
     docking = app.container.get(Docking)
@@ -15252,12 +15252,12 @@ def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_
         assert added.code == 0 and added.text.splitlines()[0].endswith(f"on the {hub.team_name} hub"), added.text
         task = next(row for row in journal.container.get(Tasks).global_matching(title="the footer"))
         assert task.environment_id == hub.row_id, "a task added to the driven plan is a hub row"
-        reported = console.run(["report", "create", "What the footer test found", "--body", "it names the shop", "--about", f"tasks:{task.id}"], AGENT)
+        reported = console.run(["report", "create", "What the footer test found", "--abstract", "What it says, in one line", "--body", "it names the shop", "--about", f"tasks:{task.id}"], AGENT)
         assert reported.code == 0 and f"on the {hub.team_name} hub" in reported.text, reported.text
         assert journal.container.get(Reports).global_matching(title="What the footer test found")[0].environment_id == hub.row_id, "a report about a hub task lands on the hub"
         notes = tmp_path / "notes.md"
         notes.write_text("# Notes\n\nthe footer\n")
-        made = console.run(["doc", "create", "Footer notes", "--file", str(notes)], AGENT)
+        made = console.run(["doc", "create", "Footer notes", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT)
         assert made.code == 0 and made.text.splitlines()[0].endswith(f"kept in {main.name} on this machine"), made.text
         assert journal.container.get(Docs).global_matching(title="Footer notes")[0].environment_id == main.row_id, "any other row made while driving stays local"
     finally:
@@ -15907,11 +15907,11 @@ def test_a_read_only_hub_document_is_edited_by_its_author_or_an_admin_alone_on_a
         for title, mode in (("Free page", "free"), ("Locked page", "read_only")):
             page = tmp_path / f"{mode}.md"
             page.write_text("# First\n\nthe first words\n")
-            assert a.console().run(["doc", "create", title, "--file", str(page)], ada).code == 0
+            assert a.console().run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(page)], ada).code == 0
             assert a.console().run(["doc", "share", str(titled(a, title).id), "--mode", mode], ada).code == 0
         page = tmp_path / "bobs.md"
         page.write_text("# Bob's\n\nBob wrote this\n")
-        assert b.console().run(["doc", "create", "Bob's page", "--file", str(page)], bob).code == 0
+        assert b.console().run(["doc", "create", "Bob's page", "--abstract", "What it says, in one line", "--file", str(page)], bob).code == 0
         assert b.console().run(["doc", "share", str(titled(b, "Bob's page").id), "--mode", "read_only"], bob).code == 0
         assert eventually(lambda: all(titled(b, title) and titled(b, title).edit_mode != DocEditMode.LOCAL for title in ("Free page", "Locked page")) and titled(a, "Bob's page") is not None and titled(a, "Bob's page").edit_mode == DocEditMode.READ_ONLY), "each journal holds the hub's documents in their modes"
         assert c.console().run(["team", "join", invitation("carol@example.com"), "--email", "carol@example.com", "--name", "Carol", "--password", "correct horse battery"], carol).code == 0
@@ -15970,7 +15970,7 @@ def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_atta
         page = tmp_path / "doc.md"
         page.write_text("# Notes\n\nthe first words\n")
         for title in ("Locked", "Open"):
-            assert console.run(["doc", "create", title, "--file", str(page)], USER).code == 0
+            assert console.run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(page)], USER).code == 0
         assert console.run(["doc", "share", str(titled("Locked").id), "--mode", "read_only"], USER).code == 0
         assert console.run(["doc", "share", str(titled("Open").id), "--mode", "free"], USER).code == 0
         locked, free = titled("Locked"), titled("Open")
@@ -16041,7 +16041,7 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         docs, links, revisions = a.container.get(Docs), a.container.get(Links), a.container.get(DocRevisions)
         page = tmp_path / "page.md"
         page.write_text("# Page\n\nthe first words\n")
-        assert a.console().run(["doc", "create", "Linked page", "--file", str(page)], USER).code == 0
+        assert a.console().run(["doc", "create", "Linked page", "--abstract", "What it says, in one line", "--file", str(page)], USER).code == 0
         doc = next(iter(docs.global_matching(title="Linked page")))
         assert a.console().run(["doc", "keep", str(doc.id)], USER).code == 0
         page.write_text("# Page\n\nthe second words\n")
@@ -16089,7 +16089,7 @@ def test_a_document_is_taken_back_off_the_hub_and_a_copy_and_an_attachment_of_a_
     page = tmp_path / "doc.md"
     page.write_text("# Notes\n\nthe words\n")
     for title in ("Taken back", "Source", "Attached"):
-        assert console.run(["doc", "create", title, "--file", str(page)], USER).code == 0
+        assert console.run(["doc", "create", title, "--abstract", "What it says, in one line", "--file", str(page)], USER).code == 0
     number = lambda title: next(doc.id for doc in docs.global_matching(title=title) if not doc.is_copy)
     assert console.run(["doc", "share", str(number("Taken back")), "--mode", "free"], USER).code == 0
     assert console.run(["doc", "share", str(number("Source")), "--mode", "read_only"], USER).code == 0
@@ -19512,7 +19512,7 @@ def test_every_tables_index_lists_its_own_rows_and_reads_no_relationship(app: Ap
     console.run(["message", "send", "the footer is broken"], USER)
     posted(app, f"/journal/messages/{app.container.get(Messages).all()[-1].id}/react", {"emoji": "👍"}, main)
     posted(app, "/journal/messages", {"on": "tasks:1", "text": "and the header"}, main)
-    posted(app, "/journal/docs", {"title": "Notes", "body": "text"}, main)
+    posted(app, "/journal/docs", {"abstract": "What it says, in one line", "title": "Notes", "body": "text"}, main)
     routes = app.container.get(Router).routes
     indexes = sorted(route.pattern for route in routes if route.method == "GET" and getattr(route.handler, "__name__", "") == "index" and isinstance(getattr(route.handler, "__self__", None), Controller))
     assert {"/journal/tasks", "/journal/plans", "/journal/workers", "/journal/agents", "/journal/docs", "/journal/reactions", "/journal/shares"} <= set(indexes), indexes
@@ -20524,8 +20524,8 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
 def test_documents_and_reports_list_ten_at_a_time_with_ten_open_rows_before_them_without_their_long_fields(app):
     env = {"X-Journal-Env": "main"}
     for n in range(25):
-        posted(app, "/journal/docs", {"title": f"doc {n}", "body": "the body"}, env)
-    posted(app, "/journal/reports", {"title": "the report", "body": "what was found"}, env)
+        posted(app, "/journal/docs", {"abstract": "What it says, in one line", "title": f"doc {n}", "abstract": f"what doc {n} says", "body": "the body"}, env)
+    posted(app, "/journal/reports", {"title": "the report", "abstract": "what was found", "body": "what was found"}, env)
     page = got(app, "/journal/docs?limit=50", env)[1]
     assert [d["title"] for d in page["rows"]] == [f"doc {n}" for n in range(5, 25)] and not page["is_last_page"], "the newest ten and the ten open rows before them"
     assert not any("body" in d for d in page["rows"]), "a document is listed without its body"
@@ -21223,7 +21223,7 @@ def test_a_document_written_in_two_parts_shows_being_written_after_the_first_and
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     (app.config.root / "part.md").write_text("## One\nfirst\n")
-    assert app.console().run(["doc", "create", "The cart", "--file", str(app.config.root / "part.md"), "--part"], AGENT).code == 0
+    assert app.console().run(["doc", "create", "The cart", "--abstract", "What it says, in one line", "--file", str(app.config.root / "part.md"), "--part"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key("made:doc:1")
@@ -21326,3 +21326,29 @@ def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stre
     assert len(hints) == 1 and "output 1 has printed nothing for 40 seconds" in hints[0] and "go test -json in place of -v" in hints[0] and "a reader change cannot fix it" in hints[0], f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
     views = app.container.get(OutputViews)
     assert views.card_text(outputs.find(1), replace(views.view(outputs.find(1)), silent=True)) == SILENT_CARD_LINE, "and its card says the command buffers its output"
+
+
+def test_a_report_and_a_document_need_a_short_abstract_shown_as_their_summary_line(app: App):
+    from journal.models.report import Report
+    from journal.support.rejection import Rejection
+    from journal.repositories.reports import Reports
+    console = app.console()
+    hook(app, "SessionStart")
+    assert console.run(["report", "create", "The cart", "--body", "the total adds the tax twice"], AGENT).code != 0, "a report without an abstract is refused"
+    long = console.run(["report", "create", "The cart", "--abstract", "x" * 201, "--body", "b"], AGENT)
+    assert long.code != 0 and "201 characters, longer than 200" in long.error, long.error
+    made = console.run(["report", "create", "The cart", "--abstract", "The total adds the tax twice", "--body", "## Findings\n\n- first bullet"], AGENT)
+    assert made.code == 0, made.error
+    reports = app.container.get(Reports)
+    with app.container.get(Scope).environment(MAIN):
+        report = reports.scoped()[-1]
+        assert report.summary_line() == "The total adds the tax twice", "the abstract is the summary line, never the first bullet"
+        with pytest.raises(Rejection, match="201 characters, longer than 200"):
+            reports.save(Report(environment_id=MAIN, title="t", abstract="x" * 201, body="b"), Actor.system())
+    assert console.run(["report", "update", str(report.id), "--abstract", "The tax is added once now"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert reports.find(report.id).abstract == "The tax is added once now"
+    note = app.config.root / "note.md"
+    note.write_text("## Why\n\nthe parser\n")
+    assert console.run(["doc", "create", "The parser", "--file", str(note)], AGENT).code != 0, "a document without an abstract is refused too"
+    assert console.run(["doc", "create", "The parser", "--file", str(note), "--abstract", "How the parser reads a line"], AGENT).code == 0

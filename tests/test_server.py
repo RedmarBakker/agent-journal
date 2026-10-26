@@ -173,7 +173,7 @@ def test_a_documents_saves_fold_into_its_open_revision_keep_closes_it_and_the_ne
     try:
         assert console.run(["doc", "keep", "1"], user).code == 1, "no document yet"
         text.write_text("Intro.\n\n## Goals\n\nShip it\n")
-        console.run(["doc", "create", "Plan of record", "--file", str(text)], user)
+        console.run(["doc", "create", "Plan of record", "--abstract", "What it says, in one line", "--file", str(text)], user)
         written("Intro.\n\n## Goals\n\nShip it soon\n\n## Risks\n\nNone\n")
         written("Intro.\n\n## Goals\n\nShip it soon\n\n## Risks\n\nNone\n")
         assert len(listed()) == 1 and listed()[0].endswith("user   written; added Risks; rewrote Goals"), "a write within the open window folds into the open revision, its change noted; a save that changes nothing adds none"
@@ -747,7 +747,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         hook("PostToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_response={"stdout": "1 t"}, tool_use_id="t-9")
         assert call(server, "GET", "/journal/agents/1/terminal")[1][-1]["tool"] == "Journal"
         assert call(server, "POST", "/journal/agents/1/shell", {"command": "ls"})[1]["queued"] is True and keystrokes[-1] == "ls"
-        doc = call(server, "POST", "/journal/docs", {"title": "Design", "body": "Intro\n\n## Goals\n\nShip it"})[1]
+        doc = call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Design", "body": "Intro\n\n## Goals\n\nShip it"})[1]
         doc = call(server, "POST", f"/journal/docs/{doc['id']}/section", {"title": "Risks", "body": "None"})[1]
         assert doc["body"].endswith("## Risks\n\nNone\n") and "## Goals" in doc["body"]
         assert call(server, "POST", f"/journal/docs/{doc['id']}", {"title": "Design v2"})[1]["title"] == "Design v2"
@@ -885,8 +885,8 @@ def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_list
     app.runtime().start()
     server = app.server()
     try:
-        report = call(server, "POST", "/journal/reports", {"title": "Findings", "body": "## One\n\nText"})[1]["id"]
-        other = call(server, "POST", "/journal/reports", {"title": "Other", "body": "## Two\n\nText"})[1]["id"]
+        report = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Findings", "body": "## One\n\nText"})[1]["id"]
+        other = call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "Other", "body": "## Two\n\nText"})[1]["id"]
         for on, text in ((report, "first"), (report, "second"), (other, "elsewhere")):
             call(server, "POST", "/journal/messages", {"on": f"reports:{on}", "text": text})
         shown = call(server, "GET", f"/journal/reports?ids={report}")[1]["rows"][0]
@@ -1237,7 +1237,7 @@ def test_a_phone_pairs_through_the_tunnel_and_is_known_by_its_cookie_alone(shari
 def test_a_share_link_opens_its_document_through_the_share_server_and_nothing_else(sharing):
     server, share_server = sharing
     call(server, "POST", "/journal/settings", {"sharing": {"host": "tunler.example"}})
-    call(server, "POST", "/journal/docs", {"title": "Launch notes", "body": "## Why\nBecause."})
+    call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Launch notes", "body": "## Why\nBecause."})
     assert call(server, "GET", "/journal/shares/opens?target=docs:1")[1] == ["Launch notes (docs:1)"]
     assert call(server, "POST", "/journal/shares", {"target": "tasks:1"})[0] == 409, "only a document, a report or a plan is shared"
     status, produced = call(server, "POST", "/journal/shares", {"target": "docs:1", "expires": "7d", "comments": False})
@@ -1264,7 +1264,7 @@ def test_a_share_link_opens_its_document_through_the_share_server_and_nothing_el
 def test_a_locked_link_opens_only_with_its_password(sharing):
     server, share_server = sharing
     call(server, "POST", "/journal/settings", {"sharing": {"host": "tunler.example"}})
-    call(server, "POST", "/journal/docs", {"title": "Private", "body": "text"})
+    call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Private", "body": "text"})
     token = call(server, "POST", "/journal/shares", {"target": "docs:1", "password": "open sesame"})[1]["token"]
     listed = call(server, "GET", "/journal/shares")[1]["rows"][0]
     assert listed["locked"] is True and "password" not in listed, "the viewer is told a link is locked, never its password"
@@ -1282,7 +1282,7 @@ def share_command(server, *argv: str, session: str | None = "s1") -> dict:
 def test_a_link_the_agent_makes_waits_for_the_users_accept_in_the_chat(sharing):
     server, share_server = sharing
     call(server, "POST", "/journal/settings", {"sharing": {"host": "tunler.example"}})
-    call(server, "POST", "/journal/docs", {"title": "Launch notes", "body": "## Why\nBecause."})
+    call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Launch notes", "body": "## Why\nBecause."})
     assert share_command(server, "opens", "docs:1")["text"].strip() == "Launch notes (docs:1)"
     produced = share_command(server, "create", "docs:1", "--comments")
     assert produced["code"] == 0 and "waiting for the user's Accept in the chat" in produced["text"], produced
@@ -1313,7 +1313,7 @@ def comment(share_server, token: str, value: dict, header: str = "1"):
 def test_a_visitor_comments_on_a_shared_document_and_it_comes_to_the_chat(sharing):
     server, share_server = sharing
     call(server, "POST", "/journal/settings", {"sharing": {"host": "tunler.example"}})
-    call(server, "POST", "/journal/docs", {"title": "Launch notes", "body": "## Why\nBecause."})
+    call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Launch notes", "body": "## Why\nBecause."})
     token = call(server, "POST", "/journal/shares", {"target": "docs:1", "comments": True})[1]["token"]
     closed = call(server, "POST", "/journal/shares", {"target": "docs:1"})[1]["token"]
     status, produced = comment(share_server, token, {"on": "docs:1", "name": "Ana", "text": "The second step is unclear."})
@@ -1713,7 +1713,7 @@ def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(serv
     assert "<p>Before anything.</p>" in page and "<h2>Why</h2>" in page and "<p>Because <code>it</code> is <strong>safe</strong>.</p>" in page and "<ul><li>one</li><li>two</li></ul>" in page
     assert "<footer>Written in the agent journal</footer>" in page and "<style>" in page, "the page stands on its own"
     assert ExportName.stem("What: the check/found?") == "What the checkfound" and ExportName.build("", "report 3").startswith("report 3.")
-    call(server, "POST", "/journal/reports", {"title": "What the check found", "body": "## Found\n\nThree faults.\n"})
+    call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "What the check found", "body": "## Found\n\nThree faults.\n"})
     with urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/journal/reports/1/export", headers={"X-Journal-Env": "main"}), timeout=10) as reply:
         kind, disposition, body = reply.headers["Content-Type"], reply.headers["Content-Disposition"], reply.read()
     assert disposition == f"attachment; filename*=UTF-8''What%20the%20check%20found.{ExportName.extension()}"
@@ -1730,7 +1730,7 @@ def test_a_comment_on_a_documents_passage_names_the_section_and_lines_it_sits_on
     server = app.server()
     server.start()
     try:
-        call(server, "POST", "/journal/docs", {"title": "Launch notes", "body": "# Launch notes\n\n## Why\nBecause it is time.\n\n## How\nFirst the tag.\nThen the push.\nThen the notes."})
+        call(server, "POST", "/journal/docs", {"abstract": "What it says, in one line", "title": "Launch notes", "body": "# Launch notes\n\n## Why\nBecause it is time.\n\n## How\nFirst the tag.\nThen the push.\nThen the notes."})
         comment = call(server, "POST", "/journal/messages", {"on": "docs:1", "text": "> Then the push.\n> Then the notes.\n\nThe push comes before the tag here."})[1]
         shown = app.console().run(["message", "read", str(comment["id"])], Caller.agent("main", "s1", "claude")).text
         assert "comments_on docs:1" in shown and "the passage sits in doc 1 at section 2, How, lines 8-9: `journal doc show 1 --section 2` or `--grep`" in shown, shown

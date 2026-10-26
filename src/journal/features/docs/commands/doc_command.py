@@ -10,6 +10,7 @@ from journal.features.docs.support.version3_doc import Version3Doc
 from journal.features.docs.support.doc_sources import ATTACHED, COPIED_FROM, DocSources
 from journal.features.docs.support.hub_move import HubMove
 from journal.models.doc import Doc
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -37,12 +38,12 @@ class DocCommand(Command):
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
         creation.add_argument("title")
         creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
-        creation.add_argument("--abstract", default="", help="a one-line summary")
+        creation.add_argument("--abstract", required=True, help=f"one short description of what it says, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
         creation.add_argument("--part", action="store_true", help="this is a part; the document is being written until a write without --part")
         update = self.verb(verbs, "update", "replace a document's text with a markdown file")
         update.add_argument("n", type=int)
         update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
-        update.add_argument("--abstract", default=None, help="a new one-line summary")
+        update.add_argument("--abstract", default=None, help=f"a new short description, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
         update.add_argument("--part", action="store_true", help="this is a part; a write without --part makes the document ready")
         self.verb(verbs, "ready", "mark a document as ready").add_argument("n", type=int)
         display = self.verb(verbs, "show", "a document: its outline, then one section at a time")

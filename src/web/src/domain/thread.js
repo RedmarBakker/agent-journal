@@ -41,7 +41,7 @@ const SYSTEM_TURNS = {
     }),
     made: (card, label) => ({
         kind: "made",
-        made: {table: card.made_type, id: Number(String(card.row).split(":")[1]), title: label, status: card.status || ""},
+        made: {table: card.made_type, id: Number(String(card.row).split(":")[1]), title: label, status: card.status || "", summary: card.summary || ""},
         data: {},
     }),
     docked: (card) => ({

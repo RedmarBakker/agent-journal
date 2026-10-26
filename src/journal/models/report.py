@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import ClassVar
+from typing import ClassVar, Self
 
 from journal.models.scoped import Scoped
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS, AbstractText
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
 from journal.support.rejection import Rejection
@@ -18,7 +19,7 @@ class Report(Scoped):
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
     title: str = ""
-    abstract: str = ""
+    abstract: str = field(default="", metadata={"characters": (1, ABSTRACT_LENGTH_CHARACTERS)})
     body: str = ""
     kind: str = ""
     items: tuple = ()
@@ -31,10 +32,20 @@ class Report(Scoped):
     def title_words(self) -> str:
         return self.title
 
+    def refusal(self) -> str:
+        return AbstractText.refusal(self.abstract)
+
+    def arrived(self) -> Self:
+        return self.with_(abstract=AbstractText.fitted(self.abstract, self.body, self.title))
+
+    @classmethod
+    def arrived_fields(cls, fields: dict) -> dict:
+        return {name: value for name, value in fields.items() if name != "abstract" or not AbstractText.refusal(value)}
+
     def summary_line(self) -> str:
         if self.is_update():
             return f"{self.abstract} ({self.counts_text()})" if self.items else self.abstract
-        return self.abstract or self.opening_line(self.body)
+        return self.abstract
 
     def counts_text(self) -> str:
         counts = {section: sum(1 for item in self.items if item["section"] == section) for section in SECTION_NAMES}

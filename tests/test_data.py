@@ -224,7 +224,7 @@ def test_a_row_answers_its_heading_its_summary_and_its_dock_card():
     from journal.models.support.row_card import RowCard
     report = Report(id=33, title="What the dock showed", abstract="One line about it", body="## First\n\ntext")
     assert report.heading() == "Report 33: What the dock showed" and report.summary_line() == "One line about it"
-    assert Doc(id=3, title="Notes", body="# Notes\n\nThe first line.\nThe second.").summary_line() == "The first line."
+    assert Doc(id=3, title="Notes", abstract="How the notes are kept", body="# Notes\n\nThe first line.\nThe second.").summary_line() == "How the notes are kept", "a document's summary is its abstract"
     task = Task(id=12, title="Write it", brief="First line of the brief\nmore")
     assert task.heading() == "Task 12: Write it" and task.summary_line() == "First line of the brief"
     assert Fact(id=2, text="Ports are fixed").heading() == "Fact 2" and Fact(id=2).summary_line() == ""
@@ -365,7 +365,7 @@ def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_sha
         connection.execute("ALTER TABLE environments ADD COLUMN is_shared_with_team INTEGER NOT NULL DEFAULT 0")
         for name, team_chat, shared in (("main", 0, 0), ("team", 1, 0), ("ada-docs", 0, 1)):
             connection.execute("INSERT INTO environments (name, key, kind, team_key, is_team_chat, is_shared_with_team, created_at, creator) VALUES (?, lower(hex(randomblob(16))), 'local', '', ?, ?, '2026-10-24', 'system')", (name, team_chat, shared))
-        connection.execute("INSERT INTO docs (title, body, created_at, creator) VALUES ('Handbook', 'how we work', '2026-10-24', 'system')")
+        connection.execute("INSERT INTO docs (title, abstract, body, created_at, creator) VALUES ('Handbook', 'How we work', 'how we work', '2026-10-24', 'system')")
         connection.execute("INSERT INTO doc_revisions (number, title, body, created_at, creator) VALUES (1, 'Handbook', 'how we work', '2026-10-24', 'system')")
         with connection.transaction() as db:
             EnvironmentTeams().apply(db)
@@ -1204,7 +1204,7 @@ def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its
             bob_task = tasks_a.save(Task(environment_id=bob_own.id, title="Bob's task"), actor=USER)
         with scope_a.environment(shared.id):
             message = rows_a.rows("messages").save(Message(environment_id=shared.id, text="in the open"), USER)
-        doc = migration.docs.save(Doc(title="how we work", body="the guide"), USER)
+        doc = migration.docs.save(Doc(title="how we work", abstract="How we work", body="the guide"), USER)
         revision = migration.revisions.added(DocRevision(number=1, title="how we work", body="the guide"), doc, USER)
         carried()
         held = lambda rows, places: {place for place in places if rows.rows(place[0]).matching(id=place[1])}
@@ -1581,3 +1581,28 @@ def test_two_writers_of_one_team_account_never_race_on_one_draft(tmp_path):
         writer.join(timeout=60)
     assert failures == [], f"each write has a draft of its own, so none is replaced away under another (the FileNotFoundError on the .draft seen in the team tests under load): {failures[:1]}"
     assert not list((config.home / "teams").glob("*.draft")), "and no draft is left behind"
+
+
+def test_an_old_reports_table_gets_its_abstracts_written_and_checked_by_the_database(tmp_path):
+    import sqlite3
+    from journal.db.connection import Connection
+    from journal.db.migrations.abstract_checks import AbstractChecks
+    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes(), LargeReads())
+    with old.transaction() as db:
+        db.execute("CREATE TABLE reports (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER, title TEXT, abstract TEXT, body TEXT)")
+        db.execute("CREATE INDEX reports_environment ON reports (environment_id)")
+        db.execute("INSERT INTO reports (environment_id, title, abstract, body) VALUES (1, 'The cart', '', '## Findings\n\n- The total adds the tax twice. It rounds after.\n')")
+        db.execute("INSERT INTO reports (environment_id, title, abstract, body) VALUES (1, 'The pay page', NULL, '')")
+        db.execute("INSERT INTO reports (environment_id, title, abstract, body) VALUES (1, 'Kept', 'What the login test found', 'body')")
+    with old.transaction() as db:
+        AbstractChecks().apply(db)
+    abstracts = [row["abstract"] for row in old.all("SELECT abstract FROM reports ORDER BY id")]
+    assert abstracts == ["The total adds the tax twice.", "The pay page", "What the login test found"], f"an old report gets its body's first sentence, or its title, and a fit one is kept: {abstracts}"
+    assert old.all("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'reports_environment'"), "its indexes are made again"
+    for unfit in ("", "x" * 201):
+        with pytest.raises(sqlite3.IntegrityError):
+            with old.transaction() as db:
+                db.execute("INSERT INTO reports (environment_id, title, abstract, body) VALUES (1, 't', ?, 'b')", (unfit,))
+    with old.transaction() as db:
+        AbstractChecks().apply(db)
+    assert len(old.all("SELECT id FROM reports")) == 3, "a table already checked is left as it is"

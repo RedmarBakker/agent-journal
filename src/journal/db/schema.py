@@ -37,13 +37,13 @@ class Schema:
                 db.execute(f"ALTER TABLE {model.storage()} ADD COLUMN {column.name} {column.sql_type}")
 
     def statement(self, model: type[Model]) -> str:
-        columns = ", ".join(f"{column.name} {column.sql_type}" for column in self.columns(model) if column.name != "id")
+        columns = ", ".join(f"{column.name} {column.definition}" for column in self.columns(model) if column.name != "id")
         return f"CREATE TABLE IF NOT EXISTS {model.storage()} (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})"
 
     @staticmethod
     def columns(model: type[Model]) -> tuple[Column, ...]:
         hints = get_type_hints(model)
-        return tuple(Column.build(field.name, hints[field.name]) for field in fields(model) if field.metadata.get("column", True))
+        return tuple(Column.build(field.name, hints[field.name], field.metadata.get("characters", ())) for field in fields(model) if field.metadata.get("column", True))
 
     @staticmethod
     def team_values(model: Model, names: tuple[str, ...] | None) -> dict:
