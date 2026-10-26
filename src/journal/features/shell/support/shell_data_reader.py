@@ -61,7 +61,7 @@ class ShellDataReader:
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
         moves = self.outputs.recent_moves(agent.session, RECENT_MOVES)
         lines = [output.command for output in moves if not output.watch_reader or ActivityLabel.line_label(output.command) == TESTING]
-        commands = [CommandShape.command_name(line) for line in lines if not ActivityLabel.is_reading(line)]
+        commands = [CommandShape.command_name(next(iter(Chain.choosing_parts(line)), line)) for line in lines if not ActivityLabel.is_reading(line)]
         return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and not self.is_read_well(command)))
 
     # a test run is read well only by a reader that shows its progress, its failures and its summary, or by one the journal ships

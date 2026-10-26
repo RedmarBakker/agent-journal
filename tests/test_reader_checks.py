@@ -3,6 +3,7 @@
 import os
 import re
 import stat
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -161,3 +162,9 @@ def test_a_reader_for_git_checkout_is_tried_on_the_git_checkout_part_alone(app: 
     (tmp_path / "1.out").write_text("....................\n")
     reader = Reader("branch-switch", "the branch switched to", pattern="^Switched", commands=ReaderCommands.parsed("git checkout"))
     assert app.container.get(ReaderJudge).read_lines(reader, files) == ["Switched to branch 'main'"]
+
+
+def test_a_stored_release_chain_joined_by_newlines_is_named_by_its_work(app: App):
+    line = "git checkout -q main\ngit merge --ff-only development\ngit push origin main\ngit tag v4.63.2\ngit checkout -q development\ngit log --oneline -1 main"
+    app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="release", command=line, session="s1", moved=True), Actor.system())
+    assert "git checkout" not in app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1"))
