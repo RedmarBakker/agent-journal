@@ -37,12 +37,12 @@ class Model:
         return ""
 
     # a row that arrived from the team as this journal stores it, for a sender on an older version whose row lacks what this one requires
-    def arrived(self) -> "Model":
+    def pulled_row(self) -> "Model":
         return self
 
     # the fields of an update from the team that this journal takes in
     @classmethod
-    def arrived_fields(cls, fields: dict) -> dict:
+    def pulled_fields(cls, fields: dict) -> dict:
         return fields
 
     def team_ready(self, owner_prefix: str) -> "Model":

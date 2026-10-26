@@ -257,13 +257,13 @@ class Repository(Generic[M]):
 
     def _team_row(self, id: int, fields: dict) -> M:
         parsed = self._parsed(fields)
-        row = self.model(**{**parsed, "id": id, "updated_at": self._time()}).arrived()
+        row = self.model(**{**parsed, "id": id, "updated_at": self._time()}).pulled_row()
         return row.local_ready() if any(name not in parsed for name in row.local_fields) else row
 
     def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
         with self.connection.transaction():
             previous_rows = self._loaded(self.query().filter(id=id))
-            parsed = self.model.arrived_fields({name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields})
+            parsed = self.model.pulled_fields({name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields})
             if parsed:
                 self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
             self.stored()

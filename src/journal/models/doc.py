@@ -57,11 +57,11 @@ class Doc(Scoped):
     def refusal(self) -> str:
         return AbstractText.refusal(self.abstract)
 
-    def arrived(self) -> Self:
+    def pulled_row(self) -> Self:
         return self.with_(abstract=AbstractText.fitted(self.abstract, self.body, self.title))
 
     @classmethod
-    def arrived_fields(cls, fields: dict) -> dict:
+    def pulled_fields(cls, fields: dict) -> dict:
         return {name: value for name, value in fields.items() if name != "abstract" or not AbstractText.refusal(value)}
 
     def summary_line(self) -> str:
