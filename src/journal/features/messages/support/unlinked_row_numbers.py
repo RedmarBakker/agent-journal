@@ -12,8 +12,12 @@ ROW_KINDS = frozenset({
 COUNT_UNITS = frozenset({
     "passed", "pass", "passing", "failed", "fail", "failing", "errors", "error", "tests", "test", "seconds", "second", "minutes", "minute", "hours", "hour", "ms", "s", "points",
     "files", "file", "lines", "runs", "rows", "bytes", "mb", "gb", "kb", "%", "times", "tool", "uses", "words", "characters", "chars",
-    "of", "more", "deselected", "skipped", "items", "places", "workers", "tasks", "sins", "commits", "messages",
+    "of", "more", "deselected", "skipped", "items", "places", "workers", "tasks", "sins", "commits", "messages", "per", "percent", "cent",
 })
+# the words before a number that make it a count or a position, such as case 121, at 100, clamped to 100 or 1324 of 1324
+COUNT_WORDS = frozenset({"case", "cases", "at", "of", "to", "from", "number", "count", "total"})
+# the kind amend-links takes for a number that names no row, so it stays as written
+PLAIN = "none"
 # the joining words of a list of numbers after one kind word, such as tasks 3345, 3346 and 3347
 LIST_JOINS = frozenset({",", "and", "or", "&", "/"})
 LEAST_ROW_NUMBER = 100
@@ -24,7 +28,7 @@ ROW_TABLES = {"task": "tasks", "plan": "plans", "worker": "workers", "report": "
 
 
 class UnlinkedRowNumbers:
-    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a time, a size or a version, never inside code or quoted on its own, and never one of a list that follows a kind word."""
+    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a position, a percentage, a time, a size or a version, never inside code or quoted on its own, and never one of a list that follows a kind word."""
 
     @classmethod
     def numbers(cls, text: str) -> list[int]:
@@ -39,7 +43,7 @@ class UnlinkedRowNumbers:
     @classmethod
     def linked(cls, text: str, kinds: list[str]) -> str:
         spans = cls.spans(text)
-        for (number, (start, end)), kind in reversed(list(zip(spans, kinds))):
+        for (number, (start, end)), kind in reversed([(span, kind) for span, kind in zip(spans, kinds) if kind != PLAIN]):
             text = f"{text[:start]}{kind} {number}{text[end:]}"
         return text
 
@@ -50,7 +54,8 @@ class UnlinkedRowNumbers:
             return False
         next_token = tokens[i + 1].lower() if i + 1 < len(tokens) else ""
         inside_quotes = i > 0 and tokens[i - 1] in QUOTE_CHARACTERS and next_token in QUOTE_CHARACTERS
-        return not inside_quotes and next_token not in COUNT_UNITS and cls.preceding_word(tokens, i) not in ROW_KINDS
+        preceding = cls.preceding_word(tokens, i)
+        return not inside_quotes and next_token not in COUNT_UNITS and preceding not in ROW_KINDS and preceding not in COUNT_WORDS
 
     @staticmethod
     def preceding_word(tokens: list[str], i: int) -> str:

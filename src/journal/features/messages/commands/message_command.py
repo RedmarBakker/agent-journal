@@ -18,7 +18,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
 from journal.features.messages.support.tags import Tags
-from journal.features.messages.support.unlinked_row_numbers import ROW_TABLES, UnlinkedRowNumbers
+from journal.features.messages.support.unlinked_row_numbers import PLAIN, ROW_TABLES, UnlinkedRowNumbers
 from journal.repositories.rows import Rows
 from journal.support.rejection import Rejection
 
@@ -53,7 +53,7 @@ class MessageCommand(Command):
         link = self.verb(verbs, "amend-links", "write the kind before each number of your message that has none, so the chat links them: the kinds in the order the numbers appear, or one kind for all")
         link.set_defaults(verb="amend_links")
         link.add_argument("n", type=int, help="the message")
-        link.add_argument("kinds", nargs="+", choices=sorted(ROW_TABLES), help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all")
+        link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that names no row, which stays as written")
         react = self.verb(verbs, "react", "put an emoji on a message, or take it off again")
         react.add_argument("n", type=int)
         react.add_argument("emoji")
@@ -118,7 +118,7 @@ class MessageCommand(Command):
         kinds = args.kinds * len(spans) if len(args.kinds) == 1 else args.kinds
         if len(kinds) != len(spans):
             raise Rejection(f"message {args.n} has {len(spans)} numbers without a kind, {', '.join(str(number) for number, _ in spans)}, and you named {len(args.kinds)} kinds: name one for each, in order, or one for all")
-        missing = [f"{kind} {number}" for (number, _), kind in zip(spans, kinds) if not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
+        missing = [f"{kind} {number}" for (number, _), kind in zip(spans, kinds) if kind != PLAIN and not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
         if missing:
             raise Rejection(f"no {', no '.join(missing)} exists, so nothing was changed: give the kind each number really is")
         linked = self.messages.save(message.with_(text=UnlinkedRowNumbers.linked(message.text, kinds)), caller.actor)

@@ -9057,6 +9057,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     assert UnlinkedRowNumbers.numbers('my message said "3419" without its kind') == [], "a number quoted on its own is cited, never linked"
     assert UnlinkedRowNumbers.numbers("All 1215 pass, and 3 fail") == [], "a count of tests that pass or fail is a count, never a row"
+    assert UnlinkedRowNumbers.numbers("the bar read case 119 as 119 per cent and clamped it to 100; the run was at case 121 when you wrote, test 1324 of 1324") == [], "a case number, a percentage, a position and a count of a total name no row (the code-commandments agent's reply)"
     with app.container.get(Scope).environment(MAIN):
         from journal.support.voice_key import VoiceKey
         said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
@@ -9067,6 +9068,10 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "once for that message"
     assert f"no plan {parser}" in console.run(["message", "amend-links", str(bare.id), "plan", "task"], AGENT).error, "a kind whose row does not exist is refused, and nothing is changed"
     assert "2 numbers without a kind" in console.run(["message", "amend-links", str(bare.id), "task", "task", "task"], AGENT).error, "a kind for each number, or one for all"
+    plain = console.run(["message", "amend-links", str(bare.id), "none", "task"], AGENT)
+    assert plain.code == 0 and f"Writing {parser} (the parser) and task {lexer}" in plain.text, f"none leaves a number that names no row as written, and the other is linked: {plain.text}"
+    with app.container.get(Scope).environment(MAIN):
+        messages.save(messages.find(bare.id).with_(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s"), Actor.agent("s1"))
     assert console.run(["message", "amend-links", str(bare.id), "task"], AGENT).code == 0
     from journal.features.messages.listeners.record_turn import RecordTurn
     from journal.events.agent.turn_displayed import TurnDisplayed
