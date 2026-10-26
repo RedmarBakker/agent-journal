@@ -8,7 +8,7 @@
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 [ $# -eq 1 ] || exec "$@"
-case "$1" in *"&& eval '"*"' < /dev/null && pwd -P"* | *"&& eval '"*"' && pwd -P"*) ;; *) exec "${SHELL:-bash}" -c "$1" ;; esac
+case "$1" in *"&& eval "*" < /dev/null && pwd -P"* | *"&& eval "*" && pwd -P"*) ;; *) exec "${SHELL:-bash}" -c "$1" ;; esac
 . "$here/environment.sh"
 waited=$(journal_boot_wait "$root")
 port=$(cat "$root/port" 2>/dev/null) || exec "${SHELL:-bash}" -c "$1"

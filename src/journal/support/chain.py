@@ -3,7 +3,9 @@ import re
 from journal.support.command_shape import GROUP_PATTERN as GROUP_START, LOOP_PATTERN as LOOP_START, SETUP_COMMANDS, CommandShape
 from journal.support.part import Part
 
-WRAPPED = re.compile(r"^eval '(.*)'(?: < /dev/null)?$", re.S)
+# Claude Code quotes the command it evals, unless the command is one word its quoting leaves bare, such as ./scripts/test.sh
+WRAPPED = re.compile(r"^eval (?:'(.*)'|([^\s'\"]+))(?: < /dev/null)?$", re.S)
+BARE_WRAPPED = re.compile(r"\beval ([^\s'\"]+)(?= < /dev/null &&| &&)")
 QUOTE = "'\"'\"'"
 OPENS = {"for": "done", "while": "done", "until": "done", "select": "done", "repeat": "done", "if": "fi", "case": "esac", "foreach": "end"}
 BODIES = {"do", "then", "{"}
@@ -52,7 +54,7 @@ class Chain:
     @classmethod
     def replaced(cls, line: str, part: str, text: str) -> str:
         if any(WRAPPED.match(p) for p in cls.split(line)):
-            part, text = part.replace("'", QUOTE), text.replace("'", QUOTE)
+            line, part, text = BARE_WRAPPED.sub(r"eval '\1'", line, 1), part.replace("'", QUOTE), text.replace("'", QUOTE)
         return line.replace(part, text, 1)
 
     @classmethod
@@ -96,7 +98,7 @@ class Chain:
         wrapped = WRAPPED.match(part)
         if not wrapped:
             return [(separator, part, False)]
-        inner = cls.chained(wrapped.group(1).replace(QUOTE, "'"))
+        inner = cls.chained((wrapped.group(1) if wrapped.group(1) is not None else wrapped.group(2)).replace(QUOTE, "'"))
         return [(s or separator, p, True) for s, p in inner]
 
     @classmethod

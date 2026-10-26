@@ -251,6 +251,22 @@ class Claude(Provider):
         report = text.strip() or err.strip()
         return WorkerOutcome(report, last.session or self.output_session(output, err), report if last.is_error else "", sum(row.cost_dollars for _, row in answers))
 
+    def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
+        if decision.allowed and self.is_background_shell_call(hook):
+            return self.foreground_run(hook, decision)
+        return super().reply(hook, decision, copy_key)
+
+    @staticmethod
+    def is_background_shell_call(hook: Hook) -> bool:
+        return hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
+
+    # the journal moves a long command to the background itself, with its output number and card, so a shell call
+    # Claude Code would run in its own background runs in the foreground through the journal's runner instead
+    @staticmethod
+    def foreground_run(hook: Hook, decision: Decision) -> Response:
+        answer = {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": {**hook.input, "run_in_background": False}}
+        return Response(200, {"hookSpecificOutput": {**answer, "additionalContext": decision.context} if decision.context else answer})
+
     def refused(self, hook: Hook, decision: Decision) -> Response:
         if hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
             return self.shell_refused(hook, decision)

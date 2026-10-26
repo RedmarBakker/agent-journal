@@ -47,6 +47,13 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
         cwd.unlink()
         run = subprocess.run([runner, wrapped("echo first && exec echo replaced; echo never", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
         assert run.stdout.split() == ["first", "replaced"] and run.returncode == 0 and "No such file" not in run.stderr, run.stderr
+        bare = tmp_path / "suite.sh"
+        bare.write_text("#!/bin/sh\necho suite ran\n")
+        bare.chmod(0o755)
+        run = subprocess.run([runner, f"setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval {bare} < /dev/null && pwd -P >| {cwd}"], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
+        with app.container.get(Scope).environment(1):
+            ran = [entry.data["part"] for entry in app.container.get(Entries).kind_entries("ran", 5)]
+        assert run.stdout.strip() == "suite ran" and str(bare) in ran, "a one-word command Claude Code evals unquoted goes through the journal too"
         settings.save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
         run = subprocess.run([runner, wrapped("seq 1 1000", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
         shown = run.stdout.splitlines()
