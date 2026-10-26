@@ -13,7 +13,7 @@ from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 
 LOAD_INPUTS = "load_inputs"
-LOAD_INPUT_ITEM_COUNT = 400
+LARGEST_ITEM_COUNT = 400
 
 
 class LoadMeter:
@@ -30,7 +30,7 @@ class LoadMeter:
         series = self.series()
         items, dispatches = self.items.read(time - (series.window_minutes + HALF_LIVES * series.half_life_minutes) * 60)
         ratios = replace(series.measured(items, dispatches, time), over_full_minutes=self.settings.decimal(WorkersOptions.RECOVERY_FULL), over_zero_minutes=self.settings.decimal(WorkersOptions.RECOVERY_ZERO))
-        self.entries.save(Entry(environment_id=agent.environment_id, kind=LOAD_INPUTS, actor=Actor.agent(agent.session), data={"time": time, "dispatches": dispatches, "items": [asdict(item) for item in items[-LOAD_INPUT_ITEM_COUNT:]]}), Actor.system())
+        self.entries.save(Entry(environment_id=agent.environment_id, kind=LOAD_INPUTS, actor=Actor.agent(agent.session), data={"time": time, "dispatches": dispatches, "items": [asdict(item) for item in items[-LARGEST_ITEM_COUNT:]]}), Actor.system())
         is_orchestrator = self.settings.option(WorkersOptions.MODE) == "orchestrator"
         self.agents.rewritten(agent, Actor.system(), lambda current: self.scaled(current.load_measured(ratios), time) if is_orchestrator else current.load_measured(ratios))
 

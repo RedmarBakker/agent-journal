@@ -185,3 +185,27 @@ def test_the_lines_said_together_in_every_scenario_are_listed_for_the_contradict
             print(f"  {count:3}  {first} + {second}")
     assert isinstance(pairs, dict)
 
+
+def test_recorded_runs_are_scored_again_offline_with_candidate_profiles_in_seconds(tmp_path, monkeypatch, capsys):
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    from tests.simulation.rescoring import Rescoring
+    from tests.simulation.scenarios import FLOODED_BUILDER, ORCHESTRATOR
+    tables = {}
+    for scenario in (QUIET_BUILDER, FLOODED_BUILDER, ORCHESTRATOR):
+        simulator = fresh(tmp_path / scenario.name.replace(" ", "_"), monkeypatch)
+        try:
+            with simulator.app.container.get(Scope).environment(MAIN):
+                run = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or 45), SEED, POLICIES[scenario.policy]())
+                trace = run.played()
+        finally:
+            simulator.app.runtime().stop()
+        began = time.monotonic()
+        tables[scenario.name] = Rescoring(run.samples, trace).table(WorkersProfiles.ALL)
+        assert time.monotonic() - began < 5, "a sweep over the profiles takes seconds"
+    with capsys.disabled():
+        for name, rows in tables.items():
+            print(f"\n{name}:")
+            for row in rows:
+                print(f"  {row}")
+    assert all(rows for rows in tables.values())
+

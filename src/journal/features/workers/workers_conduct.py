@@ -97,12 +97,12 @@ class WorkersConduct(Conduct):
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
 
     def on_quick_report_dropped(self, event: QuickReportDropped, settings: Settings) -> Transition:
-        if event.agent_session != event.session:
+        if event.agent_session != event.session or not settings.value(FitnessOptions.WARNINGS):
             return self.none()
         return self.none(WorkersNudges.QUICK_REPORT.create(n=event.worker, open=event.open_tasks, points=event.points))
 
     def on_tiny_job_dropped(self, event: TinyJobDropped, settings: Settings) -> Transition:
-        if event.agent_session != event.session:
+        if event.agent_session != event.session or not settings.value(FitnessOptions.WARNINGS):
             return self.none()
         return self.none(WorkersNudges.TINY_JOB.create(n=event.worker, seconds=event.seconds, points=event.points))
 
@@ -449,7 +449,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
     profile = (WorkersProfiles.reviewed_mode_profile if settings.value(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(mode)
-    fitness = profile.scored(workers.tool_uses) if profile else None
+    fitness = profile.scored(workers.tool_uses) if profile and settings.value(FitnessOptions.WARNINGS) else None
     if fitness is None or not fitness.is_measured:
         return ()
     gaps = " ".join(f"{gap.text()}." for gap in fitness.gaps)

@@ -13028,6 +13028,14 @@ def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_
     assert cards[0].data["outcome"] == "warned", "a score of 70 is orange, under 75 and not under 25"
     from journal.features.workers.support.fitness_band import FitnessBand
     assert (FitnessBand.outcome(17), FitnessBand.outcome(74), FitnessBand.outcome(75)) == ("failed", "warned", "passed"), "red under 25, orange under 75, green from 75"
+    from journal.events.bus import Bus
+    from journal.events.rows.tiny_job_dropped import TinyJobDropped
+    app.container.get(SettingRows).set("workers.fitness_warnings", False, Actor.user(1))
+    app.container.get(Bus).dispatch(TinyJobDropped(environment_id=MAIN, time=timing.time(), agent_session=AGENT.session, worker=1, seconds=20, points=30))
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        later = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.tiny_job_dropped_the_fitness"]
+    assert len(later) == 1, "with the fitness warnings switched off, no line about the fitness reaches the agent"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):

@@ -1,5 +1,7 @@
 import random
 
+from journal.features.workers.support.tool_use_counts import ToolUseCounts
+from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.caller import Caller
@@ -8,6 +10,7 @@ from tests.simulation.careless_policy import CarelessPolicy
 from tests.simulation.engine_events import EngineEvents
 from tests.simulation.main_agent import AGENT, MainAgent
 from tests.simulation.orchestrator_policy import OrchestratorPolicy
+from tests.simulation.sample import Sample
 from tests.simulation.scenario import Scenario
 from tests.simulation.simulator import Simulator
 from tests.simulation.solo_policy import SoloPolicy
@@ -21,10 +24,11 @@ POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo"
 
 
 class ScenarioRun:
-    """One scenario played on one journal from one seed: every simulated half minute the user may write, finished workers clock out, and the main agent plays its policy's action; the trace it returns is the same for the same seed."""
+    """One scenario played on one journal from one seed: every simulated half minute the user may write, finished workers clock out, and the main agent plays its policy's action; the trace it returns is the same for the same seed, and the fitness and load it read after each agent action are kept as samples for scoring again."""
 
     def __init__(self, simulator: Simulator, scenario: Scenario, seed: int, policy) -> None:
         self.simulator, self.scenario, self.seed, self.policy = simulator, scenario, seed, policy
+        self.samples: list[Sample] = []
 
     def played(self) -> list[TraceEntry]:
         world, trace = World(), []
@@ -46,7 +50,12 @@ class ScenarioRun:
                 trace.append(self.entry(second, "engine", happened[0], happened[1]))
             action, seen = agent.act(world)
             trace.append(self.entry(second, "agent", action, seen))
+            self.sampled(second)
         return trace
+
+    def sampled(self, second: int) -> None:
+        agent = self.simulator.app.container.get(Agents).session_agent("s1")
+        self.samples.append(Sample(second, ToolUseCounts.counted(agent), agent.load.rho))
 
     @staticmethod
     def entry(second: int, actor: str, action: str, seen) -> TraceEntry:

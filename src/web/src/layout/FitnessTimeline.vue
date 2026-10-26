@@ -5,6 +5,9 @@ import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
 import {go} from "../route.js";
 import {clock} from "../format/time.js";
+import Switch from "../kit/Switch.vue";
+import {saveSettings} from "../actions/settings.js";
+import {store} from "../state/store.js";
 
 const WIDTH = 320;
 const HEIGHT = 72;
@@ -39,6 +42,9 @@ const openSettings = () => {
     emit("close");
     go("settings", 0, "Fitness:");
 };
+// whether the agent is sent the lines about its fitness; off, the score is still measured and shown here
+const warnings = computed(() => store.settings?.workers?.fitness_warnings !== false);
+const setWarnings = (on) => saveSettings({workers: {fitness_warnings: on}});
 const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.at)}`, line: point.moved});
 </script>
 
@@ -57,6 +63,9 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
                 <li>The agent works as this mode's ideal does.</li>
             </template>
         </ul>
+        <div class="fitness-timeline-warnings">
+            <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the score is still measured and shown, and no line about it reaches the agent" beside @change="setWarnings" />
+        </div>
         <h5 class="fitness-timeline-label">Scores over the last {{ hours }} hours</h5>
         <template v-if="!points.length">
             <p class="fitness-timeline-none">No score has been recorded in the last {{ hours }} hours.</p>
@@ -90,6 +99,10 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
 </template>
 
 <style scoped>
+.fitness-timeline-warnings {
+    padding: 4px 0 8px;
+}
+
 .fitness-timeline {
     display: flex;
     flex: 1;

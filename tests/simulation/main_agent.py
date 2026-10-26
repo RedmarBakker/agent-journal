@@ -1,3 +1,4 @@
+import shlex
 import random
 
 from journal.support.caller import Caller
@@ -10,7 +11,7 @@ WRITES_PER_TASK = 4
 
 
 class MainAgent:
-    """The simulated main agent: it plays the action its policy picks, through the same hooks and commands a real agent sends, and keeps the world up to date with what it did."""
+    """The simulated main agent: it plays the action its policy picks, through the same hooks a real agent sends, each journal command as a shell tool use that a hold can refuse, and keeps the world up to date with what it did."""
 
     def __init__(self, simulator: Simulator, policy, chance: random.Random, worker_seconds: int) -> None:
         self.simulator, self.policy, self.chance, self.worker_seconds = simulator, policy, chance, worker_seconds
@@ -20,16 +21,25 @@ class MainAgent:
         action = self.policy.action(world, self.chance)
         return action, getattr(self, f"{action}_action")(world)
 
+    def command(self, argv: list[str]) -> Observation:
+        call = {"command": "journal " + " ".join(shlex.quote(part) for part in argv), "description": "Run a journal command"}
+        held = self.simulator.hook("PreToolUse", tool_name="Bash", tool_input=call)
+        if held.is_refused():
+            return held
+        seen = self.simulator.run(argv, AGENT)
+        self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False})
+        return seen
+
     def write_action(self, world: World) -> Observation:
         if not self.current_task:
             if not world.open_tasks:
                 return self.read_action(world)
             self.current_task = world.open_tasks.pop(0)
-            return self.simulator.run(["task", "start", str(self.current_task)], AGENT)
+            return self.command(["task", "start", str(self.current_task)])
         self.writes += 1
         if self.writes >= WRITES_PER_TASK:
             task, self.current_task, self.writes = self.current_task, 0, 0
-            return self.simulator.run(["task", "complete", str(task), "--how", "written"], AGENT)
+            return self.command(["task", "complete", str(task), "--how", "written"])
         edit = {"file_path": f"src/part_{self.current_task}.py", "content": f"PART = {self.writes}\n"}
         self.simulator.hook("PreToolUse", tool_name="Write", tool_input=edit)
         return self.simulator.hook("PostToolUse", tool_name="Write", tool_input=edit, tool_response={"type": "create"})
@@ -43,7 +53,7 @@ class MainAgent:
         if not world.open_tasks:
             return self.read_action(world)
         task, number = world.open_tasks.pop(0), world.next_worker
-        seen = self.simulator.run(["worker", "dispatch", f"Worker {number}", "--task", str(task), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"], AGENT)
+        seen = self.command(["worker", "dispatch", f"Worker {number}", "--task", str(task), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"])
         if seen.answer[0] == 0:
             world.next_worker += 1
             world.workers_out[number] = self.simulator.source.seconds() + self.worker_seconds
@@ -56,11 +66,11 @@ class MainAgent:
         if not world.workers_done:
             return self.read_action(world)
         number = world.workers_done.pop(0)
-        self.simulator.run(["worker", "check", str(number), "1"], AGENT)
-        return self.simulator.run(["worker", "merge", str(number)], AGENT)
+        self.command(["worker", "check", str(number), "1"])
+        return self.command(["worker", "merge", str(number)])
 
     def stop_action(self, world: World) -> Observation:
         return self.simulator.hook("Stop")
 
     def message_action(self, world: World) -> Observation:
-        return self.simulator.run(["message", "send", "a word on the work"], AGENT)
+        return self.command(["message", "send", "a word on the work"])
