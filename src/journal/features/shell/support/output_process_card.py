@@ -27,7 +27,7 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.support.time_source import TimeSource
 
 HEADLINE_CHARACTERS = 60
-GIT_READERS = ("git-commit", "git-push")
+GIT_READERS = ("git-push",)
 ENDED_DOCK_SECONDS = 5
 DOCK_DELAY_SECONDS = 5
 UNDOCK_TIME_KEY = "undock_at"

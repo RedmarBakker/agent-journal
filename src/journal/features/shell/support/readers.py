@@ -18,7 +18,7 @@ KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
 JOURNAL_COMMAND_READERS = ("worker-merge",)
 # the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
-SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge", "git-commit", "git-push")
+SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge", "git-push")
 
 
 class Readers:

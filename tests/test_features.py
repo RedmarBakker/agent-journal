@@ -20755,11 +20755,11 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
     assert marks() == ["Committed 2 files on development: Two files", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
 
 
-def test_a_line_of_only_everyday_git_shows_no_command_card_and_one_with_other_work_or_heavy_git_keeps_its_card():
+def test_a_line_of_only_everyday_git_a_commit_among_it_shows_no_command_card_and_one_with_other_work_a_push_or_heavy_git_keeps_its_card():
     from journal.features.shell.support.cardless_runs import CardlessRuns
     cardless = CardlessRuns.is_git_routine
-    assert all(cardless(line) for line in ("git add -A", "git status && git diff", "git switch phone", "git checkout -b phone")), "all-git lines that need no card"
-    assert not any(cardless(line) for line in ("git commit -qm x", "git add -A && git commit -m x", "git push origin development", "pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "a commit and a push, other work and heavy git keep a card"
+    assert all(cardless(line) for line in ("git add -A", "git status && git diff", "git switch phone", "git checkout -b phone", "git commit -qm x", "git add -A && git commit -m x")), "all-git lines that need no card, a commit among them since its commit mark says it"
+    assert not any(cardless(line) for line in ("git push origin development", "pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "a commit and a push, other work and heavy git keep a card"
 
 
 def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words(app: App):
@@ -20860,13 +20860,22 @@ def test_a_push_writes_one_live_mark_read_by_the_reader_the_journal_ships_that_e
     assert reported == [], "the reader judge never reports on a push"
 
 
+def test_the_retired_commit_reader_is_taken_out_at_boot_so_a_commit_shows_only_its_mark(app: App):
+    from journal.features.shell.seeds.default_readers import DefaultReaders
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    (app.config.readers / "git-commit.pattern").write_text(Reader("git-commit", "a commit", ".", label="Committing", commands=ReaderCommands(("git commit",))).text())
+    app.container.get(DefaultReaders).run()
+    assert not (app.config.readers / "git-commit.pattern").exists(), "the commit reader the journal once shipped is removed, so a commit's mark alone says it"
+
+
 def test_a_reader_the_journal_ships_is_locked_and_refused_before_anything_is_written(app: App):
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_commands import ReaderCommands
     from journal.features.shell.support.readers import Readers
     from journal.support.rejection import Rejection
     readers = app.container.get(Readers)
-    before = {name: readers.definition(name) for name in ("pytest", "git-push", "git-commit", "worker-merge")}
+    before = {name: readers.definition(name) for name in ("pytest", "git-push", "worker-merge")}
     assert all(before.values()), "the journal ships them"
     for name in before:
         with pytest.raises(Rejection) as removing:
