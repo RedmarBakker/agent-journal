@@ -1,4 +1,4 @@
-from journal.features.shell.support.cardless_runs import CardlessRuns
+from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
 from journal.support.card_outcome import CardOutcome
 import time
 from pathlib import Path
@@ -38,12 +38,12 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, cardless: CardlessRuns, time_source: TimeSource, git_titles: GitTitles) -> None:
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, time_source: TimeSource, git_titles: GitTitles) -> None:
         self.time_source, self.git_titles = time_source, git_titles
-        self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.cardless = outputs, views, readers, messages, settings, docking, cardless
+        self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
-        if self.cardless.is_cardless(output):
+        if self.mark_policy.forbids_mark(output):
             return None
         view = self.views.view(output)
         part = CommandText.shown(self.watched_part(output))

@@ -2574,13 +2574,13 @@ def test_a_watched_progress_that_stands_still_past_twenty_seconds_is_noted_and_o
 
 
 def test_every_git_or_github_command_and_every_search_is_given_no_reader_and_a_test_run_is():
-    from journal.features.shell.support.cardless_runs import CardlessRuns
+    from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
     from journal.features.shell.support.git_commands import GitCommands
     assert all(GitCommands.is_git(command) for command in ("git commit", "git push", "git rebase", "gh run watch", "gh")), "every git and GitHub command"
     assert not any(GitCommands.is_git(command) for command in ("github-sync", "pytest", "ghostscript")), "and nothing else"
     assert GitCommands.is_git_line("git add -A && git commit -m x && git push") and not GitCommands.is_git_line("pytest -q && git push"), "a line is git when every part is"
-    assert all(CardlessRuns.is_cardless_program(command) for command in ("grep", "rg", "find", "git push", "gh pr view")), "a search and a git or GitHub command get no reader"
-    assert not any(CardlessRuns.is_cardless_program(command) for command in ("pytest", "npm run build", "python3 scripts/suite.py")), "a test run and a build do"
+    assert all(CommandMarkPolicy.takes_no_reader(command) for command in ("grep", "rg", "find", "git push", "gh pr view")), "a search and a git or GitHub command get no reader"
+    assert not any(CommandMarkPolicy.takes_no_reader(command) for command in ("pytest", "npm run build", "python3 scripts/suite.py")), "a test run and a build do"
 
 
 def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_its_line_budget_is_gone_on_purpose():

@@ -18997,9 +18997,9 @@ def test_a_readers_label_ending_half_a_sentence_is_refused_and_a_whole_phrase_is
 
 
 def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_failed_and_a_test_run_always_does(app: App, tmp_path):
-    from journal.features.shell.seeds.cardless_cards import CardlessCards
-    from journal.features.shell.seeds.cardless_readers import CardlessReaders
-    from journal.features.shell.support.cardless_runs import CardlessRuns
+    from journal.features.shell.seeds.stray_command_mark_cleanup import StrayCommandMarkCleanup
+    from journal.features.shell.seeds.stray_reader_cleanup import StrayReaderCleanup
+    from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.features.shell.support.readers import Readers
     from journal.models.command_output import CommandOutput
@@ -19008,15 +19008,15 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
     from journal.models.message import Message
     from journal.models.author import Author
     with app.container.get(Scope).environment(MAIN):
-        outputs, cardless, card = app.container.get(CommandOutputs), app.container.get(CardlessRuns), app.container.get(OutputProcessCard)
+        outputs, policy, card = app.container.get(CommandOutputs), app.container.get(CommandMarkPolicy), app.container.get(OutputProcessCard)
         run = lambda command, status=0: outputs.save(CommandOutput(chain=command, command=command, folder=str(tmp_path / command.replace(" ", "_")[:40]), ended=True, status=status, moved=True), Actor.system())
-        assert cardless.is_cardless(run("grep -rn needle src | head")) and cardless.is_cardless(run("cd src && ls -la")), "a quick search or listing shows no card"
-        assert cardless.is_cardless(run("git add -A && git status")) and cardless.is_cardless(run("git switch topic")), "nor does everyday git, chained or not"
-        assert cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x && git push")) and cardless.is_cardless(run("gh run watch 12")), "nor does a push, a commit or a GitHub command"
+        assert policy.forbids_mark(run("grep -rn needle src | head")) and policy.forbids_mark(run("cd src && ls -la")), "a quick search or listing shows no card"
+        assert policy.forbids_mark(run("git add -A && git status")) and policy.forbids_mark(run("git switch topic")), "nor does everyday git, chained or not"
+        assert policy.forbids_mark(run("git push -q origin development")) and policy.forbids_mark(run("git add -A && git commit -m x && git push")) and policy.forbids_mark(run("gh run watch 12")), "nor does a push, a commit or a GitHub command"
         assert card.card_contents(run("git status")) is None, "so no card is written for everyday git"
-        assert not cardless.is_cardless(run("git push origin topic", status=1)), "a git line that failed shows its card"
-        assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
-        assert cardless.is_cardless(run("git rebase main")), "nor a rebase"
+        assert not policy.forbids_mark(run("git push origin topic", status=1)), "a git line that failed shows its card"
+        assert not policy.forbids_mark(run("python3 -m pytest -q")) and not policy.forbids_mark(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
+        assert policy.forbids_mark(run("git rebase main")), "nor a rebase"
         assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
         from datetime import timedelta
         mark = lambda output: app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="A run", data={"kind": "card", "shows": "commands", "output": output.id, "card_type": "process"}), Actor.system())
@@ -19024,7 +19024,7 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
         long_build = outputs.save(long_build.with_(created_at=long_build.creation_time - timedelta(seconds=20)), Actor.system())
         stray = [mark(run("git status -s")), mark(run("git push origin topic", status=1)), mark(outputs.save(run("python3 tool.py").with_(moved=False), Actor.system())), mark(run("python3 quick.py"))]
         kept = [mark(long_build), mark(run("make release")), mark(outputs.save(run("python3 -m pytest -q").with_(created_at=long_build.creation_time), Actor.system()))]
-        app.container.get(CardlessCards).run()
+        app.container.get(StrayCommandMarkCleanup).run()
         assert not any(app.container.get(Messages).matching(id=card.id) for card in stray), "at boot the marks of a git line, failed or not, of a run never moved to the background and of a command that never ran past 5 seconds go"
         assert all(app.container.get(Messages).matching(id=card.id) for card in kept), "while a background run of a command that once ran 20 seconds keeps its mark, every run of it"
     readers = app.container.get(Readers)
@@ -19032,7 +19032,7 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
     (app.config.readers / "git-pushing.pattern").write_text("# a push\n.\ncommands: git push\n")
     (app.config.readers / "search-hits.pattern").write_text("# a search\n.\ncommands: grep, rg\n")
     (app.config.readers / "builds.pattern").write_text("# a build\n.\ncommands: npm run build\n")
-    app.container.get(CardlessReaders).run()
+    app.container.get(StrayReaderCleanup).run()
     names = {reader.name for reader in readers.all()}
     assert "git-pushing" not in names and "search-hits" not in names, "a reader kept for git or for searches alone is removed at boot"
     assert "builds" in names, "a build's reader stays"

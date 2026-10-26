@@ -1705,5 +1705,6 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 ## Only background runs get a reader and a card (task 3684, messages 67892 to 67906, 2026-10-26)
 
 - A reader, a watch and a process card belong to a run the journal moved to the background. The runner no longer watches a foreground run as it starts because some reader names its command, which is how every grep got a "Searching the files" card from a project reader that named grep.
+- CommandMarkPolicy is the one place that says whether a run may have a mark and a reader; StrayCommandMarkCleanup and StrayReaderCleanup apply it at every start (message 67987). The name word Mark is allowed again, since a chat mark is the project's noun for a bubble.
 - A git or GitHub line (GitCommands.is_git_line: every part git or gh) is never watched, never given a reader and shows no card, moved or not, unless it failed; its commit and push marks say what it did. The shipped git-push reader is retired.
-- A reader whose commands are all searches, reads or git and GitHub commands (CardlessRuns.is_cardless_program) is refused by journal reader add and removed at boot by the CardlessReaders seed, so a journal that updates is rid of them.
+- A reader whose commands are all searches, reads or git and GitHub commands (CommandMarkPolicy.takes_no_reader) is refused by journal reader add and removed at boot by the StrayReaderCleanup seed, so a journal that updates is rid of them.

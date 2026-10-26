@@ -9,13 +9,13 @@ LONG_READ_SECONDS = 30
 SHORT_RUN_SECONDS = 5
 
 
-class CardlessRuns:
-    """The runs that show no card of their own in the chat and are given no reader: a line that only reads, searches or lists, unless the same command took long before, and a line of git or GitHub commands alone, whose commit and push marks say it; either shows its card once it failed. A mark written before these rules is stray when its run was a git line, failed or not, never moved to the background, cardless, or of a command that never ran past SHORT_RUN_SECONDS."""
+class CommandMarkPolicy:
+    """Whether a run may have a mark in the chat and a reader: a line that only reads, searches or lists may not, unless the same command took long before, nor may a line of git or GitHub commands alone, whose commit and push marks say it; either may once it failed. A mark written before these rules is stray when its run was a git line, failed or not, never moved to the background, may have no mark, or is of a command that never ran past SHORT_RUN_SECONDS."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs
 
-    def is_cardless(self, output: CommandOutput) -> bool:
+    def forbids_mark(self, output: CommandOutput) -> bool:
         if output.ended and not output.is_success():
             return False
         return GitCommands.is_git_line(output.command) or self.is_quick_read(output.command)
@@ -27,8 +27,8 @@ class CardlessRuns:
         return last is None or last.run_seconds() < LONG_READ_SECONDS
 
     def is_stray_mark(self, output: CommandOutput) -> bool:
-        return GitCommands.is_git_line(output.command) or not output.moved or self.is_cardless(output) or self.outputs.longest_run_seconds(output.command) < SHORT_RUN_SECONDS
+        return GitCommands.is_git_line(output.command) or not output.moved or self.forbids_mark(output) or self.outputs.longest_run_seconds(output.command) < SHORT_RUN_SECONDS
 
     @staticmethod
-    def is_cardless_program(command: str) -> bool:
+    def takes_no_reader(command: str) -> bool:
         return GitCommands.is_git(command) or ActivityLabel.build(command) in READ_LABELS

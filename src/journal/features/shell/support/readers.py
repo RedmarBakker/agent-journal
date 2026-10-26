@@ -1,4 +1,4 @@
-from journal.features.shell.support.cardless_runs import CardlessRuns
+from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
 from datetime import datetime, timezone
 from pathlib import Path
 from journal.config import Config
@@ -106,8 +106,8 @@ class Readers:
     def journal_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
 
-    def cardless_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if reader.commands.programs and all(CardlessRuns.is_cardless_program(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
+    def stray_readers(self) -> list[Reader]:
+        return [reader for reader in self.all() if reader.commands.programs and all(CommandMarkPolicy.takes_no_reader(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()
