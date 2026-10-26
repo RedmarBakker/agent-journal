@@ -33,6 +33,8 @@ from journal.support.time_source import TimeSource
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
+os.environ["AGENT_JOURNAL_MACHINE"] = tempfile.mkdtemp(prefix="journal-test-machine-")
+"""Every journal a test boots keeps what a machine shares, such as its last look at GitHub for releases, in a scratch folder, never the user's own."""
 """Every test, and every journal a test boots, keeps its secret values in a scratch folder, never the user's own."""
 
 STAND_INS = Path(__file__).resolve().parent / "programs"

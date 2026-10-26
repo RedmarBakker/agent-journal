@@ -471,6 +471,8 @@ def test_a_folder_no_worktree_owns_is_refused_and_left_as_it_is_and_a_failed_mak
 def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_journal_starts(tmp_path: Path, monkeypatch):
     from journal.config import Config
     from journal.features.updates.support.release_source import ReleaseSource
+    from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
+    from journal.support.time_source import TimeSource
     from journal.launcher.support.update_prompt import UpdatePrompt
     from journal.version import VERSION
     major = VERSION.split(".")[0]
@@ -480,7 +482,7 @@ def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_jou
     (tmp_path / ".journal" / "src" / "journal.sh").write_text(f'echo "$@" >> {asked}\n')
     answers = iter(["2", "1"])
     monkeypatch.setattr("builtins.input", lambda: next(answers))
-    proposal = UpdatePrompt(Config(tmp_path), Screen(io.StringIO()), ReleaseSource())
+    proposal = UpdatePrompt(Config(tmp_path), Screen(io.StringIO()), ReleaseSource(ReleaseCheckMemory(), TimeSource()))
     assert proposal.newest().version == f"{major}.99.0", "the newest of the same major, never the next major"
     assert not proposal.installed_newer() and not asked.exists(), "Start as it is installs nothing"
     assert proposal.installed_newer() and asked.read_text() == "update\n", "Update runs journal update, the one route every update takes, before the journal starts"

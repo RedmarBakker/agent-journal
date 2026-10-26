@@ -21397,3 +21397,37 @@ def test_the_counting_reader_hint_names_a_script_the_way_a_reader_matches_it(app
     app.console().run(["reader", "add", "suites", "--pattern", "passed", "--progress", r"(\d+)/(\d+)", "--commands", "suite.py", "--about", "the suite", "--label", "Running tests"], AGENT)
     told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 scripts/suite.py -k parser"})[1]) for _ in range(51)]
     assert not any("counts passed and failed" in line for line in told), "the reader named as the hint said reads it, so the hint is never given again"
+
+
+def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_quietly_and_is_shared_by_the_machine(app: App, monkeypatch):
+    import email.message
+    import subprocess
+    from urllib.error import HTTPError
+    from journal.features.updates.support import release_source as release_source_module
+    from journal.features.updates.support.release_check import ReleaseCheck
+    from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
+    from journal.features.updates.support.release_refusal import ReleaseRefusal
+    from journal.features.updates.support.release_source import ReleaseSource
+    from journal.features.updates.support.updater import Updater
+    from journal.support.time_source import TimeSource
+    memory, clock = ReleaseCheckMemory(), TimeSource()
+    source = ReleaseSource(memory, clock)
+    monkeypatch.setattr(ReleaseSource, "has_cli_login", staticmethod(lambda: True))
+    monkeypatch.setattr(release_source_module.subprocess, "run", lambda command, **options: subprocess.CompletedProcess(command, 0, json.dumps([{"ref": "refs/tags/v4.70.0"}]), ""))
+    assert source.tags("v4.") == ["v4.70.0"] and memory.last().tags == ("v4.70.0",), "with gh logged in the tags are read through it, and the look is stored for the machine"
+    headers = email.message.Message()
+    headers["X-RateLimit-Remaining"], headers["X-RateLimit-Reset"] = "0", "4102444800"
+
+    def refused(*arguments, **options):
+        raise HTTPError("https://api.github.com", 403, "rate limit exceeded", headers, None)
+    monkeypatch.setattr(ReleaseSource, "has_cli_login", staticmethod(lambda: False))
+    monkeypatch.setattr(release_source_module, "urlopen", refused)
+    with pytest.raises(ReleaseRefusal):
+        source.tags("v4.")
+    assert memory.last().refusal_end_at == 4102444800.0 and memory.last().tags == ("v4.70.0",), "a refusal is stored with GitHub's reset time, the last tags kept"
+    updater = app.container.get(Updater)
+    monkeypatch.setattr(updater, "source", source)
+    updater.read()
+    assert updater.problem == "" and updater._next_check_at == 4102444800.0, "a refusal says nothing to the user and waits until the reset"
+    memory.store(ReleaseCheck(1000.0, 0.0, ("v4.70.0",)))
+    assert source.next_check_time(3600) == 4600.0 and source.stored_tags("v4.") == ["v4.70.0"], "a journal that starts again counts its next look from the machine's last one and keeps its tags"

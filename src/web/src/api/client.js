@@ -136,6 +136,10 @@ export class ApiClient {
         return this.post("/updates", {});
     }
 
+    forceUpdate() {
+        return this.post("/updates/force", {});
+    }
+
     planTimeline(id) {
         return this.get(this.here(`/plans/${id}/timeline`));
     }

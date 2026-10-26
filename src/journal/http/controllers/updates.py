@@ -7,7 +7,7 @@ from journal.support.response import Response
 
 
 class UpdateController:
-    """What the viewer needs to offer the newer release: what is available and the version running, and the update itself."""
+    """What the viewer needs to offer the newer release: what is available and the version running, the update itself, and the install command from the README run when GitHub refuses to list the releases."""
 
     def __init__(self, updating: Updater, changelog: Changelog) -> None:
         self.updating, self.changelog = updating, changelog
@@ -23,6 +23,10 @@ class UpdateController:
     def changes(self, request: Request) -> Response:
         page = self.changelog.page(int(request.queried("skip")))
         return Response.json({"changelog": page.text, "shown": page.shown, "is_last_page": page.is_last_page})
+
+    def force_update(self, request: Request) -> Response:
+        self.updating.force_update()
+        return Response.json(self.updating.data(), 202)
 
     def update(self, request: Request) -> Response:
         self.updating.update_immediately(request.actor)

@@ -12,6 +12,7 @@ from journal.features.updates.support.commit_ancestry import CommitAncestry
 from journal.features.updates.support.release_installer import ReleaseInstaller
 from journal.features.updates.support.official_install import OfficialInstall
 from journal.sync.sync_status import SyncStatus
+from journal.features.updates.support.release_refusal import ReleaseRefusal
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
 from journal.features.updates.support.update_data import UpdateData
@@ -32,9 +33,11 @@ from journal.features.updates.updates_options import UpdatesOptions
 from journal.support.time_source import TimeSource
 
 PLUGIN = "code-commandments"
-FIRST_CHECK_DELAY_SECONDS = 60
 # the longest the sync service may take to send this journal's changes and pull the team's before an install
 DRAIN_SECONDS = 60
+# what the install command from the README installs when it is asked for no release of its own, and how the card names it
+README_REF = "main"
+README_TARGET = "the latest release"
 # the sync state of a team that does not take this journal's changes now, so an update keeps them here instead of waiting to send them
 UNREACHABLE = "not_connected"
 
@@ -54,8 +57,10 @@ class Updater:
         self.is_head_ahead = False
         self.problem = ""
         self.team_version_seen = ""
-        self._next_check_at = self.time_source.seconds() + FIRST_CHECK_DELAY_SECONDS
+        self._next_check_at = self.source.next_check_time(self.check_interval_seconds())
+        self.releases = Release.lookup(self.source.stored_tags(Release.major_prefix(self.running().major)))
         self._working = threading.Lock()
+        self.started_at = self.time_source.seconds()
 
     def running(self) -> Release:
         return Release(VERSION)
@@ -122,7 +127,7 @@ class Updater:
     def data(self) -> UpdateData:
         blocked = self.card.running()
         return UpdateData(installed=self.label(), latest=self.latest(), newer=self.is_published(), branch=self.branch(), versions=[release.version for release in self.newer()],
-                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.problem)
+                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.problem, started_at=self.started_at)
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
@@ -152,6 +157,18 @@ class Updater:
         self.card.begin(self.label(), self.target().label)
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
+
+    def force_update(self) -> None:
+        self.card.begin(self.label(), README_TARGET)
+        if not self.separate(self.readme_install):
+            raise Rejection("an update is under way already")
+
+    def readme_install(self) -> None:
+        self.card.step("Running the install command from the README")
+        installed = self.official.installation(README_REF)
+        if installed.returncode != 0:
+            self.problem = f"The install command from the README failed: {(installed.stderr or installed.stdout).strip()[-300:]}"
+            self.card.clear()
 
     def install(self, actor: Actor) -> None:
         self.read()
@@ -196,6 +213,8 @@ class Updater:
             else:
                 self.releases = Release.lookup(self.source.tags(Release.major_prefix(self.running().major)))
             self.problem = ""
+        except ReleaseRefusal as refused:
+            self._next_check_at = refused.reset_at
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             self.problem = f"The releases could not be read from {self.repository()}: {error}"
 

@@ -1716,3 +1716,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - A plan's next task is its first paused task whose waits are over, else its next open one; a blocked task or a paused one still waiting never stops the plan (task 3690).
 - Count forms never take a number before a unit of time as a total; a run whose count moved five times or more raises no stall finding for one slow stretch (task 3683). Only test runs and builds get the buffering hint, and a pause (sleep, alone or with an echo) gets no mark.
 - Two races behind the load flakes (task 3678): a helper's end was checked and written in two transactions, so a reviewer handed a new review in between was ended with its old process; and the team account file was changed by unlocked read, merge and write, so the sync thread's sequence number put back an old list of held sessions. The first is one transaction now; the second goes through TeamAccount.merged under a file lock.
+
+## Plan 1042, phase 2: the release check (task 3674, messages 67375, 67926 and 67934)
+
+- The tags are read through the GitHub CLI when it is installed and logged in, else over HTTP without a login. A 403 or 429 for asking too often raises ReleaseRefusal with GitHub's reset time: nothing is said to the user, and the next look waits until then.
+- Every look and refusal is stored for the whole machine in release-check.json of the machine folder (AGENT_JOURNAL_MACHINE, else ~/.journal; tests point it at a scratch folder). A journal that starts counts its next look from that stored one and keeps its tags, so a restart never looks at its start; the launcher's boot menu always looks.
+- The changelog page has a button that runs the install command from the README (raw.githubusercontent.com, not counted by the API's limit), ref main; the page reloads once the journal answers as another version or a newly started process (started_at).

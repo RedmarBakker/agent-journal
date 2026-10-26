@@ -23,7 +23,9 @@ from journal.support.worktree_failure import WorktreeFailure
 from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
+from journal.features.updates.support.release_check_memory import ReleaseCheckMemory
 from journal.features.updates.support.release_source import ReleaseSource
+from journal.support.time_source import TimeSource
 from journal.config import Config
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
@@ -102,7 +104,7 @@ class Launch:
             menu.environment_rows(matched or self.default_environment(), menu.environments())
             return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
         subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False)
-        if not self.confirmed and UpdatePrompt(Config(self.root), menu.screen, ReleaseSource()).installed_newer():
+        if not self.confirmed and UpdatePrompt(Config(self.root), menu.screen, ReleaseSource(ReleaseCheckMemory(), TimeSource())).installed_newer():
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)

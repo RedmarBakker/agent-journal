@@ -7,7 +7,7 @@ import StateDot from "../kit/StateDot.vue";
 import TextDisplay from "../kit/TextDisplay.vue";
 import {locked} from "../state/updating.js";
 
-const {about, error, status, loadMore, update, start} = useUpdates();
+const {about, error, status, loadMore, update, forceUpdate, start} = useUpdates();
 
 onMounted(start);
 </script>
@@ -33,6 +33,10 @@ onMounted(start);
                     </template>
                 </div>
             </template>
+            <div class="force-line">
+                <span class="hint">GitHub may refuse to list the releases for a while. The install command from the README installs the latest release all the same.</span>
+                <Btn class="force-update" :busy="locked()" @click="forceUpdate()">Install the latest release with the README command</Btn>
+            </div>
             <TextDisplay class="changelog" :text="about.changelog" />
             <template v-if="!about.is_last_page">
                 <Btn class="more-releases" @click="loadMore()">Show older releases</Btn>
@@ -63,6 +67,15 @@ onMounted(start);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text-2);
+    font-size: 13px;
+}
+
+.force-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
     font-size: 13px;
 }
 

@@ -8,9 +8,20 @@ const UPDATE_TRIES = 450;
 // The newer release installed: the update is asked for, and the page reloads once the journal answers as that version; an
 // update the journal says is no longer under way, with a problem, failed, and the cover comes down with why.
 export async function runUpdate(version) {
+    return awaitUpdate(version, () => api.update(), (now) => now.installed === version);
+}
+
+// The install command from the README run by the journal itself, which GitHub's limit on looks does not stop: the page reloads once
+// the journal answers as another version or as the same one started again.
+export async function runForcedUpdate(installed) {
+    return awaitUpdate("the latest release", () => api.forceUpdate(), (now, asked) => now.installed !== installed || now.started_at !== asked.started_at);
+}
+
+async function awaitUpdate(version, ask, isDone) {
     begin(version);
+    let asked;
     try {
-        await api.update();
+        asked = await ask();
     } catch (failed) {
         fail(failed.message);
         return failed.message;
@@ -18,7 +29,7 @@ export async function runUpdate(version) {
     for (let tries = 0; tries < UPDATE_TRIES; tries++) {
         await wait(2000);
         const now = await api.releases().catch(() => null);
-        if (now && now.installed === version) return location.reload();
+        if (now && isDone(now, asked)) return location.reload();
         if (now && !now.updating && now.problem) {
             fail(now.problem);
             return now.problem;
@@ -48,6 +59,12 @@ export function useUpdates() {
         if (problem) error.value = problem;
     }
 
+    async function forceUpdate() {
+        error.value = "";
+        const problem = await runForcedUpdate(about.value.installed);
+        if (problem) error.value = problem;
+    }
+
     async function start() {
         try {
             about.value = await api.freshReleases();
@@ -61,5 +78,5 @@ export function useUpdates() {
         about.value = {...about.value, changelog: about.value.changelog + next.changelog, shown: next.shown, is_last_page: next.is_last_page};
     }
 
-    return {about, error, status, update, start, loadMore};
+    return {about, error, status, update, forceUpdate, start, loadMore};
 }

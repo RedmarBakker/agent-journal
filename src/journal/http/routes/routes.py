@@ -109,6 +109,7 @@ class Routes:
         router.get(f"{API}/updates/changelog", get(UpdateController).changes)
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
+        router.post(f"{API}/updates/force", get(UpdateController).force_update)
         router.get(f"{API}/sync", get(SyncController).show)
         router.post_unscoped(f"{API}/services", get(ServiceController).register)
         router.get_unscoped(f"{API}/sync/team", get(SyncDeskController).guarded(get(SyncDeskController).team))
