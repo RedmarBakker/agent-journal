@@ -65,7 +65,10 @@ class Links(Repository[Link]):
         return self.selected(self.query().filter(source=Ref.build(model), kind=kind).order("id"))
 
     def sources(self, model: Model, kind: str) -> list[Ref]:
-        return [link.source for link in self.selected(self.query().filter(target=Ref.build(model), kind=kind).order("id"))]
+        return self.ref_sources(Ref.build(model), kind)
+
+    def ref_sources(self, target: Ref, kind: str) -> list[Ref]:
+        return [link.source for link in self.selected(self.query().filter(target=target, kind=kind).order("id"))]
 
     def sources_except(self, model: Model, kind: str, refs: Sequence[Ref]) -> list[Ref]:
         if not refs:

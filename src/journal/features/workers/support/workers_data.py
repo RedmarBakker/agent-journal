@@ -37,3 +37,4 @@ class WorkersData:
     band: PressureBand = PressureBand.NONE
     band_changed_at: float = 0.0
     measures: MeasureStates = MeasureStates()
+    delegable: tuple[int, ...] = ()

@@ -9,6 +9,7 @@ from journal.features.templates.shipped import PLAN_PHASE_TESTS, PLAN_ZERO_TESTS
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.features.tasks.support.task_briefing import TaskBriefing
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.support.stage_times import StageTimes
@@ -21,9 +22,9 @@ RECENT_PLAN_TASKS = 3
 class PlansDataReader:
     """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields PlansData names; a helper, whose file turns no plans on, never reads it; the started plan's facts the same, with the fields StartedPlan names."""
 
-    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, phase_testing: PhaseTesting, scope: Scope, stages: StageTimes, rounds: ReviewRounds) -> None:
+    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, phase_testing: PhaseTesting, scope: Scope, stages: StageTimes, rounds: ReviewRounds, assigner: PlanTaskAssigner) -> None:
         self.plans, self.briefing, self.entries, self.testing, self.statuses, self.phase_testing = plans, briefing, entries, testing, statuses, phase_testing
-        self.scope, self.stages, self.rounds = scope, stages, rounds
+        self.scope, self.stages, self.rounds, self.assigner = scope, stages, rounds, assigner
 
     def read(self, agent: Agent) -> LazyFacts:
         return LazyFacts("plans", {
@@ -61,6 +62,7 @@ class PlansDataReader:
             "testing": lambda: " ".join(template.brief for template in self.testing.chosen(plan)),
             "phase_commands": lambda: self.phase_testing.unpassed(plan),
             "is_checkpoint": lambda: self.plans.checkpoint_plans(plan) is not None,
+            "passes_checkpoints": lambda: self.assigner.passes_checkpoints(),
             "current_phase": lambda: plan.current_phase(self.plans.phase_states(plan)),
             "priorities_phase": lambda: plan.priorities_phase,
             "priorities_at": lambda: plan.priorities_at,

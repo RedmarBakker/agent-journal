@@ -1,4 +1,5 @@
 from journal.features.workers.support.merge_checks import MergeChecks
+from journal.features.workers.support.orchestrator_task_assigner import OrchestratorTaskAssigner
 from journal.repositories.entries import Entries
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.repositories.scope import Scope
@@ -28,7 +29,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes) -> None:
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, delegation: OrchestratorTaskAssigner) -> None:
+        self.delegation = delegation
         self.checks, self.scope, self.stages, self.entries, self.resumes = checks, scope, stages, entries, resumes
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
@@ -46,6 +48,7 @@ class WorkersDataReader:
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("workers", {
             "session_subagent_rows": lambda: self.subagents.session_subagents(agent.session),
+            "delegable": lambda: tuple(task.row_id for task in self.delegation.delegable_tasks()),
             "dispatched_workers": lambda: tuple(self.workers.running_workers()),
             "idle_workers": lambda: tuple(self.workers.idle_workers()),
             "active_subagents": lambda: sum(1 for s in facts.session_subagent_rows if s.is_running()),

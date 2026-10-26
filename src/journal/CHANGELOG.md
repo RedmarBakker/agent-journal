@@ -2,6 +2,14 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## Unreleased
+
+- Each state names the task assigner the journal asks for the agent's next task, and only the assigners pick a task or read auto mode: at a stop or when its task closes, the builder is started on its own paused task, then its plan's next task or an approved plan, then the first open task by priority; an await keeps the assigner beneath it.
+- The orchestrator is never started on a task: it asks for the next ones with `journal task next --quantity <n>`, which names them in round robin over the running plans, the same names until each is delegated or started.
+- A stop no longer names open tasks or an approved plan, since the next task is already started; the builder's stop names paused tasks and broken waits, and a blocked task is neither started nor named at it; the orchestrator's stop asks about the blocked tasks it can move, then names the tasks to dispatch.
+- A commit that closes a task names the task started next for its agent.
+- A custom code-commandments rule flags a read of auto mode or a pick of the next task outside the assigners.
+
 ## 4.63.4
 
 - A plugin may name skills it publishes that the agent must read, with `require_skills` in its answer: the journal holds the agent's tools until it reads each, a skill already read or already owed changes nothing, an id the plugin does not publish is written once as a plugin warning, and a skill gone with its plugin is no longer owed.

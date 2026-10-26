@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.engine.nudge import Nudge
 from journal.engine.support.block import Block
 from journal.engine.support.settings import Settings
@@ -16,7 +17,6 @@ from journal.events.rows.task_started import TaskStarted
 from journal.events.feature_data import FeatureData
 from journal.features.plans.states.plan_work import PlanWork
 from journal.features.plans.plans_nudges import PlansNudges
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.tasks_part import TasksPart
 
@@ -26,6 +26,7 @@ class FollowingPlan(PlanWork):
     """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
+    assigner = PlanTaskAssigner
     title = "Following a plan"
     plan_id: int = 0
     approved: bool = False
@@ -51,7 +52,7 @@ class FollowingPlan(PlanWork):
         started = event.data.part(PlansPart).started
         if started is not None and started.phase_commands:
             return self.refuse(PlansNudges.PHASE_END_TESTS.create(n=self.plan_id, phase=self.phase, commands=" and ".join(started.phase_commands)))
-        if settings.value(TasksOptions.AUTO) or self.phase_held:
+        if (started is not None and started.passes_checkpoints) or self.phase_held:
             return self.refuse(PlansNudges.PHASE_END.create(n=self.plan_id, phase=self.phase))
         return self.none(PlansNudges.CHECKPOINT_PHASE_END.create(n=self.plan_id, phase=self.phase))
 

@@ -1,5 +1,4 @@
 from argparse import Namespace
-from dataclasses import replace
 from datetime import datetime
 
 from journal.console.command import Command
@@ -9,7 +8,6 @@ from journal.support.caller import Caller
 from journal.support.row_labels import RowLabels
 from journal.engine.clock import Clock
 from journal.support.rejection import Rejection
-from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.task_briefing import TaskBriefing
 from journal.features.tasks.support.block_check import BlockCheck
@@ -24,16 +22,19 @@ from journal.support.task_priority import NORMAL, TaskPriority
 from journal.models.task_log import TaskLog
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
-from journal.support.missing_row import MissingRow
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
-from journal.features.tasks.support.next_open_task import NextOpenTask
+from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.sync.team_account import TeamAccount
 from journal.support.time_source import TimeSource
+from journal.engine.support.assigner_resolution import AssignerResolution
+from journal.engine.support.session_agents import SessionAgents
+from journal.events.agent.next_tasks_request import NextTasksRequest
+from journal.repositories.scope import Scope
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
@@ -43,8 +44,9 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource) -> None:
-        self.clock, self.next_task, self.reminder, self.time_source = clock, next_task, reminder, time_source
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope) -> None:
+        self.assigners, self.sessions, self.scope = assigners, sessions, scope
+        self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
         self.destination = destination
@@ -104,6 +106,7 @@ class TaskCommand(Command):
         priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
+        self.verb(verbs, "next", "the next tasks to hand out, as the task assigner in force chooses them: for the orchestrator the next tasks to give workers, plan by plan in turn; it starts none").add_argument("--quantity", type=int, default=1, help="how many tasks to name, the assigner choosing each in turn")
 
     def create(self, args: Namespace, caller: Caller) -> int:
         person, team = self.filer.person(args), self.filer.team(args)
@@ -275,6 +278,18 @@ state: {task.state}
         phase = next((p for p in phases if p.phase.id in phase_ids), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
+    def next(self, args: Namespace, caller: Caller) -> int:
+        agent = self.sessions.agent(caller.agent_session, self.scope.id)
+        request = NextTasksRequest(session=agent.session, environment_id=self.scope.id, provider=agent.provider, time=self.time_source.moment().timestamp())
+        assignment = self.assigners.resolved(agent).next_task(agent, request, args.quantity)
+        if not assignment.has_task():
+            print("no task to hand out now: the builder is handed its next task at a stop or when its task closes")
+            return 0
+        for task in (self.tasks.find(task_id) for task_id in assignment.task_ids()):
+            print(f"task {task.id}: {task.title}")
+        print(assignment.reason)
+        return 0
+
     def list(self, args: Namespace, caller: Caller) -> int:
         if args.all:
             print(self.task_lines(self.tasks.scoped()))
@@ -292,9 +307,9 @@ state: {task.state}
         return "\n".join(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]") for task in tasks)
 
     def _name_next(self, closed: Task) -> None:
-        next_open = self.next_task.following(closed)
-        if next_open:
-            print(next_open.line())
+        next_task = self.next_tasks.holder_task(closed)
+        if next_task:
+            print(next_task.line())
 
     def _time(self) -> datetime:
         return self.time_source.moment()

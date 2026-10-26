@@ -125,25 +125,23 @@ def writes_over_the_log(app, replay: Replay, provider: str) -> None:
 
 
 def the_clock_ticks(app, replay: Replay, provider: str) -> None:
-    """The steps: an idle agent in auto mode with an open task to go on with hears the clock at a minute, at half an hour and at half an hour again; then with a task paused, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
+    """The steps: an agent in auto mode stops with an open task, which its task assigner starts, and hears the clock at a minute, at half an hour and at half an hour again; then with that task paused and no stop, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the header", "--brief", "the header names the shop"], USER)
     tick = lambda silent: tick_after(app, silent)
     hook_as(app, provider, "Stop")
-    replay.step("idle")
+    replay.step("the stop starts task 1")
     for name, silent in (("a minute", 60.0), ("half an hour", 1800.0), ("half an hour again", 1800.0)):
         tick(silent)
         replay.step(f"quiet for {name}")
-    console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["task", "pause", "2", "the header first"], AGENT)
-    hook_as(app, provider, "Stop")
+    console.run(["task", "pause", "1", "the footer first"], AGENT)
     replay.step("a task paused")
     for name in ("a minute with a task paused", "a minute more"):
         tick(60.0)
         replay.step(name)
-    console.run(["task", "resume", "2"], AGENT)
+    console.run(["task", "resume", "1"], AGENT)
     console.run(["await", "the deploy", "--until", "false"], AGENT)
     replay.step("awaiting the deploy")
     for name in ("five quiet minutes awaiting", "five more awaiting"):
@@ -156,8 +154,9 @@ def test_clock_ticks_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"the_clock_ticks_{provider}", app, monkeypatch, the_clock_ticks, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["quiet for a minute"]["typed"] == [] and "nothing has happened for half an hour" in str(name_index["quiet for half an hour"]["typed"]) and name_index["quiet for half an hour again"]["typed"] == [], "the listener checks in at half an hour, once inside the window"
-    assert "task 2 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and asks after the paused task, once inside the window"
+    assert name_index["the stop starts task 1"]["stack"] == ["idle", "working"], "the stop in auto mode starts the open task"
+    assert name_index["quiet for a minute"]["typed"] == [] and "task 1 is still open" in str(name_index["quiet for half an hour"]["typed"]) and name_index["quiet for half an hour again"]["typed"] == [], "the task in hand is named at half an hour, once inside the window"
+    assert "task 1 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and the paused task is asked after once inside the window"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 

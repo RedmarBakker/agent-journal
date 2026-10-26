@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -13,6 +14,7 @@ class Ended(BaseState):
     """The session is over: nothing is allowed and nothing is sent until it shows it is running again, by starting, taking a prompt or using a tool; then it is popped."""
 
     name = "ended"
+    assigner = NoTaskAssigner
     title = "Ended"
     final = True
 

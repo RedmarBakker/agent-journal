@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.features.workers.support.orchestrator_task_assigner import OrchestratorTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
@@ -8,19 +9,20 @@ from journal.events.feature_data import FeatureData
 from journal.events.rows.worker_reported import WorkerReported
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.tasks.support.tasks_data import TasksData
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.workers.states.delegating import Delegating
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
-from journal.features.workers.support.orchestration import orchestrate
+from journal.features.workers.support.orchestration import delegation_lines
 from journal.features.workers.workers_nudges import WorkersNudges
 
 
 @dataclass(frozen=True)
 class Orchestrating(PlansReady):
-    """The orchestrator's mode state: it plans, gives the work to workers and reviews what comes back. A stop or a long idle time with open tasks is answered with the plans to check and the workers to dispatch, a worker's report with the same, and the task and plan states it pushes say delegate where the builder's say continue."""
+    """The orchestrator's mode state: it plans, gives the work to workers and reviews what comes back. A stop asks first about the blocked tasks the agent can move, then names the tasks to dispatch; a long idle time with open tasks is answered with the same, a worker's report with the same, and the task and plan states it pushes say delegate where the builder's say continue."""
 
     name = "orchestrating"
+    assigner = OrchestratorTaskAssigner
     title = "Orchestrating"
 
     def mode_lines(self) -> tuple[Nudge, ...]:
@@ -33,14 +35,13 @@ class Orchestrating(PlansReady):
         return Delegating(**fields)
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        tasks = data.part(TasksPart)
-        return (orchestrate(tasks),) if settings.value(TasksOptions.AUTO) and tasks.open_ids else ()
+        return (*blocked_review(data.part(TasksPart)), *delegation_lines(data))
 
-    def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
-        return (*open_lines(tasks), *blocked_check(tasks))
+    def silent_nudges(self, data: FeatureData) -> tuple[Nudge, ...]:
+        return (*delegation_lines(data), *blocked_check(data.part(TasksPart)))
 
     def on_worker_reported(self, event: WorkerReported, settings: Settings) -> Transition:
-        return self.none(*self.silent_nudges(event.data.part(TasksPart)))
+        return self.none(*self.silent_nudges(event.data))
 
 
 def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
@@ -48,8 +49,9 @@ def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
     return (WorkersNudges.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
 
 
-def open_lines(tasks: TasksData) -> tuple[Nudge, ...]:
-    return (orchestrate(tasks),) if tasks.open_ids else ()
+def blocked_review(tasks: TasksData) -> tuple[Nudge, ...]:
+    reviewable = tuple(n for n in tasks.blocked if n not in tasks.person_waits)
+    return (TasksNudges.BLOCKED_REVIEW.create(tasks=numbers(reviewable)),) if reviewable else ()
 
 
 def numbers(ids: tuple[int, ...]) -> str:

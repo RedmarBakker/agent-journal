@@ -12,6 +12,7 @@ from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.row_pending import RowPending
 from journal.events.rows.row_resolved import RowResolved
+from journal.events.rows.task_started import TaskStarted
 from journal.support.permission import Permission
 from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
@@ -31,6 +32,7 @@ class ExternalWait(Wait):
     """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
 
     name = "awaiting"
+    assigner = None
     title = "Waiting"
     allows = frozenset({Permission.FILE_EDITS, Permission.RUN_COMMANDS, Permission.DISPATCH_SUBAGENTS})
     focus: str = ""
@@ -40,6 +42,8 @@ class ExternalWait(Wait):
     check_reminder: Timeout = CHECK_REMINDER
     next_task_reported: bool = False
     decided: bool = False
+    started_task: int = 0
+    started_title: str = ""
     outcomes: str = ""
 
     @classmethod
@@ -70,10 +74,15 @@ class ExternalWait(Wait):
         estimates = [seconds for ref in self.targets() if ref in progress and (seconds := progress[ref].remaining_seconds(moment)) is not None]
         return max(estimates) if estimates else None
 
+    def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
+        return self.swap(replace(self, started_task=event.task_id, started_title=event.title))
+
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        if self.started_task:
+            return Transition.merged(self, [self.swap(replace(self, started_task=0, started_title="")), self.refuse(TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=self.started_task, title=self.started_title))])
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
-        if not settings.value(TasksOptions.AUTO) or tasks.next_open is None or estimate.is_short(settings):
+        if tasks.next_open is None or estimate.is_short(settings):
             return self.none()
         return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
 
@@ -89,7 +98,7 @@ class ExternalWait(Wait):
         next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
-        if settings.value(TasksOptions.AUTO) and not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
+        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
             return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
         if self.check_reminder.is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))

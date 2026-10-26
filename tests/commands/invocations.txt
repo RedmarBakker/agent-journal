@@ -8,6 +8,7 @@ agent task edit 2 --title "Fix the cart total rounding"
 agent task rename 2 "Fix the cart total"
 agent task show 1
 agent task list
+agent task next --quantity 2
 agent task pause 1 "the cart comes first"
 agent task resume 1
 agent task block 2 "waits on the tax rates"

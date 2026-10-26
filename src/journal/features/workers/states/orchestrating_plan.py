@@ -4,9 +4,8 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.features.plans.states.following_plan import FollowingPlan
-from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.states.delegation import Delegation
-from journal.features.workers.support.orchestration import orchestrate
+from journal.features.workers.support.orchestration import delegation_lines
 
 
 @dataclass(frozen=True)
@@ -19,5 +18,5 @@ class OrchestratingPlan(Delegation, FollowingPlan):
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if self.task_id or self.checkpoint_pause:
             return super().on_stop(event, settings)
-        tasks = event.data.part(TasksPart)
-        return self.refuse(orchestrate(tasks)) if tasks.open_ids else self.none()
+        lines = delegation_lines(event.data)
+        return self.refuse(lines[0]) if lines else self.none()

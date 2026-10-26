@@ -210,7 +210,7 @@ def test_a_plan_is_followed_task_by_task_to_its_end(app: App):
     assert app.container.get(SessionAgents).top("s1").name == "awaiting" and "is in hand" not in str(hook(app, "Stop")[1]), "a line the journal types frees no wait, and a stop while waiting is not told to carry on"
     output = console.run(["task", "complete", "1"], AGENT).text
     lower = app.container.get(Agents).session_agent("s1").stack[-2]
-    assert "task 2 is next" in output and app.container.get(SessionAgents).top("s1").name == "awaiting" and lower["state"] == "following_plan" and lower["data"]["task_id"] == 1, "the wait stands and the plan beneath has not heard: only the top of the stack hears"
+    assert "task 2 is started next" in output and app.container.get(SessionAgents).top("s1").name == "awaiting" and lower["state"] == "following_plan" and lower["data"]["task_id"] == 1, "the wait stands and the plan beneath has not heard: only the top of the stack hears"
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     assert (app.container.get(SessionAgents).top("s1").name, app.container.get(SessionAgents).top("s1").task_id) == ("following_plan", 2), "the agent's own tool use lifts the wait, and the plan catches up to its started task on resume"
     output = console.run(["task", "complete", "2"], AGENT).text
@@ -242,8 +242,8 @@ def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeyp
     console.run(["plan", "start", "1"], AGENT)
     closed = console.run(["task", "complete", "2"], AGENT).text
     app.runtime().deferred.drain()
-    assert "plan 1: task 3 is next. brief: git tag v4" in closed, "the closing command prints the plan's next task with its brief"
-    assert not any("plan 1: task 3 is next" in line for line in keystrokes), "nothing is typed afterwards for a start the agent caused"
+    assert "plan 1: task 3 is started next. brief: git tag v4" in closed, "the closing command prints the plan's next task with its brief"
+    assert not any("plan 1: task 3 is started next" in line for line in keystrokes), "nothing is typed afterwards for a start the agent caused"
 
 
 def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_beside_the_one_in_hand(app: App, monkeypatch):
@@ -261,8 +261,8 @@ def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_besi
     first = console.run(["task", "complete", "1"], AGENT).text
     beside = console.run(["task", "complete", "4"], AGENT).text
     app.runtime().deferred.drain()
-    assert "plan 1: task 2 is next" in first and "is next" not in beside, "closing a task not in hand says nothing about where the plan went"
-    assert not any("task 2 is next" in line for line in keystrokes), "the next task is the command's printed output, never typed afterwards"
+    assert "plan 1: task 2 is started next" in first and "is next" not in beside, "closing a task not in hand says nothing about where the plan went"
+    assert not any("task 2 is started next" in line for line in keystrokes), "the next task is the command's printed output, never typed afterwards"
 
 
 def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked_until_a_command_passes(app: App, monkeypatch):
@@ -1166,12 +1166,12 @@ def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_
     console.run(["task", "start", "2"], AGENT)
     done = console.run(["task", "complete", "2", "--how", "the grammar is written"], AGENT)
     app.runtime().deferred.drain()
-    assert "task 1 is paused, and paused work comes first" in done.text, done.text
+    assert "task 1 is started next" in done.text, done.text
     from journal.models.task_state import TaskState
     from journal.repositories.entries import Entries
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Tasks).find(1).state == TaskState.PAUSED, "a paused task whose wait ended stays paused until it is resumed"
+        assert app.container.get(Tasks).find(1).state == TaskState.STARTED, "in auto mode the agent's own paused task, its wait ended, is taken up again when its task closes"
         lines = [entry.data["key"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1"]
     assert "tasks.paused_wait_ended" in lines, "and the agent is told what it waited on came"
 
@@ -2471,7 +2471,7 @@ def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: 
     closed = console.run(["task", "complete", "3"], AGENT).text
     assert app.container.get(Tasks).find(4).state == "started" and (app.container.get(SessionAgents).top("s1").plan_id, app.container.get(SessionAgents).top("s1").task_id) == (2, 4), "in auto mode a checkpoint never stops the plan"
     app.runtime().deferred.drain()
-    assert "plan 2: task 4 is next" in closed and not any("plan 2: task 4 is next" in line for line in keystrokes), "the closing command prints the next task; the state types nothing for a start the agent caused"
+    assert "plan 2: task 4 is started next" in closed and not any("plan 2: task 4 is started next" in line for line in keystrokes), "the closing command prints the next task; the state types nothing for a start the agent caused"
     console.run(["plan", "pause", "2"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "idle", "a paused plan is over for the agent following it"
 
@@ -3037,15 +3037,18 @@ def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_i
     assert held or any("fact 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
 
 
-def test_auto_mode_answers_a_stop_with_the_next_task(app: App):
+def test_auto_mode_answers_a_stop_with_the_next_task_started(app: App):
+    from journal.repositories.tasks import Tasks
+    from journal.support.actor import Actor as A
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "the footer"], USER)
-    status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1 next" in body["reason"]
-    from journal.support.actor import Actor as A
     app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), A.user(1))
-    assert hook(app, "Stop")[1] == {}, "with auto off a stop is a stop"
+    assert hook(app, "Stop")[1] == {} and not app.container.get(Tasks).agent_started(), "with auto off a stop is a stop, and no task is handed"
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=True), A.user(1))
+    status, body = hook(app, "Stop")
+    assert body.get("decision") == "block" and "task 1 is in hand" in body["reason"], body
+    assert [task.id for task in app.container.get(Tasks).agent_started()] == [1], "in auto mode the stop starts the next task and names it in hand"
 
 
 def test_a_task_named_in_a_reply_is_linked_to_the_message_it_answers(app: App):
@@ -3388,19 +3391,20 @@ def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read
     assert reply.reply_target == 1 and reply.text == "It is."
 
 
-def test_a_stop_names_a_paused_task_in_auto_mode_and_off_auto_mode_is_handed_no_task(app: App):
+def test_a_stop_takes_up_the_agents_paused_task_in_auto_mode_and_off_auto_mode_is_handed_no_task(app: App):
+    from journal.repositories.tasks import Tasks
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the footer", "--start"], AGENT)
     console.run(["task", "pause", "1", "the header first"], AGENT)
-    status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "paused tasks: task 1 (the footer), paused because: the header first" in body["reason"], "in auto mode a stop names the paused task"
     user_set(app, "tasks.auto", False)
     assert hook(app, "Stop")[1].get("decision") != "block", "off auto mode a paused task holds no stop"
     console.run(["task", "create", "the menu"], USER)
-    assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") != "block", "nor do open tasks: off auto mode the journal hands no task at a stop"
-
+    assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") != "block" and not app.container.get(Tasks).agent_started(), "nor do open tasks: off auto mode the journal hands no task at a stop"
+    user_set(app, "tasks.auto", True)
+    status, body = hook(app, "Stop")
+    assert body.get("decision") == "block" and "task 1 is in hand" in body["reason"], "in auto mode the stop takes the paused task up again before an open one"
 
 def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
     from urllib.request import urlopen
@@ -3794,7 +3798,8 @@ def test_a_shipped_sequence_is_locked_and_cannot_be_changed_or_deleted(app: App)
     assert app.container.get(Sequences).find(reviewing.id).steps == reviewing.steps, "nothing was written"
 
 
-def test_a_task_of_a_plan_not_yet_started_is_not_offered_at_a_stop(app: App):
+def test_a_task_of_a_plan_not_yet_started_is_not_handed_at_a_stop(app: App):
+    from journal.repositories.tasks import Tasks
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     console = app.console()
@@ -3802,7 +3807,7 @@ def test_a_task_of_a_plan_not_yet_started_is_not_offered_at_a_stop(app: App):
     console.run(["plan", "add", "1", "planned work"], USER)
     assert hook(app, "Stop")[1] == {}, "a plan's task waits for the plan"
     console.run(["task", "create", "free work"], USER)
-    assert "task 2 next" in hook(app, "Stop")[1]["reason"]
+    assert "task 2 is in hand" in hook(app, "Stop")[1]["reason"] and [task.id for task in app.container.get(Tasks).agent_started()] == [2], "the free task is started, the plan's is not"
 
 
 def test_the_shipped_templates_are_seeded_and_the_critique_ones_are_offered_to_the_viewer(app: App):
@@ -6672,7 +6677,7 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
         app.console().run(line, AGENT)
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "New\n\nJournal: tasks done 1 and 2 now"], cwd=root, check=True)
     hook(app, "PostToolUse", **command)
-    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "paused"
+    assert app.container.get(Tasks).find(1).state == "completed" and app.container.get(Tasks).find(2).state == "started", "the trailer closes only the started task; the paused one it names is not closed, and the agent takes it up again in auto mode"
 
 
 def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: App):
@@ -10104,7 +10109,7 @@ def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_g
         assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.holder(tasks.find(3)) is None, "a task the caller held goes to the busy worker's queue, let go from the caller's hands"
 
 
-def test_a_workers_stop_hears_nothing_of_an_approved_plan_waiting(app: App):
+def test_a_workers_stop_hears_nothing_of_an_approved_plan_the_main_agent_starts(app: App):
     from journal.models.agent import Agent
     from journal.support.agent_role import AgentRole
     from journal.repositories.agents import Agents
@@ -10114,7 +10119,7 @@ def test_a_workers_stop_hears_nothing_of_an_approved_plan_waiting(app: App):
     console.run(["plan", "create", "release", "--brief", "ship it"], USER)
     console.run(["plan", "add", "1", "write the notes"], USER)
     console.run(["plan", "approve", "1"], USER)
-    assert "journal plan start 1" in json.dumps(hook(app, "Stop")[1]), "the main agent is told the approved plan waits"
+    assert "task 1 is in hand" in json.dumps(hook(app, "Stop")[1]), "the main agent's stop starts the approved plan with its first task in hand"
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     worker_stop = posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": "w-1"}, {"X-Journal-Env": "main"})[1]
@@ -17234,7 +17239,7 @@ def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alia
 
 
 def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a_worker_holds(app: App, monkeypatch):
-    from journal.features.tasks.support.task_deliveries import TaskDeliveries
+    from journal.features.tasks.support.round_robin_delivery import RoundRobinDelivery
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
 
@@ -17249,14 +17254,14 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
         console.run(["plan", "add", "1", title], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    assert [task.id for task in app.container.get(TaskDeliveries).current().offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
+    assert [task.id for task in app.container.get(RoundRobinDelivery).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
         tasks = app.container.get(Tasks)
         tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
-    assert 4 not in [task.id for task in app.container.get(TaskDeliveries).current().offers()], "a task a worker holds is never offered"
+    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).offers()], "a task a worker holds is never offered"
 
 
 def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
@@ -17855,7 +17860,6 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
 
 
 def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
-    from journal.features.tasks.support.task_deliveries import TaskDeliveries
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         app.console().run(["task", "create", "the docs"], USER)
@@ -17866,7 +17870,7 @@ def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_t
         outage = next(t for t in tasks.scoped() if t.title == "the outage")
         listed = app.console().run(["task", "list"], USER).text.splitlines()
         assert [line.split("  ")[-1] if "[" in line else "" for line in listed[:4]] == ["[critical]", "[120]", "", "[low]"], listed
-        assert app.container.get(TaskDeliveries).current().offers()[0].id == outage.id, "the next task is the most urgent one"
+        assert tasks.next_open_task().id == outage.id, "the next task is the most urgent one"
         refused = app.console().run(["task", "edit", str(outage.id), "--priority", "soon"], USER)
         assert "no such priority: soon" in refused.error
         app.console().run(["task", "edit", str(outage.id), "--priority", "normal"], USER)
@@ -20292,33 +20296,30 @@ def test_a_summary_reader_turns_a_runs_output_into_its_summary_and_the_judge_nam
     assert judge.missing_summary_reader(Reader("tests", "x", "y"), short, lines, datetime.now(timezone.utc)) == [], "a short run needs none"
 
 
-def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
+def test_a_plans_next_task_is_its_paused_one_then_none_while_a_blocked_one_waits_and_free_tasks_go_by_priority(app: App):
     from datetime import datetime, timezone
-    from journal.features.tasks.support.next_open_task import NextOpenTask
+    from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
     from journal.models.task_state import TaskState
+    from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks
     console, tasks = app.console(), app.container.get(Tasks)
     console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
-    for title in ("closer", "plan paused", "plan blocked", "plan open one", "plan open two"):
+    for title in ("closer", "plan paused", "plan blocked", "plan open one"):
         console.run(["plan", "add", "1", title], USER)
-    for title, priority in (("outside paused", "normal"), ("outside blocked", "normal"), ("outside low", "low"), ("outside high", "high")):
+    for title, priority in (("outside low", "low"), ("outside high", "high")):
         console.run(["task", "create", title, "--priority", priority], USER)
     hook(app, "SessionStart")
     console.run(["plan", "approve", "1"], USER)
     assert console.run(["plan", "start", "1"], AGENT).code == 0
-    states = {1: TaskState.COMPLETED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED, 6: TaskState.PAUSED, 7: TaskState.BLOCKED}
-    for number, state in states.items():
+    for number, state in {1: TaskState.COMPLETED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED}.items():
         tasks.save(replace(tasks.find(number), state=state, completed_at=datetime.now(timezone.utc) if state == TaskState.COMPLETED else None), Actor.user(1))
-    following = app.container.get(NextOpenTask)
-    offered = []
-    for _ in range(8):
-        offer = following.following(tasks.find(1))
-        if offer is None:
-            break
-        offered.append((offer.id, offer.state))
-        tasks.save(replace(tasks.find(offer.id), state=TaskState.COMPLETED), Actor.user(1))
-    assert offered == [(2, "paused"), (3, "blocked"), (4, "open"), (5, "open"), (6, "paused"), (7, "blocked"), (9, "open"), (8, "open")]
-
+    assigner, plan = app.container.get(PlanTaskAssigner), app.container.get(Plans).find(1)
+    assert assigner.following_task(plan).id == 2, "the plan's paused task comes first"
+    tasks.save(replace(tasks.find(2), state=TaskState.COMPLETED), Actor.user(1))
+    assert assigner.following_task(plan) is None, "nothing while a blocked task of the plan waits to be checked"
+    tasks.save(replace(tasks.find(3), state=TaskState.OPEN), Actor.user(1))
+    assert assigner.following_task(plan).id == 3, "once it opens, the plan goes on in its order"
+    assert [task.title for task in tasks.next_open_tasks(5) if task.title.startswith("outside")] == ["outside high", "outside low"], "free tasks go by priority"
 
 def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_writes_no_mark(app: App):
     from journal.repositories.messages import Messages
@@ -21085,14 +21086,13 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
         source.unpin()
 
 
-def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app: App):
-    from journal.features.tasks.support.next_open_task import NextOpenTask
-    from journal.features.tasks.support.task_deliveries import TaskDeliveries
+def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: App):
+    from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
+    from journal.features.tasks.support.round_robin_delivery import RoundRobinDelivery
     from journal.models.task_state import TaskState
     from journal.repositories.plans import Plans
-    from journal.repositories.setting_rows import SettingRows
     from journal.repositories.tasks import Tasks
-    console, plans, tasks, settings = app.console(), app.container.get(Plans), app.container.get(Tasks), app.container.get(SettingRows)
+    console, plans, tasks = app.console(), app.container.get(Plans), app.container.get(Tasks)
     for title in ("first", "second"):
         console.run(["plan", "create", title, "--brief", "b"], USER)
     for plan, titles in ((1, ("a1", "a2")), (2, ("b1", "b2"))):
@@ -21103,18 +21103,11 @@ def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app:
     with app.container.get(Scope).environment(MAIN):
         for plan in (1, 2):
             plans.opened(plans.find(plan), Actor.user(1))
-        deliveries, following = app.container.get(TaskDeliveries), app.container.get(NextOpenTask)
-        closed = tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
-        titles = lambda: [task.title for task in deliveries.current().offers()]
-        user_set(app, "workers.mode", "builder")
-        assert titles() == ["a2"], "a builder is offered the started plan's next task alone, and finishes the plan before the other one goes out"
-        assert following.following(closed).id == 2, "and after a task closes it goes on in the same plan"
-        user_set(app, "workers.mode", "solo")
-        assert titles() == ["a2"], "solo matches the builder"
-        user_set(app, "workers.mode", "orchestrator")
-        assert titles() == ["a2", "b1", "b2"], "the orchestrator is offered the plans' tasks in turn"
-        assert following.following(closed).id == 3, "and after a task of the first plan closes the second plan's next task goes out"
-
+        tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
+        assert app.container.get(PlanTaskAssigner).following_task(plans.find(1)).title == "a2", "a builder goes on in the plan it follows"
+        round_robin = app.container.get(RoundRobinDelivery)
+        assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
+        assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
 
 def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark(app: App):
     from journal.repositories.messages import Messages

@@ -73,6 +73,7 @@
         "StateHearsModelEventDetector",
         "FeatureListenerSpeaksDetector",
         "DispatchOutsideFunnelsDetector",
+        "NextTaskOutsideAssignerDetector",
         "LifecycleHandlerNotFirstDetector",
         "SqlOutsideDatabaseLayerDetector",
         "RequestOutsideTransportDetector",

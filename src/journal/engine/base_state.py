@@ -23,6 +23,7 @@ class BaseState:
     name: ClassVar[str]
     title: ClassVar[str] = ""
     final: ClassVar[bool] = False
+    assigner: ClassVar[type | None] = None
     conduct_free: ClassVar[bool] = False
     essential: ClassVar[bool] = False
     allows: ClassVar[frozenset[Permission]] = frozenset()

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -17,6 +18,7 @@ class ReadingOverview(BaseState):
     """After a compaction the agent reads the overview before anything else: every tool use and every journal command is refused, but a read of a skill it has to read and journal environment overview itself; it pops once the overview has run."""
 
     name = "reading_overview"
+    assigner = NoTaskAssigner
     title = "Reading the overview"
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:

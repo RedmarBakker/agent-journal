@@ -300,7 +300,7 @@ def test_a_blocked_task_waits_on_something_outside_and_is_neither_offered_nor_nu
     console.run(["task", "create", "the tree"], AGENT)
     assert "waiting on: the payment sandbox coming back" in console.run(["task", "block", "1", "the payment sandbox coming back"], AGENT).text
     assert app.container.get(Tasks).find(1).state == TaskState.BLOCKED and app.container.get(SessionAgents).top("s1").name == "idle"
-    assert "tasks 1 are blocked" in hook(app, "Stop")[1].get("reason", ""), "a blocked task is not offered: the stop asks the agent to check it is still truly blocked"
+    assert hook(app, "Stop")[1].get("decision") != "block", "a blocked task is neither started nor named at the builder's stop, so the stop goes through"
     assert "blocked tasks: 1 the tree (waiting on: the payment sandbox coming back)" in console.run(["environment", "overview"], AGENT).text
     assert "open again" in console.run(["task", "unblock", "1"], AGENT).text and app.container.get(Tasks).find(1).state == TaskState.OPEN
 
@@ -1199,8 +1199,8 @@ def test_the_conduct_of_git_checks_triggers_and_plugins_speak_and_hold_from_the_
     plugin_file = str(Path(".journal", "plugins", "x", "run.sh"))
     data = FeatureData({"plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()), "triggers": TriggersData(triggers=triggers), "plugins": PluginsData(root=Path("/p"), plugins_folder=Path("/p", ".journal", "plugins"))})
     assert Ready().respond(CommitDetected(sha="abcdef0123").with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct)).nudges == ()
-    closed = Ready().respond(CommitDetected(sha="abcdef0123", closed=(4, 5), next_open=OpenTask(6, "the next", "", 0)).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct))
-    assert [n.rendered() for n in closed.nudges] == ["commit abcdef01 closed task 4, task 5", "tasks are open, and auto mode is on: task 6 next. carry on with it"]
+    closed = Ready().respond(CommitDetected(sha="abcdef0123", closed=(4, 5), next_task=OpenTask(6, "the next", "", 0)).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct))
+    assert [n.rendered() for n in closed.nudges] == ["commit abcdef01 closed task 4, task 5", "task 6 is started next. carry on with it"]
     failed = Ready().respond(CheckCompleted(environment_id=0, time=1.0, check_id=2, title="lint", passed=False, output="a\nb c", prior_failure=False, wait_target=False, failure_reported_at=0.0).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct))
     assert [n.key for n in failed.nudges] == ["checks.check_failed"] and "b c" in failed.nudges[0].rendered()
     assert Ready().respond(CheckCompleted(environment_id=0, time=1.0, check_id=2, title="lint", passed=False, output="", prior_failure=True, wait_target=False, failure_reported_at=0.0).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct)).nudges == ()
@@ -1440,19 +1440,14 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     stop = lambda data, settings=auto, prior_refusal=False: PlansReady(silenced_at=100.0).respond(Stop(prior_refusal=prior_refusal).with_data(data), settings)
     assert stop(of(paused)).refusal.rendered().startswith("paused tasks: task 2 (the parser)")
     assert stop(of(broken)).refusal.rendered().startswith("task 3 waits on check 1, lint, which cannot run")
-    assert stop(of(open_next, approved=(9,))).refusal.rendered().startswith("plan 9 is approved and not started")
-    assert stop(of(open_next)).refusal.rendered().startswith("tasks are open, and auto mode is on: task 4 next")
-    assert stop(of(open_next), manual).refusal is None, "off auto mode an open task is no reason to go on"
-    assert stop(of(paused), manual).refusal is None and stop(of(replace(paused, blocked=(5,), open_ids=(4,))), manual).refusal is None, "off auto mode the stop is handed no task, paused, blocked or open"
+    assert stop(of(open_next)).refusal is None and stop(of(open_next, approved=(9,))).refusal is None, "an open task or an approved plan is the assigner's to start before the stack answers; the idle state holds no stop for it"
+    assert stop(of(nothing), manual).refusal is None, "off auto mode the reader names no paused or blocked task, so the stop goes through"
     assert stop(of(nothing)).refusal is None
     left = of(replace(paused, blocked=(5,), open_ids=(4,)))
     answers = [stop(left)]
-    for _ in range(3):
-        answers.append(answers[-1].target.respond(Stop(prior_refusal=True).with_data(left), auto))
-    said = [answer.refusal.rendered() for answer in answers]
-    assert said[0].startswith("paused tasks: task 2") and said[1].startswith("tasks 5 are blocked") and said[2].startswith("tasks are open, and auto mode is on: task 4"), said
-    assert said[3].startswith("tasks are left: paused task 2 (the parser); open 4; blocked 5"), "a round asks paused, then blocked, then open, and after that only journal stuck lets the agent stop"
-    worked = answers[3].target.respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=200.0).with_data(left), auto)
+    answers.append(answers[-1].target.respond(Stop(prior_refusal=True).with_data(left), auto))
+    assert answers[0].refusal.rendered().startswith("paused tasks: task 2") and answers[1].refusal is None, "a round names the paused tasks once; a blocked task is never a reason to go on, and after the round the stop goes through"
+    worked = answers[1].target.respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=200.0).with_data(left), auto)
     assert worked.target.stop_round == 0 and stop(left).refusal.rendered().startswith("paused tasks"), "work starts the round over"
     idle = PlansReady(silenced_at=0.0)
     active = idle.respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=50.0).with_data(of(nothing)), auto)
@@ -1464,7 +1459,7 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     assert tick(of(paused), 59.0).nudges == () and tick(of(paused), 61.0, PlansReady(silenced_at=0.0, pause_reported=True)).nudges == (), "asked once per quiet"
     assert [n.key for n in tick(of(blocked), 45 * 60.0).nudges] == ["tasks.blocked_task_asked_about"] and tick(of(blocked), 20 * 60.0).nudges == ()
     reported = PlansReady(silenced_at=0.0, pause_reported=True)
-    assert [n.key for n in tick(of(paused), 30 * 60.0, reported).nudges] == ["tasks.check_in_after_quiet"] and tick(of(paused), 30 * 60.0, reported, manual).nudges == ()
+    assert [n.key for n in tick(of(paused), 30 * 60.0, reported).nudges] == ["tasks.check_in_after_quiet"] and tick(of(nothing), 30 * 60.0, reported, manual).nudges == (), "off auto mode the reader names nothing open or paused, so half an hour of quiet asks nothing"
     assert tick(of(nothing), 30 * 60.0).nudges == (), "with nothing to go on with, half an hour of quiet sends no line"
     assert tick(of(nothing), 61.0).nudges == ()
     assert idle.respond(SessionStarted(time=5.0).with_data(of(nothing)), auto).target == PlansReady(silenced_at=5.0)
@@ -1504,7 +1499,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     stop = lambda state, time, approved=(), prior_refusal=False: state.respond(Stop(prior_refusal=prior_refusal, time=time).with_data(of(approved=approved)), settings)
     assert stop(working, 1100.0).refusal.rendered().startswith("task 7 is in hand, last logged 1 min ago: carry on")
     assert stop(working, 1700.0).refusal.rendered().startswith("task 7, last logged 11 min ago: log where it stands first")
-    assert stop(working, 1100.0, approved=(9,)).refusal.rendered().startswith("plan 9 is approved and not started")
+    assert stop(working, 1100.0, approved=(9,)).refusal.rendered().startswith("task 7 is in hand"), "an approved plan waits for the assigner; the task in hand is what a stop names"
     assert stop(working, 1100.0, prior_refusal=True).refusal is not None, "with a task in hand there is no escape by stopping twice"
     started = working.respond(SessionStarted(source="compact", time=1100.0).with_data(of()), settings)
     assert [n.key for n in started.nudges] == ["tasks.carry_on", "briefing.brief_and_log_after_compaction"] and 'last log "the parser reads"; uncommitted files: a.py, b.py' in started.nudges[1].rendered()
@@ -1545,7 +1540,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     assert started.target == replace(following, task_id=8, origin_state=7, logged_at=30.0)
     checkpoint_pause = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="completed").with_data(of(replace(plan, checkpoint_pause=True, checkpoint_phase=2))), auto)
     assert checkpoint_pause.target == replace(following, task_id=0, origin_state=7, checkpoint_pause=True, phase=2)
-    stopped = checkpoint_pause.target.respond(Stop().with_data(of(plan)), auto)
+    stopped = checkpoint_pause.target.respond(Stop().with_data(of(replace(plan, passes_checkpoints=True))), auto)
     assert stopped.refusal.rendered().startswith("plan 5: phase 2 is complete")
     waits = checkpoint_pause.target.respond(Stop().with_data(of(plan)), manual)
     assert waits.refusal is None and waits.nudges[0].rendered().startswith("plan 5: phase 2 is complete, a checkpoint")
@@ -1632,10 +1627,11 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     waiting = pushed.pushed
     held = waiting.respond(Stop(time=130.0).with_data(of()), auto).refusal
     assert held is not None and held.rendered().startswith("the build still runs, for a time the journal cannot estimate yet, and task 9 is open") and "carry on with task 9" in held.rendered(), "in auto mode a stop while a task is open is refused during a wait as without one"
-    assert waiting.respond(Stop(time=130.0).with_data(of()), manual).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "out of auto mode a stop is fine, and an early tick is quiet"
+    unhanded = FeatureData({"tasks": replace(tasks, next_open=None)})
+    assert waiting.respond(Stop(time=130.0).with_data(unhanded), manual).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "out of auto mode the assigner hands no next task, so a stop is fine, and an early tick is quiet"
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
     assert meanwhile.target == replace(waiting, next_task_reported=True) and meanwhile.nudges[0].rendered().startswith("while you wait for the build, task 9 is next"), "in auto mode the next task is named once after a minute"
-    assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), manual).nudges == (), "out of auto mode it is not"
+    assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(unhanded), manual).nudges == (), "out of auto mode the assigner hands no next task, so none is named"
     from journal.features.tasks.support.wait_progress import WaitProgress
     estimated = lambda progress: FeatureData({"tasks": replace(tasks, wait_progress=progress)})
     slow = waiting.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 0.01)})), manual)
@@ -1780,7 +1776,9 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     settings = lambda mode: SettingsValue({WorkersOptions.MODE.key: mode, TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.FIRST_DELAY.key: 25})
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_count=2, open_next="task 3 (the footer), task 4 (the margin)")
     started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", recent_tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
-    of = lambda plan: FeatureData({"plans": PlansData((), plan, 0), "tasks": tasks})
+    from journal.features.workers.support.workers_data import WorkersData
+    workers = lambda *delegable: WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=Path("."), worktrees=(), delegable=delegable)
+    of = lambda plan: FeatureData({"plans": PlansData((), plan, 0), "tasks": tasks, "workers": workers(3, 4)})
     from journal.engine.states_catalogue import StatesCatalogue
     from journal.engine.support.stack import Stack
     from journal.features.plans.states.plans_ready import PlansReady
@@ -1807,19 +1805,19 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     assert isinstance(planned.pushed, OrchestratingPlan) and planned.pushed.plan_id == 2, "a started plan is pushed over the mode state as the orchestrator's plan state"
     assert type(catalogue.apply_mode(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
     stop = Orchestrating().respond(Stop().with_data(of(None)), settings("orchestrator"))
-    assert stop.refusal is not None and "task 3 (the footer), task 4 (the margin)" in stop.refusal.rendered() and "dispatch a worker" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch"
+    assert stop.refusal is not None and "next: 3, 4" in stop.refusal.rendered() and "dispatch a worker" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch, in its assigner's turn"
     from dataclasses import replace as replaced
-    all_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, open_ids=(), open_next="", blocked=(5, 8))})
+    all_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, open_ids=(), open_next="", blocked=(5, 8)), "workers": workers()})
     held = Orchestrating().respond(Stop().with_data(all_blocked), settings("orchestrator"))
     told = held.refusal.rendered()
     assert "tasks 5, 8" in told and "truly blocked" in told and "report what you decided" in told and "journal stuck" in told, "an orchestrator whose every task is blocked may not stop: it checks them, decides what it can, waits on its workers or says it is stuck"
-    some_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, blocked=(5,))})
+    some_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, blocked=(5,)), "workers": workers(3, 4)})
     busy = Orchestrating().respond(Stop().with_data(some_blocked), settings("orchestrator"))
     assert busy.refusal.rendered().startswith("tasks 5 are blocked"), "a stop round asks about the blocked tasks before the open ones"
     again = busy.target.respond(Stop().with_data(some_blocked), settings("orchestrator"))
     assert "dispatch a worker" in again.refusal.rendered(), "and then holds the stop with the tasks to dispatch"
     assert WorkersNudges.BLOCKED_CHECK.repeat == Timeout.seconds(300), "and the check comes again every five minutes while it holds"
-    assert "task 3" in PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal.rendered() and "dispatch" not in PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal.rendered(), "the builder's stop names the next task to do"
+    assert "dispatch" not in str(PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal), "the builder's next task is started by its assigner before the stop, and the builder is never told to dispatch"
     assert isinstance(Orchestrating().respond(TaskStarted(environment_id=1, time=2.0, task_id=7, title="x", plan_id=0).with_data(of(None)), settings("orchestrator")).pushed, Delegating), "a task started in the orchestrator's mode is delegating, not working"
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(time=2.0).with_data(of(None)), settings("orchestrator"))
     assert delegating.refusal is not None and "hand it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"

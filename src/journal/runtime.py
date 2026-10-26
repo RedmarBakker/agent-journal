@@ -2,6 +2,7 @@ import gc
 import sys
 import traceback
 import time as timing
+from journal.engine.support.assigner_index import AssignerIndex
 from journal.engine.boot_notices import BootNotices
 from journal.engine.clock import Clock
 from journal.features.updates.updates_options import UpdatesOptions
@@ -15,6 +16,8 @@ from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.engine.delivery import Delivery
 from journal.engine.hook_answer import HookAnswer
+from journal.engine.row_assignment import RowAssignment
+from journal.events.rows.task_closed import TaskClosed
 from journal.engine.state_machine import StateMachine
 from journal.console.creations import Creations
 from journal.features.listeners.record_changes import RecordChanges
@@ -91,7 +94,10 @@ class Runtime:
         self.bus.listen(Purged, self.container.get(RecordPurge))
         self.bus.listen(EnvironmentUnshared, self.container.get(RecordWithdrawal))
         self.bus.listen(Deleted, self.container.get(UnlinkDeleted))
+        assigners = self.container.get(AssignerIndex)
         for feature in self.registry.features:
+            for assigner in feature.assigners:
+                assigners.register(self.container.get(assigner))
             for listener in feature.listeners:
                 self.bus.listen(listener.kind(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
@@ -99,6 +105,7 @@ class Runtime:
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
+        self.bus.listen(TaskClosed, self.container.get(RowAssignment))
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 

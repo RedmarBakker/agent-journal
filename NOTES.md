@@ -1682,3 +1682,22 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - The project's test commandments live with its custom detectors in `.commandments/custom`, under the skill tests-drive-the-real-path. `tests/` is not among the judged paths, so they run only when judged by name: `journal suite` (scripts/suite.py) judges `tests` with that skill beside the shards and fails the run on a sin, and the commit gate fails with it.
 - The first, TestSettingWriteDetector, flags a test that writes a setting's row with `SettingRows.set`; `user_set` in tests/user_settings.py runs `journal settings set` as the user instead. The full project fixture and the data-layer tests are left out: their subject is the rows.
 - Not yet a detector: a hook posting a `journal` command line as if it ran it, and a repository save standing in for a command. Report 1080 found them hard to tell from fair setup by pattern; they are judged by review until a rule tells them apart.
+
+## Task assigners named by states (plan 1041, 2026-10-26)
+
+- A state names the task assigner the engine asks for the agent's next task: `assigner = DefaultTaskAssigner` on Ready,
+  PlanStartTaskAssigner on PlansReady (own paused, then an approved plan, then a free task), PlanTaskAssigner on
+  FollowingPlan, OrchestratorTaskAssigner on Orchestrating, NoTaskAssigner on the waits, compaction, Void and the
+  helpers' states; a state with `assigner = None` (ExternalWait, DemandBlock, which holds tools and not the work) inherits the one beneath, and PlanStartTaskAssigner continues the started plan a closed task was in before an approved plan or free work. AssignerResolution walks the
+  stack top down. Doc 1068 holds the table of who takes what next; tests/test_assignment.py proves it.
+- The engine asks before the stack answers a hook event (a stop), and after every other listener when a task closes
+  (RowAssignment, registered last at boot), so the close is committed and the holder link still readable.
+- Only the assigners read auto mode or pick a next task; readers and lines take their pure queries
+  (DefaultTaskAssigner.offered, paused_work, OrchestratorTaskAssigner.delegable_tasks). The custom rule
+  NextTaskOutsideAssignerDetector guards it.
+- The builder is handed its next task; the orchestrator asks with `journal task next --quantity <n>` and is never
+  started on one. A worker's next task is still its queue (WorkerActions.send_next); AdvancePlan starts a plan's next
+  task only for a close no agent's assigner answers.
+- The builder's idle stop names paused tasks and broken waits only; a blocked task is neither started nor named. The
+  orchestrator's stop asks about the blocked tasks it can move, then names the tasks to dispatch. The approved-plan
+  stop line is gone: an approved plan is the assigner's to start.

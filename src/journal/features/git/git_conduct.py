@@ -11,7 +11,7 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 
 
 class GitConduct(Conduct):
-    """The git feature's conduct in every state: a commit whose message closed tasks is named with them, and the task open next after that close; a git checkout or switch onto a branch another running environment works on is refused, naming that environment."""
+    """The git feature's conduct in every state: a commit whose message closed tasks is named with them, and the task that close started next; a git checkout or switch onto a branch another running environment works on is refused, naming that environment."""
 
     def on_commit_detected(self, event: CommitDetected, settings: Settings) -> Transition:
         refusals = [GitNudges.WORKER_TASK_REFUSAL.create(task=item.task, worker=item.worker) for item in event.worker_tasks]
@@ -27,6 +27,6 @@ def closure_lines(event: CommitDetected) -> list[Nudge]:
     if not event.closed:
         return []
     closure = TasksNudges.COMMIT_CLOSURE.create(sha=event.short_sha(), tasks=event.closed_words())
-    if event.next_open is None:
+    if event.next_task is None:
         return [closure]
-    return [closure, TasksNudges.NEXT_TASK.create(n=event.next_open.id, title=event.next_open.title)]
+    return [closure, TasksNudges.NEXT_TASK_STARTED.create(n=event.next_task.id)]
