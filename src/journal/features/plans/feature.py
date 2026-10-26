@@ -15,6 +15,10 @@ from journal.features.plans.listeners.plan_reopening import PlanReopening
 from journal.features.plans.listeners.driven_row_closures import DrivenRowClosures
 from journal.features.plans.listeners.driven_row_deletions import DrivenRowDeletions
 from journal.features.plans.listeners.ended_drive_write_guard import EndedDriveWriteGuard
+from journal.features.plans.listeners.start_approved_on_session_start import StartApprovedOnSessionStart
+from journal.features.plans.listeners.start_approved_on_stop import StartApprovedOnStop
+from journal.features.plans.listeners.start_approved_on_task_closed import StartApprovedOnTaskClosed
+from journal.features.plans.listeners.start_approved_on_plan_finished import StartApprovedOnPlanFinished
 from journal.features.plans.plans_conduct import PlansConduct
 from journal.features.plans.seeds.closed_plans import ClosedPlans
 from journal.features.plans.states.following_plan import FollowingPlan
@@ -33,7 +37,7 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan)
     commands = (PlanCommand,)
-    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard)
+    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, StartApprovedOnSessionStart, StartApprovedOnStop, StartApprovedOnTaskClosed, StartApprovedOnPlanFinished)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)

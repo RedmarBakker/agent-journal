@@ -6680,19 +6680,27 @@ def test_an_agent_waiting_in_auto_mode_is_pointed_to_the_next_task_after_a_quiet
     assert any("while you wait for the suite, task 2 is next" in line for line in keystrokes), keystrokes
 
 
-def test_an_approved_plan_not_started_holds_the_stop_until_it_is(app: App):
+def test_an_approved_plan_starts_by_itself_at_a_session_start_when_no_plan_runs_and_the_next_one_when_a_plan_ends(app: App):
+    from journal.models.plan_state import PlanState
+    from journal.repositories.plans import Plans
     console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "only"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
-    console.run(["plan", "todos", "1", "1", "1"], USER)
-    console.run(["plan", "ready", "1"], USER)
+    for title in ("first", "second"):
+        console.run(["plan", "create", title, "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "only task of the first"], USER)
+    console.run(["plan", "add", "2", "only task of the second"], USER)
     console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "approve", "2"], USER)
     hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    assert "plan 1 is approved and not started" in hook(app, "Stop")[1]["reason"]
-    console.run(["plan", "start", "1"], AGENT)
-    assert "is approved and not started" not in json.dumps(hook(app, "Stop")[1]), "a started plan holds nothing"
+    app.runtime().deferred.drain()
+    plans = app.container.get(Plans)
+    with app.container.get(Scope).environment(MAIN):
+        assert [plans.find(n).state for n in (1, 2)] == [PlanState.STARTED, PlanState.APPROVED], "the oldest approved plan starts and the other waits while it runs"
+    top = app.container.get(SessionAgents).top("s1")
+    assert (top.name, top.plan_id, top.task_id) == ("following_plan", 1, 1), "the agent is handed the plan's first task"
+    console.run(["task", "complete", "1"], AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert [plans.find(n).state for n in (1, 2)] == [PlanState.FINISHED, PlanState.STARTED], "when the running plan ends the waiting one starts the same way"
 
 
 def test_a_question_asked_without_a_session_or_from_a_workers_shell_is_refused(app: App):
