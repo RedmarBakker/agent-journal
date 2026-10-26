@@ -8,7 +8,6 @@ from journal.events.feature_data import FeatureData
 from journal.events.rows.worker_reported import WorkerReported
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.tasks.support.tasks_data import TasksData
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.states.delegating import Delegating
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
@@ -34,7 +33,7 @@ class Orchestrating(PlansReady):
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
-        return (orchestrate(tasks),) if settings.value(TasksOptions.AUTO) and tasks.open_ids else ()
+        return (orchestrate(tasks),) if tasks.open_ids else ()
 
     def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
         return (*open_lines(tasks), *blocked_check(tasks))

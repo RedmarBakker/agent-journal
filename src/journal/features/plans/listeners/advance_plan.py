@@ -9,10 +9,9 @@ from journal.models.task import Task
 from journal.support.actor import Actor
 from journal.repositories.agents import Agents
 from journal.repositories.plans import Plans
-from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import WORKERS, Tasks
 from journal.features.plans.support.phase_testing import PhaseTesting
-from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.support.task_assigner import TaskAssigner
 from journal.features.workers.support.orchestrator_mode import OrchestratorMode
 from journal.support.time_source import TimeSource
 
@@ -20,10 +19,10 @@ from journal.support.time_source import TimeSource
 class AdvancePlan(Listener[TaskClosed]):
     """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. For each started plan the closed task is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in orchestrator mode, whose open tasks wait for workers, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
-    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, settings: SettingRows, testing: PhaseTesting, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, assigner: TaskAssigner, testing: PhaseTesting, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.orchestrator = orchestrator
-        self.plans, self.tasks, self.agents, self.settings, self.testing = plans, tasks, agents, settings, testing
+        self.plans, self.tasks, self.agents, self.assigner, self.testing = plans, tasks, agents, assigner, testing
 
     def handle(self, event: TaskClosed) -> None:
         task = self.tasks.find(event.task_id)
@@ -33,7 +32,7 @@ class AdvancePlan(Listener[TaskClosed]):
         for plan in self.plans.finished_plans(task):
             self.plans.save(plan.finished(time.timestamp()), actor)
         for plan in self.plans.started_plans(task):
-            following, holder = self.plans.following_task(plan), self.next_holder(task)
+            following, holder = self.assigner.plan_following(plan), self.next_holder(task)
             if following is not None and self.is_advancing(plan, holder):
                 self.tasks.holder_started(following.plan_started(time, plan.row_id), holder, actor)
 
@@ -44,8 +43,5 @@ class AdvancePlan(Listener[TaskClosed]):
         present = self.agents.current()
         return None if present is None else Ref.build(present)
 
-    def is_checkpoint_stop(self, plan: Plan) -> bool:
-        return not self.settings.option(TasksOptions.AUTO) and self.plans.checkpoint_plans(plan) is not None
-
     def is_advancing(self, plan: Plan, holder: Ref | None) -> bool:
-        return plan.state == PlanState.STARTED and not self.orchestrator.is_set() and not self.is_checkpoint_stop(plan) and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)
+        return plan.state == PlanState.STARTED and not self.orchestrator.is_set() and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)

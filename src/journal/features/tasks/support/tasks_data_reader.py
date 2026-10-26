@@ -1,13 +1,12 @@
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.models.agent import Agent
-from journal.models.open_task import OpenTask
 from journal.models.task import Task
 from journal.repositories.entries import Entries
 from journal.features.tasks.support.passed_wait import PassedWait
 from journal.features.tasks.support.person_wait import PersonWait
 from journal.features.tasks.support.wait_checks import WaitChecks
 from journal.repositories.checks import Checks
-from journal.features.tasks.support.task_deliveries import TaskDeliveries
+from journal.features.tasks.support.task_assigner import TaskAssigner
 from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.repositories.setting_rows import SettingRows
@@ -32,8 +31,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, deliveries: TaskDeliveries, checks: Checks, wait_checks: WaitChecks) -> None:
-        self.progress, self.settings, self.deliveries, self.checks, self.wait_checks = progress, settings, deliveries, checks, wait_checks
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: TaskAssigner, checks: Checks, wait_checks: WaitChecks) -> None:
+        self.progress, self.settings, self.assigner, self.checks, self.wait_checks = progress, settings, assigner, checks, wait_checks
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -41,17 +40,17 @@ class TasksDataReader:
         facts = LazyFacts("tasks", {
             "current_task": lambda: self.current_id(agent),
             "last_log_line": lambda: self.current_log(agent),
-            "paused": lambda: tuple(t.row_id for t in self.tasks.paused_tasks()),
-            "pause_summary": lambda: ", ".join(f"task {task.id} ({task.title}), paused because: {task.pause_reason}" for task in self.tasks.paused_tasks()),
-            "blocked": lambda: tuple(t.row_id for t in self.tasks.blocked_tasks()),
-            "blocked_without_wait": lambda: tuple(t.row_id for t in self.tasks.blocked_without_wait()),
-            "blocked_without_wait_summary": lambda: self.summary(self.tasks.blocked_without_wait()),
+            "paused": lambda: tuple(t.row_id for t in self.assigner.paused_tasks()),
+            "pause_summary": lambda: ", ".join(f"task {task.id} ({task.title}), paused because: {task.pause_reason}" for task in self.assigner.paused_tasks()),
+            "blocked": lambda: tuple(t.row_id for t in self.assigner.blocked_tasks()),
+            "blocked_without_wait": lambda: tuple(t.row_id for t in self.assigner.unwaited_blocked_tasks()),
+            "blocked_without_wait_summary": lambda: self.summary(self.assigner.unwaited_blocked_tasks()),
             "broken_waits": lambda: tuple(t.row_id for t, check in self.tasks.broken_waits()),
             "broken_waits_summary": lambda: "; ".join(f"task {task.id} waits on check {check.id}, {check.title}, which cannot run" for task, check in self.tasks.broken_waits()),
-            "first_pause_reason": lambda: next((task.pause_reason for task in self.tasks.paused_tasks()), ""),
-            "next_open": lambda: self.next_open(),
+            "first_pause_reason": lambda: next((task.pause_reason for task in self.assigner.paused_tasks()), ""),
+            "next_open": lambda: self.assigner.offered(),
             "last_commands": lambda: self.last_commands(agent),
-            "open_ids": lambda: tuple(self.tasks.open_page_ids(OPEN_TASKS_SHOWN)),
+            "open_ids": lambda: self.assigner.open_ids(OPEN_TASKS_SHOWN),
             "open_count": lambda: self.tasks.open_count(),
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
@@ -74,10 +73,6 @@ class TasksDataReader:
     def current_log(self, agent: Agent) -> str:
         current = self.tasks.current(agent)
         return self.last_log(current) if current else ""
-
-    def next_open(self) -> OpenTask | None:
-        free = self.deliveries.current().offers()
-        return OpenTask(free[0].row_id, free[0].title, free[0].brief, 0) if free else None
 
     def last_commands(self, agent: Agent) -> tuple[str, ...]:
         return tuple(self.entries.recent_commands(agent.session, HISTORY_TOOL_STARTS, POLL_COMMANDS))

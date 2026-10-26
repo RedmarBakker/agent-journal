@@ -17,7 +17,6 @@ from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.engine.nudge import Nudge
 from journal.features.tasks.tasks_nudges import TasksNudges
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.states.working import Working
 
@@ -70,21 +69,21 @@ class Ready(BaseState):
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])
-        if stop_nudges and settings.value(TasksOptions.AUTO):
+        if stop_nudges and task_summary(tasks):
             return self.refuse(TasksNudges.TASK_QUEUE.create(tasks=task_summary(tasks)))
         return self.none()
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
-        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused and settings.value(TasksOptions.AUTO) else ()
+        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
         wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
         reviewable = [n for n in tasks.blocked if n not in tasks.person_waits]
-        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, reviewable))),) if reviewable and settings.value(TasksOptions.AUTO) else ()
+        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, reviewable))),) if reviewable else ()
         return (*pause_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
-        if not settings.value(TasksOptions.AUTO) or not tasks.next_open:
+        if not tasks.next_open:
             return ()
         return (TasksNudges.NEXT_TASK.create(n=tasks.next_open.id, title=tasks.next_open.title),)
 
@@ -100,7 +99,7 @@ class Ready(BaseState):
             return self.swap(replace(self, pause_reported=True), TasksNudges.PAUSED_TASK_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
         if tasks.blocked_without_wait and self.has_silence(BLOCKED_REMINDER_DELAY_SECONDS, event.time):
             return self.none(TasksNudges.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
-        if settings.value(TasksOptions.AUTO) and self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
+        if self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
             return self.none(*self.silent_nudges(tasks))
         return self.none()
 

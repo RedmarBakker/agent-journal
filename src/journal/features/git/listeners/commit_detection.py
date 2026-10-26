@@ -18,7 +18,7 @@ from journal.repositories.environments import Environments
 from journal.support.worktree import Worktree
 from journal.events.announcer import Announcer
 from journal.features.git.support.git_facts import GitFacts
-from journal.features.tasks.support.next_open_task import NextOpenTask
+from journal.features.tasks.support.task_assigner import TaskAssigner
 from journal.support.decision import Decision
 from journal.support.time_source import TimeSource
 
@@ -32,11 +32,11 @@ class CommitDetection(AgentListener[ToolFinished]):
 
     blocking = True
 
-    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_task: NextOpenTask, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
+    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, assigner: TaskAssigner, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.announcer = announcer
         self.config, self.console, self.environments, self.tasks, self.events = config, console, environments, tasks, events
-        self.next_task, self.entries = next_task, entries
+        self.assigner, self.entries = assigner, entries
         self._head_log_times: dict[Path, float] = {}
         self.detected: set[str] = set()
 
@@ -82,7 +82,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         numbers, owners = self.trailer_tasks(body), self.tasks.worker_holdings()
         worker_tasks = tuple(WorkerTask(n, owners[n]) for n in numbers if n in owners)
         completions = self.completions(event, sha, [n for n in numbers if n not in owners])
-        next_open = self.next_task.following(self.tasks.find(completions[-1])) if completions else None
+        next_open = self.assigner.next_task(self.tasks.find(completions[-1])) if completions else None
         commit = CommitDetected(sha=sha, closed=tuple(completions), next_open=next_open, worker_tasks=worker_tasks).placed(event.session, event.environment_id, event.provider, event.context, event.time)
         return next((answer for answer in self.events.post(commit) if isinstance(answer, Decision)), None)
 

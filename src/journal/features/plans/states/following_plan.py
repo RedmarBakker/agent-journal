@@ -16,7 +16,6 @@ from journal.events.rows.task_started import TaskStarted
 from journal.events.feature_data import FeatureData
 from journal.features.plans.states.plan_work import PlanWork
 from journal.features.plans.plans_nudges import PlansNudges
-from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.tasks_part import TasksPart
 
@@ -51,7 +50,7 @@ class FollowingPlan(PlanWork):
         started = event.data.part(PlansPart).started
         if started is not None and started.phase_commands:
             return self.refuse(PlansNudges.PHASE_END_TESTS.create(n=self.plan_id, phase=self.phase, commands=" and ".join(started.phase_commands)))
-        if settings.value(TasksOptions.AUTO) or self.phase_held:
+        if (started is not None and started.passes_checkpoints) or self.phase_held:
             return self.refuse(PlansNudges.PHASE_END.create(n=self.plan_id, phase=self.phase))
         return self.none(PlansNudges.CHECKPOINT_PHASE_END.create(n=self.plan_id, phase=self.phase))
 

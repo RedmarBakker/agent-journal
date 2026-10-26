@@ -73,7 +73,7 @@ class ExternalWait(Wait):
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
-        if not settings.value(TasksOptions.AUTO) or tasks.next_open is None or estimate.is_short(settings):
+        if tasks.next_open is None or estimate.is_short(settings):
             return self.none()
         return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
 
@@ -89,7 +89,7 @@ class ExternalWait(Wait):
         next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
-        if settings.value(TasksOptions.AUTO) and not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
+        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
             return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
         if self.check_reminder.is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
