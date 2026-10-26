@@ -3,7 +3,7 @@ from journal.events.agent.stop import Stop
 from journal.features.plans.support.approved_plan_start import ApprovedPlanStart
 
 
-class StartApprovedOnStop(AgentListener[Stop]):
+class StopPlanStart(AgentListener[Stop]):
     """At a stop with no plan started, the oldest approved plan starts by itself."""
 
     def __init__(self, start: ApprovedPlanStart) -> None:
