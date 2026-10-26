@@ -40,7 +40,6 @@ const now = useSharedNow();
 const ranFor = computed(() => (card.value.began_at ? elapsed((card.value.ended_at || now.value) - card.value.began_at) : ""));
 
 const opened = ref(false);
-const foldedByHand = ref(false);
 const shown = ref(false);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
@@ -69,7 +68,7 @@ watch(
 </script>
 
 <template>
-    <ChatDock label="Watched output" :folded="folded || foldedByHand" kind="watch-dock">
+    <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
         <template #head>
             <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
                 <MarkIcon :name="STATE_ICONS[runState]" />
@@ -84,7 +83,6 @@ watch(
             <template v-if="ranFor">
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
-            <button type="button" class="watch-dock-fold" :aria-expanded="!foldedByHand" @click="foldedByHand = !foldedByHand">{{ foldedByHand ? "Unfold" : "Fold" }}</button>
             <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout"><Icon name="bubble" /></Btn>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
@@ -138,23 +136,6 @@ watch(
 .watch-dock-more-inner {
     min-height: 0;
     overflow: hidden;
-}
-
-.watch-dock-fold {
-    flex: none;
-    padding: 2px 8px;
-    border: 1px solid var(--border-2);
-    border-radius: 6px;
-    background: none;
-    color: var(--text-2);
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-}
-
-.watch-dock-fold:hover {
-    color: var(--text);
-    border-color: var(--border-3);
 }
 
 .watch-dock-state {

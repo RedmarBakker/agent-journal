@@ -227,6 +227,7 @@ function markClick(data) {
     color: var(--text-2);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
+    overflow-wrap: anywhere;
 }
 
 .mark-summary {
@@ -294,6 +295,11 @@ function markClick(data) {
 .thread-turn.incoming {
     align-self: flex-end;
     align-items: flex-end;
+}
+
+/* an opened mark may take the chat's whole width, past the share a folded line keeps */
+.thread-turn.card:has(.mark[data-open]) {
+    max-width: calc(100% - var(--turn-gutter));
 }
 
 .thread-turn.card.docked {

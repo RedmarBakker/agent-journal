@@ -211,9 +211,10 @@ button.mark {
     grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 
+/* an opened mark grows wider to the room its contents need */
 .mark[data-open],
 .mark:not([data-folded]):has(.body) {
-    width: min(560px, 100%);
+    width: 560px;
 }
 
 .mark[data-open] .head,
