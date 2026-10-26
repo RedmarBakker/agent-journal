@@ -37,3 +37,6 @@ class SessionAgents:
     def top(self, session: str) -> BaseState:
         agent = self.agents.session_agent(session)
         return self.states.restored(agent.state, agent.data)
+
+    def blocks_tools(self, session: str) -> bool:
+        return any(self.states.restored(layer["state"], layer.get("data", {})).blocks_tools() for layer in self.agents.session_agent(session).stack)

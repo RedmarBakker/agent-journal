@@ -35,7 +35,7 @@ REPEAT_OVERLAP_RATIO = 0.6
 
 
 class RecordTurn(AgentListener[TurnDisplayed]):
-    """Every whole turn the agent writes for the user becomes a message in the chat, with its tags removed. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is informed so. A [!log:N] turn belongs to the task's log alone. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat."""
+    """Every whole turn the agent writes for the user becomes a message in the chat, with its tags removed. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is informed so. A [!log:N] turn belongs to the task's log alone. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat, but never while the user has paused the agent, when every word it writes is for the user."""
 
     def __init__(self, messages: Messages, entries: Entries, providers: Providers, registry: Registry, supervisor: SupervisorLink, links: Links, agents: Agents, nudger: Nudger, sessions: SessionAgents) -> None:
         self.messages, self.entries, self.providers, self.registry, self.supervisor, self.links, self.agents = messages, entries, providers, registry, supervisor, links, agents
@@ -124,7 +124,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
 
     def _journal_answer(self, event: TurnDisplayed) -> bool:
         entry = self.turn_prompt(event)
-        if entry is None:
+        if entry is None or self.sessions.blocks_tools(event.session):
             return False
         prompt = entry.data.get("prompt", "")
         if not prompt.startswith(JOURNAL_LINE) or self._chat_answer(event, prompt[len(JOURNAL_LINE):]):

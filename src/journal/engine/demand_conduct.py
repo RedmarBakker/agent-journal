@@ -9,9 +9,11 @@ from journal.events.agent.tool_starting import ToolStarting
 
 
 class DemandConduct(Conduct):
-    """The engine's conduct toward the agent's demands: at each of its tool uses an active demand says its line with the balance of uses left, once past its silence, and one whose span ran out puts the agent into a DemandBlock, refusing the tool in hand when its block scope covers it; a tool the demand exempts passes in silence."""
+    """The engine's conduct toward the agent's demands: at each of its tool uses an active demand says its line with the balance of uses left, once past its silence, and one whose span ran out puts the agent into a DemandBlock, refusing the tool in hand when its block scope covers it; a tool the demand exempts passes in silence; a state that holds every tool, as the user's pause, hears no demand, so none is pushed over it to swallow its resume."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
+        if self.blocks_tools():
+            return self.none()
         active = [entry for entry in event.data.part(DemandsPart) if entry.is_active() and not entry.exempts(event)]
         expired = next((entry for entry in active if entry.is_expired(settings)), None)
         if expired is not None and self != DemandBlock(key=expired.demand.key):

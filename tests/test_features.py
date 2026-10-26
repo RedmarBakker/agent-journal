@@ -1901,7 +1901,7 @@ def test_the_fitness_score_waits_for_the_warmup_in_the_current_work_mode(app: Ap
     assert fitness()["mode"] == "orchestrator" and not fitness()["is_measured"], "after a switch the new mode's measures start fresh and wait their own warm-up"
 
 
-def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_load_and_the_unanswered_messages(app: App):
+def test_a_prompt_the_sessions_scheduler_sent_is_out_of_the_load_and_a_message_the_agent_reacted_to_no_longer_waits_in_it(app: App):
     from datetime import datetime, timedelta, timezone
     from journal.features.workers.support.load_items import LoadItems
     from journal.models.author import Author
@@ -1925,7 +1925,7 @@ def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_l
     assert scheduled.row_id not in {message.row_id for message in messages.unanswered()}, "and it is never reminded as unanswered"
     assert app.console().run(["message", "react", str(asked.row_id), "👍"], AGENT).code == 0
     cleared = {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}
-    assert cleared[f"messages:{asked.row_id}"] == 0, "a face from the agent is no reply, so the message still waits in the queue"
+    assert cleared[f"messages:{asked.row_id}"] > 0, "a face from the agent answers the message, so it no longer waits in the load"
 
 
 def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_scheduled_and_both_are_out_of_the_load_and_the_unanswered(app: App, monkeypatch):
@@ -9569,7 +9569,7 @@ def test_a_short_output_with_no_pipe_keeps_no_output_row(app: App):
     assert ShellVerbs(app).forget("long", 400) == "kept" and outputs.chain_output("long")
 
 
-def test_a_paused_agent_may_stop_with_a_message_unread_read_it_through_the_pause_and_is_told_it_again_on_resume(app: App, monkeypatch):
+def test_a_paused_agent_reads_and_messages_through_the_pause_its_words_reach_the_chat_and_it_is_told_its_messages_on_resume(app: App, monkeypatch):
     from journal.repositories.agents import Agents
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -9580,7 +9580,18 @@ def test_a_paused_agent_may_stop_with_a_message_unread_read_it_through_the_pause
     app.console().run(["message", "send", "look at the footer"], USER)
     assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 409, "paused, a tool call is held"
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message read 1"})[0] == 200, "a read of the user's words goes through the pause"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 409, "any other journal command waits like the rest"
+    for command in ("journal task list", "journal search footer", "journal task create 'the footer'", "journal message send 'I am paused; I wait for you' --reply-to 1", "journal message react 1 👍"):
+        assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})[0] == 200, f"a pause stops the work, never the journaling: {command}"
+    for tool, given in (("Bash", {"command": "journal message read 1 && echo hi"}), ("Bash", {"command": "pytest -q"}), ("Write", {"file_path": "a.py", "content": "x"})):
+        assert hook(app, "PreToolUse", tool_name=tool, tool_input=given)[0] == 409, f"the work waits: {tool} {given}"
+    hook(app, "UserPromptSubmit", prompt="[journal] carry on")
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})
+    hook(app, "MessageDisplay", message="Understood, I wait for you.")
+    app.runtime().deferred.drain()
+    from journal.repositories.messages import Messages
+    said = [m for m in app.container.get(Messages).scoped() if m.author == "agent" and m.text == "Understood, I wait for you."]
+    assert said and not said[-1].acknowledgement, "what the paused agent writes in answer to the pause reaches the chat"
+    assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack][-1] == "paused", "no demand is pushed over the pause, however many journal commands pass through it"
     status, body = hook(app, "Stop")
     assert status == 200 and body.get("decision") != "block", "a paused agent ends its turn with the message unread: no deadlock between the hold and the stop"
     keystrokes.clear()

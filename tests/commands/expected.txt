@@ -1656,7 +1656,7 @@ messages.unread_messages_to_read  [messages]  {{count}} messages unread: `journa
 messages.write_held_until_read  [messages]  you have {{count}} unread messages. `journal message unread` before any other write
 messages.writes_held_soon_until_read  [messages]  read due, message {{messages}}: {{count}}
 migration.version_3_not_brought_across  [migration]  a version 3 journal waits in .journal/version-3. the user brings it across; never start it yourself
-pausing.paused  [pausing]  the user paused you: stop here and wait. every tool call is held until the user resumes you; say nothing more until then
+pausing.paused  [pausing]  the user paused you: stop your work here and wait. until the user resumes you every tool call is held but journal commands; answer the user in the chat as ever
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you told the user a link is pinned, but no pin was made in the last minute. pin it now with `journal notice create "<what it is>" --link "<url>" --label "<Open ...>"`, or tell the user where to find it instead
 pins.pin_the_link  [pins]  {{url}} is not pinned. pin it if the user will come back to it: `journal notice create "<what it is>" --link "{{url}}" --label "<Open ...>"`
