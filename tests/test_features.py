@@ -21169,3 +21169,25 @@ def test_a_process_card_keeps_its_id_and_time_and_its_place_among_the_messages_t
         assert not ended.data["active"] and len(messages.with_key("watch:77")) == 1
         order = [message.id for message in messages.all() if message.id in (began.id, later.id)]
         assert order == [began.id, later.id], "the ended card stays before the message that came after its start"
+
+
+def test_a_document_written_in_two_parts_shows_being_written_after_the_first_and_ready_after_the_second(app: App):
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    (app.config.root / "part.md").write_text("## One\nfirst\n")
+    assert app.console().run(["doc", "create", "The cart", "--file", str(app.config.root / "part.md"), "--part"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        card = app.container.get(Messages).with_key("made:doc:1")
+        assert len(card) == 1 and card[0].data["status"] == "Being written", "a document written in parts is being written after the first"
+    (app.config.root / "part.md").write_text("## One\nfirst\n## Two\nsecond\n")
+    assert app.console().run(["doc", "update", "1", "--file", str(app.config.root / "part.md")], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        again = app.container.get(Messages).with_key("made:doc:1")
+        assert len(again) == 1 and again[0].id == card[0].id and again[0].data["status"] == "Ready", "the last write makes it ready, in the same card"
+    assert app.console().run(["doc", "update", "1", "--file", str(app.config.root / "part.md"), "--part"], AGENT).code == 0
+    assert app.console().run(["doc", "ready", "1"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Messages).with_key("made:doc:1")[0].data["status"] == "Ready", "journal doc ready makes it ready"

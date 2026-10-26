@@ -38,10 +38,13 @@ class DocCommand(Command):
         creation.add_argument("title")
         creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
         creation.add_argument("--abstract", default="", help="a one-line summary")
+        creation.add_argument("--part", action="store_true", help="the first part of a document still being written: its card says so until the last write or journal doc ready")
         update = self.verb(verbs, "update", "replace a document's text with a markdown file")
         update.add_argument("n", type=int)
         update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
         update.add_argument("--abstract", default=None, help="a new one-line summary")
+        update.add_argument("--part", action="store_true", help="a part of a document still being written; a write without it is the last and makes it ready")
+        self.verb(verbs, "ready", "say a document is written whole: its card changes from being written to ready").add_argument("n", type=int)
         display = self.verb(verbs, "show", "a document: its outline, then one section at a time")
         display.add_argument("n", help="the document's number, or a team's name and number such as acme:31")
         Outline.arguments(display)
@@ -74,14 +77,19 @@ class DocCommand(Command):
         imported.add_argument("folder", help="version 3's project/doc folder")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text()), caller.actor)
+        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text(), being_written=args.part), caller.actor)
         print(f"doc {doc.id}: {doc.title}{self.destination.phrase(doc)}")
         return 0
 
     def update(self, args: Namespace, caller: Caller) -> int:
         data = self.docs.find(args.n)
-        doc = self.docs.save(data.with_(body=Path(args.file).read_text(), abstract=data.abstract if args.abstract is None else args.abstract), caller.actor)
+        doc = self.docs.save(data.with_(body=Path(args.file).read_text(), abstract=data.abstract if args.abstract is None else args.abstract).written(args.part), caller.actor)
         print(f"doc {doc.id} written anew: {doc.title}")
+        return 0
+
+    def ready(self, args: Namespace, caller: Caller) -> int:
+        doc = self.docs.save(self.docs.find(args.n).written(False), caller.actor)
+        print(f"doc {doc.id} is ready: {doc.title}")
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:

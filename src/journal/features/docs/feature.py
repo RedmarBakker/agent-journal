@@ -5,6 +5,7 @@ from journal.support.card_kind import CardKind
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.docs.listeners.doc_revision_record import DocRevisionRecord
 from journal.features.docs.listeners.document_card import DocumentCard
+from journal.features.docs.listeners.document_card_status import DocumentCardStatus
 from journal.features.docs.listeners.hub_doc_guard import HubDocGuard
 from journal.features.feature import Feature
 from journal.support.skill import Skill
@@ -18,7 +19,7 @@ class DocsFeature(Feature):
     title = "Documents"
     help = "What the project keeps knowing: documents shared by every environment, listed on the Documents page."
     commands = (DocCommand,)
-    listeners = (DocumentCard, DocRevisionRecord, HubDocGuard)
+    listeners = (DocumentCard, DocumentCardStatus, DocRevisionRecord, HubDocGuard)
     options = (DocsOptions.REVISION_WINDOW,)
 
     skill = Skill("docs", 'Store lasting knowledge of the project in a document; load it when something should still be known next month', """
@@ -28,7 +29,8 @@ A document holds what the project must keep knowing; the result of a check goes 
 Documents are the project's, the same in every environment.
 
 - `journal doc create "<title>" --file <path> --abstract "<one line>"` writes one from a markdown file, its `##` headings
-  as sections. `journal doc update <n> --file <path>` replaces its whole text and keeps its title.
+  as sections. `journal doc update <n> --file <path>` replaces its whole text and keeps its title. A document written in
+  parts takes `--part` on every write but the last, so its card says being written; the last write, or `journal doc ready <n>`, makes it ready.
 - `journal doc show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with
   `--all` only when every section matters to the job; the outline and one section are the default. `journal doc list` names them.

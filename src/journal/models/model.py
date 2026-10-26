@@ -101,6 +101,9 @@ class Model:
     def summary_line(self) -> str:
         return ""
 
+    def writing_status(self) -> str:
+        return ""
+
     def docked(self) -> DockCard:
         return DockCard.plain()
 

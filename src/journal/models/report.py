@@ -26,6 +26,7 @@ class Report(Scoped):
     end_at: datetime | None = None
     read_at: datetime | None = None
     settled_reason: str = ""
+    being_written: bool = False
 
     def title_words(self) -> str:
         return self.title
@@ -44,6 +45,12 @@ class Report(Scoped):
 
     def is_update(self) -> bool:
         return self.kind == UPDATE
+
+    def writing_status(self) -> str:
+        return "Being written" if self.being_written else "Ready"
+
+    def written(self, in_parts: bool) -> "Report":
+        return self.with_(being_written=in_parts)
 
     def with_no_action_needed(self, reason: str) -> "Report":
         if not reason.strip():

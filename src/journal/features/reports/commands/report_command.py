@@ -33,6 +33,8 @@ class ReportCommand(Command):
         creation.add_argument("title")
         creation.add_argument("--body", default="", help="the report, as markdown; ## headings are its sections")
         creation.add_argument("--file", default="", help="a file holding the body instead")
+        creation.add_argument("--part", action="store_true", help="a report still being written: its card says so until journal report ready")
+        self.verb(verbs, "ready", "say a report is written whole: its card changes from being written to ready").add_argument("n", type=int)
         creation.add_argument("--about", default=[], nargs="*", help="the rows it is about, as plans:1 or tasks:12, apart by spaces or commas")
         display = self.verb(verbs, "show", "a report: its outline, then one section at a time")
         display.add_argument("n", type=int)
@@ -55,10 +57,15 @@ class ReportCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         body = Path(args.file).read_text() if args.file else args.body
         rows = self.mentioned_rows(args.about)
-        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body), caller.actor)
+        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body, being_written=args.part), caller.actor)
         for row in rows:
             self.links.save(Link(source=Ref.build(report), target=row, kind=Messages.SUBJECT_LINK), caller.actor)
         print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
+        return 0
+
+    def ready(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.save(self.reports.find(args.n).written(False), caller.actor)
+        print(f"report {report.id} is ready: {report.title}")
         return 0
 
     @staticmethod

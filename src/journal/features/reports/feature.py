@@ -1,6 +1,7 @@
 from journal.features.feature import Feature
 from journal.features.reports.commands.report_command import ReportCommand
 from journal.features.reports.listeners.report_card import ReportCard
+from journal.features.reports.listeners.report_card_status import ReportCardStatus
 from journal.features.reports.reports_conduct import ReportsConduct
 from journal.features.reports.support.reports_data import ReportsData
 from journal.features.reports.support.reports_data_reader import ReportsDataReader
@@ -15,7 +16,7 @@ class ReportsFeature(Feature[ReportsData]):
     title = "Reports"
     help = "What was checked or researched now, written up and linked to what it is about."
     commands = (ReportCommand,)
-    listeners = (ReportCard,)
+    listeners = (ReportCard, ReportCardStatus)
     data = (ReportsDataReader,)
     conduct = (ReportsConduct,)
     options = (ReportsOptions.UPDATE_INTERVAL, ReportsOptions.UNACTED_MINUTES)
@@ -27,7 +28,8 @@ class ReportsFeature(Feature[ReportsData]):
 A report holds what was just checked or researched; lasting knowledge goes in a doc, ordered work in a plan.
 
 - `journal report create "<title>" --file <path> --about plans:1` writes one from a markdown file, its `##`
-  headings as sections, linked to the rows it is about; `--body "<text>"` for a short one.
+  headings as sections, linked to the rows it is about; `--body "<text>"` for a short one. A report still being written takes `--part`, so its card says
+  being written until `journal report ready <n>`.
 - `journal report show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with
   `--all` only when every section matters to the job; the outline and one section are the default. `journal report list` names them.

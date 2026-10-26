@@ -8,7 +8,7 @@ from journal.support.rejection import Rejection
 
 @dataclass(frozen=True)
 class Doc(Scoped):
-    """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, its text, and why it needs no action once it is signed off as such."""
+    """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, its text, whether it is still being written in parts or ready, and why it needs no action once it is signed off as such."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
@@ -18,7 +18,14 @@ class Doc(Scoped):
     edit_mode: DocEditMode = DocEditMode.LOCAL
     owner: int = 0
     settled_reason: str = ""
+    being_written: bool = False
     is_copy: bool = False
+
+    def writing_status(self) -> str:
+        return "Being written" if self.being_written else "Ready"
+
+    def written(self, in_parts: bool) -> "Doc":
+        return self.with_(being_written=in_parts)
 
     def with_no_action_needed(self, reason: str) -> "Doc":
         if not reason.strip():
