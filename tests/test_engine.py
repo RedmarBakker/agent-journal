@@ -1461,7 +1461,7 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     from journal.features.workers.states.orchestrating import Orchestrating
     choosing = replace(paused, choosable=(2,), choosable_summary="task 2 (the parser), paused because: a review first", free_open=True, agent_tasks=(2, 4))
     pushed = stop(of(choosing))
-    assert pushed.pushed == ChoosingPausedWork() and pushed.refusal.rendered().startswith("paused work to take up: task 2 (the parser)"), "a stop with paused work beside an open task pushes the choice with its one line"
+    assert pushed.pushed == ChoosingPausedWork(refusals=1) and pushed.refusal.rendered().startswith("paused work to take up: task 2 (the parser)"), "a stop with paused work beside an open task pushes the choice with its one line"
     assert stop(of(replace(choosing, paused_declined=True))).pushed is None and stop(of(replace(choosing, free_open=False))).pushed is None, "a declined choice, or no open task to weigh against, pushes no choice"
     assert stop(of(replace(choosing, choosable=())), manual).pushed is None and Orchestrating().choice_state() is None, "off auto mode the reader names no choosable work, and on the orchestrator's floor there is no choice"
     choice = ChoosingPausedWork()

@@ -4848,6 +4848,53 @@ def test_the_paused_work_an_agent_may_choose_leaves_out_waiting_tasks_and_the_bl
         assert tasks.find(chosen).wait_ended_at == 0.0, "taken up and paused again, the mark is gone"
 
 
+def test_paused_work_beside_an_open_task_is_chosen_at_the_stop_declined_by_command_or_by_the_users_words_and_asked_again_after_the_next_close(app: App):
+    from journal.repositories.agents import Agents
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    made = lambda title, *more: int(console.run(["task", "create", title, "--brief", "b", *more], AGENT).text.split()[1])
+    paused = made("the parser", "--start")
+    console.run(["task", "pause", str(paused), "the lexer first"], AGENT)
+    lexer = made("the lexer", "--start")
+    made("the footer")
+    closed = console.run(["task", "complete", str(lexer), "--how", "done"], AGENT).text
+    assert f"paused work to take up, asked at your next stop: task {paused} (the parser)" in closed, "a close that started nothing names the paused work"
+    tasks = app.container.get(Tasks)
+    top = lambda: app.container.get(Agents).session_agent("s1").stack[-1]["state"]
+    work = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    first = hook(app, "Stop")[1]
+    assert first.get("decision") == "block" and f"paused work to take up: task {paused} (the parser)" in first["reason"] and top() == "choosing_paused_work", "the stop asks which to take up"
+    assert not tasks.agent_started(), "nothing is started while the agent chooses"
+    hook(app, "Stop")
+    hook(app, "Stop")
+    app.runtime().deferred.drain()
+    assert tasks.find(paused).state == "started", "after its refusals the first paused task is taken up for the agent"
+    console.run(["task", "pause", str(paused), "the footer after all"], AGENT)
+    work()
+    hook(app, "Stop")
+    assert top() == "choosing_paused_work"
+    assert console.run(["task", "skip-paused"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    assert top() != "choosing_paused_work", "the skip ends the choice"
+    work()
+    hook(app, "Stop")
+    app.runtime().deferred.drain()
+    footer = next(task for task in tasks.agent_started())
+    assert footer.title == "the footer", "after the skip the next stop takes the open task up"
+    made("the docs")
+    console.run(["task", "complete", str(footer.row_id), "--how", "done"], AGENT)
+    app.runtime().deferred.drain()
+    assert not app.container.get(Agents).session_agent("s1").paused_declined, "the close ends the decline"
+    work()
+    hook(app, "Stop")
+    assert top() == "choosing_paused_work", "after the close the choice is asked again"
+    hook(app, "UserPromptSubmit", prompt="do the docs now")
+    app.runtime().deferred.drain()
+    assert top() != "choosing_paused_work" and app.container.get(Agents).session_agent("s1").paused_declined, "the user's own words end the choice and set the paused work aside"
+
+
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
     from journal.models.trigger import Trigger
     from journal.models.trigger_action import TriggerAction

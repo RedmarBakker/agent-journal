@@ -1728,3 +1728,21 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - A sequence step is a record, SequenceStep: title, instructions, file_edits_allowed and allowed_commands (patterns on the shell line); reads and journal commands always go through. Stored strings became records by migration 67, and a string still reads as its instructions.
 - A running sequence is the state FollowingSequence on the agent's stack, its run (steps as they were at the start, step, subject, end condition, pause reason, times) its one field. It is pushed by SequencesConduct on SequenceRunStarted and moved by row events on the agent: SequenceStepFollowed, SequenceStepFinished, SequenceStepSkipped, SequenceRunPaused, SequenceRunAbandoned, SequenceRunCancelled, SequenceRunCannotFinish. One started inside another is pushed over it; when it pops, the one beneath says its step in on_resume, typed to the agent rather than printed by the command.
 - RunTracker is the one path that starts and moves runs, by those events; StackedRuns reads the runs from the stack. Agent.sequence_runs is gone; migration 68 put kept runs on the stack. The run cards come from listeners on the events (RunStartCard, RunStepCard, RunEndCard).
+
+## The choice of paused work (plan 1043, reports 1087, 1088 and 1089, 2026-10-26)
+
+- A paused task resumes by itself only once its wait ended: `Task.wait_ended_at` is set by `wait_ended` and cleared by a
+  start or a pause, a column the schema adds at boot with no migration. Tasks paused before the upgrade carry no mark and
+  go to the choice. With no free open task the first paused task is taken up, as there is nothing to choose.
+- Paused work the agent may choose (not delegated, not of a draft or paused plan, held by no live other agent or worker,
+  waiting on nothing) holds the free task back unless the free one is more urgent than every paused one. Blocked work never
+  holds it: the agent cannot move a blocked task, so the choice only names blocked tasks with no wait for information.
+- An approved plan and the next task of the closed task's plan start before the gate.
+- `ChoosingPausedWork` is pushed by the idle floor at a stop in auto mode, the pushing stop counted as its first of two
+  refusals; then the floor's assigner takes the first paused task up. It names no assigner of its own, forwards the agent's
+  own task start and a plan start to the floor, and pops on a decline, on empty lists and on a switch of the work mode
+  (the workers conduct, through `BaseState.is_mode_bound`). The orchestrator's floor pushes no choice.
+- A decline (`journal task skip-paused`, or the user's own words while choosing) is a fact on the agent row,
+  `paused_declined`, not a field on Ready: a command writes rows and cannot set a state's field, and Ready cannot learn why
+  the choice popped. It lets the free task through until the next close, which ends it at once and asks again.
+- A task just paused with `journal task pause` is offered at the next stop among the others; that is the choice, not a loop.

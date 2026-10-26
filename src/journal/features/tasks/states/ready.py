@@ -48,7 +48,7 @@ class Ready(BaseState):
         return Working(**fields)
 
     def choice_state(self) -> BaseState | None:
-        return ChoosingPausedWork()
+        return ChoosingPausedWork(refusals=1)
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.swap(self.active(event.time))

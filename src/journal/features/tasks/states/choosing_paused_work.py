@@ -21,7 +21,7 @@ CHOICE_REFUSALS = 2
 
 @dataclass(frozen=True)
 class ChoosingPausedWork(BaseState):
-    """A close left paused work the agent may take up beside an open task: pushed by the floor at the stop, it asks which to take up and holds nothing but the stop. It ends when the agent starts a task or a plan, which go down to the floor, when the agent sets the paused work aside with journal task skip-paused or the user's own words do, or when there is nothing left to choose or the work mode switches; after its refusals the floor's assigner takes the first paused task up for the agent. It names no assigner, so the floor's keeps assigning beneath it."""
+    """A close left paused work the agent may take up beside an open task: pushed by the floor at the stop, it asks which to take up and holds nothing but the stop, the stop that pushes it counted as its first refusal. It ends when the agent starts a task or a plan, which go down to the floor, when the agent sets the paused work aside with journal task skip-paused or the user's own words do, or when there is nothing left to choose or the work mode switches; after its refusals the floor's assigner takes the first paused task up for the agent. It names no assigner, so the floor's keeps assigning beneath it."""
 
     name = CHOOSING_PAUSED_WORK
     title = "Choosing paused work"

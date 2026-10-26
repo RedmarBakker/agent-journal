@@ -15,6 +15,6 @@ class PausedDeclineClearing(Listener[TaskClosed]):
         holder = self.tasks.task_holder(event.task_id)
         if holder is None or holder.type != "agents":
             return
-        agent = self.agents.find(holder.id)
-        if agent.paused_declined:
-            self.agents.save(agent.paused_decline_cleared(), Actor.system())
+        declined = self.agents.declined_agent(holder.id)
+        if declined is not None:
+            self.agents.save(declined.paused_decline_cleared(), Actor.system())
