@@ -55,9 +55,9 @@ export function cardPlan(plans, chosen = 0) {
     return openPlans(waiting).find((plan) => plan.id === chosen) || leadingPlan(waiting);
 }
 
-// the other plans the plan card can show instead of the one it shows: open, and not running on the plan bar
+// the other plans the plan card can show instead of the one it shows: those not yet approved
 export function cardChoices(plans, shown) {
-    return openPlans(plans).filter((plan) => plan.id !== shown.id && !PLAN_RUNNING.includes(statusOf(plan)));
+    return openPlans(plans).filter((plan) => plan.id !== shown.id && PLANNED.includes(statusOf(plan)));
 }
 
 const MAX_BARS = 3;

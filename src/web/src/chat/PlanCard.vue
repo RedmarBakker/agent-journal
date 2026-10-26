@@ -27,6 +27,7 @@ const reviewers = computed(() => (reviewing.value ? reviewersLine(props.plan.rev
 const building = computed(() => status.value === "draft");
 const choices = computed(() => cardChoices(rows("plans"), props.plan));
 const picking = ref(false);
+const nameButton = ref(null);
 const choose = (picked) => (planCardChoice.value = picked.id);
 const named = () => (choices.value.length ? (picking.value = !picking.value) : peek("plans", props.plan.id));
 // the phases of the plan last held whole stay while a list refresh brings the plan as a summary alone, until it is read whole again, so no row is drawn away and back
@@ -56,6 +57,7 @@ async function start() {
             <Icon name="plan" class="plan-card-icon" />
             <span class="plan-card-more">
                 <button
+                    ref="nameButton"
                     type="button"
                     :class="['plan-card-title', {on: picking}]"
                     :title="choices.length ? 'Show another plan here' : 'Open plan'"
@@ -68,7 +70,7 @@ async function start() {
                     </template>
                 </button>
                 <template v-if="picking">
-                    <PlanList up picks heading="Show another plan here" :plans="choices" @pick="choose" @close="picking = false" />
+                    <PlanList picks heading="Plans waiting for approval" :anchor="nameButton" :plans="choices" @pick="choose" @close="picking = false" />
                 </template>
             </span>
             <Chip class="plan-card-chip" :tone="status === 'ready' ? 'accent' : ''">{{ PLAN_STATES[status] }}</Chip>
