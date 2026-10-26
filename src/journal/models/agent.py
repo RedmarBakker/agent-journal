@@ -1,5 +1,5 @@
 from typing import ClassVar
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 
 from journal.events.rows.user_paused import UserPaused
 from journal.events.rows.agent_thinking import AgentThinking
@@ -150,7 +150,7 @@ class Agent(Scoped):
             return self
         loads = dict(self.mode_loads)
         if self.mode:
-            loads[self.mode] = asdict(self.work_queue)
+            loads[self.mode] = self.work_queue.published()
         return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
     def model_fit_kept(self, worker: int, fit: str) -> "Agent":

@@ -208,15 +208,16 @@ class Plans(ScopedRepository[Plan]):
         return self.next_task(plan)
 
     # the plan's first task in its order that is in the state and matches the candidates: its phases' tasks phase by phase, each in the order
-    # it joined its phase, then its tasks under no phase in the order they joined the plan; one link read a phase, never the plan's tasks' rows
+    # it joined its phase, then its tasks under no phase in the order they joined the plan; the first phase holding one is found in one read
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
         matching = candidates.filter(state=state)
-        phases = [Ref.build(phase) for phase in self.plan_phases(plan)]
-        for phase in phases:
-            task = self.first_link(self.links.query().filter(kind=PHASE_LINK, target=phase), matching)
-            if task is not None:
-                return task
-        unphased = matching.filter_absent(self.links.query().filter(kind=PHASE_LINK).filter_listed("target", phases).filter_ref("source", self.tasks.query())) if phases else matching
+        phase_links = self.links.query().filter(kind=PHASE_LINK)
+        task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_named(phase_links, "source"))
+        first_phase = self.phases.selected(self.plan_phase_query(plan).filter_existing(task_links).order("id").limit(1))
+        if first_phase:
+            return self.first_link(phase_links.filter(target=Ref.build(first_phase[0])), matching)
+        planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_named(phase_links, "target"))
+        unphased = matching.filter_absent(planned.filter_ref("source", self.tasks.query()))
         return self.first_link(self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)), unphased)
 
     def has_resumable(self, plan: Plan) -> bool:

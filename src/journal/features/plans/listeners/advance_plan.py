@@ -45,7 +45,7 @@ class AdvancePlan(Listener[TaskClosed]):
         return None if present is None else Ref.build(present)
 
     def is_checkpoint_stop(self, plan: Plan) -> bool:
-        return self.plans.checkpoint_plans(plan) is not None and not self.settings.option(TasksOptions.AUTO)
+        return not self.settings.option(TasksOptions.AUTO) and self.plans.checkpoint_plans(plan) is not None
 
     def is_advancing(self, plan: Plan, holder: Ref | None) -> bool:
         return plan.state == PlanState.STARTED and not self.orchestrator.is_set() and not self.is_checkpoint_stop(plan) and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)

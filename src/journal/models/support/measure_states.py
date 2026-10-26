@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import astuple, dataclass, replace
 
 from journal.models.support.measure_state import MeasureState
 
@@ -13,7 +13,10 @@ class MeasureStates:
 
     @classmethod
     def parsed(cls, data: dict) -> "MeasureStates":
-        return cls(data.get("mode", ""), float(data.get("started_at", 0.0)), tuple(MeasureState(**state) for state in data.get("states", ())))
+        return cls(data.get("mode", ""), float(data.get("started_at", 0.0)), tuple(MeasureState(**state) if isinstance(state, dict) else MeasureState(*state) for state in data.get("states", ())))
+
+    def published(self) -> dict:
+        return {"mode": self.mode, "started_at": self.started_at, "states": [list(astuple(state)) for state in self.states]}
 
     def state(self, key: str) -> MeasureState:
         return next((state for state in self.states if state.key == key), MeasureState(key))

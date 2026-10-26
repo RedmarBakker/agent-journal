@@ -49,6 +49,13 @@ class SubagentEntries:
         return entry.kind in SUBAGENT_KINDS or (entry.kind in TOOL_MOMENTS and isinstance(entry.recorded_call().operation, (SubagentDispatch, AgentMessage)))
 
     @staticmethod
+    def message_receiver(entry: Entry) -> str:
+        if entry.kind != "ToolStarting":
+            return ""
+        operation = entry.recorded_call().operation
+        return operation.receiver if isinstance(operation, AgentMessage) else ""
+
+    @staticmethod
     def paired(dispatches) -> list[Subagent]:
         rows: list[Subagent] = []
         open_: dict[str, int] = {}
