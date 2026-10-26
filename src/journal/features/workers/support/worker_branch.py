@@ -234,7 +234,18 @@ class WorkerBranch:
             return f"git has no user.name and user.email in {repository.label()}, which a merge needs"
         touched = set(self.git("diff", "--name-only", f"HEAD...{self.tip(repository, worker)}", cwd=checkout).stdout.split())
         overlap = sorted(repository.path(path) for path in touched & set(self.status_files(checkout)))
-        return f"you have uncommitted changes to files they change: {', '.join(overlap)}" if overlap else ""
+        if overlap:
+            return f"you have uncommitted changes to files they change: {', '.join(overlap)}"
+        lying = self.untracked_files(repository, worker)
+        return f"its branch adds {', '.join(lying)}, which lie untracked in {repository.label()}: take them out of its branch (git rm --cached in its worktree, then commit) or move the checkout's copies aside, and merge again" if lying else ""
+
+    # files the branch adds that lie untracked in the checkout, which git refuses to overwrite: never a clash a rebase could mend
+    def untracked_files(self, repository: WorkerRepository, worker: Worker) -> list[str]:
+        added = self.git("diff", "--name-only", "--diff-filter=A", f"HEAD...{self.tip(repository, worker)}", cwd=repository.checkout).stdout.split()
+        return sorted(repository.path(path) for path in self.git("ls-files", "--others", "--exclude-standard", "--", *added, cwd=repository.checkout).stdout.split()) if added else []
+
+    def branch_untracked_files(self, worker: Worker) -> list[str]:
+        return [path for repository in self.repositories(worker) for path in self.untracked_files(repository, worker)]
 
     # Moves the worker's worktree up to the branch its work merges into, in each repository, by the same rebase a merge makes: after a
     # merge its own commits are in the branch already and drop out; before a job it carries them over what others merged meanwhile.

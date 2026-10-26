@@ -69,6 +69,9 @@ class DepartureCommand(Command):
         strays = self.branch.other_repository_folders(worker) if worker.worktree else []
         if strays:
             raise Rejection(f"your worktree contains folders outside the repositories of your task, which would be lost: {', '.join(strays)}; move their changes into your task's repositories or remove them")
+        lying = self.branch.branch_untracked_files(worker) if worker.worktree else []
+        if lying:
+            raise Rejection(f"your branch adds {', '.join(lying)}, which lie untracked in the project's checkout, so the merge would be refused: they are a tool's files, not your task's; take them out of your branch with git rm --cached and commit, then clock out again")
         if self.branch.worktree_heads(worker) != start_heads:
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if worker.rebase_due:

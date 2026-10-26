@@ -13469,6 +13469,23 @@ def test_a_merge_refused_on_a_clash_records_the_files_for_the_orchestrator_and_s
     assert worker_row(app).state == WorkerState.DISPATCHED and "conflict in platform/app.php" in worker_row(app).brief and worker_row(app).clashes == 1, "and the branch went back to the worker to rebase, with no send by hand"
 
 
+def test_a_merge_whose_branch_adds_a_file_untracked_in_the_checkout_names_it_and_never_sends_the_worker_to_rebase(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(folder / "platform", ".commandments/config.json", '{"rules": []}\n')
+    (root / "platform" / ".commandments").mkdir(exist_ok=True)
+    (root / "platform" / ".commandments" / "config.json").write_text('{"rules": ["mine"]}\n')
+    held = proved_and_out(app, caller, "platform/.commandments/config.json:1")
+    assert held.code != 0 and "your branch adds platform/.commandments/config.json, which lie untracked in the project's checkout" in held.error and "git rm --cached" in held.error, f"the worker is told at its clock-out, before the merge is refused: {held.error}"
+    (root / "platform" / ".commandments" / "config.json").unlink()
+    assert app.console().run(["clock-out", "the totals are written"], caller).code == 0
+    (root / "platform" / ".commandments" / "config.json").write_text('{"rules": ["mine"]}\n')
+    app.console().run(["worker", "check", "1", "1"], AGENT)
+    refused = app.console().run(["worker", "merge", "1"], AGENT)
+    assert refused.code != 0 and "something in the project stands in its way" in refused.error and "its branch adds platform/.commandments/config.json, which lie untracked in" in refused.error, refused.error
+    assert "conflict in Aborting" not in refused.error and "rebase" not in refused.error.split("\n")[0] and worker_row(app).state != WorkerState.DISPATCHED, "git's refusal over an untracked file is named as the file, never read as a clash in Aborting that sends the worker to rebase (worker 12 of another project)"
+
+
 def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_suite_after_it_names_the_merged_worker(app: App, monkeypatch):
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
