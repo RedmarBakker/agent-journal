@@ -5,6 +5,7 @@ from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.models.agent import Agent
 from journal.models.plan import Plan
+from journal.features.templates.shipped import PLAN_PHASE_TESTS, PLAN_ZERO_TESTS
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
@@ -65,8 +66,22 @@ class PlansDataReader:
             "current_phase": lambda: plan.current_phase(self.plans.phase_states(plan)),
             "priorities_phase": lambda: plan.priorities_phase,
             "priorities_at": lambda: plan.priorities_at,
+            "refuses_test_runs": lambda: self.refuses_test_runs(plan, facts.checkpoint_pause),
         }, lambda: self.scope.environment(plan.environment_id), self.stages)
         return facts
+
+    def refuses_test_runs(self, plan: Plan, pausing: bool) -> bool:
+        titles = {template.title for template in self.testing.chosen(plan)}
+        if PLAN_ZERO_TESTS.title in titles:
+            return True
+        return PLAN_PHASE_TESTS.title in titles and not pausing and self.is_mid_phase(plan)
+
+    def is_mid_phase(self, plan: Plan) -> bool:
+        phases = self.plans.phase_states(plan)
+        if not phases:
+            return False
+        current = phases[plan.current_phase(phases) - 1]
+        return current.has_open_work() and current.has_work_completed()
 
     def next_task(self, plan: Plan) -> int:
         task = self.plans.resumable(plan)

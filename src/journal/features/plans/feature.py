@@ -30,21 +30,22 @@ from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.plans_part import PlansPart
 
+from journal.features.plans.states.naming_test_commands import NamingTestCommands
 
 class Plans(Feature[PlansData]):
     name = PlansPart.name
     title = "Plans"
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
-    states = (PlansReady, PlansWorking, FollowingPlan)
+    states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands)
     commands = (PlanCommand,)
     listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, StopPlanStart, TaskClosedPlanStart, PlanFinishedPlanStart)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)
 
-    options = (PlansOptions.REVIEW_TOOL_USE_LIMIT, PlansOptions.TESTING)
+    options = (PlansOptions.REVIEW_TOOL_USE_LIMIT, PlansOptions.TESTING, PlansOptions.TEST_COMMANDS)
     demands = (PlansDemands.REVIEW_ENTRY,)
-    nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_COUNTDOWN, PlansNudges.REVIEW_LAST_USE, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.REVIEW_ENTRY_BLOCK, PlansNudges.UNAPPROVED_PLAN, PlansNudges.APPROVED_UNSTARTED, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING)
+    nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_COUNTDOWN, PlansNudges.REVIEW_LAST_USE, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.REVIEW_ENTRY_BLOCK, PlansNudges.UNAPPROVED_PLAN, PlansNudges.APPROVED_UNSTARTED, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans

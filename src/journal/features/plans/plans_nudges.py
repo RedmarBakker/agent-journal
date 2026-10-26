@@ -7,6 +7,8 @@ class PlansNudges:
 
     ALL_BLOCKED = "all its tasks left are blocked"
     PLAN_TESTING_CHANGED = Nudge("plans", "the_plan_tests_another_way", "plan {{n}} now tests this way ({{template}}): {{testing}}", repeat=Timeout.seconds(0))
+    TEST_COMMANDS_NEEDED = Nudge("plans", "name_the_test_commands", "name the commands that run this project's tests before the plan's task goes on: journal settings set plans.test_commands \"<line>, <line>\"", "such as journal suite, python3 -m pytest or npm test; reads and journal commands go through until they are set", repeat=Timeout.seconds(0))
+    MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} runs its tests only at the end of each phase, and phase {{phase}} still has open tasks: write the tests this task needs and run them when the phase ends", repeat=Timeout.seconds(0))
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     BUILDER_MODE = Nudge("plans", "now_building", "you now work as the builder", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing}}", repeat=Timeout.seconds(0))

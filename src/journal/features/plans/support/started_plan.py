@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class StartedPlan:
-    """The plan started here as the plans feature reads it: the task it would start next, the task of it in hand with its briefing, its tasks changed most recently, among them the task an event of a task of it names, how many are left, whether it stands at a phase end it waits at, a checkpoint or one whose testing commands have not passed since, which those commands are and whether it is a checkpoint, how its testing template says to test, empty when it has none, the phase in hand, and the phase and moment its orchestrator last gave its priorities."""
+    """The plan started here as the plans feature reads it: the task it would start next, the task of it in hand with its briefing, its tasks changed most recently, among them the task an event of a task of it names, how many are left, whether it stands at a phase end it waits at, a checkpoint or one whose testing commands have not passed since, which those commands are and whether it is a checkpoint, how its testing template says to test, empty when it has none, the phase in hand, the phase and moment its orchestrator last gave its priorities, and whether its testing refuses a test run now: always under Never run tests, and in the middle of a phase under Tests at each phase end."""
 
     plan_id: int
     next_task: int
@@ -19,3 +19,4 @@ class StartedPlan:
     current_phase: int = 1
     priorities_phase: int = 0
     priorities_at: float = 0.0
+    refuses_test_runs: bool = False

@@ -2560,6 +2560,45 @@ def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_w
     assert reminded and "run the tests only at the end of each phase" in reminded[-1], "the task the plan hands next comes with how the plan tests"
 
 
+def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_ends_refuses_them_mid_phase(app: App, monkeypatch):
+    from journal.features.plans.plans_options import PlansOptions
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "", Actor.user(1))
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "done"], USER)
+    console.run(["plan", "phase", "1", "two", "--when", "done"], USER)
+    for title in ("p first", "p second", "p third"):
+        console.run(["plan", "add", "1", title], USER)
+    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
+    console.run(["plan", "todos", "1", "2", "3"], USER)
+    console.run(["plan", "testing", "1", "Tests at each phase end"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    run = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
+    write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(app.config.root / "a.py"), "content": "x"})
+    assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task started with no test commands named waits in a state of its own"
+    status, body = write()
+    assert status == 409 and "name the commands that run this project's tests" in body["error"], "a write is held with the line that says how to name them"
+    assert run("journal settings set plans.test_commands 'pytest, journal suite'")[0] == 200, "the settings command goes through"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "pytest, journal suite", Actor.user(1))
+    assert write()[0] == 200 and app.container.get(SessionAgents).top("s1").name != "naming_test_commands", "once they are named the state leaves and the write goes through"
+    assert run("pytest -q")[0] == 200, "until a task of the phase in hand is done, the run of the phase before may still go"
+    console.run(["task", "complete", "1"], AGENT)
+    status, body = run("pytest -q")
+    assert status == 409 and "runs its tests only at the end of each phase" in body["error"], "a listed test run in the middle of a phase is refused"
+    assert run("ls -la")[0] == 200, "a command that is not a test run passes"
+    console.run(["task", "complete", "2"], AGENT)
+    assert run("pytest -q")[0] == 200, "at the phase's end the test run goes through"
+    console.run(["plan", "testing", "1", "Test throughout"], USER)
+    console.run(["task", "start", "3"], AGENT)
+    assert run("pytest -q")[0] == 200, "a plan that tests throughout never refuses it"
+
+
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.repositories.plans import Plans

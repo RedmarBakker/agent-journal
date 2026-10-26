@@ -86,6 +86,7 @@ def template_journal(tmp_path_factory) -> Path:
     app = App(Config(root, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key=VoicesOptions.NAME.key, value="Jesse"), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="workers.testing", value="Hand the tests over"), Actor.system())
+    app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="plans.test_commands", value="pytest, journal suite"), Actor.system())
     app.runtime().start()
     app.container.get(Environments).lookup("main")
     app.runtime().stop()

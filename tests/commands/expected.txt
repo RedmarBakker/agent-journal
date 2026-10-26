@@ -855,7 +855,6 @@ reader totals added: journal output read N --reader totals
 $ agent: journal reader list
 exit 0
 dotnet-test: the failed tests and the totals of a dotnet test run (locked)
-git-commit: a commit: the commit it made and its files, or why its hooks refused it (locked)
 git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
 phpunit: the failures and the totals of a phpunit or pest run (locked)
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
@@ -1257,6 +1256,7 @@ messages.sweep_after = 10  (the user sets it)
 messages.fold_marks_seconds = 10
 plans.review_ready_within = 10
 plans.testing = 'none'
+plans.test_commands = 'pytest, journal suite'
 sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
@@ -1417,7 +1417,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 6
+created: setting 7
 
 $ agent: journal environment list
 exit 0
@@ -1446,7 +1446,6 @@ nothing
 
 == journal reader list ==
 dotnet-test: the failed tests and the totals of a dotnet test run (locked)
-git-commit: a commit: the commit it made and its files, or why its hooks refused it (locked)
 git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
 phpunit: the failures and the totals of a phpunit or pest run (locked)
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
@@ -1552,12 +1551,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 7
+created: setting 8
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 8
+created: setting 9
 
 $ agent: journal skill list
 exit 0
@@ -1617,6 +1616,7 @@ dumps.dump_still_open_carry_on  [dumps]  dump {{n}} is not filed yet. journal du
 dumps.the_user_answered_on_the_dump  [dumps]  the user answered on dump {{n}}: {{answer}}. the question was: {{question}}
 dumps.the_user_chose_a_step  [dumps]  the user chose {{label}} for dump {{n}}. carry that step out, and log it on the dump.
 engine.guard_failed  [engine]  a guard failed and let this through: {{text}}. the journal recorded it; tell the user if it happens again
+engine.helper_has_no_job  [engine]  you are not at work: the journal gives you your job. wait for it, or run the journal command it gave you
 engine.stop_held_in_a_loop  [engine]  your stop was held five times in a row with nothing between, so the journal is probably in a state it cannot leave, and your next stop goes through. set the state you should be in with `journal panic <state>`, `journal panic pop` or `journal panic idle`, then `journal panic report` files what held you
 etiquette.a_line_is_an_instruction  [etiquette]  a [journal] line is an instruction, not a message. act on it; never answer or mention it in the chat
 etiquette.blank_lines_between_paragraphs  [etiquette]  your last message had no blank lines between paragraphs
@@ -1675,6 +1675,7 @@ pins.pin_the_link  [pins]  {{url}} is not pinned. pin it if the user will come b
 plans.approved_unstarted  [plans]  plan {{n}} is approved and not started. `journal plan start {{n}}` begins its first task
 plans.drive_ended  [plans]  {{name}} is driven from here no longer: {{why}}. its writes here are refused; `journal {{noun}} drive {{n}}` takes it again once it is free
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
+plans.name_the_test_commands  [plans]  name the commands that run this project's tests before the plan's task goes on: journal settings set plans.test_commands "<line>, <line>". such as journal suite, python3 -m pytest or npm test; reads and journal commands go through until they are set
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing}}
 plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0{{reports}}. your next write waits until it is readied
 plans.now_building  [plans]  you now work as the builder
@@ -1688,6 +1689,7 @@ plans.plan_reopened  [plans]  plan {{n}} is open again: {{why}}. `journal plan s
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
 plans.review_write_up_waits  [plans]  your writes wait until plan {{n}} is readied. put the reviewers' findings into it and `journal plan ready {{n}} --changed "<what changed>"`
+plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} runs its tests only at the end of each phase, and phase {{phase}} still has open tasks: write the tests this task needs and run them when the phase ends
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
@@ -1882,7 +1884,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-286 nudges
+289 nudges
 
 $ agent: journal worker list
 exit 0
