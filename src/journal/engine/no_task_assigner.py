@@ -7,5 +7,5 @@ from journal.models.agent import Agent
 class NoTaskAssigner:
     """The assigner of a state that hands out nothing: a wait, the user's pause, a compaction, an ended session, a helper's floor."""
 
-    def next_task(self, agent: Agent, event: AgentEvent | RowEvent) -> Assignment:
+    def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         return Assignment()

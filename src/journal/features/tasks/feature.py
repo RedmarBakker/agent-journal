@@ -53,7 +53,7 @@ class Tasks(Feature[TasksData]):
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.TASK_QUEUE, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
+    nudges = (TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
@@ -73,7 +73,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
   one whole: its title, state, plan and phase, brief and every log line in order, so you pick it up where it stood.
 - `journal task log <n> "<where it stands>"` after each step that matters; before a compaction, always. Only the task in
   hand takes a log line: a task not running is changed with `journal task edit`.
-- `journal task complete <n> --how "<outcome>"` finishes it. The output names the next open task.
+- `journal task complete <n> --how "<outcome>"` finishes it. In auto mode the journal starts your next task and the output names it.
 - One task in hand at a time: a second start is refused until the first is done or paused. `journal task pause <n> "<why>"`
   sets a started task aside for something else first; `journal task resume <n>` picks it up. Pause for choice, never for being stuck.
 - A wait is a block the journal can see, never words: a task that waits on another task is blocked with
@@ -95,8 +95,10 @@ needs no task; file one for work that is an item of its own, that waits, or that
   tasks.name_every and tasks.log_after). A log line starts a new version.
 - A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
-- Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
-  one, and only the user stops you. A stop with paused tasks names them in auto mode: paused is still open. With auto mode off the journal hands you no task at a stop.
+- Auto mode (the setting tasks.auto, on by default) means you work the list: at a stop, or when your task closes, with no task
+  in hand the journal starts the next one for you: your own paused task first, then the next task of your plan or of an approved plan, then the first
+  open task by priority; only the user stops you. A stop with paused tasks names them in auto mode: paused is still open. With
+  auto mode off the journal starts no task for you.
 - Work you put off in words is work lost: file it as a task instead.
 - Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'), commands=('task',))

@@ -26,9 +26,12 @@ class PlanTaskAssigner:
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: OrchestratorMode, settings: SettingRows, time_source: TimeSource) -> None:
         self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source
 
-    def next_task(self, agent: Agent, event: AgentEvent | RowEvent) -> Assignment:
+    def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if not self.default.is_free_moment(agent, event):
             return Assignment()
+        return self.next_plan_task(agent, event, quantity)
+
+    def next_plan_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int) -> Assignment:
         plan = self.current_plan(agent, event)
         if plan is None or not self.is_advancing(plan):
             return Assignment()
@@ -36,7 +39,12 @@ class PlanTaskAssigner:
         if task is None:
             return Assignment()
         self.tasks.holder_started(task.plan_started(self.time_source.moment(), plan.row_id), Ref.build(agent), self.actor(event))
-        return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}")
+        return Assignment(task.row_id, task.title, f"the next task of plan {plan.id}", self.following_ids(plan, quantity))
+
+    def following_ids(self, plan: Plan, quantity: int) -> tuple[int, ...]:
+        if quantity <= 1:
+            return ()
+        return tuple(queued.row_id for queued in self.plans.queued_tasks(plan))[:quantity - 1]
 
     # a close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused
     @staticmethod
@@ -54,7 +62,10 @@ class PlanTaskAssigner:
     def is_advancing(self, plan: Plan) -> bool:
         return plan.state == PlanState.STARTED and not self.orchestrator.is_set() and not self.testing.unpassed(plan)
 
+    def passes_checkpoints(self) -> bool:
+        return bool(self.settings.option(TasksOptions.AUTO))
+
     def following_task(self, plan: Plan) -> Task | None:
-        if not self.settings.option(TasksOptions.AUTO) and self.plans.checkpoint_plans(plan) is not None:
+        if not self.passes_checkpoints() and self.plans.checkpoint_plans(plan) is not None:
             return None
         return self.plans.following_task(plan)

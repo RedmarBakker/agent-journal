@@ -3,23 +3,15 @@ from dataclasses import dataclass
 from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
-from journal.events.agent.stop import Stop
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
-from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.states.working import Working
 
 
 @dataclass(frozen=True)
 class PlanWork(Working):
-    """Working on a task with plans on: a stop is blocked while an approved plan waits to start, and the current task joining the plan started here, or a plan starting with it, turns the work into the plan's; every other moment is Working's."""
-
-    def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        approved = event.data.part(PlansPart).approved
-        if approved:
-            return self.refuse(PlansNudges.APPROVED_UNSTARTED.create(n=approved[0]))
-        return super().on_stop(event, settings)
+    """Working on a task with plans on: the current task joining the plan started here, or a plan starting with it, turns the work into the plan's; every other moment is Working's."""
 
     def plan_state(self, **fields) -> BaseState:
         raise NotImplementedError

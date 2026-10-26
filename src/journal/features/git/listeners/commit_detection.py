@@ -1,6 +1,5 @@
 import re
 import subprocess
-import time as timing
 from journal.models.support.worker_task import WorkerTask
 from pathlib import Path
 
@@ -18,7 +17,7 @@ from journal.repositories.environments import Environments
 from journal.support.worktree import Worktree
 from journal.events.announcer import Announcer
 from journal.features.git.support.git_facts import GitFacts
-from journal.features.tasks.support.task_offers import TaskOffers
+from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.support.decision import Decision
 from journal.support.time_source import TimeSource
 
@@ -32,11 +31,11 @@ class CommitDetection(AgentListener[ToolFinished]):
 
     blocking = True
 
-    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, offers: TaskOffers, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
+    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_tasks: NextTaskReader, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.announcer = announcer
         self.config, self.console, self.environments, self.tasks, self.events = config, console, environments, tasks, events
-        self.offers, self.entries = offers, entries
+        self.next_tasks, self.entries = next_tasks, entries
         self._head_log_times: dict[Path, float] = {}
         self.detected: set[str] = set()
 
@@ -82,8 +81,8 @@ class CommitDetection(AgentListener[ToolFinished]):
         numbers, owners = self.trailer_tasks(body), self.tasks.worker_holdings()
         worker_tasks = tuple(WorkerTask(n, owners[n]) for n in numbers if n in owners)
         completions = self.completions(event, sha, [n for n in numbers if n not in owners])
-        next_open = self.offers.next_task(self.tasks.find(completions[-1])) if completions else None
-        commit = CommitDetected(sha=sha, closed=tuple(completions), next_open=next_open, worker_tasks=worker_tasks).placed(event.session, event.environment_id, event.provider, event.context, event.time)
+        next_task = self.next_tasks.holder_task(self.tasks.find(completions[-1])) if completions else None
+        commit = CommitDetected(sha=sha, closed=tuple(completions), next_task=next_task, worker_tasks=worker_tasks).placed(event.session, event.environment_id, event.provider, event.context, event.time)
         return next((answer for answer in self.events.post(commit) if isinstance(answer, Decision)), None)
 
     def folder(self, event: ToolFinished) -> Path:

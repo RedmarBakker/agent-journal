@@ -149,7 +149,10 @@ class Tasks(ScopedRepository[Task]):
         return self.selected(self.free_query(state, plan_states))
 
     def next_open_task(self) -> Task | None:
-        return next(iter(self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(1))), None)
+        return next(iter(self.next_open_tasks(1)), None)
+
+    def next_open_tasks(self, count: int) -> list[Task]:
+        return self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(count))
 
     def open_page_ids(self, rows: int) -> list[int]:
         return self.selected_ids(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
@@ -197,7 +200,10 @@ class Tasks(ScopedRepository[Task]):
         return tuple(reversed([link.target.id for link in links]))
 
     def holder(self, task: Task) -> Ref | None:
-        holders = self.links.sources(task, CURRENT_TASK_LINK)
+        return self.task_holder(task.row_id)
+
+    def task_holder(self, task_id: int) -> Ref | None:
+        holders = self.links.ref_sources(Ref(Task.table(), task_id), CURRENT_TASK_LINK)
         return holders[-1] if holders else None
 
     def agents_tasks(self, state: TaskState, agents: Query) -> list[Task]:

@@ -36,6 +36,10 @@ exit 0
    1  started  Write the footer
    2  open     Fix the cart total
 
+$ agent: journal task next --quantity 2
+exit 0
+no task to hand out now: the builder is handed its next task at a stop or when its task closes
+
 $ agent: journal task pause 1 'the cart comes first'
 exit 0
 task 1 paused
@@ -74,12 +78,11 @@ task 1 is not driven from this machine
 $ agent: journal task complete 1 --how 'the footer names the shop'
 exit 0
 task 1 done
-task 2 is next. brief: The total adds the tax once, and rounds to cents
+task 2 is started next. brief: The total adds the tax once, and rounds to cents
 
 $ agent: journal task start 2
-exit 0
-task 2 started
-brief: The total adds the tax once, and rounds to cents
+exit 1
+task 2 is already in hand: it was started already
 
 $ agent: journal task cancel 2 --why 'the tax rates changed'
 exit 0
@@ -421,7 +424,7 @@ exit 0
 question 1 asked; waiting for the answer
   1. Stripe
   2. Mollie
-created: message 16
+created: message 17
 
 $ agent: journal question list
 exit 0
@@ -435,12 +438,12 @@ question 1: Which payment provider?  [Stripe / Mollie]
 $ user: journal question answer 1 Mollie
 exit 0
 question 1 answered: Mollie
-created: message 17
+created: message 18
 
 $ agent: journal question dock 1
 exit 0
 Question 1 docked above the chat
-created: message 18
+created: message 19
 
 $ agent: journal question undock 1
 exit 0
@@ -449,7 +452,7 @@ Question 1 undocked
 $ agent: journal fact create 'The shop sells in euros' --reason 'the customers are Dutch' --keywords euro
 exit 0
 fact 1: The shop sells in euros
-created: message 19
+created: message 20
 
 $ agent: journal fact list
 exit 0
@@ -462,7 +465,7 @@ fact 1: The shop sells in euros
 $ agent: journal fact dock 1
 exit 0
 Fact 1 docked above the chat
-created: message 20
+created: message 21
 
 $ agent: journal fact undock 1
 exit 0
@@ -471,12 +474,12 @@ Fact 1 undocked
 $ agent: journal fact strike 1
 exit 0
 fact 1 struck
-created: message 21
+created: message 22
 
 $ user: journal rule create 'Always round money to cents' --reason 'the bank does'
 exit 0
 rule 1: Always round money to cents
-created: message 22
+created: message 23
 
 $ agent: journal rule list
 exit 0
@@ -489,7 +492,7 @@ rule 1: Always round money to cents
 $ agent: journal rule dock 1
 exit 0
 Rule 1 docked above the chat
-created: message 23
+created: message 24
 
 $ agent: journal rule undock 1
 exit 0
@@ -498,12 +501,12 @@ Rule 1 undocked
 $ user: journal rule strike 1
 exit 0
 rule 1 struck
-created: message 24
+created: message 25
 
 $ agent: journal reminder create 'Run the tests before a commit'
 exit 0
 reminder 1: Run the tests before a commit
-created: message 25
+created: message 26
 
 $ agent: journal reminder list
 exit 0
@@ -516,7 +519,7 @@ reminder 1: Run the tests before a commit
 $ agent: journal reminder dock 1
 exit 0
 Reminder 1 docked above the chat
-created: message 26
+created: message 27
 
 $ agent: journal reminder undock 1
 exit 0
@@ -525,7 +528,7 @@ Reminder 1 undocked
 $ agent: journal reminder strike 1
 exit 0
 reminder 1 struck
-created: message 27
+created: message 28
 
 $ agent: journal memory skip 'nothing new to keep'
 exit 0
@@ -534,7 +537,7 @@ noted; carry on
 $ agent: journal doc create 'The cart' --file <root>/cart.md --abstract 'how the cart adds up'
 exit 0
 doc 1: The cart
-created: message 29, doc revision 1
+created: message 30, doc revision 1
 
 $ agent: journal doc list
 exit 0
@@ -640,7 +643,7 @@ doc 1 signed off: it holds what the project keeps knowing
 $ agent: journal report create 'What the cart test found' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
-created: message 30
+created: message 31
 
 $ agent: journal report list
 exit 0
@@ -658,8 +661,8 @@ read a section with --section <n or heading>, its bullets with --bullets, search
 
 $ agent: journal report recap 'the footer is done'
 exit 0
-report 2: the update, docked at the bottom of the chat; done 1, also 2
-created: message 31
+report 2: the update, docked at the bottom of the chat; done 1, doing 1, also 2
+created: message 32
 
 $ agent: journal report note 1 'checked again'
 exit 0
@@ -673,8 +676,9 @@ $ agent: journal report changes
 exit 0
 an update now covers <time> to <clock>:
   1  done     tasks:1        Write the footer
-  2  also     docs:1         The cart
-  3  also     reports:1      What the cart test found
+  2  doing    tasks:4        A card pays the total
+  3  also     docs:1         The cart
+  4  also     reports:1      What the cart test found
 write it with journal report recap "<one or two sentences>"
 
 $ agent: journal report dock 1
@@ -737,7 +741,7 @@ A functional design says what is to be built, never how: anyone, the user or a c
 $ agent: journal template dock 1
 exit 0
 Template 1: Functional design docked above the chat
-created: message 32
+created: message 33
 
 $ agent: journal template undock 1
 exit 0
@@ -792,7 +796,7 @@ check 1: The cart sums its lines
 $ agent: journal check dock 1
 exit 0
 Check 1: The cart sums its lines docked above the chat
-created: message 34
+created: message 35
 
 $ agent: journal check undock 1
 exit 0
@@ -813,7 +817,7 @@ exit 0
 $ agent: journal notice dock 1
 exit 0
 Notice 1: The shop's design docked above the chat
-created: message 35
+created: message 36
 
 $ agent: journal notice undock 1
 exit 0
@@ -1024,7 +1028,7 @@ sequence 5, step 1: Check the document you filed reads as you meant: `journal do
 $ agent: journal sequence dock 2
 exit 0
 Sequence 2: Applying a plan's reviews docked above the chat
-created: message 42
+created: message 43
 
 $ agent: journal sequence undock 2
 exit 0
@@ -1043,7 +1047,7 @@ exit 0
 $ agent: journal trigger dock 1
 exit 0
 Trigger 1 docked above the chat
-created: message 43
+created: message 44
 
 $ agent: journal trigger undock 1
 exit 0
@@ -1122,7 +1126,7 @@ exit 0
 $ agent: journal dump dock 1
 exit 0
 Dump 1: The call docked above the chat
-created: message 45
+created: message 46
 
 $ agent: journal dump undock 1
 exit 0
@@ -1151,7 +1155,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 46
+created: message 47
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1417,14 +1421,13 @@ main                 just now
 
 $ agent: journal environment overview
 exit 0
-no task in hand
-open tasks: 4 A card pays the total
+task in hand: 4 A card pays the total
 
 == journal plan show current ==
 no plan is started
 
 == journal task list ==
-   4  open     A card pays the total
+   4  started  A card pays the total
 and 3 done or cancelled: journal task list --all
 
 == journal message unread ==
@@ -1446,7 +1449,11 @@ vitest: the failed tests of a vitest run with their assertion lines, and its tot
 worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal (locked)
 
 == journal task show current ==
-no task is in hand
+task 4: A card pays the total
+state: started
+plan: none
+brief: Done when a test card pays
+log: none
 
 $ agent: journal environment json
 exit 0
@@ -1664,7 +1671,6 @@ pausing.paused  [pausing]  the user paused you: stop your work here and wait. un
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you told the user a link is pinned, but no pin was made in the last minute. pin it now with `journal notice create "<what it is>" --link "<url>" --label "<Open ...>"`, or tell the user where to find it instead
 pins.pin_the_link  [pins]  {{url}} is not pinned. pin it if the user will come back to it: `journal notice create "<what it is>" --link "{{url}}" --label "<Open ...>"`
-plans.approved_unstarted  [plans]  plan {{n}} is approved and not started. `journal plan start {{n}}` begins its first task
 plans.drive_ended  [plans]  {{name}} is driven from here no longer: {{why}}. its writes here are refused; `journal {{noun}} drive {{n}}` takes it again once it is free
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  name the commands that run this project's tests before the plan's task goes on: journal settings set plans.test_commands "<line>, <line>". such as journal suite, python3 -m pytest or npm test; reads and journal commands go through until they are set
@@ -1767,7 +1773,7 @@ tasks.fix_the_broken_wait  [tasks]  {{waits}}. fix it with `journal task block <
 tasks.give_tasks_their_priority  [tasks]  {{count}} open tasks you made sit at the default priority: {{tasks}}. give each its priority with `journal task edit <n> --priority <level>`, or `journal task priorities confirm` if they are all normal
 tasks.log_first_at_stop  [tasks]  {{name}}, {{logged}}: log where it stands first. {{log_command}} "<where it stands>"
 tasks.log_where_it_stands  [tasks]  {{edits}} edits since you logged {{name}}: say where it stands. {{log}} "<where it stands>"
-tasks.next_task_holds_the_stop  [tasks]  tasks are open, and auto mode is on: task {{n}} next. carry on with it
+tasks.next_task_started  [tasks]  task {{n}} is started next. carry on with it
 tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, task {{n}} is next. work on it meanwhile; you are informed when the wait ends
 tasks.no_stop_while_waiting  [tasks]  {{what}} still runs, {{left}}, and task {{n}} is open. carry on with task {{n}}; you are informed when the wait ends
 tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open, in progress or paused, so you are not stuck. go on with them, or wait on what you started with journal await
@@ -1789,7 +1795,6 @@ tasks.wait_check_passed  [tasks]  {{what}} is done: {{lines}}
 tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left. wait it out: `journal await` ends when it does
 tasks.wait_lifted  [tasks]  your wait on {{what}} was lifted; check {{n}} is still running and you are informed when it passes; journal check remove {{n}} if you no longer want to hear about it
 tasks.wait_over  [tasks]  wait over: {{outcome}}
-tasks.work_left_holds_the_stop  [tasks]  tasks are left: {{tasks}}. take one or resume a paused one; journal stuck "<why>" when every task left is truly blocked
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. {{log}} "<what was decided or done>" before any other write
 team.journal_behind_the_team  [team]  this journal is behind its team: {{line}}. its changes wait here until it is upgraded; tell your user once and go on
 triggers.denied  [triggers]  a trigger denies this: {{title}}
@@ -1823,7 +1828,7 @@ workers.no_workers_when_solo  [workers]  you work solo: no worker is dispatched
 workers.now_orchestrating  [workers]  orchestrating: dispatch tasks, review and merge, run the suite
 workers.now_solo  [workers]  you now work solo. do every job yourself: no worker is dispatched
 workers.open_todos  [workers]  your to-do list has {{count}} open items: {{items}}. finish them, or say why with journal clock-out
-workers.orchestrate  [workers]  {{count}} tasks are open; next: {{tasks}}. dispatch a worker on each you can, journal worker dispatch "<Name>" --task <n>; block a task that waits and go on with the rest
+workers.orchestrate  [workers]  {{count}} tasks are open; next: {{tasks}}. dispatch a worker on each you can, journal worker dispatch "<Name>" --task <n>; `journal task next --quantity <n>` shows the next ones in turn; block a task that waits and go on with the rest
 workers.orchestrator_check_worker  [workers]  the oldest worker waiting has waited past its range. check worker {{n}}: it waited {{minutes}} minutes
 workers.orchestrator_clear_oldest  [workers]  the worker queue has stood high for {{minutes}} minutes. clear worker {{n}} first, the oldest waiting
 workers.orchestrator_dispatched_under_load  [workers]  this dispatch comes while the worker queue stands high and worker {{n}} waits. check and merge worker {{n}} next
@@ -1871,7 +1876,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-284 nudges
+282 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2193,7 +2198,7 @@ options:
 $ agent: journal panic report
 exit 0
 report 3 written: read it with journal report show 3 --all, take out anything private, then journal panic issue 3 files it on jessegall/agent-journal
-created: message 48
+created: message 49
 
 $ agent: journal panic apply --help
 exit 0

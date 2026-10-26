@@ -88,9 +88,9 @@ class StateMachine:
     def row_assignments(self, event: RowEvent) -> None:
         for agent in self.audience(event):
             with self.scope.environment(agent.environment_id):
-                self.assigned(agent, event.reaching(agent.session))
+                self.assigners.resolved(agent).next_task(agent, event.reaching(agent.session))
 
-    def assigned(self, agent: Agent, event: AgentEvent | RowEvent) -> Agent:
+    def assigned(self, agent: Agent, event: AgentEvent) -> Agent:
         if not self.assigners.resolved(agent).next_task(agent, event).has_task():
             return agent
         return self.agents.find(agent.row_id)

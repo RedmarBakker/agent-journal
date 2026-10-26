@@ -2,7 +2,7 @@
   "nudges": true,
   "steps": [
     {
-      "name": "idle",
+      "name": "the stop starts task 1",
       "answer": null,
       "typed": [
         "[journal] task 1 is open. `journal task start 1` takes it up"
@@ -14,10 +14,11 @@
         "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user",
         "tasks.task_opened",
-        "tasks.next_task_holds_the_stop"
+        "tasks.carry_on"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "working"
       ]
     },
     {
@@ -26,20 +27,22 @@
       "typed": [],
       "nudges": [],
       "stack": [
-        "idle"
+        "idle",
+        "working"
       ]
     },
     {
       "name": "quiet for half an hour",
       "answer": null,
       "typed": [
-        "[journal] nothing has happened for half an hour. carry on, take the next task, or say so in one line"
+        "[journal] task 1 is still open: log where it stands or finish it"
       ],
       "nudges": [
-        "tasks.check_in_after_quiet"
+        "tasks.task_still_open"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "working"
       ]
     },
     {
@@ -48,16 +51,15 @@
       "typed": [],
       "nudges": [],
       "stack": [
-        "idle"
+        "idle",
+        "working"
       ]
     },
     {
       "name": "a task paused",
       "answer": null,
       "typed": [],
-      "nudges": [
-        "tasks.next_task_holds_the_stop"
-      ],
+      "nudges": [],
       "stack": [
         "idle"
       ]
@@ -66,7 +68,7 @@
       "name": "a minute with a task paused",
       "answer": null,
       "typed": [
-        "[journal] task 2 is paused: the header first. `journal task resume 2` if it can go on now"
+        "[journal] task 1 is paused: the footer first. `journal task resume 1` if it can go on now"
       ],
       "nudges": [
         "tasks.paused_task_asked_about"
@@ -99,10 +101,10 @@
       "name": "five quiet minutes awaiting",
       "answer": null,
       "typed": [
-        "[journal] while you wait for the deploy, task 1 is next. work on it meanwhile; you are informed when the wait ends"
+        "[journal] you have waited 5 min on the deploy: check it. still going: `journal await` again; done or failed: log it and go on"
       ],
       "nudges": [
-        "tasks.next_task_while_waiting"
+        "tasks.check_the_wait"
       ],
       "stack": [
         "idle",
@@ -113,12 +115,8 @@
     {
       "name": "five more awaiting",
       "answer": null,
-      "typed": [
-        "[journal] you have waited 5 min on the deploy: check it. still going: `journal await` again; done or failed: log it and go on"
-      ],
-      "nudges": [
-        "tasks.check_the_wait"
-      ],
+      "typed": [],
+      "nudges": [],
       "stack": [
         "idle",
         "working",

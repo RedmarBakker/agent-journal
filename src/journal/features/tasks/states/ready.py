@@ -15,7 +15,6 @@ from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.feature_data import FeatureData
 from journal.events.rows.task_started import TaskStarted
-from journal.features.tasks.support.tasks_data import TasksData
 from journal.engine.nudge import Nudge
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_part import TasksPart
@@ -28,7 +27,7 @@ IDLE_CHECK_DELAY_SECONDS = 30 * 60.0
 
 @dataclass(frozen=True)
 class Ready(BaseState):
-    """Nothing in hand: the bottom of the stack, never popped. A stop here is blocked by what is still open: a paused task, a blocked task whose check cannot run, and in auto mode any open task. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
+    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by a paused task and by a blocked task whose check cannot run; an open task is the assigner's to start before the stack answers. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
 
     name = "idle"
     assigner = DefaultTaskAssigner
@@ -74,13 +73,15 @@ class Ready(BaseState):
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
+        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
         wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
-        return (*wait_lines, *self.open_lines(data, settings))
+        return (*pause_lines, *wait_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         return ()
 
-    def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
+    def silent_nudges(self, data: FeatureData) -> tuple[Nudge, ...]:
+        tasks = data.part(TasksPart)
         return (TasksNudges.IDLE_CHECK.create(),) if tasks.next_open or tasks.paused else ()
 
     def on_task_opened(self, event: TaskOpened, settings: Settings) -> Transition:
@@ -93,9 +94,6 @@ class Ready(BaseState):
         if tasks.blocked_without_wait and self.has_silence(BLOCKED_REMINDER_DELAY_SECONDS, event.time):
             return self.none(TasksNudges.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
         if self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
-            return self.none(*self.silent_nudges(tasks))
+            return self.none(*self.silent_nudges(event.data))
         return self.none()
 
-
-def task_summary(tasks: TasksData) -> str:
-    return "; ".join(part for part in (f"paused {tasks.pause_summary}" if tasks.paused else "", f"open {', '.join(map(str, tasks.open_ids))}" if tasks.open_ids else "", f"blocked {', '.join(map(str, tasks.blocked))}" if tasks.blocked else "") if part)

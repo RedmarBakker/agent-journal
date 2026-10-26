@@ -5,7 +5,6 @@ from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
-from journal.events.feature_data import FeatureData
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.states.ready import Ready
@@ -19,7 +18,7 @@ from journal.features.plans.support.plan_start_task_assigner import PlanStartTas
 
 @dataclass(frozen=True)
 class PlansReady(Ready):
-    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and a stop is blocked while an approved plan waits to start; its task assigner starts the oldest approved plan between the agent's own paused task and a free one; every other moment is Idle's."""
+    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and its task assigner starts the oldest approved plan between the agent's own paused task and a free one; every other moment is Idle's."""
 
     assigner = PlanStartTaskAssigner
 
@@ -52,9 +51,3 @@ class PlansReady(Ready):
         if event.task_id and event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         return self.push(self.approved_plan_state(event.plan_id, event.task_id, event.time, self.task_noun(event.data, event.environment_id)))
-
-    def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        approved = data.part(PlansPart).approved
-        if approved:
-            return (PlansNudges.APPROVED_UNSTARTED.create(n=approved[0]),)
-        return super().open_lines(data, settings)

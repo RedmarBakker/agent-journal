@@ -5,8 +5,7 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.features.plans.states.plan_work import PlanWork
-from journal.features.workers.support.orchestration import orchestrate
-from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.support.orchestration import delegation_lines
 from journal.features.workers.workers_nudges import WorkersNudges
 
 
@@ -19,5 +18,4 @@ class Delegation(PlanWork):
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         answer = super().on_stop(event, settings)
-        tasks = event.data.part(TasksPart)
-        return replace(answer, nudges=(*answer.nudges, orchestrate(tasks))) if tasks.open_ids else answer
+        return replace(answer, nudges=(*answer.nudges, *delegation_lines(event.data)))

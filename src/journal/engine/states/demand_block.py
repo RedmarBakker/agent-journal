@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.support.demands_part import DemandsPart
 from journal.engine.support.settings import Settings
@@ -10,10 +9,10 @@ from journal.events.agent.tool_starting import ToolStarting
 
 @dataclass(frozen=True)
 class DemandBlock(BaseState):
-    """The agent let a demand's span run out: every tool in the demand's block scope is refused with its refusal and any other tool told its line, until the requirement is met; then it is popped and the tool in hand handed to the state beneath."""
+    """The agent let a demand's span run out: every tool in the demand's block scope is refused with its refusal and any other tool told its line, until the requirement is met; then it is popped and the tool in hand handed to the state beneath. It holds tools, not the work, so the task assigner beneath it still answers a stop or a close."""
 
     name = "demand_block"
-    assigner = NoTaskAssigner
+    assigner = None
     title = "Demand block"
     key: str = ""
 

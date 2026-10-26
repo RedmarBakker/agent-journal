@@ -6,7 +6,7 @@ from journal.features.tasks.support.passed_wait import PassedWait
 from journal.features.tasks.support.person_wait import PersonWait
 from journal.features.tasks.support.wait_checks import WaitChecks
 from journal.repositories.checks import Checks
-from journal.features.tasks.support.task_offers import TaskOffers
+from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.repositories.setting_rows import SettingRows
@@ -31,8 +31,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, offers: TaskOffers, checks: Checks, wait_checks: WaitChecks) -> None:
-        self.progress, self.settings, self.offers, self.checks, self.wait_checks = progress, settings, offers, checks, wait_checks
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: DefaultTaskAssigner, checks: Checks, wait_checks: WaitChecks) -> None:
+        self.progress, self.settings, self.assigner, self.checks, self.wait_checks = progress, settings, assigner, checks, wait_checks
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -40,17 +40,17 @@ class TasksDataReader:
         facts = LazyFacts("tasks", {
             "current_task": lambda: self.current_id(agent),
             "last_log_line": lambda: self.current_log(agent),
-            "paused": lambda: tuple(t.row_id for t in self.offers.paused_tasks()),
-            "pause_summary": lambda: ", ".join(f"task {task.id} ({task.title}), paused because: {task.pause_reason}" for task in self.offers.paused_tasks()),
-            "blocked": lambda: tuple(t.row_id for t in self.offers.blocked_tasks()),
-            "blocked_without_wait": lambda: tuple(t.row_id for t in self.offers.unwaited_blocked_tasks()),
-            "blocked_without_wait_summary": lambda: self.summary(self.offers.unwaited_blocked_tasks()),
+            "paused": lambda: tuple(t.row_id for t in self.assigner.paused_work()),
+            "pause_summary": lambda: ", ".join(f"task {task.id} ({task.title}), paused because: {task.pause_reason}" for task in self.assigner.paused_work()),
+            "blocked": lambda: tuple(t.row_id for t in self.assigner.blocked_work()),
+            "blocked_without_wait": lambda: tuple(t.row_id for t in self.assigner.unwaited_blocked_work()),
+            "blocked_without_wait_summary": lambda: self.summary(self.assigner.unwaited_blocked_work()),
             "broken_waits": lambda: tuple(t.row_id for t, check in self.tasks.broken_waits()),
             "broken_waits_summary": lambda: "; ".join(f"task {task.id} waits on check {check.id}, {check.title}, which cannot run" for task, check in self.tasks.broken_waits()),
-            "first_pause_reason": lambda: next((task.pause_reason for task in self.offers.paused_tasks()), ""),
-            "next_open": lambda: self.offers.offered(),
+            "first_pause_reason": lambda: next((task.pause_reason for task in self.assigner.paused_work()), ""),
+            "next_open": lambda: self.assigner.offered(agent),
             "last_commands": lambda: self.last_commands(agent),
-            "open_ids": lambda: self.offers.open_ids(OPEN_TASKS_SHOWN),
+            "open_ids": lambda: self.assigner.open_ids(OPEN_TASKS_SHOWN),
             "open_count": lambda: self.tasks.open_count(),
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),

@@ -8,13 +8,13 @@ from journal.models.support.worker_task import WorkerTask
 
 @dataclass(frozen=True)
 class CommitDetected(AgentEvent):
-    """The agent made a commit, found at the head after its command ran, by its sha: the tasks its message closed, the task open next when the close left one, and the tasks it named that a worker owns, which it leaves open. What the states say about it is added to the reply of the command that committed, so it is never typed."""
+    """The agent made a commit, found at the head after its command ran, by its sha: the tasks its message closed, the task the close started next for the agent, and the tasks it named that a worker owns, which it leaves open. What the states say about it is added to the reply of the command that committed, so it is never typed."""
 
     answers_hook: ClassVar[bool] = True
 
     sha: str
     closed: tuple[int, ...] = ()
-    next_open: OpenTask | None = None
+    next_task: OpenTask | None = None
     worker_tasks: tuple[WorkerTask, ...] = ()
 
     def short_sha(self) -> str:

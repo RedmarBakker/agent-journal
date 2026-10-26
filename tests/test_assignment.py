@@ -293,7 +293,7 @@ RESOLUTION_CASES = [
     (AgentRole.MAIN, ("idle", "working", "waiting"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "compacting"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "reading_overview"), NoTaskAssigner),
-    (AgentRole.MAIN, ("idle", "demand_block"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "demand_block"), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("idle", "panicking"), NoTaskAssigner),
     (AgentRole.MAIN, ("ended",), NoTaskAssigner),
     (AgentRole.WORKER, ("void", "working_task"), NoTaskAssigner),
@@ -356,3 +356,28 @@ def test_a_worker_with_an_empty_queue_is_handed_nothing_more(app: App):
     rows = worker_through_its_task(app, queued=False)
     tasks = app.container.get(Tasks)
     assert not tasks.find(rows["second"]).delegated and tasks.agent_started() == [], "an empty queue hands the worker nothing, and the main agent takes nothing of it"
+
+
+def test_asked_for_three_the_orchestrators_assigner_names_three_tasks_in_turn_and_starts_none(app: App):
+    from journal.events.agent.stop import Stop
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "tasks.auto", True)
+    plan_tasks = []
+    for title in ("the floors", "the walls", "the roof"):
+        plan, ids = approved(app, [[f"{title} one", f"{title} two"]])
+        run(app, ["plan", "start", str(plan)])
+        plan_tasks.append(ids)
+    agent = app.container.get(Agents).session_agent("s1")
+    assignment = app.container.get(OrchestratorTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN), quantity=3)
+    assert len(set(assignment.task_ids())) == 3 and {plan_tasks[n][0] for n in range(3)} == set(assignment.task_ids()), assignment
+    assert app.container.get(Tasks).agent_started() == [], "naming three starts none on the orchestrator"
+
+
+def test_asked_for_three_the_builders_assigner_starts_the_first_and_names_the_two_after_it(app: App):
+    from journal.events.agent.stop import Stop
+    user_set(app, "tasks.auto", True)
+    first, second, third = (opened(app, title) for title in ("the parser", "the lexer", "the printer"))
+    agent = app.container.get(Agents).session_agent("s1")
+    assignment = app.container.get(PlanStartTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN), quantity=3)
+    assert assignment.task_ids() == (first, second, third), assignment
+    assert [task.id for task in app.container.get(Tasks).agent_started()] == [first], "only the first is started, one task in hand at a time"
