@@ -2,6 +2,14 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.63.4
+
+- A plugin may name skills it publishes that the agent must read, with `require_skills` in its answer: the journal holds the agent's tools until it reads each, a skill already read or already owed changes nothing, an id the plugin does not publish is written once as a plugin warning, and a skill gone with its plugin is no longer owed.
+- A run's end, a watched run and a dismissal judge a reader on the parts of a chain it reads, so a merge reader is never reported for a push gate's progress.
+- The plan card stays open while the pointer is on it, with no console error.
+- The plan card above the chat has a close button: the plan stays in the plans list, approvable from its page, and the card shows the next plan waiting, one at a time; `journal plan card <n>` brings a closed plan back.
+- With the plans folded, the counts of the other plans sit at the right end of the strip, not on a line below it.
+
 ## 4.63.3
 
 - A chain is known by the command doing its work: a branch switch in front of it counts as setup, like cd, so a release chain is read as its merge and push, never as a git checkout that owes a reader.

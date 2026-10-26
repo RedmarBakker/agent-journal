@@ -387,6 +387,10 @@ $ agent: journal plan pause 1
 exit 0
 plan 1 paused
 
+$ agent: journal plan card 1
+exit 0
+plan 1 is shown on the plan card again
+
 $ agent: journal plan dock 1
 exit 0
 Plan 1: The shop's checkout docked above the chat
