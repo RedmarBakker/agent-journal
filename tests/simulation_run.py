@@ -15,7 +15,7 @@ from tests.main_journal import main_journal
 from tests.replay import Frozen, differences
 from tests.replays_run import a_queue_runs_to_merge
 from tests.simulation.scenario import Scenario
-from tests.simulation.scenario_run import ScenarioRun
+from tests.simulation.scenario_run import POLICIES, ScenarioRun
 from tests.simulation.scenarios import ALL, ENGINE_MOMENTS, QUIET_BUILDER
 from tests.simulation.simulator import Simulator
 from tests.test_features import MAIN
@@ -46,12 +46,12 @@ def simulated(tmp_path: Path, monkeypatch):
     simulator.app.runtime().stop()
 
 
-def played(folder: Path, monkeypatch, scenario: Scenario, seed: int) -> list:
+def played(folder: Path, monkeypatch, scenario: Scenario, seed: int, policy=None) -> list:
     simulator = fresh(folder, monkeypatch)
     try:
         with simulator.app.container.get(Scope).environment(MAIN):
             began = time.monotonic()
-            trace = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or scenario.minutes), seed).played()
+            trace = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or scenario.minutes), seed, policy or POLICIES[scenario.policy]()).played()
             assert time.monotonic() - began < RUN_SECONDS, f"{scenario.name} ran past its time limit"
             return trace
     finally:
@@ -133,3 +133,37 @@ def test_no_invariant_is_broken_by_a_scenario(tmp_path, monkeypatch, scenario):
     trace = played(tmp_path / "journal", monkeypatch, scenario, SEED)
     broken = [found for invariant in INVARIANTS if (found := invariant.violated(trace))]
     assert broken == [], f"{scenario.name} from seed {SEED}: " + "; ".join(broken)
+
+
+class PlantedFault:
+    """A fault planted for the search to find: the agent merging right after it dispatched."""
+
+    def violated(self, trace) -> str:
+        actions = [entry.action for entry in trace if entry.actor == "agent"]
+        return "a merge came right after a dispatch" if any(a == "dispatch" and b == "merge" for a, b in zip(actions, actions[1:])) else ""
+
+
+def test_random_runs_find_a_planted_fault_shrink_it_and_replay_it_from_its_file(tmp_path, monkeypatch):
+    import json
+    from tests.simulation.scenarios import CARELESS
+    from tests.simulation.scripted_policy import ScriptedPolicy
+    from tests.simulation.shrinker import Shrinker
+    from tests.simulation.trace_file import TraceFile
+    short = replace(CARELESS, minutes=5)
+    found = None
+    for seed in range(SEED, SEED + 20):
+        trace = played(tmp_path / f"search{seed}", monkeypatch, short, seed)
+        if PlantedFault().violated(trace):
+            found = seed, trace
+            break
+    assert found, "random runs find the planted fault"
+    seed, trace = found
+    actions = [entry.action for entry in trace if entry.actor == "agent"]
+    replays = iter(range(1000))
+    shrunk = Shrinker(lambda script: played(tmp_path / f"shrink{next(replays)}", monkeypatch, short, seed, ScriptedPolicy(script)), PlantedFault()).shrunk(actions)
+    assert shrunk == ["dispatch", "merge"], shrunk
+    path = TraceFile(tmp_path / "traces").written(short.name, seed, PlantedFault().violated(trace), trace, shrunk)
+    stored = json.loads(path.read_text())
+    replayed = played(tmp_path / "replayed", monkeypatch, short, stored["seed"], ScriptedPolicy(stored["actions"]))
+    assert PlantedFault().violated(replayed), "the shrunk trace replays from its file and still breaks the invariant"
+

@@ -23,13 +23,13 @@ POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo"
 class ScenarioRun:
     """One scenario played on one journal from one seed: every simulated half minute the user may write, finished workers clock out, and the main agent plays its policy's action; the trace it returns is the same for the same seed."""
 
-    def __init__(self, simulator: Simulator, scenario: Scenario, seed: int) -> None:
-        self.simulator, self.scenario, self.seed = simulator, scenario, seed
+    def __init__(self, simulator: Simulator, scenario: Scenario, seed: int, policy) -> None:
+        self.simulator, self.scenario, self.seed, self.policy = simulator, scenario, seed, policy
 
     def played(self) -> list[TraceEntry]:
         world, trace = World(), []
         self.prepared(world)
-        agent = MainAgent(self.simulator, POLICIES[self.scenario.policy](), random.Random(self.seed), self.scenario.worker_seconds)
+        agent = MainAgent(self.simulator, self.policy, random.Random(self.seed), self.scenario.worker_seconds)
         user = UserActor(self.simulator, random.Random(self.seed + 1), self.scenario.user_messages_hourly, STEP_SECONDS)
         workers = WorkerActor(self.simulator)
         engine = EngineEvents(self.simulator, random.Random(self.seed + 2), self.scenario.engine_events_hourly * STEP_SECONDS / 3600)
