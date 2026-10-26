@@ -1,5 +1,5 @@
 <script setup>
-import {computed, ref, useAttrs} from "vue";
+import {computed, onBeforeUnmount, ref, useAttrs, watch} from "vue";
 import ChatMarkStatus from "./ChatMarkStatus.vue";
 import Icon from "./Icon.vue";
 import TextDisplay from "./TextDisplay.vue";
@@ -16,6 +16,16 @@ const hasSecondLine = computed(() => Boolean(props.mark.detail || props.mark.com
 const owned = computed(() => props.open !== undefined);
 const folded = computed(() => (owned.value ? !props.open : hasSecondLine.value && !expanded.value));
 const tag = computed(() => (attrs.onClick || hasSecondLine.value || owned.value ? "button" : "span"));
+// while a mark opens or closes it shows no contents, so no text wraps as it moves, and its width changes at once, never through a transition
+const MOTION_MS = 350;
+const moving = ref(false);
+let motionTimer = 0;
+watch(folded, () => {
+    moving.value = true;
+    clearTimeout(motionTimer);
+    motionTimer = setTimeout(() => (moving.value = false), MOTION_MS);
+});
+onBeforeUnmount(() => clearTimeout(motionTimer));
 
 function clicked(event) {
     if (folded.value && !owned.value) {
@@ -42,7 +52,7 @@ const tint = computed(() => ({
         :is="tag"
         v-bind="passed"
         :type="tag === 'button' ? 'button' : undefined"
-        :class="['mark', {worked: mark.worker, tinted: shade, filled: mark.tone === 'bad', console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
+        :class="['mark', {moving, worked: mark.worker, tinted: shade, filled: mark.tone === 'bad', console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
         :style="tint"
         :title="hover"
         :data-figure-mark="mark.key"
@@ -129,13 +139,17 @@ button.mark {
     grid-template-columns: auto auto minmax(0, 1fr);
 }
 
-.mark {
-    interpolate-size: allow-keywords;
-    transition: width 0.3s ease;
+.mark[data-open] {
+    width: 640px;
 }
 
-.mark[data-open] {
-    width: min(100%, 640px);
+.mark > :not(.ico, .head, .worker, .progress) {
+    transition: opacity 0.15s ease;
+}
+
+.mark.moving > :not(.ico, .head, .worker, .progress) {
+    visibility: hidden;
+    opacity: 0;
 }
 
 button.mark:hover {
@@ -223,8 +237,11 @@ button.mark:hover {
 }
 
 .head :deep(.md) {
+    overflow: hidden;
     color: inherit;
     line-height: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mark .head :deep(code) {
