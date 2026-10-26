@@ -14,11 +14,14 @@ from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.plans_working import PlansWorking
+from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
 
 
 @dataclass(frozen=True)
 class PlansReady(Ready):
-    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and a stop is blocked while an approved plan waits to start; every other moment is Idle's."""
+    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and a stop is blocked while an approved plan waits to start; its task assigner starts the oldest approved plan between the agent's own paused task and a free one; every other moment is Idle's."""
+
+    assigner = PlanStartTaskAssigner
 
     def mode_lines(self) -> tuple[Nudge, ...]:
         return (PlansNudges.BUILDER_MODE.create(),)

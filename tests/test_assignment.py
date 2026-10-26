@@ -9,7 +9,7 @@ from journal.app import App
 from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.assigner_resolution import AssignerResolution
-from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
+from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
@@ -54,6 +54,19 @@ def started(app: App, title: str) -> int:
 def run(app: App, argv: list[str], caller: Caller = AGENT) -> None:
     output = app.console().run(argv, caller)
     assert output.code == 0, output.error
+
+
+def approved(app: App, phases: list[list[str]], checkpoint_after: int = 0) -> tuple[int, list[int]]:
+    plan = made(app, ["plan", "create", "the plan", "--brief", "the plan is done"])
+    ids = []
+    for n, titles in enumerate(phases, 1):
+        run(app, ["plan", "phase", str(plan), f"phase {n}", "--when", "its tasks are done", *(["--checkpoint"] if n == checkpoint_after else [])], USER)
+        phase_ids = [made(app, ["plan", "add", str(plan), title, "--brief", f"{title} is done"]) for title in titles]
+        run(app, ["plan", "todos", str(plan), str(n), *map(str, phase_ids)], USER)
+        ids += phase_ids
+    run(app, ["plan", "ready", str(plan)], USER)
+    run(app, ["plan", "approve", str(plan)], USER)
+    return plan, ids
 
 
 def planned(app: App, phases: list[list[str]], checkpoint_after: int = 0) -> list[int]:
@@ -178,6 +191,18 @@ def started_then_a_new_session(app: App) -> dict:
     return rows
 
 
+def approved_plan_and_open_work(app: App) -> dict:
+    rows = {"free": opened(app, "the lexer")}
+    _, (rows["first"], rows["second"]) = approved(app, [["the parser", "the printer"]])
+    return rows
+
+
+def started_by_the_agent_itself(app: App) -> dict:
+    rows = {"a": opened(app, "the parser"), "b": opened(app, "the lexer")}
+    run(app, ["task", "start", str(rows["b"])])
+    return rows
+
+
 def orchestrating_with_open_work(app: App) -> dict:
     user_set(app, "workers.mode", "orchestrator")
     return {"a": opened(app, "the parser")}
@@ -202,6 +227,8 @@ ASSIGNMENT_CASES = [
     Case("the orchestrator never starts a task on itself", True, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),
     Case("a task a worker holds is never started on the main agent", True, held_by_a_worker_and_open, stop, lambda rows: Outcome(rows["open"], False)),
     Case("a new session keeps the task in hand and its stop is refused", False, started_then_a_new_session, stop, lambda rows: Outcome(rows["a"], False)),
+    Case("at a stop an approved plan waiting is started, its first task in hand, never a free task beside it", True, approved_plan_and_open_work, stop, lambda rows: Outcome(rows["first"], False)),
+    Case("a task the agent started itself is the one in hand, and its stop starts no second", True, started_by_the_agent_itself, stop, lambda rows: Outcome(rows["b"], False)),
 ]
 
 
@@ -219,11 +246,11 @@ def test_who_takes_which_task_next(app: App, case: Case):
 
 
 RESOLUTION_CASES = [
-    (AgentRole.MAIN, (), DefaultTaskAssigner),
-    (AgentRole.MAIN, ("idle",), DefaultTaskAssigner),
-    (AgentRole.MAIN, ("idle", "working"), DefaultTaskAssigner),
-    (AgentRole.MAIN, ("soloing", "working"), DefaultTaskAssigner),
-    (AgentRole.MAIN, ("idle", "working", "sorting_dump"), DefaultTaskAssigner),
+    (AgentRole.MAIN, (), PlanStartTaskAssigner),
+    (AgentRole.MAIN, ("idle",), PlanStartTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working"), PlanStartTaskAssigner),
+    (AgentRole.MAIN, ("soloing", "working"), PlanStartTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "sorting_dump"), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("orchestrating",), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "following_plan"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "paused"), NoTaskAssigner),

@@ -138,6 +138,10 @@ class Tasks(ScopedRepository[Task]):
     def paused_tasks(self) -> list[Task]:
         return self.free_tasks(TaskState.PAUSED, (PlanState.PAUSED.value,))
 
+    def holder_paused_task(self, holder: Ref) -> Task | None:
+        hand_links = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
+        return next(iter(self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_existing(hand_links).limit(1))), None)
+
     def actionable(self, state: TaskState) -> list[Task]:
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)
 
