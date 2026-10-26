@@ -112,3 +112,23 @@ test("hovering the Builder button shows its settings and no warning line, even w
     app.unmount();
     host.remove();
 });
+
+test("the load shows its value alone, as the fitness beside it does, and its tooltip names it", async () => {
+    choose("main");
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "working", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}}];
+    store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h("div", [h(StatusBar), h(Tooltip)])});
+    app.directive("tip", tip);
+    app.mount(host);
+    await nextTick();
+    const load = host.querySelector(".statusbar-load");
+    expect(load.textContent.trim()).toBe("0.57");
+    load.dispatchEvent(new MouseEvent("pointerover", {bubbles: true}));
+    await nextTick();
+    await nextTick();
+    expect(host.querySelector(".tooltip").textContent).toContain("Load 0.57");
+    app.unmount();
+    host.remove();
+});

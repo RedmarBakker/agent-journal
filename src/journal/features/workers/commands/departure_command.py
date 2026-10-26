@@ -52,7 +52,7 @@ class DepartureCommand(Command):
         worker = self.workers.find(caller.worker_number)
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         if not holdings:
-            raise Rejection(f"worker {worker.id} holds no task: a worker clocks out of the task it was sent on")
+            raise Rejection(f"worker {worker.id} has no task: a worker clocks out of the task it was sent on")
         task = self.tasks.find(holdings[0])
         missing = self.unproved(task)
         if missing:
@@ -63,7 +63,10 @@ class DepartureCommand(Command):
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}, and it clashes: {clashing}; {REBASE_STEPS}, then clock out again")
-        strays = self.uncommitted(worker)
+        uncommitted = self.branch.uncommitted_files(worker) if worker.worktree else []
+        if uncommitted:
+            raise Rejection(f"these files in your task's repositories are still not committed after the journal committed your work: {', '.join(uncommitted)}; run git status there to find why, such as a conflict or a lock file, fix it and clock out again")
+        strays = self.branch.other_repository_folders(worker) if worker.worktree else []
         if strays:
             raise Rejection(f"your worktree contains folders outside the repositories of your task, which would be lost: {', '.join(strays)}; move their changes into your task's repositories or remove them")
         if self.branch.worktree_heads(worker) != start_heads:
@@ -91,7 +94,7 @@ class DepartureCommand(Command):
     def plugin_check(self, kind: type[WorkerMerging], worker: Worker, task: Task, held_line: str) -> None:
         if not worker.worktree or worker.pool_request:
             return
-        refusals = self.events.worker_merging(self.branch.hold_event(kind, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
+        refusals = self.events.worker_merging(self.branch.merging_event(kind, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
             raise Rejection(held_line + "\n" + "\n".join(refusals))
 
@@ -143,7 +146,3 @@ class DepartureCommand(Command):
     def clashing(self, worker: Worker) -> str:
         return "" if worker.pool_request else self.branch.rebased_onto_branch(worker)
 
-    def uncommitted(self, worker: Worker) -> list[str]:
-        if not worker.worktree:
-            return []
-        return self.branch.remaining(worker)

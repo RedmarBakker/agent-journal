@@ -164,7 +164,7 @@ class WorkerActions:
             self.branch.fetch_pool(worker)
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
         with self.statuses.watched(worker.id, steps.status):
-            self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
+            self.merge_gate(self.branch.merging_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
         queued = self.merger.queued()
         steps.started(2, self.queue_note(queued), f"waiting in the merge queue behind {queued} merges" if queued else "")

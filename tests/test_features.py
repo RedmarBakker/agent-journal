@@ -2339,7 +2339,7 @@ def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_w
     assert reminded and "run the tests only at the end of each phase" in reminded[-1], "the task the plan hands next comes with how the plan tests"
 
 
-def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_ends_refuses_them_mid_phase(app: App, monkeypatch):
+def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_ends_refuses_them_mid_phase_but_not_to_its_last_task(app: App, monkeypatch):
     from journal.features.plans.plans_options import PlansOptions
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     keystrokes: list[str] = []
@@ -2353,9 +2353,9 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "phase", "1", "one", "--when", "done"], USER)
     console.run(["plan", "phase", "1", "two", "--when", "done"], USER)
-    for title in ("p first", "p second", "p third"):
+    for title in ("p first", "p second", "p third", "p last of one"):
         console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
+    console.run(["plan", "todos", "1", "1", "1", "2", "4"], USER)
     console.run(["plan", "todos", "1", "2", "3"], USER)
     console.run(["plan", "testing", "1", "Tests at each phase end"], USER)
     console.run(["plan", "approve", "1"], USER)
@@ -2376,6 +2376,8 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     assert status == 409 and "runs its tests only at the end of each phase" in body["error"], "a listed test run in the middle of a phase is refused"
     assert run("ls -la")[0] == 200, "a command that is not a test run passes"
     console.run(["task", "complete", "2"], AGENT)
+    assert run("pytest -q")[0] == 200, "the phase's last open task may run the tests its brief asks for"
+    console.run(["task", "complete", "4"], AGENT)
     assert run("pytest -q")[0] == 200, "at the phase's end the test run goes through"
     console.run(["plan", "testing", "1", "Test throughout"], USER)
     console.run(["task", "start", "3"], AGENT)
@@ -2389,7 +2391,7 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     keystrokes.clear()
     console.run(["task", "complete", "3"], AGENT)
     console.run(["plan", "add", "1", "p fourth"], USER)
-    console.run(["plan", "todos", "1", "2", "4"], USER)
+    console.run(["plan", "todos", "1", "2", "5"], USER)
 
 
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
@@ -6827,7 +6829,7 @@ def test_each_agent_holds_its_own_task_and_a_workers_task_never_moves_the_main_a
         assert tasks.holder_task(Ref(Worker.table(), 1)) is None, "and it leaves the worker that held it"
 
 
-def test_one_task_is_started_whatever_starts_it_and_a_paused_plan_pauses_its_task(app: App, monkeypatch):
+def test_one_task_is_started_whatever_starts_it_a_paused_plan_pauses_its_task_and_resuming_that_task_starts_the_plan_again_on_purpose(app: App, monkeypatch):
     from journal.models.task_state import TaskState
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -6855,15 +6857,14 @@ def test_one_task_is_started_whatever_starts_it_and_a_paused_plan_pauses_its_tas
     tasks = app.container.get(Tasks)
     assert tasks.find(1).state == "paused" and tasks.with_state(TaskState.STARTED) == [], "a paused plan pauses its task in hand"
     finished = console.run(["task", "resume", "1"], AGENT)
-    assert finished.code == 0
+    assert finished.code == 0 and app.container.get(Plans).find(1).state == "started", "resuming a task of the paused plan starts the plan again"
     console.run(["task", "complete", "1", "--how", "h"], AGENT)
     app.runtime().deferred.drain()
-    assert any("task 3 is paused" in line for line in keystrokes), "with nothing in hand, a close names a paused task"
-    console.run(["task", "resume", "3"], AGENT)
-    console.run(["task", "complete", "3", "--how", "h"], AGENT)
-    console.run(["task", "start", "2"], AGENT)
+    assert tasks.find(2).state == "started", "the started plan takes its next task in hand"
     console.run(["task", "complete", "2", "--how", "h"], AGENT)
-    assert app.container.get(Plans).find(1).state == "done", "a paused plan whose last task closes is done"
+    app.runtime().deferred.drain()
+    assert app.container.get(Plans).find(1).state == "done", "the plan whose last task closes is done"
+    assert any("task 3 is paused" in line for line in keystrokes), "with nothing in hand, a close names a paused task"
 
 
 def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_not(app: App):
@@ -10298,6 +10299,9 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
     assert console.run(["worker", "release", "1"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(1)) is None and app.container.get(Workers).find(1).state == WorkerState.RELEASED, "a release frees the task"
+    assert "Mr. Babbage" in console.run(["worker", "open"], AGENT).text, "a worker that ended without clocking out is listed to act on"
+    assert console.run(["worker", "complete", "2", "--why", "the lexer is dropped"], AGENT).code == 0
+    assert "Mr. Babbage" not in console.run(["worker", "open"], AGENT).text, "once completed it is retired and leaves the open list"
 
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
@@ -13658,6 +13662,7 @@ def test_the_messages_of_the_releases_an_update_crossed_are_kept_until_the_proje
 
 
 def test_a_task_of_an_unapproved_plan_is_neither_started_nor_handed_to_a_worker_nor_counted_as_open(app: App, monkeypatch):
+    from journal.repositories.plans import Plans
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     console = app.console()
     hook(app, "SessionStart")
@@ -13673,6 +13678,12 @@ def test_a_task_of_an_unapproved_plan_is_neither_started_nor_handed_to_a_worker_
     console.run(["plan", "ready", "1"], AGENT)
     console.run(["plan", "approve", "1"], USER)
     assert console.run(["task", "start", "1"], AGENT).code == 0, "once the user approved the plan its task is taken"
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Plans).find(1).state.value == "started", "and taking a task of an approved plan that is not started starts the plan"
+    console.run(["plan", "pause", "1"], USER)
+    console.run(["task", "start", "1"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Plans).find(1).state.value == "started", "a task of a paused plan taken up starts the plan again"
 
 
 def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it(app: App, monkeypatch, tmp_path):
@@ -18269,6 +18280,35 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_is_rebased_by_the_journal_
     brief = worker_row(app).brief
     assert brief.startswith("The journal rebased your worktree onto the project's branch") and "conflict in platform/app.php" in brief and "fix only the files that clash" in brief and brief.endswith("finish the job"), brief
     assert "<<<<<<< " in (folder / "platform/app.php").read_text(), "the journal stopped the rebase with the conflict in the worktree, for the worker to fix"
+
+def test_a_clock_out_names_files_its_repositories_could_not_commit_apart_from_folders_outside_them(app: App, monkeypatch):
+    workspace_made(app, ("platform", "mobile"))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    (folder / "platform" / "app.php").write_text("<?php\n// the worker's line\n")
+    lock = Path(git_run(folder / "platform", "rev-parse", "--absolute-git-dir").stdout.strip()) / "index.lock"
+    lock.write_text("")
+    held = proved_and_out(app, caller, "platform/app.php:2")
+    assert held.code != 0 and "platform/app.php" in held.error and "still not committed" in held.error and "outside the repositories" not in held.error, held.error
+    lock.unlink()
+    (folder / "mobile").mkdir()
+    (folder / "mobile" / "notes.md").write_text("notes\n")
+    stray = app.console().run(["clock-out", "the work is in"], caller)
+    assert stray.code != 0 and "folders outside the repositories of your task" in stray.error and "mobile/" in stray.error and "platform" not in stray.error, stray.error
+
+
+def test_a_forced_rebase_whose_put_back_of_the_workers_edits_conflicts_names_the_files_and_clears_once_they_are_fixed(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, _ = worktree_worker(app, monkeypatch, "platform totals")
+    (folder / "platform" / "app.php").write_text("<?php\n// the worker's line\n")
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
+    rebased = app.console().run(["worker", "rebase", "1", "--force"], AGENT)
+    assert rebased.code == 0 and "conflict in platform/app.php" in rebased.text, rebased.text
+    assert "<<<<<<< " in (folder / "platform" / "app.php").read_text(), "the worker's edit put back over the rebase is left with its markers, and named"
+    (folder / "platform" / "app.php").write_text("<?php\n// the user's line\n// the worker's line\n")
+    again = app.console().run(["worker", "rebase", "1", "--force"], AGENT)
+    assert again.code == 0 and "conflict" not in again.text, again.text
+    assert "the worker's line" in (folder / "platform" / "app.php").read_text() and not git_run(folder / "platform", "stash", "list").stdout.strip(), "once fixed the edit stays uncommitted and the stash the put-back kept is dropped"
+
 
 def test_a_clock_out_commits_and_rebases_the_workers_work_and_goes_on_with_a_rebase_once_its_conflicts_are_fixed(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))

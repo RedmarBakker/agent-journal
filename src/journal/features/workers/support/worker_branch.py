@@ -125,12 +125,18 @@ class WorkerBranch:
         return [repository for repository in self.repositories(worker) if self.commits(repository, worker)]
 
     def remaining(self, worker: Worker) -> list[str]:
+        return self.uncommitted_files(worker) + self.other_repository_folders(worker)
+
+    def uncommitted_files(self, worker: Worker) -> list[str]:
+        if not self.folder(worker).is_dir():
+            return []
+        return [repository.path(file) for repository in self.repositories(worker) if repository.is_present for file in self.status_files(repository.worktree)]
+
+    def other_repository_folders(self, worker: Worker) -> list[str]:
         folder = self.folder(worker)
         if not folder.is_dir():
             return []
-        files = [repository.path(file) for repository in self.repositories(worker) if repository.is_present for file in self.status_files(repository.worktree)]
-        strays = [f"{name}/" for name in self.inner_folders() if name not in worker.repositories and (folder / name).exists()]
-        return files + strays
+        return [f"{name}/" for name in self.inner_folders() if name not in worker.repositories and (folder / name).exists()]
 
     def status_files(self, folder: Path) -> list[str]:
         entries = iter(self.git("status", "--porcelain=v1", "-z", cwd=folder).stdout.split("\0"))
@@ -190,7 +196,7 @@ class WorkerBranch:
             raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
 
-    def hold_event(self, kind: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
+    def merging_event(self, kind: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
         return kind(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task_id, branch=self.name(worker), worktree=str(self.folder(worker)), repositories=worker.repositories, files=self.touched(worker) or (), base=self.base(worker), window_ms=window_ms)
 
     def base(self, worker: Worker) -> str:
@@ -257,19 +263,22 @@ class WorkerBranch:
             return f"{repository.label()}, whose worktree is gone, so its commits cannot be rebased"
         return self.rebase_conflicts(repository, self.git("rebase", "--autostash", head, cwd=repository.worktree))
 
+    def unresolved_conflicts(self, repository: WorkerRepository) -> str:
+        return ", ".join(repository.path(path) for path in self.conflicts(repository.worktree).split(", ") if path and self.has_conflict_markers(repository.worktree / path))
+
     def continue_rebase(self, repository: WorkerRepository) -> str:
-        unresolved = [path for path in self.conflicts(repository.worktree).split(", ") if path and self.is_marked(repository.worktree / path)]
+        unresolved = self.unresolved_conflicts(repository)
         if unresolved:
-            return ", ".join(repository.path(path) for path in unresolved)
+            return unresolved
         self.git("add", "-A", cwd=repository.worktree)
         return self.rebase_conflicts(repository, self.git("-c", "core.editor=true", "rebase", "--continue", cwd=repository.worktree))
 
     # the worker's uncommitted edits, set aside by the rebase's autostash and put back over it with conflicts: once the markers are gone the
     # files are plain uncommitted edits again and the autostash the put-back kept is dropped
     def autostash_conflicts(self, repository: WorkerRepository) -> str:
-        unresolved = [path for path in self.conflicts(repository.worktree).split(", ") if path and self.is_marked(repository.worktree / path)]
+        unresolved = self.unresolved_conflicts(repository)
         if unresolved:
-            return ", ".join(repository.path(path) for path in unresolved)
+            return unresolved
         self.git("reset", "-q", cwd=repository.worktree)
         if AUTOSTASH in self.git("stash", "list", "-n", "1", cwd=repository.worktree).stdout:
             self.git("stash", "drop", "-q", cwd=repository.worktree)
@@ -299,7 +308,7 @@ class WorkerBranch:
         return not self.conflicts(folder) and self.git("diff", "--cached", "--quiet", cwd=folder).returncode == 0
 
     @staticmethod
-    def is_marked(path: Path) -> bool:
+    def has_conflict_markers(path: Path) -> bool:
         return path.is_file() and bool(CONFLICT_MARKER.search(path.read_text(errors="replace")))
 
     def commit_changes(self, worker: Worker, message: str) -> None:

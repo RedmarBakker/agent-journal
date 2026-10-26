@@ -18,7 +18,7 @@ from journal.support.time_source import TimeSource
 
 
 class ActiveTask:
-    """The work an agent has current, started and stopped in one place for the task and the work commands alike; a task started is assigned to the worker that started it, whose hooks never reach the journal, to the agent whose session started it, or to the environment's working agent when the user started it."""
+    """The work an agent has current, started and stopped in one place for the task and the work commands alike; a task started is assigned to the worker that started it, whose hooks never reach the journal, to the agent whose session started it, or to the environment's working agent when the user started it; a task of an approved plan that is paused or not started yet starts its plan with it, so the plan is followed."""
 
     def __init__(self, tasks: Tasks, sessions: SessionAgents, agents: Agents, scope: Scope, clock: Clock, plans: Plans, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -40,6 +40,8 @@ class ActiveTask:
         self.tasks.guard_worker_task(task, holder, caller.actor)
         if task.state == TaskState.STARTED and self.tasks.holder(task) == holder:
             raise Rejection(f"task {task.id} is already in hand: it was started already")
+        for plan in self.plans.unstarted_plans(task):
+            self.plans.resume_plan(plan, task, caller.actor)
         return self.tasks.holder_started(task.started(self.time_source.moment()), holder, caller.actor)
 
     def holder(self, caller: Caller) -> Ref | None:

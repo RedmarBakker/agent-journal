@@ -79,7 +79,7 @@ class PlansDataReader:
         if not phases:
             return False
         current = phases[plan.current_phase(phases) - 1]
-        return current.has_open_work() and current.has_work_completed()
+        return current.open_count() > 1 and current.has_work_completed()
 
     def next_task(self, plan: Plan) -> int:
         task = self.plans.resumable(plan)

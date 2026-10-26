@@ -33,12 +33,18 @@
     },
     {
       "name": "a commit in the worktree",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PostToolUse",
+          "additionalContext": "commit 13c7b64e closed task 1"
+        }
+      },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "tasks.closed_by_commit"
+      ],
       "stack": [
-        "idle",
-        "working"
+        "idle"
       ]
     },
     {
@@ -47,8 +53,7 @@
       "typed": [],
       "nudges": [],
       "stack": [
-        "idle",
-        "working"
+        "idle"
       ]
     }
   ]

@@ -24,7 +24,7 @@ class Workers(ScopedRepository[Worker]):
         self.links, self.rows, self.tasks = links, rows, tasks
 
     def open_workers(self) -> list[Worker]:
-        return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).order("id"))
+        return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).filter(adopted=False).order("id"))
 
     def running_workers(self) -> list[Worker]:
         return self.selected(self.dispatched_query().order("id"))

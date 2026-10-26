@@ -934,7 +934,7 @@ def git_at(folder: Path, *argv: str) -> None:
 
 
 def session_in_a_worktree(app, replay: Replay, provider: str) -> None:
-    """The steps: the environment's worktree is made, a session starts in it, the agent looks, writes inside the worktree and commits there with a trailer, then a merge lands the commit."""
+    """The steps: the environment's worktree is made, a session starts in it, the agent looks, writes inside the worktree and commits there with a trailer, its commit tool started and finished as an agent's is, then a merge lands the commit."""
     from journal.support.worktree import Worktree
     tree = Worktree(project_with_git(app), "main").created()
     replay.step("session starts in the worktree", hook_as(app, provider, "SessionStart")[1])
@@ -943,13 +943,14 @@ def session_in_a_worktree(app, replay: Replay, provider: str) -> None:
     replay.step("a write inside the worktree", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": str(tree / "page.py"), "content": "PAGE = 1"})[1])
     (tree / "page.py").write_text("PAGE = 1\n")
     git_at(tree, "add", "page.py")
+    hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": "git commit -m 'the page'"})
     git_at(tree, "commit", "-qm", "the page\n\nJournal: tasks done 1")
     replay.step("a commit in the worktree", hook_as(app, provider, "PostToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": "git commit -m 'the page'"}, tool_response={})[1])
     git_at(app.config.root, "merge", "-q", "worktree-main")
     replay.step("the merge that lands it", hook_as(app, provider, "PostToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": "git merge worktree-main"}, tool_response={})[1])
 
 
-def test_a_session_in_a_worktree_works_its_environment_and_its_commit_closes_its_task_when_merged(journal, monkeypatch):
+def test_a_session_in_a_worktree_works_its_environment_and_its_commit_closes_its_task_once_and_the_merge_closes_nothing_again(journal, monkeypatch):
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
     app, provider = journal
@@ -957,7 +958,8 @@ def test_a_session_in_a_worktree_works_its_environment_and_its_commit_closes_its
     app.runtime().deferred.drain()
     name_index = {s["name"]: s for s in replay.record()}
     assert "error" not in name_index["a write inside the worktree"]["answer"], "the agent's own worktree is its to write in"
-    assert "task 1" in str(name_index["the merge that lands it"]["answer"]) and app.container.get(Tasks).find(1).state.value == "completed", "the trailer closes its task when the merge lands it"
+    assert app.container.get(Tasks).find(1).state.value == "completed", "the trailer of a commit in the environment's own worktree closes its task at the commit"
+    assert "task 1" not in str(name_index["the merge that lands it"]["answer"]), "the merge that lands the commit closes nothing a second time"
     assert any(m.text.startswith("Working in the worktree main, on the branch worktree-main") for m in app.container.get(Messages).recent(30)), "the session is marked with its worktree and branch"
     assert rows == [], "the record says the same"
 

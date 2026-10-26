@@ -169,6 +169,12 @@ class Plans(ScopedRepository[Plan]):
     def started_plans(self, task: Task) -> list[Plan]:
         return [plan for plan in self.containing(task) if plan.state == PlanState.STARTED]
 
+    def unstarted_plans(self, task: Task) -> list[Plan]:
+        return [plan for plan in self.containing(task) if plan.state in (PlanState.APPROVED, PlanState.PAUSED)]
+
+    def resume_plan(self, plan: Plan, task: Task, actor: Actor) -> Plan:
+        return self.save(plan.started(task, self.time_source.moment().timestamp()), actor)
+
     def unapproved(self, task: Task) -> list[Plan]:
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state.is_unapproved()]
 

@@ -305,8 +305,12 @@ async function runBar(p) {
                         {{ fitnessShown }}
                     </button>
                 </template>
-                <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
-                <span v-if="messageLoad" class="statusbar-load" v-tip:load="messageTip">Messages {{ messageLoad.rho.toFixed(2) }}</span>
+                <template v-if="load">
+                    <span :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">{{ load.rho.toFixed(2) }}</span>
+                </template>
+                <template v-if="messageLoad">
+                    <span class="statusbar-load" v-tip:load="messageTip">Messages {{ messageLoad.rho.toFixed(2) }}</span>
+                </template>
                 <span ref="modeAnchor" class="statusbar-mode-wrap">
                     <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="askMode" />
                 </span>

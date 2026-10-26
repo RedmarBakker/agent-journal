@@ -4,6 +4,12 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- Starting a task of an approved plan that is paused or not started yet starts its plan with it, so the plan is followed; a task of an unapproved plan is still refused.
+- A commit in the environment's own worktree closes the tasks its trailer names at the commit, and the merge that lands it closes nothing again.
+- The last open task of a plan's phase may run the tests its brief asks for, in a plan that tests at each phase end.
+- A worker that ended without clocking out leaves journal worker open once it is completed.
+- A worker's clock-out names files its repositories could not commit apart from folders outside its task's repositories.
+- The status bar shows the load's value alone; the word Load stays in its tooltip.
 - The project's tests are judged by test commandments of their own as part of journal suite: a test that writes a setting's row instead of running settings set fails the run.
 - Blocking a task that waits in a worker's queue takes it out of the queue by itself, so it is offered again once it opens; pausing a worker's task in hand is refused unless you add --force, which takes it off the worker, tells the worker to go on with its queue and leaves its commits on its branch.
 

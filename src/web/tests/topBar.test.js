@@ -67,6 +67,7 @@ test("the load shows for the builder and the orchestrator and is hidden in solo,
     store.agents = [withLoad(0.6)];
     const host = await bar();
     expect(host.querySelector(".statusbar-load").classList.contains("warn")).toBe(true);
+    expect(host.querySelector(".statusbar-load").textContent.trim()).toBe("0.60");
     store.settings = {...store.settings, workers: {mode: "solo"}};
     await nextTick();
     expect(host.querySelector(".statusbar-load")).toBeNull();
