@@ -3,6 +3,7 @@ import {computed, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import Dot from "../kit/Dot.vue";
+import OutputLines from "../kit/OutputLines.vue";
 import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
@@ -88,7 +89,7 @@ watch(
                     <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
                 </template>
                 <template v-else-if="shown && pages.loaded.value">
-                    <pre class="watch-dock-output" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
+                    <OutputLines class="watch-dock-output" :lines="pages.lines.value" @older="pages.older" />
                 </template>
                 <template v-else-if="shown">
                     <ul class="watch-dock-lines">

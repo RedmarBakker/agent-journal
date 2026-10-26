@@ -1,7 +1,8 @@
 <script setup>
-import {computed, ref} from "vue";
+import {computed, ref, watch} from "vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import ChatMark from "../kit/ChatMark.vue";
+import OutputLines from "../kit/OutputLines.vue";
 import SubagentMark from "./SubagentMark.vue";
 import WhisperMark from "./WhisperMark.vue";
 import MadeCard from "./MadeCard.vue";
@@ -42,6 +43,11 @@ function toggle() {
     if (opened.value && data.value.output) pages.poll().catch(() => {});
 }
 
+watch(
+    () => data.value.lines,
+    () => opened.value && data.value.output && pages.poll().catch(() => {})
+);
+
 function markClick(data) {
     if (data.go) return {click: () => go(data.go)};
     if (data.row) return {click: () => openRef(data.row)};
@@ -78,7 +84,7 @@ function markClick(data) {
                                         <p class="mark-summary">{{ data.summary }}</p>
                                     </template>
                                     <template v-if="data.output && pages.loaded.value">
-                                        <pre class="mark-terminal">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
+                                        <OutputLines class="mark-terminal" :lines="pages.lines.value" @older="pages.older" />
                                     </template>
                                     <template v-if="data.proof_task">
                                         <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">Open task {{ data.proof_task }} and its proofs</button>

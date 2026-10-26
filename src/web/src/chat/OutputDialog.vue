@@ -1,8 +1,12 @@
 <script setup>
-import {onMounted, ref} from "vue";
+import {onMounted, onUnmounted, ref} from "vue";
 import {useOutputPages} from "../composables/outputPages.js";
 import {api} from "../api/client.js";
 import Dialog from "../kit/Dialog.vue";
+import OutputLines from "../kit/OutputLines.vue";
+
+// while its run goes on, an opened output reads its new lines this often
+const POLL_MS = 2000;
 
 const props = defineProps({n: {type: Number, required: true}, owner: {type: String, default: ""}});
 const emit = defineEmits(["close"]);
@@ -10,7 +14,14 @@ const pages = useOutputPages((...page) => api.readOutput(props.n, ...page));
 const output = pages.facts;
 const failed = ref("");
 
-onMounted(() => !props.owner && pages.poll().catch((e) => (failed.value = e.message)));
+let timer = 0;
+const read = () => pages.poll().catch((e) => (failed.value = e.message));
+onMounted(() => {
+    if (props.owner) return;
+    read();
+    timer = setInterval(() => output.value && !output.value.ended && read(), POLL_MS);
+});
+onUnmounted(() => clearInterval(timer));
 </script>
 
 <template>
@@ -30,7 +41,7 @@ onMounted(() => !props.owner && pages.poll().catch((e) => (failed.value = e.mess
                 <span class="output-label">Output</span>
             </div>
             <template v-if="pages.lines.value.length">
-                <pre class="output-lines" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") }}</pre>
+                <OutputLines class="output-lines" :lines="pages.lines.value" @older="pages.older" />
             </template>
             <template v-else>
                 <p class="output-note">It printed nothing.</p>
