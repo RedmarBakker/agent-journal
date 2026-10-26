@@ -39,11 +39,7 @@ class DocCommand(Command):
         creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
         creation.add_argument("--abstract", default="", help="a one-line summary")
         creation.add_argument("--part", action="store_true", help="this is a part; the document is being written until a write without --part")
-<<<<<<< Updated upstream
         update = self.verb(verbs, "update", "replace a document's text with a markdown file")
-=======
-        update = self.verb(verbs, "update", "replace a document's text with a markdown file's, its title kept")
->>>>>>> Stashed changes
         update.add_argument("n", type=int)
         update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
         update.add_argument("--abstract", default=None, help="a new one-line summary")
