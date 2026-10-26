@@ -13,3 +13,11 @@ describe("a plan's card", () => {
         expect(card.querySelector(".plan-steps").textContent).toBe("2 of 3 tasks done · phase 1 of 2 · approved");
     });
 });
+
+test("a plan the user closed on the card leaves the card to the next plan waiting, one at a time", async () => {
+    const {cardPlan, cardChoices} = await import("../src/domain/plans.js");
+    const waiting = (id, extra = {}) => ({table: "plans", id, title: `Plan ${id}`, state: "ready", ...extra});
+    const plans = [waiting(1, {is_dismissed: true}), waiting(2), waiting(3)];
+    expect(cardPlan(plans)?.id).toBe(2);
+    expect(cardChoices(plans, cardPlan(plans)).map((plan) => plan.id)).toEqual([3]);
+});

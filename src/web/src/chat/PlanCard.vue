@@ -5,10 +5,11 @@ import {computed, ref, watchEffect} from "vue";
 import Btn from "../kit/Btn.vue";
 import Chip from "../kit/Chip.vue";
 import ChatDock from "../kit/ChatDock.vue";
+import CloseButton from "../kit/CloseButton.vue";
 import Icon from "../kit/Icon.vue";
 import PlanList from "../layout/PlanList.vue";
 import PlanCritique from "../resource/PlanCritique.vue";
-import {approvePlan, startPlan} from "../actions/plans.js";
+import {approvePlan, dismissPlan, startPlan} from "../actions/plans.js";
 import {flyToBar} from "../composables/planFlight.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
@@ -38,6 +39,11 @@ watchEffect(() => {
 const hidden = computed(() => Math.max(0, phases.value.length - PREVIEW_PHASES));
 const adding = "The agent is still writing the plan…";
 usePlanRows(() => [props.plan]);
+
+function dismiss() {
+    planCardChoice.value = 0;
+    dismissPlan(props.plan);
+}
 
 async function start() {
     error.value = "";
@@ -99,6 +105,7 @@ async function start() {
                     </Btn>
                 </template>
             </span>
+            <CloseButton title="Close: the plan leaves the chat and stays in the plans list, to approve from its page" @click="dismiss" />
         </template>
         <template v-if="!paused && (phases.length || building)">
             <ol class="plan-card-phases" data-fades>

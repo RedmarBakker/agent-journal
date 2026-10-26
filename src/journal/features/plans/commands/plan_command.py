@@ -86,6 +86,7 @@ class PlanCommand(Command):
         self.verb(verbs, "approve", "the user's word: the plan may start").add_argument("n", type=int)
         self.verb(verbs, "start", "follow an approved plan, or go on past a checkpoint: its next open task is started").add_argument("n", type=int)
         self.verb(verbs, "pause", "put a plan aside").add_argument("n", type=int)
+        self.verb(verbs, "card", "show a plan the user dismissed on the plan card above the chat again").add_argument("n", type=int)
         block = self.verb(verbs, "block", "a started plan waits on one thing before any of its work can go on; a plan whose every task left is blocked blocks itself")
         block.add_argument("n", type=int)
         block.add_argument("why", nargs="?", default="")
@@ -245,6 +246,11 @@ class PlanCommand(Command):
     def pause(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.postpone(self.plans.find(args.n), caller.actor)
         print(f"plan {plan.id} paused")
+        return 0
+
+    def card(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.save(self.plans.find(args.n).card_restored(), caller.actor)
+        print(f"plan {plan.id} is shown on the plan card again")
         return 0
 
     def cancel(self, args: Namespace, caller: Caller) -> int:

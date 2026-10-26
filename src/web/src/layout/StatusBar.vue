@@ -445,19 +445,23 @@ async function runBar(p) {
         <WaitingPanel :waiting="waitingNow" :anchor="waitingAnchor" @close="waitingOpen = false" />
     </template>
     <template v-if="stripped && bars.length">
-        <PlanStrip :plans="bars" />
+        <PlanStrip :plans="bars">
+            <PlanMore :plans="others" />
+        </PlanStrip>
     </template>
-    <TransitionGroup v-else name="planbar">
-        <PSection
-            v-for="bar in bars"
-            :key="bar.id"
-            :p="bar"
-            :error="error"
-            @run-bar="runBar"
-            @failed="error = $event"
-        />
-    </TransitionGroup>
-    <PlanMore :plans="others" />
+    <template v-else>
+        <TransitionGroup name="planbar">
+            <PSection
+                v-for="bar in bars"
+                :key="bar.id"
+                :p="bar"
+                :error="error"
+                @run-bar="runBar"
+                @failed="error = $event"
+            />
+        </TransitionGroup>
+        <PlanMore :plans="others" />
+    </template>
     <Toast :toast="toast" @done="toast = null" />
 </template>
 

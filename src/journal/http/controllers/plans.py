@@ -68,6 +68,9 @@ class PlanController(Controller[Plan]):
     def start(self, request: Request) -> Response:
         return self.answered(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor))
 
+    def dismiss(self, request: Request) -> Response:
+        return self.answered(self.repository.save(self.repository.find(request.number("id")).card_dismissed(), request.actor))
+
     def pause(self, request: Request) -> Response:
         return self.answered(self.repository.postpone(self.repository.find(request.number("id")), request.actor))
 
