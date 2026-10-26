@@ -37,7 +37,7 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan)
     commands = (PlanCommand,)
-    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, StartApprovedOnSessionStart, StartApprovedOnStop, StartApprovedOnTaskClosed, StartApprovedOnPlanFinished)
+    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)
