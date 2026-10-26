@@ -13069,6 +13069,35 @@ def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and
         assert not [m for m in app.container.get(Messages).all() if m.data.get("kind") == "report"], "no report and no merge for the end of a turn inside the queue"
 
 
+def test_a_job_sent_to_a_worker_whose_run_ended_mid_queue_returns_and_is_the_only_job_it_gets(app: App, monkeypatch):
+    import threading
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.repositories.workers import Workers
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "--report", "queue"], AGENT).code == 0
+    committed(worktree, "notes1.md", "note 1\n")
+    proved_and_out(app, caller, "notes1.md:1")
+    runner = app.container.get(WorkerRunner)
+    with app.container.get(Scope).environment(MAIN):
+        for path in runner.outputs(worker_row(app)):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        app.container.get(Workers).save(worker_row(app).with_(resume="w-1"), Actor.system())
+    monkeypatch.setattr(app.container.get(WorkerActions).__class__, "resumable", lambda self, worker: None)
+    monkeypatch.setattr(WorkerRunner, "is_ended", lambda self, worker: worker.is_running())
+    sent = []
+    thread = threading.Thread(target=lambda: sent.append(console.run(["worker", "send", "1", "the job from the agent"], AGENT)), daemon=True)
+    thread.start()
+    thread.join(10)
+    assert sent and sent[0].code == 0, "the send returns: ending the queue turn inside it never waits on the lock the send holds"
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert "the job from the agent" in worker_row(app).brief, "the agent's job stands; the queue's resume sends nothing once another job was sent"
+
+
 def test_a_worker_handed_its_next_queued_task_after_a_merge_starts_on_a_worktree_holding_the_latest_work(app: App, monkeypatch):
     repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
     _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")

@@ -42,6 +42,7 @@ from journal.support.timeout import Timeout
 
 SILENCE = Timeout.minutes(20)
 ENDED_UNFINISHED = "ended without clocking out"
+QUEUE_TURN_END = "ended mid-queue"
 # how a run that went past the time limit says it was stopped
 RUN_LIMIT_END = "stopped after"
 LIMITED_MOVE = "stopped at the usage limit"
@@ -185,7 +186,7 @@ class Worker(Helper):
         return self.moved(LIMITED_MOVE, time).with_(state=WorkerState.LIMITED, pid=0, token_hash="", run_end=text, resumes_at=resumes_at).with_event(WorkerLimited(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, waiting for the usage limit", resumes_at=resumes_at))
 
     def queue_turn_ended(self, time: float, task: int) -> "Worker":
-        return self.moved("ended mid-queue", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="").with_event(WorkerQueueTurnEnded(environment_id=self.environment_id, time=time, worker=self.mention(), task=task))
+        return self.moved(QUEUE_TURN_END, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="").with_event(WorkerQueueTurnEnded(environment_id=self.environment_id, time=time, worker=self.mention(), task=task))
 
     def merged(self, task: int, time: float) -> "Worker":
         return self.moved(MERGED, time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task, clashes=0).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
@@ -236,6 +237,9 @@ class Worker(Helper):
 
     def is_mid_turn(self) -> bool:
         return bool(self.token_hash) and self.is_running()
+
+    def is_ended_mid_queue(self) -> bool:
+        return self.state == WorkerState.UNFINISHED and bool(self.moves.steps) and self.moves.steps[-1][0] == QUEUE_TURN_END
 
     def is_active(self) -> bool:
         return self.is_running() or self.state == WorkerState.DELIVERED

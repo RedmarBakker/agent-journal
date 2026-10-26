@@ -64,6 +64,12 @@ class WorkerActions:
         with self.runner.lock(n):
             return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)
 
+    def queue_resumed(self, n: int, brief: str, actor: Actor) -> None:
+        with self.runner.lock(n):
+            worker = self.local(n)
+            if worker.is_ended_mid_queue():
+                self.relaunch(worker, brief, None, actor, JOB_MOVE)
+
     def resend(self, n: int, brief: str, model: str, profile: str | None, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
             return self.relaunch(self.local(n).with_(model=model, profile=profile), brief, dispatcher, actor, JOB_MOVE)
