@@ -39,6 +39,10 @@ from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
 from journal.features.workers.support.fitness_point import FitnessPoint
 from journal.features.workers.support.fitness_scoring import FitnessScoring
+from journal.features.workers.support.measure_spec import MeasureSpec
+from journal.features.workers.support.mode_measures import ModeMeasures
+from journal.models.support.agent_load import AgentLoad
+from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
@@ -54,10 +58,10 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, time_source: TimeSource) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.registry, self.settings, self.scoring = jobs, numbers, registry, settings, scoring
+        self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
 
     def page(self, agents: list[Agent]) -> list[dict]:
         return [self.row(item, [] if item.state == ENDED else self.session_entries(item.session)) for item in agents]
@@ -107,12 +111,16 @@ class AgentActivity:
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": self.load(agent),
+            "message_load": self.queue(agent.message_queue),
             **self.rolling(),
         }
 
     @staticmethod
     def load(agent: Agent) -> dict | None:
-        queue = agent.work_queue
+        return AgentActivity.queue(agent.work_queue)
+
+    @staticmethod
+    def queue(queue: AgentLoad) -> dict | None:
         if not queue.is_measured():
             return None
         return {"rho": queue.rho, "arrivals": queue.arrivals, "clearings": queue.clearings, "waiting": queue.waiting, "wait_minutes": queue.wait_minutes, "little": queue.little,
@@ -120,7 +128,14 @@ class AgentActivity:
 
     def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
-        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
+        specs = {spec.key: spec for spec in self.measures.specs(agent.measures.mode)}
+        measures = [self.measure(state, specs[state.key]) for state in agent.measures.states if state.key in specs]
+        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "measures": measures, "band": agent.band.value, "band_changed_at": agent.band_changed_at, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
+
+    @staticmethod
+    def measure(state: MeasureState, spec: MeasureSpec) -> dict:
+        return {"key": state.key, "label": spec.label, "value": state.value, "is_measured": state.is_measured, "is_failing": state.is_failing, "changed_at": state.changed_at, "last_line_at": state.last_line_at,
+                "fail_level": spec.range.fail_level if spec.weight else None, "pass_level": spec.range.pass_level if spec.weight else None}
 
     def timeline(self, session: str) -> list[dict]:
         start_at = self.time_source.seconds() - TIMELINE_HOURS * 3600

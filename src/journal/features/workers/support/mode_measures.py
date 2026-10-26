@@ -16,19 +16,19 @@ from journal.models.support.measure_states import MeasureStates
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 
-HIGH_QUEUE = MeasureSpec("high_queue_minutes", MeasureRange(10.0, 10.0), MeasureSource.high_queue_minutes, Closeness.minutes, 4)
-ACTIVE_WORKERS = MeasureSpec("active_workers", MeasureRange(2.0, 2.0), MeasureSource.active_worker_mean, Closeness.mean, 2)
+HIGH_QUEUE = MeasureSpec("high_queue_minutes", MeasureRange(10.0, 10.0), MeasureSource.high_queue_minutes, Closeness.minutes, 4, label="Minutes the worker queue stood high")
+ACTIVE_WORKERS = MeasureSpec("active_workers", MeasureRange(2.0, 2.0), MeasureSource.active_worker_mean, Closeness.mean, 2, label="Workers active at once, on average")
 SHOWN = MeasureRange(float("inf"), float("inf"))
-BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4), HIGH_QUEUE)
-COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0)
-MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3)
+BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4, label="Your own share of the code"), HIGH_QUEUE)
+COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0, label="Tasks completed an hour")
+MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3, label="Minutes the oldest message waited")
 MODE_SPECS = {
     "solo": (MESSAGE_WAIT, COMPLETION_RATE),
 }
-ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3),
-                      MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0),
-                      MeasureSpec("report_share", MeasureRange(0.5, 0.34), MeasureSource.report_share, Closeness.mean, 2),
-                      MeasureSpec("oldest_first_share", SHOWN, MeasureSource.oldest_first_share, Closeness.share, 0), MeasureSpec("rejection_share", SHOWN, MeasureSource.rejection_share, Closeness.share, 0))
+ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3, label="Minutes the oldest worker waited"), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3, label="Your own share of the landed code"),
+                      MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0, label="Minutes a place stood free"),
+                      MeasureSpec("report_share", MeasureRange(0.5, 0.34), MeasureSource.report_share, Closeness.mean, 2, label="First reports per merged task"),
+                      MeasureSpec("oldest_first_share", SHOWN, MeasureSource.oldest_first_share, Closeness.share, 0, label="Share cleared oldest first"), MeasureSpec("rejection_share", SHOWN, MeasureSource.rejection_share, Closeness.share, 0, label="Share sent back"))
 LINE_DELAY_MINUTES = 5.0
 SCORE_VERSION = 2
 

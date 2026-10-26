@@ -2455,6 +2455,7 @@ def test_each_work_mode_keeps_its_own_load_so_a_switch_neither_resets_nor_mixes_
 
 
 def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
+    from journal.features.workers.fitness_options import FitnessOptions
     from dataclasses import replace
     from journal.features.workers.support.place_scaling import PlaceScaling
     from journal.features.workers.workers_conduct import WorkersConduct
@@ -2476,11 +2477,11 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
     agent = Agent(id=1, environment_id=1, session="s1", work_queue=high).place_opened(4, now)
     event = agent.events[-1]
     assert agent.work_queue.scaled_at == now and (event.places, event.opened) == (4, True)
-    heard = lambda session: [n.rendered() for n in Ready().respond(event.reaching(session).with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges]
+    heard = lambda session: [n.rendered() for n in Ready().respond(event.reaching(session).with_data(FeatureData({})), SettingsValue({FitnessOptions.WARNINGS.key: True}), (WorkersConduct,)).nudges]
     assert heard("s1") == ["your load stayed at 0.92 for 12 minutes: one place more, 4 workers out at once"], heard("s1")
     assert heard("w2") == [], "only the orchestrator hears its places change"
     closed = Agent(id=1, environment_id=1, session="s1", work_queue=low).place_closed(2, now).events[-1]
-    assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
+    assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({FitnessOptions.WARNINGS.key: True}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
 
 
 def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after_the_interval_and_an_unblocking_task_queued_behind_others_is_named_at_once():
@@ -3199,6 +3200,25 @@ def test_a_worker_queue_failing_past_its_block_minutes_blocks_writes_until_the_o
     assert answer(shell("journal worker merge 12")).refusal is None and answer(shell("cat src/a.py")).refusal is None, "the merge it names and every read go through"
     assert answer(edit, failing=False).refusal is None, "once the queue is clear the next write goes through"
     assert answer(edit, settings=SettingsValue({FitnessOptions.WARNINGS.key: False})).refusal is None, "with the fitness warnings off nothing is blocked"
+
+
+def test_with_the_fitness_warnings_off_the_score_is_still_kept_while_no_measure_speaks_or_blocks(app: App):
+    from journal.engine.clock import Clock
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.fitness_point import FitnessPoint
+    from journal.repositories.entries import Entries
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set(FitnessOptions.WARNINGS.key, False, Actor.user(1))
+    clock = app.container.get(Clock)
+    start = clock.time()
+    with app.container.get(Scope).environment(1):
+        for minute in (0, 31):
+            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
+        newest = FitnessPoint.parsed(app.container.get(Entries).session_kind_newest("s1", FitnessPoint.KIND, 1)[0].data)
+    assert newest.is_measured, "the measures are worked out and the score kept with the warnings off"
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"})[1])
+    assert "worker queue has stood high" not in told and "decision" not in told, "and no measure line is said and no write waits"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):

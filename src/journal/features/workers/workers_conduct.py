@@ -145,7 +145,7 @@ class WorkersConduct(Conduct):
         return self.none(*missing_wait_lines(event))
 
     def on_places_scaled(self, event: PlacesScaled, settings: Settings) -> Transition:
-        if event.agent_session != event.session:
+        if event.agent_session != event.session or not settings.value(FitnessOptions.WARNINGS):
             return self.none()
         nudge = WorkersNudges.PLACE_OPENED if event.opened else WorkersNudges.PLACE_CLOSED
         return self.none(nudge.create(rho=event.rho, minutes=round(event.minutes), places=event.places))

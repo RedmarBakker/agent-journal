@@ -47,8 +47,6 @@ class WorkersOptions:
     MAX_PLACES = Option("workers.place_ceiling", "Load: most worker places", "The most workers out at once the load may bring the limit up to; blank, the load never changes the places", "", kind="text", unit="places", setter=USER)
     WEIGHT_USER_MESSAGE = Option("workers.weight_user_message", "Load: weight of a user message", "How much a message of the user's weighs in the load, a clock-out weighing 1", 3, unit="factor")
     RESEND_WEIGHT = Option("workers.weight_repeat_send_back", "Load: weight of a clock-out after a send-back", "How much a worker coming back after it was sent back weighs in the load", 1.5, unit="factor")
-    RECOVERY_FULL = Option("workers.recovery_full_score_minutes", "Fitness: minutes over the load at full score", "Minutes the load may stay over the add-a-place level with the fitness still whole", 10, unit="min")
-    RECOVERY_ZERO = Option("workers.recovery_zero_score_minutes", "Fitness: minutes over the load at no score", "Minutes over the add-a-place level at which that part of the fitness scores nothing", 60, unit="min")
     SMALL_TASK_POINTS = Option("workers.small_task_points", "Fitness: points of a small task", "A task whose brief has at most this many points is small: several small tasks to one worker fit --report queue", 2, unit="points")
     LARGE_TASK_POINTS = Option("workers.large_task_points", "Fitness: points of a large task", "A task whose brief has at least this many points is large: a long queue of large tasks fits --report every <n>", 5, unit="points")
     LONG_QUEUE_TASKS = Option("workers.long_queue_tasks", "Fitness: tasks in a long queue", "A worker with at least this many tasks sent to it has a long queue", 4, unit="tasks")

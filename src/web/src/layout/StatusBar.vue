@@ -97,6 +97,9 @@ function toggleFitness(e) {
 }
 // the load of the work mode the agent is in, arrivals over clearings, shown beside the fitness and never scored, none in solo, where it is still counted; toned by workers.load_warn and workers.load_critical, the builder's by workers.builder_load_ceiling
 const load = computed(() => (workMode.value === "solo" ? null : agent.value?.load || null));
+// the user's messages measured apart from the workers' items, arrivals over clearings
+const messageLoad = computed(() => agent.value?.message_load || null);
+const messageTip = computed(() => messageLoad.value && {title: `Messages ${messageLoad.value.rho.toFixed(2)}`, line: `${messageLoad.value.waiting} of your messages wait for an answer`});
 const loadLevel = computed(() => {
     const levels = store.settings?.workers || {};
     if (!load.value) return "";
@@ -303,6 +306,7 @@ async function runBar(p) {
                     </button>
                 </template>
                 <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
+                <span v-if="messageLoad" class="statusbar-load" v-tip:load="messageTip">Messages {{ messageLoad.rho.toFixed(2) }}</span>
                 <span ref="modeAnchor" class="statusbar-mode-wrap">
                     <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="askMode" />
                 </span>
@@ -366,7 +370,7 @@ async function runBar(p) {
             </template>
             <template v-if="fitnessOpen && fitness">
                 <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
-                    <FitnessTimeline :score="fitness.score" :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
+                    <FitnessTimeline :score="fitness.score" :points="fitness.timeline" :measures="fitness.measures || []" :band="fitness.band || 'none'" :band-changed-at="fitness.band_changed_at || 0" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
                 </MenuPanel>
             </template>
             <template v-if="verifiersOpen">

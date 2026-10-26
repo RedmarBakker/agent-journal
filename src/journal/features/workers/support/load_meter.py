@@ -1,4 +1,4 @@
-from dataclasses import asdict, replace
+from dataclasses import asdict
 
 from journal.features.workers.support.band_rules import BandRules
 from journal.features.workers.support.load_item import LoadItem
@@ -38,9 +38,7 @@ class LoadMeter:
     def queues(self, items: list[LoadItem], dispatches: list[float], time: float) -> tuple[AgentLoad, AgentLoad]:
         work_series, message_series = self.series(self.work_level()), self.series(self.settings.decimal(WorkersOptions.PLACE_OPENING_RATIO))
         work_items, message_items = [item for item in items if item.ref.startswith(WORKER_REF)], [item for item in items if not item.ref.startswith(WORKER_REF)]
-        work_queue, message_queue = (replace(series.measured(measured, moves, time), over_full_minutes=self.settings.decimal(WorkersOptions.RECOVERY_FULL), over_zero_minutes=self.settings.decimal(WorkersOptions.RECOVERY_ZERO))
-                                     for series, measured, moves in ((work_series, work_items, dispatches), (message_series, message_items, [])))
-        return work_queue, message_queue
+        return work_series.measured(work_items, dispatches, time), message_series.measured(message_items, [], time)
 
     def measure(self, agent: Agent, time: float) -> None:
         work_series = self.series(self.work_level())

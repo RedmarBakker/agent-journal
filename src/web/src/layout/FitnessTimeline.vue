@@ -16,6 +16,9 @@ const PAD = 6;
 const props = defineProps({
     score: {type: Number, required: true},
     points: {type: Array, default: () => []},
+    measures: {type: Array, default: () => []},
+    band: {type: String, default: "none"},
+    bandChangedAt: {type: Number, default: 0},
     hours: {type: Number, required: true},
     low: {type: Number, required: true},
 });
@@ -36,6 +39,18 @@ const runs = computed(() =>
         .map((run) => run.map((point) => `${x(point.at)},${y(point.score)}`).join(" "))
 );
 const newest = computed(() => [...props.points].reverse());
+// each measure's value, its range and its state, as the agent row keeps them
+const number = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
+const range = (measure) => {
+    if (measure.fail_level === null) return "shown, not scored";
+    return measure.fail_level >= measure.pass_level ? `fails over ${number(measure.fail_level)}, passes at ${number(measure.pass_level)} or under` : `fails under ${number(measure.fail_level)}, passes at ${number(measure.pass_level)} or over`;
+};
+const state = (measure) => {
+    if (!measure.is_measured) return "not measured";
+    const since = measure.changed_at ? ` since ${clock(measure.changed_at)}` : "";
+    return `${measure.is_failing ? "failing" : "passing"}${since}`;
+};
+const bandLine = computed(() => (props.band === "none" ? "" : `Worker queue ${props.band}${props.bandChangedAt ? ` since ${clock(props.bandChangedAt)}` : ""}`));
 // the first point of each newer version of the scoring, where the old score ends and the new begins
 const versionStarts = computed(() => props.points.filter((point, n) => n > 0 && (point.version ?? 1) !== (props.points[n - 1].version ?? 1)));
 // the numbers the score is measured by are the settings named Fitness, opened from the panel's cogwheel
@@ -43,7 +58,7 @@ const openSettings = () => {
     emit("close");
     go("settings", 0, "Fitness:");
 };
-// whether the agent is sent the lines about its fitness; off, the score is still measured and shown here
+// whether the agent is sent the measures' lines and held by them; off, the measures are still worked out and shown here
 const warnings = computed(() => store.settings?.workers?.fitness_warnings !== false);
 const setWarnings = (on) => saveSettings({workers: {fitness_warnings: on}});
 const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.at)}`, line: point.moved});
@@ -56,8 +71,23 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
             <Btn kind="icon" class="fitness-timeline-settings" aria-label="Open the fitness settings" @click="openSettings"><Icon name="settings" /></Btn>
             <CloseButton @click="emit('close')" />
         </header>
+        <template v-if="bandLine">
+            <p class="fitness-timeline-band">{{ bandLine }}</p>
+        </template>
+        <template v-if="measures.length">
+            <ul class="fitness-timeline-measures">
+                <template v-for="measure in measures" :key="measure.key">
+                    <li :class="['fitness-timeline-measure', {failing: measure.is_failing, unmeasured: !measure.is_measured}]">
+                        <span class="fitness-timeline-measure-label">{{ measure.label }}</span>
+                        <strong class="fitness-timeline-measure-value">{{ measure.is_measured ? number(measure.value) : "–" }}</strong>
+                        <small class="fitness-timeline-measure-range">{{ range(measure) }}</small>
+                        <small class="fitness-timeline-measure-state">{{ state(measure) }}<template v-if="measure.last_line_at">, told at {{ clock(measure.last_line_at) }}</template></small>
+                    </li>
+                </template>
+            </ul>
+        </template>
         <div class="fitness-timeline-warnings">
-            <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the score is still measured and shown, and no line about it reaches the agent" beside @change="setWarnings" />
+            <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the measures are still worked out and shown, and none of their lines or holds reaches the agent" beside @change="setWarnings" />
         </div>
         <h5 class="fitness-timeline-label">Scores over the last {{ hours }} hours</h5>
         <template v-if="!points.length">
@@ -175,6 +205,43 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
 
 .fitness-timeline-dot.low {
     fill: var(--tone-warn);
+}
+
+.fitness-timeline-band {
+    margin: 0;
+    padding: 8px 8px 0;
+    color: var(--text-2);
+    font-size: 12px;
+}
+
+.fitness-timeline-measures {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+}
+
+.fitness-timeline-measure {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    font-size: 12px;
+}
+
+.fitness-timeline-measure-range,
+.fitness-timeline-measure-state {
+    grid-column: 1 / -1;
+    color: var(--text-3);
+}
+
+.fitness-timeline-measure.failing .fitness-timeline-measure-value {
+    color: var(--bad, var(--text));
+}
+
+.fitness-timeline-measure.unmeasured {
+    color: var(--text-3);
 }
 
 .fitness-timeline-version {
