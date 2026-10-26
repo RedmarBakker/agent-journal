@@ -32,6 +32,7 @@ class GitHooks:
     @staticmethod
     def hook(path: Path, folder: Path) -> GitHook:
         text = [line.strip() for line in path.read_text(errors="replace").splitlines()]
-        notes = [line.lstrip("#").strip() for line in text if line.startswith("#") and not line.startswith("#!")]
-        steps = tuple(line for line in text if line and not line.startswith("#"))[:SHOWN_COMMANDS]
+        comments = [line for line in text if line.startswith("#")]
+        notes = [line.lstrip("#").strip() for line in comments if line[1:2] != "!"]
+        steps = tuple(line for line in text if line and line not in comments)[:SHOWN_COMMANDS]
         return GitHook(path.name, os.access(path, os.X_OK), str(folder), " ".join(notes[:2]), steps)

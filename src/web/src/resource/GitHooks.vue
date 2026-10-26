@@ -17,7 +17,7 @@ onMounted(async () => {
     <template v-if="hooks.length">
         <section class="git-hooks">
             <h3 class="git-hooks-head">Git hooks</h3>
-            <p class="git-hooks-line">Git runs these at its own moments; they are read here and changed in the repository.</p>
+            <p class="git-hooks-line">Git runs these on its own; they are shown here and changed in the repository.</p>
             <template v-for="hook in hooks" :key="hook.name">
                 <div class="git-hook" :data-hook="hook.name">
                     <span class="git-hook-name">{{ hook.name }}</span>
