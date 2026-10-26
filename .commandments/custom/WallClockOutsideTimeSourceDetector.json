@@ -1,0 +1,35 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "call",
+        "where": [
+            {
+                "textMatches": "^(datetime\\.now|time\\.time|timing\\.time)\\("
+            },
+            {
+                "fileMatches": "(^|/)journal/"
+            }
+        ],
+        "reject": [
+            {
+                "fileMatches": "(^|/)journal/support/time_source\\.py$"
+            },
+            {
+                "fileMatches": "(^|/)journal/db/migrations/"
+            },
+            {
+                "fileMatches": "(^|/)journal/sync/clock_offset\\.py$"
+            },
+            {
+                "testCode": true
+            }
+        ]
+    },
+    "sin": {
+        "name": "wall-clock-outside-time-source",
+        "description": "Code reads the wall clock itself, so a run that pins the journal's time, a replay or a simulation, sees two times at once and cannot replay.",
+        "rule": "Read the time from the TimeSource the constructor is given: time_source.seconds() for a number, time_source.moment() for a datetime; only TimeSource itself, the migrations and the clock offset to the team server read the wall clock.",
+        "skill": "python/fix-at-the-source"
+    }
+}

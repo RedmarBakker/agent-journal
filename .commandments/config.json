@@ -16,6 +16,7 @@
         "PlainServerTextDetector",
         "PlainJournalTextDetector",
         "AgentWordsWithoutKeyDetector",
+        "WallClockOutsideTimeSourceDetector",
         "StoredCheckOutsideFunnelDetector",
         "PlainViewerScriptTextDetector",
         "PlainViewerPageTextDetector",
