@@ -8,5 +8,5 @@ ACTIONS = ("write", "read", "dispatch", "merge", "stop", "message")
 class CarelessPolicy:
     """An agent taking any legal action at random, for the search for stuck states: whatever the journal offers must still lead somewhere."""
 
-    def action(self, world: World, chance: random.Random) -> str:
+    def action(self, world: World, chance: random.Random, told: tuple[tuple[str, str], ...]) -> str:
         return chance.choice(ACTIONS)

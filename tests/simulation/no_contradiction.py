@@ -1,19 +1,16 @@
+from tests.simulation.opposed_lines import OpposedLines
 from tests.simulation.trace_entry import TraceEntry
 
-OPPOSED = (
-    ("workers.load_critical", "workers.builder_handover_budget"),
-    ("workers.load_critical", "workers.dispatch_while_busy"),
-    ("workers.worker_place_free", "workers.load_critical"),
-)
+WINDOW_SECONDS = 600
 
 
 class NoContradiction:
-    """Two lines that ask opposite things never reach the agent in one step, such as the load asking it to hand work out while the builder's budget asks it to write the work itself."""
+    """Two lines that ask opposite things never reach the agent within ten simulated minutes of each other, the time an agent takes to act on the first."""
 
     def violated(self, trace: list[TraceEntry]) -> str:
-        for entry in trace:
-            said = set(entry.nudges)
-            pair = next((pair for pair in OPPOSED if set(pair) <= said), None)
-            if pair:
-                return f"at second {entry.second} the agent was told both {pair[0]} and {pair[1]}"
+        said = [(entry.second, key) for entry in trace for key in entry.nudges]
+        for index, (second, key) in enumerate(said):
+            clash = next(((later, other) for later, other in said[index + 1:] if later - second <= WINDOW_SECONDS and OpposedLines.opposed(key, other)), None)
+            if clash:
+                return f"the agent was told {key} at second {second} and {clash[1]} at second {clash[0]}, within {WINDOW_SECONDS // 60} minutes"
         return ""

@@ -19,5 +19,5 @@ class LoadRecord(AgentListener[ToolFinished]):
             return
         main = self.agents.main_row(event.session)
         if main is not None:
-            self.level_entries.record(main, LoadLevels.standing(main.load.rho, self.settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE), self.settings.decimal(WorkersOptions.WORKLOAD_NOTICE_STEP)))
+            self.level_entries.record(main, LoadLevels.standing(main.work_queue.rho, self.settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE), self.settings.decimal(WorkersOptions.WORKLOAD_NOTICE_STEP)))
             self.meter.measure(main, event.time)

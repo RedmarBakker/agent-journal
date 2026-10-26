@@ -12,7 +12,7 @@ SWITCHING = ("checkout", "switch")
 
 
 class GitFacts:
-    """What a git command that ended well left in its folder, as the event it is worth: the commit at the head for a commit, the branch and the remote for a push, the branch now on for a checkout or a switch that names one."""
+    """What a git command that ended well left in its folder, as the event it is worth: the commit at the head for a commit with the lines it added per path, the branch and the remote for a push, the branch now on for a checkout or a switch that names one."""
 
     @staticmethod
     def event(part: str, folder: Path, environment_id: int, session: str | None) -> Event | None:
@@ -51,4 +51,9 @@ class GitFacts:
             return None
         sha, _, subject = head.partition("\0")
         changed = GitFacts.run(folder, "show", "--numstat", "--format=", "HEAD").splitlines()
-        return GitCommitted(environment_id=environment_id, session=session, sha=sha, branch=GitFacts.branch(folder), subject=subject, files=len(changed))
+        return GitCommitted(environment_id=environment_id, session=session, sha=sha, branch=GitFacts.branch(folder), subject=subject, files=len(changed), lines=tuple(GitFacts.added(row) for row in changed))
+
+    @staticmethod
+    def added(numstat: str) -> tuple[str, int]:
+        added, _, path = numstat.split("\t", 2)
+        return path, int(added) if added.isdigit() else 0

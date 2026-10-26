@@ -21,7 +21,7 @@ class FitnessLevelRecord(AgentListener[ToolFinished]):
         if event.subagent or not rows or rows[0].role != AgentRole.MAIN:
             return
         fitness = self.scoring.scored(rows[0])
-        if fitness is None or not fitness.is_measured:
+        if not fitness.is_measured:
             return
         step = self.settings.integer(FitnessOptions.LEVEL_STEP)
         level = FitnessLevels.standing(fitness.score, step) if step > 0 else 100

@@ -2437,17 +2437,15 @@ def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_
     assert calm.rho < 0.5 and calm.dispatches_for == 1 and calm.dispatches_against == 0, "a dispatch while the load is low counts for"
 
 
-def test_a_workers_moves_and_the_users_messages_are_the_items_its_load_counts():
+def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_none():
     from types import SimpleNamespace
     from journal.features.workers.support.load_items import LoadItems
     from journal.models.support.worker_moves import WorkerMoves
-    reader = LoadItems(None, None, None, SimpleNamespace(decimal=lambda option: option.default), None)
+    reader = LoadItems(None, None, SimpleNamespace(holder_task_ids=lambda ref: []), SimpleNamespace(decimal=lambda option: option.default), None)
     moves = WorkerMoves((("clocked in", 10.0), ("clocked out", 100.0), ("sent back", 160.0), ("clocked in", 170.0), ("clocked out", 400.0), ("merged", 460.0), ("sent a job", 470.0), ("ended without clocking out", 900.0)))
-    items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves), 0.5)
-    assert [(item.arrived_at, item.weight, item.cleared_at) for item in items] == [(100.0, 1.0, 160.0), (400.0, 1.5, 460.0), (900.0, 1.0, 0.0)], "a clock-out cleared by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"
-    idle = reader.worker_items(Worker(id=8, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0), ("sent a job", 80.0)))), 0.5)
-    assert [(item.weight, item.cleared_at) for item in idle] == [(0.5, 80.0)], "an idle place while a task is open, cleared by a job into it"
-    assert reader.worker_items(Worker(id=9, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0),))), 0.0) == [], "with no task open an idle place is no item"
+    items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves))
+    assert [(item.arrived_at, item.weight, item.cleared_at, item.ended_at, item.is_repeat) for item in items] == [(100.0, 1.0, 0.0, 160.0, False), (400.0, 1.5, 460.0, 0.0, True), (900.0, 1.0, 0.0, 0.0, False)], "a clock-out ended without a clearing by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"
+    assert reader.worker_items(Worker(id=8, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0), ("sent a job", 80.0))))) == [], "an idle place is no item of the queue; its minutes are read apart"
 
 
 def test_the_load_is_told_at_each_mark_from_its_start_once_and_drained_past_one_every_so_many_tool_uses():
@@ -2509,12 +2507,12 @@ def test_tasks_added_to_a_plan_leave_the_load_where_it_was(app: App):
 def test_each_work_mode_keeps_its_own_load_so_a_switch_neither_resets_nor_mixes_them():
     from journal.models.agent import Agent
     from journal.models.support.agent_load import AgentLoad
-    agent = Agent(environment_id=1, session="s1", mode="builder", load=AgentLoad(rho=0.4, measured_at=1.0))
+    agent = Agent(environment_id=1, session="s1", mode="builder", work_queue=AgentLoad(rho=0.4, measured_at=1.0))
     orchestrating = agent.in_mode("orchestrator")
-    assert orchestrating.load == AgentLoad(), "a mode not yet measured starts with no figure"
-    measured = orchestrating.with_(load=AgentLoad(rho=0.9, measured_at=2.0))
-    assert measured.in_mode("builder").load.rho == 0.4, "back in the builder's mode its own figure is there"
-    assert measured.in_mode("builder").in_mode("orchestrator").load.rho == 0.9 and measured.in_mode("solo").load == AgentLoad()
+    assert orchestrating.work_queue == AgentLoad(), "a mode not yet measured starts with no figure"
+    measured = orchestrating.with_(work_queue=AgentLoad(rho=0.9, measured_at=2.0))
+    assert measured.in_mode("builder").work_queue.rho == 0.4, "back in the builder's mode its own figure is there"
+    assert measured.in_mode("builder").in_mode("orchestrator").work_queue.rho == 0.9 and measured.in_mode("solo").work_queue == AgentLoad()
 
 
 def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
@@ -2536,13 +2534,13 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
     assert not scaling.closes(low, 3, True, now), "never while a worker holds a task"
     assert not scaling.closes(replace(low, waiting=1.0), 3, False, now), "nor while anything waits"
     assert not scaling.closes(low, 2, False, now), "never under the floor"
-    agent = Agent(id=1, environment_id=1, session="s1", load=high).place_opened(4, now)
+    agent = Agent(id=1, environment_id=1, session="s1", work_queue=high).place_opened(4, now)
     event = agent.events[-1]
-    assert agent.load.scaled_at == now and (event.places, event.opened) == (4, True)
+    assert agent.work_queue.scaled_at == now and (event.places, event.opened) == (4, True)
     heard = lambda session: [n.rendered() for n in Ready().respond(event.reaching(session).with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges]
     assert heard("s1") == ["your load stayed at 0.92 for 12 minutes: one place more, 4 workers out at once"], heard("s1")
     assert heard("w2") == [], "only the orchestrator hears its places change"
-    closed = Agent(id=1, environment_id=1, session="s1", load=low).place_closed(2, now).events[-1]
+    closed = Agent(id=1, environment_id=1, session="s1", work_queue=low).place_closed(2, now).events[-1]
     assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
 
 
@@ -2936,6 +2934,205 @@ def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command
     assert read.refusal is not None and "you are not at work" in read.refusal.rendered(), "a read in Void is refused with the line that says the helper has no job"
     command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset())).with_data(FeatureData(())), SettingsValue({}))
     assert command.refusal is None, "a journal command passes, so a worker can clock in"
+
+
+def test_an_agents_line_series_are_kept_by_time_and_read_by_window():
+    hour = 3600.0
+    agent = Agent(session="s1")
+    for minutes, lines in ((0, 10), (50, 20), (100, 30), (170, 40)):
+        agent = agent.lines_edited(lines, minutes * 60, minutes * 60 - 3 * hour)
+    assert agent.edited_total(170 * 60, hour) == 40 and agent.edited_total(170 * 60, 2 * hour) == 70, "a 60-minute window holds the last pair, a 120-minute one the last two"
+    later = agent.lines_edited(5, 200 * 60, 200 * 60 - 3 * hour)
+    assert [time for time, _ in later.edited_lines] == [50 * 60, 100 * 60, 170 * 60, 200 * 60], "a pair older than three hours is dropped at the next write"
+    committed = agent.lines_committed("abc", 12, 60.0, 0.0).lines_committed("def", 8, 120.0, 0.0)
+    assert committed.committed_total(120.0, hour) == 20 and committed.is_sha_counted("abc") and not committed.is_sha_counted("xyz")
+    assert agent.first_reported(7, 60.0, 0.0).first_reported(8, 4000.0, 0.0).first_report_count(4000.0, hour) == 1
+
+
+def test_old_line_pairs_keyed_by_tool_use_are_cleared(connection):
+    from journal.db.migrations.timed_line_series import TimedLineSeries
+    connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, edited_lines, merged_lines, created_at, creator) VALUES (1, 'old', 'main', 'idle', '{}', '[]', ?, ?, '2026-10-26', 'system')", (json.dumps([[12, 40], [30, 5]]), json.dumps([[20, 80]])))
+    TimedLineSeries().apply(connection)
+    row = connection.all("SELECT edited_lines, merged_lines FROM agents WHERE session = 'old'")[0]
+    assert (json.loads(row["edited_lines"]), json.loads(row["merged_lines"])) == ([], []), "pairs keyed by a tool use's number mean nothing as times"
+
+
+def test_a_commit_counts_its_own_lines_once_per_sha_leaving_out_merges_built_paths_and_a_reformats_excess(app: App):
+    from journal.events.announcer import Announcer
+    from journal.events.moments.git_committed import GitCommitted
+    from journal.events.moments.worker_work_merged import WorkerWorkMerged
+    from journal.features.git.support.git_facts import GitFacts
+    from journal.features.workers.support.worker_branch import REBUILD_SUBJECT
+    hook(app, "SessionStart")
+    announcer, agents = app.container.get(Announcer), app.container.get(Agents)
+    app.container.get(SettingRows).set("workers.built_paths", ["dist"], Actor.user(1))
+    assert GitFacts.added("12\t3\tsrc/parser.py") == ("src/parser.py", 12) and GitFacts.added("-\t-\tlogo.png") == ("logo.png", 0), "a commit's numstat row gives the path and the lines it added"
+    commit = lambda sha, lines, subject="the parser": GitCommitted(environment_id=1, session="s1", sha=sha, branch="main", subject=subject, files=len(lines), lines=lines)
+    with app.container.get(Scope).environment(1):
+        announcer.announce(commit("a1", (("src/parser.py", 30), ("dist/app.js", 900))))
+        announcer.announce(commit("a1", (("src/parser.py", 30), ("dist/app.js", 900))))
+        assert [lines for _, lines in agents.session_agent("s1").committed_lines] == [30], "a commit announced by the shell's recording and by the head watch counts once, its built path left out"
+        announcer.announce(commit("a2", (("src/everything.py", 2000),)))
+        assert agents.session_agent("s1").committed_lines[-1][1] == 400, "a 2,000-line reformat counts 400"
+        announcer.announce(WorkerWorkMerged(environment_id=1, worker=1, name="Mr. Hook", dispatcher="s1", task=1, next_task=0, time=1.0, lines=40, merged_shas=("w1",)))
+        announcer.announce(commit("w1", (("src/footer.py", 40),)))
+        announcer.announce(commit("r1", (("dist/app.js", 10),), REBUILD_SUBJECT))
+        row = agents.session_agent("s1")
+    assert [lines for _, lines in row.committed_lines] == [30, 400] and sum(lines for _, lines in row.merged_lines) == 40, "a worker's commit fast-forwarded into the root counts only as merged, and the rebuild commit counts nothing"
+
+
+def test_each_modes_band_moves_with_hysteresis_holds_five_minutes_and_leaves_high_on_an_empty_queue():
+    from journal.features.workers.support.band_rule import BandRule
+    from journal.models.support.pressure_band import PressureBand
+    orchestrator, builder = BandRule(0.8, 0.65, 0.5, 0.6, 300, 300), BandRule(0.5, 0.4, 0.3, 0.35, 300, 300)
+    high, normal, low = PressureBand.HIGH, PressureBand.NORMAL, PressureBand.LOW
+    assert [orchestrator.moved(normal, rho, 600, 0) for rho in (0.79, 0.8, 0.49)] == [normal, high, low], "the orchestrator enters high at 0.8 and low under 0.5"
+    assert [orchestrator.moved(high, rho, 600, 0) for rho in (0.66, 0.64)] == [high, normal] and [orchestrator.moved(low, rho, 600, 0) for rho in (0.59, 0.6)] == [low, normal], "and leaves high under 0.65 and low at 0.6"
+    assert [builder.moved(normal, rho, 600, 0) for rho in (0.5, 0.29)] == [high, low] and [builder.moved(high, 0.39, 600, 0), builder.moved(low, 0.35, 600, 0)] == [normal, normal], "the builder's band sits on its ceiling of 0.5"
+    assert orchestrator.moved(normal, 0.95, 120, 0) == normal, "a band is held five minutes before it changes"
+    assert orchestrator.moved(high, 0.95, 60, 300) == normal and orchestrator.moved(high, 0.95, 60, 200) == high, "high is left once the worker queue has stood empty five minutes, held or not"
+    assert orchestrator.moved(normal, 0.95, 600, 400) == normal, "high is never entered on a queue empty past the five minutes, however high the smoothed load"
+
+
+def test_load_held_high_ends_the_minute_nothing_waits_though_the_smoothed_load_is_still_high():
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_series import LoadSeries
+    series = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, quiet_at=0.5)
+    items = [LoadItem(ref=f"workers:{n}", arrived_at=n * 60.0, weight=1.0) for n in range(20)]
+    waiting = series.measured(items, [], 1800.0)
+    cleared = series.measured([item.cleared(1800.0) for item in items], [], 1860.0)
+    assert waiting.rho >= 0.8 and waiting.over_minutes > 0, waiting
+    assert cleared.rho >= 0.8 and cleared.over_minutes == 0.0, "an empty queue ends load held high within one tick, while the smoothed load is still over the line"
+
+
+def test_a_measure_turns_failing_and_passing_once_each_at_its_levels_a_stretch_is_not_smoothed_and_nothing_to_measure_stays_unmeasured():
+    from journal.features.workers.support.closeness import Closeness
+    from journal.features.workers.support.measure_range import MeasureRange
+    from journal.features.workers.support.measure_source import MeasureSource
+    from journal.features.workers.support.measure_spec import MeasureSpec
+    from journal.features.workers.support.mode_measures import HIGH_QUEUE, ModeMeasures
+    from journal.models.support.measure_state import MeasureState
+    share = MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4)
+    state, changes = MeasureState("own_code_share"), []
+    for minute, value in enumerate((0.7, 0.55, 0.49, 0.45, 0.55, 0.59, 0.6, 0.65, 0.52)):
+        moved = ModeMeasures.stepped(share, state, value, minute * 60.0)
+        if moved.is_failing != state.is_failing:
+            changes.append((value, moved.is_failing, moved.changed_at))
+        state = moved
+    assert changes == [(0.49, True, 120.0), (0.6, False, 360.0)], "failing under 0.5, passing again only at 0.6, once each"
+    held = ModeMeasures.stepped(HIGH_QUEUE, ModeMeasures.stepped(HIGH_QUEUE, MeasureState("high_queue_minutes"), 30.0, 0.0), 0.0, 60.0)
+    assert held.value == 0.0 and not held.is_failing, "a stretch is taken as it is, never smoothed"
+    smoothed = MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0)
+    assert 0 < ModeMeasures.stepped(smoothed, ModeMeasures.stepped(smoothed, MeasureState("idle_places"), 10.0, 0.0), 0.0, 60.0).value < 10.0, "idle minutes are smoothed"
+    empty = ModeMeasures.stepped(share, state, None, 600.0)
+    assert not empty.is_measured and not empty.is_failing, "nothing to measure is unmeasured, never perfect"
+
+
+def test_the_score_weighs_the_measured_states_and_waits_for_the_warmup():
+    from journal.features.workers.support.mode_measures import HIGH_QUEUE, ORCHESTRATOR_SPECS, SCORE_VERSION, ModeMeasures
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    states = (MeasureState("high_queue_minutes", 35.0, is_measured=True, is_failing=True, measured_at=1800.0), MeasureState("clearing_wait", 2.0, is_measured=True, measured_at=1800.0), MeasureState("delegation", measured_at=1800.0))
+    specs = (replace(HIGH_QUEUE, weight=6), *ORCHESTRATOR_SPECS)
+    scored = ModeMeasures.scored(MeasureStates("orchestrator", 0.0, states), specs, 1800.0)
+    assert scored.is_measured and scored.score == 67 and scored.version == SCORE_VERSION, "held high 35 minutes counts half at weight 6, a short wait whole at weight 3, and the unmeasured delegation is left out"
+    assert dict(scored.parts) == {"high_queue_minutes": 50, "clearing_wait": 100}
+    assert not ModeMeasures.scored(MeasureStates("orchestrator", 600.0, states), specs, 1800.0).is_measured, "no score until the mode has been measured for the warm-up"
+
+
+def test_a_minute_tick_records_a_fitness_point_of_the_measure_scoring(app: App):
+    from journal.engine.clock import Clock
+    from journal.features.workers.support.fitness_point import FitnessPoint
+    from journal.features.workers.support.mode_measures import SCORE_VERSION
+    from journal.repositories.entries import Entries
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    clock = app.container.get(Clock)
+    start = clock.time()
+    with app.container.get(Scope).environment(1):
+        for minute in (0, 31):
+            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
+        newest = FitnessPoint.parsed(app.container.get(Entries).session_kind_newest("s1", FitnessPoint.KIND, 1)[0].data)
+    assert newest.version == SCORE_VERSION and newest.is_measured and newest.score == 100, newest
+
+
+def test_an_agent_running_across_the_upgrade_starts_unmeasured_with_a_normal_band(app: App):
+    from journal.db.connection import Connection
+    from journal.engine.clock import Clock
+    from journal.features.workers.support.fitness_scoring import FitnessScoring
+    from journal.models.support.pressure_band import PressureBand
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.container.get(Connection).execute("UPDATE agents SET band = NULL, band_changed_at = NULL, measures = NULL WHERE session = 's1'")
+    clock = app.container.get(Clock)
+    with app.container.get(Scope).environment(1):
+        answers = clock.ticked(Ticked(session="s1", environment_id=1, time=clock.time(), silence_seconds=0.0))
+    row = app.container.get(Agents).session_rows("s1")[0]
+    assert row.band == PressureBand.NORMAL and row.band_changed_at > 0, "the first band after the upgrade is normal, changed at the first tick"
+    assert not app.container.get(FitnessScoring).scored(row).is_measured and not row.measures.failing_keys(), "the score waits its warm-up and no measure is failing"
+    assert not [answer for answer in answers if getattr(answer, "nudges", ())], "the tick sends no line"
+
+
+def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_repeat(app: App):
+    from journal.engine.nudger import Nudger
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import measure_check
+    from journal.models.support.agent_load import AgentLoad
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.pressure_band import PressureBand
+    from journal.support.time_source import TimeSource
+    failing = MeasureStates("builder", 0.0, (MeasureState("high_queue_minutes", 14.0, is_measured=True, is_failing=True, changed_at=400.0, measured_at=1000.0),))
+    workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=1000.0), measures=failing, band=PressureBand.HIGH)
+    event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": workers}))
+    lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: True})).nudges
+    assert [line.rendered() for line in lines] == ["the worker queue has stood high for 14 minutes. clear worker 12 first, the oldest: check it, merge it or reply"], [line.rendered() for line in lines]
+    assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: False})).nudges == (), "with the warnings off no measure line is said"
+    hook(app, "SessionStart")
+    agent, nudger, clock = app.container.get(Agents).session_rows("s1")[0], app.container.get(Nudger), app.container.get(TimeSource)
+    sent = []
+    for second in (1000.0, 1060.0, 1301.0):
+        clock.pin(second)
+        sent.append(nudger.deliver(agent, lines[0]) is not None)
+    clock.unpin()
+    assert sent == [True, False, True], "said, held back within its five-minute repeat, and said again after it"
+
+
+def test_no_band_of_a_mode_holds_two_measure_lines_that_push_opposite_ways():
+    from journal.features.workers.support.handout_direction import HandoutDirection
+    from journal.features.workers.support.line_bands import LineBands
+    from journal.models.support.pressure_band import PressureBand
+    for mode in ("builder", "orchestrator", "solo"):
+        for band in PressureBand:
+            directions = {row.direction for row in LineBands.ROWS if row.mode == mode and band in row.bands}
+            assert not {HandoutDirection.INCREASE, HandoutDirection.DECREASE} <= directions, (mode, band)
+    assert LineBands.is_allowed("orchestrator", "workers.clear_the_oldest_item", PressureBand.HIGH) and not LineBands.is_allowed("orchestrator", "workers.clear_the_oldest_item", PressureBand.NORMAL)
+    assert ("workers.orchestrator_hand_out", "workers.clear_the_oldest_item") in LineBands.opposed_pairs()
+
+
+def test_a_held_high_worker_queue_opens_a_place_at_the_dwell_and_says_its_line_five_minutes_later(app: App):
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_series import LoadSeries
+    from journal.features.workers.support.mode_measures import ModeMeasures
+    from journal.features.workers.support.place_scaling import PlaceScaling
+    from journal.models.support.measure_state import MeasureState
+    def minutes() -> tuple[int, int, int]:
+        spec = app.container.get(ModeMeasures).specs("orchestrator")[0]
+        dwell = app.container.get(SettingRows).decimal(WorkersOptions.PLACE_OPENING_MINUTES)
+        series, scaling = LoadSeries(30, 10, 0.8, 0.5), PlaceScaling(dwell, 30, 1, 8)
+        items = [LoadItem(ref=f"workers:{n}", arrived_at=n * 60.0, weight=1.0) for n in range(40)]
+        state, held, opened, failing = MeasureState(spec.key), None, None, None
+        for minute in range(40):
+            queue = series.measured(items, [], minute * 60.0)
+            held = held if held is not None or not queue.over_minutes else minute - queue.over_minutes
+            state = ModeMeasures.stepped(spec, state, queue.over_minutes, minute * 60.0)
+            opened = opened if opened is not None or not scaling.opens(queue, 1, minute * 60.0) else minute
+            failing = failing if failing is not None or not state.is_failing else minute
+        return held, opened - held, failing - held
+    assert minutes()[1:] == (10, 16), "the place opens ten minutes into the worker queue held high with an item waiting, and the clear line only once fifteen have passed"
+    app.console().run(["settings", "set", WorkersOptions.PLACE_OPENING_MINUTES.key, "20"], AGENT)
+    assert minutes()[1:] == (20, 26), "a longer dwell moves both"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):

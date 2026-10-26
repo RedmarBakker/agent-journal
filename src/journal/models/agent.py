@@ -13,6 +13,9 @@ from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.support.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
+from journal.models.support.time_series import SHA_COUNT, TimeSeries
+from journal.models.support.measure_states import MeasureStates
+from journal.models.support.pressure_band import PressureBand
 from journal.events.rows.quick_report_dropped import QuickReportDropped
 from journal.events.rows.tiny_job_dropped import TinyJobDropped
 from journal.models.support.queue_use import QueueUse
@@ -32,7 +35,7 @@ MODEL_FITS_KEPT = 10
 
 class Agent(Scoped):
     shared: ClassVar[bool] = False
-    unshown_fields: ClassVar[tuple[str, ...]] = ("load", "mode_loads")
+    unshown_fields: ClassVar[tuple[str, ...]] = ("work_queue", "message_queue", "mode_loads", "band_changed_at", "measures")
 
 
     session: str = ""
@@ -57,8 +60,11 @@ class Agent(Scoped):
     file_edit_uses: tuple[int, ...] = ()
     merge_uses: tuple[int, ...] = ()
     prepared_merge_uses: tuple[int, ...] = ()
-    edited_lines: tuple[tuple[int, int], ...] = ()
-    merged_lines: tuple[tuple[int, int], ...] = ()
+    edited_lines: tuple[tuple[float, int], ...] = ()
+    merged_lines: tuple[tuple[float, int], ...] = ()
+    committed_lines: tuple[tuple[float, int], ...] = ()
+    first_reports: tuple[tuple[float, int], ...] = ()
+    counted_shas: tuple[str, ...] = ()
     task_filed_uses: tuple[int, ...] = ()
     task_completed_uses: tuple[int, ...] = ()
     reuse_uses: tuple[int, ...] = ()
@@ -74,7 +80,11 @@ class Agent(Scoped):
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
-    load: AgentLoad = AgentLoad()
+    work_queue: AgentLoad = AgentLoad()
+    message_queue: AgentLoad = AgentLoad()
+    band: PressureBand = PressureBand.NONE
+    band_changed_at: float = 0.0
+    measures: MeasureStates = MeasureStates()
     mode_loads: dict = field(default_factory=dict)
     fitness_level: int = 100
     unlinked_message: int = 0
@@ -128,18 +138,44 @@ class Agent(Scoped):
     def with_handover(self, time: float) -> "Agent":
         return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time, handover_uses=self.windowed((*self.handover_uses, self.tool_uses)))
 
-    def lines_edited(self, lines: int) -> "Agent":
-        return self.with_(edited_lines=self.windowed_lines((*self.edited_lines, (self.tool_uses, lines)))) if lines else self
+    def lines_edited(self, lines: int, time: float, cutoff: float) -> "Agent":
+        return self.with_(edited_lines=TimeSeries.add(self.edited_lines, (time, lines), cutoff)) if lines else self
 
-    def lines_merged(self, lines: int) -> "Agent":
-        return self.with_(merged_lines=self.windowed_lines((*self.merged_lines, (self.tool_uses, lines)))) if lines else self
+    def lines_merged(self, lines: int, time: float, cutoff: float) -> "Agent":
+        return self.with_(merged_lines=TimeSeries.add(self.merged_lines, (time, lines), cutoff)) if lines else self
 
-    def windowed_lines(self, pairs: tuple[tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
-        return tuple((use, lines) for use, lines in pairs if self.tool_uses - WORK_WINDOW_USES < use <= self.tool_uses)
+    def lines_committed(self, sha: str, lines: int, time: float, cutoff: float) -> "Agent":
+        shas = (*self.counted_shas, sha)[-SHA_COUNT:]
+        return self.with_(committed_lines=TimeSeries.add(self.committed_lines, (time, lines), cutoff), counted_shas=shas)
+
+    def first_reported(self, task: int, time: float, cutoff: float) -> "Agent":
+        return self.with_(first_reports=TimeSeries.add(self.first_reports, (time, task), cutoff))
+
+    def shas_counted(self, shas: tuple[str, ...]) -> "Agent":
+        return self.with_(counted_shas=(*self.counted_shas, *shas)[-SHA_COUNT:]) if shas else self
+
+    def authored_total(self, moment: float, seconds: float) -> int:
+        last_commit = self.committed_lines[-1][0] if self.committed_lines else 0.0
+        provisional = sum(lines for time, lines in self.edited_lines if last_commit < time and moment - seconds < time <= moment)
+        return self.committed_total(moment, seconds) + provisional
+
+    def is_sha_counted(self, sha: str) -> bool:
+        return sha in self.counted_shas
+
+    def edited_total(self, moment: float, seconds: float) -> int:
+        return TimeSeries.total(self.edited_lines, moment, seconds)
+
+    def merged_total(self, moment: float, seconds: float) -> int:
+        return TimeSeries.total(self.merged_lines, moment, seconds)
+
+    def committed_total(self, moment: float, seconds: float) -> int:
+        return TimeSeries.total(self.committed_lines, moment, seconds)
+
+    def first_report_count(self, moment: float, seconds: float) -> int:
+        return TimeSeries.count(self.first_reports, moment, seconds)
 
     def handover_lines(self) -> int:
-        last = self.handover_uses[-1] if self.handover_uses else 0
-        return sum(lines for use, lines in self.edited_lines if use > last)
+        return sum(lines for time, lines in self.edited_lines if time > self.last_handover_at)
 
     def task_filed(self) -> "Agent":
         return self.with_(task_filed_uses=self.windowed((*self.task_filed_uses, self.tool_uses)))
@@ -161,8 +197,8 @@ class Agent(Scoped):
             return self
         loads = dict(self.mode_loads)
         if self.mode:
-            loads[self.mode] = asdict(self.load)
-        return self.with_(mode=mode, mode_started_use=self.tool_uses, load=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
+            loads[self.mode] = asdict(self.work_queue)
+        return self.with_(mode=mode, mode_started_use=self.tool_uses, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
     def worker_merged(self, place: str, clocked_out_at: float) -> "Agent":
         tested = bool(self.test_run_folder) and self.test_run_folder == place and self.test_run_at >= clocked_out_at
@@ -202,14 +238,23 @@ class Agent(Scoped):
     def tiny_job_dropped(self, use: ReportUse, time: float, worker: int, seconds: int) -> "Agent":
         return self.with_(report_use=use).with_event(TinyJobDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, seconds=seconds, points=use.drop_points))
 
-    def load_measured(self, load: AgentLoad) -> "Agent":
-        return self.with_(load=replace(load, scaled_at=self.load.scaled_at))
+    def band_moved(self, band: PressureBand, time: float) -> "Agent":
+        return self if band == self.band else self.with_(band=band, band_changed_at=time)
+
+    def measures_worked(self, measures: MeasureStates) -> "Agent":
+        return self.with_(measures=measures)
+
+    def measure_line_sent(self, key: str, time: float) -> "Agent":
+        return self.with_(measures=self.measures.line_sent(key, time))
+
+    def queues_measured(self, work_queue: AgentLoad, message_queue: AgentLoad) -> "Agent":
+        return self.with_(work_queue=replace(work_queue, scaled_at=self.work_queue.scaled_at), message_queue=message_queue)
 
     def place_opened(self, places: int, time: float) -> "Agent":
-        return self.with_(load=self.load.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.load.rho, minutes=self.load.over_minutes, opened=True))
+        return self.with_(work_queue=self.work_queue.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=self.work_queue.over_minutes, opened=True))
 
     def place_closed(self, places: int, time: float) -> "Agent":
-        return self.with_(load=self.load.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.load.rho, minutes=self.load.under_minutes, opened=False))
+        return self.with_(work_queue=self.work_queue.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=self.work_queue.under_minutes, opened=False))
 
     def worker_waited(self) -> "Agent":
         return self.with_(late_worker_uses=self.windowed((*self.late_worker_uses, self.tool_uses)))
@@ -222,8 +267,7 @@ class Agent(Scoped):
 
     def compacted(self) -> "Agent":
         shifted = {name: tuple(use - self.tool_uses for use in getattr(self, name)) for name in WINDOWED_USES}
-        lines = {name: tuple((use - self.tool_uses, count) for use, count in getattr(self, name)) for name in ("edited_lines", "merged_lines")}
-        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted, **lines)
+        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted)
 
     def message_arrived(self) -> "Agent":
         return self.with_(inbox_position=self.tool_uses)

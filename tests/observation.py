@@ -40,6 +40,6 @@ class Observer:
         said, self.seen = entries[self.seen:], len(entries)
         del self.typed[:len(keystrokes)]
         stack = tuple(layer["state"] for layer in agent.stack) if agent else ()
-        load = agent.load.rho if agent else 0.0
+        load = agent.work_queue.rho if agent else 0.0
         skipped = self.app.runtime().deferred.skipped
         return Observation(answer, keystrokes, tuple(entry.data["key"] for entry in said), tuple(entry.data.get("line", "") for entry in said), stack, load, workers, skipped)

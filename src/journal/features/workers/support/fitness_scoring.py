@@ -1,22 +1,15 @@
-from journal.features.reviewing.reviewing_options import ReviewingOptions
-from dataclasses import replace
-
+from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.fitness_score import FitnessScore
-from journal.features.workers.support.code_share_limits import CodeShareLimits
-from journal.features.workers.support.tool_use_counts import ToolUseCounts
-from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.workers_profiles import WorkersProfiles
+from journal.features.workers.support.mode_measures import ModeMeasures
 from journal.models.agent import Agent
 from journal.repositories.setting_rows import SettingRows
 
 
 class FitnessScoring:
-    """An agent's fitness scored against the profile of the work mode the user set, the reviewed one while the reviewer is on; none in a mode with no profile."""
+    """An agent's fitness scored from the states of its mode's measures, once the mode has been measured for the warm-up the user set."""
 
-    def __init__(self, settings: SettingRows) -> None:
-        self.settings = settings
+    def __init__(self, settings: SettingRows, measures: ModeMeasures) -> None:
+        self.settings, self.measures = settings, measures
 
-    def scored(self, agent: Agent) -> FitnessScore | None:
-        profile = (WorkersProfiles.reviewed_mode_profile if self.settings.option(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(str(self.settings.option(WorkersOptions.MODE)))
-        limits = CodeShareLimits(self.settings.decimal(WorkersOptions.CODE_SHARE_FULL), self.settings.decimal(WorkersOptions.CODE_SHARE_ZERO), self.settings.integer(WorkersOptions.CODE_SHARE_WEIGHT))
-        return profile.scored(replace(ToolUseCounts.counted(agent), code_share=limits)) if profile else None
+    def scored(self, agent: Agent) -> FitnessScore:
+        return ModeMeasures.scored(agent.measures, self.measures.specs(agent.measures.mode), self.settings.decimal(FitnessOptions.SCORE_WARMUP_MINUTES) * 60)

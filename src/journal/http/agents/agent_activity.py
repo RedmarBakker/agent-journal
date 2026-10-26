@@ -112,16 +112,14 @@ class AgentActivity:
 
     @staticmethod
     def load(agent: Agent) -> dict | None:
-        load = agent.load
-        if not load.is_measured():
+        queue = agent.work_queue
+        if not queue.is_measured():
             return None
-        return {"rho": load.rho, "arrivals": load.arrivals, "clearings": load.clearings, "waiting": load.waiting, "wait_minutes": load.wait_minutes, "little": load.little,
-                "waiting_refs": list(load.waiting_refs), "over_minutes": load.over_minutes}
+        return {"rho": queue.rho, "arrivals": queue.arrivals, "clearings": queue.clearings, "waiting": queue.waiting, "wait_minutes": queue.wait_minutes, "little": queue.little,
+                "waiting_refs": list(queue.waiting_refs), "over_minutes": queue.over_minutes}
 
-    def fitness(self, agent: Agent) -> dict | None:
+    def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
-        if fitness is None:
-            return None
         return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines), "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     def timeline(self, session: str) -> list[dict]:

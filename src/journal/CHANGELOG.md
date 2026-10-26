@@ -7,6 +7,10 @@ What each release of agent-journal version 4 brought, newest first.
 - The hooks and shell commands that went around a journal that did not answer are named once in the chat, in one red mark that counts each kind and lists each with its time and command, at the journal's next answer; what it named is cleared from runtime/bypass.log.
 - Colleagues' environments are no longer shown unless their chat is shared.
 - Every helper rests on an empty state until the journal gives it its job, and one file per helper decides what reaches it: a worker, a reviewer, a verifier and a Claude Code subagent each hear only the features, listeners and command verbs their file names, and a plugin reaches a helper only when its manifest names that helper's role (workers, reviewers, verifiers, subagents).
+- The fitness warnings switch ships off: the measures are kept and shown, and nothing of them reaches the agent until you switch it on.
+- The fitness score is worked out from the measures of your work mode, each kept on the agent with its value and whether it is failing, once the mode has been measured for 30 minutes (Minutes measured before a score). The fitness chart marks where the new scoring begins.
+- The builder and the orchestrator each have a pressure band on the worker queue, low, normal or high, that changes only past a margin and stays at least five minutes, and leaves high once no worker item has waited five minutes; solo has none. Its levels are settings.
+- The load is measured as two queues: the workers' items and your messages. Worker places open and close on the worker queue alone, so a flood of messages no longer opens places; an idle place is no longer an item of the queue.
 - A Claude Code subagent has its own row in the journal: the hook script now also sends a subagent's PostToolUse, so its tool uses are answered and recorded as its own, never the main agent's. The hook script ships with this release, so projects pick it up with the upgrade.
 
 ## 4.60.0

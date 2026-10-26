@@ -1260,6 +1260,19 @@ plans.test_commands = 'pytest, journal suite'
 sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
+workers.score_warmup_minutes = 30
+workers.orchestrator_high_entry = 0.8
+workers.orchestrator_high_exit = 0.65
+workers.orchestrator_low_entry = 0.5
+workers.orchestrator_low_exit = 0.65
+workers.builder_high_entry = 0.5
+workers.builder_high_exit = 0.4
+workers.builder_low_entry = 0.3
+workers.builder_low_exit = 0.4
+workers.band_minutes = 10
+workers.empty_queue_minutes = 5
+workers.series_hours = 3
+workers.commit_line_cap = 400
 workers.idle_hours = 4
 workers.fitness_level_step = 5
 workers.fitness_warnings = True  (the user sets it)
@@ -1417,7 +1430,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 7
+created: setting 8
 
 $ agent: journal environment list
 exit 0
@@ -1551,12 +1564,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 8
+created: setting 9
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 9
+created: setting 10
 
 $ agent: journal skill list
 exit 0
@@ -1818,6 +1831,7 @@ workers.builder_handover_budget  [workers]  you wrote {{lines}} lines since your
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
+workers.clear_the_oldest_item  [workers]  the worker queue has stood high for {{minutes}} minutes. clear {{first}} first, the oldest: check it, merge it or reply
 workers.clock_in_first  [workers]  your writes wait until you clock in. journal task show <n>, then journal clock-in
 workers.clocked_out_work_waits  [workers]  {{workers}} clocked out and their work waits for you. check each point with journal worker check <n> <point>, or send one back with --short "<what is missing>", and merge what is checked with journal worker merge <n>
 workers.could_it_be_reused  [workers]  can worker {{n}} be reused?. if so, `journal worker send {{n}} "<job>"`; if not, repeat the command with --why "<why>"
@@ -1884,7 +1898,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-289 nudges
+290 nudges
 
 $ agent: journal worker list
 exit 0

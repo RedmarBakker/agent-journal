@@ -62,8 +62,8 @@ class ToolUseCounts:
                    handovers=len(agent.windowed(agent.handover_uses)), file_edits=len(agent.windowed(agent.file_edit_uses)),
                    merges=len(agent.windowed(agent.merge_uses)), prepared_merges=len(agent.windowed(agent.prepared_merge_uses)), reuses=len(agent.windowed(agent.reuse_uses)),
                    fresh_idle=len(agent.windowed(agent.fresh_idle_uses)), briefed=len(agent.windowed(agent.briefed_uses)),
-                   late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)), edited_lines=sum(lines for _, lines in agent.windowed_lines(agent.edited_lines)), merged_lines=sum(lines for _, lines in agent.windowed_lines(agent.merged_lines)), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
-                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use, queue_use=agent.queue_use)
+                   late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)), edited_lines=sum(lines for _, lines in agent.edited_lines), merged_lines=sum(lines for _, lines in agent.merged_lines), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
+                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.work_queue, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use, queue_use=agent.queue_use)
 
     @staticmethod
     def is_handover(call: RecordedCall) -> bool:

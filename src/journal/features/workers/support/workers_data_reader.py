@@ -63,12 +63,15 @@ class WorkersDataReader:
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
-            "workload": lambda: agent.load,
+            "workload": lambda: agent.work_queue,
             "fitness_level": lambda: agent.fitness_level,
             "workload_level": lambda: self.level_entries.latest(agent.session),
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
             "resumable": lambda: tuple(w.id for w in self.workers.unfinished_accepted(agent.session, self.resumes.is_resumable)),
+            "band": lambda: agent.band,
+            "band_changed_at": lambda: agent.band_changed_at,
+            "measures": lambda: agent.measures,
             "queues": lambda: {worker: tuple(task.row_id for task in tasks) for worker, tasks in self.tasks.queues(self.workers.scoped()).items()},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

@@ -15,4 +15,4 @@ class DroppedScore:
 
     def score(self, agent: Agent) -> int:
         scored = self.scoring.scored(agent)
-        return scored.score if scored is not None and scored.is_measured else max(0, 100 - agent.report_use.drop_points)
+        return scored.score if scored.is_measured else max(0, 100 - agent.report_use.drop_points)

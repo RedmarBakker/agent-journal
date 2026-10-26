@@ -29,14 +29,16 @@ const span = computed(() => {
 });
 const x = (at) => PAD + ((at - span.value.start) / span.value.length) * (WIDTH - 2 * PAD);
 const y = (score) => PAD + ((100 - score) / 100) * (HEIGHT - 2 * PAD);
-// one line per run of scored points; a point that was not scored breaks it
+// one line per run of scored points; a point that was not scored, or one scored by another version of the scoring, breaks it
 const runs = computed(() =>
     props.points
-        .reduce((all, point) => (point.is_measured ? (all.at(-1).push(point), all) : [...all, []]), [[]])
+        .reduce((all, point) => (!point.is_measured ? [...all, []] : point.version !== all.at(-1).at(-1)?.version && all.at(-1).length ? [...all, [point]] : (all.at(-1).push(point), all)), [[]])
         .filter((run) => run.length)
         .map((run) => run.map((point) => `${x(point.at)},${y(point.score)}`).join(" "))
 );
 const newest = computed(() => [...props.points].reverse());
+// the first point of each newer version of the scoring, where the old score ends and the new begins
+const versionStarts = computed(() => props.points.filter((point, n) => n > 0 && (point.version ?? 1) !== (props.points[n - 1].version ?? 1)));
 // the numbers the score is measured by are the settings named Fitness, opened from the panel's cogwheel
 const openSettings = () => {
     emit("close");
@@ -73,6 +75,16 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
         <template v-else>
             <svg class="fitness-timeline-chart" :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" role="img" :aria-label="`Fitness score over the last ${hours} hours`">
                 <line class="fitness-timeline-grid" :x1="PAD" :x2="WIDTH - PAD" :y1="y(low)" :y2="y(low)" />
+                <template v-for="point in versionStarts" :key="`version-${point.at}`">
+                    <line
+                        class="fitness-timeline-version"
+                        :x1="x(point.at)"
+                        :x2="x(point.at)"
+                        :y1="PAD"
+                        :y2="HEIGHT - PAD"
+                        v-tip="{title: 'New scoring from here', line: 'From this point the score is worked out from the measures of the work mode'}"
+                    />
+                </template>
                 <polyline v-for="(run, n) in runs" :key="n" class="fitness-timeline-line" :points="run" />
                 <circle
                     v-for="point in measured"
@@ -184,6 +196,12 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
 
 .fitness-timeline-dot.low {
     fill: var(--tone-warn);
+}
+
+.fitness-timeline-version {
+    stroke: var(--text-3);
+    stroke-dasharray: 3 3;
+    stroke-width: 1;
 }
 
 .fitness-timeline-points {

@@ -26,6 +26,8 @@ BUILD_SECONDS = 600
 # what a worker does when its branch clashes with the branch its work merges into
 REBASE_STEPS = "fix only the files that clash, keeping both sides' changes and removing every conflict marker; never run git, since the journal adds them and goes on with the rebase when you clock out"
 CONFLICT_MARKER = re.compile(r"^(<{7}|>{7}) ", re.MULTILINE)
+REBUILD_SUBJECT = "Build the built files again on the project's branch"
+
 
 class WorkerBranch:
     """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again."""
@@ -168,6 +170,14 @@ class WorkerBranch:
             counted = self.git("diff", "--numstat", f"HEAD...{tip}", cwd=repository.checkout).stdout.splitlines()
             total += sum(int(line.split("\t")[0]) for line in counted if line.split("\t")[0].isdigit())
         return total
+
+    def merged_shas(self, worker: Worker) -> tuple[str, ...]:
+        shas: list[str] = []
+        for repository in self.repositories(worker):
+            tip = self.tip(repository, worker)
+            if self.is_commit(repository, tip):
+                shas.extend(self.git("rev-list", f"HEAD..{tip}", cwd=repository.checkout).stdout.split())
+        return tuple(shas)
 
     def merge_commit(self, worker: Worker) -> str:
         pending = self.pending(worker)
@@ -317,7 +327,7 @@ class WorkerBranch:
             return f"the build that makes {', '.join(self.built_paths())} again failed after the merge took the project's side of them"
         self.git("add", "-A", "--", *self.built_paths(), cwd=folder)
         if self.git("diff", "--cached", "--quiet", cwd=folder).returncode != 0:
-            self.git("commit", "-qm", "Build the built files again on the project's branch", cwd=folder)
+            self.git("commit", "-qm", REBUILD_SUBJECT, cwd=folder)
         return ""
 
     def clash_preview(self, worker: Worker) -> str:

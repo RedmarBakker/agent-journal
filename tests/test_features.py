@@ -1918,10 +1918,6 @@ def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_o
         assert low not in edit(f"a{n}.md") + edit(f"b{n}.md") + handover(), "a builder writing most of its work scores near its ideal and hears nothing"
     lines = "".join(handover() for _ in range(16))
     assert low in lines and "your own file edits among your edits and the handovers made while your load was under its line is" in lines and "take the next task yourself" in lines, "a builder handing out most of its work is told its score and the measure furthest off, with what to do"
-    from journal.http.agents.agent_activity import AgentActivity
-    from journal.repositories.agents import Agents
-    fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
-    assert fitness["mode"] == "builder" and fitness["is_measured"] and fitness["score"] < 70 and fitness["lines"][0].startswith("your own file edits"), "the agent bar's row carries the score and the measures off the ideal"
 
 
 def orchestrator_scored(app: App, setup=None, uses: int = 50):
@@ -2058,59 +2054,44 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     assert failed.is_unanswered(1300.0, 300), "and from then the work waits on the orchestrator"
 
 
-def test_every_fitness_score_is_kept_with_its_time_and_gaps_as_a_timeline_point_naming_what_moved_it(app: App):
+def ticked_minutes(app: App, *minutes: int) -> None:
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    clock = app.container.get(Clock)
+    start = clock.time()
+    with app.container.get(Scope).environment(1):
+        for minute in minutes:
+            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
+
+
+def test_every_fitness_score_is_kept_with_its_time_as_a_timeline_point_naming_what_moved_it(app: App):
     from journal.features.workers.support.fitness_point import FitnessPoint
     from journal.http.agents.agent_activity import AgentActivity
     from journal.repositories.agents import Agents
     from journal.repositories.entries import Entries
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-
-    def used(tool_name: str, **tool_input):
-        hook(app, "PreToolUse", tool_name=tool_name, tool_input=tool_input)
-        hook(app, "PostToolUse", tool_name=tool_name, tool_input=tool_input, tool_response="")
-
-    for n in range(30):
-        used("Edit", file_path=str(app.config.root / f"t{n}.md"), old_string="x", new_string="y")
-        used("Read", file_path=str(app.config.root / f"u{n}.md"))
-    for n in range(30):
-        used("Bash", command=f"journal worker send 1 'job {n}'")
-    app.runtime().deferred.drain()
+    ticked_minutes(app, 0, 1, 31, 32)
     points = [FitnessPoint.parsed(entry.data) for entry in app.container.get(Entries).all_matching(kind=FitnessPoint.KIND)]
-    moves = [point.moved for point in points]
-    assert moves[0] == "not scored yet: too few tool uses in this mode" and "first score in this mode" in moves, moves
-    assert any(move.startswith("your own file edits among your edits and the handovers made while your load was under its line: ") and move.endswith("% of the ideal") for move in moves), "a point names the measure that moved the score"
-    shape = lambda point: (point.score, point.is_measured, point.gaps, point.parts)
-    assert all(points[n].scored_at <= points[n + 1].scored_at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
+    assert [point.moved for point in points] == ["not scored yet: the mode has not been measured long enough", "first score in this mode"], [point.moved for point in points]
+    assert points[0].scored_at < points[1].scored_at, "a point is kept only when the score moved, never for a tick under an unchanged score"
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
-    newest = fitness["timeline"][-1]
-    assert newest["score"] == fitness["score"] and newest["at"] > 0, "the status bar's row carries the timeline, the newest point the score it shows; a measure moving under one score adds no point, so its gaps may have moved since"
+    assert fitness["timeline"][-1]["score"] == fitness["score"] and fitness["is_measured"], "the status bar's row carries the timeline, the newest point the score it shows"
 
 
-def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+def test_the_fitness_score_waits_for_the_warmup_in_the_current_work_mode(app: App):
     from journal.http.agents.agent_activity import AgentActivity
     from journal.repositories.agents import Agents
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    said = lambda kind, **body: hook(app, kind, **body)
-    read = lambda n: said("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"m{n}.md")})
-    edit = lambda n: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / f"e{n}.md"), "old_string": "x", "new_string": "y"})
     fitness = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
-    for n in range(30):
-        edit(n)
-    for n in range(30):
-        read(n)
-    assert fitness()["mode"] == "builder" and fitness()["is_measured"], "a builder past fifty tool uses is scored"
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
-    assert not fitness()["is_measured"], "right after the switch there is no score"
-    for n in range(49):
-        read(100 + n)
-    assert not fitness()["is_measured"], "and none through forty-nine tool uses in the new mode"
-    read(200)
-    assert fitness()["mode"] == "orchestrator" and fitness()["is_measured"], "the fiftieth brings the score"
-    counted = ToolUseCounts.counted(app.container.get(Agents).current())
-    assert counted.mode_uses == 50 and counted.file_edits == 0, "and it counts only the uses made since the switch, none of the builder's edits"
+    ticked_minutes(app, 0, 29)
+    assert not fitness()["is_measured"], "no score through the first thirty minutes in the mode"
+    ticked_minutes(app, 31)
+    assert fitness()["mode"] == "builder" and fitness()["is_measured"], "a builder measured thirty minutes is scored"
+    app.console().run(["settings", "set", "workers.mode", "orchestrator"], USER)
+    ticked_minutes(app, 33)
+    assert fitness()["mode"] == "orchestrator" and not fitness()["is_measured"], "after a switch the new mode's measures start fresh and wait their own warm-up"
 
 
 def test_a_merge_counts_as_checked_after_a_proof_read_and_a_test_run_in_the_workers_worktree_made_after_its_clock_out(app: App, monkeypatch):
@@ -2182,7 +2163,7 @@ def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_l
     assert scheduled.row_id not in {message.row_id for message in messages.unanswered()}, "and it is never reminded as unanswered"
     assert app.console().run(["message", "react", str(asked.row_id), "👍"], AGENT).code == 0
     cleared = {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}
-    assert cleared[f"messages:{asked.row_id}"] > 0, "a face from the agent answers the message, so it no longer waits on the load"
+    assert cleared[f"messages:{asked.row_id}"] == 0, "a face from the agent is no reply, so the message still waits in the queue"
 
 
 def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_scheduled_and_both_are_out_of_the_load_and_the_unanswered(app: App, monkeypatch):
@@ -9972,6 +9953,101 @@ def test_a_plugin_hears_file_edited_with_the_edit_precomputed_and_holds_it_only_
     assert [h["data"]["path"] for h in heard_two] == ["forbidden.py"], "the holding plugin heard the edit once, on the answer path, never again after the reply"
 
 
+def test_a_return_after_a_send_back_is_no_first_report_and_its_load_item_is_a_repeat(app: App, monkeypatch):
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.agents import Agents
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the parser", "--brief", "the parser reads the grammar"], AGENT)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    workers = app.container.get(Workers)
+    with app.container.get(Scope).environment(MAIN):
+        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+    lovelace = Caller.worker("main", 1, "w-1", "claude")
+    console.run(["proof", "1", "parser.py:12, test_reads passes"], lovelace)
+    assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
+    app.runtime().deferred.drain()
+    assert console.run(["worker", "check", "1", "1", "--short", "the rules are not named"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        workers.save(workers.find(1).ready(2.0), Actor.system())
+    console.run(["proof", "1", "parser.py:14, test_names passes"], lovelace)
+    assert console.run(["clock-out", "the rules are named"], lovelace).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        items, _ = app.container.get(LoadItems).read(0.0)
+        reports = app.container.get(Agents).session_agent("s1").first_reports
+    worker_items = [item for item in items if item.ref == "workers:1"]
+    assert [task for _, task in reports] == [1], "the clock-out that ends the job sent is a first report; the return after the send-back is not"
+    assert [item.is_repeat for item in worker_items] == [False, True], "the load holds both clock-outs, the second marked a repeat"
+
+
+def test_only_a_merge_a_checked_proof_or_a_reply_clears_a_waiting_item(app: App):
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.features.workers.support.load_series import LoadSeries
+    from journal.models.worker import Worker
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.repositories.workers import Workers
+    workers = app.container.get(Workers)
+    moves = lambda *steps: WorkerMoves(tuple(steps))
+    with app.container.get(Scope).environment(MAIN):
+        merged = workers.save(Worker(environment_id=1, name="Mr. Merged", brief="m", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("merged", 200.0))), Actor.system())
+        sent_back = workers.save(Worker(environment_id=1, name="Mr. Back", brief="b", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("sent back", 150.0))), Actor.system())
+        released = workers.save(Worker(environment_id=1, name="Mr. Gone", brief="g", moves=moves(("dispatched", 10.0), ("clocked out", 100.0), ("released", 160.0))), Actor.system())
+        items = {item.ref: item for worker in (merged, sent_back, released) for item in app.container.get(LoadItems).worker_items(worker)}
+    assert items[f"workers:{merged.id}"].cleared_at == 200.0, "a merge clears the item"
+    assert items[f"workers:{sent_back.id}"].cleared_at == 0.0 and items[f"workers:{sent_back.id}"].ended_at == 150.0, "a send-back ends it without a clearing"
+    assert items[f"workers:{released.id}"].ended_at == 160.0 and not items[f"workers:{released.id}"].is_waiting(170.0)
+    load = LoadSeries(30, 10, 0.8, 0.3).measured(list(items.values()), [], 300.0)
+    assert (load.clearings_counted, load.removals) == (1, 2), "the load counts the merge as a clearing and the send-back and the release as removals"
+    replied = LoadItem("messages:1", 50.0, 1.0, 60.0)
+    assert replied.is_cleared_in(0.0, 100.0) and not LoadItem("messages:2", 50.0, 1.0).is_cleared_in(0.0, 100.0), "a reply clears a message; one with only a reaction stays waiting"
+
+
+def test_the_worker_queue_and_the_message_queue_are_measured_apart_and_an_idle_place_moves_neither(app: App):
+    from journal.features.workers.support.free_place_measure import FreePlaceMeasure
+    from journal.features.workers.support.load_meter import LoadMeter
+    from journal.models.worker import Worker
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.repositories.agents import Agents
+    from journal.repositories.workers import Workers
+    import time as clock
+    hook(app, "SessionStart")
+    for n in range(30):
+        app.console().run(["message", "send", f"a word on the work, {n}"], USER)
+    now = clock.time() + 1
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Idle", brief="i", moves=WorkerMoves((("reported", now - 1800),))), Actor.system())
+        app.console().run(["task", "create", "the open work", "--brief", "b"], USER)
+        app.container.get(LoadMeter).measure(app.container.get(Agents).session_agent("s1"), now)
+        row = app.container.get(Agents).session_agent("s1")
+        idle = app.container.get(FreePlaceMeasure).minutes(now - 3600, now)
+    assert row.message_queue.arrivals > 0 and row.work_queue.arrivals == 0, "thirty user messages move the message queue and not the worker queue"
+    assert idle >= 29, "an idle worker beside an open task adds idle minutes and is no item of either queue"
+
+
+def test_a_codex_main_agents_patch_and_commit_land_in_its_own_series(app: App):
+    from journal.events.announcer import Announcer
+    from journal.events.moments.git_committed import GitCommitted
+    from journal.repositories.agents import Agents
+    from tests.replay import hook_as
+    hook_as(app, "codex", "SessionStart", "c1", source="startup")
+    patch = "*** Begin Patch\n*** Add File: src/footer.py\n+FOOTER = 1\n+SHOP = 2\n*** End Patch"
+    hook_as(app, "codex", "PreToolUse", "c1", tool_name="apply_patch", tool_input={"command": patch})
+    hook_as(app, "codex", "PostToolUse", "c1", tool_name="apply_patch", tool_input={"command": patch}, tool_response={"output": "Success"})
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Announcer).announce(GitCommitted(environment_id=1, session="c1", sha="c0ffee", branch="main", subject="the footer", files=1, lines=(("src/footer.py", 2),)))
+        row = app.container.get(Agents).session_agent("c1")
+    assert sum(lines for _, lines in row.edited_lines) == 2, "a Codex agent's patch counts as its provisional lines, as a Claude agent's edit does"
+    assert [lines for _, lines in row.committed_lines] == [2], "and its commit counts once as its own"
+
+
 def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one_that_does_not(app: App):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
@@ -17595,6 +17671,9 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         merged = console.run(["worker", "merge", str(worker.id)], AGENT)
         assert merged.code == 0, merged.error
         assert (root / "parser.py").exists(), "the merge fetches the worker's pool branch from origin and takes it into the dispatcher's checkout, with no worktree of its own"
+        from journal.repositories.agents import Agents
+        dispatcher = app.container.get(Agents).session_agent("s1")
+        assert sum(lines for _, lines in dispatcher.merged_lines) == 1 and dispatcher.counted_shas, "a pool worker's lines and shas are read from its fetched tip, so they count as merged and never as the agent's own commits"
         assert "journal/pool/" not in git("ls-remote", "origin").stdout, "and both pool branches are deleted from origin"
         cleared = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if each.kind == "worker_cleanup"]
         assert [each.body["worker_id"] for each in cleared] == [worker.id], "and the machine that ran it is told to drop its worktree and branch"
@@ -21184,11 +21263,11 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
         with app.container.get(Scope).environment(MAIN):
             agent = app.container.get(Agents).session_agent("s1")
             stored = [entry for entry in app.container.get(Entries).kind_entries(LOAD_INPUTS, 10)]
-        assert agent.load.measured_at == start + 20 * 60, "twenty idle minutes later the load was measured again by the clock, with no tool use"
+        assert agent.work_queue.measured_at == start + 20 * 60, "twenty idle minutes later the load was measured again by the clock, with no tool use"
         newest = max(stored, key=lambda entry: entry.data["time"])
         items = [LoadItem(**item) for item in newest.data["items"]]
-        rebuilt = app.container.get(LoadMeter).series().measured(items, newest.data["dispatches"], newest.data["time"])
-        assert round(rebuilt.rho, 6) == round(agent.load.rho, 6) and round(rebuilt.arrivals, 6) == round(agent.load.arrivals, 6), "the stored inputs measure the same load again"
+        work_queue, message_queue = app.container.get(LoadMeter).queues(items, newest.data["dispatches"], newest.data["time"])
+        assert (round(work_queue.rho, 6), round(work_queue.arrivals, 6), round(message_queue.arrivals, 6)) == (round(agent.work_queue.rho, 6), round(agent.work_queue.arrivals, 6), round(agent.message_queue.arrivals, 6)), "the stored inputs measure the same two queues again"
     finally:
         source.unpin()
 

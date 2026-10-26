@@ -41,6 +41,7 @@ class WorkersNudges:
     ORCHESTRATOR_MODE = Nudge("workers", "now_orchestrating", "orchestrating: dispatch tasks, review and merge, run the suite", repeat=Timeout.seconds(0))
     SOLO_MODE = Nudge("workers", "now_solo", "you now work solo", "do every job yourself: no worker is dispatched", repeat=Timeout.seconds(0))
     SOLO_DISPATCH = Nudge("workers", "no_workers_when_solo", "you work solo: no worker is dispatched", repeat=Timeout.seconds(0))
+    CLEAR_OLDEST = Nudge("workers", "clear_the_oldest_item", "the worker queue has stood high for {{minutes}} minutes", "clear {{first}} first, the oldest: check it, merge it or reply", repeat=Timeout.seconds(300))
     WORKLOAD_RISING = Nudge("workers", "load_rising", "your load is {{rho}}, past {{level}}: {{queue}} wait; clear {{first}} first, the oldest")
     WORKLOAD_DRAIN = Nudge("workers", "load_drain", "your load is {{rho}}, more arrives than you clear: {{queue}} wait, {{first}} the oldest", "drain it: dispatch workers, or hand the work out better")
     MODE_REFUSAL = Nudge("workers", "mode_may_not", "in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu", repeat=Timeout.seconds(0))

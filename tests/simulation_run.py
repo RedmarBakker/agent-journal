@@ -16,7 +16,7 @@ from tests.replay import Frozen, differences
 from tests.replays_run import a_queue_runs_to_merge
 from tests.simulation.scenario import Scenario
 from tests.simulation.scenario_run import POLICIES, ScenarioRun
-from tests.simulation.scenarios import ALL, ENGINE_MOMENTS, QUIET_BUILDER
+from tests.simulation.scenarios import ALL, ENGINE_MOMENTS, HISTORY, QUIET_BUILDER
 from tests.simulation.simulator import Simulator
 from tests.test_features import MAIN
 
@@ -25,6 +25,7 @@ SEED = int(os.environ.get("SIM_SEED", "7"))
 RUNS = int(os.environ.get("SIM_RUNS", "1"))
 MINUTES = int(os.environ.get("SIM_MINUTES", "0"))
 RUN_SECONDS = 120
+HISTORY_RUN_SECONDS = 60
 HELD_OUT = {"seed 108": (SEED + 101, {}), "seed 209": (SEED + 202, {}), "fewer messages and longer jobs": (SEED, {"user_messages_hourly": 10, "worker_seconds": 600})}
 
 
@@ -70,11 +71,20 @@ def test_two_runs_of_a_scenario_from_one_seed_give_the_same_trace(tmp_path, monk
     assert first and first == second, "a seed replays a run exactly"
 
 
+@pytest.mark.parametrize("scenario", HISTORY, ids=lambda scenario: scenario.name)
+def test_a_scenario_from_last_weeks_history_replays_from_its_seed(tmp_path, monkeypatch, scenario):
+    first = played(tmp_path / "first", monkeypatch, replace(scenario, minutes=30), SEED)
+    second = played(tmp_path / "second", monkeypatch, replace(scenario, minutes=30), SEED)
+    assert first and first == second, "arrivals, job lengths, send-backs, clashes and the mode switch all replay from the seed"
+
+
 @pytest.mark.parametrize("scenario", ALL, ids=lambda scenario: scenario.name)
 def test_every_scenario_plays_within_its_time_limit(tmp_path, monkeypatch, scenario):
     for run in range(RUNS):
+        began = time.monotonic()
         trace = played(tmp_path / f"run{run}", monkeypatch, scenario, SEED + run)
         assert any(entry.actor == "agent" for entry in trace), f"{scenario.name} played the agent"
+        assert scenario not in HISTORY or time.monotonic() - began < HISTORY_RUN_SECONDS, f"{scenario.name} plays its {scenario.minutes} minutes in under {HISTORY_RUN_SECONDS} seconds"
 
 
 
@@ -97,6 +107,71 @@ def test_a_scripted_clash_sends_the_worker_back_and_a_third_in_a_row_is_named_to
         simulated.run(["clock-in"], Caller.worker("main", 1, "w1", "claude"))
     assert named.count("workers.branch_keeps_clashing") == 1, named
     assert simulated.observer.observe().skipped == 0, "no deferred work was skipped"
+
+
+def test_a_policy_is_told_the_lines_its_previous_action_brought(tmp_path, monkeypatch):
+    from tests.simulation.scenarios import CARELESS
+    from tests.simulation.scripted_policy import ScriptedPolicy
+    policy = ScriptedPolicy(["write", "write", "stop", "write", "read", "stop"])
+    trace = played(tmp_path / "told", monkeypatch, replace(CARELESS, minutes=3), SEED, policy)
+    agent_steps = [index for index, entry in enumerate(trace) if entry.actor == "agent"]
+    between = [tuple(key for entry in trace[previous:index] for key in entry.nudges) for previous, index in zip(agent_steps, agent_steps[1:])]
+    assert [tuple(key for key, _ in told) for told in policy.told[1:len(agent_steps)]] == between, "each action is told every line said since the one before, at its own step and the user's and the workers'"
+    assert any(policy.told), "and it is told something in a run"
+
+
+def test_the_clock_ticks_each_simulated_minute_so_an_idle_agents_load_is_measured(simulated):
+    from journal.repositories.agents import Agents
+    from tests.simulation.scenario_run import ScenarioRun
+    from tests.simulation.scenarios import CARELESS
+    from tests.simulation.scripted_policy import ScriptedPolicy
+    from tests.simulation.simulator import START_SECONDS
+    ScenarioRun(simulated, replace(CARELESS, minutes=20), SEED, ScriptedPolicy(["idle"] * 40)).played()
+    measured = simulated.app.container.get(Agents).session_agent("s1").work_queue.measured_at
+    assert measured >= START_SECONDS + 19 * 60, "an agent idle for twenty minutes still has its load measured in the last one, by the clock's tick"
+
+
+@pytest.mark.parametrize("follow_rate", [1.0, 0.0])
+def test_a_known_policy_follows_the_lines_it_is_told_at_its_rate(tmp_path, monkeypatch, follow_rate):
+    from tests.simulation.builder_policy import BuilderPolicy
+    from tests.simulation.known_policy import KnownPolicy
+    from tests.simulation.nudge_response import NudgeResponse
+    from tests.simulation.scenarios import BUILDER_SPREE
+    policy = KnownPolicy(BuilderPolicy(), follow_rate, SEED)
+    trace = played(tmp_path / "known", monkeypatch, replace(BUILDER_SPREE, minutes=30), SEED, policy)
+    asked = [(entry.second, NudgeResponse.action(key)) for entry in trace for key in entry.nudges if NudgeResponse.action(key) and entry.second <= trace[-1].second - 240]
+    assert asked, "the spree says lines that ask for an action"
+    followed = [any(later.actor == "agent" and later.action == action and second < later.second <= second + 240 for later in trace) for second, action in asked]
+    if follow_rate:
+        missed = [(second, action, [(later.second, later.action) for later in trace if later.actor == "agent" and second <= later.second <= second + 300]) for (second, action), done in zip(asked, followed) if not done]
+        assert not missed, f"at a follow rate of one every line asking for an action is followed by it within four simulated minutes: {missed[:2]}"
+    else:
+        assert not policy.due, "at a follow rate of nought none is taken up"
+
+
+def test_a_run_announces_its_commits_and_its_merge_without_git(simulated):
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.moments.git_committed import GitCommitted
+    from journal.events.moments.worker_work_merged import WorkerWorkMerged
+    from journal.repositories.agents import Agents
+    from tests.simulation.main_agent import LINES_PER_WRITE, WRITES_PER_TASK
+    from tests.simulation.scenario_run import ScenarioRun
+    from tests.simulation.scenarios import CARELESS
+    from tests.simulation.scripted_policy import ScriptedPolicy
+    from tests.simulation.simulator import MERGED_LINES
+    heard: list = []
+    hearing = type("Hearing", (Listener,), {"handle": lambda self, event: heard.append(event)})()
+    bus = simulated.app.container.get(Bus)
+    bus.listen(GitCommitted, hearing)
+    bus.listen(WorkerWorkMerged, hearing)
+    script = ["dispatch", *["write"] * (2 * (WRITES_PER_TASK + 1)), "idle", "idle", "merge", "merge", "merge"]
+    ScenarioRun(simulated, replace(CARELESS, minutes=12, user_messages_hourly=0), SEED, ScriptedPolicy(script)).played()
+    shas = {event.sha for event in heard if isinstance(event, GitCommitted)}
+    merges = [event for event in heard if isinstance(event, WorkerWorkMerged)]
+    assert len(shas) == 2 and simulated.ledger.lines() == 2 * (WRITES_PER_TASK - 1) * LINES_PER_WRITE, "two tasks written are two commits, announced through the shell's recording with no git run"
+    assert len(merges) == 1 and merges[0].lines == MERGED_LINES, "and the worker's merge announces its lines once"
+    assert sum(count for _, count in simulated.app.container.get(Agents).session_agent("s1").merged_lines) == MERGED_LINES
 
 
 def test_the_engines_own_moments_replay_from_their_seed(tmp_path, monkeypatch):
@@ -122,7 +197,7 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
         StopReleases(): [TraceEntry(30 * n, "agent", "stop", True, (), ("idle",), 409) for n in range(1, 8)],
         StackBounded(): [TraceEntry(30, "agent", "write", False, (), tuple(f"layer {n}" for n in range(10)), 200)],
         WaitEnds(): [TraceEntry(60 * n, "agent", "read", False, (), ("idle", "external_wait"), 200) for n in range(1, 40)],
-        NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.load_critical", "workers.builder_handover_budget"), ("idle",), 200)],
+        NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 8 * 60, "agent", "write", False, ("workers.clear_the_oldest_item",), ("idle",), 200)],
         NoFaults(): [TraceEntry(30, "agent", "write", False, (), ("idle",), 500)],
         WorkerUnlocks(): [TraceEntry(30, "agent", "read", False, (), ("idle",), 200, 0, ("1:dispatched:locked",))],
         Progress(): [TraceEntry(30 * n, "agent", ("write", "read", "stop")[n % 3], True, (), ("idle",), 409) for n in range(1, 45)],
@@ -130,6 +205,8 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
     for invariant, trace in planted.items():
         assert invariant.violated(trace), f"{type(invariant).__name__} fires on its planted trace"
         assert not invariant.violated(clean), f"{type(invariant).__name__} stays quiet on a clean one"
+    apart = [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 12 * 60, "agent", "write", False, ("workers.clear_the_oldest_item",), ("idle",), 200)]
+    assert not NoContradiction().violated(apart), "two opposed lines twelve minutes apart are no contradiction"
 
 
 @pytest.mark.parametrize("scenario", ALL, ids=lambda scenario: scenario.name)

@@ -1465,7 +1465,7 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
         counted = agents.save(held.with_(tool_uses=1), USER)
         loads = LoadTally.ended()
         agents.save(counted, USER)
-        agents.save(counted.with_(load=AgentLoad(rho=0.5, measured_at=1.0)), USER)
+        agents.save(counted.with_(work_queue=AgentLoad(rho=0.5, measured_at=1.0)), USER)
         changes = [entry.data["changed"] for entry in entries.all_matching(kind="updated")]
     assert [(load.model, load.rows) for load in loads.counts if load.rows] == [], f"the row as it was comes from the session read the cache holds: {loads.line()}"
     assert changes == [["tool_uses"]], "a save that changed nothing and a change of the load alone are no timeline entries"

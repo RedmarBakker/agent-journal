@@ -1654,3 +1654,24 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - Caller has a role (AgentRole, now in support) and a session role (a subagent's is its parent's); CallerKind, Command.callers and is_worker_listener are gone. SessionAgents is the one funnel that makes agent rows, on the floor of the row's role.
 - A subagent's PreToolUse, PostToolUse and PostToolUseFailure are re-addressed to its own session, main session:agent_id, on a SUBAGENT row; hook.sh sends its PostToolUse since this plan. Its SubagentStop and its main session's end end the row; the main agent keeps SubagentStarted and SubagentEnded for its cards.
 - Decided while building: a whole feature never grants commands, so a helper's verbs are only its pairs; the worker's file turns Workers, Tasks, Edits and Plugins on whole, since WorkingTask and its waits read those parts, and only the listeners each declares for the worker reach it, never the main agent's load and fitness recorders.
+
+## Fitness measures (plan 1034, 2026-10-26)
+
+- The design is doc 1065; the baseline on today's measures is report 1081: nothing settled in any scenario.
+- The load is two queues, the workers' items and the user's messages (task 3488). The pressure band (low, normal, high) moves on the smoothed worker queue ρ by `BandRule`, per mode from `BandRules`; solo has none, and a mode's first band, after the upgrade or a change from solo, is normal. High is left once no worker item has waited five minutes and is never entered on a queue empty that long.
+- Each mode's measures are one table, `MODE_SPECS` in `features/workers/support/mode_measures.py`: key, fail and pass levels, a `MeasureSource` reader, closeness kind and weight, smoothing only for idle places. Their states (value, measured or not, failing, when it changed, when its line was sent) are on the agent row and on `WorkersPart`. The score is worked out from them, version 2, after 30 minutes measured in the mode.
+- Where each measure line speaks and which way it pushes is the one table `LineBands`; the simulator's opposed pairs come from it.
+- Band margins (task 3492), chosen by `PYTHONPATH=src python3 scripts/band_replay.py` over 2026-10-19 to 2026-10-26 of the development environment, 657 worker items, every day rebuilt from the workers' rows with today's clearings (kept load inputs covered only 2026-10-26, with no worker items). The margins hardly change the count; the least stay does. The defaults are the shortest stay that keeps to one change an hour with the fewest changes there: a 10-minute stay, the orchestrator high from 0.8 to under 0.65 and low under 0.5 to 0.65, the builder high from 0.5 to under 0.4 and low under 0.3 to 0.4.
+
+| mode | margin | stay (min) | changes an hour | longest normal (min) | longest high (min) |
+|---|---|---|---|---|---|
+| orchestrator | 0.15 | 0 | 1.07 | 71 | 340 |
+| orchestrator | 0.15 | 5 | 1.07 | 71 | 336 |
+| orchestrator | 0.15 | 10 | 0.94 | 71 | 331 |
+| orchestrator | 0.15 | 20 | 0.74 | 71 | 321 |
+| builder | 0.10 | 0 | 1.10 | 68 | 341 |
+| builder | 0.10 | 5 | 1.07 | 68 | 337 |
+| builder | 0.10 | 10 | 0.95 | 76 | 332 |
+| builder | 0.10 | 20 | 0.78 | 68 | 322 |
+
+- Before the replay, a band could leave high on an empty queue and enter it again one stay later while the smoothed ρ was still high, five changes an hour; entering high now needs a waiting item.

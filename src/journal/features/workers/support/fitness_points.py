@@ -13,8 +13,6 @@ class FitnessPoints:
 
     def recorded(self, agent: Agent, time: float) -> None:
         score = self.scoring.scored(agent)
-        if score is None:
-            return
         newest = self.entries.session_kind_newest(agent.session, FitnessPoint.KIND, 1)
         if not newest:
             self.entries.save(FitnessPoint.first(score, time).entry(agent), Actor.system())

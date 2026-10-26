@@ -9,7 +9,7 @@ from journal.support.actor import Actor
 
 @dataclass(frozen=True)
 class FitnessPoint:
-    """One fitness score of an agent as the journal computed it, kept as an entry of kind fitness: when, in which mode, the score, whether it was measured, the measures off the ideal, how close each scored measure came in percent, what moved it from the point before, and the points of a quick report's drop still off it."""
+    """One fitness score of an agent as the journal computed it, kept as an entry of kind fitness: when, in which mode, the score, whether it was measured, the measures off the ideal, how close each scored measure came in percent, what moved it from the point before, the version of the scoring, and the points of a quick report's drop still off it."""
 
     KIND: ClassVar[str] = "fitness"
 
@@ -21,24 +21,25 @@ class FitnessPoint:
     parts: tuple[tuple[str, int], ...]
     moved: str
     drop_points: int = 0
+    version: int = 1
 
     @classmethod
     def first(cls, score: FitnessScore, scored_at: float) -> "FitnessPoint":
-        return cls.of(score, scored_at, "first score in this mode" if score.is_measured else "not scored yet: too few tool uses in this mode")
+        return cls.of(score, scored_at, "first score in this mode" if score.is_measured else "not scored yet: the mode has not been measured long enough")
 
     @classmethod
     def of(cls, score: FitnessScore, scored_at: float, moved: str) -> "FitnessPoint":
-        return cls(scored_at, score.mode, score.score, score.is_measured, score.lines, score.parts, moved, score.drop_points)
+        return cls(scored_at, score.mode, score.score, score.is_measured, score.lines, score.parts, moved, score.drop_points, score.version)
 
     @classmethod
     def parsed(cls, data: dict) -> "FitnessPoint":
-        return cls(float(data["at"]), data["mode"], int(data["score"]), bool(data["is_measured"]), tuple(data["gaps"]), tuple((label, int(percent)) for label, percent in data["parts"]), data["moved"], int(data.get("drop_points", 0)))
+        return cls(float(data["at"]), data["mode"], int(data["score"]), bool(data["is_measured"]), tuple(data["gaps"]), tuple((label, int(percent)) for label, percent in data["parts"]), data["moved"], int(data.get("drop_points", 0)), int(data.get("version", 1)))
 
     def is_same(self, score: FitnessScore) -> bool:
-        return (self.mode, self.score, self.is_measured, self.drop_points) == (score.mode, score.score, score.is_measured, score.drop_points)
+        return (self.mode, self.score, self.is_measured, self.drop_points, self.version) == (score.mode, score.score, score.is_measured, score.drop_points, score.version)
 
     def following(self, score: FitnessScore, scored_at: float) -> "FitnessPoint":
-        if score.mode != self.mode or not score.is_measured or not self.is_measured:
+        if score.mode != self.mode or score.version != self.version or not score.is_measured or not self.is_measured:
             return FitnessPoint.first(score, scored_at)
         if score.drop_points > self.drop_points:
             return FitnessPoint.of(score, scored_at, f"{score.drop_cause}, which cost {score.drop_points} points")
@@ -54,8 +55,8 @@ class FitnessPoint:
         return max(moves, key=lambda move: move[0])[1] if moves else "the measures off the ideal changed"
 
     def entry(self, agent: Agent) -> Entry:
-        data = {"session": agent.session, "at": self.scored_at, "mode": self.mode, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "parts": [list(part) for part in self.parts], "moved": self.moved, "drop_points": self.drop_points}
+        data = {"session": agent.session, "at": self.scored_at, "mode": self.mode, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "parts": [list(part) for part in self.parts], "moved": self.moved, "drop_points": self.drop_points, "version": self.version}
         return Entry(environment_id=agent.environment_id, kind=FitnessPoint.KIND, actor=Actor.system(), data=data)
 
     def shown(self) -> dict:
-        return {"at": self.scored_at, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "moved": self.moved}
+        return {"at": self.scored_at, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "moved": self.moved, "version": self.version}

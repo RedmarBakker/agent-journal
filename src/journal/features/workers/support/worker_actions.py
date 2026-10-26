@@ -170,7 +170,7 @@ class WorkerActions:
         steps.started(2, self.queue_note(queued), f"waiting in the merge queue behind {queued} merges" if queued else "")
         with self.merger.turn():
             steps.status(MergeSteps.sentence(2))
-            merged_total = self.branch.merged_lines(worker)
+            merged_total, merged_shas = self.branch.merged_lines(worker), self.branch.merged_shas(worker)
             commit = self.merge_commit(worker, task)
             unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
             merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
@@ -189,7 +189,7 @@ class WorkerActions:
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(self.time_source.moment().timestamp()), actor)
-        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total))
+        self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=self.time_source.moment().timestamp(), lines=merged_total, merged_shas=merged_shas))
         return MergeOutcome(closed, worktree_line, next_line, closed_queue)
 
     @staticmethod
