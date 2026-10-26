@@ -84,6 +84,7 @@ const SYSTEM_TURNS = {
             summary: card.summary || "",
             ending: card.ending || "",
             docked: Boolean(card.docked),
+            worker: card.worker || "",
             command: card.command,
             title: card.detail || card.command,
             row: card.row,

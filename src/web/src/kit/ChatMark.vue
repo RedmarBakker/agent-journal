@@ -42,7 +42,7 @@ const tint = computed(() => ({
         :is="tag"
         v-bind="passed"
         :type="tag === 'button' ? 'button' : undefined"
-        :class="['mark', {tinted: shade, filled: mark.tone === 'bad', console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
+        :class="['mark', {worked: mark.worker, tinted: shade, filled: mark.tone === 'bad', console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
         :style="tint"
         :title="hover"
         :data-figure-mark="mark.key"
@@ -51,6 +51,9 @@ const tint = computed(() => ({
         @click="clicked"
     >
         <Icon :name="mark.icon || 'dot'" />
+        <template v-if="mark.worker">
+            <span class="worker">{{ mark.worker }}</span>
+        </template>
         <span class="head">
             <TextDisplay :text="mark.label" inline :row-names="false" />
             <template v-if="mark.name">
@@ -122,6 +125,10 @@ button.mark {
     cursor: pointer;
 }
 
+.mark.worked {
+    grid-template-columns: auto auto minmax(0, 1fr);
+}
+
 .mark {
     interpolate-size: allow-keywords;
     transition: width 0.3s ease;
@@ -175,6 +182,13 @@ button.mark:hover {
     height: 2px;
     opacity: 0.8;
     transition: width 0.4s ease;
+}
+
+.worker {
+    padding-left: 6px;
+    border-left: 1px solid var(--border-2);
+    color: var(--text-2);
+    white-space: nowrap;
 }
 
 .head {
