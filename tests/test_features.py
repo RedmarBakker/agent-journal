@@ -7491,6 +7491,8 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     updating.read()
     updating.install(Actor.user(1))
     assert fetched == ["https://raw.githubusercontent.com/jessegall/agent-journal/v4.99.0/install.sh"] and ran == [("sh", "v4.99.0")] and updating.problem == "", "the updater calls the real installer with every argument it asks for, which fetches the release's install script and runs it"
+    app.container.get(ReleaseInstaller).run("v4.99.0", "https://github.com/jessegall/agent-journal")
+    assert ran[-1] == ("sh", "v4.99.0") and (app.config.home / "runtime" / "update.log").read_text().startswith("installing v4.99.0 of https://github.com/jessegall/agent-journal: updating to the latest release"), "an updater from before 24 October, which passes the ref and the repository alone, still runs the new installer (message 67664)"
     monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: SimpleNamespace(returncode=1))
     monkeypatch.setattr("journal.features.updates.support.official_install.OfficialInstall.installation", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="offline"))
     updating.card.clear()

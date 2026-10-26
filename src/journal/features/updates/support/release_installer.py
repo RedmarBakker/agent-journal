@@ -13,6 +13,10 @@ DOWNLOAD_SECONDS = 30
 INSTALL_SECONDS = 600
 
 
+# why an install runs when the updater that asks for it names no reason
+UPDATE_REASON = "updating to the latest release"
+
+
 class ReleaseInstaller:
     """A release's own install.sh run from the project root: it copies the release's source into .journal/src, runs journal setup and restarts the running journals on the new code."""
 
@@ -20,7 +24,8 @@ class ReleaseInstaller:
         self.config = config
         self.log = config.home / "runtime" / "update.log"
 
-    def run(self, ref: str, repository: str, reason: str) -> None:
+    # an updater from before 2026-10-24 calls this with the ref and the repository alone, so the reason has a plain default
+    def run(self, ref: str, repository: str, reason: str = UPDATE_REASON) -> None:
         self.log.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="journal-install-") as folder, self.log.open("w") as log:
             script = Path(folder) / "install.sh"
