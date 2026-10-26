@@ -73,7 +73,7 @@ class ReaderJudge:
         files = OutputFiles(Path(output.folder))
         if reader is None or reader.script or reader.name in SHIPPED_READERS or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
-        lines = files.lines()
+        lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
         kinds = self.dismissal_kinds(output.command, ended_at)
         shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
@@ -204,8 +204,13 @@ class ReaderJudge:
             return "test totals"
         return "a build line" if any(BUILD_LINE.search(line) for line in lines) else ""
 
-    def read_lines(self, reader: Reader, files: OutputFiles) -> list[str]:
-        return [STYLE_CODES.sub("", line) for i in files.recorded() if reader.commands.reads(files.part_text(i)) for line in files.output_text(i).splitlines()]
+    # the lines of the parts of a chain the reader reads; the whole output when it names no command a part runs
+    @staticmethod
+    def read_lines(reader: Reader, files: OutputFiles) -> list[str]:
+        read = [i for i in files.recorded() if reader.commands.reads(files.part_text(i))]
+        if not read:
+            return files.lines()
+        return [STYLE_CODES.sub("", line) for i in read for line in files.output_text(i).splitlines()]
 
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
@@ -239,7 +244,7 @@ class ReaderJudge:
             return []
         output = stored[0]
         files = OutputFiles(Path(output.folder))
-        lines = files.lines()
+        lines = self.read_lines(reader, files)
         fixes = []
         progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:

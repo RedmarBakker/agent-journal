@@ -32,7 +32,7 @@ class WatchedRunJudge:
         files = OutputFiles(Path(output.folder))
         if reader is None or reader.script or reader.name in SHIPPED_READERS or not files.is_stored():
             return
-        shortfalls = [shortfall for shortfall in self.findings(reader, files.lines()) if not self.reports.open_with_output_finding(output.row_id, shortfall[0])]
+        shortfalls = [shortfall for shortfall in self.findings(reader, ReaderJudge.read_lines(reader, files)) if not self.reports.open_with_output_finding(output.row_id, shortfall[0])]
         if not shortfalls:
             return
         self.reports.save(ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.row_id, command=output.command, session=output.session, findings=tuple(finding for finding, _ in shortfalls), fixes=tuple(fix for _, fix in shortfalls)), Actor.system())
