@@ -21,6 +21,8 @@ export function replyQuote(text) {
 
 export const linesWord = ({first, last}) => (first ? (first === last ? `line ${first}` : `lines ${first}-${last}`) : "a selection");
 
+export const fileComment = (file, picked, words) => ({text: aboutLines(file, picked, words)});
+
 export function aboutLines(file, picked, words) {
     const source = picked.first
         ? file.text

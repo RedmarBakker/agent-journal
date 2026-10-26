@@ -1,6 +1,7 @@
 <script setup>
 import {onUnmounted, reactive, ref} from "vue";
 import Icon from "../kit/Icon.vue";
+import {buttonSpot} from "../domain/commentButton.js";
 
 const props = defineProps({off: Boolean});
 const emit = defineEmits(["quote"]);
@@ -10,10 +11,9 @@ let range = null;
 
 function place() {
     if (!range || !area.value) return;
-    const rect = range.getBoundingClientRect();
-    const box = area.value.getBoundingClientRect();
-    mark.x = rect.left - box.left + rect.width / 2;
-    mark.y = rect.top - box.top;
+    const spot = buttonSpot(range.getBoundingClientRect(), area.value.getBoundingClientRect(), {width: window.innerWidth});
+    mark.x = spot.x;
+    mark.y = spot.y;
 }
 
 function picked(e) {

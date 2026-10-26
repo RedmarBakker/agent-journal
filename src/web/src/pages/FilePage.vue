@@ -9,7 +9,7 @@ import Btn from "../kit/Btn.vue";
 import Highlight from "../resource/Highlight.vue";
 import Diff from "../kit/Diff.vue";
 import {sendMessage} from "../chat/outbox.js";
-import {aboutLines} from "../format/quote.js";
+import {fileComment} from "../format/quote.js";
 import {href, route} from "../route.js";
 import {counted} from "../format/number.js";
 import {isPicture} from "../format/files.js";
@@ -58,7 +58,7 @@ function pick(text, range) {
 }
 
 async function send() {
-    await sendMessage(route.value.env, {brief: aboutLines(file.value, picked.value, words.value)});
+    await sendMessage(route.value.env, fileComment(file.value, picked.value, words.value));
     picked.value = null;
     sent.value = true;
 }
