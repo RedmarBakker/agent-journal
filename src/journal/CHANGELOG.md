@@ -4,6 +4,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- The project's tests are judged by test commandments of their own as part of journal suite: a test that writes a setting's row instead of running settings set fails the run.
 - Blocking a task that waits in a worker's queue takes it out of the queue by itself, so it is offered again once it opens; pausing a worker's task in hand is refused unless you add --force, which takes it off the worker, tells the worker to go on with its queue and leaves its commits on its branch.
 
 ## 4.63.0

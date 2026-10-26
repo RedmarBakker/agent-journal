@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin."""
 import json
 import os
 import re
@@ -26,6 +26,8 @@ HEARTBEAT_SECONDS = 10.0
 DURATIONS_FILE = ROOT / ".journal" / "runtime" / "suite-durations.json"
 DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
 DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
+JUDGE = ROOT / ".journal" / "plugins" / "code-commandments" / "bin" / "commandments-release"
+TEST_COMMANDMENTS = ["nice", "-n", "10", str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
 
 
 def shard_count() -> int:
@@ -96,6 +98,7 @@ def whole_suite() -> int:
     count, began = shard_count(), time.monotonic()
     with tempfile.TemporaryDirectory() as folder:
         shards = [started(index, count, Path(folder)) for index in range(count)]
+        judging = commandments_started(Path(folder))
         print(f"running the suite in {count} shards side by side", flush=True)
         progress_shown(shards)
         totals: dict[str, int] = {}
@@ -117,7 +120,34 @@ def whole_suite() -> int:
             print(line)
         summary = ", ".join(f"{totals[name]} {name}" for name in ("failed", "errors", "passed", "skipped") if totals.get(name))
         print(f"{summary or 'no tests ran'} in {time.monotonic() - began:.2f}s")
-        return 1 if totals.get("failed") or totals.get("errors") or not totals.get("passed") or any(process.returncode not in (0, 5) for process, _ in shards) else 0
+        sinful = commandments_judged(judging)
+        return 1 if sinful or totals.get("failed") or totals.get("errors") or not totals.get("passed") or any(process.returncode not in (0, 5) for process, _ in shards) else 0
+
+
+def commandments_started(folder: Path) -> tuple[subprocess.Popen, Path] | None:
+    if not JUDGE.is_file():
+        print("the test commandments are not judged: the code-commandments plugin is not installed here", flush=True)
+        return None
+    output = folder / "commandments.txt"
+    return subprocess.Popen(TEST_COMMANDMENTS, cwd=ROOT, stdout=output.open("w"), stderr=subprocess.STDOUT), output
+
+
+def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
+    if judging is None:
+        return False
+    process, output = judging
+    try:
+        process.wait(timeout=SHARD_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        print(f"the test commandments ran past {SHARD_TIMEOUT_SECONDS} seconds and were stopped")
+        return True
+    if process.returncode == 0:
+        print("the tests break none of the test commandments")
+        return False
+    print("the tests break the test commandments (tests-drive-the-real-path):")
+    print(output.read_text(), end="", flush=True)
+    return True
 
 
 def scoped_run(arguments: list[str]) -> int:

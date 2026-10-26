@@ -29,6 +29,7 @@ from journal.support.actor import Actor
 from journal.support.hook_kind import HookKind
 from journal.support.response import Response
 from tests.full_project import unpacked
+from tests.user_settings import user_set
 from tests.in_process import got
 
 MAIN = {"X-Journal-Env": "main"}
@@ -235,7 +236,7 @@ def test_every_route_answers_within_its_budget_on_a_full_project(full_project: A
 
 
 def orchestrating(app: App) -> None:
-    app.container.get(SettingRows).set(WorkersOptions.MODE.key, ORCHESTRATOR, Actor.user(1))
+    user_set(app, WorkersOptions.MODE.key, ORCHESTRATOR)
 
 
 def hook_cases(app: App) -> dict[str, tuple[HookKind, dict]]:

@@ -1,8 +1,6 @@
 import random
 
 from journal.repositories.agents import Agents
-from journal.repositories.setting_rows import SettingRows
-from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.simulation.builder_policy import BuilderPolicy
 from tests.simulation.careless_policy import CarelessPolicy
@@ -65,7 +63,7 @@ class ScenarioRun:
         for _ in range(sum(count for at, count in self.scenario.arrivals if at == minute)):
             self.task_created(world)
         if self.scenario.switch_minute and minute == self.scenario.switch_minute:
-            self.simulator.app.container.get(SettingRows).set("workers.mode", self.scenario.switch_mode, Actor.user(1))
+            self.simulator.run(["settings", "set", "workers.mode", self.scenario.switch_mode], Caller.user("main"))
 
     def task_created(self, world: World) -> None:
         n = world.next_task
@@ -83,8 +81,7 @@ class ScenarioRun:
         return TraceEntry(second, actor, action, status not in (0, 200), seen.nudges, seen.stack, status, seen.skipped, seen.workers)
 
     def prepared(self, world: World) -> None:
-        settings = self.simulator.app.container.get(SettingRows)
-        settings.set("workers.mode", self.scenario.mode, Actor.user(1))
+        self.simulator.run(["settings", "set", "workers.mode", self.scenario.mode], Caller.user("main"))
         self.simulator.hook("SessionStart")
         self.simulator.run(["environment", "overview"], AGENT)
         for _ in range(self.scenario.tasks):

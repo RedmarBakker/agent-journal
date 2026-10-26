@@ -12,6 +12,8 @@
         ]
     },
     "detectors": [
+        "TestSettingWriteDetector",
+        "TestSettingsVariableWriteDetector",
         "PlainViewerTextDetector",
         "PlainServerTextDetector",
         "PlainJournalTextDetector",

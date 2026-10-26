@@ -24,6 +24,7 @@ CHECKOUT_TIMEOUT_SECONDS = 600
 BUILD_SECONDS = 600
 
 # what a worker does when its branch clashes with the branch its work merges into
+AUTOSTASH = "autostash"
 REBASE_STEPS = "fix only the files that clash, keeping both sides' changes and removing every conflict marker; never run git, since the journal adds them and goes on with the rebase when you clock out"
 CONFLICT_MARKER = re.compile(r"^(<{7}|>{7}) ", re.MULTILINE)
 REBUILD_SUBJECT = "Build the built files again on the project's branch"
@@ -244,6 +245,9 @@ class WorkerBranch:
         unresolved = self.continue_rebase(repository) if repository.is_present and self.is_rebasing(repository.worktree) else ""
         if unresolved:
             return unresolved
+        autostash_clash = self.autostash_conflicts(repository) if repository.is_present and self.conflicts(repository.worktree) else ""
+        if autostash_clash:
+            return autostash_clash
         head = self.git("rev-parse", "HEAD", cwd=repository.checkout).stdout.strip()
         if self.git("merge-base", "--is-ancestor", head, self.tip(repository, worker), cwd=repository.checkout).returncode == 0:
             return ""
@@ -260,14 +264,25 @@ class WorkerBranch:
         self.git("add", "-A", cwd=repository.worktree)
         return self.rebase_conflicts(repository, self.git("-c", "core.editor=true", "rebase", "--continue", cwd=repository.worktree))
 
+    # the worker's uncommitted edits, set aside by the rebase's autostash and put back over it with conflicts: once the markers are gone the
+    # files are plain uncommitted edits again and the autostash the put-back kept is dropped
+    def autostash_conflicts(self, repository: WorkerRepository) -> str:
+        unresolved = [path for path in self.conflicts(repository.worktree).split(", ") if path and self.is_marked(repository.worktree / path)]
+        if unresolved:
+            return ", ".join(repository.path(path) for path in unresolved)
+        self.git("reset", "-q", cwd=repository.worktree)
+        if AUTOSTASH in self.git("stash", "list", "-n", "1", cwd=repository.worktree).stdout:
+            self.git("stash", "drop", "-q", cwd=repository.worktree)
+        return ""
+
     def rebase_conflicts(self, repository: WorkerRepository, outcome: subprocess.CompletedProcess) -> str:
         folder, rebuilt = repository.worktree, False
         while self.is_automatic_step(folder, outcome):
             rebuilt = rebuilt or bool(self.conflicts(folder))
             outcome = self.project_side(folder) if self.conflicts(folder) else self.git("rebase", "--skip", cwd=folder)
-        if outcome.returncode == 0:
-            return self.rebuild(folder) if rebuilt else ""
         clashing = self.conflicts(folder)
+        if outcome.returncode == 0 and not clashing:
+            return self.rebuild(folder) if rebuilt else ""
         return ", ".join(repository.path(path) for path in clashing.split(", ")) if clashing else f"the files of {repository.label()}"
 
     def is_automatic_step(self, folder: Path, outcome: subprocess.CompletedProcess) -> bool:

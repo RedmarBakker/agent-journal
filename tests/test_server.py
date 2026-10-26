@@ -21,6 +21,7 @@ from journal.support.query_times import QueryTimes
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from tests.main_journal import main_journal
+from tests.user_settings import user_set
 from journal.features.tasks.tasks_options import TasksOptions
 
 
@@ -43,7 +44,7 @@ def unowed(app: App) -> None:
     """The server's tests are about the server, so no skill is owed at a start to hold their tool calls."""
     from journal.repositories.setting_rows import SettingRows
     for key in ("skills.session_start", "skills.after_compaction"):
-        app.container.get(SettingRows).set(key, [], Actor.user(1))
+        user_set(app, key, [])
 
 
 @pytest.fixture(autouse=True)

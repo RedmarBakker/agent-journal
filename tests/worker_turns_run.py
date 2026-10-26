@@ -22,6 +22,7 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from tests.main_journal import main_journal
+from tests.user_settings import user_set
 
 SHIM = Path(__file__).resolve().parent.parent / "src" / "journal.sh"
 
@@ -40,8 +41,8 @@ def test_two_workers_turns_run_one_after_the_other_under_a_budget_of_one_and_eac
     root, scope = app.config.root, app.container.get(Scope)
     (app.config.home / "port").write_text(str(app.server().port))
     settings = app.container.get(SettingRows)
-    settings.set(WorkersOptions.TEST_COMMAND.key, f"{sys.executable} -m pytest -q -p no:cacheprovider", Actor.user(1))
-    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, f"{sys.executable} -m pytest -q -p no:cacheprovider")
+    user_set(app, WorkersOptions.TEST_RUNS.key, 1)
     with scope.environment(1):
         workers = [app.container.get(Workers).save(Worker(environment_id=1, name=f"Worker {n}", brief="b", session=f"w{n}", worktree=True, token_hash=AgentToken.hashed("tok")), Actor.system()) for n in (1, 2)]
     for worker in workers:

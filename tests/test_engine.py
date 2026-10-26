@@ -81,6 +81,7 @@ from journal.engine.nudge_registry import NudgeRegistry
 from journal.support.time_source import TimeSource
 from journal.events.agent.session_started import SessionStarted
 from tests.in_process import posted
+from tests.user_settings import user_set
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.stop import Stop
 from journal.engine.states.wait import Wait
@@ -1849,7 +1850,7 @@ def orchestrated(app: App) -> None:
     """Twenty tasks through the orchestrator, each dispatched worker standing in as a process that runs until the test lets it go."""
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.repositories.workers import Workers as WorkerRows
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     hook(app, "SessionStart")
     console, agents, tasks = app.console(), app.container.get(Agents), app.container.get(Tasks)
     console.run(["environment", "overview"], AGENT)
@@ -1904,7 +1905,7 @@ def test_a_long_journal_line_reaches_the_agent_whole_in_several_marked_pieces(ap
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
     from journal.support.typed_lines import TypedLines
-    app.container.get(SettingRows).set("delivery.batch_seconds", 0, Actor.user(1))
+    user_set(app, "delivery.batch_seconds", 0)
     terms = " ".join(f"word{n}" for n in range(1, 260))
     link, lines = app.container.get(SupervisorLink), app.container.get(TypedLines)
     link.type(1, terms)
@@ -2271,7 +2272,7 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
         worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-        app.container.get(SettingRows).set("workers.testing", "The journal runs them", Actor.user(1))
+        user_set(app, "workers.testing", "The journal runs them")
 
     def worker_runs(command: str):
         data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
@@ -2286,11 +2287,11 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
         assert status == 409 and "the journal runs your tests" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
     assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
     with scope.environment(1):
-        app.container.get(SettingRows).set("workers.testing", "Hand the tests over", Actor.user(1))
+        user_set(app, "workers.testing", "Hand the tests over")
     status, body = worker_runs("pytest tests/test_x.py")
     assert status == 409 and "tests are handed over" in body["error"] and "proof" in body["error"], "with Hand the tests over a worker's test command is refused too"
     with scope.environment(1):
-        app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
+        user_set(app, "workers.testing", "Run the tests it wrote")
     assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"
 
 
@@ -2317,7 +2318,7 @@ def test_the_test_budget_choice_refuses_a_workers_direct_test_run_with_the_line_
         except HTTPError as error:
             return error.code, json.loads(error.read())
     with scope.environment(1):
-        app.container.get(SettingRows).set("workers.testing", "Test budget", Actor.user(1))
+        user_set(app, "workers.testing", "Test budget")
     for command in ("pytest tests/test_x.py", "npx vitest run"):
         status, body = worker_runs(command)
         assert status == 409 and "journal tests turn" in body["error"], f"{command} is refused with the line that names the turn"
@@ -2816,7 +2817,7 @@ def test_a_commit_counts_its_own_lines_once_per_sha_leaving_out_merges_built_pat
     from journal.features.workers.support.worker_branch import REBUILD_SUBJECT
     hook(app, "SessionStart")
     announcer, agents = app.container.get(Announcer), app.container.get(Agents)
-    app.container.get(SettingRows).set("workers.built_paths", ["dist"], Actor.user(1))
+    user_set(app, "workers.built_paths", ["dist"])
     assert GitFacts.added("12\t3\tsrc/parser.py") == ("src/parser.py", 12) and GitFacts.added("-\t-\tlogo.png") == ("logo.png", 0), "a commit's numstat row gives the path and the lines it added"
     commit = lambda sha, lines, subject="the parser": GitCommitted(environment_id=1, session="s1", sha=sha, branch="main", subject=subject, files=len(lines), lines=lines)
     with app.container.get(Scope).environment(1):
@@ -3209,7 +3210,7 @@ def test_with_the_fitness_warnings_off_the_score_is_still_kept_while_no_measure_
     from journal.repositories.entries import Entries
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set(FitnessOptions.WARNINGS.key, False, Actor.user(1))
+    user_set(app, FitnessOptions.WARNINGS.key, False)
     clock = app.container.get(Clock)
     start = clock.time()
     with app.container.get(Scope).environment(1):

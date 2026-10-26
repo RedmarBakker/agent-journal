@@ -50,6 +50,7 @@ from journal.features.tasks.states.working import Working
 from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
+from tests.user_settings import user_set
 from tests.replay import catch_typed, drive_the_clock, tick_after, tick_at
 from tests.in_process import answered, got, posted
 from tests.main_journal import main_journal
@@ -734,7 +735,7 @@ def test_a_sequence_is_stepped_through_and_goes_back_where_it_began(app: App):
     assert app.container.get(RunTracker).current("s1", 1).adopted_at, "and takes the step up"
     assert "step 3: push" in console.run(["sequence", "next"], AGENT).text
     console.run(["sequence", "follow"], AGENT)
-    app.container.get(SettingRows).set("sequences.stale_after", 2, Actor.user(1))
+    user_set(app, "sequences.stale_after", 2)
     edit(), edit()
     assert "2 writes since sequence" in json.dumps(edit()), "a step taken up and not moved on holds again after the set writes"
     assert "paused at step 3" in console.run(["sequence", "pause", "--why", "the user wants the docs first"], AGENT).text
@@ -933,7 +934,7 @@ def skilled(tmp_path: Path, monkeypatch):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     for key in ("skills.session_start", "skills.after_compaction"):
-        app.container.get(SettingRows).set(key, ["journal"], Actor.user(1))
+        user_set(app, key, ["journal"])
     with app.container.get(Scope).environment(MAIN):
         yield app
     app.runtime().stop()
@@ -1350,7 +1351,7 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     for title in ("What the login check found", "The payment notes", "The cache survey"):
         assert console.run(["report", "create", title, "--body", "## Found\nSomething.\n"], AGENT).code == 0
     console.run(["plan", "create", "release", "--brief", "built on report 2"], USER)
@@ -1445,8 +1446,8 @@ def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_min
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
-    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
-    app.container.get(SettingRows).set("faults.report", True, Actor.user(1))
+    user_set(app, "features.faults", True)
+    user_set(app, "faults.report", True)
     slow = app.container.get(SlowRequests)
     monkeypatch.setattr("os.getloadavg", lambda: (0.0, 0.0, 0.0))
     marks = lambda: [m for m in app.container.get(Messages).all() if m.text.startswith("Slow requests report")]
@@ -1496,7 +1497,7 @@ def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_min
         app.runtime().deferred.drain()
         slow.report_gathered(told_at + 3600)
     assert lines()[-1].startswith("[journal] a slow requests report is ready: 10 over budget"), "ten gathered are told at once, without waiting for them to go quiet"
-    app.container.get(SettingRows).set("faults.repeat_minutes", 0, Actor.user(1))
+    user_set(app, "faults.repeat_minutes", 0)
     monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 7200: at)
     with app.container.get(Scope).environment(MAIN):
         slow.measured("GET", "/journal/plans", 90)
@@ -1682,10 +1683,10 @@ def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypat
     hook(app, "Stop")
     app.runtime().deferred.drain()
     line_text = len(keystrokes)
-    app.container.get(SettingRows).set("voices.avatar_shown", "never", Actor.user(1))
-    app.container.get(SettingRows).set("voices.avatar", False, Actor.user(1))
+    user_set(app, "voices.avatar_shown", "never")
+    user_set(app, "voices.avatar", False)
     assert len(keystrokes) == line_text, "a change to the figure's look is no change of voice: nothing is typed"
-    app.container.get(SettingRows).set("voices.title", "Captain", Actor.user(1))
+    user_set(app, "voices.title", "Captain")
     assert "changed how you talk" in keystrokes[line_text] and sum("changed how you talk" in line for line in keystrokes[line_text:]) == 1, "a change to the words is typed once, in its pieces"
 
 
@@ -1701,7 +1702,7 @@ def test_a_message_reaches_a_working_agent_on_its_next_tool_use_and_an_idle_one_
     assert keystrokes == [], "the agent is at work: nothing is typed"
     reply = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]
     assert "new message " in reply["hookSpecificOutput"]["additionalContext"] and "systemMessage" not in reply, "its next tool use carries the line, kept from the user's terminal by default"
-    app.container.get(SettingRows).set("faults.terminal_hook_lines", True, Actor.user(1))
+    user_set(app, "faults.terminal_hook_lines", True)
     app.console().run(["message", "send", "and the sidebar"], USER)
     shown = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})[1]
     assert "new message " in shown.get("systemMessage", ""), "with the developer setting on, the user sees the agent's lines in the terminal too"
@@ -1783,14 +1784,14 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     app.console().run(["environment", "overview"], AGENT)
     use = lambda name: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
     assert "you now work" not in use("a.py"), "nothing is said while the mode stays"
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     switched = use("b.py")
     assert "orchestrating:" in switched, "the switch is told at the next step"
     assert "dispatch tasks, review and merge, run the suite" in switched, "and it is told to hand the work out, review and merge it, and run the suite"
     assert "you now work" not in use("c.py"), "and only once"
-    app.container.get(SettingRows).set("workers.mode", "solo", Actor.user(1))
+    user_set(app, "workers.mode", "solo")
     assert "you now work solo" in use("d.py")
-    app.container.get(SettingRows).set("workers.mode", "builder", Actor.user(1))
+    user_set(app, "workers.mode", "builder")
     assert "you now work as the builder" in use("e.py")
 
 
@@ -1802,7 +1803,7 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     for title, tasks in (("release", ("write the notes", "tag it")), ("billing", ("the invoice",))):
         console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
         for task in tasks:
@@ -2201,7 +2202,7 @@ def test_an_unread_message_is_counted_down_at_every_tool_use_to_the_write_hold(a
 
 
 def test_a_message_read_gets_an_answer_before_the_next_tool_call(app: App):
-    app.container.get(SettingRows).set("messages.hold_after", 0, Actor.user(1))
+    user_set(app, "messages.hold_after", 0)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["message", "send", "can you look at the footer, the header and the menu before lunch?"], USER)
@@ -2347,7 +2348,7 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     named = lambda: [line for line in keystrokes if "name the commands that run this project's tests" in line]
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "", Actor.user(1))
+        user_set(app, PlansOptions.TEST_COMMANDS.key, "")
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "phase", "1", "one", "--when", "done"], USER)
@@ -2380,7 +2381,7 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     console.run(["task", "start", "3"], AGENT)
     assert run("pytest -q")[0] == 200, "a plan that tests throughout never refuses it"
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "", Actor.user(1))
+        user_set(app, PlansOptions.TEST_COMMANDS.key, "")
     console.run(["task", "pause", "3", "a moment"], AGENT)
     console.run(["task", "start", "3"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task the agent starts by hand waits for the test commands too"
@@ -2630,7 +2631,7 @@ def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_
     console = app.console()
     console.run(["task", "create", "write the notes", "--start"], AGENT)
     console.run(["task", "log", "1", "opened NOTES.md"], AGENT)
-    app.container.get(SettingRows).set("briefing.look_commands", ["task show {{task_in_hand}}", "plan show {{started_plan}}", "question list", "task list"], Actor.user(1))
+    user_set(app, "briefing.look_commands", ["task show {{task_in_hand}}", "plan show {{started_plan}}", "question list", "task list"])
     from journal.db.connection import Connection
     from journal.db.migrations.overview_whole_lines import OverviewWholeLines
     OverviewWholeLines().apply(app.container.get(Connection))
@@ -2638,7 +2639,7 @@ def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_
     app.container.get(SettingRows).clear_cache()
     stored = app.container.get(SettingRows).project("briefing.look_commands")
     assert stored == ["journal task show current", "journal plan show current", "journal question list", "journal task list"], "a list saved in the short form, placeholders and all, is written as whole lines"
-    app.container.get(SettingRows).set("briefing.look_commands", [*stored, "echo a line of the project"], Actor.user(1))
+    user_set(app, "briefing.look_commands", [*stored, "echo a line of the project"])
     shown = console.run(["environment", "overview"], AGENT).text
     headings = [line for line in shown.splitlines() if line.startswith("== ")]
     assert headings == ["== journal task show current ==", "== journal plan show current ==", "== journal question list ==", "== journal task list ==", "== echo a line of the project =="], "each command under its heading, in the order the setting names them"
@@ -2723,12 +2724,12 @@ def test_the_agent_bars_data_carries_the_average_points_of_each_kind_while_load_
     from journal.models.support.request_loads import RequestLoads
     from journal.repositories.agents import Agents
     hook(app, "SessionStart")
-    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
+    user_set(app, "features.faults", True)
     slow = app.container.get(SlowRequests)
     row = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]
     slow.counted("HOOK", "/hooks/PreToolUse", 5, RequestLoads.tallied(Counter({"tasks": 60})))
     assert "points_average" not in row(), "load counting off: the reading is not shown"
-    app.container.get(SettingRows).set("faults.count_loads", True, Actor.user(1))
+    user_set(app, "faults.count_loads", True)
     for points in (60, 20):
         slow.counted("HOOK", "/hooks/PreToolUse", 5, RequestLoads.tallied(Counter({"tasks": points})))
     slow.counted("GET", "/journal/tasks", 5, RequestLoads.tallied(Counter({"tasks": 10})))
@@ -2825,7 +2826,7 @@ def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_
 
 
 def test_a_reply_written_before_a_tool_call_reaches_the_chat_at_that_call_and_the_display_hook_adds_no_second(app: App, monkeypatch, tmp_path):
-    app.container.get(SettingRows).set("messages.hold_after", 0, Actor.user(1))
+    user_set(app, "messages.hold_after", 0)
     import json as j
     from journal.providers.claude import Claude
     from journal.repositories.messages import Messages
@@ -3821,7 +3822,7 @@ def test_a_subagent_launched_in_the_background_runs_until_its_own_stop_hook(app:
 
 def test_a_write_after_a_message_is_read_waits_for_the_answer(app: App):
     from journal.repositories.setting_rows import SettingRows
-    app.container.get(SettingRows).set("messages.hold_after", 0, Actor.system())
+    user_set(app, "messages.hold_after", 0)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
@@ -4040,8 +4041,8 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.test_turns import TestTurns as TurnRows
     settings = app.container.get(SettingRows)
-    settings.set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
-    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
+    user_set(app, WorkersOptions.TESTING.key, TEST_BUDGET)
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
     started, gates, results = [], {n: threading.Event() for n in range(101, 106)}, {}
 
     class Runner:
@@ -4109,10 +4110,10 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     for thread in [*threads, *more]:
         thread.join(10)
     assert hour() == (before[0] + 4, before[1] + 1), "with the runs passed and failed in the last hour"
-    settings.set(WorkersOptions.TEST_RUNS.key, WorkersOptions.TEST_RUNS.default, Actor.user(1))
-    settings.set(WorkersOptions.TEST_ID_LIMIT.key, WorkersOptions.TEST_ID_LIMIT.default, Actor.user(1))
-    settings.set(WorkersOptions.TESTING.key, WorkersOptions.TESTING.default, Actor.user(1))
-    settings.set(WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_RUNS.key, WorkersOptions.TEST_RUNS.default)
+    user_set(app, WorkersOptions.TEST_ID_LIMIT.key, WorkersOptions.TEST_ID_LIMIT.default)
+    user_set(app, WorkersOptions.TESTING.key, WorkersOptions.TESTING.default)
+    user_set(app, WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default)
 
 
 def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_general_verifier_and_a_mismatch_is_named_and_kept_unscored_on_purpose(app: App, monkeypatch):
@@ -4131,9 +4132,9 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
-    settings.set(WorkersOptions.MODE.key, "orchestrator", Actor.user(1))
-    settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, 1, Actor.user(1))
-    settings.set(WorkersOptions.VERIFIER_LIMIT.key, 10, Actor.user(1))
+    user_set(app, WorkersOptions.MODE.key, "orchestrator")
+    user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, 1)
+    user_set(app, WorkersOptions.VERIFIER_LIMIT.key, 10)
     hook(app, "SessionStart")
 
     # a worker's job on `model`, `lines` lines over `files` files, sent back `rejections` times over `minutes`, merged now
@@ -4174,8 +4175,8 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
         judged = workers.find(sampled.row_id).model_fit
     assert (judged.verdict, judged.reason, judged.fit()) == ("too strong", "one parser module and its test", "too strong"), "the verdict is recorded on the worker and counts over the measure"
     assert f"{sampled.row_id}:too strong" in app.container.get(Agents).session_agent("s1").model_fits, "and among its dispatcher's model fits"
-    settings.set(WorkersOptions.MODE.key, WorkersOptions.MODE.default, Actor.user(1))
-    settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, WorkersOptions.MODEL_FIT_SAMPLE.default, Actor.user(1))
+    user_set(app, WorkersOptions.MODE.key, WorkersOptions.MODE.default)
+    user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, WorkersOptions.MODEL_FIT_SAMPLE.default)
 
 
 def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_else_waits_in_order_and_one_past_the_waiting_cap_is_refused(app: App, tmp_path):
@@ -4237,8 +4238,8 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             time.sleep(0.4)
         return threads
 
-    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
-    settings.set(WorkersOptions.TEST_RUNS.key, 2, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
+    user_set(app, WorkersOptions.TEST_RUNS.key, 2)
     threads = asking(1, 2, 3)
     assert until(lambda: len(started) == 2) and started == [str(tmp_path / "wt1"), str(tmp_path / "wt2")], "a budget of 2 starts two runs, each in its own worker's worktree"
     time.sleep(0.5)
@@ -4254,7 +4255,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
 
     started.clear(), results.clear()
     gates.update({n: threading.Event() for n in (1, 2, 3)})
-    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_RUNS.key, 1)
     threads = asking(1, 2, 3)
     assert until(lambda: len(started) == 1)
     time.sleep(0.5)
@@ -4266,7 +4267,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
 
     started.clear(), results.clear()
     gates.update({n: threading.Event() for n in (1, 2, 3)})
-    settings.set(WorkersOptions.TEST_WAITING.key, "1", Actor.user(1))
+    user_set(app, WorkersOptions.TEST_WAITING.key, "1")
     threads = asking(1, 2, 3)
     assert refused == ["1 turns already wait for a test run: ask again once one has run"], "a turn past the waiting cap is refused with one line"
     for number in (1, 2):
@@ -4336,9 +4337,9 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
             time.sleep(0.05)
         return test()
 
-    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
-    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
-    settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 0.01, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
+    user_set(app, WorkersOptions.TEST_RUNS.key, 1)
+    user_set(app, WorkersOptions.TEST_RUN_MINUTES.key, 0.01)
     turns = fresh()
     threads = asking(turns, 1, 2)
     assert until(lambda: 1 in results) and "timed out" in results[1] and [name for name, _ in stops] == ["run1"], "a run past the time limit is stopped and reported to its worker as timed out"
@@ -4347,7 +4348,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     for thread in threads:
         thread.join(10)
 
-    settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 10, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_RUN_MINUTES.key, 10)
     turns = fresh()
     first = asking(turns, 1)
     follow = asking(turns, 2)
@@ -4407,7 +4408,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
     turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
-    settings.set(WorkersOptions.TEST_RUNS.key, 3, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_RUNS.key, 3)
     results = {}
 
     def ask(number, ids):
@@ -4425,12 +4426,12 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
 
     ask(4, "tests/x.py")
     assert results[4] == f"refused: this project has no test command: set {WorkersOptions.TEST_COMMAND.key}", "a project with no test command refuses a turn in one line naming the setting"
-    settings.set(WorkersOptions.TEST_COMMAND.key, "make check", Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "make check")
     gates["make check tests/x.py"] = threading.Event()
     gates["make check tests/x.py"].set()
     ask(3, "tests/x.py")
     assert lines == [("make check tests/x.py", "b")], "the configured command runs with the test ids"
-    settings.set(WorkersOptions.TEST_COMMAND.key, "", Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "")
     gates["pytest -q nope.py"] = threading.Event()
     gates["pytest -q nope.py"].set()
     ask(3, "nope.py")
@@ -4483,9 +4484,9 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             yield outcome
 
     turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
-    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
-    settings.set(WorkersOptions.TEST_ID_LIMIT.key, 2, Actor.user(1))
-    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
+    user_set(app, WorkersOptions.TEST_ID_LIMIT.key, 2)
+    user_set(app, WorkersOptions.TEST_RUNS.key, 1)
     with scope.environment(1):
         result = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
     assert lines == ["pytest -q a.py b.py", "pytest -q c.py d.py", "pytest -q e.py"], "five ids with two to a run are three runs, the ids kept whole"
@@ -4907,7 +4908,7 @@ def test_the_rules_doc_rules_on_every_state_the_engine_knows(app: App):
     assert [n for n in names if f"| {n} |" not in table] == [], "every state the engine knows has a ruling in the rules doc"
 
 def test_a_refused_dispatch_leaves_no_running_subagent_behind(app: App):
-    app.container.get(SettingRows).set("messages.hold_after", 0, Actor.user(1))
+    user_set(app, "messages.hold_after", 0)
     from journal.repositories.environments import Environments
     hook(app, "SessionStart")
     console = app.console()
@@ -5124,7 +5125,7 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
         app.runtime().deferred.drain()
     tick()
     assert transmitted == [], "a step just said is not said again"
-    app.container.get(SettingRows).set("sequences.say_every", 0, Actor.user(1))
+    user_set(app, "sequences.say_every", 0)
     tick()
     assert "step 1: bump" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a step unheard for the set minutes is said again, carried by the agent's next tool use while it is at work"
     console.run(["sequence", "pause", "--why", "docs first"], AGENT)
@@ -5593,7 +5594,7 @@ def echo_heard(app, name="echo") -> list[str]:
 
 
 def test_a_plugin_hears_the_events_it_names_and_holds_what_it_may(app: App):
-    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    user_set(app, "plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS)
     from journal.db.connection import Connection
     from journal.support.listener_queue import ListenerQueue
     from journal.repositories.entries import Entries
@@ -5627,7 +5628,7 @@ def test_a_plugin_hears_the_events_it_names_and_holds_what_it_may(app: App):
 
 def test_a_plugin_is_never_switched_off_by_the_journal_and_never_holds_the_agent_in_a_loop(app: App):
     from journal.repositories.plugins import Plugins
-    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    user_set(app, "plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS)
     plugins = app.container.get(Plugins)
     plugin = echo(app, hears=["tool_starting"])
     plugins.save(plugin.with_(hashes={path: "a file as it was before" for path in plugin.manifest.programs}), Actor.user(1))
@@ -5640,7 +5641,7 @@ def test_a_plugin_is_never_switched_off_by_the_journal_and_never_holds_the_agent
     assert status == 200 and "held the agent 5 times in a row, so its holds are passed over for 3 minutes" in body["hookSpecificOutput"]["additionalContext"], "past five holds in a row the next goes through, said once"
     status, body = forbidden()
     assert status == 200 and "passed over" not in json.dumps(body), "while it is passed over its holds go through unsaid"
-    app.container.get(SettingRows).set("plugins.passed_over_minutes", 0, Actor.user(1))
+    user_set(app, "plugins.passed_over_minutes", 0)
     status, body = forbidden()
     assert status == 200, "the pause set when it was passed over still runs"
 
@@ -6147,7 +6148,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
     from journal.repositories.entries import Entries
     from journal.repositories.messages import Messages
     from journal.repositories.plugins import Plugins
-    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    user_set(app, "plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS)
     plugins, messages = app.container.get(Plugins), app.container.get(Messages)
     plugins.save(echo(app).with_(settings={"mode": "broken"}), Actor.user(1))
     hook(app, "SessionStart")
@@ -6159,7 +6160,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
     plugins.save(row.with_(settings={}), Actor.user(1))
     assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200
     assert plugins.lookup("echo").fault_streak == 0 and "Plugin echo answers again" in [m.text for m in messages.recent(5)]
-    app.container.get(SettingRows).set(PluginsOptions.PLUGIN_ANSWER_WINDOW.key, 100, Actor.user(1))
+    user_set(app, PluginsOptions.PLUGIN_ANSWER_WINDOW.key, 100)
     plugins.save(plugins.lookup("echo").with_(settings={"mode": "slow"}), Actor.user(1))
     plugins.save(echo(app, "echo-two").with_(settings={"mode": "slow"}), Actor.user(1))
     began = timing.monotonic()
@@ -6592,7 +6593,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     dispatched(app.console(), ["Lady Lovelace", "say hello", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    app.container.get(SettingRows).set(WorkersOptions.TIMEOUT.key, 0.005, USER.actor)
+    user_set(app, WorkersOptions.TIMEOUT.key, 0.005)
     worker = app.container.get(Workers).find(1)
     app.container.get(WorkerRunner).run(worker, ["sh", "-c", "echo half done; sleep 30"], A.agent("s1"))
     ended = app.container.get(Workers).find(1)
@@ -7383,7 +7384,7 @@ class Installer:
 
 
 def updating_with(app, source: Source, installer: Installer, auto: bool) -> Updater:
-    app.container.get(SettingRows).set("updates.auto", auto, Actor.system())
+    user_set(app, "updates.auto", auto)
     updating = app.container.get(Updater)
     updating.source, updating.installer = source, installer
     return updating
@@ -7489,7 +7490,7 @@ def test_a_newer_release_is_installed_on_its_own_only_when_the_setting_is_on(app
 def test_the_updater_asks_for_a_new_release_as_often_as_the_setting_says(app: App):
     source = Source("v4.0.0")
     updating = updating_with(app, source, Installer(), auto=False)
-    app.container.get(SettingRows).set("updates.check_minutes", 5, Actor.system())
+    user_set(app, "updates.check_minutes", 5)
     first = timing.time() + 60
     for time, asked in ((first, 1), (first + 299, 1), (first + 300, 2)):
         updating.tick(time)
@@ -7778,8 +7779,8 @@ def test_a_workers_merge_that_clashes_only_in_built_files_takes_the_projects_sid
     commit(".gitignore", ".journal/\n")
     commit("dist/app.js", "built from one\n")
     settings = app.container.get(SettingRows)
-    settings.set("workers.built_paths", ["dist"], Actor.system())
-    settings.set("workers.build_command", "printf 'built from both\\n' > dist/app.js", Actor.system())
+    user_set(app, "workers.built_paths", ["dist"])
+    user_set(app, "workers.build_command", "printf 'built from both\\n' > dist/app.js")
     hook(app, "SessionStart")
     dispatched(app.console(), ["Lady Lovelace", "change the viewer", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
     branch = app.container.get(WorkerBranch)
@@ -8495,7 +8496,7 @@ def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App)
     from journal.repositories.messages import Messages
     from journal.repositories.setting_rows import SettingRows
     from journal.support.rejection import Rejection
-    app.container.get(SettingRows).set("sharing.host", "tunler.example", Actor.user(1))
+    user_set(app, "sharing.host", "tunler.example")
     pairing, time = app.container.get(PhoneConnector), datetime.now(timezone.utc)
     with pytest.raises(Rejection, match="only the user pairs"):
         pairing.proposal(7, Actor.agent("s1"), time)
@@ -8528,7 +8529,7 @@ def test_a_pairing_code_expires_and_is_voided_by_ten_wrong_tries(app: App):
     from journal.features.phone.support.phone_connector import PhoneConnector
     from journal.repositories.setting_rows import SettingRows
     from journal.support.rejection import Rejection
-    app.container.get(SettingRows).set("sharing.host", "tunler.example", Actor.user(1))
+    user_set(app, "sharing.host", "tunler.example")
     pairing, time = app.container.get(PhoneConnector), datetime.now(timezone.utc)
     late = pairing.proposal(1, Actor.user(1), time)
     tunnel = app.container.get(Tunnel)
@@ -8552,7 +8553,7 @@ def test_a_phone_whose_days_ran_out_is_told_so_and_reaches_nothing(app: App):
     from journal.http.phone.phone_pages import COOKIE, PhonePages
     from journal.http.phone.phone_request import PhoneRequest
     from journal.repositories.setting_rows import SettingRows
-    app.container.get(SettingRows).set("sharing.host", "tunler.example", Actor.user(1))
+    user_set(app, "sharing.host", "tunler.example")
     pairing, then = app.container.get(PhoneConnector), datetime.now(timezone.utc) - timedelta(days=2)
     paired = pairing.pair(pairing.proposal(1, Actor.user(1), then).short, "iPhone", then)
     answer = app.container.get(PhonePages).pass_along(PhoneRequest("GET", "/p/journal/messages", f"{COOKIE}={paired.key}"))
@@ -8784,7 +8785,7 @@ def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows
     hook(app, "SessionStart")
     entries = app.container.get(Entries)
     assert len(entries.selected_globally(entries.query())) > 5
-    app.container.get(SettingRows).set("record.kept", 5, Actor.user(1))
+    user_set(app, "record.kept", 5)
     for _ in range(4):
         hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     app.console().run(["message", "send", "keep me"], USER)
@@ -9373,7 +9374,7 @@ def install_commit(app: App, commit: str) -> None:
 def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_it_is_ahead_of_the_installed_commit(app: App):
     older, installed, newer = checkout_commits(app, 3)
     install_commit(app, installed)
-    app.container.get(SettingRows).set("updates.branch", "development", Actor.user(1))
+    user_set(app, "updates.branch", "development")
     source, installer = Source("v4.99.0", head=installed), Installer()
     updating = updating_with(app, source, installer, auto=True)
     updating.checked()
@@ -9396,7 +9397,7 @@ def test_a_branch_head_beside_the_installed_commit_is_left_alone(app: App):
     subprocess.run(["git", "checkout", "-q", "-"], cwd=app.config.root, check=True)
     installed = checkout_commits(app, 1)[0]
     install_commit(app, installed)
-    app.container.get(SettingRows).set("updates.branch", "development", Actor.user(1))
+    user_set(app, "updates.branch", "development")
     installer = Installer()
     updating = updating_with(app, Source(head=beside), installer, auto=True)
     updating.checked()
@@ -9417,7 +9418,7 @@ def test_a_stopped_agent_gets_each_line_at_once_and_a_working_one_gets_them_batc
     from journal.engine.clock import Clock
     keystrokes = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields["line"]))
-    app.container.get(SettingRows).set("delivery.batch_seconds", 5, Actor.user(1))
+    user_set(app, "delivery.batch_seconds", 5)
     link = app.container.get(SupervisorLink)
     link.type(1, "new message 2")
     hook(app, "UserPromptSubmit", prompt="[journal] new message 2")
@@ -9433,7 +9434,7 @@ def test_a_stopped_agent_gets_each_line_at_once_and_a_working_one_gets_them_batc
     link.type(1, "new message 4")
     app.container.get(Clock).tick(app.container.get(Clock).time())
     assert "[journal] new message 4" not in " ".join(keystrokes), "a working agent's line waits for its next tool use or the batch window"
-    app.container.get(SettingRows).set("delivery.batch_seconds", 0, Actor.user(1))
+    user_set(app, "delivery.batch_seconds", 0)
 
 def test_a_new_message_line_is_confirmed_by_the_message_being_read_and_the_chat_hears_only_of_a_line_given_up(app: App, monkeypatch):
     import time as timing
@@ -9846,7 +9847,7 @@ def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugi
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     from journal.support.listener_queue import ListenerQueue
-    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    user_set(app, "plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS)
     echo(app, "judge", hears=["file_edited"], holds=["file_edited"], reaches={"file_edited": ["workers"]})
     echo(app, "watcher", hears=["file_edited"], reaches={"file_edited": ["workers"]})
     hook(app, "SessionStart")
@@ -10002,7 +10003,7 @@ def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_g
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     console.run(["plan", "create", "release", "--brief", "ship it"], USER)
     for title in ("write the notes", "tag it", "announce it"):
         console.run(["plan", "add", "1", title, "--brief", f"{title}: done when it is in the repository"], USER)
@@ -10134,7 +10135,7 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     settings, console = app.container.get(SettingRows), app.console()
-    settings.set("workers.testing", "The journal runs them", Actor.user(1))
+    user_set(app, "workers.testing", "The journal runs them")
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
     hook(app, "SessionStart")
@@ -10312,11 +10313,11 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
     assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
+    user_set(app, WorkersOptions.TESTING.key, WORKER_TESTING)
     assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
     assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
     from journal.features.workers.workers_options import TEST_BUDGET
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
+    user_set(app, WorkersOptions.TESTING.key, TEST_BUDGET)
     assert "journal tests turn" in files.worker_instructions("journal-medior") and "journal tests turn" in files.worker_instructions("cartographer"), "with Test budget a worker is told to test only through journal tests turn, hooks or none"
     assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
@@ -10451,7 +10452,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(1).state != TaskState.COMPLETED and folder.is_dir() and (root / "parser.py").read_text() == "my own draft\n", "and nothing moved"
     (root / "parser.py").unlink()
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     console.run(["task", "create", "the lexer tests"], USER)
     merged = console.run(["worker", "merge", "1"], AGENT)
     app.runtime().deferred.drain()
@@ -11147,7 +11148,7 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
         app.container.get(Docking).pin_message(card(kept), Actor.user(1))
     end(kept)
     assert card(kept).data["docked"] is True, "a card the user docked stays after the end"
-    app.container.get(SettingRows).set("shell.dock_live_outputs", False, Actor.user(1))
+    user_set(app, "shell.dock_live_outputs", False)
     plain = run("plain")
     assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
 
@@ -11502,7 +11503,7 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     console.run(["worker", "send", "1", "the escapement"], AGENT)
     resumed = workers.find(1)
     assert (resumed.began, resumed.pid) == (0.0, 0) and runner.instructed(resumed) == "the escapement", "the old run's clock and process go with it, and the resumed prompt is the job alone"
-    app.container.get(SettingRows).set(WorkersOptions.TIMEOUT.key, 0.05, USER.actor)
+    user_set(app, WorkersOptions.TIMEOUT.key, 0.05)
     runner.run(resumed, ["sh", "-c", "echo the escapement ticks"], Actor.agent("s1"))
     assert workers.find(1).run_end == "the escapement ticks", "the time limit counts from the new run, not the first"
 
@@ -11675,7 +11676,7 @@ def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_on
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set(WorkersOptions.PROFILE_LIMIT.key, 3, USER.actor)
+    user_set(app, WorkersOptions.PROFILE_LIMIT.key, 3)
     workers = app.container.get(Workers)
     for name, state, paths in (("Mr. Out", WorkerState.DISPATCHED, None), ("Mr. Idle", WorkerState.REPORTED, ("docs/a.md",)), ("Mr. Knows", WorkerState.REPORTED, ("src/lexer.py",))):
         workers.save(Worker(name=name, state=state, profile="journal-medior", touched_paths=paths), Actor.system())
@@ -11687,7 +11688,7 @@ def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_on
     assert text.index("worker 3, Mr. Knows") < text.index("worker 2, Mr. Idle") and "journal worker send 3" in text and "Mr. Out" not in text.split("idle:")[1], "the idle ones are named with their send lines, the one that knows the files first"
     assert said("journal-senior")[0] == 200, "another profile has places of its own"
     assert said("journal-plan-reviewer")[0] == 200, "a reviewer always starts fresh"
-    app.container.get(SettingRows).set(WorkersOptions.PROFILE_LIMIT.key, 0, USER.actor)
+    user_set(app, WorkersOptions.PROFILE_LIMIT.key, 0)
     assert said("journal-medior")[0] == 200, "0 is no limit"
     assert any(m.text == "Dispatch refused, 2 idle workers could take it" for m in app.container.get(Messages).scoped()), "the refusal is a mark in the chat"
 
@@ -11764,8 +11765,8 @@ def test_with_every_place_full_a_clocked_out_worker_is_named_as_the_work_to_chec
     kept_conversation(app, monkeypatch)
     settings, console = app.container.get(SettingRows), app.console()
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("workers.most_out", 1, Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "workers.most_out", 1)
     console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
     console.run(["task", "create", "the lexer", "--brief", "splits the words"], AGENT)
     assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
@@ -11917,8 +11918,8 @@ def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_s
         console.run(["task", "create", title, "--brief", "b"], AGENT)
     assert console.run(["task", "block", "1", "waits for the user's word on the colour"], AGENT).code == 0
     assert console.run(["task", "block", "2", "the schema has to settle"], AGENT).code == 0
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("tasks.auto", True, Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "tasks.auto", True)
     now = timing.time()
     monkeypatch.setattr(Clock, "time", lambda self, at=now + 61 * 60: at)
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + 61 * 60, silence_seconds=1.0))
@@ -11946,7 +11947,7 @@ def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_pla
         console.run(["plan", "add", "1", f"step {n}"], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     now = timing.time()
     said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
 
@@ -11981,7 +11982,7 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
         console.run(["plan", "todos", "1", str(phase), str(phase)], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
 
     def ticked(minutes: float) -> list[str]:
@@ -11998,7 +11999,7 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     assert len(ticked(20)) == 1, "once answered the line is quiet, past the time a line may repeat"
     assert len(ticked(46)) == 2, "and asks again once the interval has passed"
     console.run(["plan", "priorities", "task 1 still first"], AGENT)
-    settings.set("workers.priorities_minutes", 0, Actor.user(1))
+    user_set(app, "workers.priorities_minutes", 0)
     assert len(ticked(62)) == 2, "with no interval an answered phase is not asked again"
     assert console.run(["task", "complete", "1"], AGENT).code == 0
     app.runtime().deferred.drain()
@@ -12023,7 +12024,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     kept_conversation(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     import subprocess
     for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
         subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
@@ -12073,8 +12074,8 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
     monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("workers.model_fit_sample", 1, Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "workers.model_fit_sample", 1)
     console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
     assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
     workers = app.container.get(Workers)
@@ -12505,7 +12506,7 @@ def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to
         hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"sleep {seconds}"})
     link.working(MAIN)
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    app.container.get(SettingRows).set("shell.foreground", 1, Actor.system())
+    user_set(app, "shell.foreground", 1)
     b"".join(runner.run(request("sleep 1.5"), AGENT, MAIN))
     said = link.pending_lines(MAIN)
     import time as clock
@@ -13350,7 +13351,7 @@ def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_sui
     from journal.repositories.entries import NUDGE, Entries
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
     assert proved_and_out(app, caller, "platform/app.php:1").code == 0
     merged = checked_and_merged(app)
@@ -13380,7 +13381,7 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_test_run_in_a_cl
     from journal.repositories.command_outputs import CommandOutputs
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
     assert proved_and_out(app, caller, "platform/app.php:1").code == 0
     with app.container.get(Scope).environment(MAIN):
@@ -13402,7 +13403,7 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a
     from journal.repositories.command_outputs import CommandOutputs
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
     assert proved_and_out(app, caller, "platform/app.php:1").code == 0
     with app.container.get(Scope).environment(MAIN):
@@ -13430,7 +13431,7 @@ def test_one_wait_holds_a_test_run_and_the_workers_still_out(app: App, monkeypat
 def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_to_wait_while_its_workers_are_out(app: App, monkeypatch):
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     waiting = hook(app, "Stop")[1]
     assert "journal worker wait" not in waiting.get("reason", ""), "a stop while it waits on the worker it dispatched is let through"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
@@ -13615,18 +13616,18 @@ def test_the_users_worktree_commands_run_before_and_after_the_journals_step_whic
     from journal.features.workers.feature import Workers as WorkersFeature
     root = repository_made(app.config.root, {".gitignore": ".journal/\nlog.txt\n", "README.md": "one\n"})
     settings = app.container.get(SettingRows)
-    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, ['echo "before $JOURNAL_BRANCH" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
-    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, ['echo "after $(pwd -P)" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
+    user_set(app, WorkersOptions.PREPARATION_COMMANDS.key, ['echo "before $JOURNAL_BRANCH" >> "$JOURNAL_PROJECT/log.txt"'])
+    user_set(app, WorkersOptions.COMPLETION_COMMANDS.key, ['echo "after $(pwd -P)" >> "$JOURNAL_PROJECT/log.txt"'])
     worker, folder, _ = worktree_worker(app, monkeypatch, "the readme")
     assert (root / "log.txt").read_text().splitlines() == ["before worker/1-Worker-1", f"after {folder.resolve()}"], "the commands before run in the project, the ones after inside the worktree, each told the branch and the paths"
-    settings.set(WorkersOptions.WORKTREE_STEP.key, False, Actor.system())
-    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, ['git -C "$JOURNAL_PROJECT" worktree add -q -b "$JOURNAL_BRANCH" "$JOURNAL_WORKTREE" HEAD'], Actor.system())
-    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, [], Actor.system())
+    user_set(app, WorkersOptions.WORKTREE_STEP.key, False)
+    user_set(app, WorkersOptions.PREPARATION_COMMANDS.key, ['git -C "$JOURNAL_PROJECT" worktree add -q -b "$JOURNAL_BRANCH" "$JOURNAL_WORKTREE" HEAD'])
+    user_set(app, WorkersOptions.COMPLETION_COMMANDS.key, [])
     second, second_folder, _ = worktree_worker(app, monkeypatch, "the readme again", n=2)
     assert (second_folder / "README.md").is_file() and git_run(second_folder, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip() == "worker/2-Worker-2", "with the journal's step off, the user's command makes the worktree"
-    settings.set(WorkersOptions.WORKTREE_STEP.key, True, Actor.system())
-    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, [], Actor.system())
-    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, ['echo "the install broke" && exit 3'], Actor.system())
+    user_set(app, WorkersOptions.WORKTREE_STEP.key, True)
+    user_set(app, WorkersOptions.PREPARATION_COMMANDS.key, [])
+    user_set(app, WorkersOptions.COMPLETION_COMMANDS.key, ['echo "the install broke" && exit 3'])
     console = app.console()
     console.run(["task", "create", "the third", "--brief", "the readme a third time"], AGENT)
     refused = console.run(["worker", "dispatch", "Worker 3", "--task", "3", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
@@ -13915,11 +13916,11 @@ def test_a_dispatch_names_how_its_worker_tests_from_a_test_template(app: App, mo
     hook(app, "SessionStart")
     console = app.console()
     dispatch = lambda name, task, *tests: console.run(["worker", "dispatch", name, "--task", str(task), "--changes", "the parser", "--profile", "journal-medior", "--model", "sonnet", *tests], AGENT)
-    app.container.get(SettingRows).set("workers.most_out", 0, Actor.user(1))
+    user_set(app, "workers.most_out", 0)
     for n in range(1, 6):
         console.run(["task", "create", f"job {n}", "--brief", f"the job {n}"], AGENT)
     assert dispatch("Lady Lovelace", 1, "--tests", FULL_SUITE.title).code == 0 and app.container.get(Workers).find(1).brief.endswith(f"How you test: {ZERO_TESTS.brief}"), "while workers hand the tests over, every worker is told to run none, whatever the dispatch names"
-    app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
+    user_set(app, "workers.testing", "Run the tests it wrote")
     console.run(["task", "create", "job 0", "--brief", "the job 0"], AGENT)
     assert dispatch("Mr. Babbage", 6).code == 0 and app.container.get(Workers).find(2).brief.endswith(f"How you test: {SCOPED_TESTS.brief}"), "a dispatch naming no test template gets the scoped tests"
     console.run(["task", "create", "job 7", "--brief", "the job 7"], AGENT)
@@ -16396,7 +16397,7 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
         assert [(request.kind, request.account_id, request.body["text"]) for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))] == [("message", 2, "from bob's journal")], "the request waits on the team server in Bob's name"
         account.write({"address": address, "token": ada, "device": 1, "account_id": 1})
         app.container.get(IdBlocks).add("settings", 800000, 800100)
-        app.container.get(SettingRows).set("workers.pool_slots", 2, Actor.user(1))
+        user_set(app, "workers.pool_slots", 2)
         client = CarriedSync(app)
         client.pulled()
         assert [message.creator.stamp for message in made("k-1")] == ["user:2"], "the host takes the request up with its pull and makes the message as Bob"
@@ -16508,10 +16509,10 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
         app.container.get(IdBlocks).add("settings", 800000, 800100)
         (app.config.home / "hosted").touch()
         updater = app.container.get(Updater)
-        app.container.get(SettingRows).set("updates.auto", False, Actor.system())
+        user_set(app, "updates.auto", False)
         updater.checked()
         assert installed == [f"v{pinned}"] and pins == [], "with the auto-update off a hosted journal installs the team's pinned version on its own, no newer one, and never takes the team's upgrade lease"
-        app.container.get(SettingRows).set("updates.auto", True, Actor.system())
+        user_set(app, "updates.auto", True)
         updater.card.clear()
         updater.checked()
         assert installed[-1] == f"v{beyond}" and pins == [beyond], "with it on a hosted journal installs the newest release and pins the team to it"
@@ -17115,8 +17116,8 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         started = []
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
         monkeypatch.setenv("PLANTED_CLOUD_KEY", "secret")
-        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
-        app.container.get(SettingRows).set("workers.preparation_commands", ["touch prepared.txt"], Actor.user(1))
+        user_set(app, "workers.pool_slots", 1)
+        user_set(app, "workers.preparation_commands", ["touch prepared.txt"])
         CarriedSync(app).pulled()
         app.runtime().deferred.drain()
         variables = app.container.get(WorkerRunner).worker_variables(started[0], AgentToken("tok"))
@@ -17206,7 +17207,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
         app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        user_set(app, "workers.pool_slots", 1)
         CarriedSync(app).pulled()
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
@@ -17329,7 +17330,7 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
         assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
         monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
-        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        user_set(app, "workers.pool_slots", 1)
         busy = jobs.save(PoolJob(request_id=999, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior").started(1.0), Actor.system())
         app.container.get(HostDesk).handle(tuple(offered(ada)))
         app.runtime().deferred.drain()
@@ -17342,7 +17343,7 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
         from collections import namedtuple
         from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
         intake = app.container.get(PoolJobIntake)
-        app.container.get(SettingRows).set("workers.pool_daily_minutes", 2, Actor.user(1))
+        user_set(app, "workers.pool_daily_minutes", 2)
         spent = jobs.save(PoolJob(request_id=998, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior", started_at=clock.time() - 180, ended_at=clock.time()), Actor.system())
         assert "run its 2 minutes of pool work for today" in intake.machine_refusal(), "past the day's minutes of pool work a machine turns pool workers down"
         jobs.delete(spent, Actor.system())
@@ -17448,7 +17449,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
     main = app.container.get(Environments).existing("main")
     app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
     from journal.repositories.setting_rows import SettingRows
-    app.container.get(SettingRows).set("voices.profile", "squire", Actor.user(1))
+    user_set(app, "voices.profile", "squire")
 
     class Kept(HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
@@ -17723,7 +17724,7 @@ def test_a_batch_of_blocks_is_refused_and_a_real_wait_passes(app: App):
     assert console.run(["task", "block", "4", "the vendor's key arrives"], AGENT).code == 0, "and so is one on something outside"
     third = console.run(["task", "block", "5", "later"], AGENT)
     assert third.code != 0 and "2 tasks were blocked in the last 5 minutes" in third.error, "a third block in the stretch is clearing the list, and refused"
-    app.container.get(SettingRows).set("tasks.block_batch_seconds", 0, Actor.user(1))
+    user_set(app, "tasks.block_batch_seconds", 0)
     assert console.run(["task", "block", "5", "the vendor's second key"], AGENT).code == 0, "once the stretch is over, a block passes again"
 
 
@@ -18042,7 +18043,7 @@ def test_an_outward_route_is_left_out_of_the_points_and_a_reader_add_tries_two_r
     from journal.models.support.request_loads import RequestLoads
     from journal.models.timing import Timing
     from journal.repositories.reader_reports import ReaderReports
-    app.container.get(SettingRows).set("faults.count_loads", True, Actor.user(1))
+    user_set(app, "faults.count_loads", True)
     slow, tally = app.container.get(SlowRequests), app.container.get(DeveloperTally)
     for path in ("/cli/plugin upgrade", "/journal/plans"):
         slow.windowed("developer.requests", f"POST {path}", Timing(method="POST", route=path, ms=40, time=0.0, loads=RequestLoads()))
@@ -18307,7 +18308,7 @@ def test_a_merge_landing_sends_back_each_waiting_branch_it_makes_clash_and_leave
     committed(first / "platform", "app.php", "<?php\n// the first worker's line\n")
     committed(second / "platform", "app.php", "<?php\n// the second worker's line\n")
     committed(third / "platform", "notes.md", "the third worker's notes\n")
-    app.container.get(SettingRows).set("workers.built_paths", ["dist"], Actor.system())
+    user_set(app, "workers.built_paths", ["dist"])
     committed(first / "platform", "dist/app.js", "built by the first worker\n")
     committed(third / "platform", "dist/app.js", "built by the third worker\n")
     for caller, proof in ((first_caller, "platform/app.php:1"), (second_caller, "platform/app.php:1"), (third_caller, "platform/notes.md:1")):
@@ -18455,7 +18456,7 @@ def test_a_plugins_service_that_drops_its_socket_leaves_the_event_to_its_program
     import threading
     from journal.features.plugins.support.plugin_folders import PluginFolders
     from journal.repositories.plugins import Plugins
-    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    user_set(app, "plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS)
     plugin = echo(app, services=[{"name": "answers", "command": ["serve.py"], "answers": True}])
     path = app.container.get(PluginFolders).socket(plugin, "main")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -18946,7 +18947,7 @@ def test_a_command_with_a_reader_stays_in_the_foreground_unless_it_is_known_to_r
     outputs = app.container.get(CommandOutputs)
     with app.container.get(Scope).environment(MAIN):
         assert not [output for output in outputs.reader_outputs("naps") if output.is_watched] and "background" not in quick + link.pending_lines(MAIN), "a quick run with a reader answers in the foreground"
-    app.container.get(SettingRows).set("shell.foreground", 1, Actor.system())
+    user_set(app, "shell.foreground", 1)
     b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
     with app.container.get(Scope).environment(MAIN):
         first = outputs.last_run("sleep 1.3")
@@ -19145,7 +19146,7 @@ def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(a
     from journal.features.workers.workers_options import MERGER_TESTING, WORKER_TESTING
     command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
     assert settings.option(WorkersOptions.TESTING) == MERGER_TESTING and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    settings.set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
+    user_set(app, WorkersOptions.TESTING.key, WORKER_TESTING)
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 
@@ -19158,7 +19159,7 @@ def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty
     post = lambda message, stack: posted(app, "/journal/client-errors", {"message": message, "stack": stack}, {"X-Journal-Env": "main"})
     assert post("y is null", "at Bar.vue:3")[0] == 200 and keystrokes == [], "with the setting off, as it is outside the journal's own development, the agent hears nothing of the viewer's errors"
     assert app.console().run(["developer", "client-errors", "--clear"], AGENT).code == 0
-    app.container.get(SettingRows).set("client_errors.report", True, Actor.system())
+    user_set(app, "client_errors.report", True)
     assert post("x is undefined", "at Chat.vue:12")[0] == 200
     assert post("x is undefined", "at Chat.vue:12")[0] == 200
     assert keystrokes == ["[journal] the viewer logged a console error. read them with journal developer client-errors"], "the first error is told at once, and the same error again is counted and not told"
@@ -19515,9 +19516,9 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
     kept_conversation(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("reviewing.reviewer", True, Actor.user(1))
-    settings.set("workers.most_out", 0, Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "reviewing.reviewer", True)
+    user_set(app, "workers.most_out", 0)
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers, tasks = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks)
     ids = []
@@ -19574,7 +19575,7 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
     assert freed.get(first_reviewer) == hopper and queued() == [], "the reviewer that reported takes the review that waited, as soon as it is free"
     with app.container.get(Scope).environment(MAIN):
         assert reviewers.find(first_reviewer).session == session, "in its own session"
-    settings.set("reviewing.reviewer", False, Actor.user(1))
+    user_set(app, "reviewing.reviewer", False)
     clocked_out(turing)
     with app.container.get(Scope).environment(MAIN):
         off = workers.find(turing)
@@ -19602,9 +19603,9 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     kept_conversation(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("reviewing.reviewer", True, Actor.user(1))
-    settings.set("workers.allowed_models", ["claude reviewer: haiku"], Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "reviewing.reviewer", True)
+    user_set(app, "workers.allowed_models", ["claude reviewer: haiku"])
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
     console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
@@ -19707,8 +19708,8 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     kept_conversation(app, monkeypatch)
     console, sessions, settings = app.console(), app.container.get(SessionAgents), app.container.get(SettingRows)
     hook(app, "SessionStart")
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("reviewing.reviewer", True, Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "reviewing.reviewer", True)
     console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
     console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
     for name, task in (("Lady Lovelace", "1"), ("Mr. Babbage", "2")):
@@ -19788,7 +19789,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
         handed = workers.find(2)
     assert not handed.review_pending and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
     assert any("worker 2 ended without a report: task 2 waits for your own check" in line for line in told("reviewing.review_failed")), "and tells the orchestrator so"
-    settings.set("reviewing.reviewer", False, Actor.user(1))
+    user_set(app, "reviewing.reviewer", False)
     console.run(["proof", "2", "parser.py:31, the alias names are in"], lovelace)
     assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
     app.runtime().deferred.drain()
@@ -20102,12 +20103,12 @@ def test_the_orchestrator_approves_a_plan_only_when_the_user_allows_it(app: App)
     console.run(["plan", "phase", "1", "Lay the floor", "--when", "the floor is level"], AGENT)
     console.run(["plan", "add", "1", "pour the slab"], AGENT)
     console.run(["plan", "ready", "1"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "with the toggle off the orchestrator is refused"
-    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
-    settings.set("workers.mode", "builder", Actor.user(1))
+    user_set(app, "workers.orchestrator_approves_plans", True)
+    user_set(app, "workers.mode", "builder")
     assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "the toggle counts in orchestrator mode only"
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     assert console.run(["plan", "approve", "1"], AGENT).code == 0, "with the toggle on the orchestrator approves, all plans by default"
 
 
@@ -20165,16 +20166,16 @@ def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_a
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     own, users = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan")
     with app.container.get(Scope).environment(MAIN):
         others = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal").ready(), Actor.worker(3)).id
         assert app.container.get(Plans).find(others).creation_actor.kind == ActorKind.WORKER, "the plan is the worker's, saved with its actor"
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
-    choose = lambda approval: settings.set("workers.orchestrator_plan_approval", approval.value, Actor.user(1))
+    choose = lambda approval: user_set(app, "workers.orchestrator_plan_approval", approval.value)
     choose(PlanApproval.ALL)
     assert all("only the user approves" in approve(n).error for n in (own, users, others)), "with the toggle off the orchestrator approves no plan, whatever the choice"
-    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
+    user_set(app, "workers.orchestrator_approves_plans", True)
     choose(PlanApproval.OWN)
     assert "only the user approves" in approve(users).error and "only the user approves" in approve(others).error, "its own plans are only the plans a main agent created"
     assert approve(own).code == 0, "and it approves its own"
@@ -20205,21 +20206,21 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     drafted = lambda caller, title: drafted_plan(app, caller, title)
 
     own = drafted(AGENT, "the orchestrator's plan")
-    settings.set("workers.orchestrator_writes_plans", False, Actor.user(1))
+    user_set(app, "workers.orchestrator_writes_plans", False)
     assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
-    settings.set("workers.mode", "builder", Actor.user(1))
+    user_set(app, "workers.mode", "builder")
     assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    user_set(app, "workers.mode", "orchestrator")
     users = drafted(USER, "the user's plan")
-    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
-    settings.set("workers.orchestrator_plan_approval", "can approve plans the user made", Actor.user(1))
+    user_set(app, "workers.orchestrator_approves_plans", True)
+    user_set(app, "workers.orchestrator_plan_approval", "can approve plans the user made")
     assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving the plans the user made, the orchestrator may not approve its own"
     assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
-    settings.set("workers.orchestrator_plan_approval", "can approve all plans", Actor.user(1))
+    user_set(app, "workers.orchestrator_plan_approval", "can approve all plans")
     assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with all plans it approves its own too"
     for _ in range(4):
         console.run(["sequence", "follow"], AGENT)
@@ -20227,7 +20228,7 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
     tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
     status, body = tag()
     assert status == 409 and "waits for the user: Orchestrator may release is off" in body["error"], "with May release off the orchestrator's release waits for the user"
-    settings.set("workers.orchestrator_releases", True, Actor.user(1))
+    user_set(app, "workers.orchestrator_releases", True)
     status, body = tag()
     assert status == 200, ("with it on the orchestrator releases", body)
     for name in ("orchestrator_writes_plans", "orchestrator_approves_plans", "orchestrator_releases"):
@@ -20847,12 +20848,12 @@ def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app:
         deliveries, following = app.container.get(TaskDeliveries), app.container.get(NextOpenTask)
         closed = tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
         titles = lambda: [task.title for task in deliveries.current().offers()]
-        settings.set("workers.mode", "builder", Actor.user(1))
+        user_set(app, "workers.mode", "builder")
         assert titles() == ["a2"], "a builder is offered the started plan's next task alone, and finishes the plan before the other one goes out"
         assert following.following(closed).id == 2, "and after a task closes it goes on in the same plan"
-        settings.set("workers.mode", "solo", Actor.user(1))
+        user_set(app, "workers.mode", "solo")
         assert titles() == ["a2"], "solo matches the builder"
-        settings.set("workers.mode", "orchestrator", Actor.user(1))
+        user_set(app, "workers.mode", "orchestrator")
         assert titles() == ["a2", "b1", "b2"], "the orchestrator is offered the plans' tasks in turn"
         assert following.following(closed).id == 3, "and after a task of the first plan closes the second plan's next task goes out"
 

@@ -25,6 +25,7 @@ from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, tick_after
+from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER, context
 from tests.main_journal import main_journal
 
@@ -302,7 +303,7 @@ def tool_uses_with_changed_settings(app, replay: Replay, provider: str) -> None:
     """The steps, with the cadences changed: the answer asked for after two uses and held after four; the task named every two edits, the log asked for at three and held at six."""
     settings = app.container.get(SettingRows)
     for key, value in (("messages.nudge_after", 2), ("messages.hold_after", 4), ("tasks.name_every", 2), ("tasks.first_nudge_after", 3), ("tasks.log_after", 6)):
-        settings.set(key, value, Actor.system())
+        user_set(app, key, value)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -801,7 +802,7 @@ def log_ask_at_stop_and_start(app, replay: Replay, provider: str) -> None:
 
 def line_reminder(app, replay: Replay, provider: str) -> None:
     """The steps, with the reminder every three lines: messages arrive and are named, and the agent's own tool uses come after."""
-    app.container.get(SettingRows).set("etiquette.remind_every", 3, Actor.system())
+    user_set(app, "etiquette.remind_every", 3)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -814,7 +815,7 @@ def hold_after_namings(app, replay: Replay, provider: str) -> None:
     """The steps, the unread named every use and a write held after two namings: a message waits unread while the agent writes."""
     settings = app.container.get(SettingRows)
     for key, value in (("messages.remind_every", 1), ("messages.hold_after_reminders", 2)):
-        settings.set(key, value, Actor.system())
+        user_set(app, key, value)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -826,7 +827,7 @@ def hold_after_namings(app, replay: Replay, provider: str) -> None:
 
 def a_subagents_tool_use(app, replay: Replay, provider: str) -> None:
     """The steps, the unread named every use: a subagent's tool uses and writes are not the agent's, and the agent's own are."""
-    app.container.get(SettingRows).set("messages.remind_every", 1, Actor.system())
+    user_set(app, "messages.remind_every", 1)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -871,8 +872,8 @@ def two_agents(app, replay: Replay, provider: str) -> None:
 
 def two_lines_on_one_write(app, replay: Replay, provider: str) -> None:
     """The steps: with the log held after two edits and a read message at the first use, a task in hand, two writes, a message read and left unanswered, then a write that is held twice over."""
-    app.container.get(SettingRows).set("tasks.log_after", 2, Actor.system())
-    app.container.get(SettingRows).set("messages.hold_after", 0, Actor.system())
+    user_set(app, "tasks.log_after", 2)
+    user_set(app, "messages.hold_after", 0)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)

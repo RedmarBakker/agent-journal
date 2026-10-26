@@ -16,6 +16,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from tests.replay import Replay, hook_as, played
+from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -30,7 +31,7 @@ def journal(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     app = main_journal(Config(tmp_path / "anew", port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.container.get(SettingRows).set(PluginsOptions.PLUGIN_ANSWER_WINDOW.key, 2000, Actor.user(1))
+    user_set(app, PluginsOptions.PLUGIN_ANSWER_WINDOW.key, 2000)
     with app.container.get(Scope).environment(MAIN):
         yield app
     app.runtime().stop()
