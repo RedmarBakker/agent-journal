@@ -30,7 +30,7 @@ class DefaultTaskAssigner:
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
         if not self.is_free_moment(agent, event):
             return Assignment()
-        return self.with_following(self.started(agent, self.paused_task(agent) or self.free_task()), quantity)
+        return self.with_following(self.started(agent, self.paused_task(agent) or self.unheld_task(agent)), quantity)
 
     def with_following(self, assignment: Assignment, quantity: int) -> Assignment:
         if quantity <= 1 or not assignment.has_task():
@@ -53,8 +53,16 @@ class DefaultTaskAssigner:
         return current is not None and current.state == TaskState.STARTED
 
     def paused_task(self, agent: Agent) -> Task | None:
-        paused = self.tasks.holder_paused_task(Ref.build(agent)) if self.is_auto() else None
-        return None if paused is None or self.tasks.open_waits(paused) else paused
+        return self.tasks.holder_paused_task(Ref.build(agent)) if self.is_auto() else None
+
+    def unheld_task(self, agent: Agent) -> Task | None:
+        free = self.free_task()
+        choosable = self.tasks.choosable_paused_tasks(Ref.build(agent)) if self.is_auto() else []
+        if not choosable:
+            return free
+        if free is None:
+            return choosable[0]
+        return free if free.priority > choosable[0].priority else None
 
     def free_task(self) -> Task | None:
         return self.tasks.next_open_task() if self.is_auto() else None

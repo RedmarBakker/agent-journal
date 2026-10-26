@@ -42,6 +42,7 @@ class Task(Scoped):
     driver_agent: str = ""
     delegated: bool = False
     priority_set: bool = False
+    wait_ended_at: float = 0.0
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()
@@ -93,7 +94,7 @@ class Task(Scoped):
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
-        return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="").with_event(event)
+        return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
 
     def prioritised(self, level: int) -> "Task":
         return self.with_(priority=level, priority_set=True)
@@ -114,7 +115,7 @@ class Task(Scoped):
     def paused(self, reason: str, time: datetime) -> "Task":
         if self.state != TaskState.STARTED:
             raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
-        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason), time, "paused")
+        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, "paused")
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, completed_at=self.completed_at or time, outcome=outcome), time, "cancelled")
@@ -135,7 +136,7 @@ class Task(Scoped):
 
     def wait_ended(self, reason: str, time: float) -> "Task":
         if self.state == TaskState.PAUSED:
-            return self.with_event(TaskWaitEnded(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))
+            return self.with_(wait_ended_at=time).with_event(TaskWaitEnded(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))
         return self.unblocked(reason, time)
 
     def unblocked(self, reason: str, time: float) -> "Task":

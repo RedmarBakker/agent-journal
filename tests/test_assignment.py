@@ -179,6 +179,43 @@ def own_paused_and_open(app: App) -> dict:
     return rows
 
 
+def own_paused_only(app: App) -> dict:
+    rows = {"paused": started(app, "the parser")}
+    run(app, ["task", "pause", str(rows["paused"]), "the lexer first"])
+    return rows
+
+
+def wait_ended(app: App, number: int) -> None:
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.support.actor import Actor
+    tasks = app.container.get(Tasks)
+    with app.container.get(Scope).environment(1):
+        tasks.save(tasks.find(number).wait_ended("the build passed", 1.0), Actor.system())
+
+
+def own_paused_wait_ended_and_open(app: App) -> dict:
+    rows = own_paused_and_open(app)
+    wait_ended(app, rows["paused"])
+    return rows
+
+
+def two_paused_second_wait_ended(app: App) -> dict:
+    rows = {"first": started(app, "the parser")}
+    run(app, ["task", "pause", str(rows["first"]), "waits on the vendor"])
+    rows["second"] = started(app, "the lexer")
+    run(app, ["task", "pause", str(rows["second"]), "waits on the build"])
+    wait_ended(app, rows["second"])
+    return rows
+
+
+def low_paused_and_urgent_open(app: App) -> dict:
+    rows = {"paused": started(app, "the parser")}
+    run(app, ["task", "pause", str(rows["paused"]), "the lexer first"])
+    rows["open"] = opened(app, "the lexer", "critical")
+    return rows
+
+
 def blocked_only(app: App) -> dict:
     rows = {"blocked": opened(app, "the parser")}
     run(app, ["task", "block", str(rows["blocked"]), "waits on the vendor"])
@@ -258,7 +295,11 @@ ASSIGNMENT_CASES = [
     Case("an agent that said it is stuck may stop with the task still in hand", True, stuck, stop, lambda rows: Outcome(rows["a"], True)),
     Case("a compaction keeps the task in hand and starts no other", True, compacting, stop, lambda rows: Outcome(rows["a"])),
     Case("in auto mode the higher priority goes first", True, by_priority, stop, lambda rows: Outcome(rows["high"], False)),
-    Case("in auto mode the agent's own paused task is taken up before an open one", True, own_paused_and_open, stop, lambda rows: Outcome(rows["paused"], False)),
+    Case("a task paused by choice is never resumed by itself and holds the open one back", True, own_paused_and_open, stop, lambda rows: Outcome(0, False)),
+    Case("a paused task whose wait ended is resumed at the stop", True, own_paused_wait_ended_and_open, stop, lambda rows: Outcome(rows["paused"], False)),
+    Case("of two paused tasks the one whose wait ended is resumed, though the other was paused first", True, two_paused_second_wait_ended, stop, lambda rows: Outcome(rows["second"], False)),
+    Case("with nothing open the paused task is taken up, as there is nothing to choose", True, own_paused_only, stop, lambda rows: Outcome(rows["paused"], False)),
+    Case("an urgent open task goes before a paused one of lower priority", True, low_paused_and_urgent_open, stop, lambda rows: Outcome(rows["open"], False)),
     Case("a blocked task is never started, so with nothing else the stop goes through", True, blocked_only, stop, lambda rows: Outcome(0, True)),
     Case("in auto mode a task the user added while the agent worked is next", True, user_adds_a_task_mid_work, complete("a"), lambda rows: Outcome(rows["new"])),
     Case("the orchestrator never starts a task on itself", True, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),

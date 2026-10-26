@@ -28,7 +28,7 @@ class PlanStartTaskAssigner:
         plan = self.start.started(agent)
         if plan is not None:
             return self.plan_assignment(agent, plan)
-        return self.default.with_following(self.default.started(agent, self.default.free_task()), quantity)
+        return self.default.with_following(self.default.started(agent, self.default.unheld_task(agent)), quantity)
 
     def plan_assignment(self, agent: Agent, plan: Plan) -> Assignment:
         task = self.tasks.holder_task(Ref.build(agent))

@@ -80,7 +80,15 @@ class Tasks(ScopedRepository[Task]):
         return waits
 
     def blocked_without_wait(self) -> list[Task]:
-        return [task for task in self.with_state(TaskState.BLOCKED) if not self.open_waits(task)]
+        return self.selected(self.free_query(TaskState.BLOCKED, UNAPPROVED_PLAN_STATES).filter_absent(self.wait_links()))
+
+    def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
+        others = Query.build(Agent).filter_unequal("state", "ended").filter_unequal("id", holder.id)
+        held_elsewhere = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(others.filter_named(self.links.query(), "source"))
+        return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(held_elsewhere).filter_absent(self.wait_links()))
+
+    def wait_links(self) -> Query:
+        return self.links.query().filter(kind=WAIT_LINK).filter_ref("source", self.query())
 
     def broken_waits(self) -> list[tuple[Task, Check]]:
         return [(task, check) for check in self.checks.broken_waits() for task in self.waiting_refs(check)]
@@ -140,7 +148,7 @@ class Tasks(ScopedRepository[Task]):
 
     def holder_paused_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
-        return next(iter(self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_existing(hand_links).limit(1))), None)
+        return next(iter(self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_existing(hand_links).filter_unequal("wait_ended_at", 0.0).limit(1))), None)
 
     def actionable(self, state: TaskState) -> list[Task]:
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)

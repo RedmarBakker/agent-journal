@@ -3450,7 +3450,7 @@ def test_a_stop_takes_up_the_agents_paused_task_in_auto_mode_and_off_auto_mode_i
     assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") != "block" and not app.container.get(Tasks).agent_started(), "nor do open tasks: off auto mode the journal hands no task at a stop"
     user_set(app, "tasks.auto", True)
     status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1 is in hand" in body["reason"], "in auto mode the stop takes the paused task up again before an open one"
+    assert body.get("decision") == "block" and "task 1" in body["reason"] and not app.container.get(Tasks).agent_started(), "in auto mode a task paused by choice is named at the stop and holds the open one back; it is not taken up by itself"
 
 def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
     from urllib.request import urlopen
@@ -4816,6 +4816,36 @@ def test_a_file_text_trigger_starts_its_sequence_on_the_main_agents_edit_alone_a
     console.run(["sequence", "follow"], AGENT)
     status, held = hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "src/b.py", "old_string": "a", "new_string": "b"})
     assert status == 409 and "lets no file edit through" in json.dumps(held), "its first step holds the next write"
+
+
+def test_the_paused_work_an_agent_may_choose_leaves_out_waiting_tasks_and_the_blocked_list_tasks_of_draft_plans(app: App):
+    from journal.models.support.ref import Ref
+    from journal.repositories.agents import Agents
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    made = lambda title: int(console.run(["task", "create", title, "--brief", "b", "--start"], AGENT).text.split()[1])
+    chosen = made("the parser")
+    console.run(["task", "pause", str(chosen), "the lexer first"], AGENT)
+    waiting = made("the lexer")
+    assert console.run(["task", "pause", str(waiting), "waits on the build", "--until", "false"], AGENT).code == 0
+    console.run(["plan", "create", "draft", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "a drafted task"], USER)
+    console.run(["task", "block", "3", "waits on the vendor"], USER)
+    loose = int(console.run(["task", "create", "the docs", "--brief", "b"], USER).text.split()[1])
+    console.run(["task", "block", str(loose), "waits on the vendor"], USER)
+    tasks = app.container.get(Tasks)
+    with app.container.get(Scope).environment(MAIN):
+        agent = app.container.get(Agents).session_agent("s1")
+        assert [task.row_id for task in tasks.choosable_paused_tasks(Ref.build(agent))] == [chosen], "a paused task still waiting is not one to choose"
+        assert [task.row_id for task in tasks.blocked_without_wait()] == [loose], "a blocked task of a draft plan is not listed"
+        ended = tasks.save(tasks.find(chosen).wait_ended("the build passed", 5.0), Actor.system())
+        assert ended.wait_ended_at == 5.0, "a paused task whose wait ends is marked"
+    console.run(["task", "start", str(chosen)], AGENT)
+    console.run(["task", "pause", str(chosen), "again by choice"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(chosen).wait_ended_at == 0.0, "taken up and paused again, the mark is gone"
 
 
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
