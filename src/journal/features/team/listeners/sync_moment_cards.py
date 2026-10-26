@@ -7,7 +7,7 @@ from journal.events.moments.sync_moment import SyncMoment
 from journal.events.moments.team_chat_claimed import TeamChatClaimed
 from journal.events.moments.team_chat_files_diverged import TeamChatFilesDiverged
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 DETAIL_CHARACTERS = 120
 
@@ -20,11 +20,11 @@ class SyncMomentCards(Listener[SyncMoment]):
 
     def handle(self, event: SyncMoment) -> None:
         if isinstance(event, TeamChatClaimed):
-            self.cards.show(event.environment_id, None, f"{event.holder} claimed the Team chat while {event.former} was offline: what {event.former} had not pushed stayed on their machine", actor=Actor.system(), shows=CardKind.WORKTREES, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"{event.holder} claimed the Team chat while {event.former} was offline: what {event.former} had not pushed stayed on their machine", actor=Actor.system(), shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
         if isinstance(event, TeamChatFilesDiverged):
             label = f"The Team chat's files on {event.device} have changes of their own, so they stay at {event.local[:8]} and not at the holder's {event.tip[:8]}"
-            self.cards.show(event.environment_id, None, label, key=f"team-chat-files:{event.device}", actor=Actor.system(), shows=CardKind.WORKTREES, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, label, key=f"team-chat-files:{event.device}", actor=Actor.system(), shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
         if isinstance(event, EditOverridden):
-            self.cards.show(event.environment_id, None, f"{event.writer}'s edit of {event.noun} {event.row_id}'s {event.field} was kept over yours", detail=f"kept: {event.field_value[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardKind.CONFLICTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"{event.writer}'s edit of {event.noun} {event.row_id}'s {event.field} was kept over yours", detail=f"kept: {event.field_value[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)
         if isinstance(event, EditDropped):
-            self.cards.show(event.environment_id, None, f"{event.noun.capitalize()} {event.row_id} was deleted by a colleague, so your edit of it was dropped", shows=CardKind.CONFLICTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"{event.noun.capitalize()} {event.row_id} was deleted by a colleague, so your edit of it was dropped", shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)

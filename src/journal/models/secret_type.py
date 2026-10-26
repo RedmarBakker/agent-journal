@@ -3,14 +3,14 @@ from enum import StrEnum
 from journal.support.rejection import Rejection
 
 
-class SecretKind(StrEnum):
+class SecretType(StrEnum):
     API_KEY = "api key"
     LOGIN = "login"
     BROWSER_LOGIN = "browser login"
     CUSTOM = "custom"
 
     @classmethod
-    def lookup(cls, supplied: str) -> "SecretKind":
+    def lookup(cls, supplied: str) -> "SecretType":
         try:
             return cls(supplied.strip().lower())
         except ValueError as unknown:
@@ -18,5 +18,5 @@ class SecretKind(StrEnum):
 
     def first_fields(self, title: str) -> tuple[dict, ...]:
         stem = "_".join("".join(c if c.isalnum() else " " for c in title).upper().split())
-        names = {SecretKind.API_KEY: (("key", True),), SecretKind.LOGIN: (("username", False), ("password", True))}.get(self, ())
+        names = {SecretType.API_KEY: (("key", True),), SecretType.LOGIN: (("username", False), ("password", True))}.get(self, ())
         return tuple({"name": name, "hidden": hidden, "variable": f"{stem}_{name.upper()}"} for name, hidden in names)

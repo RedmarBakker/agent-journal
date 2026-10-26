@@ -4,7 +4,7 @@ from journal.events.listener import Listener
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.models.support.ref import Ref
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class WorkerMergeCard(Listener[WorkerWorkMerged]):
@@ -18,4 +18,4 @@ class WorkerMergeCard(Listener[WorkerWorkMerged]):
         row = Ref("workers", event.worker)
         data = {"kind": "card", "row": str(row), "command": "", "task": event.task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
-        self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardKind.WORKERS)
+        self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardType.WORKERS)

@@ -1,6 +1,6 @@
 from journal.http.support.request import Request
 from journal.repositories.messages import Messages
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.response import Response
 
 SHOWN = 30
@@ -13,4 +13,4 @@ class WorkerActivityController:
         self.messages = messages
 
     def recent(self, request: Request) -> Response:
-        return Response.json({"rows": self.messages.newest_moments((CardKind.WORKERS, CardKind.WORKER_STEPS, CardKind.WORKER_TESTS), SHOWN)})
+        return Response.json({"rows": self.messages.newest_moments((CardType.WORKERS, CardType.WORKER_STEPS, CardType.WORKER_TESTS), SHOWN)})

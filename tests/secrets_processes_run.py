@@ -26,7 +26,7 @@ def app(journal_root: Path):
 
 def test_secret_run_gives_a_value_to_an_allowed_program_and_masks_every_form_of_it(app, tmp_path, monkeypatch):
     from journal.models.secret import Secret
-    from journal.models.secret_kind import SecretKind
+    from journal.models.secret_type import SecretType
     from journal.repositories.secrets import Secrets
     from journal.support.secret_values import SecretValues
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
@@ -38,7 +38,7 @@ def test_secret_run_gives_a_value_to_an_allowed_program_and_masks_every_form_of_
     echoer.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tools}:/usr/bin:/bin")
     secrets = app.container.get(Secrets)
-    secrets.save(Secret(title="Fake", kind=SecretKind.API_KEY, fields=SecretKind.API_KEY.first_fields("Fake"), programs=("fakeapi",)), Actor.user("u"))
+    secrets.save(Secret(title="Fake", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Fake"), programs=("fakeapi",)), Actor.user("u"))
     console = app.console()
     assert "no value for key on this machine" in console.run(["secret", "run", "Fake", "--", "fakeapi"], AGENT).error
     app.container.get(SecretValues).put("FAKE_KEY", "s3cretvalue123")

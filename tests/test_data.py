@@ -29,7 +29,7 @@ from journal.events.listener import Listener
 from journal.features.listeners.unlink_deleted import UnlinkDeleted
 from journal.support.rejection import Rejection
 from journal.support.actor import Actor
-from journal.models.environment_kind import EnvironmentKind
+from journal.models.environment_type import EnvironmentType
 from journal.models.entry import Entry
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -915,7 +915,7 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
     links_a, links_b = Links(tasks_a.connection, tasks_a.bus, TimeSource()), Links(tasks_b.connection, tasks_b.bus, TimeSource())
 
-    hub = scope_a.environments.save(Environment(name="hub", kind=EnvironmentKind.SESSION), USER)
+    hub = scope_a.environments.save(Environment(name="hub", kind=EnvironmentType.SESSION), USER)
     shared = scope_a.environments.save(Environment(name="mine"), USER)
     links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), kind="owner"), USER)
     with scope_a.environment(hub.id):

@@ -3,7 +3,7 @@ from journal.events.listener import Listener
 from journal.models.support.ref import Ref
 from journal.events.rows.sequence_step_finished import SequenceStepFinished
 from journal.features.sequences.support.run_cards import RunCards
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class RunStepCard(Listener[SequenceStepFinished]):
@@ -14,4 +14,4 @@ class RunStepCard(Listener[SequenceStepFinished]):
 
     def handle(self, event: SequenceStepFinished) -> None:
         run = event.run
-        self.cards.show(event.environment_id, event.agent_session, self.runs.step_moved(event.environment_id, event.agent_session, run), row=Ref("sequences", run.sequence_id), shows=CardKind.SEQUENCES if run.last else CardKind.SEQUENCE_STEPS)
+        self.cards.show(event.environment_id, event.agent_session, self.runs.step_moved(event.environment_id, event.agent_session, run), row=Ref("sequences", run.sequence_id), shows=CardType.SEQUENCES if run.last else CardType.SEQUENCE_STEPS)

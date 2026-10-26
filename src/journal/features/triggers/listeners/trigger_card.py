@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.trigger_fired import TriggerFired
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class TriggerCard(Listener[TriggerFired]):
@@ -11,4 +11,4 @@ class TriggerCard(Listener[TriggerFired]):
         self.cards = cards
 
     def handle(self, event: TriggerFired) -> None:
-        self.cards.show(event.environment_id, event.session, f"Trigger {event.text}", ", ".join(event.phrases), event.ref, shows=CardKind.TRIGGERS)
+        self.cards.show(event.environment_id, event.session, f"Trigger {event.text}", ", ".join(event.phrases), event.ref, shows=CardType.TRIGGERS)

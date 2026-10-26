@@ -1,4 +1,4 @@
-from journal.features.migration.support.project_kind import ProjectKind
+from journal.features.migration.support.project_type import ProjectType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.rule import Rule
@@ -6,7 +6,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.rules import Rules
 
 
-class RuleImport(ProjectKind):
+class RuleImport(ProjectType):
     """A rule of the project keeps its text and keywords; a struck one stays behind."""
 
     kind = "rule"

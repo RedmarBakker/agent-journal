@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class CardKind(StrEnum):
+class CardType(StrEnum):
     """What a mark in the chat is, by the switch in Show in chat that hides it: every card names one. A kind whose marks come in a burst, as the edits a colleague's stored over yours do, folds the marks of one burst into one."""
 
     SKILLS = "skills"
@@ -42,4 +42,4 @@ class CardKind(StrEnum):
     BRANCH_SWITCHES = "branch_switches"
 
     def folds(self) -> bool:
-        return self in (CardKind.CONFLICTS,)
+        return self in (CardType.CONFLICTS,)

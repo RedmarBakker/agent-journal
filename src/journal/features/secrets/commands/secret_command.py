@@ -12,7 +12,7 @@ from journal.features.secrets.support.secret_run import SecretRun
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.secret import Secret
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.support.rejection import Rejection
 from journal.repositories.mcp_servers import McpServers
 from journal.repositories.messages import Messages
@@ -36,11 +36,11 @@ class SecretCommand(Command):
         creation = self.verb(verbs, "create", "a secret with its fields, empty until the user fills them")
         creation.add_argument("title")
         creation.add_argument("--brief", default="", help="how it is used: the commands it runs with")
-        creation.add_argument("--kind", default=SecretKind.CUSTOM.value)
+        creation.add_argument("--kind", default=SecretType.CUSTOM.value)
         request = self.verb(verbs, "request", "ask the user for a secret: it is made, and a message asks them to fill it on the Secrets page")
         request.add_argument("title")
         request.add_argument("--why", required=True, help="what you need it for")
-        request.add_argument("--kind", default=SecretKind.API_KEY.value)
+        request.add_argument("--kind", default=SecretType.API_KEY.value)
         request.add_argument("--url", default="", help="the site of a browser login")
         update = self.verb(verbs, "update", "change a secret's title or how it is used")
         update.add_argument("n", type=int)
@@ -69,7 +69,7 @@ class SecretCommand(Command):
         self.verb(verbs, "restore", "a deleted secret back, with its values").add_argument("n", type=int)
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        secret = self.file(args.title, args.brief, SecretKind.lookup(args.kind), caller)
+        secret = self.file(args.title, args.brief, SecretType.lookup(args.kind), caller)
         proposed = f"; proposed for the user to allow: {', '.join(secret.proposed)}" if secret.proposed else ""
         print(f"secret {secret.id} made: {secret.title}, waiting for the user to fill {', '.join(f['name'] for f in secret.fields) or 'its fields'} on the Secrets page{proposed}")
         return 0
@@ -78,13 +78,13 @@ class SecretCommand(Command):
         reaching = [server.name for server in self.servers.reaching(args.title)]
         if reaching:
             raise Rejection(f"{args.title} is reached through the MCP server {', '.join(reaching)} already: use its tools, and if they cannot do what you need, say what is missing in the chat")
-        secret = self.secrets.save(self.file(args.title, "", SecretKind.lookup(args.kind), caller).with_(url=args.url, questioned_at=self.time_source.moment()), caller.actor)
-        asking = f"Please log in to {secret.title} with the Log in button on the Secrets page; a browser opens on your computer, and the login is saved when you close it" if secret.kind == SecretKind.BROWSER_LOGIN else f"Please fill in the secret {secret.title} on the Secrets page, never in the chat"
+        secret = self.secrets.save(self.file(args.title, "", SecretType.lookup(args.kind), caller).with_(url=args.url, questioned_at=self.time_source.moment()), caller.actor)
+        asking = f"Please log in to {secret.title} with the Log in button on the Secrets page; a browser opens on your computer, and the login is saved when you close it" if secret.kind == SecretType.BROWSER_LOGIN else f"Please fill in the secret {secret.title} on the Secrets page, never in the chat"
         self.messages.save(Message(author=Author.AGENT, text=f"{asking}: I need it {args.why}.\n\nsecret {secret.id}"), caller.actor)
         print(f"secret {secret.id} asked for: the user fills it on the Secrets page")
         return 0
 
-    def file(self, title: str, brief: str, kind: SecretKind, caller: Caller) -> Secret:
+    def file(self, title: str, brief: str, kind: SecretType, caller: Caller) -> Secret:
         return self.secrets.save(Secret(title=title, brief=brief, kind=kind, fields=kind.first_fields(title), proposed=Programs.mentioned(brief)), caller.actor)
 
     def update(self, args: Namespace, caller: Caller) -> int:

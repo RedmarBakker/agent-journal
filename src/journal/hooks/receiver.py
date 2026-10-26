@@ -29,7 +29,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.features.faults.support.slow_requests import HOOK, SlowRequests
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
 from journal.sync.environment_names import EnvironmentNames
@@ -84,11 +84,11 @@ class Receiver:
         return decision
 
     def subagent_moved(self, hook: Hook, environment: Environment) -> None:
-        if hook.kind == HookKind.SUBAGENT_START:
+        if hook.kind == HookType.SUBAGENT_START:
             self.researchers.started(hook, environment)
-        if hook.kind == HookKind.SUBAGENT_STOP:
+        if hook.kind == HookType.SUBAGENT_STOP:
             self.researchers.ended(hook, environment)
-        if hook.kind == HookKind.SESSION_END:
+        if hook.kind == HookType.SESSION_END:
             self.researchers.main_ended(hook, environment)
 
     def is_accepted(self, hook: Hook, environment: Environment) -> bool:
@@ -114,7 +114,7 @@ class Receiver:
 
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
         self.entries.recorded(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
-        if hook.kind == HookKind.SESSION_START:
+        if hook.kind == HookType.SESSION_START:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
 

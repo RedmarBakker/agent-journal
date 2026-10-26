@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.plugin_proposed import PluginProposed
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PluginProposalCard(Listener[PluginProposed]):
@@ -12,4 +12,4 @@ class PluginProposalCard(Listener[PluginProposed]):
 
     def handle(self, event: PluginProposed) -> None:
         label = f"The agent proposes the plugin {event.plugin}" + (f": {event.explanation}" if event.explanation else "")
-        self.cards.show(event.environment_id, "", label, detail=event.detail, command=event.command, actor=event.actor, shows=CardKind.PLUGINS)
+        self.cards.show(event.environment_id, "", label, detail=event.detail, command=event.command, actor=event.actor, shows=CardType.PLUGINS)

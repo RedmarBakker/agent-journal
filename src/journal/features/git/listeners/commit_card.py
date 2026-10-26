@@ -2,7 +2,7 @@ from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.git_committed import GitCommitted
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 COMMIT = "commit"
 
@@ -18,4 +18,4 @@ class CommitCard(Listener[GitCommitted]):
         key = f"{COMMIT}:{event.sha}"
         if self.cards.is_key_shown(key):
             return
-        self.cards.show(event.environment_id, event.session, f"Committed {event.sha[:8]} on `{event.branch}`", actor=actor, key=key, shows=CardKind.COMMITS)
+        self.cards.show(event.environment_id, event.session, f"Committed {event.sha[:8]} on `{event.branch}`", actor=actor, key=key, shows=CardType.COMMITS)

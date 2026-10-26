@@ -17,7 +17,7 @@ from journal.support.hook import Hook
 from journal.hooks.support.tool_calls import ToolCalls
 from journal.hooks.support.turn_gatherer import TurnGatherer
 from journal.hooks.tool_uses import ToolUses
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.models.environment import Environment
 from journal.providers.providers import Providers
 from journal.repositories.entries import Entries
@@ -27,18 +27,18 @@ class Translation:
     """Each hook kind to the agent event it means; one table, so no kind is ever read twice in two places."""
 
     EVENTS = {
-        HookKind.SESSION_START: lambda hook, calls: SessionStarted(source=hook.source, folder=hook.folder),
-        HookKind.USER_PROMPT: lambda hook, calls: PromptSubmitted(prompt=hook.text),
-        HookKind.PRE_TOOL_USE: lambda hook, calls: ToolStarting(call=calls.build(hook), folder=hook.folder),
-        HookKind.POST_TOOL_USE: lambda hook, calls: ToolFinished(call=calls.build(hook), output=hook.output, response=hook.response),
-        HookKind.POST_TOOL_USE_FAILURE: lambda hook, calls: ToolFailed(call=calls.build(hook), error=hook.error),
-        HookKind.PRE_COMPACT: lambda hook, calls: Compacting(),
-        HookKind.STOP: lambda hook, calls: Stop(prior_refusal=hook.stop_refused_earlier),
-        HookKind.STOP_FAILURE: lambda hook, calls: TurnFailed(error=hook.error, message=hook.assistant_message),
-        HookKind.SUBAGENT_START: lambda hook, calls: SubagentStarted(subagent=hook.subagent),
-        HookKind.SUBAGENT_STOP: lambda hook, calls: SubagentEnded(subagent=hook.subagent, report=hook.subagent_report),
-        HookKind.MESSAGE_DISPLAY: lambda hook, calls: TurnDisplayed(text=hook.text, delta=hook.text, turn_id=hook.turn_id, index=hook.index, final=hook.final),
-        HookKind.SESSION_END: lambda hook, calls: SessionEnded(),
+        HookType.SESSION_START: lambda hook, calls: SessionStarted(source=hook.source, folder=hook.folder),
+        HookType.USER_PROMPT: lambda hook, calls: PromptSubmitted(prompt=hook.text),
+        HookType.PRE_TOOL_USE: lambda hook, calls: ToolStarting(call=calls.build(hook), folder=hook.folder),
+        HookType.POST_TOOL_USE: lambda hook, calls: ToolFinished(call=calls.build(hook), output=hook.output, response=hook.response),
+        HookType.POST_TOOL_USE_FAILURE: lambda hook, calls: ToolFailed(call=calls.build(hook), error=hook.error),
+        HookType.PRE_COMPACT: lambda hook, calls: Compacting(),
+        HookType.STOP: lambda hook, calls: Stop(prior_refusal=hook.stop_refused_earlier),
+        HookType.STOP_FAILURE: lambda hook, calls: TurnFailed(error=hook.error, message=hook.assistant_message),
+        HookType.SUBAGENT_START: lambda hook, calls: SubagentStarted(subagent=hook.subagent),
+        HookType.SUBAGENT_STOP: lambda hook, calls: SubagentEnded(subagent=hook.subagent, report=hook.subagent_report),
+        HookType.MESSAGE_DISPLAY: lambda hook, calls: TurnDisplayed(text=hook.text, delta=hook.text, turn_id=hook.turn_id, index=hook.index, final=hook.final),
+        HookType.SESSION_END: lambda hook, calls: SessionEnded(),
     }
 
     def __init__(self, config: Config, providers: Providers, turns: TurnGatherer, entries: Entries, clock: Clock, uses: ToolUses, calls: ToolCalls) -> None:

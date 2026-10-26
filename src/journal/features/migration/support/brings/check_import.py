@@ -1,4 +1,4 @@
-from journal.features.migration.support.project_kind import ProjectKind
+from journal.features.migration.support.project_type import ProjectType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.repositories.migrated_rows import MigratedRows
@@ -6,7 +6,7 @@ from journal.models.check import Check
 from journal.repositories.checks import Checks
 
 
-class CheckImport(ProjectKind):
+class CheckImport(ProjectType):
     """A check keeps its command, what it checks and how often it runs."""
 
     kind = "check"

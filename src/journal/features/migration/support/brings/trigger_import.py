@@ -1,4 +1,4 @@
-from journal.features.migration.support.builtin_kind import BuiltinKind
+from journal.features.migration.support.builtin_type import BuiltinType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.trigger import Trigger
@@ -11,7 +11,7 @@ ACTIONS = {"nudge": TriggerAction.NUDGE, "instruct": TriggerAction.INSTRUCT, "de
 SEQUENCE_START = "start"
 
 
-class TriggerImport(BuiltinKind):
+class TriggerImport(BuiltinType):
     """A trigger of the project's keeps its words, what it does and its text, where version 4 can do the same."""
 
     kind = "trigger"

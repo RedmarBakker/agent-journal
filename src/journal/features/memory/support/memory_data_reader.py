@@ -12,7 +12,7 @@ from journal.repositories.facts import Facts
 from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.repositories.setting_rows import SettingRows
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.memory.memory_options import MemoryOptions
 from journal.support.time_source import TimeSource
 
@@ -24,7 +24,7 @@ class MemoryDataReader:
         self.time_source = time_source
         self.facts, self.rules, self.reminders, self.settings, self.counts, self.scope, self.stages = facts, rules, reminders, settings, counts, scope, stages
 
-    def row(self, noun: str, memory, kind: CardKind) -> MemoryRow:
+    def row(self, noun: str, memory, kind: CardType) -> MemoryRow:
         ready = bool(memory.trigger) and RowCondition.read(memory.condition).is_true(self.counts)
         return MemoryRow(noun, memory.row_id, memory.text, tuple(memory.keywords), kind, memory.presence, memory.trigger, ready, memory.is_single_use)
 
@@ -41,13 +41,13 @@ class MemoryDataReader:
         return facts
 
     def triggered_memories(self) -> list[tuple]:
-        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.filled_rows("trigger")), *(("rule", rule, CardKind.RULES) for rule in self.rules.filled_rows("trigger")), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.triggered())]
+        return [*(("fact", fact, CardType.FACTS) for fact in self.facts.filled_rows("trigger")), *(("rule", rule, CardType.RULES) for rule in self.rules.filled_rows("trigger")), *(("reminder", reminder, CardType.REMINDERS) for reminder in self.reminders.triggered())]
 
     def keyword_memories(self) -> list[tuple]:
-        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.keyword_rows()), *(("rule", rule, CardKind.RULES) for rule in self.rules.keyword_rows()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.keyword_rows())]
+        return [*(("fact", fact, CardType.FACTS) for fact in self.facts.keyword_rows()), *(("rule", rule, CardType.RULES) for rule in self.rules.keyword_rows()), *(("reminder", reminder, CardType.REMINDERS) for reminder in self.reminders.keyword_rows())]
 
     def memories(self) -> list[tuple]:
-        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
+        return [*(("fact", fact, CardType.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardType.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardType.REMINDERS) for reminder in self.reminders.standing())]
 
     def stale(self, memories: list, days: int) -> tuple[str, ...]:
         moment = self.time_source.moment()

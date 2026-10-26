@@ -1,8 +1,8 @@
 from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import AGENT, JOURNAL, WORK
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.tasks.support.tasks_data_reader import TasksDataReader
 from journal.features.tasks.support.tasks_data import TasksData
@@ -42,7 +42,7 @@ from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
 class Tasks(Feature[TasksData]):
     name = TasksPart.name
     card_families = (CardFamily("tasks", "Tasks", "task", WORK), CardFamily("impasse", "Agent stuck", "warn", AGENT), CardFamily("requests", "Requests", "inbox", JOURNAL),)
-    card_kinds = (MarkKind(CardKind.TASK_MOVES, "Tasks started and completed", "tasks"), MarkKind(CardKind.TASK_PAUSES, "Tasks paused and blocked", "tasks"), MarkKind(CardKind.IMPASSE, "Agent stuck", "impasse"), MarkKind(CardKind.REQUESTS, "Requests filed for you", "requests"),)
+    card_kinds = (CardTypeEntry(CardType.TASK_MOVES, "Tasks started and completed", "tasks"), CardTypeEntry(CardType.TASK_PAUSES, "Tasks paused and blocked", "tasks"), CardTypeEntry(CardType.IMPASSE, "Agent stuck", "impasse"), CardTypeEntry(CardType.REQUESTS, "Requests filed for you", "requests"),)
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)

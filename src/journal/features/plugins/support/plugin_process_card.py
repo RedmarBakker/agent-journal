@@ -3,7 +3,7 @@ from journal.chat.process_card_contents import ProcessCardContents
 from journal.events.moments.plugin_card_requested import PluginCardRequested
 from journal.models.message import Message
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PluginProcessCard(ProcessCard):
@@ -12,7 +12,7 @@ class PluginProcessCard(ProcessCard):
     name = "plugin"
 
     def card_contents(self, question: PluginCardRequested) -> ProcessCardContents:
-        return ProcessCardContents(self.name, question.environment_id, question.card_key, question.label, question.data, Actor.plugin(question.plugin), CardKind.PLUGINS, False, question.detail)
+        return ProcessCardContents(self.name, question.environment_id, question.card_key, question.label, question.data, Actor.plugin(question.plugin), CardType.PLUGINS, False, question.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

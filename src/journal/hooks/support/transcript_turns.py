@@ -6,7 +6,7 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.providers.support.file_writes import FileWrites
 from journal.support.hook import Hook
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.models.environment import Environment
 from journal.providers.providers import Providers
 
@@ -22,7 +22,7 @@ class TranscriptTurns:
         self._read_lock = threading.Lock()
 
     def events(self, hook: Hook, environment: Environment) -> list[AgentEvent]:
-        if hook.kind == HookKind.MESSAGE_DISPLAY:
+        if hook.kind == HookType.MESSAGE_DISPLAY:
             return []
         with self._read_lock:
             saved = self.providers.lookup(hook.provider).authored_texts(self.config.root, hook.session, self._read.get(hook.session, START_POSITION))

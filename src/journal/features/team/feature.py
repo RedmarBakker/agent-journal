@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import WORK
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.support.service import Service
 from journal.features.team.support.team_data import TeamData
@@ -21,7 +21,7 @@ from journal.features.team.team_nudges import TeamNudges
 class TeamFeature(Feature[TeamData]):
     name = TeamPart.name
     card_families = (CardFamily("team", "Team", "warn", WORK),)
-    card_kinds = (MarkKind(CardKind.CONFLICTS, "Your edits a colleague's newer edit replaced", "team", main=False),)
+    card_kinds = (CardTypeEntry(CardType.CONFLICTS, "Your edits a colleague's newer edit replaced", "team", main=False),)
     title = "Team"
     help = "A journal shared with a team through its server: joining it, inviting people, the team's devices and how the sync stands."
     commands = (TeamCommand, SessionCommand)

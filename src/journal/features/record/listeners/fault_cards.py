@@ -4,7 +4,7 @@ from journal.events.moments.fault_moment import FaultMoment
 from journal.events.listener import Listener
 from journal.events.moments.guard_failed import GuardFailed
 from journal.events.moments.session_unbound import SessionUnbound
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class FaultCards(Listener[FaultMoment]):
@@ -15,6 +15,6 @@ class FaultCards(Listener[FaultMoment]):
 
     def handle(self, event: FaultMoment) -> None:
         if isinstance(event, SessionUnbound):
-            self.cards.show(event.environment_id, event.session, f"Session {event.session} started without the launch id of {event.environment}: the journal records its hooks and does not take it as this environment's agent", shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, event.session, f"Session {event.session} started without the launch id of {event.environment}: the journal records its hooks and does not take it as this environment's agent", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
         if isinstance(event, GuardFailed):
-            self.cards.show(event.environment_id, event.session, f"A guard failed and let the event through: {event.text}", shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, event.session, f"A guard failed and let the event through: {event.text}", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)

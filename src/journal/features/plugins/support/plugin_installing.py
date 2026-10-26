@@ -23,7 +23,7 @@ from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.support.release import Release
 from journal.version import VERSION
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 from journal.models.plugin import Plugin
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.rejection import Rejection
@@ -230,7 +230,7 @@ class PluginInstalling:
 
     @staticmethod
     def require_user(actor: Actor, does: str) -> None:
-        if actor.kind != ActorKind.USER:
+        if actor.kind != ActorType.USER:
             raise Rejection(f"only the user {does} a plugin: journal plugin propose <folder or git address> shows them a card to install it themselves")
 
     def free(self, name: str) -> None:

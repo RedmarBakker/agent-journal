@@ -3,7 +3,7 @@ import threading
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.support.option import Option
-from journal.support.wrong_setting_kind import WrongSettingKind
+from journal.support.wrong_setting_type import WrongSettingType
 from journal.models.setting import Setting
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
@@ -35,7 +35,7 @@ class SettingRows(ScopedRepository[Setting]):
     def mapping(self, key: str) -> dict:
         value = self.project(key, {})
         if not isinstance(value, dict):
-            raise WrongSettingKind(key, value)
+            raise WrongSettingType(key, value)
         return value
 
     def texts(self, option: Option) -> tuple[str, ...]:

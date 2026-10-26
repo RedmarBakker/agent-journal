@@ -5,7 +5,7 @@ from journal.support.masks import Masks
 from journal.chat.moment_cards import MomentCards
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.time_source import TimeSource
 
 ALARM_INTERVAL_SECONDS = 600.0
@@ -25,4 +25,4 @@ class LeakAlarm(AgentListener[Ticked]):
         variables = sorted({variable for variable, _ in self.masks.leaks})
         self.masks.leaks.clear()
         self._said_at = self.time_source.seconds()
-        self.cards.show(event.environment_id, event.session, f"A secret's value was about to be recorded and was masked: {', '.join(variables)}", shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
+        self.cards.show(event.environment_id, event.session, f"A secret's value was about to be recorded and was masked: {', '.join(variables)}", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)

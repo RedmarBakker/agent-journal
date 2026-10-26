@@ -1,4 +1,4 @@
-from journal.features.migration.support.builtin_kind import BuiltinKind
+from journal.features.migration.support.builtin_type import BuiltinType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.sequence import Sequence
@@ -8,7 +8,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.sequences import Sequences
 
 
-class SequenceImport(BuiltinKind):
+class SequenceImport(BuiltinType):
     """A sequence of the project's keeps its title, its steps in order and when it starts."""
 
     kind = "sequence"

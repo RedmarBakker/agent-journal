@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.plugin_standing import PluginStanding
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PluginMomentCards(Listener[PluginStanding]):
@@ -12,4 +12,4 @@ class PluginMomentCards(Listener[PluginStanding]):
 
     def handle(self, event: PluginStanding) -> None:
         label, outcome, detail = event.card_parts()
-        self.cards.show(event.environment_id, "", label, detail=detail, shows=CardKind.PLUGINS, outcome=outcome)
+        self.cards.show(event.environment_id, "", label, detail=detail, shows=CardType.PLUGINS, outcome=outcome)

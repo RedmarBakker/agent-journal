@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import WORK
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.questions.commands.question_command import QuestionCommand
@@ -19,7 +19,7 @@ from journal.features.questions.questions_part import QuestionsPart
 class Questions(Feature[QuestionsData]):
     name = QuestionsPart.name
     card_families = (CardFamily("questions", "Questions", "questions", WORK),)
-    card_kinds = (MarkKind(CardKind.QUESTIONS, "Questions asked and answered", "questions"),)
+    card_kinds = (CardTypeEntry(CardType.QUESTIONS, "Questions asked and answered", "questions"),)
     title = "Questions"
     help = "The agent asks you a question and waits; your answer sends it back to work."
     states = (Waiting,)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.agent import Agent
@@ -10,7 +10,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class AgentImport(EnvironmentKind):
+class AgentImport(EnvironmentTableImport):
     """A version 3 agent is history here: an ended agent of its provider, under the session its transcript names; no process is started."""
 
     kind = "agent"

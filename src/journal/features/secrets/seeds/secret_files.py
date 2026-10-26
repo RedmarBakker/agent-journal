@@ -6,7 +6,7 @@ from journal.config import Config
 from journal.features.seed import Seed
 from journal.support.actor import Actor
 from journal.models.secret import Secret
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.repositories.secrets import Secrets
 
 
@@ -30,7 +30,7 @@ class SecretFiles(Seed):
             return None
         head, brief = json.loads(parts[1]), parts[2].strip()
         data = head.get("data", {})
-        return Secret(title=head.get("title", path.stem), brief=brief, kind=SecretKind.lookup(data.get("kind") or SecretKind.CUSTOM.value),
+        return Secret(title=head.get("title", path.stem), brief=brief, kind=SecretType.lookup(data.get("kind") or SecretType.CUSTOM.value),
                       fields=tuple(data.get("secret_fields", ())), filled=tuple(data.get("filled", {})), programs=tuple(data.get("programs", ())),
                       proposed=tuple(data.get("proposed", ())), helpers=bool(data.get("helpers")), url=data.get("url", ""), auto_login=bool(data.get("auto_login")),
                       used_at=self.time(data.get("used")), session_at=self.time(data.get("session")), session_expires=self.time(data.get("session_expires")),

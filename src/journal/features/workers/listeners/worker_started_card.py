@@ -4,7 +4,7 @@ from journal.events.listener import Listener
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.models.support.ref import Ref
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class WorkerStartedCard(Listener[WorkerWorkMerged]):
@@ -19,4 +19,4 @@ class WorkerStartedCard(Listener[WorkerWorkMerged]):
         label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: started on task {event.next_task}")
         data = {"kind": "card", "row": str(Ref("workers", event.worker)), "command": "", "task": event.next_task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
-        self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardKind.WORKERS)
+        self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardType.WORKERS)

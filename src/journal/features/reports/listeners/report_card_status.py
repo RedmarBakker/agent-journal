@@ -3,7 +3,7 @@ from journal.chat.row_process_card import RowProcessCard
 from journal.events.listener import Listener
 from journal.events.models.updated import Updated
 from journal.models.report import Report
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 
 
 class ReportCardStatus(Listener[Updated]):
@@ -14,7 +14,7 @@ class ReportCardStatus(Listener[Updated]):
 
     def handle(self, event: Updated) -> None:
         report = event.model
-        if not isinstance(report, Report) or "unfinished" not in event.changed() or event.actor.kind != ActorKind.AGENT:
+        if not isinstance(report, Report) or "unfinished" not in event.changed() or event.actor.kind != ActorType.AGENT:
             return
         contents = self.card.card_contents(report.environment_id, report, event.actor)
         if self.cards.is_shown(contents):

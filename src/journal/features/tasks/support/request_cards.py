@@ -2,7 +2,7 @@ from journal.chat.moment_cards import MomentCards
 from journal.models.task import Task
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.scope import Scope
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.models.support.ref import Ref
 
 
@@ -17,4 +17,4 @@ class RequestCards:
         if not homes:
             return
         with self.scope.environment(homes[0].row_id):
-            self.cards.show(homes[0].row_id, None, text, row=Ref.build(task), shows=CardKind.REQUESTS)
+            self.cards.show(homes[0].row_id, None, text, row=Ref.build(task), shows=CardType.REQUESTS)

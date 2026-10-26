@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import AGENT
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.skills.listeners.skill_triggers import SkillTriggers
 from journal.features.feature import Feature
 from journal.features.skills.listeners.skill_obligation import SkillObligation
@@ -23,7 +23,7 @@ class Skills(Feature[SkillsData]):
     options = (SkillsOptions.START_SKILLS, SkillsOptions.COMPACTION_SKILLS)
     name = SkillsPart.name
     card_families = (CardFamily("skills", "Skills", "book", AGENT),)
-    card_kinds = (MarkKind(CardKind.SKILLS, "Skills the agent loads", "skills"),)
+    card_kinds = (CardTypeEntry(CardType.SKILLS, "Skills the agent loads", "skills"),)
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)

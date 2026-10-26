@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field, replace
 
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.support.researcher_session import ResearcherSession
 
-RESEARCHER_KINDS = (HookKind.PRE_TOOL_USE, HookKind.POST_TOOL_USE, HookKind.POST_TOOL_USE_FAILURE)
+RESEARCHER_KINDS = (HookType.PRE_TOOL_USE, HookType.POST_TOOL_USE, HookType.POST_TOOL_USE_FAILURE)
 SUBAGENT_KEYS = ("agent_id", "subagent_id")
 
 
@@ -13,7 +13,7 @@ class Hook:
 
     RESPONSE_CHARACTERS = 4000
 
-    kind: HookKind
+    kind: HookType
     session: str
     environment: str
     provider: str = "claude"
@@ -29,7 +29,7 @@ class Hook:
 
     @classmethod
     def parse(cls, body: dict, environment: str, provider: str, launch: str) -> "Hook":
-        return cls(HookKind(body["hook_event_name"]), body["session_id"], environment, provider, body, launch=launch)
+        return cls(HookType(body["hook_event_name"]), body["session_id"], environment, provider, body, launch=launch)
 
     def worker_hook(self, number: int, token: str | None) -> "Hook":
         return replace(self, worker=number, actor_token=token)

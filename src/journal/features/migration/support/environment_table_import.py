@@ -12,7 +12,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class EnvironmentKind:
+class EnvironmentTableImport:
     """A version 3 kind stored per environment, migrated row by row for each environment found: a row already migrated is skipped, and one not migrated is reported with the reason."""
 
     kind: ClassVar[str]

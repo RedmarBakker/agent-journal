@@ -1,4 +1,4 @@
-from journal.features.migration.support.builtin_kind import BuiltinKind
+from journal.features.migration.support.builtin_type import BuiltinType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.template import Template
@@ -6,7 +6,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.templates import Templates
 
 
-class TemplateImport(BuiltinKind):
+class TemplateImport(BuiltinType):
     """A template of the project's keeps its instructions, what it applies to, its purpose and its outline."""
 
     kind = "template"

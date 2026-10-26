@@ -17,7 +17,7 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import TAIL_BYTES, Provider
 from journal.support.decision import Decision
 from journal.support.hook import Hook
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.support.response import Response
 from journal.providers.support.turn import Turn
 from journal.providers.support.capability import Capability
@@ -258,7 +258,7 @@ class Claude(Provider):
 
     @staticmethod
     def is_background_shell_call(hook: Hook) -> bool:
-        return hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
+        return hook.kind == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
 
     # the journal moves a long command to the background itself, with its output number and card, so a shell call
     # Claude Code would run in its own background runs in the foreground through the journal's runner instead
@@ -268,11 +268,11 @@ class Claude(Provider):
         return Response(200, {"hookSpecificOutput": {**answer, "additionalContext": decision.context} if decision.context else answer})
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
-        if hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
+        if hook.kind == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
             return self.shell_refused(hook, decision)
-        if hook.kind == HookKind.PRE_TOOL_USE:
+        if hook.kind == HookType.PRE_TOOL_USE:
             return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
-        if hook.kind == HookKind.USER_PROMPT:
+        if hook.kind == HookType.USER_PROMPT:
             return Response(409, {"answer": {"decision": "block", "reason": decision.reason}, "error": decision.reason})
         return super().refused(hook, decision)
 

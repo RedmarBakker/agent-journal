@@ -1,9 +1,9 @@
 from journal.features.shell.seeds.stray_reader_cleanup import StrayReaderCleanup
 from journal.features.shell.seeds.stray_command_mark_cleanup import StrayCommandMarkCleanup
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import WORK
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.events.rows.reader_report_raised import ReaderReportRaised
 from journal.support.foreground_option import FOREGROUND_OPTION
@@ -40,7 +40,7 @@ class Shell(Feature[ShellData]):
     FOREGROUND = FOREGROUND_OPTION
     name = ShellPart.name
     card_families = (CardFamily("commands", "Commands", "terminal", WORK, CardColouring.OUTCOME),)
-    card_kinds = (MarkKind(CardKind.COMMANDS, "Long commands and outputs", "commands"),)
+    card_kinds = (CardTypeEntry(CardType.COMMANDS, "Long commands and outputs", "commands"),)
     title = "Shell commands"
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)

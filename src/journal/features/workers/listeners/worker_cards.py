@@ -9,7 +9,7 @@ from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class WorkerCards(Listener[ModelEvent]):
@@ -33,4 +33,4 @@ class WorkerCards(Listener[ModelEvent]):
             return
         key = f"worker:{worker.id}:{worker.state}:{worker.silence.timeout.start}"
         if not self.cards.is_shown(key, actor):
-            self.cards.show(worker.environment_id, worker.dispatcher, self.card.label(worker, standing.text), detail=standing.detail, row=Ref.build(worker), actor=actor, key=key, shows=CardKind.WORKERS, outcome=standing.outcome)
+            self.cards.show(worker.environment_id, worker.dispatcher, self.card.label(worker, standing.text), detail=standing.detail, row=Ref.build(worker), actor=actor, key=key, shows=CardType.WORKERS, outcome=standing.outcome)

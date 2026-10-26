@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import AGENT
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.docs.listeners.doc_revision_record import DocRevisionRecord
 from journal.features.docs.listeners.document_card import DocumentCard
@@ -15,7 +15,7 @@ from journal.features.docs.docs_options import DocsOptions
 class DocsFeature(Feature):
     name = "docs"
     card_families = (CardFamily("documents", "Documents", "docs", AGENT),)
-    card_kinds = (MarkKind(CardKind.CREATED, "Documents the agent made", "documents"),)
+    card_kinds = (CardTypeEntry(CardType.CREATED, "Documents the agent made", "documents"),)
     title = "Documents"
     help = "What the project keeps knowing: documents shared by every environment, listed on the Documents page."
     commands = (DocCommand,)

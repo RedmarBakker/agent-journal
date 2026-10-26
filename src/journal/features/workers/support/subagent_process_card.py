@@ -8,7 +8,7 @@ from journal.models.subagent import Subagent
 from journal.models.subagent_state import SubagentState
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class SubagentProcessCard(ProcessCard):
@@ -28,7 +28,7 @@ class SubagentProcessCard(ProcessCard):
         older = self.messages.keyed(self.key(row), actor)
         if older and all(older[0].data.get(k) == v for k, v in data.items()):
             return None
-        return ProcessCardContents(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardKind.SUBAGENTS, row.is_running(), row.task)
+        return ProcessCardContents(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardType.SUBAGENTS, row.is_running(), row.task)
 
     def refresh(self, message: Message) -> SubagentCardState:
         row = self.subagents.dispatched(message.data["session"], message.data["dispatch"])

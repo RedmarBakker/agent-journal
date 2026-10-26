@@ -4,7 +4,7 @@ from journal.models.support.ref import Ref
 from journal.events.rows.sequence_run_cannot_finish import SequenceRunCannotFinish
 from journal.features.sequences.support.run_cards import RunCards
 from journal.repositories.sequences import Sequences
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class RunEndCard(Listener[SequenceRunCannotFinish]):
@@ -15,4 +15,4 @@ class RunEndCard(Listener[SequenceRunCannotFinish]):
 
     def handle(self, event: SequenceRunCannotFinish) -> None:
         titles = [sequence.title for sequence in self.sequences.matching(id=event.sequence_id)]
-        self.cards.show(event.environment_id, event.agent_session, self.runs.recorded(event.environment_id, event.agent_session, event.sequence_id, titles[0] if titles else f"sequence {event.sequence_id}", f"ended: {event.reason}"), row=Ref("sequences", event.sequence_id), shows=CardKind.SEQUENCES)
+        self.cards.show(event.environment_id, event.agent_session, self.runs.recorded(event.environment_id, event.agent_session, event.sequence_id, titles[0] if titles else f"sequence {event.sequence_id}", f"ended: {event.reason}"), row=Ref("sequences", event.sequence_id), shows=CardType.SEQUENCES)

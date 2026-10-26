@@ -6,7 +6,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class StrayCommandMarkCleanup(Seed):
@@ -21,7 +21,7 @@ class StrayCommandMarkCleanup(Seed):
                 self.cleared()
 
     def cleared(self) -> None:
-        for card in self.messages.newest_shown(CardKind.COMMANDS):
+        for card in self.messages.newest_shown(CardType.COMMANDS):
             outputs = self.outputs.matching(id=card.data.get("output", 0))
             if self.mark_policy.is_stray_mark(outputs[0]) if outputs else GitCommands.is_git_line(card.data.get("line", "")):
                 self.messages.delete(card, Actor.system())

@@ -12,7 +12,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 FAILURES = ("could not start", "failed with code", "stopped after")
 STATE_OUTCOMES = {WorkerState.STOPPED: CardOutcome.NONE, WorkerState.READY: CardOutcome.RUNNING, WorkerState.MERGED: CardOutcome.PASSED, WorkerState.RELEASED: CardOutcome.NONE}
@@ -37,7 +37,7 @@ class WorkerProcessCard(ProcessCard):
         if older and older[0].data.get("outcome") == str(standing.outcome) and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
         data = {"kind": "card", "outcome": str(standing.outcome), "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
-        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardType.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
 
     @staticmethod
     def label(worker: Worker, text: str) -> str:

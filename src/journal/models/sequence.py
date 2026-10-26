@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from journal.models.model import Model
 from journal.models.support.sequence_step import SequenceStep
 from journal.models.support.sequence_trigger import SequenceTrigger
-from journal.models.support.sequence_trigger_kind import SequenceTriggerKind
+from journal.models.support.sequence_trigger_type import SequenceTriggerType
 from journal.support.phrases import Phrases
 from journal.support.rejection import Rejection
 
@@ -21,7 +21,7 @@ class Sequence(Model):
     locked: bool = False
 
     def is_requested(self, text: str) -> bool:
-        return any(trigger.kind == SequenceTriggerKind.PHRASE and Phrases.is_request(text, trigger.text) for trigger in self.triggers)
+        return any(trigger.kind == SequenceTriggerType.PHRASE and Phrases.is_request(text, trigger.text) for trigger in self.triggers)
 
     def title_words(self) -> str:
         return self.title

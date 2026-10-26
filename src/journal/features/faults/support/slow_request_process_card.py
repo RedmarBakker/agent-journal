@@ -3,7 +3,7 @@ from journal.chat.process_card_contents import ProcessCardContents
 from journal.events.moments.slow_requests_reported import SlowRequestsReported
 from journal.models.message import Message
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class SlowRequestProcessCard(ProcessCard):
@@ -13,7 +13,7 @@ class SlowRequestProcessCard(ProcessCard):
     name = "slow_request"
 
     def card_contents(self, reported: SlowRequestsReported) -> ProcessCardContents:
-        return ProcessCardContents(self.name, reported.environment_id, f"{self.KEY}:{int(reported.moment)}", f"Slow requests report ready: {reported.total} over budget, read it with journal developer slowest", reported.data, Actor.system(), CardKind.FAULTS, False, reported.detail)
+        return ProcessCardContents(self.name, reported.environment_id, f"{self.KEY}:{int(reported.moment)}", f"Slow requests report ready: {reported.total} over budget, read it with journal developer slowest", reported.data, Actor.system(), CardType.FAULTS, False, reported.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

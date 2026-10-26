@@ -26,7 +26,7 @@ from journal.http.support.json_out import JsonOut
 from journal.http.support.request_reading import RequestReading
 from journal.http.support.route import Route
 from journal.support.actor import Actor
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.support.response import Response
 from tests.full_project import unpacked
 from tests.user_settings import user_set
@@ -153,12 +153,12 @@ def cases(app: App) -> list[tuple[str, str, tuple[str, bytes]]]:
     return [*reads, *lists, *(("POST", path(route), BODIES.get(route.pattern, EMPTY)) for route in writes)]
 
 
-def hook_bodies() -> dict[HookKind, dict]:
+def hook_bodies() -> dict[HookType, dict]:
     call = {"tool_name": "Read", "tool_input": {"file_path": "src/parser.py"}}
-    return {HookKind.SESSION_START: {}, HookKind.USER_PROMPT: {"prompt": "the footer next"}, HookKind.PRE_TOOL_USE: call, HookKind.POST_TOOL_USE: {**call, "tool_response": ""},
-            HookKind.POST_TOOL_USE_FAILURE: {**call, "error": "no such file"}, HookKind.PRE_COMPACT: {}, HookKind.STOP: {}, HookKind.STOP_FAILURE: {"error": "rate_limit", "last_assistant_message": "limit reached"},
-            HookKind.SUBAGENT_START: {"agent_id": "a1", "agent_type": "Explore"}, HookKind.SUBAGENT_STOP: {"agent_id": "a1", "agent_type": "Explore", "last_assistant_message": "found it"},
-            HookKind.MESSAGE_DISPLAY: {"message": "The parser is written."}, HookKind.SESSION_END: {"reason": "other"}}
+    return {HookType.SESSION_START: {}, HookType.USER_PROMPT: {"prompt": "the footer next"}, HookType.PRE_TOOL_USE: call, HookType.POST_TOOL_USE: {**call, "tool_response": ""},
+            HookType.POST_TOOL_USE_FAILURE: {**call, "error": "no such file"}, HookType.PRE_COMPACT: {}, HookType.STOP: {}, HookType.STOP_FAILURE: {"error": "rate_limit", "last_assistant_message": "limit reached"},
+            HookType.SUBAGENT_START: {"agent_id": "a1", "agent_type": "Explore"}, HookType.SUBAGENT_STOP: {"agent_id": "a1", "agent_type": "Explore", "last_assistant_message": "found it"},
+            HookType.MESSAGE_DISPLAY: {"message": "The parser is written."}, HookType.SESSION_END: {"reason": "other"}}
 
 
 def answer_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
@@ -226,7 +226,7 @@ def test_every_route_is_timed_or_left_out_by_name_and_every_hook_kind_has_a_body
     assert sorted({*POLLED, *OPENED} - {key(route) for route in routes}) == [], "a read counted cold by name is one the server registers"
     timed = {(method, target.split("?")[0]) for method, target, _ in cases(full_project)}
     assert [key(route) for route in routes if not is_left_out(route) and (route.method, path(route)) not in timed] == [], "every route not left out is timed"
-    assert set(hook_bodies()) == set(HookKind), "every hook kind is timed"
+    assert set(hook_bodies()) == set(HookType), "every hook kind is timed"
     assert len(timed) > 200 and any("?closed=1" in target for _, target, _ in cases(full_project)), "the lists are timed with their list parameters"
 
 
@@ -239,14 +239,14 @@ def orchestrating(app: App) -> None:
     user_set(app, WorkersOptions.MODE.key, ORCHESTRATOR)
 
 
-def hook_cases(app: App) -> dict[str, tuple[HookKind, dict]]:
+def hook_cases(app: App) -> dict[str, tuple[HookType, dict]]:
     """Every hook kind with its body, and after the tool call a shell call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran, and an edit in a worker's worktree, which asks whose worktree it is."""
     edit = {"tool_name": "Edit", "tool_input": {"file_path": str(app.config.home / "worktrees" / WORKTREE / "src" / "parser.py"), "old_string": "a", "new_string": "b"}}
-    followers = {"hook PreToolUse shell": (HookKind.PRE_TOOL_USE, SHELL_CALL), "hook PreToolUse worktree edit": (HookKind.PRE_TOOL_USE, edit)}
-    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(followers if kind == HookKind.PRE_TOOL_USE else {})}.items()}
+    followers = {"hook PreToolUse shell": (HookType.PRE_TOOL_USE, SHELL_CALL), "hook PreToolUse worktree edit": (HookType.PRE_TOOL_USE, edit)}
+    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(followers if kind == HookType.PRE_TOOL_USE else {})}.items()}
 
 
-def hook_body(kind: HookKind, body: dict, try_name: str) -> tuple[str, bytes]:
+def hook_body(kind: HookType, body: dict, try_name: str) -> tuple[str, bytes]:
     return JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode()
 
 
@@ -264,7 +264,7 @@ def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget
     with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
         polled_to = full_project.container.get(Entries).last_id()
     for n in range(TURN_SHELL_CALLS):
-        for kind, body in ((HookKind.PRE_TOOL_USE, SHELL_CALL), (HookKind.POST_TOOL_USE, {**SHELL_CALL, "tool_response": {"stdout": SHELL_OUTPUT, "stderr": ""}})):
+        for kind, body in ((HookType.PRE_TOOL_USE, SHELL_CALL), (HookType.POST_TOOL_USE, {**SHELL_CALL, "tool_response": {"stdout": SHELL_OUTPUT, "stderr": ""}})):
             answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"turn {n}"))
     polled = over(recorded({"GET /journal/entries after a turn": cold_loads(full_project, "GET", f"/journal/entries?since={polled_to}", EMPTY)}))
     assert not polled, "\n".join(polled)

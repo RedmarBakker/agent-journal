@@ -10,7 +10,7 @@ from journal.models.support.ref import Ref
 from journal.models.verifier import Verifier
 from journal.models.verifier_state import VerifierState
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class VerifierProcessCard(ProcessCard):
@@ -28,7 +28,7 @@ class VerifierProcessCard(ProcessCard):
 
     def contents(self, verifier: Verifier, row: Scoped, outcome: CardOutcome, text: str, detail: str) -> ProcessCardContents:
         data = {"kind": "card", "outcome": str(outcome), "row": str(Ref.build(row))}
-        return ProcessCardContents(self.name, verifier.environment_id, f"verifier:{verifier.id}", f"Verifier {verifier.id}, {verifier.name}: {text}", data, Actor.system(), CardKind.VERIFIERS, verifier.is_verifying(), detail)
+        return ProcessCardContents(self.name, verifier.environment_id, f"verifier:{verifier.id}", f"Verifier {verifier.id}, {verifier.name}: {text}", data, Actor.system(), CardType.VERIFIERS, verifier.is_verifying(), detail)
 
     @staticmethod
     def standing(verifier: Verifier, report: ReaderReport) -> tuple[CardOutcome, str]:

@@ -8,11 +8,11 @@ from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 
 RELEASING = ("completed", "cancelled")
 PAUSED, BLOCKED = "paused", "blocked"
-DROPPING_ACTORS = (ActorKind.USER, ActorKind.PHONE, ActorKind.AGENT)
+DROPPING_ACTORS = (ActorType.USER, ActorType.PHONE, ActorType.AGENT)
 DROPPED_LINE = "task {task} was paused while you worked on it and is no longer yours: leave it, keep what you committed on your branch, and go on with your queue"
 
 

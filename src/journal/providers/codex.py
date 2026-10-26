@@ -5,12 +5,12 @@ import re
 import shlex
 import tomllib
 from journal.providers.support.line_count import LineCount
-from journal.providers.support.profile_kind import ProfileKind
+from journal.providers.support.profile_type import ProfileType
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterator
 
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.providers.support.codex_row import CodexRow
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import Provider
@@ -56,7 +56,7 @@ class Codex(Provider):
         "collaborationspawn_agent": lambda input: SubagentDispatch(None, None, str(input.get("task_name", "")), None, True),
         "request_user_input": lambda input: UserQuestion(),
     }
-    hook_kinds = tuple(kind for kind in HookKind if kind not in (HookKind.MESSAGE_DISPLAY, HookKind.POST_TOOL_USE_FAILURE, HookKind.STOP_FAILURE))
+    hook_kinds = tuple(kind for kind in HookType if kind not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
     capabilities = frozenset()
     profile_suffix = ".toml"
     default = False
@@ -114,7 +114,7 @@ class Codex(Provider):
         return {key.rsplit(":", 3)[1] for key, state in states.items() if key.startswith(f"{hooks}:") and key.count(":") >= 3 and state.get("enabled", True)}
 
     @staticmethod
-    def state_name(kind: HookKind) -> str:
+    def state_name(kind: HookType) -> str:
         return re.sub(r"(?<!^)(?=[A-Z])", "_", kind.value).lower()
 
     @staticmethod
@@ -211,7 +211,7 @@ class Codex(Provider):
         return [[self.program, "mcp", "remove", name]]
 
     def profile_text(self, profile: Profile, model: str, codex_model: str) -> str:
-        sandbox = "read-only" if profile.kind == ProfileKind.SUBAGENT else "workspace-write"
+        sandbox = "read-only" if profile.kind == ProfileType.SUBAGENT else "workspace-write"
         return (f"name = {json.dumps(profile.name)}\ndescription = {json.dumps(profile.description, ensure_ascii=False)}\nmodel = {json.dumps(codex_model)}\n"
                 f"sandbox_mode = \"{sandbox}\"\ndeveloper_instructions = {json.dumps(profile.body, ensure_ascii=False)}\n")
 

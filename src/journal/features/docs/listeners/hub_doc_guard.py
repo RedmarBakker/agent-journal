@@ -4,7 +4,7 @@ from journal.models.doc import Doc
 from journal.models.doc_edit_mode import DocEditMode
 from journal.repositories.docs import Docs
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 from journal.support.rejection import Rejection
 from journal.sync.hosting import Hosting
 from journal.sync.team_account import TeamAccount
@@ -22,7 +22,7 @@ class HubDocGuard(Listener[Saving]):
 
     def handle(self, event: Saving) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or doc.is_new or event.actor.kind == ActorKind.SYSTEM:
+        if not isinstance(doc, Doc) or doc.is_new or event.actor.kind == ActorType.SYSTEM:
             return
         prior = self.docs.find(doc.row_id)
         if not prior.is_on_hub() or not doc.is_edited_from(prior):
@@ -38,7 +38,7 @@ class HubDocGuard(Listener[Saving]):
             raise Rejection(refusal)
 
     def person(self, actor: Actor) -> int:
-        return int(actor.id) if self.hosting.is_hosted() and actor.kind == ActorKind.USER and actor.id.isdigit() else self.account.user_number()
+        return int(actor.id) if self.hosting.is_hosted() and actor.kind == ActorType.USER and actor.id.isdigit() else self.account.user_number()
 
     def is_admin(self, person: int) -> bool:
         if person == self.account.user_number():

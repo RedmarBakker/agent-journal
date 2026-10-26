@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,7 @@ class ProcessCardContents:
     label: str
     data: dict
     actor: Actor
-    shows: CardKind
+    shows: CardType
     active: bool
     detail: str = ""
     session: str | None = None

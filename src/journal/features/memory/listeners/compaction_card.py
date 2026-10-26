@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.agent.compacting import Compacting
 from journal.events.agent_listener import AgentListener
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class CompactionCard(AgentListener[Compacting]):
@@ -11,4 +11,4 @@ class CompactionCard(AgentListener[Compacting]):
         self.cards = cards
 
     def handle(self, event: Compacting) -> None:
-        self.cards.show(event.environment_id, event.session, "Conversation compacted", kind="compacted", shows=CardKind.COMPACTIONS)
+        self.cards.show(event.environment_id, event.session, "Conversation compacted", kind="compacted", shows=CardType.COMPACTIONS)

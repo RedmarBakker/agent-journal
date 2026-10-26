@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from journal.events.rows.environment_unshared import EnvironmentUnshared
-from journal.models.environment_kind import EnvironmentKind
+from journal.models.environment_type import EnvironmentType
 from journal.models.model import Model
 from journal.support.rejection import Rejection
 from journal.support.environment_key import EnvironmentKey
@@ -21,22 +21,22 @@ class Environment(Model):
     worktree_host: str = ""
     team_name: str | None = None
     key: str = field(default_factory=EnvironmentKey.random)
-    kind: EnvironmentKind = EnvironmentKind.LOCAL
+    kind: EnvironmentType = EnvironmentType.LOCAL
     team_key: str = ""
 
     @classmethod
     def hub(cls, team_key: str, team_name: str) -> "Environment":
-        return cls(name=team_name, team_name=team_name, kind=EnvironmentKind.HUB, team_key=team_key)
+        return cls(name=team_name, team_name=team_name, kind=EnvironmentType.HUB, team_key=team_key)
 
     @classmethod
     def session(cls, team_key: str, name: str) -> "Environment":
-        return cls(name=name, team_name=name, kind=EnvironmentKind.SESSION, team_key=team_key)
+        return cls(name=name, team_name=name, kind=EnvironmentType.SESSION, team_key=team_key)
 
     def is_personal(self) -> bool:
-        return self.kind == EnvironmentKind.LOCAL
+        return self.kind == EnvironmentType.LOCAL
 
     def is_session(self) -> bool:
-        return self.kind == EnvironmentKind.SESSION
+        return self.kind == EnvironmentType.SESSION
 
     def is_team_chat(self) -> bool:
         return self.is_session() and self.branch is None

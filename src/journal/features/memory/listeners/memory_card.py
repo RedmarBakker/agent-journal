@@ -6,10 +6,10 @@ from journal.models.rule import Rule
 from journal.models.support.ref import Ref
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
-from journal.support.card_kind import CardKind
+from journal.support.actor_type import ActorType
+from journal.support.card_type import CardType
 
-MEMORY_KINDS = {Fact: ("Fact", CardKind.FACTS), Rule: ("Rule", CardKind.RULES), Reminder: ("Reminder", CardKind.REMINDERS)}
+MEMORY_KINDS = {Fact: ("Fact", CardType.FACTS), Rule: ("Rule", CardType.RULES), Reminder: ("Reminder", CardType.REMINDERS)}
 
 
 class MemoryCard:
@@ -23,7 +23,7 @@ class MemoryCard:
             return
         noun, shows = MEMORY_KINDS[type(row)]
         environment = getattr(row, "environment_id", 0) or self.scope.id
-        session = actor.id if actor.kind == ActorKind.AGENT else ""
+        session = actor.id if actor.kind == ActorType.AGENT else ""
         self.cards.show(environment, session, f"{noun} {row.id} {verb}{self.moment(row)}", "", Ref.build(row), actor=actor, shows=shows)
 
     @staticmethod

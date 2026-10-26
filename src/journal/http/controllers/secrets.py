@@ -7,7 +7,7 @@ from journal.http.controllers.controller import Controller
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.secret import Secret
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.support.rejection import Rejection
 from journal.repositories.scope import Scope
 from journal.repositories.secrets import Secrets
@@ -30,7 +30,7 @@ class SecretController(Controller[Secret]):
 
     def store(self, request: Request) -> Response:
         body = request.body
-        kind, title = SecretKind.lookup(body.get("kind") or SecretKind.CUSTOM.value), str(body.get("title", "")).strip()
+        kind, title = SecretType.lookup(body.get("kind") or SecretType.CUSTOM.value), str(body.get("title", "")).strip()
         secret = Secret(title=title, brief=body.get("brief", ""), kind=kind, fields=tuple(body.get("fields") or kind.first_fields(title)),
                         programs=self.allowed(body.get("programs", ())), helpers=bool(body.get("helpers")))
         return Response.json(self.repository.save(secret, request.actor), 201)

@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 
 
 class Author(StrEnum):
@@ -12,4 +12,4 @@ class Author(StrEnum):
 
     @classmethod
     def build(cls, actor: Actor) -> "Author":
-        return {ActorKind.AGENT: cls.AGENT, ActorKind.USER: cls.USER, ActorKind.PHONE: cls.USER}.get(actor.kind, cls.SYSTEM)
+        return {ActorType.AGENT: cls.AGENT, ActorType.USER: cls.USER, ActorType.PHONE: cls.USER}.get(actor.kind, cls.SYSTEM)

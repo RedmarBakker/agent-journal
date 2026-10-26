@@ -6,7 +6,7 @@ from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class ReceiptProcessCard(ProcessCard):
@@ -29,7 +29,7 @@ class ReceiptProcessCard(ProcessCard):
                 self.messages.delete(card, Actor.system())
             return None
         text = "; ".join(f"{verb} {self.labels(refs)} from your message" for verb, refs in (("Created", created_refs), ("Edited", edited_refs)) if refs)
-        return ProcessCardContents(self.name, message.environment_id, key, text, {"kind": "card", "row": f"{receipt_refs[0].type}:{receipt_refs[0].id}"}, Actor.system(), CardKind.FILED, False)
+        return ProcessCardContents(self.name, message.environment_id, key, text, {"kind": "card", "row": f"{receipt_refs[0].type}:{receipt_refs[0].id}"}, Actor.system(), CardType.FILED, False)
 
     @staticmethod
     def labels(refs: list[Ref]) -> str:

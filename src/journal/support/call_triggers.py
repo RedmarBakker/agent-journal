@@ -3,7 +3,7 @@ from fnmatch import fnmatch
 
 from journal.models.sequence import Sequence
 from journal.models.support.sequence_trigger import SequenceTrigger
-from journal.models.support.sequence_trigger_kind import SequenceTriggerKind
+from journal.models.support.sequence_trigger_type import SequenceTriggerType
 from journal.support.tool_call import ToolCall
 
 
@@ -17,10 +17,10 @@ class CallTriggers:
     @classmethod
     def matches(cls, trigger: SequenceTrigger, call: ToolCall) -> bool:
         checks = {
-            SequenceTriggerKind.COMMAND: lambda: bool(call.command) and re.search(trigger.pattern, call.command) is not None,
-            SequenceTriggerKind.FILE: lambda: cls.is_file_edit(call, trigger.pattern),
-            SequenceTriggerKind.FILE_TEXT: lambda: cls.is_file_edit(call, trigger.pattern) and trigger.text in call.input_text,
-            SequenceTriggerKind.TOOL: lambda: call.tool == trigger.tool and re.search(trigger.pattern, call.input_text) is not None,
+            SequenceTriggerType.COMMAND: lambda: bool(call.command) and re.search(trigger.pattern, call.command) is not None,
+            SequenceTriggerType.FILE: lambda: cls.is_file_edit(call, trigger.pattern),
+            SequenceTriggerType.FILE_TEXT: lambda: cls.is_file_edit(call, trigger.pattern) and trigger.text in call.input_text,
+            SequenceTriggerType.TOOL: lambda: call.tool == trigger.tool and re.search(trigger.pattern, call.input_text) is not None,
         }
         return trigger.kind in checks and checks[trigger.kind]()
 

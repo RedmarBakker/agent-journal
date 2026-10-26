@@ -4,7 +4,7 @@ from journal.events.listener import Listener
 from journal.events.models.updated import Updated
 from journal.models.doc import Doc
 from journal.repositories.agents import Agents
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 
 
 class DocumentCardStatus(Listener[Updated]):
@@ -15,7 +15,7 @@ class DocumentCardStatus(Listener[Updated]):
 
     def handle(self, event: Updated) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or "unfinished" not in event.changed() or event.actor.kind != ActorKind.AGENT:
+        if not isinstance(doc, Doc) or "unfinished" not in event.changed() or event.actor.kind != ActorType.AGENT:
             return
         contents = self.card.card_contents(self.agents.session_agent(event.actor.id).environment_id, doc, event.actor)
         if self.cards.is_shown(contents):

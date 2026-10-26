@@ -16,7 +16,7 @@ from journal.features.seed import Seed
 from journal.features.support.service import Service
 from journal.support.skill import Skill
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.host_writer import HostWriter
 from journal.engine.demand import Demand
 
@@ -45,7 +45,7 @@ class Feature[D](DataSource[D]):
     assigners: ClassVar[tuple[type, ...]] = ()
     skill: ClassVar[Skill | None] = None
     card_families: ClassVar[tuple[CardFamily, ...]] = ()
-    card_kinds: ClassVar[tuple[MarkKind, ...]] = ()
+    card_kinds: ClassVar[tuple[CardTypeEntry, ...]] = ()
     services: ClassVar[tuple[Service, ...]] = ()
     default: ClassVar[bool] = True
     modes: ClassVar[Modes | None] = None

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -13,7 +13,7 @@ from journal.repositories.tasks import Tasks
 MIGRATED_PROGRESS_NOTE = "it was in progress in version 3 when the journal was brought across"
 
 
-class TodoImport(EnvironmentKind):
+class TodoImport(EnvironmentTableImport):
     """A to-do becomes a task: done with its outcome, blocked with its reason, open, or paused when it was in progress, since one task alone is ever in hand; a struck one stays behind."""
 
     kind = "todo"

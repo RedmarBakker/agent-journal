@@ -8,7 +8,7 @@ from journal.features.sequences.support.run_tracker import RunTracker
 from journal.models.sequence import Sequence
 from journal.models.support.sequence_step import SequenceStep
 from journal.models.support.sequence_trigger import LINE_FORMS, SequenceTrigger
-from journal.models.support.sequence_trigger_kind import SequenceTriggerKind
+from journal.models.support.sequence_trigger_type import SequenceTriggerType
 from journal.features.sequences.support.step_argument import STEPS_DESTINATION, StepArgument
 from journal.features.sequences.support.step_guard_argument import StepGuardArgument
 from journal.repositories.scope import Scope
@@ -147,7 +147,7 @@ class SequenceCommand(Command):
 
     @staticmethod
     def triggers_summary(sequence: Sequence) -> str:
-        phrases = [trigger for trigger in sequence.triggers if trigger.kind == SequenceTriggerKind.PHRASE]
-        lines = [trigger.line() for trigger in sequence.triggers if trigger.kind != SequenceTriggerKind.PHRASE]
+        phrases = [trigger for trigger in sequence.triggers if trigger.kind == SequenceTriggerType.PHRASE]
+        lines = [trigger.line() for trigger in sequence.triggers if trigger.kind != SequenceTriggerType.PHRASE]
         counted = [phrases[0].line()] if len(phrases) == 1 else [f"{len(phrases)} phrases"] if phrases else []
         return ", ".join([*lines, *counted])

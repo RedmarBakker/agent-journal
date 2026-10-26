@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -10,7 +10,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.task_logs import TaskLogs
 
 
-class WorkImport(EnvironmentKind):
+class WorkImport(EnvironmentTableImport):
     """A to-do's work log becomes its task's log lines, one for each entry, once the task has come across."""
 
     kind = "work"

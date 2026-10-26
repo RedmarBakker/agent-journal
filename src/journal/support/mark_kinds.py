@@ -1,9 +1,9 @@
 from dataclasses import asdict
 
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.card_family import CardFamily
 from journal.support.mark_group import MarkGroup
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 
 AGENT, REMINDERS, WORK, JOURNAL = "agent", "reminders", "work", "journal"
 
@@ -23,17 +23,17 @@ class MarkKinds:
         CardFamily("visitors", "Visitors", "chat", JOURNAL),
     )
     KINDS = (
-        MarkKind("thoughts", "Summaries of the agent's words", "thoughts", turns=("thought",)),
-        MarkKind(CardKind.FAULTS, "The journal's own faults", "faults"),
-        MarkKind("visitors", "Visitor comments", "visitors", turns=("visitor",)),
+        CardTypeEntry("thoughts", "Summaries of the agent's words", "thoughts", turns=("thought",)),
+        CardTypeEntry(CardType.FAULTS, "The journal's own faults", "faults"),
+        CardTypeEntry("visitors", "Visitor comments", "visitors", turns=("visitor",)),
     )
 
     @staticmethod
-    def served(families: list[CardFamily], kinds: list[MarkKind]) -> dict:
+    def served(families: list[CardFamily], kinds: list[CardTypeEntry]) -> dict:
         family_index = {family.key: family for family in families}
         return {"groups": [asdict(group) for group in MarkKinds.GROUPS], "families": [{**asdict(family), "colouring": str(family.colouring)} for family in families],
                 "kinds": [MarkKinds.served_kind(kind, family_index[kind.family]) for kind in kinds]}
 
     @staticmethod
-    def served_kind(kind: MarkKind, family: CardFamily) -> dict:
+    def served_kind(kind: CardTypeEntry, family: CardFamily) -> dict:
         return {**asdict(kind), "key": str(kind.key), "icon": family.icon, "group": family.group, "colouring": str(family.colouring), "turns": list(kind.turns), "messages": list(kind.messages), "covers": [str(key) for key in kind.covers]}

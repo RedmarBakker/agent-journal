@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from journal.features.migration.support.import_tally import ImportTally
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -15,7 +15,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.tasks import WAIT_LINK, Tasks
 
 
-class WaitImport(EnvironmentKind):
+class WaitImport(EnvironmentTableImport):
     """A to-do that comes after others waits on them here, once all have been migrated; a wait that version 3 allowed to form a loop is dropped and reported, and the task keeps the rest."""
 
     kind = "todo"

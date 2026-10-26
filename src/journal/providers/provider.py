@@ -26,7 +26,7 @@ from journal.features.shell.support.output_reads import OutputReads
 from journal.providers.support.profile_view import ProfileView
 from journal.support.decision import Decision
 from journal.support.hook import Hook
-from journal.support.hook_kind import HookKind
+from journal.support.hook_type import HookType
 from journal.support.response import Response
 from journal.events.agent.peer_message import PeerMessage
 from journal.providers.support.turn import Turn
@@ -38,7 +38,7 @@ from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
 from journal.support.prompt_origin import PromptOrigin
 
-CONTEXT_HOOKS = (HookKind.SESSION_START, HookKind.USER_PROMPT, HookKind.PRE_TOOL_USE, HookKind.POST_TOOL_USE)
+CONTEXT_HOOKS = (HookType.SESSION_START, HookType.USER_PROMPT, HookType.PRE_TOOL_USE, HookType.POST_TOOL_USE)
 
 
 TAIL_BYTES = 400_000
@@ -75,7 +75,7 @@ class Provider(ABC):
     settings_files: ClassVar[tuple[str, ...]]
     settings_extras: ClassVar[dict] = {}
     foreign_settings: ClassVar[tuple[str, ...]] = ()
-    hook_kinds: ClassVar[tuple[HookKind, ...]] = tuple(HookKind)
+    hook_kinds: ClassVar[tuple[HookType, ...]] = tuple(HookType)
     controls: ClassVar[dict] = {"groups": [], "note": ""}
     context_limit_notice: ClassVar[str] = ""
     compact_command: ClassVar[str] = ""
@@ -257,7 +257,7 @@ class Provider(ABC):
 
     def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
         kind = hook.kind
-        if kind == HookKind.STOP and (not decision.allowed or decision.context):
+        if kind == HookType.STOP and (not decision.allowed or decision.context):
             return Response(200, {"decision": "block", "reason": "\n".join(part for part in (decision.reason, decision.context) if part)})
         if not decision.allowed:
             return self.refused(hook, decision)

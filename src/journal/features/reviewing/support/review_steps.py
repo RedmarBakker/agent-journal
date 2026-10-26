@@ -5,7 +5,7 @@ from journal.events.rows.worker_mention import WorkerMention
 from journal.support.agent_role import AgentRole
 from journal.models.reviewer import Reviewer
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 REVIEW_STEP = "review_step"
 
@@ -31,4 +31,4 @@ class ReviewSteps:
         self.step(environment_id, session, f"Handed its report on {worker.title()}, to the agent: {report.text}", CardOutcome.NONE)
 
     def step(self, environment_id: int, session: str, text: str, outcome: CardOutcome) -> None:
-        self.cards.show_role_card(AgentRole.REVIEWER, environment_id, session, text, {"kind": REVIEW_STEP, "outcome": str(outcome)}, Actor.system(), CardKind.REVIEWERS)
+        self.cards.show_role_card(AgentRole.REVIEWER, environment_id, session, text, {"kind": REVIEW_STEP, "outcome": str(outcome)}, Actor.system(), CardType.REVIEWERS)

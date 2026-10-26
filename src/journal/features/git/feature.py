@@ -1,7 +1,7 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import WORK
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.git.listeners.commit_detection import CommitDetection
 from journal.features.git.listeners.commit_card import CommitCard
@@ -25,7 +25,7 @@ class Git(Feature[GitData]):
 
     name = "git"
     card_families = (CardFamily("git", "Git", "branch", WORK),)
-    card_kinds = (MarkKind(CardKind.COMMITS, "Commits", "git"), MarkKind(CardKind.WORKTREES, "Worktrees", "git"), MarkKind(CardKind.PUSHES, "Pushes", "git"), MarkKind(CardKind.BRANCH_SWITCHES, "Branch switches", "git"),)
+    card_kinds = (CardTypeEntry(CardType.COMMITS, "Commits", "git"), CardTypeEntry(CardType.WORKTREES, "Worktrees", "git"), CardTypeEntry(CardType.PUSHES, "Pushes", "git"), CardTypeEntry(CardType.BRANCH_SWITCHES, "Branch switches", "git"),)
     title = "Git"
     help = "Every commit the agent makes is a badge in the chat."
     listeners = (CommitDetection, CommitCard, PushCard, BranchChangeCard, WorktreeSessionLink, WorktreeTipRecord, RenamedWorktreeFolders)

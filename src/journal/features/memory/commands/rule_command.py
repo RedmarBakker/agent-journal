@@ -1,6 +1,6 @@
 from argparse import Namespace
 
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 from journal.support.caller import Caller
 
 from journal.features.memory.commands.memory_command import MemoryCommand
@@ -20,7 +20,7 @@ class RuleCommand(MemoryCommand):
         self.repository = rules
 
     def with_keywords(self, row: Rule, caller: Caller) -> Rule:
-        return row.created(caller.actor.kind == ActorKind.AGENT)
+        return row.created(caller.actor.kind == ActorType.AGENT)
 
     def new(self, args: Namespace) -> Rule:
         return Rule(text=args.text, reason=args.reason, keywords=self.keywords(args))

@@ -4,7 +4,7 @@ from journal.events.listener import Listener
 from journal.events.moments.plugin_card_requested import PluginCardRequested
 from journal.features.plugins.support.plugin_process_card import PluginProcessCard
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PluginQuestionCards(Listener[PluginCardRequested]):
@@ -19,4 +19,4 @@ class PluginQuestionCards(Listener[PluginCardRequested]):
             if not self.processes.is_unchanged(contents):
                 self.processes.show_recent(contents)
             return
-        self.cards.show_fields(event.environment_id, None, event.label, event.data, Actor.plugin(event.plugin), CardKind.PLUGINS, event.detail)
+        self.cards.show_fields(event.environment_id, None, event.label, event.data, Actor.plugin(event.plugin), CardType.PLUGINS, event.detail)

@@ -1,4 +1,4 @@
-class WrongSettingKind(ValueError):
+class WrongSettingType(ValueError):
     """A setting holds a value of another kind than its option reads."""
 
     def __init__(self, key: str, value: object) -> None:

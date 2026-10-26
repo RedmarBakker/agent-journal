@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -10,7 +10,7 @@ from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.questions import Questions
 
 
-class QuestionImport(EnvironmentKind):
+class QuestionImport(EnvironmentTableImport):
     """A question keeps its options and its answer, or stays open when it had none."""
 
     kind = "question"

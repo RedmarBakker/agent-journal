@@ -1,4 +1,4 @@
-from journal.features.migration.support.project_kind import ProjectKind
+from journal.features.migration.support.project_type import ProjectType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.features.migration.support.version_3_rows import Version3Rows
 from journal.support.actor import Actor
@@ -8,7 +8,7 @@ from journal.repositories.docs import Docs
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class DocImport(ProjectKind):
+class DocImport(ProjectType):
     """A document keeps its title, its line and its current text; its older revisions stay in the backup."""
 
     kind = "doc"

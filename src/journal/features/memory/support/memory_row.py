@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 @dataclass(frozen=True)
@@ -11,7 +11,7 @@ class MemoryRow:
     id: int
     text: str
     keywords: tuple[str, ...]
-    threshold: CardKind
+    threshold: CardType
     presence: bool = False
     trigger: str = ""
     ready: bool = False

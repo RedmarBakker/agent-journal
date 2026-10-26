@@ -10,7 +10,7 @@ from journal.models.message import Message
 from journal.repositories.checks import Checks
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class CheckRunProcessCard(ProcessCard):
@@ -26,7 +26,7 @@ class CheckRunProcessCard(ProcessCard):
         key = f"check-run:{check.id}:{run_start}"
         data = {"kind": "card", "check": check.id, "row": f"{Check.table()}:{check.id}", "began_at": run_start, **self.run_view(check, run_start, active).fields(), **self.dock_state(key, run_start, active), FINAL: not active}
         detail = "" if active else CheckOutput.tail(check.last_output)
-        return ProcessCardContents(self.name, agent.environment_id, key, self.label(check, active), data, Actor.system(), CardKind.CHECKS, active, detail, agent.session)
+        return ProcessCardContents(self.name, agent.environment_id, key, self.label(check, active), data, Actor.system(), CardType.CHECKS, active, detail, agent.session)
 
     def refresh(self, message: Message) -> dict:
         check = self.checks.find(message.data["check"])

@@ -1,13 +1,13 @@
-from journal.features.migration.support.project_kind import ProjectKind
+from journal.features.migration.support.project_type import ProjectType
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.secret import Secret
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.repositories.migrated_rows import MigratedRows
 from journal.repositories.secrets import Secrets
 
 
-class SecretImport(ProjectKind):
+class SecretImport(ProjectType):
     """A secret brings its name, how it is used, its kind, its fields and the programs the user allowed; never a value, which the user fills again on the Secrets page."""
 
     kind = "secret"
@@ -20,5 +20,5 @@ class SecretImport(ProjectKind):
     def created(self, row: Version3Row, actor: Actor) -> Secret:
         kind = row.data.get("kind", "")
         fields = tuple({"name": f.get("name", ""), "hidden": bool(f.get("hidden")), "variable": f.get("variable", "")} for f in row.listed("secret_fields"))
-        secret = Secret(title=row.title, brief=row.brief, kind=SecretKind(kind) if kind in {k.value for k in SecretKind} else SecretKind.CUSTOM, fields=fields, programs=tuple(row.listed("programs")))
+        secret = Secret(title=row.title, brief=row.brief, kind=SecretType(kind) if kind in {k.value for k in SecretType} else SecretType.CUSTOM, fields=fields, programs=tuple(row.listed("programs")))
         return self.secrets.imported(secret, row.creation_moment(), actor)

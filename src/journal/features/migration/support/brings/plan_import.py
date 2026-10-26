@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -19,7 +19,7 @@ STATES = {"building": PlanState.DRAFT, "draft": PlanState.DRAFT, "ready": PlanSt
           "active": PlanState.STARTED, "waiting": PlanState.STARTED, "parked": PlanState.PAUSED, "done": PlanState.FINISHED, "abandoned": PlanState.CANCELLED}
 
 
-class PlanImport(EnvironmentKind):
+class PlanImport(EnvironmentTableImport):
     """A plan keeps its state, its phases in order and its tasks under them, once the tasks have come across."""
 
     kind = "plan"

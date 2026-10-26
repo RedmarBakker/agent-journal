@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 
 
@@ -28,8 +28,8 @@ class CallerVariables:
         session = next((set_variables[name] for name in ("JOURNAL_SESSION", *session_variables) if name in set_variables), None)
         actor = set_variables.get(ACTOR, "")
         return cls(set_variables.get("JOURNAL_ENV", "main"), provider, any(name in set_variables for name in (*markers, AGENT_SHELL)), session,
-                   set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), Actor.stamp_number(actor, ActorKind.WORKER), set_variables.get("JOURNAL_LAUNCH"),
-                   Actor.stamp_number(actor, ActorKind.VERIFIER), set_variables.get(ACTOR_TOKEN), Actor.stamp_number(actor, ActorKind.REVIEWER))
+                   set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), Actor.stamp_number(actor, ActorType.WORKER), set_variables.get("JOURNAL_LAUNCH"),
+                   Actor.stamp_number(actor, ActorType.VERIFIER), set_variables.get(ACTOR_TOKEN), Actor.stamp_number(actor, ActorType.REVIEWER))
 
     @classmethod
     def parsed(cls, body: dict, provider: str) -> "CallerVariables":

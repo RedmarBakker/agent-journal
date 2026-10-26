@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 
 from journal.config import Config
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.author import Author
@@ -13,7 +13,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class MessageImport(EnvironmentKind):
+class MessageImport(EnvironmentTableImport):
     """Every message, the packed ones too, with its author, its time, what it replies to and its attachments."""
 
     kind = "message"

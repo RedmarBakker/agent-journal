@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from journal.events.event import Event
 from journal.events.feature_data import FeatureData
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,7 +46,7 @@ class RowEvent(Event):
         return (self.environment_id, *self.bound_environment_ids)
 
     def is_users(self) -> bool:
-        return self.actor.split(":", 1)[0] in (ActorKind.USER, ActorKind.PHONE)
+        return self.actor.split(":", 1)[0] in (ActorType.USER, ActorType.PHONE)
 
     def is_agents(self, session: str) -> bool:
         return self.actor == f"agent:{session}"

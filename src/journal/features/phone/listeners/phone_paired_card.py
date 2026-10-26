@@ -2,7 +2,7 @@ from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.models.phone import Phone
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PhonePairedCard(Listener[Created]):
@@ -13,4 +13,4 @@ class PhonePairedCard(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         if isinstance(event.model, Phone):
-            self.cards.show(event.model.environment_id, "", f"A phone paired: {event.model.name}", shows=CardKind.PHONES)
+            self.cards.show(event.model.environment_id, "", f"A phone paired: {event.model.name}", shows=CardType.PHONES)

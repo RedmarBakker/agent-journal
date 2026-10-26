@@ -5,7 +5,7 @@ from journal.events.moments.boot_failed import BootFailed
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.supervisor_link import SupervisorLink
 
 
@@ -19,4 +19,4 @@ class BootFailureNotice(Listener[BootFailed]):
         for environment in self.supervisor.running(self.environments.all()):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
-            self.cards.show(environment.row_id, agent.session if agent else None, event.text, shows=CardKind.UPDATES, outcome=CardOutcome.WARNED)
+            self.cards.show(environment.row_id, agent.session if agent else None, event.text, shows=CardType.UPDATES, outcome=CardOutcome.WARNED)

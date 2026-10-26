@@ -1,7 +1,7 @@
 from journal.support.agent_role import AgentRole
 from dataclasses import fields, dataclass, field
 
-from journal.models.support.card_kind import CardKind
+from journal.models.support.plugin_card_type import PluginCardType
 from journal.models.support.plugin_alias import PluginAlias
 from journal.support.event_window import EventWindow
 from journal.support.plugin_service import PluginService
@@ -28,7 +28,7 @@ class PluginManifest:
     services: tuple[PluginService, ...] = ()
     settings: str = ""
     skills: str = ""
-    cards: tuple[CardKind, ...] = ()
+    cards: tuple[PluginCardType, ...] = ()
     requires: dict[str, Requirement] = field(default_factory=dict)
     setup: tuple[SetupStep, ...] = ()
     installed: str = ""
@@ -41,7 +41,7 @@ class PluginManifest:
     def parsed(cls, data: dict) -> "PluginManifest":
         field_values = {key: value for key, value in data.items() if key not in PUBLISHED}
         return cls(**{**field_values, "events": tuple(data.get("hears", ())), "blocks": tuple(EventWindow.parsed(h) for h in data.get("holds", ())),
-                      "services": tuple(PluginService.parsed(s) for s in data.get("services", ())), "cards": tuple(CardKind.parsed(c) for c in data.get("cards", ())),
+                      "services": tuple(PluginService.parsed(s) for s in data.get("services", ())), "cards": tuple(PluginCardType.parsed(c) for c in data.get("cards", ())),
                       "setup": tuple(SetupStep.parsed(s) for s in data.get("setup", ())), "aliases": tuple(PluginAlias.parsed(alias) for alias in data.get("aliases", ())), "requires": {program: Requirement.parsed(r) for program, r in data.get("requires", {}).items()},
                       "reaches": {event: tuple(kinds) for event, kinds in data.get("reaches", {}).items()}, "ignored": tuple(data.get("ignored", ()))})
 
@@ -65,5 +65,5 @@ class PluginManifest:
     def programs(self) -> list[str]:
         return [self.program, *(s.program for s in self.services if s.is_local)]
 
-    def card_kind(self, kind: str) -> CardKind:
-        return next((k for k in self.cards if k.kind == kind), CardKind(kind, self.name))
+    def card_kind(self, kind: str) -> PluginCardType:
+        return next((k for k in self.cards if k.kind == kind), PluginCardType(kind, self.name))

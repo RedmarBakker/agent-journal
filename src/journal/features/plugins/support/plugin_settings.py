@@ -3,10 +3,10 @@ import json
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.plugins.support.plugin_setting import PluginSetting
 from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
+from journal.support.actor_type import ActorType
 from journal.models.plugin import Plugin
 from journal.models.secret import Secret
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.support.rejection import Rejection
 from journal.repositories.plugins import Plugins
 from journal.repositories.secrets import Secrets
@@ -30,14 +30,14 @@ class PluginSettings:
         settings: dict[str, object] = {}
         for setting in self.schema(plugin):
             if setting.is_secret:
-                secret = self.secrets.save(Secret(title=f"{plugin.name} {setting.title}", brief=setting.help, kind=SecretKind.API_KEY, fields=SecretKind.API_KEY.first_fields(f"{plugin.name} {setting.key}"), proposed=(self.program(plugin),)), actor)
+                secret = self.secrets.save(Secret(title=f"{plugin.name} {setting.title}", brief=setting.help, kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields(f"{plugin.name} {setting.key}"), proposed=(self.program(plugin),)), actor)
                 settings[setting.key] = {"secret": secret.row_id}
             else:
                 settings[setting.key] = setting.default
         return settings
 
     def configure(self, name: str, key: str, value: str, actor: Actor) -> Plugin:
-        if actor.kind != ActorKind.USER:
+        if actor.kind != ActorType.USER:
             raise Rejection("only the user configures a plugin")
         plugin = self.plugins.lookup(name)
         setting = next((s for s in self.schema(plugin) if s.key == key), None)

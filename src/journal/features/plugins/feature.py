@@ -1,8 +1,8 @@
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import JOURNAL
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
 from journal.support.skill import Skill
@@ -31,7 +31,7 @@ class PluginsFeature(Feature[PluginsData]):
     name = PluginsPart.name
     helper_listeners = {role: (PluginAgentRelay,) for role in AgentRole.helpers()}
     card_families = (CardFamily("plugins", "Plugins", "plug", JOURNAL, CardColouring.OUTCOME),)
-    card_kinds = (MarkKind(CardKind.PLUGINS, "Plugin notes", "plugins"),)
+    card_kinds = (CardTypeEntry(CardType.PLUGINS, "Plugin notes", "plugins"),)
     title = "Plugins"
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.CLOCK_OUT_WINDOW_SECONDS, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)

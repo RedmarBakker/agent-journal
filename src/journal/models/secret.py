@@ -5,7 +5,7 @@ from datetime import datetime
 from journal.events.rows.secret_allowed import SecretAllowed
 from journal.models.model import Model
 from journal.support.secret_field import SecretField
-from journal.models.secret_kind import SecretKind
+from journal.models.secret_type import SecretType
 from journal.support.rejection import Rejection
 
 
@@ -18,7 +18,7 @@ class Secret(Model):
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
     title: str = ""
     brief: str = ""
-    kind: SecretKind = SecretKind.CUSTOM
+    kind: SecretType = SecretType.CUSTOM
     fields: tuple = ()
     filled: tuple[str, ...] = ()
     programs: tuple[str, ...] = ()

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
@@ -10,7 +10,7 @@ from journal.repositories.facts import Facts
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class FactImport(EnvironmentKind):
+class FactImport(EnvironmentTableImport):
     """A fact keeps its text and keywords; a struck one stays behind."""
 
     kind = "fact"

@@ -2,7 +2,7 @@ from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.git_pushed import GitPushed
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class PushCard(Listener[GitPushed]):
@@ -13,4 +13,4 @@ class PushCard(Listener[GitPushed]):
 
     def handle(self, event: GitPushed) -> None:
         actor = Actor.agent(event.session) if event.session else Actor.system()
-        self.cards.show(event.environment_id, event.session, f"Pushed {event.branch} to {event.remote}", actor=actor, shows=CardKind.PUSHES)
+        self.cards.show(event.environment_id, event.session, f"Pushed {event.branch} to {event.remote}", actor=actor, shows=CardType.PUSHES)

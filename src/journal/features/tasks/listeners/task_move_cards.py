@@ -11,17 +11,17 @@ from journal.models.task_state import TaskState
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.row_labels import RowLabels
 
 # what each move of a task is called on its card, the card kind it is shown as and the field of the task that says why
 MOVES = {
-    "started": ("Started", CardKind.TASK_MOVES, ""),
-    "resumed": ("Resumed", CardKind.TASK_MOVES, ""),
-    "unblocked": ("Unblocked", CardKind.TASK_MOVES, ""),
-    "completed": ("Completed", CardKind.TASK_MOVES, "outcome"),
-    "paused": ("Paused", CardKind.TASK_PAUSES, "pause_reason"),
-    "blocked": ("Blocked", CardKind.TASK_PAUSES, "block_reason"),
+    "started": ("Started", CardType.TASK_MOVES, ""),
+    "resumed": ("Resumed", CardType.TASK_MOVES, ""),
+    "unblocked": ("Unblocked", CardType.TASK_MOVES, ""),
+    "completed": ("Completed", CardType.TASK_MOVES, "outcome"),
+    "paused": ("Paused", CardType.TASK_PAUSES, "pause_reason"),
+    "blocked": ("Blocked", CardType.TASK_PAUSES, "block_reason"),
 }
 
 

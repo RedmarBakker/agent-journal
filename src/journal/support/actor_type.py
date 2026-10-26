@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ActorKind(StrEnum):
+class ActorType(StrEnum):
     SYSTEM = "system"
     AGENT = "agent"
     USER = "user"

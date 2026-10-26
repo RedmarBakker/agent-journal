@@ -5,7 +5,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.supervisor_link import SupervisorLink
 
 
@@ -20,6 +20,6 @@ class LaunchTakeoverNotice(Listener[ServerReplaced]):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
             label = f"The journal now runs version {event.version}: a newer launch replaced the journal server on {event.previous} that this launch had"
-            self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardKind.UPDATES)
+            self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardType.UPDATES)
             if agent is not None:
                 self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())

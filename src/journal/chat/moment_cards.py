@@ -12,7 +12,7 @@ from journal.support.message_thread import MessageThread
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.card_outcome import CardOutcome
 from journal.support.time_source import TimeSource
 
@@ -27,16 +27,16 @@ class MomentCards:
         self.time_source = time_source
         self.messages, self.settings, self.agents = messages, settings, agents
 
-    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardKind, outcome: CardOutcome = CardOutcome.NONE) -> Message:
+    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE) -> Message:
         data = {"kind": kind, "outcome": str(outcome), "row": str(row) if row else "", "command": command}
         return self.show_fields(environment_id, session, label, data, actor, shows, detail, key)
 
-    def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
+    def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardType, detail: str = "", key: str = "") -> Message:
         roles = self.agents.session_roles(session) if session else []
         return self.show_role_card(roles[0] if roles else AgentRole.MAIN, environment_id, session, label, data, actor, shows, detail, key)
 
     # a card in the chat of a session whose agent may not have hooked in yet, such as a reviewer's, which names its role itself
-    def show_role_card(self, role: AgentRole, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
+    def show_role_card(self, role: AgentRole, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardType, detail: str = "", key: str = "") -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
         card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, thread=MessageThread.agent_thread(role), text=label, data=data)
         cutoff_at = self.time_source.moment() - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))

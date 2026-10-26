@@ -1,5 +1,5 @@
 from journal.support.card_family import CardFamily
-from journal.support.mark_kind import MarkKind
+from journal.support.card_type_entry import CardTypeEntry
 from journal.support.mark_kinds import MarkKinds
 from journal.engine.support.modes import Modes
 from journal.support.agent_role import AgentRole
@@ -139,7 +139,7 @@ class Registry:
     def card_families(self) -> list[CardFamily]:
         return [*MarkKinds.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
 
-    def card_kinds(self) -> list[MarkKind]:
+    def card_kinds(self) -> list[CardTypeEntry]:
         return [*MarkKinds.KINDS, *(kind for feature in self.features for kind in feature.card_kinds)]
 
     def skills(self) -> list[Skill]:

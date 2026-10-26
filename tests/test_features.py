@@ -31,7 +31,7 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.models.environment_kind import EnvironmentKind
+from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
 from journal.models.plugin import Plugin as PluginRow
@@ -621,11 +621,11 @@ def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
     from journal.chat.process_card_contents import ProcessCardContents
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     with app.container.get(Scope).environment(MAIN):
-        tests_mark = app.container.get(ProcessCards).show(ProcessCardContents("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
-        build_mark = app.container.get(MomentCards).show(MAIN, None, "Build the viewer", "terminal", shows=CardKind.COMMANDS)
-        upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardKind.COMMANDS)
+        tests_mark = app.container.get(ProcessCards).show(ProcessCardContents("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardType.COMMANDS, True))
+        build_mark = app.container.get(MomentCards).show(MAIN, None, "Build the viewer", "terminal", shows=CardType.COMMANDS)
+        upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardType.COMMANDS)
     guesses = lambda mark: (mark.data["is_test"], mark.data["is_build"], mark.data["is_upload"])
     assert (guesses(tests_mark), guesses(build_mark), guesses(upload_mark)) == ((True, False, False), (False, True, False), (False, False, True)), "each mark carries what its title says it is, guessed once"
 
@@ -5605,7 +5605,7 @@ def test_a_block_arriving_twice_at_once_is_recorded_once(app: App, monkeypatch):
     assert [m.text for m in app.container.get(Messages).scoped() if "inspector" in m.text] == ["Checking the worker's inspector, task 7, now."], "a message edited after it was recorded is known by its turn, never recorded again from the transcript's old text"
 
 def test_the_card_for_a_question_the_user_answered_is_the_users(app: App):
-    from journal.support.actor_kind import ActorKind
+    from journal.support.actor_type import ActorType
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     console = app.console()
@@ -5613,7 +5613,7 @@ def test_the_card_for_a_question_the_user_answered_is_the_users(app: App):
     console.run(["question", "ask", "which colour?", "--options", "red", "blue"], AGENT)
     console.run(["question", "answer", "1", "red"], USER)
     card = [m for m in app.container.get(Messages).scoped() if m.author == "system"][-1]
-    assert card.text == "You answered question 1" and card.creator.kind == ActorKind.USER, "the user's act is written as the user's"
+    assert card.text == "You answered question 1" and card.creator.kind == ActorType.USER, "the user's act is written as the user's"
     assert card.data["detail"] == "", "the mark says only that it was answered, never the answer"
 
 def test_a_document_is_written_anew_from_a_file(app: App, tmp_path):
@@ -5833,7 +5833,7 @@ def test_a_plugin_whose_new_version_names_a_newer_journal_is_held_at_its_install
 
 
 def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
-    from journal.support.actor_kind import ActorKind
+    from journal.support.actor_type import ActorType
     from journal.models.plugin import Plugin
     from journal.models.task import Task
     from journal.repositories.plugins import Plugins
@@ -5845,7 +5845,7 @@ def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
     plugins.save(Plugin(name="served", source="/tmp/served", manifest=served), Actor.user(1))
     assert plugins.lookup("served").manifest.services[0].condition == "test -d .git" and served.published()["services"][0]["when"] == "test -d .git", "a service's when key is stored and read back as plugins write it"
     task = app.container.get(Tasks).save(Task(environment_id=1, title="written by a plugin"), Actor.plugin("lint"))
-    assert task.creator == Actor(ActorKind.PLUGIN, "lint") and task.creator.stamp == "plugin:lint" and Actor.parse("plugin:lint") == task.creator
+    assert task.creator == Actor(ActorType.PLUGIN, "lint") and task.creator.stamp == "plugin:lint" and Actor.parse("plugin:lint") == task.creator
 
 def test_a_plugin_runs_as_itself_never_as_the_user(app: App):
     from journal.support.plugin_tokens import PluginTokens
@@ -6586,11 +6586,11 @@ def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app
     from datetime import datetime, timedelta, timezone
     from journal.support.secret_values import SecretValues
     from journal.models.secret import Secret
-    from journal.models.secret_kind import SecretKind
+    from journal.models.secret_type import SecretType
     from journal.repositories.secrets import Secrets
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
     secrets, values = app.container.get(Secrets), app.container.get(SecretValues)
-    secret = secrets.save(Secret(title="Github", kind=SecretKind.API_KEY, fields=SecretKind.API_KEY.first_fields("Github")), Actor.user("u"))
+    secret = secrets.save(Secret(title="Github", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Github")), Actor.user("u"))
     assert secret.fields == ({"name": "key", "hidden": True, "variable": "GITHUB_KEY"},) and secret.waiting()
     values.put("GITHUB_KEY", 'gh-"quoted"-token')
     secret = secrets.save(secret.is_filled("key"), Actor.user("u"))
@@ -6718,7 +6718,7 @@ def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_ta
     from journal.features.secrets.support.browser_logins import BrowserLogins
     from journal.models.mcp_server import McpServer
     from journal.models.secret import Secret
-    from journal.models.secret_kind import SecretKind
+    from journal.models.secret_type import SecretType
     from journal.repositories.mcp_servers import McpServers
     from journal.repositories.secrets import Secrets
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
@@ -6734,7 +6734,7 @@ def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_ta
     monkeypatch.setattr(BrowserLogins, "record", recorded)
     servers, secrets = app.container.get(McpServers), app.container.get(Secrets)
     servers.save(McpServer(name="playwright", title="Playwright", command="npx", args=("-y", "@playwright/mcp@latest", "--headless")), Actor.system())
-    secret = secrets.save(Secret(title="Example", kind=SecretKind.BROWSER_LOGIN, url="https://app.example.com/login"), Actor.user("u"))
+    secret = secrets.save(Secret(title="Example", kind=SecretType.BROWSER_LOGIN, url="https://app.example.com/login"), Actor.user("u"))
     assert "the user logs in to Example with the Log in button" in app.console().run(["secret", "login", str(secret.id)], AGENT).error, "the agent logs in on its own only where the user allows it"
     viewer(app, f"secrets/{secret.id}/allow-login")
     began = timing.time()
@@ -6758,7 +6758,7 @@ def test_a_replaced_value_stays_masked_and_a_login_that_ran_out_asks_again_once(
     from journal.events.bus import Bus
     from journal.models.message import Message
     from journal.models.secret import Secret
-    from journal.models.secret_kind import SecretKind
+    from journal.models.secret_type import SecretType
     from journal.repositories.messages import Messages
     from journal.repositories.secrets import Secrets
     from journal.support.secret_values import SecretValues
@@ -6770,7 +6770,7 @@ def test_a_replaced_value_stays_masked_and_a_login_that_ran_out_asks_again_once(
     assert app.container.get(Messages).find(saved.id).text == "old [secret GITHUB_KEY] new [secret GITHUB_KEY]", "the replaced value is still masked"
     assert values.values()["GITHUB_KEY"] == "ghp_newvalue_0002" and len(values.retired_earlier(9e12)) == 1
     secrets = app.container.get(Secrets)
-    secrets.save(Secret(title="Example", kind=SecretKind.BROWSER_LOGIN, url="https://example.com", session_at=datetime.now(timezone.utc) - timedelta(days=2), session_expires=datetime.now(timezone.utc) - timedelta(days=1)), Actor.user("u"))
+    secrets.save(Secret(title="Example", kind=SecretType.BROWSER_LOGIN, url="https://example.com", session_at=datetime.now(timezone.utc) - timedelta(days=2), session_expires=datetime.now(timezone.utc) - timedelta(days=1)), Actor.user("u"))
     hook(app, "SessionStart")
     for _ in range(2):
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=1.0))
@@ -6784,14 +6784,14 @@ def test_a_secret_deleted_thirty_days_ago_goes_for_good_with_its_values(app: App
     from journal.events.agent.ticked import Ticked
     from journal.events.bus import Bus
     from journal.models.secret import Secret
-    from journal.models.secret_kind import SecretKind
+    from journal.models.secret_type import SecretType
     from journal.repositories.secrets import Secrets
     from journal.support.secret_values import EMAIL_SIGN_TOKEN, RETIRED, SecretValues
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
     values, secrets = app.container.get(SecretValues), app.container.get(Secrets)
     long_ago = datetime.now(timezone.utc) - timedelta(days=31)
-    old = secrets.save(Secret(title="Old", kind=SecretKind.API_KEY, fields=SecretKind.API_KEY.first_fields("Old"), deleted_at=long_ago), Actor.user("u"))
-    recent = secrets.save(Secret(title="Recent", kind=SecretKind.API_KEY, fields=SecretKind.API_KEY.first_fields("Recent"), deleted_at=datetime.now(timezone.utc)), Actor.user("u"))
+    old = secrets.save(Secret(title="Old", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Old"), deleted_at=long_ago), Actor.user("u"))
+    recent = secrets.save(Secret(title="Recent", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Recent"), deleted_at=datetime.now(timezone.utc)), Actor.user("u"))
     values.write({"OLD_KEY": "a", "RECENT_KEY": "b", f"{RETIRED}X{EMAIL_SIGN_TOKEN}{int(long_ago.timestamp())}": "c", "LIVE_KEY": "d"})
     hook(app, "SessionStart")
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=1.0))
@@ -7866,8 +7866,8 @@ def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_
     from journal.repositories.environments import Environments
     from journal.repositories.links import Links
     environments, links = app.container.get(Environments), app.container.get(Links)
-    first = environments.save(Environment(name="team", team_name="jesse-team", kind=EnvironmentKind.SESSION), Actor.system())
-    environments.save(Environment(name="team", team_name="team", kind=EnvironmentKind.SESSION), Actor.system())
+    first = environments.save(Environment(name="team", team_name="jesse-team", kind=EnvironmentType.SESSION), Actor.system())
+    environments.save(Environment(name="team", team_name="team", kind=EnvironmentType.SESSION), Actor.system())
     links.save(Link(source=Ref("users", 1), target=Ref.build(first), kind=OWNER), Actor.system())
     app.container.get(SingleTeamChat).run()
     assert [(chat.row_id, chat.team_name) for chat in environments.sessions()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
@@ -10669,13 +10669,13 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     from journal.features.profiles.support.profile_files import TEST_HANDOVER, TESTS_RUN, TURN, ProfileFiles
     from journal.features.workers.workers_options import WORKER_TESTING
     from journal.providers.support.profile import Profile
-    from journal.providers.support.profile_kind import ProfileKind
+    from journal.providers.support.profile_type import ProfileType
     files = app.container.get(ProfileFiles)
     files.write_all()
     for name in ("journal-senior", "journal-medior"):
         body = files.read(name)["body"]
         assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
-    files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
+    files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileType.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
     assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
     user_set(app, WorkersOptions.TESTING.key, WORKER_TESTING)
@@ -14646,7 +14646,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         from journal.repositories.id_blocks import IdBlocks
         from journal.models.environment import Environment
         a.container.get(IdBlocks).add("messages", 900001, 900009)
-        a.container.get(Environments).save(Environment(name="team", kind=EnvironmentKind.SESSION), Actor.system())
+        a.container.get(Environments).save(Environment(name="team", kind=EnvironmentType.SESSION), Actor.system())
         joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
         assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).sessions()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
@@ -14947,7 +14947,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         named = team.details.answer()
         assert (named.key, named.number, named.name) == (new.key, new.number, "acme"), "the first journal names the team after its checkout's folder, and the key and T stay as drawn"
         [hub] = a.container.get(Environments).hubs()
-        assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentKind.HUB, new.key), "the first journal makes the team's hub environment"
+        assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentType.HUB, new.key), "the first journal makes the team's hub environment"
         assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
         b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
         assert b.console().run(["environment", "create", "lab"], USER).code == 0
@@ -14960,7 +14960,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_b.code == 0, joined_b.error
-        assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentKind.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
+        assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentType.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
         kept_lab = b.container.get(Environments).existing("lab")
         [kept_task] = b.container.get(Tasks).global_matching(title=own_task.title)
         [kept_message] = [message for message in b.container.get(Messages).global_matching(environment_id=kept_lab.row_id) if message.text == own_message.text]
@@ -15540,7 +15540,7 @@ def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_
 
 
 def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own_branch_held_and_hosted_by_the_machine_that_started_it_and_a_start_of_a_held_one_is_refused(tmp_path, template_journal, monkeypatch):
-    from journal.models.environment_kind import EnvironmentKind
+    from journal.models.environment_type import EnvironmentType
     from journal.repositories.environments import Environments
     from journal.sync.hosts import Hosts
     bob = replace(USER, person=2)
@@ -15556,7 +15556,7 @@ def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own
         assert synced(lambda: session(a, "release") is not None and session(b, "review") is not None), "each journal holds both sessions"
         hub = a.container.get(Environments).hubs()[0]
         review = session(a, "review")
-        assert (review.kind, review.team_key, review.branch) == (EnvironmentKind.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
+        assert (review.kind, review.team_key, review.branch) == (EnvironmentType.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
         a_hosts, b_hosts = a.container.get(Hosts), b.container.get(Hosts)
         assert a_hosts.is_host(session(a, "review")) and not a_hosts.is_host(session(a, "release")), "Ada's machine hosts the session it holds and not Bob's"
         assert b_hosts.is_host(session(b, "release")) and not b_hosts.is_host(session(b, "review")), "and Bob's machine the one it holds"
@@ -18070,13 +18070,13 @@ def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
 def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.repositories.messages import Messages
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     cards, messages = app.container.get(MomentCards), app.container.get(Messages)
     with app.container.get(Scope).environment(MAIN):
         before = len(messages.scoped())
         for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
-            cards.show(MAIN, None, label, detail="kept: 4", shows=CardKind.CONFLICTS)
-        cards.show(MAIN, None, "Task 4 started", "task", shows=CardKind.FACTS)
+            cards.show(MAIN, None, label, detail="kept: 4", shows=CardType.CONFLICTS)
+        cards.show(MAIN, None, "Task 4 started", "task", shows=CardType.FACTS)
         chat = messages.scoped()[before:]
     assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
     assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
@@ -18210,7 +18210,7 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
     from journal.models.message import Message
     from journal.repositories.agents import Agents
     from journal.repositories.messages import Messages
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     from journal.support.rejection import Rejection
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(MAIN):
@@ -18219,7 +18219,7 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="something happened"), Actor.system())
         with pytest.raises(Rejection, match="its agent's own chat"):
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, session="worker-s", text="Searched for x", data={"kind": "card"}), Actor.system())
-        mark = app.container.get(MomentCards).show(MAIN, "worker-s", 'Searched for "base"', "search", shows=CardKind.CREATED)
+        mark = app.container.get(MomentCards).show(MAIN, "worker-s", 'Searched for "base"', "search", shows=CardType.CREATED)
         main_chat = messages.selected(messages.main_chat())
     assert mark.thread == MessageThread.WORKER, "a mark in a worker's session lands in the worker's own chat"
     assert all(message.id != mark.id for message in main_chat), "and never in the main chat"
@@ -18448,14 +18448,14 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
     from journal.chat.process_card_contents import ProcessCardContents
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.repositories.messages import Messages
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     assert ActivityLabel.build("(cd src/web && npx vitest run 2>&1 | grep -E x | head -5)") == "testing", "a subshell is read through to the command doing the work"
     assert ActivityLabel.build("cd src") == "moving"
     cards, scope = app.container.get(ProcessCards), app.container.get(Scope)
 
     def show():
         with scope.environment(MAIN):
-            cards.show(ProcessCardContents("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
+            cards.show(ProcessCardContents("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardType.COMMANDS, True))
 
     shows = [threading.Thread(target=show) for _ in range(8)]
     for each in shows:
@@ -20759,7 +20759,7 @@ def drafted_plan(app: App, caller: Caller, title: str) -> int:
 def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_approval_choice_names(app: App):
     from journal.models.plan import Plan
     from journal.repositories.plans import Plans
-    from journal.support.actor_kind import ActorKind
+    from journal.support.actor_type import ActorType
     from journal.features.workers.support.plan_approval import PlanApproval
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
@@ -20769,7 +20769,7 @@ def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_a
     with app.container.get(Scope).environment(MAIN):
         drafted = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal"), Actor.worker(3))
         others = app.container.get(Plans).save(drafted.ready(0.0), Actor.worker(3)).id
-        assert app.container.get(Plans).find(others).creation_actor.kind == ActorKind.WORKER, "the plan is the worker's, saved with its actor"
+        assert app.container.get(Plans).find(others).creation_actor.kind == ActorType.WORKER, "the plan is the worker's, saved with its actor"
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
     choose = lambda approval: user_set(app, "workers.orchestrator_plan_approval", approval.value)
     choose(PlanApproval.ALL)
@@ -20895,15 +20895,15 @@ def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_an
 
 
 def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_manifest_as_the_viewers_tests_read_it(app):
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     from journal.support.mark_kinds import MarkKinds
     served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
     groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {kind["key"]: kind for kind in served["kinds"]}
-    assert set(CardKind) <= set(kinds) and all(kind["family"] in families for kind in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
+    assert set(CardType) <= set(kinds) and all(kind["family"] in families for kind in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
     assert all(kind["icon"] == families[kind["family"]]["icon"] for kind in kinds.values()), "a kind's icon is its family's, never its own"
     assert families["tasks"]["icon"] == "task" and families["tasks"]["colouring"] == "none" and families["commands"]["colouring"] == "outcome", "a task's cards are events with the task icon; a command's are processes coloured by their outcome"
-    assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardKind.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
-    assert all(kind["shown"] for kind in kinds.values()) and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
+    assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardType.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
+    assert all(kind["shown"] for kind in kinds.values()) and kinds[CardType.SEQUENCES]["main"] and not kinds[CardType.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
     from journal.features.registry import Registry
     registry = app.container.get(Registry)
     fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"
@@ -21548,12 +21548,12 @@ def test_a_process_card_keeps_its_id_and_time_and_its_place_among_the_messages_t
     from journal.models.author import Author
     from journal.models.message import Message
     from journal.repositories.messages import Messages
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     with app.container.get(Scope).environment(MAIN):
         cards, messages = app.container.get(ProcessCards), app.container.get(Messages)
-        began = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
+        began = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardType.COMMANDS, True))
         later = messages.save(Message(environment_id=MAIN, author=Author.USER, text="a message after the run began"), Actor.system())
-        ended = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, False))
+        ended = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardType.COMMANDS, False))
         assert (ended.id, ended.created_at) == (began.id, began.created_at), "the card that ends is the one written when its run began, never a second message with a new time"
         assert not ended.data["active"] and len(messages.with_key("watch:77")) == 1
         order = [message.id for message in messages.all() if message.id in (began.id, later.id)]
@@ -21584,12 +21584,12 @@ def test_a_document_written_in_two_parts_shows_being_written_after_the_first_and
 
 def test_the_workers_recent_activity_is_their_marks_newest_first_and_no_other(app: App):
     from journal.chat.moment_cards import MomentCards
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     with app.container.get(Scope).environment(MAIN):
         cards = app.container.get(MomentCards)
-        cards.show_fields(MAIN, None, "Worker 1, A: sent its next job", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardKind.WORKER_STEPS)
-        cards.show(MAIN, None, "Not a worker's", "", shows=CardKind.COMMANDS)
-        cards.show_fields(MAIN, None, "Worker 1, A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardKind.WORKER_TESTS)
+        cards.show_fields(MAIN, None, "Worker 1, A: sent its next job", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_STEPS)
+        cards.show(MAIN, None, "Not a worker's", "", shows=CardType.COMMANDS)
+        cards.show_fields(MAIN, None, "Worker 1, A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_TESTS)
     status, body = got(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
     assert status == 200 and [row["text"] for row in body["rows"]] == ["Worker 1, A: its tests passed", "Worker 1, A: sent its next job"]
 

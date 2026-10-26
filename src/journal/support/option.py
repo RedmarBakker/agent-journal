@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.support.rejection import Rejection
-from journal.support.wrong_setting_kind import WrongSettingKind
+from journal.support.wrong_setting_type import WrongSettingType
 from journal.support.option_scope import OptionScope
 
 USER = "user"
@@ -26,17 +26,17 @@ class Option:
 
     def integer(self, value: object) -> int:
         if not isinstance(value, (int, float, str)):
-            raise WrongSettingKind(self.key, value)
+            raise WrongSettingType(self.key, value)
         return int(value)
 
     def decimal(self, value: object) -> float:
         if not isinstance(value, (int, float, str)):
-            raise WrongSettingKind(self.key, value)
+            raise WrongSettingType(self.key, value)
         return float(value)
 
     def texts(self, value: object) -> tuple[str, ...]:
         if not isinstance(value, (list, tuple)):
-            raise WrongSettingKind(self.key, value)
+            raise WrongSettingType(self.key, value)
         return tuple(str(item) for item in value)
 
     def parsed(self, text: str) -> object:

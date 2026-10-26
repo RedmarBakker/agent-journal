@@ -937,7 +937,7 @@ def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_list
 
 def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_cards_by_number(tmp_path: Path):
     from journal.chat.moment_cards import MomentCards
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     from journal.support.card_outcome import CardOutcome
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
@@ -950,7 +950,7 @@ def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_car
         for kind, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
             urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         app.runtime().deferred.drain()
-        app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardKind.CHECKS, outcome=CardOutcome.PASSED)
+        app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardType.CHECKS, outcome=CardOutcome.PASSED)
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if r["id"] >= n]
         assert [r["id"] for r in rows] == sorted(r["id"] for r in rows)
         assert [(r["author"], r["text"]) for r in rows] == [("user", "hello"), ("agent", "Hello back."), ("system", "Check lint passed")]
@@ -1419,10 +1419,10 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
 def test_a_process_card_changes_in_place_and_answers_the_poll_while_a_moment_card_is_always_new(app: App, server):
     from journal.chat.moment_cards import MomentCards
     from journal.repositories.messages import Messages
-    from journal.support.card_kind import CardKind
+    from journal.support.card_type import CardType
     console = app.console()
     with app.container.get(Scope).environment(1):
-        moments = [app.container.get(MomentCards).show(1, "s1", "Check lint passed", key="lint", shows=CardKind.CHECKS) for _ in range(2)]
+        moments = [app.container.get(MomentCards).show(1, "s1", "Check lint passed", key="lint", shows=CardType.CHECKS) for _ in range(2)]
     assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment", "a moment card is new each time, and nothing updates it"
     assert console.run(["question", "ask", "Which colour?", "--options", "red", "blue"], Caller.agent("main", "s1", "claude")).code == 0
     with app.container.get(Scope).environment(1):

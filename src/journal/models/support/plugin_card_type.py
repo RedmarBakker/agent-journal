@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class CardKind:
+class PluginCardType:
     """A kind of card a plugin's manifest declares: the label, icon and tone its cards take unless a card says its own, and whether it shows folded."""
 
     kind: str
@@ -12,5 +12,5 @@ class CardKind:
     collapsed: bool = False
 
     @classmethod
-    def parsed(cls, data: dict) -> "CardKind":
+    def parsed(cls, data: dict) -> "PluginCardType":
         return cls(**data)

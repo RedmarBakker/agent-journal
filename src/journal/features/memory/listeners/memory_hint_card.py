@@ -4,11 +4,11 @@ from journal.events.agent_listener import AgentListener
 from journal.repositories.facts import Facts
 from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.models.support.ref import Ref
 from journal.features.memory.memory_nudges import MemoryNudges
 
-MEMORY_CHAT_KINDS = {"fact": CardKind.FACTS, "rule": CardKind.RULES, "reminder": CardKind.REMINDERS}
+MEMORY_CHAT_KINDS = {"fact": CardType.FACTS, "rule": CardType.RULES, "reminder": CardType.REMINDERS}
 
 
 class MemoryHintCard(AgentListener[LineDelivered]):

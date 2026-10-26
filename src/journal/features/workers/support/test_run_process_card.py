@@ -9,7 +9,7 @@ from journal.models.worker import Worker
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class TestRunProcessCard(ProcessCard):
@@ -27,7 +27,7 @@ class TestRunProcessCard(ProcessCard):
         active = turn.state != TestTurnState.ENDED
         task_ids = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         card_fields = {"kind": "card", "turn": turn.id, "worker": f"Worker {worker.id}, {worker.name}", "output": turn.output, "line": turn.command, "summary": self.summary(turn, active), "proof_task": task_ids[0] if task_ids else 0}
-        return ProcessCardContents(self.name, turn.environment_id, f"test-run:{turn.id}", self.label(turn, active), card_fields, Actor.system(), CardKind.WORKER_TESTS, active, turn.command, worker.dispatcher)
+        return ProcessCardContents(self.name, turn.environment_id, f"test-run:{turn.id}", self.label(turn, active), card_fields, Actor.system(), CardType.WORKER_TESTS, active, turn.command, worker.dispatcher)
 
     @staticmethod
     def label(turn: TestTurn, active: bool) -> str:

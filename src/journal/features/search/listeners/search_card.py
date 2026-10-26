@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.search_completed import SearchCompleted
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class SearchCard(Listener[SearchCompleted]):
@@ -11,4 +11,4 @@ class SearchCard(Listener[SearchCompleted]):
         self.cards = cards
 
     def handle(self, event: SearchCompleted) -> None:
-        self.cards.show(event.environment_id, event.session, f"Searched for \"{event.terms}\"", detail=event.answer, kind="search", shows=CardKind.SEARCHES)
+        self.cards.show(event.environment_id, event.session, f"Searched for \"{event.terms}\"", detail=event.answer, kind="search", shows=CardType.SEARCHES)

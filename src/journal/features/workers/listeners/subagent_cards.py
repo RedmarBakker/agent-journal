@@ -15,7 +15,7 @@ from journal.features.workers.support.subagent_process_card import SubagentProce
 from journal.models.subagent import Subagent
 from journal.support.actor import Actor
 from journal.repositories.agents import Agents
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.time_source import TimeSource
 
@@ -51,4 +51,4 @@ class SubagentCards(AgentListener[AgentEvent]):
             return
         report = self.subagents.report(event.session, row)
         data = {**SubagentCard.built(event.session, agent, row, row.state, row.reason).as_data(), "returned": report}
-        self.cards.show_fields(event.environment_id, event.session, f"Subagent {row.agent_type} ended: {row.task}", data, actor, CardKind.SUBAGENTS, report or row.task, key)
+        self.cards.show_fields(event.environment_id, event.session, f"Subagent {row.agent_type} ended: {row.task}", data, actor, CardType.SUBAGENTS, report or row.task, key)

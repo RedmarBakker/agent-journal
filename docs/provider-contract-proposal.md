@@ -317,7 +317,7 @@ class Provider(ABC):
     home: ClassVar[str]
     settings_file: ClassVar[str]
     other_settings: ClassVar[tuple[str, ...]]
-    hook_kinds: ClassVar[tuple[HookKind, ...]]
+    hook_kinds: ClassVar[tuple[HookType, ...]]
     skip_prompts: ClassVar[tuple[str, ...]]
     session_variable: ClassVar[str]
     """The variable the program sets in its shell to its session's id, or empty when it sets none."""
@@ -438,7 +438,7 @@ fixtures. Codex rewrites its `exec_command` call's `cmd` into this `Bash`/`comma
 event through the one table that exists, `Translation.EVENTS` (`hooks/translation.py:25–36`):
 
 ```python
-HookKind.PRE_TOOL_USE: lambda hook, provider: ToolStarting(
+HookType.PRE_TOOL_USE: lambda hook, provider: ToolStarting(
     tool=hook.tool, input=hook.input, call=hook.call, operation=provider.operation(hook.tool, hook.input)),
 ```
 

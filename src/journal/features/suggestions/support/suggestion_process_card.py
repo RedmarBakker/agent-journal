@@ -4,7 +4,7 @@ from journal.features.suggestions.support.suggester import Suggester
 from journal.models.message import Message
 from journal.models.suggestion import Suggestion
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class SuggestionProcessCard(ProcessCard):
@@ -18,7 +18,7 @@ class SuggestionProcessCard(ProcessCard):
 
     def card_contents(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> ProcessCardContents:
         data = {"kind": "suggestion", "row": f"suggestions:{suggestion.id}", "accept": suggester.accept_label, "answer": suggestion.answer or "", "description": suggester.detail()}
-        return ProcessCardContents(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardKind.SUGGESTIONS, False)
+        return ProcessCardContents(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardType.SUGGESTIONS, False)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

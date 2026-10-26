@@ -5,7 +5,7 @@ from journal.events.listener import Listener
 from journal.features.health.support.bypass import Bypass
 from journal.features.health.support.bypass_log import BypassLog
 from journal.features.health.support.unchecked_work import UncheckedWork
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class BypassNotice(Listener[AgentEvent]):
@@ -18,7 +18,7 @@ class BypassNotice(Listener[AgentEvent]):
         bypasses = self.log.removed()
         if bypasses:
             detail = "\n".join(bypass.described() for bypass in bypasses)
-            self.cards.show(event.environment_id, event.session, self.label(bypasses), detail=detail, shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, event.session, self.label(bypasses), detail=detail, shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
 
     @staticmethod
     def label(bypasses: list[Bypass]) -> str:

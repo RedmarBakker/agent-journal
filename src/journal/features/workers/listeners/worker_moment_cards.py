@@ -7,7 +7,7 @@ from journal.events.rows.worker_sent_on import WorkerSentOn
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 from journal.chat.moment_cards import MomentCards
 from journal.chat.card_detail import CardDetail
 from journal.models.support.ref import Ref
@@ -37,4 +37,4 @@ class WorkerMomentCards(Listener[RowEvent]):
         label = CardDetail.shortened(f"Worker {worker.id}, {worker.name}: {text}")
         row = Ref("workers", worker.id)
         data = {"kind": "card", "row": str(row), "command": "", "task": self.tasks.last_task_id(row)}
-        self.cards.show_fields(event.environment_id, worker.dispatcher, label, data, actor, CardKind.WORKER_STEPS, getattr(event, detail) if detail else "")
+        self.cards.show_fields(event.environment_id, worker.dispatcher, label, data, actor, CardType.WORKER_STEPS, getattr(event, detail) if detail else "")

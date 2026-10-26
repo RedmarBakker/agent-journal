@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from journal.providers.support.profile_kind import ProfileKind
+from journal.providers.support.profile_type import ProfileType
 
 
 @dataclass(frozen=True)
@@ -11,7 +11,7 @@ class Profile:
     description: str
     tools: str
     body: str
-    kind: ProfileKind = ProfileKind.SUBAGENT
+    kind: ProfileType = ProfileType.SUBAGENT
     model: str | None = None
 
     def model_default(self, selection: str) -> str:

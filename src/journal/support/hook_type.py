@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class HookKind(StrEnum):
+class HookType(StrEnum):
     SESSION_START = "SessionStart"
     USER_PROMPT = "UserPromptSubmit"
     PRE_TOOL_USE = "PreToolUse"

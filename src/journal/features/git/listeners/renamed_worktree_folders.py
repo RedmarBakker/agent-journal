@@ -6,7 +6,7 @@ from journal.events.agent_listener import AgentListener
 from journal.features.git.support.launch_worktrees import LAUNCH_FOLDER, RENAMED_TAG
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
+from journal.support.card_type import CardType
 
 
 class RenamedWorktreeFolders(AgentListener[SessionStarted]):
@@ -23,4 +23,4 @@ class RenamedWorktreeFolders(AgentListener[SessionStarted]):
         if event.environment_id != main or not renamed_folders or self.cards.is_shown(key, Actor.system()):
             return
         line = f"Worktree folders an older version moved aside are kept, never deleted, in {place}: {', '.join(renamed_folders)}"
-        self.cards.show(main, event.session, line, actor=Actor.system(), key=key, shows=CardKind.WORKTREES, outcome=CardOutcome.WARNED)
+        self.cards.show(main, event.session, line, actor=Actor.system(), key=key, shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)

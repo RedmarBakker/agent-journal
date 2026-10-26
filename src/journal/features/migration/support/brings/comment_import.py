@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from journal.features.migration.support.environment_kind import EnvironmentKind
+from journal.features.migration.support.environment_table_import import EnvironmentTableImport
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.author import Author
@@ -14,7 +14,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.migrated_rows import MigratedRows
 
 
-class CommentImport(EnvironmentKind):
+class CommentImport(EnvironmentTableImport):
     """A comment becomes a message linked to the row it was written under, once that row has come across."""
 
     kind = "comment"

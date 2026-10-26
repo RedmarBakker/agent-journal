@@ -2,7 +2,7 @@ from journal.features.workers.support.allowed_models import AllowedModels
 import time
 from datetime import datetime, timezone
 from journal.features.team.support.start_rule import StartRule
-from journal.providers.support.profile_kind import ProfileKind
+from journal.providers.support.profile_type import ProfileType
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 
@@ -259,7 +259,7 @@ class WorkerCommand(Command):
         return bool(agents) and self.tasks.holder(task) == Ref.build(agents[0])
 
     def worker_profile(self, profile: str) -> None:
-        if self.profiles.kind(profile) != ProfileKind.WORKER:
+        if self.profiles.kind(profile) != ProfileType.WORKER:
             raise Rejection(f"{profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
 
     def allowed_model(self, provider: str, profile: str, model: str) -> str:
