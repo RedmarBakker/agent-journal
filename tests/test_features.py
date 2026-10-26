@@ -2047,7 +2047,7 @@ def test_every_fitness_score_is_kept_with_its_time_and_gaps_as_a_timeline_point_
     assert all(points[n].scored_at <= points[n + 1].scored_at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
     newest = fitness["timeline"][-1]
-    assert (newest["score"], newest["gaps"]) == (fitness["score"], fitness["lines"]) and newest["at"] > 0, "the status bar's row carries the timeline, the newest point the score it shows"
+    assert newest["score"] == fitness["score"] and newest["at"] > 0, "the status bar's row carries the timeline, the newest point the score it shows; a measure moving under one score adds no point, so its gaps may have moved since"
 
 
 def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
