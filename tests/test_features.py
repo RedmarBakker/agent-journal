@@ -12504,15 +12504,16 @@ def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_c
     app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
     link.working(MAIN)
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    moved = b"".join(runner.run(request("(cd . && sleep 2)"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    (app.config.root / "test_naps.sh").write_text("sleep 2\necho slept\n")
+    moved = b"".join(runner.run(request("(cd . && sh test_naps.sh)"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
     assert re.search(r"output \d+", moved), moved
     lines = [json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]) for _ in range(5)]
-    assert all("reader due for sleep" in line for line in lines) and "reader due for sleep: 0" in lines[-1], lines
+    assert all("reader due for test_naps.sh" in line for line in lines) and "reader due for test_naps.sh: 0" in lines[-1], lines
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and "no reader reads sleep" in body["error"], body
-    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
+    assert status == 409 and "no reader reads test_naps.sh" in body["error"], body
+    assert console.run(["reader", "add", "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "a reader with a label meets it"
-    again = b"".join(runner.run(request("sleep 2"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    again = b"".join(runner.run(request("sh test_naps.sh"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
     output = app.container.get(CommandOutputs).find(int(re.search(r"output (\d+)", again).group(1)))
     assert output.is_watched and output.watch_reader == "naps", "the next run moves at once and is watched through its reader"
     assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
@@ -19244,12 +19245,12 @@ def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_o
     app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
     elsewhere = app.config.root.parent / f"{app.config.root.name}-scratch"
     elsewhere.mkdir(exist_ok=True)
-    (elsewhere / "scan.sh").write_text("sleep 2\necho scanned\n")
+    (elsewhere / "test_scan.sh").write_text("sleep 2\necho scanned\n")
     link.working(MAIN)
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    b"".join(runner.run(request(f"sh {elsewhere / 'scan.sh'} {app.config.root}"), AGENT, MAIN))
+    b"".join(runner.run(request(f"sh {elsewhere / 'test_scan.sh'} {app.config.root}"), AGENT, MAIN))
     said = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1])
-    assert "reader due for scan.sh" in said, "owed a reader on its first run in the background"
+    assert "reader due for test_scan.sh" in said, "a test script is owed a reader on its first run in the background"
     console.run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
     assert app.container.get(Readers).reading(f"python3 {elsewhere / 'scan.py'} {app.config.root}").name == "scans", "a script run through python3 is known by its file name"
 

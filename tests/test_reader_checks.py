@@ -168,3 +168,13 @@ def test_a_stored_release_chain_joined_by_newlines_is_named_by_its_work(app: App
     line = "git checkout -q main\ngit merge --ff-only development\ngit push origin main\ngit tag v4.63.2\ngit checkout -q development\ngit log --oneline -1 main"
     app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="release", command=line, session="s1", moved=True), Actor.system())
     assert "git checkout" not in app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1"))
+
+
+def test_a_reader_is_owed_only_for_test_runs_and_builds_and_one_named_by_the_demand_clears_it(app: App):
+    for n, line in enumerate(("while true; do git status; sleep 5; done", 'ssh prod "cd app && php artisan migrate"', "php -m", "php -d memory_limit=-1 vendor/bin/phpunit")):
+        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"c{n}", command=line, session="s1", moved=True), Actor.system())
+    owed = app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1"))
+    assert owed == ("php",), f"a git status loop, an ssh to production and php -m owe no reader; the php run of phpunit does (another project's php demand): {owed}"
+    reader_file = app.config.root / ".journal" / "readers" / "phpunit-run.pattern"
+    reader_file.write_text("# the phpunit run\n(FAILURES|Tests:|OK \\()\nprogress: (\\d+) / (\\d+)\nlabel: Running the tests\ncommands: php\nsummary: (Tests: .*)\n")
+    assert app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1")) == (), "a labelled reader for php, the name the demand gives, clears it, and it is never asked to read the git, ssh or php -m runs"

@@ -1,8 +1,7 @@
-from journal.features.shell.support.activity_label import ActivityLabel
+from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.repositories.reader_reports import ReaderReports
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
-from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
@@ -60,11 +59,12 @@ class ShellDataReader:
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
+    # the test runs and builds the agent moved to the background that no reader reads well, by name: only a run a reader can show is owed one
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
         moves = self.outputs.recent_moves(agent.session, RECENT_MOVES)
-        lines = [output.command for output in moves if not output.watch_reader or ActivityLabel.line_label(output.command) == TESTING]
-        commands = [CommandShape.command_name(line.replace("\n", " && ")) for line in lines if not ActivityLabel.is_reading(line)]
-        return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and not self.is_read_well(command)))
+        lines = [output.command for output in moves if ActivityLabel.line_label(output.command) in LONG_RUNS and (not output.watch_reader or ActivityLabel.line_label(output.command) == TESTING)]
+        unread = [line for line in lines if not Chain.is_journal_line(line) and not self.is_read_well(line.replace("\n", " && "))]
+        return tuple(dict.fromkeys(command for line in unread if (command := CommandShape.command_name(line.replace("\n", " && ")))))
 
     # a test run is read well only by a reader that shows its progress, its failures and its summary, or by one the journal ships
     def is_read_well(self, command: str) -> bool:
