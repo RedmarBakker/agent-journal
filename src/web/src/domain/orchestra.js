@@ -1,7 +1,7 @@
 import {envState} from "./journals.js";
 import {seconds} from "./row.js";
 import {subagentsOf} from "./subagents.js";
-import {workerName, workerState} from "./workers.js";
+import {workerHeading, workerName, workerState} from "./workers.js";
 
 // The agents grid: each environment's live agent, each worker, and the subagents of the agent here, as one kind of entry.
 const STATES = {
@@ -55,6 +55,7 @@ function workerEntry(worker, env) {
         n: worker.id,
         label: "Worker",
         name: workerName(worker),
+        heading: workerHeading(worker),
         title: worker.brief,
         says: "",
         doing: "",

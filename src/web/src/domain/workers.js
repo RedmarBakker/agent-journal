@@ -76,6 +76,9 @@ export const workerLine = (row) => [row.provider ? providerName(row.provider, ro
 
 export const workerName = (row) => row.name || `Worker ${row.id}`;
 
+// the title of a worker's cell: its number as the chat words it, then its name
+export const workerHeading = (row) => (row.name ? `Worker ${row.id}, ${row.name}` : `Worker ${row.id}`);
+
 export const workerReuses = (row) => (row.reuse_count ? `Reused ${row.reuse_count} ${row.reuse_count === 1 ? "time" : "times"}` : "");
 // when a worker on a queue reports: after each task, after every so many, or once its queue is empty
 export function workerReportsWhen(row) {

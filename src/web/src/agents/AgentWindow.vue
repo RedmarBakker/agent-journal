@@ -22,12 +22,12 @@ const quiet = computed(() => (props.entry.time ? quietOf(props.entry.time, now.v
         opens
         compact
         :class="['agent-window', state.key, {sub: entry.sub}]"
-        :label="`Open ${entry.name}, ${entry.title}`"
+        :label="`Open ${entry.heading || entry.name}, ${entry.title}`"
         @open="emit('open')"
     >
         <template #head>
             <span class="aw-head">
-                <span class="aw-name">{{ entry.name }}</span>
+                <span class="aw-name">{{ entry.heading || entry.name }}</span>
                 <span class="aw-pill">
                     <StateDot :state="state.dot" />
                     <span class="aw-state">{{ state.word }}</span>

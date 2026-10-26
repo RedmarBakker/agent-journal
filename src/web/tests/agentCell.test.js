@@ -29,3 +29,15 @@ describe("the name an agent's cell is titled with", () => {
         expect(cell).toMatchObject({name: "Coco Rams", title: "draw the plan card", label: "Subagent", sub: true});
     });
 });
+
+describe("the title of a worker's cell", () => {
+    test("it carries the worker's number as the chat words it, then its name", () => {
+        store.rows = {};
+        const workers = [
+            {id: 1127, name: "Mrs. Harrison", brief: "write the parser", state: "clocked in", created_at: 1, updated_at: 2},
+            {id: 1128, name: "", brief: "write the docs", state: "clocked in", created_at: 1, updated_at: 2},
+        ];
+        const cells = orchestraOf({environments: []}, workers, {id: 7, session: "s7"}, "main");
+        expect(cells.map((entry) => entry.heading)).toEqual(["Worker 1127, Mrs. Harrison", "Worker 1128"]);
+    });
+});
