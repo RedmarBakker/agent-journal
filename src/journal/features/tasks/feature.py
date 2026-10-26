@@ -94,7 +94,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
-  one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
+  one, and only the user stops you. A stop with paused tasks names them in auto mode: paused is still open. With auto mode off the journal hands you no task at a stop.
 - Work you put off in words is work lost: file it as a task instead.
 - Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'), commands=('task',))

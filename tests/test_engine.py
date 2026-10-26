@@ -1443,6 +1443,7 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     assert stop(of(open_next, approved=(9,))).refusal.rendered().startswith("plan 9 is approved and not started")
     assert stop(of(open_next)).refusal.rendered().startswith("tasks are open, and auto mode is on: task 4 next")
     assert stop(of(open_next), manual).refusal is None, "off auto mode an open task is no reason to go on"
+    assert stop(of(paused), manual).refusal is None and stop(of(replace(paused, blocked=(5,), open_ids=(4,))), manual).refusal is None, "off auto mode the stop is handed no task, paused, blocked or open"
     assert stop(of(nothing)).refusal is None
     left = of(replace(paused, blocked=(5,), open_ids=(4,)))
     answers = [stop(left)]

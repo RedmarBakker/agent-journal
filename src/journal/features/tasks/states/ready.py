@@ -70,13 +70,13 @@ class Ready(BaseState):
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])
-        if stop_nudges and (settings.value(TasksOptions.AUTO) or tasks.paused):
+        if stop_nudges and settings.value(TasksOptions.AUTO):
             return self.refuse(TasksNudges.TASK_QUEUE.create(tasks=task_summary(tasks)))
         return self.none()
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
-        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
+        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused and settings.value(TasksOptions.AUTO) else ()
         wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
         reviewable = [n for n in tasks.blocked if n not in tasks.person_waits]
         block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, reviewable))),) if reviewable and settings.value(TasksOptions.AUTO) else ()

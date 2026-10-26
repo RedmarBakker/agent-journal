@@ -3347,20 +3347,18 @@ def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read
     assert reply.reply_target == 1 and reply.text == "It is."
 
 
-def test_a_stop_with_a_paused_task_names_it_in_auto_mode_or_not(app: App):
+def test_a_stop_names_a_paused_task_in_auto_mode_and_off_auto_mode_is_handed_no_task(app: App):
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), Actor.system())
     console.run(["task", "create", "the footer", "--start"], AGENT)
     console.run(["task", "pause", "1", "the header first"], AGENT)
     status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "paused tasks: task 1 (the footer), paused because: the header first" in body["reason"]
-    assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") == "block", "told at every stop, until the task is resumed or done"
-    console.run(["task", "resume", "1"], AGENT)
-    console.run(["task", "complete", "1", "--how", "shipped"], AGENT)
+    assert body.get("decision") == "block" and "paused tasks: task 1 (the footer), paused because: the header first" in body["reason"], "in auto mode a stop names the paused task"
+    user_set(app, "tasks.auto", False)
+    assert hook(app, "Stop")[1].get("decision") != "block", "off auto mode a paused task holds no stop"
     console.run(["task", "create", "the menu"], USER)
-    assert hook(app, "Stop")[1].get("decision") != "block", "open tasks are not pressed for outside auto mode"
+    assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") != "block", "nor do open tasks: off auto mode the journal hands no task at a stop"
 
 
 def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
