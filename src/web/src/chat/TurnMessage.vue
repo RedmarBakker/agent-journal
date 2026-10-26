@@ -100,7 +100,7 @@ async function drop() {
 
 <template>
     <div
-        :class="['thread-turn', {mine, colleague, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
+        :class="['thread-turn', {mine, colleague, incoming: received && !sent, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
         :data-ref="turn.key"
         :style="colleague ? {'--person-colour': colleague} : null"
         :data-figure-agent="turn.who === 'agent' ? '' : null"

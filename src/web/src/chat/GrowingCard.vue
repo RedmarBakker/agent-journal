@@ -2,20 +2,22 @@
 import {ref} from "vue";
 import Icon from "../kit/Icon.vue";
 
-// a one-line card in the chat that grows in place to its whole text on a click and folds on a second: a worker's report, a message to or from a subagent
+// a one-line card in the chat that grows in place to its whole text on a click and folds on a second: a worker's report, a message to or from a subagent;
+// an incoming one, a message another agent sent, has its icon at the far right and its title against it
 defineProps({
     title: {type: String, required: true},
     text: {type: String, default: ""},
     icon: {type: String, default: "agents"},
     bad: Boolean,
     action: {type: String, default: ""},
+    incoming: Boolean,
 });
 const emit = defineEmits(["act"]);
 const opened = ref(false);
 </script>
 
 <template>
-    <div :class="['growing-card-wrap', {open: opened, bad}]">
+    <div :class="['growing-card-wrap', {open: opened, bad, incoming}]">
         <button type="button" class="growing-card" :aria-expanded="opened" @click="opened = !opened">
             <Icon :name="icon" :size="14" />
             <span class="growing-card-title">{{ title }}</span>
@@ -65,6 +67,11 @@ const opened = ref(false);
 
 .growing-card-title {
     font-weight: 500;
+}
+
+.growing-card-wrap.incoming .growing-card {
+    flex-direction: row-reverse;
+    text-align: right;
 }
 
 .growing-card-more {

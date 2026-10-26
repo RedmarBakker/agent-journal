@@ -254,7 +254,8 @@ function markClick(data) {
     justify-content: flex-end;
 }
 
-.thread-turn.mine {
+.thread-turn.mine,
+.thread-turn.incoming {
     align-self: flex-end;
     align-items: flex-end;
 }
