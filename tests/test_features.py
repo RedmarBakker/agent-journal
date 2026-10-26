@@ -9412,6 +9412,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
     assert CardLine.is_poor("x" * 81) and not CardLine.is_poor("2 failed, 563 passed in 31.2s"), "a line longer than the card's line reads poorly, a short summary does not"
     assert CardLine.plain("====== 1 failed, 400 deselected in 0.71s ======") == "1 failed, 400 deselected in 0.71s", "the card takes pytest's frame of = signs off its summary"
     hook(app, "SessionStart")
+    project_copy_of_the_pytest_reader(app)
     folder = app.config.root / "w"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")
@@ -9420,7 +9421,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
     app.container.get(OutputLog).start("w", "pytest -q", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert app.console().run(["output", "watch", "1", "--reader", "pytest"], AGENT).code == 0
+    assert app.console().run(["output", "watch", "1", "--reader", "dots-run"], AGENT).code == 0
     outputs.save(outputs.find(1).ended_with(1, timing.time()), Actor.system())
     app.runtime().deferred.drain()
     from journal.repositories.reader_reports import ReaderReports
@@ -9436,7 +9437,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
     (folder2 / "0.out").write_text("nothing a reader picks\n")
     app.container.get(OutputLog).start("w2", "pytest -q", folder2, Caller.agent("main", "s1", "claude"))
     outputs.save(outputs.find(2).backgrounded(), Actor.system())
-    assert app.console().run(["output", "watch", "2", "--reader", "pytest"], AGENT).code == 0
+    assert app.console().run(["output", "watch", "2", "--reader", "dots-run"], AGENT).code == 0
     outputs.save(outputs.find(2).ended_with(0, 1.0), Actor.system())
     from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_process_card import OutputProcessCard
@@ -17024,6 +17025,14 @@ def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_
     assert agents.global_matching(session="s1")[0].code_edits == 51, "an edit of a code file is counted, a document's is not"
 
 
+def project_copy_of_the_pytest_reader(app: App) -> None:
+    """The reader judge weighs only the project's own readers, so a test of its reports reads with a project copy of the locked pytest reader."""
+    from dataclasses import replace as replaced
+    from journal.features.shell.support.readers import Readers
+    readers = app.container.get(Readers)
+    readers.add(replaced(readers.lookup("pytest"), name="dots-run"))
+
+
 def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it_prints_no_summary(app: App):
     from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_log import OutputLog
@@ -17031,6 +17040,7 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
+    project_copy_of_the_pytest_reader(app)
     outputs, card = app.container.get(CommandOutputs), app.container.get(OutputProcessCard)
 
     def run(name, printed):
@@ -17041,7 +17051,7 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
         (folder / "0.out").write_text(printed)
         output = app.container.get(OutputLog).start(name, "pytest", folder, Caller.agent("main", "s1", "claude"))
         outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
-        assert app.console().run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+        assert app.console().run(["output", "watch", str(output.id), "--reader", "dots-run"], AGENT).code == 0
         return output.id, folder
 
     def shown(n):

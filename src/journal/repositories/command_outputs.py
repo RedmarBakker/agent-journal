@@ -53,10 +53,10 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def running(self, environment_id: int) -> list[CommandOutput]:
         query = self.query().filter(environment_id=environment_id, ended=False).order("id")
-        return [o for o in self.selected_globally(query) if self.is_running(Path(o.folder))]
+        return [o for o in self.selected_globally(query) if self.is_alive(Path(o.folder))]
 
     def running_among(self, ids: list[int]) -> list[CommandOutput]:
-        return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_running(Path(output.folder))] if ids else []
+        return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_alive(Path(output.folder))] if ids else []
 
     def unended(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).order("id"))
@@ -108,12 +108,18 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def unannounced(self, session: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, ended=True, is_announced=False).order("id"))
 
-    def is_running(self, folder: Path) -> bool:
+    @staticmethod
+    def is_running(folder: Path) -> bool:
         if not folder.is_dir() or (folder / "done").is_file():
             return False
         if not (folder / "pid").is_file():
-            return self.time_source.seconds() - folder.stat().st_mtime < SHELL_START_SECONDS
+            return True
         return ProcessCheck.is_running_text((folder / "pid").read_text())
+
+    def is_alive(self, folder: Path) -> bool:
+        if not self.is_running(folder):
+            return False
+        return (folder / "pid").is_file() or self.time_source.seconds() - folder.stat().st_mtime < SHELL_START_SECONDS
 
     def surplus(self, stored: int) -> list[CommandOutput]:
         return list(reversed(self.selected_globally(self.query().order_descending("id").offset(stored))))
