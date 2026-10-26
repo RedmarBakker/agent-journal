@@ -596,6 +596,20 @@ export class ApiClient {
         return this.get(this.here(`/project-files/diff${query({path})}`));
     }
 
+    // the project's repository
+
+    gitBranches(skip = 0, last = 30) {
+        return this.get(this.here(`/git/branches${query({skip, last})}`));
+    }
+
+    gitCommits(skip = 0, last = 30) {
+        return this.get(this.here(`/git/commits${query({skip, last})}`));
+    }
+
+    gitPulls() {
+        return this.get(this.here("/git/pulls"));
+    }
+
     // secrets
 
     secretsFile() {

@@ -4,6 +4,7 @@ import AboutPage from "./pages/AboutPage.vue";
 import FilePage from "./pages/FilePage.vue";
 import AttachmentsPage from "./pages/AttachmentsPage.vue";
 import FilesPage from "./pages/FilesPage.vue";
+import GitPage from "./pages/GitPage.vue";
 import Home from "./pages/Home.vue";
 import Index from "./pages/Index.vue";
 import IntegrationsPage from "./pages/IntegrationsPage.vue";
@@ -40,6 +41,7 @@ const open = (row) => peek(row.table, row.id);
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
         <template #files><FilesPage /></template>
+        <template #git><GitPage /></template>
         <template #skills><SkillsPage /></template>
         <template #profiles><AgentProfilesPage /></template>
         <template #about><AboutPage /></template>

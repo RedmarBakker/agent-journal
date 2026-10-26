@@ -7,6 +7,7 @@ const PAGES = {
     settings: "Settings",
     search: "Search",
     files: "Files",
+    git: "Git",
     skills: "Skills",
     profiles: "Profiles",
     about: "About",

@@ -30,6 +30,7 @@ from journal.http.controllers.docks import DockController
 from journal.http.controllers.process_cards import ProcessCardController
 from journal.http.controllers.plans import PlanController
 from journal.http.controllers.plugins import PluginController
+from journal.http.controllers.git_overview import GitOverviewController
 from journal.http.controllers.profiles import ProfileController
 from journal.http.controllers.project_files import ProjectFileController
 from journal.http.controllers.questions import QuestionController
@@ -156,6 +157,10 @@ class Routes:
         router.get(f"{API}/project-files/file", files.show)
         router.get(f"{API}/project-files/raw", files.raw)
         router.get(f"{API}/project-files/diff", files.diff)
+        git = get(GitOverviewController)
+        router.get(f"{API}/git/branches", git.branches)
+        router.get(f"{API}/git/commits", git.commits)
+        router.get(f"{API}/git/pulls", git.pulls)
         router.get(f"{API}/search", get(SearchController).index)
         router.get(f"{API}/attachments", get(AttachmentController).index)
         router.get(f"{API}/{{table}}/{{id}}/files/{{name}}", get(AttachmentController).file)

@@ -6,6 +6,7 @@ export const PAGES = {
     skills: {title: "Skills", icon: "book", text: "The instructions the agent loads for each kind of work"},
     profiles: {title: "Profiles", icon: "agents", text: "The subagents the agent can dispatch, each with its job, tools and model"},
     files: {title: "Files", icon: "folder", text: "The project's files, as they are on disk"},
+    git: {title: "Git", icon: "branch", text: "The project's branches, recent commits and open pull requests"},
     attachments: {title: "Attachments", icon: "paperclip", text: "Files attached to messages, tasks and other rows"},
     secrets: {title: "Secrets", icon: "key", text: "Keys and logins the agent may use without ever seeing them"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},

@@ -21076,3 +21076,39 @@ def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cl
     with app.container.get(Scope).environment(MAIN):
         assert checks.wait_rows() == [], "a cleared await removes its check"
     assert app.container.get(SessionAgents).top("s1").name != "awaiting"
+
+
+def test_the_git_page_reads_branches_with_their_distance_from_the_base_the_recent_commits_and_the_open_pull_requests(app: App, monkeypatch):
+    import subprocess
+    from journal.http.git.git_overview import GitOverview
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", "-c", "user.email=t@example.com", "-c", "user.name=T", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "development")
+    (root / ".gitignore").write_text(".journal/\n")
+    git("add", ".gitignore")
+    git("commit", "-qm", "start")
+    git("checkout", "-q", "-b", "feature")
+    (root / "a.txt").write_text("a")
+    git("add", "a.txt")
+    git("commit", "-qm", "a feature commit")
+    git("checkout", "-q", "development")
+    (root / "b.txt").write_text("b")
+    git("add", "b.txt")
+    git("commit", "-qm", "a base commit")
+    headers = {"X-Journal-Env": "main"}
+    status, page = got(app, "/journal/git/branches", headers)
+    rows = {row["name"]: row for row in page["rows"]}
+    assert status == 200 and page["is_last_page"] and (rows["feature"]["extra_commits"], rows["feature"]["missing_commits"]) == (1, 1), "a branch is shown with the commits it has beyond development and those it lacks"
+    assert rows["development"]["current"] and not rows["feature"]["current"] and rows["feature"]["subject"] == "a feature commit"
+    status, first = got(app, "/journal/git/commits?last=1", headers)
+    assert [row["subject"] for row in first["rows"]] == ["a base commit"] and not first["is_last_page"], "the recent commits of the current branch come a page at a time"
+    status, rest = got(app, "/journal/git/commits?last=5&skip=1", headers)
+    assert [row["subject"] for row in rest["rows"]] == ["start"] and rest["is_last_page"]
+    from journal.http.git.git_finished import GitFinished
+    listing = "7\tfalse\tAPPROVED\tSUCCESS,FAILURE,IN_PROGRESS\tfeature\tjesse\thttps://example.com/7\tAdd the page\n"
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(GitOverview, "run", lambda self, *command: GitFinished(True, listing))
+    status, pulls = got(app, "/journal/git/pulls", headers)
+    assert pulls["available"] and [(row["number"], row["title"], row["review"], row["checks_passed"], row["checks_failed"], row["checks_pending"]) for row in pulls["rows"]] == [(7, "Add the page", "APPROVED", 1, 1, 1)]
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    assert got(app, "/journal/git/pulls", headers)[1] == {"available": False, "rows": []}, "without gh the page says so and lists nothing"
