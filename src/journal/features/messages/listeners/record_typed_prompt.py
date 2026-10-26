@@ -25,15 +25,15 @@ class RecordTypedPrompt(AgentListener[PromptSubmitted]):
     def handle(self, event: PromptSubmitted) -> None:
         if not event.is_users or not event.prompt.strip() or self.lines.contains(event.environment_id, event.prompt):
             return
-        text, now, key = event.prompt.strip(), self.time_source.moment(), VoiceKey.hooked("typed", event.hook_key)
-        earlier = self.messages.prompt_repeats(text)
-        if self.is_scheduled(event.session, text, now.timestamp()) or any(now.timestamp() - message.creation_time.timestamp() >= SCHEDULE_SECONDS for message in earlier):
-            for message in earlier:
+        text, moment, key = event.prompt.strip(), self.time_source.moment(), VoiceKey.hooked("typed", event.hook_key)
+        repeats = self.messages.prompt_repeats(text)
+        if self.is_scheduled(event.session, text, moment.timestamp()) or any(moment.timestamp() - message.creation_time.timestamp() >= SCHEDULE_SECONDS for message in repeats):
+            for message in repeats:
                 if not message.is_scheduled_prompt:
                     self.messages.save(message.scheduled(), Actor.system())
-            self.messages.recorded(Message(text=text, read_at=now, idempotency=key).scheduled(), Actor.system())
+            self.messages.recorded(Message(text=text, read_at=moment, idempotency=key).scheduled(), Actor.system())
             return
-        self.messages.recorded(Message(author=Author.USER, text=text, read_at=now, data={"kind": TERMINAL_LINE}, idempotency=key), Actor.user(self.account.user_number()))
+        self.messages.recorded(Message(author=Author.USER, text=text, read_at=moment, data={"kind": TERMINAL_LINE}, idempotency=key), Actor.user(self.account.user_number()))
 
     def is_scheduled(self, session: str, text: str, moment: float) -> bool:
         return any(job.prompt.strip() == text and job.is_running(moment) for job in self.jobs.session_jobs(session))
