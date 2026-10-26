@@ -12409,9 +12409,9 @@ def test_a_reader_is_removed_with_its_files_and_an_alias_it_read_for_runs_with_n
     from journal.repositories.aliases import Aliases
     console = app.console()
     hook(app, "SessionStart")
-    assert console.run(["reader", "add", "pushes", "--commands", "git", "--pattern", "^To ", "--about", "a push's remote"], AGENT).code == 0
+    assert console.run(["reader", "add", "pushes", "--commands", "rsync", "--pattern", "^sent ", "--about", "an upload's totals"], AGENT).code == 0
     assert console.run(["reader", "default", "pushes"], AGENT).code == 0
-    assert console.run(["alias", "add", "ship", "git push -q origin development", "--reader", "pushes"], AGENT).code == 0
+    assert console.run(["alias", "add", "ship", "rsync -a dist/ host:site/", "--reader", "pushes"], AGENT).code == 0
     removed = console.run(["reader", "remove", "pushes"], AGENT)
     assert removed.code == 0 and "journal ship now run with no reader" in removed.text, removed.text + removed.error
     assert "pushes" not in console.run(["reader", "list"], AGENT).text and not list(app.config.readers.glob("pushes.*")), "its files are gone, and the list no longer names it"
@@ -12419,11 +12419,10 @@ def test_a_reader_is_removed_with_its_files_and_an_alias_it_read_for_runs_with_n
     assert "no reader named pushes" in console.run(["reader", "remove", "pushes"], AGENT).error
 
 
-def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: App):
+def test_a_run_reaches_the_chat_only_once_it_is_moved_to_the_background(app: App):
     import threading
     import time
     from journal.chat.process_cards import ProcessCards
-    from journal.features.shell.jobs.run_card_start import RunCardStart
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
@@ -12448,24 +12447,25 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         quick = {output.row_id for output in outputs.all()}
-        assert not [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("watch:")], "a run that ends within 3 seconds never reaches the chat, though its reader is known"
+        assert not [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("watch:")], "a run in the foreground never reaches the chat, though its reader is known"
+        assert not any(output.watch_reader for output in outputs.all()), "nor is it given its reader"
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
     run = ran("4")
     deadline, slow = time.monotonic() + 5, None
     while slow is None and time.monotonic() < deadline:
         with app.container.get(Scope).environment(MAIN):
             slow = next((output for output in outputs.watched(AGENT.session) if not output.ended and output.row_id not in quick), None)
         time.sleep(0.05)
-    job = app.container.get(RunCardStart)
-    job.tick(slow.creation_time.timestamp() + 1)
-    assert slow is not None and not cards(slow), "a run still within its first 3 seconds shows no card"
-    job.tick(slow.creation_time.timestamp() + 3.5)
-    assert cards(slow), "once it has gone on for 3 seconds its card is in the chat"
+    app.runtime().deferred.drain()
+    assert slow is not None and cards(slow), "once it is moved to the background its card is in the chat"
     run.join(30)
     assert not run.is_alive(), "the four-second run has ended"
+    with app.container.get(Scope).environment(MAIN):
+        outputs.save(outputs.find(slow.row_id).ended_with(0, timing.time()), Actor.system())
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         kept = app.container.get(Messages).with_key(f"watch:{slow.row_id}")
-        assert kept and not kept[0].data["active"] and outputs.find(slow.row_id).ended, "a run that ends in the foreground after its card showed keeps it, turned to finished, and the output it opens"
+        assert kept and not kept[0].data["active"], "a run that ends keeps its card, turned to finished"
         final = kept[0]
         again = app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(slow.row_id).with_(summary="written after the end")))
         assert again.row_id == final.row_id and app.container.get(Messages).find(final.row_id).updated_at == final.updated_at, "a mark that ended is final: nothing writes it again"
@@ -18933,9 +18933,9 @@ def test_a_script_reader_set_on_a_running_output_gives_its_card_the_scripts_prog
     folder = app.config.root / "r"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("git filter-repo --force")
+    (folder / "0.part").write_text("python3 rewrite.py --force")
     (folder / "0.out").write_text("Parsed 10 commits\nParsed 25 commits\n")
-    app.container.get(OutputLog).start("r", "git filter-repo --force", folder, Caller.agent("main", "s1", "claude"))
+    app.container.get(OutputLog).start("r", "python3 rewrite.py --force", folder, Caller.agent("main", "s1", "claude"))
     script = app.config.root / "parsed.sh"
     script.write_text("grep -o 'Parsed [0-9]*' | tail -1 | sed 's/Parsed \\([0-9]*\\)/\\1\\/100 commits/'\n")
     assert console.run(["reader", "add", "rewrites", "--script", str(script), "--about", "the rewrite", "--label", "Rewriting the history", "--progress", r"(\d+)/(\d+)"], AGENT).code == 0
@@ -18996,9 +18996,9 @@ def test_a_readers_label_ending_half_a_sentence_is_refused_and_a_whole_phrase_is
     assert console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running tests"], AGENT).code == 0, "a whole phrase is taken"
 
 
-def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_failed_and_a_test_run_always_does(app: App, tmp_path):
+def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_failed_and_a_test_run_always_does(app: App, tmp_path):
     from journal.features.shell.seeds.cardless_cards import CardlessCards
-    from journal.features.shell.seeds.git_write_readers import GitWriteReaders
+    from journal.features.shell.seeds.cardless_readers import CardlessReaders
     from journal.features.shell.support.cardless_runs import CardlessRuns
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.features.shell.support.readers import Readers
@@ -19012,11 +19012,11 @@ def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_fai
         run = lambda command, status=0: outputs.save(CommandOutput(chain=command, command=command, folder=str(tmp_path / command.replace(" ", "_")[:40]), ended=True, status=status, moved=True), Actor.system())
         assert cardless.is_cardless(run("grep -rn needle src | head")) and cardless.is_cardless(run("cd src && ls -la")), "a quick search or listing shows no card"
         assert cardless.is_cardless(run("git add -A && git status")) and cardless.is_cardless(run("git switch topic")), "nor does everyday git, chained or not"
-        assert not cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x")), "but a push has a live card of its own, while a commit's mark alone says it"
+        assert cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x && git push")) and cardless.is_cardless(run("gh run watch 12")), "nor does a push, a commit or a GitHub command"
         assert card.card_contents(run("git status")) is None, "so no card is written for everyday git"
         assert not cardless.is_cardless(run("git push origin topic", status=1)), "a git line that failed shows its card"
         assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
-        assert not cardless.is_cardless(run("git rebase main")), "a rebase is not everyday git"
+        assert cardless.is_cardless(run("git rebase main")), "nor a rebase"
         assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
         pushed = run("git status -s")
         stored = app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="Pushing", data={"kind": "card", "shows": "commands", "output": pushed.id, "card_type": "process"}), Actor.system())
@@ -19025,8 +19025,14 @@ def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_fai
     readers = app.container.get(Readers)
     (app.config.readers).mkdir(parents=True, exist_ok=True)
     (app.config.readers / "git-pushing.pattern").write_text("# a push\n.\ncommands: git push\n")
-    app.container.get(GitWriteReaders).run()
-    assert "git-pushing" not in {reader.name for reader in readers.all()}, "and a reader kept for git push alone is removed at boot"
+    (app.config.readers / "search-hits.pattern").write_text("# a search\n.\ncommands: grep, rg\n")
+    (app.config.readers / "builds.pattern").write_text("# a build\n.\ncommands: npm run build\n")
+    app.container.get(CardlessReaders).run()
+    names = {reader.name for reader in readers.all()}
+    assert "git-pushing" not in names and "search-hits" not in names, "a reader kept for git or for searches alone is removed at boot"
+    assert "builds" in names, "a build's reader stays"
+    refused = app.console().run(["reader", "add", "greps", "--about", "a search", "--pattern", ".", "--commands", "grep"], AGENT)
+    assert refused.code != 0 and "gets no reader" in refused.error, "and a new one for a search is refused"
 
 
 def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words():
@@ -20770,13 +20776,6 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
     assert marks() == [f"Committed {head} on `development`", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
 
 
-def test_a_line_of_only_everyday_git_a_commit_among_it_shows_no_command_card_and_one_with_other_work_a_push_or_heavy_git_keeps_its_card():
-    from journal.features.shell.support.cardless_runs import CardlessRuns
-    cardless = CardlessRuns.is_git_routine
-    assert all(cardless(line) for line in ("git add -A", "git status && git diff", "git switch phone", "git checkout -b phone", "git commit -qm x", "git add -A && git commit -m x")), "all-git lines that need no card, a commit among them since its commit mark says it"
-    assert not any(cardless(line) for line in ("git push origin development", "pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "a commit and a push, other work and heavy git keep a card"
-
-
 def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words(app: App):
     hook(app, "SessionStart")
     console = app.console()
@@ -20843,36 +20842,34 @@ def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says
     assert ActivityLabel.build("git push origin development") == "pushing to origin" and len(ActivityLabel.build("git push").split()) > 1, "and the journal's own label for a push says what runs"
 
 
-def test_a_push_writes_one_live_mark_read_by_the_reader_the_journal_ships_that_ends_with_its_outcome_and_raises_no_reader_report(app: App):
-    from journal.chat.process_cards import ProcessCards
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_process_card import OutputProcessCard
+def test_only_a_run_moved_to_the_background_is_given_a_reader_and_never_a_git_one(app: App):
+    import os
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.features.shell.support.shell_request import ShellRequest
     from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.messages import Messages
-    from journal.repositories.reader_reports import ReaderReports
     hook(app, "SessionStart")
-    folder = app.config.root / "push"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("git push origin development")
-    (folder / "0.out").write_text("[ 40%] tests/test_a.py\n[ 80%] tests/test_b.py\n")
-    app.container.get(OutputLog).start("push", "git push origin development", folder, Caller.agent("main", "s1", "claude"))
-    outputs, cards, card = app.container.get(CommandOutputs), app.container.get(ProcessCards), app.container.get(OutputProcessCard)
-    outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert app.console().run(["output", "watch", "1", "--reader", "git-push"], AGENT).code == 0
-    cards.show(card.card_contents(outputs.find(1)))
-    with app.container.get(Scope).environment(1):
-        running = app.container.get(Messages).with_key("watch:1")
-    assert len(running) == 1 and running[0].text == "Pushing development to origin" and running[0].data["active"] is True, "the push is one live mark from the first moment"
-    (folder / "0.out").write_text("[100%] tests/test_b.py\nTo github.com:me/project.git\n   abc1234..def5678  development -> development\n")
-    outputs.save(outputs.find(1).ended_with(0, timing.time()), Actor.system())
-    cards.show(card.card_contents(outputs.find(1)))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(1):
-        ended = app.container.get(Messages).with_key("watch:1")
-        reported = [report for report in app.container.get(ReaderReports).unread("s1") if report.output == 1]
-    assert len(ended) == 1 and ended[0].data["active"] is False and "abc1234..def5678" in " ".join(ended[0].data.get("lines", []) or [ended[0].data.get("detail", "")]), "the same mark ends with the range of commits pushed"
-    assert reported == [], "the reader judge never reports on a push"
+    tools = app.config.root / "tools"
+    tools.mkdir()
+    for name, text in (("git", "sleep 2"), ("pytest", "sleep 2; echo '1 passed'")):
+        (tools / name).write_text(f"#!/bin/sh\n{text}\n")
+        (tools / name).chmod(0o755)
+    (app.config.readers / "search-hits.pattern").write_text("# a search\n.\nlabel: Searching the files\ncommands: grep\n")
+    (app.config.root / "notes.txt").write_text("needle\n")
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
+    link = app.container.get(SupervisorLink)
+    link.working(MAIN)
+    run = lambda line: b"".join(app.container.get(ShellRunner).run(ShellRequest(line=line, cwd=str(app.config.root), shell="/bin/sh", environment={**os.environ, "PATH": f"{tools}:{os.environ['PATH']}"}), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    outputs = app.container.get(CommandOutputs)
+    with app.container.get(Scope).environment(MAIN):
+        run("grep -c needle notes.txt")
+        assert all(not output.watch_reader and not output.is_watched for output in outputs.all()), "a search in the foreground gets no reader, though a reader names grep"
+        pushed = run("git push origin development")
+        number = int(re.search(r"output (\d+)", pushed).group(1))
+        assert "is watched" not in pushed and "reader" not in pushed, pushed
+        assert outputs.find(number).watch_reader == "" and not outputs.find(number).is_watched, "a push moved to the background is never watched nor given a reader"
+        tested = run("pytest -q")
+        tested_number = int(re.search(r"output (\d+)", tested).group(1))
+        assert outputs.find(tested_number).watch_reader == "pytest", "a test run moved to the background is read by its reader"
 
 
 def test_the_retired_commit_reader_is_taken_out_at_boot_so_a_commit_shows_only_its_mark(app: App):
@@ -20890,7 +20887,7 @@ def test_a_reader_the_journal_ships_is_locked_and_refused_before_anything_is_wri
     from journal.features.shell.support.readers import Readers
     from journal.support.rejection import Rejection
     readers = app.container.get(Readers)
-    before = {name: readers.definition(name) for name in ("pytest", "git-push", "worker-merge")}
+    before = {name: readers.definition(name) for name in ("pytest", "worker-merge")}
     assert all(before.values()), "the journal ships them"
     for name in before:
         with pytest.raises(Rejection) as removing:

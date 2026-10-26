@@ -1,4 +1,4 @@
-from journal.features.shell.support.git_writes import GitWrites
+from journal.features.shell.support.cardless_runs import CardlessRuns
 from datetime import datetime, timezone
 from pathlib import Path
 from journal.config import Config
@@ -18,7 +18,7 @@ KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
 JOURNAL_COMMAND_READERS = ("worker-merge",)
 # the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
-SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge", "git-push")
+SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge")
 
 
 class Readers:
@@ -106,8 +106,8 @@ class Readers:
     def journal_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
 
-    def git_write_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if reader.commands.programs and all(GitWrites.is_writing(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
+    def cardless_readers(self) -> list[Reader]:
+        return [reader for reader in self.all() if reader.commands.programs and all(CardlessRuns.is_cardless_program(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()

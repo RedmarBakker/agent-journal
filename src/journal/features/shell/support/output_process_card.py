@@ -11,6 +11,7 @@ from journal.chat.card_detail import CardDetail
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.card_progress import CardProgress
 from journal.features.shell.support.git_titles import GitTitles
+from journal.features.shell.support.git_commands import GitCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_views import OutputViews
@@ -27,7 +28,6 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.support.time_source import TimeSource
 
 HEADLINE_CHARACTERS = 60
-GIT_READERS = ("git-push",)
 ENDED_DOCK_SECONDS = 5
 DOCK_DELAY_SECONDS = 5
 UNDOCK_TIME_KEY = "undock_at"
@@ -88,7 +88,7 @@ class OutputProcessCard(ProcessCard):
 
     def title(self, output: CommandOutput, part: str) -> str:
         reader = self.readers.found(output.watch_reader)
-        if reader is not None and reader.name in GIT_READERS and (plain := self.git_titles.title(output.command, output.ran_in)):
+        if GitCommands.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""

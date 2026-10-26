@@ -1,4 +1,4 @@
-from journal.features.shell.seeds.git_write_readers import GitWriteReaders
+from journal.features.shell.seeds.cardless_readers import CardlessReaders
 from journal.features.shell.seeds.cardless_cards import CardlessCards
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
@@ -47,7 +47,7 @@ class Shell(Feature[ShellData]):
     commands = (OutputCommand, ReaderCommand)
     options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
-    seeds = (CutOffOutputs, DefaultReaders, JournalOutputReaders, CardlessCards, GitWriteReaders)
+    seeds = (CutOffOutputs, DefaultReaders, JournalOutputReaders, CardlessCards, CardlessReaders)
     jobs = (WatchRefresh, RestartWait, RunCardStart, WatchedRunCheck)
     process_cards = (OutputProcessCard,)
     data = (ShellDataReader,)

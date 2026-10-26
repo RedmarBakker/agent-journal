@@ -869,7 +869,6 @@ reader totals added: journal output read N --reader totals
 $ agent: journal reader list
 exit 0
 dotnet-test: the failed tests and the totals of a dotnet test run (locked)
-git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
 phpunit: the failures and the totals of a phpunit or pest run (locked)
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
 totals: a test run's totals
@@ -1447,7 +1446,6 @@ nothing
 
 == journal reader list ==
 dotnet-test: the failed tests and the totals of a dotnet test run (locked)
-git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
 phpunit: the failures and the totals of a phpunit or pest run (locked)
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
 totals: a test run's totals (the default for its commands)

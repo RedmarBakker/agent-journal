@@ -1701,3 +1701,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - The builder's idle stop names paused tasks and broken waits only; a blocked task is neither started nor named. The
   orchestrator's stop asks about the blocked tasks it can move, then names the tasks to dispatch. The approved-plan
   stop line is gone: an approved plan is the assigner's to start.
+
+## Only background runs get a reader and a card (task 3684, messages 67892 to 67906, 2026-10-26)
+
+- A reader, a watch and a process card belong to a run the journal moved to the background. The runner no longer watches a foreground run as it starts because some reader names its command, which is how every grep got a "Searching the files" card from a project reader that named grep.
+- A git or GitHub line (GitCommands.is_git_line: every part git or gh) is never watched, never given a reader and shows no card, moved or not, unless it failed; its commit and push marks say what it did. The shipped git-push reader is retired.
+- A reader whose commands are all searches, reads or git and GitHub commands (CardlessRuns.is_cardless_program) is refused by journal reader add and removed at boot by the CardlessReaders seed, so a journal that updates is rid of them.

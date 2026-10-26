@@ -20,6 +20,7 @@ from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
 from journal.models.alias import Alias
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
+from journal.features.shell.support.git_commands import GitCommands
 from journal.features.shell.support.cap import Cap
 from journal.features.shell.support.chain_worker import ChainWorker
 from journal.features.shell.support.foreground_limit import ForegroundLimit
@@ -111,8 +112,6 @@ class ShellRunner:
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
         immediate = bool(background) or self.limits.is_background(request.line) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
-        if limit > 0 and not immediate and not cap.is_whole():
-            self.start_card(folder, request.line, reader, caller)
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -144,18 +143,6 @@ class ShellRunner:
             limit = self.limits.build(request.line, caller.environment, caller.session)
             return self.limits.is_background(request.line) or bool(self.aliases.background_part(request.line)) or (reader is not None and limit > 0 and self.is_long_run(reader.commands.read_part(request.line), limit))
 
-    # a run whose reader is known shows its card in the chat as it starts, before any move to the background
-    def start_card(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:
-        reader_name = self.known_reader(self.aliases.line_alias(line), reader)
-        if reader_name:
-            self.outputs.watch(self.outputs.chain_output(folder.folder.name), reader_name, "", caller.actor)
-
-    @staticmethod
-    def known_reader(alias: Alias | None, reader: Reader | None) -> str:
-        if alias is not None:
-            return alias.reader
-        return reader.name if reader is not None else ""
-
     # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
     # any other runs in the foreground until it passes the limit
     def is_long_run(self, part: str, limit: int) -> bool:
@@ -174,6 +161,8 @@ class ShellRunner:
         return ""
 
     def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | None, caller: Caller) -> list[Nudge]:
+        if GitCommands.is_git_line(part):
+            return []
         if alias is not None:
             return [*self.watched(number, alias, caller), *self.alias_wrapper_lines(alias)]
         wrapper = self.line_wrapper_lines(part)

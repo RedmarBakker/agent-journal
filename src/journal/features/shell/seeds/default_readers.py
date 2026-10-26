@@ -15,13 +15,11 @@ SHIPPED = (
     Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^step [0-9]+/[0-9]+: |^now: .{1,120}$|^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^step ([0-9]+)/([0-9]+): ", "Merging the checked workers' work", ReaderCommands(("journal worker merge",)),
            topic_pattern=r"journal worker merge +([0-9]+)", topic_label="Merging worker {topic}'s work",
            finished_pattern=r"^task [0-9]+ done: [^;]{1,90}$", failed_pattern=r"^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$"),
-    Reader("git-push", "a push: the commits it sent, the tests its gate counts, or why it was refused", r"^To |^   [0-9a-f]{7,}\.\.[0-9a-f]{7,}|^ ! \[|^error:|^fatal:|^remote:|\[ *[0-9]+%\]", r"\[ *([0-9]+)%\]", "Pushing", ReaderCommands(("git push",)),
-           finished_pattern=r"^   [0-9a-f]{7,}\.\.[0-9a-f]{7,}|^ \* \[new branch\]|Everything up-to-date", failed_pattern=r"^ ! \[|^error:|^fatal:|hook declined|FAILED"),
 )
 
 
 RETIRED_LABELS = ("Tests", "Running the tests", "Merging a worker's work")
-RETIRED_READERS = ("git-commit",)
+RETIRED_READERS = ("git-commit", "git-push")
 RETIRED_PATTERNS = (r"^step [0-9]+/[0-9]+: |^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$",)
 
 
