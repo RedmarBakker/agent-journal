@@ -2922,3 +2922,32 @@ def test_stored_helper_stacks_move_onto_void(connection):
     stacks = [[layer["state"] for layer in json.loads(row["stack"])] for row in connection.all("SELECT stack FROM agents ORDER BY id")]
     assert stacks == [["void", "working_task"], ["void"], ["void", "reviewing"], ["idle"]], stacks
     assert json.loads(connection.all("SELECT stack FROM agents ORDER BY id")[0]["stack"])[1]["data"] == {"task_id": 7}, "the worker keeps the task it worked on"
+
+
+def test_a_helper_is_put_to_work_on_each_path_and_the_engine_imports_no_feature_to_do_it(app: App):
+    from pathlib import Path
+    from journal.models.agent_role import AgentRole
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    scope, workers, tasks, agents = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents)
+    top = lambda session: agents.session_agent(session).stack[-1]["state"]
+    with scope.environment(1):
+        early = workers.save(Worker(environment_id=1, name="Mr. Early", brief="e", session="we"), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="b"), Actor.system()), Ref.build(early), Actor.system())
+        workers.save(workers.find(early.id).ready(1.0), Actor.worker(early.id))
+        agents.save(Agent(environment_id=1, session="we", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+    assert top("we") == "working_task", "a worker that clocked in before its session had a row is put to work when the row is made"
+    with scope.environment(1):
+        workers.save(workers.find(early.id).delivered(2.0), Actor.worker(early.id))
+    assert top("we") == "void", "its delivery returns it to Void"
+    with scope.environment(1):
+        workers.save(workers.find(early.id).with_(state=WorkerState.DISPATCHED), Actor.system())
+        workers.save(workers.find(early.id).ready(3.0), Actor.worker(early.id))
+    assert top("we") == "working_task", "a worker sent back and clocked in again is put to work again"
+    engine = Path(__file__).resolve().parents[1] / "src" / "journal" / "engine"
+    assert not [path.name for path in engine.rglob("*.py") if "journal.features" in path.read_text()], "the engine imports no feature to put a helper to work"
