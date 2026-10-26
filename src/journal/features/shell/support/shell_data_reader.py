@@ -7,7 +7,8 @@ from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
-from journal.features.shell.support.readers import Readers
+from journal.features.shell.support.readers import SHIPPED_READERS, Readers
+from journal.features.shell.support.reader_probes import TESTING, ReaderProbes
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
 from journal.features.registry import Registry
@@ -58,9 +59,17 @@ class ShellDataReader:
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
-        lines = [output.command for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]
+        moves = self.outputs.recent_moves(agent.session, RECENT_MOVES)
+        lines = [output.command for output in moves if not output.watch_reader or ActivityLabel.line_label(output.command) == TESTING]
         commands = [CommandShape.command_name(line) for line in lines if not ActivityLabel.is_reading(line)]
-        return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and self.readers.reading(command) is None))
+        return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and not self.is_read_well(command)))
+
+    # a test run is read well only by a reader that shows its progress, its failures and its summary, or by one the journal ships
+    def is_read_well(self, command: str) -> bool:
+        reader = self.readers.reading(command)
+        if reader is None or ActivityLabel.line_label(command) != TESTING:
+            return reader is not None
+        return reader.name in SHIPPED_READERS or ReaderProbes.reads_test_runs(reader)
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]

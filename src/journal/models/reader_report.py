@@ -51,6 +51,12 @@ class ReaderReport(Scoped):
     def refuted(self, reason: str, verifier_session: str, time: datetime) -> "ReaderReport":
         return self.judged(reason, time).with_(dismissal=None, is_refuted=True).with_event(self.judgement(verifier_session, False, reason, time))
 
+    def awaits_verdict(self) -> bool:
+        return self.dismissal is not None and self.judged_at is None and not self.is_refuted
+
+    def contradicted(self, reason: str, time: datetime) -> "ReaderReport":
+        return self.with_(dismissal=None, is_refuted=True, verdict=reason, judged_at=time).with_event(self.judgement("", False, reason, time))
+
     def judged(self, reason: str, time: datetime) -> "ReaderReport":
         if self.judged_at is not None or self.dismissal is None:
             raise Rejection(f"reader report {self.id} has no dismissal waiting for a verdict")

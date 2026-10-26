@@ -13,4 +13,4 @@ class VerifierStart(Listener[ReaderReportDismissed]):
 
     def handle(self, event: ReaderReportDismissed) -> None:
         report = self.reports.find(event.row_id)
-        self.dispatch.sent(report, self.evidence.brief(report))
+        self.dispatch.sent(report, self.evidence.brief(report), lambda: self.reports.find(report.row_id).awaits_verdict())

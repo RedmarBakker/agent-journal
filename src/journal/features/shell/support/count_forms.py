@@ -29,11 +29,24 @@ class CountForms:
 
     @classmethod
     def form(cls, lines: list[str]) -> CountForm | None:
-        if any(re.search(SLASH_PROGRESS, line) for line in lines):
+        if cls.is_count_series(cls.figures(SLASH_PROGRESS, lines)):
             return CountForm(SLASH_PROGRESS, "the run prints a count of a total: give the reader --progress '(\\d+)/(\\d+)'")
-        if any(re.search(WORD_PROGRESS, line) for line in lines):
+        if cls.is_count_series(cls.figures(WORD_PROGRESS, lines)):
             return CountForm(WORD_PROGRESS, "the run prints a count of a total: give the reader --progress '(\\d+) (?:of|out of) (\\d+)'")
         return cls.total_once(lines)
+
+    @staticmethod
+    def figures(pattern: str, lines: list[str]) -> list[tuple[int, int]]:
+        return [(int(match[0]), int(match[1])) for line in lines for match in re.findall(pattern, line) if len(match) == 2 and all(match)]
+
+    # figures that count towards a total never pass it, and most of them share it, as a run's progress does; numbers inside
+    # names, such as the card numbers 65/131 and 225/182 in a list of products, pass their total or each name a total of its own
+    @staticmethod
+    def is_count_series(figures: list[tuple[int, int]]) -> bool:
+        if not figures or any(count > total for count, total in figures):
+            return False
+        _, shared = Counter(total for _, total in figures).most_common(1)[0]
+        return shared * 2 >= len(figures)
 
     @classmethod
     def total_once(cls, lines: list[str]) -> CountForm | None:

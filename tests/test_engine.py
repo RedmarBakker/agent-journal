@@ -2629,8 +2629,8 @@ def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
     dispatch = VerifierDispatch(verifiers, None, runner, SimpleNamespace(default=lambda: SimpleNamespace(name="claude")), None, SimpleNamespace(integer=lambda option: 1))
     dispatch.judging = lambda verifier, target, resume: (rows.append(verifier), runner.start(verifier, resume))[1]
     target = SimpleNamespace(environment_id=1)
-    first = dispatch.dispatched_with(target, "one", "sonnet")
-    assert first is not None and dispatch.dispatched_with(target, "two", "sonnet") is None and len(dispatch.waiting) == 1, "past the most the verdict waits"
+    first = dispatch.dispatched_with(target, "one", "sonnet", lambda: True)
+    assert first is not None and dispatch.dispatched_with(target, "two", "sonnet", lambda: True) is None and len(dispatch.waiting) == 1, "past the most the verdict waits"
     rows[0] = rows[0].judged()
     dispatch.released()
     assert dispatch.waiting == [] and [brief for brief, _ in sent] == ["one", "two"], "once one is free the waiting verdict goes to it"
