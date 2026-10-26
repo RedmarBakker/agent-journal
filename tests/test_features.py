@@ -10195,6 +10195,9 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
         cards = [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("test-run:")]
     assert [(card.text, card.data["active"], card.session) for card in cards] == [("Worker 1, Worker 1: 1 of its tests failed", False, "s1"), ("Worker 1, Worker 1: its tests passed", False, "s1")], "each run is a card in the chat of the agent that sent the worker, ending failed or passed"
     assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and offers the worker's task with its proofs"
+    assert {card.data["shows"] for card in cards} == {"worker_tests"}, "a worker's test run is a kind of mark of its own, which the chat hides until the user shows it"
+    from journal.features.workers.feature import Workers as WorkersFeature
+    assert next(kind for kind in WorkersFeature.card_kinds if kind.key == "worker_tests").shown is False
 
 
 def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_stands(app: App, monkeypatch):
@@ -11588,7 +11591,7 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
     kept_conversation(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers, messages = app.console(), app.container.get(Workers), app.container.get(Messages)
-    marks = lambda: [(m.text, m.data.get("outcome", ""), m.data.get("detail")) for m in messages.scoped() if m.data.get("shows") == "workers" and not m.data.get("key")]
+    marks = lambda: [(m.text, m.data.get("outcome", ""), m.data.get("detail")) for m in messages.scoped() if m.data.get("shows") == "worker_steps" and not m.data.get("key")]
     dispatched(console, ["Mr. Wedgwood", "the vase", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     console.run(["worker", "report", "1", "the vase is fired"], Caller.agent("main", "w1", "claude"))
     workers.save(workers.find(1).with_(resume="w-1"), USER.actor)

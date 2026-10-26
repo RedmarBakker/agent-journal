@@ -27,7 +27,7 @@ class TestRunProcessCard(ProcessCard):
         active = turn.state != TestTurnState.ENDED
         task_ids = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         card_fields = {"kind": "card", "turn": turn.id, "output": turn.output, "line": turn.command, "summary": self.summary(turn, active), "proof_task": task_ids[0] if task_ids else 0}
-        return ProcessCardContents(self.name, turn.environment_id, f"test-run:{turn.id}", self.label(turn, worker, active), card_fields, Actor.system(), CardKind.COMMANDS, active, turn.command, worker.dispatcher)
+        return ProcessCardContents(self.name, turn.environment_id, f"test-run:{turn.id}", self.label(turn, worker, active), card_fields, Actor.system(), CardKind.WORKER_TESTS, active, turn.command, worker.dispatcher)
 
     @staticmethod
     def label(turn: TestTurn, worker: Worker, active: bool) -> str:

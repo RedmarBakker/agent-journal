@@ -7,6 +7,8 @@ class CardKind(StrEnum):
     SKILLS = "skills"
     SUBAGENTS = "subagents"
     WORKERS = "workers"
+    WORKER_TESTS = "worker_tests"
+    WORKER_STEPS = "worker_steps"
     VERIFIERS = "verifiers"
     REVIEWERS = "reviewers"
     COMPACTIONS = "compactions"

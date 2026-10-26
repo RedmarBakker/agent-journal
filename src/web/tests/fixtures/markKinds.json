@@ -135,6 +135,13 @@
    "colouring": "none"
   },
   {
+   "key": "worker_steps",
+   "title": "Workers' own steps",
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
+  },
+  {
    "key": "triggers",
    "title": "Triggers",
    "icon": "bolt",
@@ -519,6 +526,32 @@
    "icon": "activity",
    "group": "agent",
    "colouring": "none"
+  },
+  {
+   "key": "worker_steps",
+   "label": "Workers' moves: next job, queue given back, restart, rebase",
+   "family": "worker_steps",
+   "main": true,
+   "shown": false,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
+  },
+  {
+   "key": "worker_tests",
+   "label": "Workers' test runs",
+   "family": "worker_steps",
+   "main": true,
+   "shown": false,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
   },
   {
    "key": "triggers",

@@ -82,8 +82,8 @@ class Workers(Feature[WorkersData]):
     """A worker is an agent sent to write: code in a worktree of its own, a document, a change. A subagent only reads; a worker is the one that writes."""
 
     name = WorkersPart.name
-    card_families = (CardFamily("helpers", "Workers and subagents", "agents", AGENT, CardColouring.OUTCOME), CardFamily("fitness", "Fitness", "activity", AGENT),)
-    card_kinds = (MarkKind("agents", "Agents talking to each other", "helpers", covers=(CardKind.SUBAGENTS, CardKind.WORKERS)), MarkKind(CardKind.SUBAGENTS, "Subagents", "helpers"), MarkKind(CardKind.WORKERS, "Workers", "helpers", messages=("report",)), MarkKind(CardKind.FITNESS, "Drops in the fitness", "fitness"),)
+    card_families = (CardFamily("helpers", "Workers and subagents", "agents", AGENT, CardColouring.OUTCOME), CardFamily("fitness", "Fitness", "activity", AGENT), CardFamily("worker_steps", "Workers' own steps", "agents", AGENT, CardColouring.OUTCOME),)
+    card_kinds = (MarkKind("agents", "Agents talking to each other", "helpers", covers=(CardKind.SUBAGENTS, CardKind.WORKERS)), MarkKind(CardKind.SUBAGENTS, "Subagents", "helpers"), MarkKind(CardKind.WORKERS, "Workers", "helpers", messages=("report",)), MarkKind(CardKind.FITNESS, "Drops in the fitness", "fitness"), MarkKind(CardKind.WORKER_STEPS, "Workers' moves: next job, queue given back, restart, rebase", "worker_steps", shown=False), MarkKind(CardKind.WORKER_TESTS, "Workers' test runs", "worker_steps", shown=False),)
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports. How workers test is one of three: the agent that merges runs the tests, a worker runs the tests it wrote, or a worker tests within a budget through journal tests turn, the agent reading the machine's load and the turns with journal tests load and setting the budget with journal tests budget; its own suite is never queued."
     modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
