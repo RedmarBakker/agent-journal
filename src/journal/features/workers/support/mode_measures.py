@@ -24,9 +24,10 @@ COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion
 MODE_SPECS = {
     "solo": (MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3),),
 }
-ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 5.0), MeasureSource.clearing_wait, Closeness.mean, 3), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.code_share, Closeness.share, 3),
+ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3),
                       MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0),
-                      MeasureSpec("first_reports", MeasureRange(2.0, 2.0), MeasureSource.first_report_count, Closeness.count, 2), MeasureSpec("dispatches_against", MeasureRange(0.0, 0.0), MeasureSource.dispatches_against, Closeness.count, 2))
+                      MeasureSpec("report_share", MeasureRange(0.5, 0.34), MeasureSource.report_share, Closeness.mean, 2),
+                      MeasureSpec("oldest_first_share", SHOWN, MeasureSource.oldest_first_share, Closeness.share, 0), MeasureSpec("rejection_share", SHOWN, MeasureSource.rejection_share, Closeness.share, 0))
 LINE_DELAY_MINUTES = 5.0
 SCORE_VERSION = 2
 
@@ -38,7 +39,7 @@ class ModeMeasures:
 
     def specs(self, mode: str) -> tuple[MeasureSpec, ...]:
         line_minutes = self.settings.decimal(WorkersOptions.PLACE_OPENING_MINUTES) + LINE_DELAY_MINUTES
-        orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS)
+        orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, COMPLETION_RATE)
         worker_limit = self.settings.decimal(FitnessOptions.BUILDER_ACTIVE_WORKERS)
         builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), COMPLETION_RATE)
         return {**MODE_SPECS, "builder": builder, "orchestrator": orchestrator}.get(mode, ())

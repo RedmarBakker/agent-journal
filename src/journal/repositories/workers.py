@@ -65,9 +65,6 @@ class Workers(ScopedRepository[Worker]):
     def checkable_workers(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED).filter_unequal("review_pending", True).order("id"))
 
-    def has_idle(self) -> bool:
-        return self.counted(self.idle_query()) > 0
-
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]
 

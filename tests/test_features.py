@@ -1115,29 +1115,6 @@ def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_st
     assert not any("check 2" in line for line in keystrokes)
 
 
-def test_the_open_tasks_line_is_short_with_many_tasks_and_said_again_only_when_the_count_changes(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
-    for n in range(36):
-        app.console().run(["task", "create", f"a task with a long title number {n}"], USER)
-    use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
-    line = "36 tasks open, no worker: 1, 2, 3"
-    assert len(line) <= 120 and sum(line in use(f"{n}.py") for n in range(3)) == 1, "36 open tasks are the count and three numbers, said once"
-    app.console().run(["task", "create", "one more"], USER)
-    assert "37 tasks open, no worker: 1, 2, 3" in use("again.py"), "said again when the count changes"
-
-
-def test_a_busy_orchestrator_with_open_tasks_is_told_to_dispatch_them_once_a_stretch_of_tool_uses(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
-    app.console().run(["task", "create", "the footer"], USER)
-    use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
-    told = [use(f"{n}.py") for n in range(3)]
-    assert sum("1 tasks open, no worker: 1" in line for line in told) == 1, "the reminder rides one tool use, then waits its stretch"
-
-
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
     from journal.features.faults.feature import Faults
     from journal.features.registry import Registry
@@ -1817,33 +1794,17 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work as the builder" in use("e.py")
 
 
-def test_the_orchestrator_and_solo_say_their_alignment_line_when_the_agent_drifts_and_the_builders_is_gone_on_purpose(app: App):
-    """The orchestrator past its lines of its own code since its last handover, and the solo agent sending subagents past its own reads each hear their mode's line once, never in another mode."""
+def test_the_solo_agent_says_its_alignment_line_when_it_drifts_and_the_builders_and_orchestrators_are_gone_on_purpose(app: App):
+    """The solo agent sending subagents past its own reads hears its mode's line once; the builder and the orchestrator are told by their measures, never by an alignment line."""
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     settings = app.container.get(SettingRows)
     said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
     shell = lambda command: said("PreToolUse", tool_name="Bash", tool_input={"command": command})
     handover = lambda: shell("journal worker send 1 'the next job'")
-
-    def edit(name: str, lines: int) -> str:
-        change = {"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"}
-        before = said("PreToolUse", tool_name="Edit", tool_input=change)
-        hook(app, "PostToolUse", tool_name="Edit", tool_input=change, tool_response={"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": [f"+line {n}" for n in range(lines)]}]})
-        app.runtime().deferred.drain()
-        return before
-
     assert "times in a row with no code of your own between" not in handover() + handover(), "the builder is told by its measures, never by handovers in a row"
-
     settings.set("workers.mode", "orchestrator", Actor.user(1))
-    settings.set("workers.orchestrator_lines", 5, Actor.user(1))
-    edit("b.py", 3)
-    assert "you are the orchestrator" not in shell("echo checked")
-    edit("c.py", 3)
-    assert "you are the orchestrator" in shell("echo checked"), "past the limit set on the Settings page the orchestrator is told to hand the work out"
-    handover()
-    edit("d.py", 3)
-    assert "you are the orchestrator" not in shell("echo checked"), "a handover starts its count of lines again"
+    assert "you are the orchestrator" not in shell("echo checked") + handover(), "nor the orchestrator by its own lines of code"
 
     settings.set("workers.mode", "solo", Actor.user(1))
     settings.set("workers.solo_dispatches", 2, Actor.user(1))
@@ -1921,53 +1882,6 @@ def clocked_out(app: App, at: float):
     return workers.save(saved.delivered(at), Actor.system())
 
 
-def test_an_orchestrator_is_scored_low_when_a_clocked_out_worker_waits_unanswered_and_high_when_it_answers_in_minutes(app: App):
-    import time
-    waiting = orchestrator_scored(app, lambda: clocked_out(app, time.time() - 1200))
-    assert waiting.score < 70 and waiting.gaps[0].label.startswith("your tool uses made while a clocked-out worker waited"), "a worker unanswered for twenty minutes costs the orchestrator its score"
-
-
-def test_an_orchestrator_that_answers_a_clocked_out_worker_in_minutes_scores_high(app: App):
-    import time
-    answered = orchestrator_scored(app, lambda: clocked_out(app, time.time() - 120))
-    assert answered.is_measured and answered.score >= 90 and not answered.gaps, "a worker clocked out two minutes ago is within the time to answer"
-
-
-@pytest.mark.parametrize("command, ran_in, ended", [("pytest -q", True, False), ("cd '{folder}' && journal suite", False, True)])
-def test_a_clocked_out_worker_whose_worktree_the_orchestrator_tests_does_not_count_as_waiting(app: App, command: str, ran_in: bool, ended: bool):
-    from journal.features.workers.support.worker_branch import WorkerBranch
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.workers import Workers
-
-    def tested():
-        worker = app.container.get(Workers).save(clocked_out(app, timing.time() - 1200).with_(worktree=True), Actor.system())
-        folder = str(app.container.get(WorkerBranch).folder(worker))
-        app.container.get(CommandOutputs).save(CommandOutput(chain=f"test-{worker.id}", command=command.format(folder=folder), session="s1", ran_in=folder if ran_in else "", ended=ended), Actor.system())
-
-    scored = orchestrator_scored(app, tested)
-    assert scored.is_measured and not any(gap.label.startswith("your tool uses made while a clocked-out worker waited") for gap in scored.gaps), f"a worker whose worktree is under test, run in it or by a leading cd, is not waiting: {scored.gaps}"
-    from journal.models.worker import Worker
-    clocked = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1").delivered(100.0)
-    assert not clocked.is_unanswered(1300.0, 300, 1100.0) and clocked.is_unanswered(1500.0, 300, 1100.0), "the wait counts again from the end of the test run"
-
-
-def test_an_orchestrator_that_dispatches_fresh_workers_while_one_sits_idle_scores_low_on_reuse(app: App):
-    from journal.models.worker import Worker
-    from journal.models.worker_state import WorkerState
-    from journal.repositories.workers import Workers
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
-    scored = orchestrator_scored(app, lambda: app.container.get(Workers).save(Worker(environment_id=1, name="Ada Lovelace", brief="b", state=WorkerState.REPORTED), Actor.system()), uses=40)
-    for n in range(10):
-        hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal worker dispatch 'job {n}'"})
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"p{n}.md")})
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    from journal.repositories.agents import Agents
-    reuse = WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts.counted(app.container.get(Agents).current()))
-    assert reuse.gaps[0].label.startswith("your sends to idle workers") and reuse.gaps[0].percent == 0, "fresh dispatches over an idle worker score reuse at nothing"
-
-
 def test_a_brief_that_names_no_done_when_and_no_files_is_not_counted_as_complete():
     from types import SimpleNamespace
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
@@ -1986,41 +1900,9 @@ def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_
     assert not WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
-def test_a_measure_with_fewer_than_three_events_in_its_window_is_left_out_of_the_score():
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import PREPARED_MERGE_SHARE, WAIT_SHARE, WorkersProfiles
-    from journal.models.support.wait_use import WaitUse
-    two = ToolUseCounts(mode="orchestrator", merges=2, prepared_merges=0, research_count=20)
-    three = replace(two, merges=3)
-    assert PREPARED_MERGE_SHARE.closeness(two) is None and PREPARED_MERGE_SHARE.closeness(three) == 0.0, "two merges are too few to score, three are scored"
-    assert WorkersProfiles.ORCHESTRATOR.scored(two).score == 100 and WorkersProfiles.ORCHESTRATOR.scored(three).score < 100, "a measure left out costs nothing"
-    assert WAIT_SHARE.closeness(replace(two, waits=WaitUse(with_wait=1))) == 1.0, "the plans' waits are scored from one task"
-
-
-def test_an_orchestrator_that_merges_without_reading_proofs_or_running_tests_scores_low_on_that_measure():
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    prepared = WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=4, research_count=20))
-    unprepared = WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=0, research_count=20))
-    assert prepared.score == 100 and unprepared.score < prepared.score, "merging with no proof read and no test run first costs score"
-    assert unprepared.gaps[0].label == "your merges that followed a read of the proofs and a test run among your merges" and unprepared.gaps[0].percent == 0, "and it is the measure named"
-
-
-def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparation_and_its_answer_time_runs_from_the_review(app: App):
-    from journal.features.reviewing.reviewing_options import ReviewingOptions
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_conduct import fitness_lines
+def test_with_the_reviewer_on_the_orchestrators_answer_time_runs_from_the_review_and_merge_preparation_is_no_longer_measured_on_purpose(app: App):
     from journal.models.reviewer import Reviewer
     from journal.models.worker import Worker
-    from journal.engine.support.settings import Settings
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    unprepared = ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=0, research_count=20)
-    assert WorkersProfiles.ORCHESTRATOR.scored(unprepared).score < 100 and WorkersProfiles.reviewed_mode_profile("orchestrator").scored(unprepared).score == 100, "with the reviewer on, merges with no proof read or test run of its own cost the orchestrator nothing"
-    assert WorkersProfiles.reviewed_mode_profile("solo") is WorkersProfiles.SOLO_PROFILE, "the other modes are measured as they were"
-    data = type("Workers", (), {"tool_uses": unprepared, "fitness_level": 100})()
-    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, FitnessOptions.LEVEL_STEP.key: 5, FitnessOptions.WARNINGS.key: True, ReviewingOptions.REVIEWER.key: False}
-    assert fitness_lines("orchestrator", data, Settings(values)), "with the reviewer off a low score is told as today"
-    assert not fitness_lines("orchestrator", data, Settings({**values, ReviewingOptions.REVIEWER.key: True})), "and with it on the merge measure no longer lowers it"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
     clocked = worker.delivered(100.0)
     assert clocked.is_unanswered(500.0, 300), "with the reviewer off a clock-out waits on the orchestrator from the clock-out"
@@ -2071,51 +1953,6 @@ def test_the_fitness_score_waits_for_the_warmup_in_the_current_work_mode(app: Ap
     app.console().run(["settings", "set", "workers.mode", "orchestrator"], USER)
     ticked_minutes(app, 33)
     assert fitness()["mode"] == "orchestrator" and not fitness()["is_measured"], "after a switch the new mode's measures start fresh and wait their own warm-up"
-
-
-def test_a_merge_counts_as_checked_after_a_proof_read_and_a_test_run_in_the_workers_worktree_made_after_its_clock_out(app: App, monkeypatch):
-    import subprocess
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.support.worker_branch import WorkerBranch
-    from journal.repositories.agents import Agents
-    from journal.repositories.workers import Workers
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    console = app.console()
-    hook(app, "SessionStart")
-    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
-        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
-    for title in ("the parser", "the lexer"):
-        console.run(["task", "create", title, "--brief", "b"], AGENT)
-    for name, task in (("Lady Lovelace", "1"), ("Ada Byron", "2")):
-        out = console.run(["worker", "dispatch", name, "--task", task, "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT)
-        assert out.code == 0, out.error
-    workers, branch = app.container.get(Workers), app.container.get(WorkerBranch)
-    for n in (1, 2):
-        workers.save(workers.find(n).delivered(timing.time()), Actor.system())
-    lovelace, byron = (branch.place(workers.find(n)) for n in (1, 2))
-    said = lambda command, folder=app.config.root: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command}, cwd=str(folder))
-    counted = lambda: (lambda counts: (counts.merges, counts.prepared_merges))(ToolUseCounts.counted(app.container.get(Agents).current()))
-    said("journal task show 1")
-    said(f"(cd {lovelace} && git rebase -q development && python3 scripts/suite.py)")
-    said("journal worker merge 1")
-    assert counted() == (1, 1), "a suite run whose line changes into the worker's worktree after its clock-out counts the merge as checked"
-    said("journal task show 2")
-    said("journal suite")
-    said("journal worker merge 2")
-    assert counted() == (2, 1), "a test run in the project's own folder does not test the worker's worktree"
-    said("journal task show 2")
-    said("journal suite", byron)
-    said("journal worker merge 2")
-    assert counted() == (3, 2), "a run whose working folder is the worktree counts"
-    said("journal task show 1")
-    said("python3 -m pytest -q", lovelace)
-    workers.save(workers.find(1).delivered(timing.time() + 60), Actor.system())
-    said("journal worker merge 1")
-    assert counted() == (4, 2), "a run made before the worker clocked out is not the test run before its merge"
-    said("journal task show 2")
-    said(f'(cd "{byron}" && python3 scripts/suite.py)')
-    said("journal worker merge 2")
-    assert counted() == (5, 3), "a leading cd into the worktree counts with the folder in quotes, as CommandOutputs.ran_within reads it"
 
 
 def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_load_and_the_unanswered_messages(app: App):
@@ -10680,9 +10517,6 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     app.runtime().deferred.drain()
     from journal.repositories.entries import Entries
     with app.container.get(Scope).environment(MAIN):
-        said = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_place_free"]
-    assert said and " free; open: " in said[-1], "a merged worker frees a place, and the orchestrator is told at once the count of open tasks and the next ones by number"
-    with app.container.get(Scope).environment(MAIN):
         reopened = [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "tasks.task_reopened"]
     assert not reopened, "a merge finishes its task before it lets the worker go, so the task never opens again on the way"
     tip = git("rev-parse", "HEAD").stdout.strip()
@@ -13178,20 +13012,6 @@ def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_th
     console.run(["worker", "queue", "1", "4"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Agents).session_rows(AGENT.session)[0].report_use.drop_cause == "a quick report", "while another cause's drop recovers, the misfit adds none: one cause, one drop"
-
-
-def test_the_orchestrator_is_scored_on_queues_kept_full_and_draining_and_the_builder_is_not(app: App):
-    from journal.features.workers.support.queue_measure import EMPTY_ADVICE, PILING_ADVICE
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import STEADY_QUEUES, WorkersProfiles
-    from journal.models.support.queue_use import QueueUse
-    assert STEADY_QUEUES in WorkersProfiles.ORCHESTRATOR.measures and WorkersProfiles.mode_profile("builder") is None, "only the orchestrator is scored on its queues"
-    counts = lambda use: ToolUseCounts(queue_use=use)
-    assert STEADY_QUEUES.closeness(counts(QueueUse())) is None, "with no worker that has merged, the measure is left out"
-    empty = counts(QueueUse(counted=2, empty=1))
-    assert STEADY_QUEUES.closeness(empty) == 0.5 and STEADY_QUEUES.gap(empty).advice == EMPTY_ADVICE, "an empty queue while tasks are open lowers the score and asks to queue more"
-    piling = counts(QueueUse(counted=2, piling=2))
-    assert STEADY_QUEUES.closeness(piling) == 0.0 and STEADY_QUEUES.gap(piling).advice == PILING_ADVICE, "a queue piling past what it drains lowers the score and asks to let it drain"
 
 
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
@@ -16360,7 +16180,7 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     assert not named, f"a worker is named by its number alone, never also by its name: {named}"
     titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
     assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
-    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.dispatch_while_busy": 70, "workers.worker_place_free": 70, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
+    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
              "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
     values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
     for key, limit in short.items():

@@ -13,7 +13,7 @@ SPOKEN_ACTIONS = {
     "solo_answer": "answer",
     "load_rising": "merge",
     "load_critical": "merge",
-    "clear_the_oldest_item": "merge",
+    "orchestrator_dispatched_under_load": "merge",
 }
 REPLY_FEATURE = "messages"
 NAMED_ROWS = {"merge": re.compile(r"worker (\d+)"), "dispatch": re.compile(r"task (\d+)"), "answer": re.compile(r"message (\d+)")}

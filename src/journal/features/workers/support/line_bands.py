@@ -5,7 +5,6 @@ from journal.models.support.pressure_band import PressureBand
 
 LOW, NORMAL, HIGH = PressureBand.LOW, PressureBand.NORMAL, PressureBand.HIGH
 INCREASE, DECREASE, NEUTRAL = HandoutDirection.INCREASE, HandoutDirection.DECREASE, HandoutDirection.NEUTRAL
-CLEAR_OLDEST = WorkersNudges.CLEAR_OLDEST.key
 
 
 class LineBands:
@@ -15,12 +14,11 @@ class LineBands:
         LineBand("builder", WorkersNudges.BUILDER_CODE_SHARE_LINE.key, (LOW, NORMAL), DECREASE),
         LineBand("builder", WorkersNudges.BUILDER_QUEUE_LINE.key, (HIGH,), DECREASE),
         LineBand("builder", WorkersNudges.BUILDER_WORKER_LINE.key, (LOW, NORMAL, HIGH), DECREASE),
-        LineBand("orchestrator", CLEAR_OLDEST, (HIGH,), DECREASE),
-        LineBand("orchestrator", "workers.orchestrator_check_worker", (NORMAL, HIGH), NEUTRAL),
-        LineBand("orchestrator", "workers.orchestrator_hand_out", (LOW, NORMAL), INCREASE),
-        LineBand("orchestrator", "workers.orchestrator_fill_place", (LOW, NORMAL), INCREASE),
-        LineBand("orchestrator", "workers.orchestrator_queue_more", (LOW, NORMAL, HIGH), NEUTRAL),
-        LineBand("orchestrator", "workers.orchestrator_clear_before_dispatch", (HIGH,), DECREASE),
+        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_QUEUE_LINE.key, (HIGH,), DECREASE),
+        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_WAIT_LINE.key, (NORMAL, HIGH), NEUTRAL),
+        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key, (LOW, NORMAL), INCREASE),
+        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_REPORT_LINE.key, (LOW, NORMAL, HIGH), NEUTRAL),
+        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_DISPATCH_LINE.key, (HIGH,), DECREASE),
         LineBand("solo", "workers.solo_answer", (PressureBand.NONE,), NEUTRAL),
     )
 

@@ -2545,28 +2545,11 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
 
 
 def test_a_compaction_keeps_the_newest_fifty_tool_uses_in_the_fitness_window():
-    agent = Agent(environment_id=1, session="s1", tool_uses=320, late_worker_uses=(250, 300, 319), merge_uses=(310,))
+    agent = Agent(environment_id=1, session="s1", tool_uses=320, handover_uses=(250, 300, 319), file_edit_uses=(310,))
     compacted = agent.compacted()
-    assert compacted.tool_uses == 0 and compacted.windowed(compacted.late_worker_uses) == (-20, -1) and compacted.windowed(compacted.merge_uses) == (-10,), "the same uses stay in the window after the count starts again"
-    stale = Agent(environment_id=1, session="s1", tool_uses=166, late_worker_uses=(150, 290, 321))
-    assert stale.windowed(stale.late_worker_uses) == (150,), "a use numbered above the count is from before a compaction and left out"
-
-
-def test_the_orchestrators_fitness_scores_its_handling_of_its_load_beside_the_level_of_the_load():
-    from dataclasses import replace
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import CALM_DISPATCH_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, WorkersProfiles
-    from journal.models.support.agent_load import AgentLoad
-    handled = AgentLoad(rho=1.4, over_minutes=5, oldest_first=10, clearings_counted=10, dispatches_for=3, measured_at=1.0)
-    counts = ToolUseCounts(handovers=20, mode="orchestrator", load=handled)
-    assert (BUSY_MINUTES.closeness(counts), OLDEST_FIRST_SHARE.closeness(counts), CALM_DISPATCH_SHARE.closeness(counts)) == (1.0, 1.0, 1.0), "a high load handled well scores whole: the load itself is never scored"
-    late = replace(counts, load=replace(handled, over_minutes=35))
-    assert BUSY_MINUTES.closeness(late) == 0.5 and BUSY_MINUTES.closeness(replace(counts, load=replace(handled, over_minutes=70))) == 0.0, "full under 10 minutes over, falling straight to nothing at 60"
-    badly = replace(counts, load=replace(handled, over_minutes=35, oldest_first=4, dispatches_for=1, dispatches_against=4))
-    scored = WorkersProfiles.ORCHESTRATOR.scored(badly)
-    assert scored.is_measured and scored.score < WorkersProfiles.ORCHESTRATOR.scored(counts).score
-    assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line or line.startswith("your load is 140%") for line in scored.lines), scored.lines
-    assert BUSY_MINUTES.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
+    assert compacted.tool_uses == 0 and compacted.windowed(compacted.handover_uses) == (-20, -1) and compacted.windowed(compacted.file_edit_uses) == (-10,), "the same uses stay in the window after the count starts again"
+    stale = Agent(environment_id=1, session="s1", tool_uses=166, handover_uses=(150, 290, 321))
+    assert stale.windowed(stale.handover_uses) == (150,), "a use numbered above the count is from before a compaction and left out"
 
 
 def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after_the_interval_and_an_unblocking_task_queued_behind_others_is_named_at_once():
@@ -2670,7 +2653,7 @@ def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allo
     def event(line, lines=0):
         from journal.support.command_part import CommandPart
         call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
-        return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=lines)}))
+        return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())}))
     allowed = {WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.SOLO_SUBAGENTS_ALLOWED.key: True}
     builder = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder"})
     assert capability_check(Ready(), event("journal worker dispatch 1"), builder).refusal is None
@@ -3033,7 +3016,7 @@ def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_
     workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=1000.0), measures=failing, band=PressureBand.HIGH)
     event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": workers}))
     lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: True})).nudges
-    assert [line.rendered() for line in lines] == ["the worker queue has stood high for 14 minutes. clear worker 12 first, the oldest: check it, merge it or reply"], [line.rendered() for line in lines]
+    assert [line.rendered() for line in lines] == ["the worker queue has stood high for 14 minutes. clear worker 12 first, the oldest waiting"], [line.rendered() for line in lines]
     assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: False})).nudges == (), "with the warnings off no measure line is said"
     hook(app, "SessionStart")
     agent, nudger, clock = app.container.get(Agents).session_rows("s1")[0], app.container.get(Nudger), app.container.get(TimeSource)
@@ -3053,8 +3036,8 @@ def test_no_band_of_a_mode_holds_two_measure_lines_that_push_opposite_ways():
         for band in PressureBand:
             directions = {row.direction for row in LineBands.ROWS if row.mode == mode and band in row.bands}
             assert not {HandoutDirection.INCREASE, HandoutDirection.DECREASE} <= directions, (mode, band)
-    assert LineBands.is_allowed("orchestrator", "workers.clear_the_oldest_item", PressureBand.HIGH) and not LineBands.is_allowed("orchestrator", "workers.clear_the_oldest_item", PressureBand.NORMAL)
-    assert ("workers.orchestrator_hand_out", "workers.clear_the_oldest_item") in LineBands.opposed_pairs()
+    assert LineBands.is_allowed("orchestrator", "workers.orchestrator_clear_oldest", PressureBand.HIGH) and not LineBands.is_allowed("orchestrator", "workers.orchestrator_clear_oldest", PressureBand.NORMAL)
+    assert ("workers.orchestrator_hand_out", "workers.orchestrator_clear_oldest") in LineBands.opposed_pairs()
 
 
 def test_a_held_high_worker_queue_opens_a_place_at_the_dwell_and_says_its_line_five_minutes_later(app: App):
@@ -3134,6 +3117,82 @@ def test_each_builder_measure_line_speaks_where_its_measure_fails_in_its_bands_a
     assert said("active_workers", 3.2, PressureBand.NORMAL, command=dispatch) == ["3.2 workers have been active at once this hour, on average. merge worker 5 next, then hand out the next task"]
     assert said("active_workers", 3.2, PressureBand.HIGH, command="journal worker queue 2 9") != [], "on a queue too, in every band"
     assert said("active_workers", 3.2, PressureBand.NORMAL) == [] and said("active_workers", 3.2, PressureBand.NORMAL, delivered=(), command=dispatch) == [], "only on a dispatch or a queue, and silent with no worker waiting to be checked"
+
+
+def test_each_orchestrator_measure_reads_its_series_and_the_delegating_orchestrator_scores_above_the_one_that_writes(app: App):
+    from journal.features.workers.support.active_worker_measure import ActiveWorkerMeasure
+    from journal.features.workers.support.free_place_measure import FreePlaceMeasure
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_series import LoadSeries
+    from journal.features.workers.support.measure_source import MeasureSource
+    from journal.features.workers.support.mode_measures import ModeMeasures
+    from journal.models.agent import Agent
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.repositories.tasks import Tasks
+    source = lambda agent: MeasureSource(agent, 10000.0, app.container.get(FreePlaceMeasure), app.container.get(ActiveWorkerMeasure), app.container.get(Tasks))
+    series = LoadSeries(30, 10, 0.8, 0.5)
+    items = [LoadItem(ref="workers:3", arrived_at=9400.0, weight=1.0), LoadItem(ref="workers:4", arrived_at=9700.0, weight=1.0)]
+    waiting = Agent(environment_id=1, session="s1", work_queue=series.measured(items, [], 10000.0))
+    assert source(waiting).clearing_wait() == 10.0, "the age of the oldest worker item waiting"
+    cleared = Agent(environment_id=1, session="s1", work_queue=series.measured([items[0].cleared(10000.0), items[1]], [], 10060.0))
+    assert source(cleared).clearing_wait() == 6.0, "clearing the oldest brings the next one's age at the next measure"
+    delegating = Agent(environment_id=1, session="s1", committed_lines=((9000.0, 10),), merged_lines=((9200.0, 60), (9500.0, 30)), first_reports=((9000.0, 1),))
+    assert source(delegating).delegation() == 0.1 and source(delegating).report_share() == 0.5, "its own lines among all landed, and first reports per merged task"
+    assert source(Agent(environment_id=1, session="s1", committed_lines=((9000.0, 10),), merged_lines=((9500.0, 90),))).delegation() is None, "under two merges in the hour delegation is not measured"
+    assert source(Agent(environment_id=1, session="s1")).report_share() is None, "with no merge there are no reports per task to measure"
+    with app.container.get(Scope).environment(1):
+        specs = app.container.get(ModeMeasures).specs("orchestrator")
+    state = lambda key, value: MeasureState(key, value, is_measured=True, measured_at=3600.0)
+    common = (state("high_queue_minutes", 0.0), state("clearing_wait", 2.0), state("idle_places", 1.0), state("report_share", 0.3))
+    handing = MeasureStates("orchestrator", 0.0, (*common, state("delegation", 0.1)))
+    writing = MeasureStates("orchestrator", 0.0, (*common, state("delegation", 0.9)))
+    assert ModeMeasures.scored(handing, specs, 1800.0).score > ModeMeasures.scored(writing, specs, 1800.0).score, "an orchestrator that delegates scores above one that writes the work itself"
+
+
+def test_each_orchestrator_measure_line_speaks_where_its_measure_fails_in_its_bands_and_nowhere_else():
+    from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import measure_check
+    from journal.models.open_task import OpenTask
+    from journal.models.support.agent_load import AgentLoad
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.pressure_band import PressureBand
+    from journal.models.worker import Worker
+    settings = SettingsValue({FitnessOptions.WARNINGS.key: True, WorkersOptions.WORKER_LIMIT.key: 3})
+    task = OpenTask(id=9, title="Fix the cart", brief="", plan_id=0)
+    def said(failing: tuple[str, ...], value: float, band: PressureBand, refs=("messages:4", "workers:12"), idle=(), out=(Worker(environment_id=1, id=6),), next_open=task, open_count: int = 3, command: str = "ls") -> list[str]:
+        measures = MeasureStates("orchestrator", 0.0, tuple(MeasureState(key, value, is_measured=True, is_failing=True, measured_at=1000.0) for key in failing))
+        workers = WorkersData(tuple(out), tuple(idle), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=refs, waiting_items=len(refs), measured_at=1000.0), measures=measures, band=band)
+        tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=next_open, last_commands=(), open_count=open_count)
+        return [line.rendered() for line in measure_check(Ready(), ToolStarting(call=shell(command)).with_data(FeatureData({"workers": workers, "tasks": tasks})), settings).nudges]
+    assert said(("high_queue_minutes",), 16.0, PressureBand.HIGH) == ["the worker queue has stood high for 16 minutes. clear worker 12 first, the oldest waiting"]
+    assert said(("high_queue_minutes",), 16.0, PressureBand.NORMAL) == [] and said(("high_queue_minutes",), 16.0, PressureBand.HIGH, refs=("messages:4",)) == [], "high only, and silent with no worker item waiting"
+    assert said(("clearing_wait",), 9.0, PressureBand.NORMAL) == ["the oldest worker waiting has waited past its range. check worker 12: it waited 9 minutes"]
+    assert said(("clearing_wait",), 9.0, PressureBand.LOW) == [] and said(("clearing_wait",), 9.0, PressureBand.HIGH, refs=()) == [], "normal and high only, silent with no worker waiting"
+    assert said(("delegation", "idle_places"), 0.6, PressureBand.LOW, idle=(Worker(environment_id=1, id=3),)) == ["too little of the work is handed out. queue task 9 to worker 3"], "one line for both measures, to an idle worker first"
+    assert said(("delegation",), 0.6, PressureBand.NORMAL) == ["too little of the work is handed out. dispatch a worker on task 9"], "else to a new worker while a place is free"
+    assert said(("delegation",), 0.6, PressureBand.HIGH) == [] and said(("delegation",), 0.6, PressureBand.NORMAL, next_open=None) == [], "never in high, and silent with no task to hand out"
+    full = tuple(Worker(environment_id=1, id=n) for n in (6, 7, 8))
+    assert said(("idle_places",), 7.0, PressureBand.NORMAL, out=full) == [], "silent with no free place and no idle worker"
+    assert said(("report_share",), 0.5, PressureBand.HIGH) == ["your workers report once for every 2.0 tasks merged. queue worker 6 its next tasks with --report queue"], "in every band"
+    assert said(("report_share",), 0.5, PressureBand.NORMAL, out=()) == [] and said(("report_share",), 0.5, PressureBand.NORMAL, open_count=1) == [], "silent with no worker out or under two open tasks"
+    dispatch = "journal worker dispatch 'Ada' --task 9"
+    assert said((), 0.0, PressureBand.HIGH, command=dispatch) == ["this dispatch comes while the worker queue stands high and worker 12 waits. check and merge worker 12 next"], "a line on a dispatch in high, never a refusal"
+    assert said((), 0.0, PressureBand.NORMAL, command=dispatch) == [] and said((), 0.0, PressureBand.HIGH, command="journal worker queue 6 9") == [], "only on a dispatch, only in high"
+
+
+def test_the_orchestrator_share_columns_are_dropped_from_a_database_that_holds_them(connection):
+    from journal.db.migrations.orchestrator_share_columns_drop import DROPPED_COLUMNS, OrchestratorShareColumnsDrop
+    for column in DROPPED_COLUMNS:
+        connection.execute(f"ALTER TABLE agents ADD COLUMN {column} TEXT")
+    connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator, reuse_uses) VALUES (1, 's1', 'main', 'idle', '{}', '[]', '2026-10-26', 'system', '[3, 4]')")
+    OrchestratorShareColumnsDrop().apply(connection)
+    OrchestratorShareColumnsDrop().apply(connection)
+    columns = {row["name"] for row in connection.all("PRAGMA table_info(agents)")}
+    assert not columns & set(DROPPED_COLUMNS) and connection.all("SELECT session FROM agents")[0]["session"] == "s1", "the columns go, the row stays, and a second run finds nothing to drop"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):
@@ -3345,7 +3404,7 @@ def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder
         assert app.container.get(Edits).agent_edits("wd", 0.0, 10), "the edit recorder its file allows runs on the worker's hook"
     finished = ToolFinished(call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset()), output="").placed("wd", 1, "claude", None, 1.0)
     reached = {listener.registered_class().__name__ for listener in app.container.get(HelperListeners).listeners(finished)}
-    assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord", "QueueUseRecord"}, "while the main agent's deferred recorders never hear it"
+    assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord"}, "while the main agent's deferred recorders never hear it"
 
 
 def test_a_helper_reads_only_the_data_parts_of_features_its_file_turns_on(app: App):

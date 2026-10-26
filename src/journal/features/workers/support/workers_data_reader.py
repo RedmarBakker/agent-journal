@@ -1,7 +1,6 @@
 from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.level_entries import LevelEntries
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
-from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.repositories.scope import Scope
@@ -31,8 +30,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, level_entries: LevelEntries) -> None:
-        self.edits, self.checks, self.scope, self.stages, self.entries, self.resumes, self.level_entries = edits, checks, scope, stages, entries, resumes, level_entries
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, level_entries: LevelEntries) -> None:
+        self.checks, self.scope, self.stages, self.entries, self.resumes, self.level_entries = checks, scope, stages, entries, resumes, level_entries
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
     def last_call(self, session: str) -> str:
@@ -62,7 +61,6 @@ class WorkersDataReader:
             "unfinished_outputs": lambda: tuple(output.row_id for worker in facts.session_workers for output in self.outputs.unfinished(Actor.worker(worker.id))),
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),
-            "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "workload": lambda: agent.work_queue,
             "fitness_level": lambda: agent.fitness_level,
             "workload_level": lambda: self.level_entries.latest(agent.session),

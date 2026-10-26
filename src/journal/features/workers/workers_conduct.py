@@ -30,7 +30,6 @@ from journal.models.support.model_fit import OVERPOWERED
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_test_failed import WorkerTestFailed
 from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
-from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_mention import WorkerMention
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.features.workers.support.worker_line import WorkerLine
@@ -55,7 +54,6 @@ from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.tasks.states.external_wait import ExternalWait
-from journal.features.reviewing.reviewing_options import ReviewingOptions
 
 INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 # the most of a worker's name a failed test run's line carries, so the line stays under 120 characters
@@ -172,7 +170,7 @@ class WorkersConduct(Conduct):
     def on_worker_stopped(self, event: WorkerStopped, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, cause=RUN_LIMIT_CAUSE if event.is_run_limit else ""), *free_place(event.worker, event.data, settings))
+        return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, cause=RUN_LIMIT_CAUSE if event.is_run_limit else ""))
 
     def on_proof_short(self, event: ProofShort, settings: Settings) -> Transition:
         if not event.dispatcher or event.dispatcher != event.session or event.is_reviewers():
@@ -182,10 +180,7 @@ class WorkersConduct(Conduct):
     def on_worker_queue_empty(self, event: WorkerQueueEmpty, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(*(free_place(event.worker, event.data, settings) or (WorkersNudges.IDLE_WORKER.create(n=event.worker.id),)))
-
-    def on_worker_retired(self, event: WorkerRetired, settings: Settings) -> Transition:
-        return place_answer(self, event, settings)
+        return self.none(WorkersNudges.IDLE_WORKER.create(n=event.worker.id))
 
 
 def missing_wait_lines(event: WaitsMissing) -> list[Nudge]:
@@ -409,16 +404,14 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
 
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
+    workers = event.data.part(WorkersPart)
     if settings.value(WorkersOptions.MODE) != "orchestrator":
         return state.none()
     if is_full((*workers.dispatched_workers, *workers.ready_work), settings.integer(WorkersOptions.WORKER_LIMIT)):
         if not workers.ready_work:
             return state.none()
         return state.none(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker))
-    if not tasks.open_count:
-        return state.none()
-    return state.none(WorkersNudges.CREW_REMINDER.create(count=tasks.open_count, tasks=tasks.open_next))
+    return state.none()
 
 
 def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -429,19 +422,6 @@ def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings
     return state.none(*(WorkersNudges.CHECK_REMINDER.create(n=work.worker, name=work.name, task=work.task) for work in ready))
 
 
-def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    tasks = data.part(TasksPart)
-    if not tasks.open_count:
-        return ()
-    return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=tasks.open_count, tasks=tasks.open_next),)
-
-
-def place_answer(state: BaseState, event: WorkerRetired, settings: Settings) -> Transition:
-    return state.none() if event.worker.is_other_dispatcher(event.session) else state.none(*free_place(event.worker, event.data, settings))
-
-
 def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     if event.subagent:
         return state.none()
@@ -450,7 +430,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
 
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
-    profile = (WorkersProfiles.reviewed_mode_profile if settings.value(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(mode)
+    profile = WorkersProfiles.mode_profile(mode)
     fitness = profile.scored(workers.tool_uses) if profile and settings.value(FitnessOptions.WARNINGS) else None
     if fitness is None or not fitness.is_measured:
         return ()
@@ -465,13 +445,15 @@ def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
     if event.subagent or not settings.value(FitnessOptions.WARNINGS):
         return state.none()
     handover = any(part.text.startswith(command) for part in event.call.parts for command in HANDOVERS)
-    return state.none(*MeasureLines.lines(event.data), *(MeasureLines.handover_lines(event.data) if handover else ()))
+    dispatch = any(part.text.startswith(DISPATCH_COMMAND) for part in event.call.parts)
+    return state.none(*MeasureLines.lines(event.data, settings), *(MeasureLines.handover_lines(event.data) if handover else ()), *(MeasureLines.dispatch_lines(event.data) if dispatch else ()))
 
 
 def is_full(dispatched: tuple, limit: int) -> bool:
     return limit > 0 and len(dispatched) >= limit
 
 
+DISPATCH_COMMAND = "journal worker dispatch"
 HANDOVERS = {"journal worker dispatch": ("dispatch a worker", WorkersOptions.BUILDER_DISPATCH_ALLOWED), "journal worker queue": ("queue a worker's next task", WorkersOptions.BUILDER_QUEUE_ALLOWED)}
 
 

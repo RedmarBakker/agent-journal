@@ -1,38 +1,23 @@
-from datetime import datetime, timezone
-
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.compacting import Compacting
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
 from journal.models.agent import Agent
-from journal.models.worker import Worker
 from journal.repositories.agents import Agents
-from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
-from journal.repositories.tasks import Tasks
-from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.code_files import CodeFiles
 from journal.support.recorded_call import RecordedCall
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.support.test_run_folder import TestRunFolder
-from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.features.workers.support.worker_line import WorkerLine
-from journal.support.tool_call import ToolCall
-
-# how long a clocked-out worker or an open task with a free place may wait for the orchestrator before the tool uses made meanwhile count against it; a worker's wait pauses while a run in its worktree goes on and counts again from its end
-ANSWER_SECONDS = 300
-# the worker command that takes a worker's work in
-MERGE_VERB = "merge"
 
 
 class ToolUses:
     """One tool-use counter per session, stored on the agent's row and carried on every tool event: a plain tool use of the agent's own moves it by one as its ToolStarting is placed; a journal command and a subagent's tool use leave it where it is and carry the unchanged number; a compaction sets it back to zero, with the inbox mark, since the agent after it is as good as new. An edit of a code file by the agent itself moves its count of code edits by one too. A plain tool use also carries how many times the agent has run its command's shape, counted here once for every listener."""
 
-    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks, workers: Workers, branch: WorkerBranch, runs: TestRunFolder, outputs: CommandOutputs) -> None:
-        self.agents, self.entries, self.settings, self.tasks, self.workers, self.branch, self.runs, self.outputs = agents, entries, settings, tasks, workers, branch, runs, outputs
+    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows) -> None:
+        self.agents, self.entries, self.settings = agents, entries, settings
 
     def counted(self, event: AgentEvent) -> AgentEvent:
         if not isinstance(event, (ToolStarting, ToolFinished, Compacting)):
@@ -57,39 +42,11 @@ class ToolUses:
 
     def reviewed(self, agent: Agent, event: ToolStarting) -> Agent:
         call = event.call.recorded()
-        agent = self.merged(agent, event.call) if ToolUseCounts.is_merge(call) else agent
-        agent = agent.proof_read() if ToolUseCounts.is_proof_read(call) else agent
-        tested = self.runs.folder(event.call.command, event.folder)
-        agent = agent.tests_run(tested, event.time) if tested else agent
-        agent = agent.worker_reused() if ToolUseCounts.is_send(call) else agent
-        agent = agent.fresh_over_idle() if ToolUseCounts.is_dispatch(call) and self.workers.has_idle() else agent
         return agent.briefed() if ToolUseCounts.is_handover(call) and ToolUseCounts.is_complete_brief(call) else agent
-
-    def merged(self, agent: Agent, call: ToolCall) -> Agent:
-        numbers = [int(line.arguments[0]) for part in call.parts if (line := WorkerLine.parsed(part.text)) and line.verb == MERGE_VERB and line.arguments[:1] and line.arguments[0].isdigit()]
-        workers = self.workers.matching(id=numbers[0]) if numbers else []
-        if not workers:
-            return agent.unchecked_merge()
-        return agent.worker_merged(str(self.branch.place(workers[0]).resolve()), workers[0].delivery_time())
-
-    def has_unanswered(self, time: float) -> bool:
-        return any(worker.is_unanswered(time, ANSWER_SECONDS, self.tested_at(worker, time)) for worker in self.workers.checkable_workers())
-
-    def tested_at(self, worker: Worker, time: float) -> float:
-        runs = [run for run in self.outputs.tree_runs(str(self.branch.folder(worker))) if run.creation_time.timestamp() >= worker.silence.timeout.start] if worker.worktree else []
-        return max((run.update_time.timestamp() if run.ended else time for run in runs), default=0.0)
-
-    def has_late_task(self, time: float) -> bool:
-        limit = self.settings.integer(WorkersOptions.WORKER_LIMIT)
-        if limit > 0 and self.workers.dispatched_count() >= limit:
-            return False
-        return self.tasks.has_stale_open(datetime.fromtimestamp(time - ANSWER_SECONDS, timezone.utc))
 
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
         agent = agent.in_mode(mode).tool_used()
-        agent = agent.worker_waited() if mode == "orchestrator" and self.has_unanswered(time) else agent
-        agent = agent.task_waited() if mode == "orchestrator" and self.has_late_task(time) else agent
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
         agent = agent.file_edited() if call.edited_paths else agent
         agent = agent.lines_edited(call.operation.changed_lines()[0], time, time - self.settings.decimal(WorkersOptions.SERIES_HOURS) * 3600) if CodeFiles.has_code(call.edited_paths) else agent

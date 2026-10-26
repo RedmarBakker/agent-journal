@@ -32,7 +32,7 @@ class LoadSeries:
         counted = [item for item in items if item.is_cleared_in(moment - window, moment)]
         sorted_waiting = sorted((item for item in items if item.is_waiting(moment)), key=lambda item: (item.arrived_at, item.ref))
         calm_dispatches, busy_dispatches = self.dispatch_counts(series, [time for time in dispatches if moment - window < time <= moment])
-        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings or 0.0, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting),
+        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings or 0.0, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting), oldest_wait_minutes=round(sum((moment - item.arrived_at) / 60 for item in sorted_waiting[:1]), 2),
                          wait_minutes=round(wait or 0.0, 2), little=round(arrivals * (wait or 0.0) / 60, 2), over_minutes=self.stretch(series, lambda point: point[1] >= self.busy_at and point[2] > 0),
                          under_minutes=self.stretch(series, lambda point: point[1] < self.quiet_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),
                          clearings_counted=len(counted), removals=sum(1 for item in items if item.is_removal(moment - window, moment)), dispatches_for=calm_dispatches, dispatches_against=busy_dispatches, measured_at=moment)

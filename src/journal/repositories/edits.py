@@ -31,7 +31,3 @@ class Edits(ScopedRepository[Edit]):
 
     def has_older(self, session: str, first: int) -> bool:
         return bool(self.selected(self.query().filter(session=session).filter_less("id", first).limit(1)))
-
-    def code_line_count(self, session: str, start_at: float) -> int:
-        lines = self.grouped_sums(self.query().filter(session=session).filter_greater("time", start_at), "path", "added", "removed")
-        return sum(count for path, count in lines.items() if CodeFiles.has_code((path,)))

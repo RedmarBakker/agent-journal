@@ -31,7 +31,6 @@ class WorkersData:
     delivered_workers: tuple[Worker, ...] = ()
     delivered_runs: tuple[tuple[int, int], ...] = ()
     tool_uses: ToolUseCounts = ToolUseCounts()
-    code_lines: int = 0
     workload: AgentLoad = AgentLoad()
     fitness_level: int = 100
     workload_level: float = 0.0

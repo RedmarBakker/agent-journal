@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 from journal.models.agent import WORK_WINDOW_USES, Agent
 from journal.models.support.agent_load import AgentLoad
-from journal.models.support.queue_use import QueueUse
 from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
 from journal.support.recorded_call import RecordedCall
@@ -11,12 +10,8 @@ from journal.support.subagent_dispatch import SubagentDispatch
 
 # the commands that hand work to a worker
 HANDOVER_COMMANDS = ("journal worker dispatch", "journal worker send", "journal worker queue")
-SEND_COMMANDS = ("journal worker send",)
-DISPATCH_COMMANDS = ("journal worker dispatch",)
-MERGE_COMMANDS = ("journal worker merge",)
 TASK_ADDITION_COMMANDS = ("journal task create",)
 TASK_COMPLETION_COMMANDS = ("journal task complete", "journal worker merge")
-PROOF_COMMANDS = ("journal task show",)
 TEST_COMMANDS = ("journal suite", "scripts/suite.py", "pytest", "python3 -m pytest", "npm test", "npx vitest", "go test", "phpunit", "cargo test")
 DONE_WHEN = re.compile(r"done[- ]when", re.IGNORECASE)
 NAMED_FILES = re.compile(r"[\w-]+/[\w./-]+|\b[\w-]+\.(?:py|js|ts|vue|md|json|sh|php|go|css|html)\b|--changes")
@@ -25,7 +20,7 @@ RESEARCH_WORKS = ("reading", "searching")
 
 @dataclass(frozen=True)
 class ToolUseCounts:
-    """What an agent's tool uses say about how it shares its work, kept on its row as it works: its handovers to workers in a row with no code edit of its own, when it last handed work over, and among its newest fifty its subagent dispatches, its own reads and searches, its handovers, its own file edits, its merges and those that followed a proof read and a test run, its sends to idle workers and its fresh dispatches while one sat idle, the handovers whose brief names a done-when and files, and the tool uses made while a clocked-out worker or an open task with a free place had waited too long; the work mode it is counted in and how many tool uses it has made in it; and its load as last measured, which the handling of the load is scored on, how the models of its newest merged jobs fit them, and how the tasks of its started plans wait."""
+    """What an agent's tool uses say about how it shares its work, kept on its row as it works: its handovers to workers in a row with no code edit of its own, when it last handed work over, and among its newest fifty its subagent dispatches, its own reads and searches, its handovers, its own file edits and the handovers whose brief names a done-when and files; the work mode it is counted in and how many tool uses it has made in it; and its load as last measured, which the handling of the load is scored on, how the models of its newest merged jobs fit them, and how the tasks of its started plans wait."""
 
     consecutive_handovers: int = 0
     last_handover_at: float = 0.0
@@ -33,13 +28,7 @@ class ToolUseCounts:
     research_count: int = 0
     handovers: int = 0
     file_edits: int = 0
-    merges: int = 0
-    prepared_merges: int = 0
-    reuses: int = 0
-    fresh_idle: int = 0
     briefed: int = 0
-    late_workers: int = 0
-    late_tasks: int = 0
     edited_lines: int = 0
     merged_lines: int = 0
     tasks_filed: int = 0
@@ -51,41 +40,22 @@ class ToolUseCounts:
     model_fits: tuple[str, ...] = ()
     waits: WaitUse = WaitUse()
     report_use: ReportUse = ReportUse()
-    queue_use: QueueUse = QueueUse()
 
     @classmethod
     def counted(cls, agent: Agent) -> "ToolUseCounts":
         return cls(consecutive_handovers=agent.consecutive_handovers, last_handover_at=agent.last_handover_at,
                    subagent_dispatches=len(agent.windowed(agent.subagent_dispatch_uses)), research_count=len(agent.windowed(agent.research_uses)),
                    handovers=len(agent.windowed(agent.handover_uses)), file_edits=len(agent.windowed(agent.file_edit_uses)),
-                   merges=len(agent.windowed(agent.merge_uses)), prepared_merges=len(agent.windowed(agent.prepared_merge_uses)), reuses=len(agent.windowed(agent.reuse_uses)),
-                   fresh_idle=len(agent.windowed(agent.fresh_idle_uses)), briefed=len(agent.windowed(agent.briefed_uses)),
-                   late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)), edited_lines=sum(lines for _, lines in agent.edited_lines), merged_lines=sum(lines for _, lines in agent.merged_lines), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
-                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.work_queue, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use, queue_use=agent.queue_use)
+                   briefed=len(agent.windowed(agent.briefed_uses)), edited_lines=sum(lines for _, lines in agent.edited_lines), merged_lines=sum(lines for _, lines in agent.merged_lines), tasks_filed=len(agent.windowed(agent.task_filed_uses)), tasks_completed=len(agent.windowed(agent.task_completed_uses)),
+                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.work_queue, model_fits=agent.model_fits, waits=agent.wait_use, report_use=agent.report_use)
 
     @staticmethod
     def is_handover(call: RecordedCall) -> bool:
         return call.command.startswith(HANDOVER_COMMANDS)
 
     @staticmethod
-    def is_send(call: RecordedCall) -> bool:
-        return call.command.startswith(SEND_COMMANDS)
-
-    @staticmethod
-    def is_dispatch(call: RecordedCall) -> bool:
-        return call.command.startswith(DISPATCH_COMMANDS)
-
-    @staticmethod
     def is_complete_brief(call: RecordedCall) -> bool:
         return bool(DONE_WHEN.search(call.command) and NAMED_FILES.search(call.command))
-
-    @staticmethod
-    def is_merge(call: RecordedCall) -> bool:
-        return call.command.startswith(MERGE_COMMANDS)
-
-    @staticmethod
-    def is_proof_read(call: RecordedCall) -> bool:
-        return call.command.startswith(PROOF_COMMANDS)
 
     @staticmethod
     def is_task_addition(call: RecordedCall) -> bool:

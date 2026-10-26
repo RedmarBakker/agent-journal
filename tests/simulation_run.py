@@ -197,7 +197,7 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
         StopReleases(): [TraceEntry(30 * n, "agent", "stop", True, (), ("idle",), 409) for n in range(1, 8)],
         StackBounded(): [TraceEntry(30, "agent", "write", False, (), tuple(f"layer {n}" for n in range(10)), 200)],
         WaitEnds(): [TraceEntry(60 * n, "agent", "read", False, (), ("idle", "external_wait"), 200) for n in range(1, 40)],
-        NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 8 * 60, "agent", "write", False, ("workers.clear_the_oldest_item",), ("idle",), 200)],
+        NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 8 * 60, "agent", "write", False, ("workers.orchestrator_clear_oldest",), ("idle",), 200)],
         NoFaults(): [TraceEntry(30, "agent", "write", False, (), ("idle",), 500)],
         WorkerUnlocks(): [TraceEntry(30, "agent", "read", False, (), ("idle",), 200, 0, ("1:dispatched:locked",))],
         Progress(): [TraceEntry(30 * n, "agent", ("write", "read", "stop")[n % 3], True, (), ("idle",), 409) for n in range(1, 45)],
@@ -205,7 +205,7 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
     for invariant, trace in planted.items():
         assert invariant.violated(trace), f"{type(invariant).__name__} fires on its planted trace"
         assert not invariant.violated(clean), f"{type(invariant).__name__} stays quiet on a clean one"
-    apart = [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 12 * 60, "agent", "write", False, ("workers.clear_the_oldest_item",), ("idle",), 200)]
+    apart = [TraceEntry(30, "agent", "write", False, ("workers.orchestrator_hand_out",), ("idle",), 200), TraceEntry(30 + 12 * 60, "agent", "write", False, ("workers.orchestrator_clear_oldest",), ("idle",), 200)]
     assert not NoContradiction().violated(apart), "two opposed lines twelve minutes apart are no contradiction"
 
 
@@ -317,7 +317,7 @@ def test_a_profile_ranks_the_known_good_policy_above_the_known_bad_one_on_runs_n
     from tests.simulation.scenarios import KNOWN_PAIRS
     seed, changes = HELD_OUT[held_out]
     good, bad = (replace(scenario, **changes) for scenario in KNOWN_PAIRS[pair])
-    profiles = [profile for profile in (*WorkersProfiles.ALL, WorkersProfiles.ORCHESTRATOR_REVIEWER_PROFILE) if profile.mode == good.mode]
+    profiles = [profile for profile in WorkersProfiles.ALL if profile.mode == good.mode]
     runs = [recorded(tmp_path, monkeypatch, scenario, seed) for scenario in (good, bad)]
     began = time.monotonic()
     rows = [[Rescoring(run.samples, trace).row(profile) for run, trace in runs] for profile in profiles]
