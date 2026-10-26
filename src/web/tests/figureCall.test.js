@@ -38,7 +38,7 @@ test("only an agent given work starts the call: a worker's dispatch and its next
     const card = (id, text, data) => ({table: "messages", id, author: "system", text, data, session: null, created_at: new Date((10 + id) * 1000).toISOString()});
     const messages = [
         card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
-        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2743}),
+        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", shows: "workers", row: "workers:57", task: 2743}),
         card(3, "Worker 57, Mr. Muybridge, motion photographer: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         card(4, "Worker 57, Mr. Muybridge, motion photographer: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
         card(5, "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
@@ -595,7 +595,7 @@ test("jobs handed out in a row make one call: each worker named, then each task 
     const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
     // a worker's dispatch and its next jobs, each mark naming the task it gave (features/workers worker_process_card, worker_moment_cards)
     const dispatch = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: started on claude opus`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, card_type: "process", process: "worker", active: true, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
-    const nextJob = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: sent its next job`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const nextJob = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: sent its next job`, data: {kind: "card", shows: "workers", row: `workers:${worker}`, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
     // worker 260 given tasks 200, 201 and 204, and worker 261 dispatched on task 300 in between, all within a few seconds
     const messages = [dispatch(1, 260, 200), nextJob(2, 260, 201), dispatch(3, 261, 300), nextJob(4, 260, 204)];
     const lead = withSystemCards({session: "s", data: {}}, messages);

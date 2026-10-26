@@ -101,6 +101,7 @@ agent doc show 1
 agent doc show 1 --section 1
 agent doc update 1 --file {file}
 agent doc keep 1
+agent doc ready 1
 agent doc revisions 1
 agent doc revision 1 1
 agent doc dock 1
@@ -115,6 +116,7 @@ agent doc import --help
 agent doc settle 1 --why "it holds what the project keeps knowing"
 agent report create "What the cart test found" --body "The total adds the tax twice" --about tasks:2
 agent report list
+agent report ready 1
 agent report show 1
 agent report recap "the footer is done"
 agent report note 1 "checked again"

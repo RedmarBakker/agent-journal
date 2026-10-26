@@ -560,6 +560,10 @@ $ agent: journal doc keep 1
 exit 0
 revision 1 of doc 1 kept; the next edit opens revision 2
 
+$ agent: journal doc ready 1
+exit 0
+doc 1 is ready: The cart
+
 $ agent: journal doc revisions 1
 exit 0
   1  <time>  agent  written
@@ -637,6 +641,10 @@ created: message 30
 $ agent: journal report list
 exit 0
    1  What the cart test found
+
+$ agent: journal report ready 1
+exit 0
+report 1 is ready: What the cart test found
 
 $ agent: journal report show 1
 exit 0

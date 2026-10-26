@@ -5,10 +5,10 @@ import {store} from "../src/state/store.js";
 
 const marks = JSON.parse(readFileSync("tests/fixtures/markKinds.json", "utf8"));
 
-test("the chat hides what the registry starts hidden, acknowledgements, a sequence's steps, sync conflict notes and verifiers, and shows a sequence starting and finishing", () => {
+test("the chat hides what the registry starts hidden, acknowledgements, a sequence's steps, sync conflict notes, verifiers and the workers' own steps and test runs, and shows a sequence starting and finishing", () => {
     store.spec = {...store.spec, marks};
     const shown = visibleIn(defaultHidden());
-    expect(defaultHidden().sort()).toEqual(["acknowledgements", "conflicts", "sequence_steps", "verifiers"]);
+    expect(defaultHidden().sort()).toEqual(["acknowledgements", "conflicts", "sequence_steps", "verifiers", "worker_steps", "worker_tests"]);
     expect(shown({type: "card", data: {icon: "warn", shows: "conflicts"}})).toBe(false);
     expect(shown({type: "card", data: {icon: "list", shows: "sequence_steps"}})).toBe(false);
     expect(shown({type: "card", data: {icon: "verifier", shows: "verifiers"}})).toBe(false);

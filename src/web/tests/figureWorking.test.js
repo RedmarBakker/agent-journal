@@ -66,7 +66,7 @@ test("now and then, bored of its spot, the working figure takes its work elsewhe
     expect(targetFor({...at, now: 131, stay: moved.stay, random: () => 0}).spot).toMatchObject({posture: "sit", on: home});
 });
 
-test("while it waits, and during a long run, the figure plays its shenanigans, and none it could not be back from in time for the run's anticipation", () => {
+test("while it waits, and during a long run, the figure plays its shenanigans, and none it could not be back from in time for the run's anticipation, which begins ten seconds from the projected end", () => {
     for (const state of WAITING) {
         expect(roomFor(state, null, 100), state).toBe(Infinity);
         expect(new Set(drawnWith(Infinity).filter((entry) => entry.shenanigan).map((entry) => entry.name)), state).toEqual(new Set(Object.keys(SHENANIGANS)));
@@ -76,7 +76,8 @@ test("while it waits, and during a long run, the figure plays its shenanigans, a
     expect(long).toBe(180 - EAGER.lead);
     expect(choicesFor({moment: "pastime", free: true, room: long, lasted: 60}).map((entry) => entry.name)).toContain("hop_up");
     // near its end only what is over in time: a salto, never the run up the bubbles or a stay on a bubble
-    const near = roomFor("testing", {began: 0, share: 0.9, ended: ""}, 90);
+    // ninety seconds into a run that has fifteen left at its pace, five seconds of room remain before the anticipation's ten
+    const near = roomFor("testing", {began: 0, share: 90 / 105, ended: ""}, 90);
     expect(near).toBeCloseTo(5, 6);
     expect(drawnWith(near).filter((entry) => entry.shenanigan).map((entry) => entry.name)).toEqual(expect.arrayContaining(["backflip"]));
     expect(drawnWith(near).some((entry) => ["hop_up", "bubble", "rope_swing", "disco"].includes(entry.name))).toBe(false);
