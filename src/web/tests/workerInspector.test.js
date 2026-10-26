@@ -3,7 +3,7 @@ import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
 import {saidTurns} from "../src/domain/transcript.js";
 import {workerActions, workerMoves, workerReusesLine, workerState} from "../src/domain/workers.js";
-import {checkedCount, doneCount, pointRows} from "../src/domain/workerTurn.js";
+import {checkedCount, doneCount, pointRows, tasksDone} from "../src/domain/workerTurn.js";
 
 globalThis.ResizeObserver = globalThis.ResizeObserver || class {
     observe() {}
@@ -13,6 +13,7 @@ window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListen
 
 const {default: WorkerPoints} = await import("../src/agents/WorkerPoints.vue");
 const {default: WorkerTodos} = await import("../src/agents/WorkerTodos.vue");
+const {default: WorkerTasks} = await import("../src/agents/WorkerTasks.vue");
 const {default: WorkerPage} = await import("../src/resource/WorkerPage.vue");
 
 let app = null;
@@ -254,4 +255,20 @@ test("the user changes when a worker reports from its page, and a pool worker is
     const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, report_choice: {tasks: 1}}}, scope);
     await flush();
     expect(pooled.querySelector(".report-choice")).toBeNull();
+});
+
+test("the worker's Tasks section lists every task it held with its state, and counts the finished ones", () => {
+    const worked = [
+        {id: 4, title: "the parser", state: "merged"},
+        {id: 5, title: "the docs", state: "done"},
+        {id: 6, title: "the help page", state: "started"},
+    ];
+    const list = mount(WorkerTasks, {worked, queue: [{id: 7, title: "the footer"}]});
+    expect([...list.querySelectorAll(".worked")].map((row) => [row.textContent.replace(/\s+/g, " ").trim(), row.classList.contains("done")])).toEqual([
+        ["Task 4: the parser merged", true],
+        ["Task 5: the docs done", true],
+        ["Task 6: the help page started", false],
+    ]);
+    expect(list.querySelector("[data-worker-queue]").textContent).toContain("Task 7: the footer");
+    expect(tasksDone(worked)).toBe(2);
 });

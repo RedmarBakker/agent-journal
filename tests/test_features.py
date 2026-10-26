@@ -10575,6 +10575,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     [shown] = page["rows"]
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
     assert shown["finished"] == [], "and the tasks it finished on its queue, none yet, for its place in it"
+    assert shown["worked"] == [{"id": 1, "title": shown["worked"][0]["title"], "state": "started"}], "and every task it held, for its Tasks section"
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)
@@ -10591,6 +10592,8 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith(": merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).delegated, "the merge sends the worker its next queued task by itself; the one after waits"
+    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    assert [(row["id"], row["state"]) for row in page["rows"][0]["worked"]] == [(1, "merged"), (2, "started")], "a finished task stays in the worker's list with its state, beside the one it holds now"
     given = console.run(["worker", "drain", "1"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "drain gives back what waits, never the task in hand"

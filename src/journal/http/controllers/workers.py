@@ -9,6 +9,7 @@ from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
+from journal.features.workers.support.worked_task import WorkedTask
 from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.models.support.report_choice import ReportChoice
 from journal.models.worker import Worker
@@ -82,8 +83,8 @@ class WorkerController(Controller[Worker]):
         holdings, reports = self.tasks.worker_task_holdings(rows), self.reports.lasts(rows)
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
-        former_tasks, queues, finished = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows)
-        return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []),
+        former_tasks, queues, finished, worked = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows), self.tasks.worked_tasks(rows)
+        return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []), "worked": [WorkedTask.read(task, finished.get(w.row_id, [])) for task in worked.get(w.row_id, [])],
                  "holds": self.all_task_ids(w.row_id, views, queues), "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
 
     @staticmethod

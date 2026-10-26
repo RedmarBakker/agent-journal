@@ -11,12 +11,12 @@ import InspectorSummary from "../agents/InspectorSummary.vue";
 import InspectorTop from "../agents/InspectorTop.vue";
 import TranscriptTurns from "../agents/TranscriptTurns.vue";
 import WorkerPoints from "../agents/WorkerPoints.vue";
-import WorkerTodos from "../agents/WorkerTodos.vue";
+import WorkerTasks from "../agents/WorkerTasks.vue";
 import {useInspectorActions} from "../composables/inspectorActions.js";
 import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
-import {checkedCount, doneCount, todoTotal} from "../domain/workerTurn.js";
+import {checkedCount, tasksDone} from "../domain/workerTurn.js";
 import {REPORT_CHOICES, reportChoiceKey, stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
@@ -54,11 +54,13 @@ const parts = computed(() => [
 
 const checked = computed(() => checkedCount(task.value));
 const unchecked = computed(() => task.value.points.length - checked.value);
-const done = computed(() => doneCount(task.value));
+const worked = computed(() => props.resource.worked || []);
+const done = computed(() => tasksDone(worked.value));
 const hasTask = computed(() => Boolean(task.value.task_id));
 // the tasks waiting in the worker's queue, in the order it takes them up
 const queue = computed(() => props.resource.queue || []);
-const todos = computed(() => todoTotal(task.value, queue.value));
+const hasWork = computed(() => hasTask.value || worked.value.length > 0);
+const total = computed(() => worked.value.length + queue.value.length);
 
 const ACTIONS = {
     send: (id, brief) => api.act("workers", id, "send", {brief}),
@@ -85,14 +87,14 @@ const scroller = computed(() => turnsView.value && turnsView.value.scroller);
 const transcript = useTranscript(() => "worker", "", scroller, transcripts);
 const speakers = computed(() => ({agent: name.value, human: "The agent"}));
 const {measured, panes, resize} = useWorkerLayout();
-const TITLES = {points: "Points", transcript: "Transcript", todos: "To-dos"};
-const counts = computed(() => ({points: `${checked.value} of ${task.value.points.length} checked`, todos: `${done.value} of ${todos.value} done`, transcript: ""}));
+const TITLES = {points: "Points", transcript: "Transcript", todos: "Tasks"};
+const counts = computed(() => ({points: `${checked.value} of ${task.value.points.length} checked`, todos: `${done.value} of ${total.value} done`, transcript: ""}));
 
 const tab = ref("points");
 const tabs = computed(() => [
     {key: "points", label: "Points", count: `${checked.value} of ${task.value.points.length}`},
     {key: "transcript", label: "Transcript"},
-    {key: "todos", label: "To-dos", count: `${done.value} of ${todos.value}`},
+    {key: "todos", label: "Tasks", count: `${done.value} of ${total.value}`},
 ]);
 
 const message = ref("");
@@ -126,12 +128,12 @@ async function send() {
                 <Segmented :options="reportChoices" :value="reportChoiceKey(resource)" @pick="chooseReport" />
             </div>
         </template>
-        <template v-if="narrow && hasTask">
+        <template v-if="narrow && hasWork">
             <div class="tabs">
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
             </div>
         </template>
-        <template v-if="hasTask && !narrow">
+        <template v-if="hasWork && !narrow">
             <PaneGrid class="cols" :panes="panes" :splits="measured.splits" @resize="resize">
                 <template #pane="p">
                     <InspectorColumn :title="TITLES[p.pane.active]" :count="counts[p.pane.active]">
@@ -143,7 +145,7 @@ async function send() {
                                 <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
                             </template>
                             <template #todos>
-                                <WorkerTodos :todos="task.todos" :queue="queue" />
+                                <WorkerTasks :worked="worked" :queue="queue" />
                             </template>
                         </SwitchCase>
                     </InspectorColumn>
@@ -152,26 +154,26 @@ async function send() {
         </template>
         <template v-else>
             <div class="cols">
-                <template v-if="hasTask && tab === 'points'">
+                <template v-if="hasWork && tab === 'points'">
                     <InspectorColumn title="" :count="counts.points">
                         <WorkerPoints :task="task" :worker="resource.id" :api="api" :checking="resource.state === 'clocked out'" />
                     </InspectorColumn>
                 </template>
-                <template v-if="!hasTask || tab === 'transcript'">
+                <template v-if="!hasWork || tab === 'transcript'">
                     <InspectorColumn :title="narrow ? '' : 'Transcript'">
                         <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
                     </InspectorColumn>
                 </template>
-                <template v-if="hasTask && tab === 'todos'">
+                <template v-if="hasWork && tab === 'todos'">
                     <InspectorColumn title="" :count="counts.todos">
-                        <WorkerTodos :todos="task.todos" :queue="queue" />
+                        <WorkerTasks :worked="worked" :queue="queue" />
                     </InspectorColumn>
                 </template>
             </div>
         </template>
         <AgentInspectorBands :confirm="question && question.confirm" :refusal="refusal" @cancel="asking = ''" @confirmed="(answer) => perform(question.key, answer)" />
         <template v-if="actions.length || writable">
-            <div :class="['bottom', {tasked: hasTask && !narrow}]">
+            <div :class="['bottom', {tasked: hasWork && !narrow}]">
                 <div class="dock">
                     <template v-for="action in actions" :key="action.key">
                         <Btn

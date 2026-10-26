@@ -1,6 +1,6 @@
 <script setup>
 import {computed, ref} from "vue";
-import {peek} from "../route.js";
+import WorkerQueue from "./WorkerQueue.vue";
 
 const props = defineProps({todos: {type: Array, required: true}, queue: {type: Array, default: () => []}});
 const left = computed(() => props.todos.filter((item) => !item.complete));
@@ -11,12 +11,7 @@ const showDone = ref(false);
 <template>
     <div class="todos">
         <template v-if="queue.length">
-            <div class="queued" data-worker-queue>
-                <span class="queued-label">Queued next</span>
-                <template v-for="queued in queue" :key="queued.id">
-                    <a href="#" class="queued-task" @click.prevent="peek('tasks', queued.id)">Task {{ queued.id }}: {{ queued.title }}</a>
-                </template>
-            </div>
+            <WorkerQueue :queue="queue" />
         </template>
         <template v-for="(item, i) in [...left, ...(showDone ? done : [])]" :key="i">
             <div :class="['todo', {done: item.complete}]">
@@ -48,29 +43,6 @@ const showDone = ref(false);
     padding: 7px 16px;
     color: var(--text);
     text-wrap: pretty;
-}
-
-.queued {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 4px 16px 10px;
-}
-
-.queued-label {
-    color: var(--text-4);
-    font-size: 11.5px;
-}
-
-.queued-task {
-    color: var(--accent-text);
-    font-size: 12.5px;
-    text-decoration: none;
-    text-wrap: pretty;
-}
-
-.queued-task:hover {
-    color: var(--text);
 }
 
 .todo.done {
