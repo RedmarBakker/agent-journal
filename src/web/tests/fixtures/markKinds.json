@@ -638,6 +638,32 @@
    "colouring": "none"
   },
   {
+   "key": "pushes",
+   "label": "Pushes",
+   "family": "git",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "branch",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "branch_switches",
+   "label": "Branch switches",
+   "family": "git",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "branch",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
    "key": "plugins",
    "label": "Plugin notes",
    "family": "plugins",
