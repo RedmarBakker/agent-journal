@@ -20388,7 +20388,8 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
     status, body = tag()
     assert status == 409 and "waits for the user: Orchestrator may release is off" in body["error"], "with May release off the orchestrator's release waits for the user"
     settings.set("workers.orchestrator_releases", True, Actor.user(1))
-    assert tag()[0] == 200, "with it on the orchestrator releases"
+    status, body = tag()
+    assert status == 200, ("with it on the orchestrator releases", body)
     for name in ("orchestrator_writes_plans", "orchestrator_approves_plans", "orchestrator_releases"):
         refused = console.run(["settings", "set", f"workers.{name}", "on"], AGENT)
         assert refused.code == 1 and "the user's to set" in refused.error, f"workers.{name} is the user's to set, refused from an agent"
