@@ -30,8 +30,8 @@ class Agents(ScopedRepository[Agent]):
         newest = self.selected_ids(self.ended_main_query(environment_id).filter_unequal("session", session).order_descending("id").limit(1))
         return next(iter(self.selected_globally(self.query().filter(id=newest[0]).filter_record("stack", state=state_name))), None) if newest else None
 
-    def declined_agent(self, agent_id: int) -> Agent | None:
-        return next(iter(self.selected_globally(self.query().filter(id=agent_id, paused_declined=True))), None)
+    def declined_agents(self) -> list[Agent]:
+        return self.selected_globally(self.query().filter(paused_declined=True).order("id"))
 
     def stacked_main_agents(self, state_name: str) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(role=AgentRole.MAIN).filter_record("stack", state=state_name).order("id"))

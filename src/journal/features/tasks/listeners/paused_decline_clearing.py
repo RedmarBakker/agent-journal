@@ -3,6 +3,7 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.repositories.agents import Agents
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.models.support.ref import Ref
 
 
 class PausedDeclineClearing(Listener[TaskClosed]):
@@ -12,9 +13,8 @@ class PausedDeclineClearing(Listener[TaskClosed]):
         self.tasks, self.agents = tasks, agents
 
     def handle(self, event: TaskClosed) -> None:
-        holder = self.tasks.task_holder(event.task_id)
-        if holder is None or holder.type != "agents":
-            return
-        declined = self.agents.declined_agent(holder.id)
-        if declined is not None:
-            self.agents.save(declined.paused_decline_cleared(), Actor.system())
+        declined = self.agents.declined_agents()
+        holder = self.tasks.task_holder(event.task_id) if declined else None
+        for agent in declined:
+            if holder == Ref.build(agent):
+                self.agents.save(agent.paused_decline_cleared(), Actor.system())
