@@ -62,7 +62,7 @@ test("the Fold the plans button is the last button before the full screen button
 });
 
 test("the load shows for the builder and the orchestrator and is hidden in solo, and the builder's warns at its own ceiling", async () => {
-    const withLoad = (rho) => ({...lead(null), load: {rho, arrivals: 10, clearings: 20, waiting: 1, wait_minutes: 1, waiting_refs: []}});
+    const withLoad = (rho) => ({...lead(null), load: {rho, work: {rho, arrivals: 10, clearings: 20, waiting: 1, wait_minutes: 1, waiting_refs: []}, messages: null}});
     store.settings = {features: {}, tasks: {}, workers: {mode: "builder", builder_load_ceiling: 0.5}, reviewing: {}};
     store.agents = [withLoad(0.6)];
     const host = await bar();

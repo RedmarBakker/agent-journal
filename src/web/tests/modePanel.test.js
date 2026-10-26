@@ -64,7 +64,7 @@ test("hovering the Orchestrator button shows its one-line description and its to
 
 test("hovering the Builder button shows the Auto toggle, which flips tasks.auto, and the load and fitness sit left of the mode buttons", async () => {
     choose("main");
-    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}, fitness: {mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6}}];
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, work: {rho: 0.57, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}, messages: null}, fitness: {mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6}}];
     store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
     const save = vi.spyOn(api, "saveSettings").mockResolvedValue(null);
     const host = document.createElement("div");
@@ -113,9 +113,9 @@ test("hovering the Builder button shows its settings and no warning line, even w
     host.remove();
 });
 
-test("the load shows its value alone, as the fitness beside it does, and its tooltip names it", async () => {
+test("one load shows its value alone beside the fitness, the work and the messages added, and its tooltip names it and both parts", async () => {
     choose("main");
-    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "working", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}}];
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "working", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, work: {rho: 0.3, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}, messages: {rho: 0.27, arrivals: 4, clearings: 15, waiting: 2, wait_minutes: 2, waiting_refs: []}}}];
     store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
     const host = document.createElement("div");
     document.body.append(host);
@@ -128,7 +128,11 @@ test("the load shows its value alone, as the fitness beside it does, and its too
     load.dispatchEvent(new MouseEvent("pointerover", {bubbles: true}));
     await nextTick();
     await nextTick();
-    expect(host.querySelector(".tooltip").textContent).toContain("Load 0.57");
+    expect(host.querySelectorAll(".statusbar-load").length).toBe(1);
+    const tooltip = host.querySelector(".tooltip").textContent;
+    expect(tooltip).toContain("Load 0.57");
+    expect(tooltip).toContain("Work 0.30");
+    expect(tooltip).toContain("Messages 0.27: 2 of your messages wait for an answer");
     app.unmount();
     host.remove();
 });

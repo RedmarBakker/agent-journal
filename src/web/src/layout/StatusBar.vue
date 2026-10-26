@@ -98,8 +98,6 @@ function toggleFitness(e) {
 // the load of the work mode the agent is in, arrivals over clearings, shown beside the fitness and never scored, none in solo, where it is still counted; toned by workers.load_warn and workers.load_critical, the builder's by workers.builder_load_ceiling
 const load = computed(() => (workMode.value === "solo" ? null : agent.value?.load || null));
 // the user's messages measured apart from the workers' items, arrivals over clearings
-const messageLoad = computed(() => agent.value?.message_load || null);
-const messageTip = computed(() => messageLoad.value && {title: `Messages ${messageLoad.value.rho.toFixed(2)}`, line: `${messageLoad.value.waiting} of your messages wait for an answer`});
 const loadLevel = computed(() => {
     const levels = store.settings?.workers || {};
     if (!load.value) return "";
@@ -107,11 +105,16 @@ const loadLevel = computed(() => {
     if (load.value.rho >= (levels.load_critical ?? 0.9)) return "critical";
     return load.value.rho >= (levels.load_warn ?? 0.7) ? "warn" : "";
 });
+// the load is the work and the messages the agent clears, added as one server's load is; its tooltip names each part
+const workLine = (work) =>
+    work &&
+    `Work ${work.rho.toFixed(2)}: ${Math.round(work.arrivals)} arrive and ${Math.round(work.clearings)} are cleared an hour, ${work.waiting} wait.${work.waiting_refs.length ? ` Oldest first: ${work.waiting_refs.slice(0, 4).map((ref) => ref.replace(/s:/, " ")).join(", ")}.` : ""}`;
+const messagesLine = (messages) => messages && `Messages ${messages.rho.toFixed(2)}: ${messages.waiting} of your messages wait for an answer.`;
 const loadTip = computed(
     () =>
         load.value && {
             title: `Load ${load.value.rho.toFixed(2)}`,
-            line: `${Math.round(load.value.arrivals)} arrive an hour and ${Math.round(load.value.clearings)} are cleared an hour of busy time; ${load.value.waiting} wait, ${Math.round(load.value.wait_minutes)} minutes from arrival to clearing.${load.value.waiting_refs.length ? ` Oldest first: ${load.value.waiting_refs.slice(0, 4).map((ref) => ref.replace(/s:/, " ")).join(", ")}.` : ""}`,
+            line: [workLine(load.value.work), messagesLine(load.value.messages)].filter(Boolean).join(" "),
         }
 );
 const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});
@@ -307,9 +310,6 @@ async function runBar(p) {
                 </template>
                 <template v-if="load">
                     <span :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">{{ load.rho.toFixed(2) }}</span>
-                </template>
-                <template v-if="messageLoad">
-                    <span class="statusbar-load" v-tip:load="messageTip">Messages {{ messageLoad.rho.toFixed(2) }}</span>
                 </template>
                 <span ref="modeAnchor" class="statusbar-mode-wrap">
                     <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="askMode" />

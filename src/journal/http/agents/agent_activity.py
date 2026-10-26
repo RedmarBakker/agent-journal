@@ -22,6 +22,7 @@ from journal.http.agents.current_sequence import CurrentSequence
 from journal.http.files.project_files import ProjectFiles
 from journal.http.support.model_fields import ModelFields
 from journal.models.agent import Agent
+from journal.http.agents.status_load import StatusLoad
 from journal.support.sequence_run import SequenceRun
 from journal.repositories.entries import Entries
 from journal.repositories.scheduled_jobs import ScheduledJobs
@@ -41,7 +42,6 @@ from journal.features.workers.support.fitness_point import FitnessPoint
 from journal.features.workers.support.fitness_scoring import FitnessScoring
 from journal.features.workers.support.measure_spec import MeasureSpec
 from journal.features.workers.support.mode_measures import ModeMeasures
-from journal.models.support.agent_load import AgentLoad
 from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
 
@@ -110,21 +110,9 @@ class AgentActivity:
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
-            "load": self.load(agent),
-            "message_load": self.queue(agent.message_queue),
+            "load": StatusLoad.measured(agent),
             **self.rolling(),
         }
-
-    @staticmethod
-    def load(agent: Agent) -> dict | None:
-        return AgentActivity.queue(agent.work_queue)
-
-    @staticmethod
-    def queue(queue: AgentLoad) -> dict | None:
-        if not queue.is_measured():
-            return None
-        return {"rho": queue.rho, "arrivals": queue.arrivals, "clearings": queue.clearings, "waiting": queue.waiting, "wait_minutes": queue.wait_minutes, "little": queue.little,
-                "waiting_refs": list(queue.waiting_refs), "over_minutes": queue.over_minutes}
 
     def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
