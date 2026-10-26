@@ -9,6 +9,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.impasse_report import ImpasseReport
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
 from journal.features.tasks.tasks_nudges import TasksNudges
@@ -17,6 +18,7 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.support.wait_estimate import WaitEstimate
+from journal.models.check import Check
 from journal.models.command_output import CommandOutput
 
 POLL_REPEAT_COMMANDS = 3
@@ -34,6 +36,10 @@ class TasksConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [polling_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
+
+    def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
+        passed = [wait for wait in event.data.part(TasksPart).passed_waits if f"{Check.table()}:{wait.check_id}" == event.ref]
+        return self.none(*(TasksNudges.WAIT_CHECK_PASSED.create(what=wait.purpose, lines=wait.lines) for wait in passed))
 
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
         return self.none(TasksNudges.TASK_REOPENED.create(n=event.task_id, reason=event.reason))

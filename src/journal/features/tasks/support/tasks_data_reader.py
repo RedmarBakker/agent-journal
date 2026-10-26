@@ -3,7 +3,10 @@ from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.task import Task
 from journal.repositories.entries import Entries
+from journal.features.tasks.support.passed_wait import PassedWait
 from journal.features.tasks.support.person_wait import PersonWait
+from journal.features.tasks.support.wait_checks import WaitChecks
+from journal.repositories.checks import Checks
 from journal.features.tasks.support.task_deliveries import TaskDeliveries
 from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
 from journal.features.tasks.tasks_options import TasksOptions
@@ -29,8 +32,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, deliveries: TaskDeliveries) -> None:
-        self.progress, self.settings, self.deliveries = progress, settings, deliveries
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, deliveries: TaskDeliveries, checks: Checks, wait_checks: WaitChecks) -> None:
+        self.progress, self.settings, self.deliveries, self.checks, self.wait_checks = progress, settings, deliveries, checks, wait_checks
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -57,6 +60,8 @@ class TasksDataReader:
             "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_on_a_person(t)),
             "unprioritised": lambda: tuple(t.row_id for t in self.tasks.unprioritised()),
             "blocking_priorities": lambda: facts.unprioritised if len(facts.unprioritised) >= self.settings.integer(TasksOptions.PRIORITY_BLOCK_TASKS) else (),
+            "polled_checks": lambda: tuple(check.row_id for check in self.checks.unresolved_waits()),
+            "passed_waits": lambda: tuple(PassedWait.read(check) for check in self.checks.passed_waits(self.wait_checks.waited())),
             "wait_progress": lambda: self.progress.running(agent.session),
             "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)

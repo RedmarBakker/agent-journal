@@ -21047,3 +21047,29 @@ def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_m
     with app.container.get(Scope).environment(MAIN):
         filed = sorted(m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed")
     assert filed == ["Created task 1 from your message", "Edited task 1 from your message"], "the creation is one mark and the edit its own, never a second creation"
+
+
+def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cleared_await_removes_its_check(app: App):
+    from journal.repositories.checks import Checks
+    from journal.repositories.entries import NUDGE, Entries
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["await", "the nightly build", "--until", "exit 0"], AGENT).code == 0
+    lifted = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert "your wait on the nightly build was lifted; check 1 is still running and you are informed when it passes; journal check remove 1 if you no longer want to hear about it" in lifted
+    app.runtime().deferred.drain()
+    checks = app.container.get(Checks)
+    with app.container.get(Scope).environment(MAIN):
+        assert [check.row_id for check in checks.wait_rows()] == [1], "the lifted wait leaves its check running"
+    assert console.run(["check", "run", "1"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "tasks.wait_check_passed"]
+        assert told == ["the nightly build is done: the check passed"], "the agent is told once"
+        assert checks.wait_rows() == [], "and the check retires"
+    assert console.run(["await", "the second build", "--until", "exit 0"], AGENT).code == 0
+    assert "check 2 removed" in console.run(["await", "clear"], AGENT).text
+    with app.container.get(Scope).environment(MAIN):
+        assert checks.wait_rows() == [], "a cleared await removes its check"
+    assert app.container.get(SessionAgents).top("s1").name != "awaiting"

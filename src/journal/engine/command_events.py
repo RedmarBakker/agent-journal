@@ -4,6 +4,7 @@ from journal.events.moments.worker_merge_refused import WorkerMergeRefused
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.support.decision import Decision
 from journal.engine.clock import Clock
+from journal.events.agent.wait_cleared import WaitCleared
 from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent.command_moved import CommandMoved
@@ -29,6 +30,9 @@ class CommandEvents:
 
     def wait_declared(self, subject: str, end_refs: str, caller: Caller) -> None:
         self.bus.dispatch(WaitRequest(focus=subject, end_refs=end_refs).placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
+
+    def wait_cleared(self, caller: Caller) -> None:
+        self.bus.dispatch(WaitCleared().placed(caller.agent_session, self.scope.id, caller.agent_provider, None, self.clock.time()))
 
     def worker_merging(self, event: WorkerMerging) -> list[str]:
         return [answer.reason for answer in self.bus.dispatch(event) if isinstance(answer, Decision) and not answer.allowed]

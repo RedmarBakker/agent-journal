@@ -8,6 +8,8 @@ from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.support.rejection import Rejection
 from journal.support.caller import Caller
 from journal.engine.command_events import CommandEvents
+from journal.features.tasks.support.wait_checks import WaitChecks
+from journal.repositories.agents import Agents
 
 USER_WAIT_PATTERN = re.compile(r"\b(?:the user|you|sir|user's|your)\b[^.]{0,40}\b(?:answer|answers|reply|replies|response|word|instruction|instructions|message|decision|go-ahead|say|says|to say|to answer|to reply|to decide)"
                                  r"|\b(?:waiting|wait|waits)\s+(?:for|on)\s+(?:the\s+)?(?:user|you|sir|him|them)\b"
@@ -22,18 +24,26 @@ class WaitCommand(Command):
     """journal await "<what>": the agent waits for something outside its control, with or without a current task, and names what ends it: a command's output, or a script polled until it passes. It ends by itself once that has happened, or when the agent works again."""
 
     noun = "await"
-    callers = {"begin": WORKER_KINDS}
+    callers = {"begin": WORKER_KINDS, "clear": WORKER_KINDS}
     default_verb = "begin"
 
-    def __init__(self, events: CommandEvents, awaitables: WaitTargets, readers: Readers) -> None:
-        self.events, self.awaitables, self.readers = events, awaitables, readers
+    def __init__(self, events: CommandEvents, awaitables: WaitTargets, readers: Readers, agents: Agents, wait_checks: WaitChecks) -> None:
+        self.events, self.awaitables, self.readers, self.agents, self.wait_checks = events, awaitables, readers, agents, wait_checks
 
     def arguments(self, verbs) -> None:
         time = self.verb(verbs, "begin", "say what you wait for, and name what ends the wait")
+        self.verb(verbs, "clear", "stop waiting: the wait ends and the checks it made for itself are removed")
         time.add_argument("what", help="what you wait for, in a few words the user reads in the top bar: the test run of task 217, Lady Lovelace's report")
         time.add_argument("--output", type=int, action="append", default=[], metavar="N", help="a command's output; the wait ends once the command is done; more than one waits for all")
         time.add_argument("--reader", default="", help="with --output, also watch the output live through this reader, so the user sees it move while you wait")
         time.add_argument("--until", default="", metavar="SCRIPT", help="a shell script run every 30 seconds; the wait ends once it passes, such as ! kill -0 <pid> for a process")
+
+    def clear(self, args: Namespace, caller: Caller) -> int:
+        checks = WaitTargets.awaited_checks(self.agents.session_agent(caller.agent_session).stack)
+        self.events.wait_cleared(caller)
+        self.wait_checks.deleted(checks, caller.actor)
+        print("wait cleared" + (f", and check {', '.join(map(str, sorted(checks)))} removed" if checks else ""))
+        return 0
 
     def begin(self, args: Namespace, caller: Caller) -> int:
         if not args.output and not args.until:

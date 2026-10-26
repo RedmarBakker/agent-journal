@@ -29,6 +29,8 @@ class TasksNudges:
     PAUSED_TASK_CLOSURE_REMINDER = Nudge("tasks", "paused_task_named_at_close", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat=Timeout.seconds(0))
     WAIT_CHECK = Nudge("tasks", "check_the_wait", "you have waited {{minutes}} min on {{what}}: check it", "still going: `journal await` again; done or failed: log it and go on", repeat=Timeout.seconds(300), blocks_regardless=True)
     IDLE_CHECK = Nudge("tasks", "check_in_after_quiet", "nothing has happened for half an hour", "carry on, take the next task, or say so in one line", repeat=Timeout.seconds(1800))
+    WAIT_LIFTED = Nudge("tasks", "wait_lifted", "your wait on {{what}} was lifted; check {{n}} is still running and you are informed when it passes; journal check remove {{n}} if you no longer want to hear about it", repeat=Timeout.seconds(0))
+    WAIT_CHECK_PASSED = Nudge("tasks", "wait_check_passed", "{{what}} is done: {{lines}}", repeat=Timeout.seconds(0))
     WAIT_END = Nudge("tasks", "wait_over", "wait over: {{outcome}}", repeat=Timeout.seconds(0))
     PRIORITIES_REMINDER = Nudge("tasks", "give_tasks_their_priority", "{{count}} open tasks you made sit at the default priority: {{tasks}}", "give each its priority with `journal task edit <n> --priority <level>`, or `journal task priorities confirm` if they are all normal", repeat=Timeout.seconds(YEAR_SECONDS), blocks_regardless=True)
     PRIORITIES_REFUSAL = Nudge("tasks", "tasks_wait_for_their_priority", "{{count}} open tasks you made sit at the default priority: {{tasks}}. your next write waits", "`journal task edit <n> --priority <level>` on them, or `journal task priorities confirm`", repeat=Timeout.seconds(0))

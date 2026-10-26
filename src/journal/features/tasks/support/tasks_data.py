@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from journal.features.tasks.support.passed_wait import PassedWait
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.models.open_task import OpenTask
 
@@ -32,3 +33,5 @@ class TasksData:
     wait_progress: Mapping[str, WaitProgress] = field(default_factory=dict)
     unprioritised: tuple[int, ...] = ()
     blocking_priorities: tuple[int, ...] = ()
+    polled_checks: tuple[int, ...] = ()
+    passed_waits: tuple[PassedWait, ...] = ()
