@@ -19,12 +19,17 @@ export function useRevealPressed(scroller) {
         pressedAt = Date.now();
     }
 
+    // a bubble pressed a moment ago is opening, and while it opens the pane shows that bubble rather than following the foot
+    function isRevealing() {
+        return Boolean(pressed && pressed.isConnected && Date.now() - pressedAt <= REVEAL_MS);
+    }
+
     function reveal() {
         const pane = scroller.value;
-        if (!pane || !pressed || !pressed.isConnected || Date.now() - pressedAt > REVEAL_MS) return;
+        if (!pane || !isRevealing()) return;
         const offset = revealOffset(pressed.getBoundingClientRect(), pane.getBoundingClientRect());
         if (offset) pane.scrollTo({top: pane.scrollTop + offset, behavior: "smooth"});
     }
 
-    return {press, reveal};
+    return {press, reveal, isRevealing};
 }

@@ -188,9 +188,10 @@ function toBottom(smooth = false) {
     glideTo(smooth);
 }
 
-// the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after
+// the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after, nor
+// while a bubble the reader pressed opens, so a chat mark opened at the foot is shown whole rather than pushed away by a snap to the foot
 function followDown(smooth = false) {
-    if (Date.now() - scrolledAt < BY_HAND) return;
+    if (Date.now() - scrolledAt < BY_HAND || pressedTurn.isRevealing()) return;
     toBottom(smooth);
 }
 

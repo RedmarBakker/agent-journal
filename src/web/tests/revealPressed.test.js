@@ -1,5 +1,5 @@
-import {describe, expect, it} from "vitest";
-import {revealOffset} from "../src/composables/revealPressed.js";
+import {describe, expect, it, vi} from "vitest";
+import {revealOffset, useRevealPressed} from "../src/composables/revealPressed.js";
 
 describe("a bubble that opens near the foot", () => {
     const pane = {top: 0, bottom: 600};
@@ -14,5 +14,31 @@ describe("a bubble that opens near the foot", () => {
 
     it("leaves a bubble already in view where it is", () => {
         expect(revealOffset({top: 100, bottom: 500}, pane)).toBe(0);
+    });
+});
+
+describe("a chat mark pressed at the foot of the chat", () => {
+    const turn = (bottom) => ({isConnected: true, getBoundingClientRect: () => ({top: 400, bottom})});
+    const pressOn = (element) => ({target: {closest: () => element}});
+
+    it("holds the follow to the foot while it opens, and scrolls its bottom into view rather than snapping to the foot", () => {
+        vi.useFakeTimers();
+        const scrolled = [];
+        const pane = {scrollTop: 1000, getBoundingClientRect: () => ({top: 0, bottom: 600}), scrollTo: (to) => scrolled.push(to)};
+        const pressed = useRevealPressed({value: pane});
+        const mark = turn(700);
+        pressed.press(pressOn(mark));
+        expect(pressed.isRevealing()).toBe(true);
+        pressed.reveal();
+        expect(scrolled).toEqual([{top: 1108, behavior: "smooth"}]);
+        vi.advanceTimersByTime(1600);
+        expect(pressed.isRevealing()).toBe(false);
+        vi.useRealTimers();
+    });
+
+    it("follows the foot as before after a press outside any bubble", () => {
+        const pressed = useRevealPressed({value: null});
+        pressed.press(pressOn(null));
+        expect(pressed.isRevealing()).toBe(false);
     });
 });
