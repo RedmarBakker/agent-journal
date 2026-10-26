@@ -4,6 +4,8 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- Blocking a task that waits in a worker's queue takes it out of the queue by itself, so it is offered again once it opens; pausing a worker's task in hand is refused unless you add --force, which takes it off the worker, tells the worker to go on with its queue and leaves its commits on its branch.
+
 ## 4.63.0
 
 - The hooks and shell commands that went around a journal that did not answer are named once in the chat, in one red mark that counts each kind and lists each with its time and command, at the journal's next answer; what it named is cleared from runtime/bypass.log.

@@ -305,6 +305,14 @@ class Tasks(ScopedRepository[Task]):
         for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK):
             self.links.delete(link, actor)
 
+    def unqueued_task(self, task: Task, actor: Actor) -> list[Ref]:
+        queue_links = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
+        for link in queue_links:
+            self.links.delete(link, actor)
+        if queue_links:
+            self.save(task.with_(delegated=False), actor)
+        return [link.source for link in queue_links]
+
     def unqueued(self, holder: Ref, actor: Actor) -> None:
         self.freed(holder, QUEUED_LINK, actor)
 

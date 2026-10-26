@@ -92,6 +92,7 @@ class TaskCommand(Command):
         pause = self.verb(verbs, "pause", "set a task aside for something else first, by choice; it stays open and stops being nudged")
         pause.add_argument("n", type=int)
         pause.add_argument("why")
+        pause.add_argument("--force", action="store_true", help="pause a worker's task in hand: the worker lets it go, keeps its commits and goes on with its queue")
         Waits.arguments(pause, "paused task's wait")
         self.verb(verbs, "resume", "pick a paused task up again").add_argument("n", type=int)
         driving = self.verb(verbs, "drive", "work on a hub task from this environment: it reads as this environment's, and no other environment or machine drives it until you release it")
@@ -182,6 +183,9 @@ class TaskCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
+        holdings = self.tasks.task_worker_holdings({args.n})
+        if args.n in holdings and not args.force:
+            raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s task in hand, mid-task: journal task pause {args.n} \"{args.why}\" --force takes it off the worker, which keeps its commits and goes on with its queue")
         task = self.tasks.save(self.tasks.find(args.n).paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""

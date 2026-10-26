@@ -12809,6 +12809,37 @@ def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_the_fitn
     assert queued.code == 0 and "--report queue fits better" in queued.text, queued.text
 
 
+def test_blocking_a_task_in_a_workers_queue_takes_it_out_and_pausing_its_task_in_hand_needs_force(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the job 1", "--brief", "1. the readme"], AGENT)
+    assert console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the readme", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1"), Actor.system())
+    assert console.run(["clock-in"], Caller.worker("main", 1, "w-1", "claude")).code == 0, "the worker clocks in and its task is started under it"
+    console.run(["task", "create", "job 2", "--brief", "1. job 2 done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
+    assert console.run(["task", "block", "2", "waits on the logo"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        queued = tasks.find(2)
+        assert queued.state.value == "blocked" and not queued.delegated and not tasks.queue(Ref("workers", 1)), "a blocked task leaves the worker's queue and is no longer delegated"
+    refused = console.run(["task", "pause", "1", "the footer first"], AGENT)
+    assert refused.code != 0 and "worker 1's task in hand" in refused.error and "--force" in refused.error, refused.error
+    forced = console.run(["task", "pause", "1", "the footer first", "--force"], AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert forced.code == 0 and app.container.get(Tasks).holder(app.container.get(Tasks).find(1)) is None, "with --force the task is paused and taken off the worker"
+
+
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
     from journal.models.support.worker_moves import WorkerMoves
     from journal.models.worker import Worker
