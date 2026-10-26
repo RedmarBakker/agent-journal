@@ -113,6 +113,8 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
     from tests.simulation.stop_releases import StopReleases
     from tests.simulation.trace_entry import TraceEntry
     from tests.simulation.wait_ends import WaitEnds
+    from tests.simulation.worker_unlocks import WorkerUnlocks
+    from tests.simulation.progress import Progress
     clean = [TraceEntry(30 * n, "agent", "write", False, (), ("idle", "working"), 200) for n in range(1, 40)]
     planted = {
         HoldLifts(): [TraceEntry(30 * n, "agent", "write", True, ("x.y",), ("idle",), 409) for n in range(1, 13)],
@@ -121,6 +123,8 @@ def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
         WaitEnds(): [TraceEntry(60 * n, "agent", "read", False, (), ("idle", "external_wait"), 200) for n in range(1, 40)],
         NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.load_critical", "workers.builder_handover_budget"), ("idle",), 200)],
         NoFaults(): [TraceEntry(30, "agent", "write", False, (), ("idle",), 500)],
+        WorkerUnlocks(): [TraceEntry(30, "agent", "read", False, (), ("idle",), 200, 0, ("1:dispatched:locked",))],
+        Progress(): [TraceEntry(30 * n, "agent", ("write", "read", "stop")[n % 3], True, (), ("idle",), 409) for n in range(1, 45)],
     }
     for invariant, trace in planted.items():
         assert invariant.violated(trace), f"{type(invariant).__name__} fires on its planted trace"
@@ -166,4 +170,18 @@ def test_random_runs_find_a_planted_fault_shrink_it_and_replay_it_from_its_file(
     stored = json.loads(path.read_text())
     replayed = played(tmp_path / "replayed", monkeypatch, short, stored["seed"], ScriptedPolicy(stored["actions"]))
     assert PlantedFault().violated(replayed), "the shrunk trace replays from its file and still breaks the invariant"
+
+
+def test_the_lines_said_together_in_every_scenario_are_listed_for_the_contradiction_table(tmp_path, monkeypatch, capsys):
+    from itertools import combinations
+    pairs = {}
+    for scenario in ALL:
+        for entry in played(tmp_path / scenario.name.replace(" ", "_"), monkeypatch, replace(scenario, minutes=10), SEED):
+            for pair in combinations(sorted(set(entry.nudges)), 2):
+                pairs[pair] = pairs.get(pair, 0) + 1
+    with capsys.disabled():
+        print("\nlines said together in one step, for the contradiction table:")
+        for (first, second), count in sorted(pairs.items(), key=lambda item: -item[1]):
+            print(f"  {count:3}  {first} + {second}")
+    assert isinstance(pairs, dict)
 

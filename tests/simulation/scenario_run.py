@@ -51,7 +51,7 @@ class ScenarioRun:
     @staticmethod
     def entry(second: int, actor: str, action: str, seen) -> TraceEntry:
         status = seen.answer[0] if isinstance(seen.answer, tuple) and seen.answer else 0
-        return TraceEntry(second, actor, action, status not in (0, 200), seen.nudges, seen.stack, status, seen.skipped)
+        return TraceEntry(second, actor, action, status not in (0, 200), seen.nudges, seen.stack, status, seen.skipped, seen.workers)
 
     def prepared(self, world: World) -> None:
         settings = self.simulator.app.container.get(SettingRows)

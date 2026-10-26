@@ -36,7 +36,7 @@ class Observer:
             entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.kind == "nudge"]
             self.app.runtime().deferred.drain()
             agent = self.app.container.get(Agents).current()
-            workers = tuple(f"{worker.id}:{worker.state}" for worker in self.app.container.get(Workers).open_workers())
+            workers = tuple(f"{worker.id}:{worker.state}" + (":locked" if worker.edit_lock else "") for worker in self.app.container.get(Workers).open_workers())
         said, self.seen = entries[self.seen:], len(entries)
         del self.typed[:len(keystrokes)]
         stack = tuple(layer["state"] for layer in agent.stack) if agent else ()
