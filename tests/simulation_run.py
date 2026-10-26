@@ -186,19 +186,23 @@ def test_the_lines_said_together_in_every_scenario_are_listed_for_the_contradict
     assert isinstance(pairs, dict)
 
 
+def recorded(folder: Path, monkeypatch, scenario: Scenario) -> tuple[ScenarioRun, list]:
+    simulator = fresh(folder / scenario.name.replace(" ", "_"), monkeypatch)
+    try:
+        with simulator.app.container.get(Scope).environment(MAIN):
+            run = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or scenario.minutes), SEED, POLICIES[scenario.policy]())
+            return run, run.played()
+    finally:
+        simulator.app.runtime().stop()
+
+
 def test_recorded_runs_are_scored_again_offline_with_candidate_profiles_in_seconds(tmp_path, monkeypatch, capsys):
     from journal.features.workers.workers_profiles import WorkersProfiles
     from tests.simulation.rescoring import Rescoring
     from tests.simulation.scenarios import FLOODED_BUILDER, ORCHESTRATOR
     tables = {}
     for scenario in (QUIET_BUILDER, FLOODED_BUILDER, ORCHESTRATOR):
-        simulator = fresh(tmp_path / scenario.name.replace(" ", "_"), monkeypatch)
-        try:
-            with simulator.app.container.get(Scope).environment(MAIN):
-                run = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or 45), SEED, POLICIES[scenario.policy]())
-                trace = run.played()
-        finally:
-            simulator.app.runtime().stop()
+        run, trace = recorded(tmp_path, monkeypatch, replace(scenario, minutes=MINUTES or 45))
         began = time.monotonic()
         tables[scenario.name] = Rescoring(run.samples, trace).table(WorkersProfiles.ALL)
         assert time.monotonic() - began < 5, "a sweep over the profiles takes seconds"
@@ -208,4 +212,21 @@ def test_recorded_runs_are_scored_again_offline_with_candidate_profiles_in_secon
             for row in rows:
                 print(f"  {row}")
     assert all(rows for rows in tables.values())
+
+
+def test_in_each_mode_the_known_good_policy_scores_above_the_known_bad_one_over_a_spree_of_tasks(tmp_path, monkeypatch, capsys):
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    from tests.simulation.rescoring import Rescoring
+    from tests.simulation.scenarios import KNOWN_PAIRS
+    rows = {}
+    for pair in KNOWN_PAIRS:
+        for scenario in pair:
+            run, trace = recorded(tmp_path, monkeypatch, scenario)
+            profile = next(profile for profile in WorkersProfiles.ALL if profile.mode == scenario.mode)
+            rows[scenario.name] = Rescoring(run.samples, trace).row(profile)
+    with capsys.disabled():
+        for name, row in rows.items():
+            print(f"\n{name}: {row}")
+    for good, bad in KNOWN_PAIRS:
+        assert (rows[good.name]["score"] or 0) > (rows[bad.name]["score"] or 0), f"{good.name} scores above {bad.name}: {rows[good.name]} against {rows[bad.name]}"
 

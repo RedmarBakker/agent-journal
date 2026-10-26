@@ -1,3 +1,4 @@
+import re
 import shlex
 import random
 
@@ -75,6 +76,13 @@ class MainAgent:
 
     def stop_action(self, world: World) -> Observation:
         return self.simulator.hook("Stop")
+
+    def answer_action(self, world: World) -> Observation:
+        unread = self.command(["message", "unread"])
+        world.unread_messages = 0
+        for number in re.findall(r"message (\d+) from the user", str(unread.answer[1])):
+            unread = self.command(["message", "send", "on it", "--reply-to", number])
+        return unread
 
     def message_action(self, world: World) -> Observation:
         return self.command(["message", "send", "a word on the work"])

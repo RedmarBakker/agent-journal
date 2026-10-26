@@ -1,3 +1,4 @@
+from collections import Counter
 from statistics import mean
 
 from tests.simulation.sample import Sample
@@ -23,6 +24,7 @@ class Rescoring:
             "load": round(mean(sample.rho for sample in self.samples), 2) if self.samples else 0.0,
             "nudges_hourly": round(sum(len(entry.nudges) for entry in self.trace) / hours, 1),
             "refusals_hourly": round(sum(1 for entry in self.trace if entry.refused) / hours, 1),
+            "refused": dict(Counter(f"{entry.action}: {entry.nudges[-1] if entry.nudges else entry.status}" for entry in self.trace if entry.refused).most_common(3)),
         }
 
     def actions(self) -> int:

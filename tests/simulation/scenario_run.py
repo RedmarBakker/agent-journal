@@ -42,6 +42,7 @@ class ScenarioRun:
             second = (step + 1) * STEP_SECONDS
             written = user.maybe_message()
             if written is not None:
+                world.unread_messages += 1
                 trace.append(self.entry(second, "user", "message", written))
             for number, seen in workers.finished(world):
                 trace.append(self.entry(second, f"worker {number}", "clock-out", seen))
