@@ -3,7 +3,7 @@ import {EVERY_VOICE_FACES} from "../src/figure/pile.js";
 import {facesAfter, readingsAfter, sayingsAfter, testResultsAfter, withSystemCards, writtenFacesAfter} from "../src/domain/figureState.js";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
-const row = (id, role, fields = {}) => ({table: "messages", id, agent_role: role, session: role === "main" ? "s1" : `w${id}`, created_at: at(100 + id), read_at: null, text: "", data: {}, ...fields});
+const row = (id, role, fields = {}) => ({table: "messages", id, agent_role: role, thread: role === "main" ? "main" : `${role}s:${id}`, session: role === "main" ? "s1" : `w${id}`, created_at: at(100 + id), read_at: null, text: "", data: {}, ...fields});
 const run = (id, role, ending) =>
     row(id, role, {author: "system", text: "Running tests", data: {kind: "card", icon: "agents", tone: ending === "failed" ? "bad" : "good", is_test: true, output: 1, figure: "", ending}});
 

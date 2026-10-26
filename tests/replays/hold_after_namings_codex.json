@@ -6,7 +6,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 3"
+          "additionalContext": "read due, message 2: 0. your next write waits for it"
         }
       },
       "typed": [
@@ -19,7 +19,7 @@
         "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user",
         "messages.new_message_to_answer",
-        "messages.writes_held_soon_until_read"
+        "messages.next_write_held_until_read"
       ],
       "stack": [
         "idle",
@@ -29,52 +29,46 @@
     {
       "name": "write 2 with the message unread",
       "answer": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 2"
-        }
+        "error": "you have 1 unread messages. `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [
-        "messages.writes_held_soon_until_read"
+        "messages.write_held_until_read"
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
       "name": "write 3 with the message unread",
       "answer": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 1"
-        }
+        "error": "you have 1 unread messages. `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [
-        "messages.writes_held_soon_until_read"
+        "messages.write_held_until_read"
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
       "name": "write 4 with the message unread",
       "answer": {
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 0. your next write waits for it"
-        }
+        "error": "you have 1 unread messages. `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [
-        "messages.next_write_held_until_read"
+        "messages.write_held_until_read"
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     }
   ]

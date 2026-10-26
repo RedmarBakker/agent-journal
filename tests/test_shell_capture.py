@@ -69,3 +69,10 @@ def test_a_shell_call_claude_code_would_run_in_its_own_background_runs_in_the_fo
     assert status == 200 and output["permissionDecision"] == "allow", answer
     assert output["updatedInput"] == {**SUITE_CALL, "run_in_background": False}
 
+
+
+def test_a_new_file_a_shell_line_wrote_counts_its_lines_in_the_folder_the_shell_stood_in(tmp_path):
+    from journal.features.shell.support.chain_worker import ChainWorker
+    (tmp_path / "made.txt").write_text("a\nb\n")
+    changed = ChainWorker.changed("", f"#folder\t{tmp_path}\n?\t0\tmade.txt\n")
+    assert [(file.added, file.path) for file in changed] == [(2, "made.txt")]

@@ -19,6 +19,7 @@ from journal.support.part import Part
 SHELL_SETUP = """
 ulimit -n 65536 2>/dev/null || ulimit -n 10240 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null
 __journal_tree() {
+    printf '#folder\t%s\n' "$PWD"
     git diff --numstat HEAD 2>/dev/null | grep -v "	\\.journal/"
     git ls-files --others --exclude-standard 2>/dev/null | grep -v "^\\.journal/" | sed 's/^/?\\t0\\t/'
 }
@@ -26,9 +27,10 @@ __journal_status() {
     case "$-" in *e*) return 0 ;; *) return "$__journal_code" ;; esac
 }
 __journal_code=0
-(while kill -0 __JOURNAL_OWNER 2>/dev/null && kill -0 $$ 2>/dev/null; do sleep 3; done; kill -0 $$ 2>/dev/null && kill -KILL -- -$$) >/dev/null 2>&1 &
+( (while kill -0 __JOURNAL_OWNER 2>/dev/null && kill -0 $$ 2>/dev/null; do sleep 3; done; kill -0 $$ 2>/dev/null && kill -KILL -- -$$) & ) >/dev/null 2>&1
 """
 POLL_SECONDS = 0.02
+TREE_FOLDER = "#folder\t"
 # Claude Code's snapshot of a bash setup can carry set -o onecmd, which ends a shell after the command it reads next; turned off on
 # the same line as each part, it never ends the shell the chain's next parts are written to
 ONECMD_RESET = "set +t 2>/dev/null"
@@ -111,16 +113,19 @@ class ChainWorker:
         self.write_part(shell, self.script(folder, i, text, edges, direct))
         return self.status_once_ended(shell, folder, i)
 
+    # the part is read into a variable before the previous part's status is set again, so $? in the part is that status and
+    # never the status of the cat that read it
     @staticmethod
     def script(folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> str:
-        part = f'"$(cat {str(folder.folder / f"{i}.part")!r})"'
+        read = f'__journal_part="$(cat {str(folder.folder / f"{i}.part")!r})"; '
+        part = '"$__journal_part"'
         redirect = "" if direct else f" > {str(folder.folder / f'{i}.out')!r} 2> {str(folder.folder / f'{i}.err')!r}"
         if text.startswith("exec "):
-            run = f"(eval {part} < /dev/null{redirect}); __journal_code=$?; {ONECMD_RESET}"
+            run = f"{read}(__journal_status; eval {part} < /dev/null{redirect}); __journal_code=$?; {ONECMD_RESET}"
         elif edges:
-            run = f"if __journal_status; eval {part} < /dev/null{redirect}; then __journal_code=0; else __journal_code=$?; fi; {ONECMD_RESET}"
+            run = f"{read}if __journal_status; eval {part} < /dev/null{redirect}; then __journal_code=0; else __journal_code=$?; fi; {ONECMD_RESET}"
         else:
-            run = f"__journal_status; eval {part} < /dev/null{redirect}; __journal_code=$?; {ONECMD_RESET}"
+            run = f"{read}__journal_status; eval {part} < /dev/null{redirect}; __journal_code=$?; {ONECMD_RESET}"
         status = str(folder.folder / f"{i}.status")
         return f"{run}\necho \"$__journal_code\" > {status + '.part'!r} && mv {status + '.part'!r} {status!r}\n"
 
@@ -162,14 +167,16 @@ class ChainWorker:
         for block in iter(lambda: shell.stdout.read1(65536), b""):
             output_text(block)
 
+    # a new file's lines are counted in the folder the shell stood in when it listed it, which the listing names on its first line
     @classmethod
     def changed(cls, previous: str, following: str) -> list[ChangedFile]:
         older = set(previous.splitlines())
-        return [cls.changed_file(line) for line in following.splitlines() if line not in older and line.count("\t") == 2]
+        folder = Path(next((line.split("\t", 1)[1] for line in following.splitlines() if line.startswith(TREE_FOLDER)), "."))
+        return [cls.changed_file(line, folder) for line in following.splitlines() if line not in older and line.count("\t") == 2]
 
     @staticmethod
-    def changed_file(line: str) -> ChangedFile:
+    def changed_file(line: str, folder: Path) -> ChangedFile:
         added, removed, path = line.split("\t", 2)
         if added == "?":
-            added = str(sum(1 for _ in open(path, errors="replace"))) if Path(path).is_file() else "0"
+            added = str(sum(1 for _ in open(folder / path, errors="replace"))) if (folder / path).is_file() else "0"
         return ChangedFile(int(added) if added.isdigit() else 0, int(removed) if removed.isdigit() else 0, path)
