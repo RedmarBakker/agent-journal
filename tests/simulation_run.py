@@ -75,3 +75,24 @@ def test_every_scenario_plays_within_its_time_limit(tmp_path, monkeypatch, scena
         trace = played(tmp_path / f"run{run}", monkeypatch, scenario, SEED + run)
         assert any(entry.actor == "agent" for entry in trace), f"{scenario.name} played the agent"
 
+
+
+def test_a_scripted_clash_sends_the_worker_back_and_a_third_in_a_row_is_named_to_the_agent(simulated):
+    from tests.simulation.main_agent import AGENT
+    from tests.simulation.worker_actor import WorkerActor
+    from tests.simulation.world import World
+    from journal.support.caller import Caller
+    world, workers = World(), WorkerActor(simulated)
+    simulated.hook("SessionStart")
+    simulated.run(["environment", "overview"], AGENT)
+    simulated.run(["task", "create", "part 1", "--brief", "1. part 1 is written"], Caller.user("main"))
+    simulated.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"], AGENT)
+    simulated.run(["clock-in"], Caller.worker("main", 1, "w1", "claude"))
+    named = []
+    for _ in range(3):
+        world.workers_out[1] = 0
+        workers.finished(world)
+        named.extend(workers.clashes(world, 1, "src/part_1.py").nudges)
+        simulated.run(["clock-in"], Caller.worker("main", 1, "w1", "claude"))
+    assert named.count("workers.branch_keeps_clashing") == 1, named
+    assert simulated.observer.observe().skipped == 0, "no deferred work was skipped"

@@ -1,6 +1,7 @@
 from journal.engine.clock import Clock
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.features.workers.support.machine_load import MachineLoad
 from journal.support.time_source import TimeSource
 from tests.observation import Observation, Observer
 from tests.replay import catch_typed, hook_as
@@ -9,12 +10,14 @@ START_SECONDS = 1_800_000_000.0
 
 
 class Simulator:
-    """One journal driven in-process by a simulation: no worker process starts, no line reaches a terminal, the time is pinned and moves only when a step says so, and every step closes with an observation once the worker thread has settled."""
+    """One journal driven in-process by a simulation: no worker process starts, no line reaches a terminal, the jobs thread is stopped and the machine's load is fixed, the time is pinned and moves only when a step says so, and every step closes with an observation once the worker thread has settled."""
 
     def __init__(self, app, monkeypatch, provider: str = "claude") -> None:
         self.app, self.provider, self.typed, self.steps = app, provider, [], []
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
         monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
+        monkeypatch.setattr(MachineLoad, "read", classmethod(lambda cls: cls((1.0, 1.0, 1.0), 8, 8000)))
+        app.runtime().jobs.stop()
         catch_typed(app, monkeypatch, self.typed)
         self.source = app.container.get(TimeSource)
         self.source.pin(START_SECONDS)

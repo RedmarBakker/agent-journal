@@ -9,7 +9,7 @@ from journal.repositories.workers import Workers
 
 @dataclass(frozen=True)
 class Observation:
-    """What one step of a replay or a simulation showed the agent and left behind: the hook's answer, the lines typed to it since the last step, the nudges said since by key and by line, its stack, its load, and each worker's state."""
+    """What one step of a replay or a simulation showed the agent and left behind: the hook's answer, the lines typed to it since the last step, the nudges said since by key and by line, its stack, its load, each worker's state, and how many pieces of deferred work were skipped so far."""
 
     answer: object
     typed: tuple[str, ...]
@@ -18,6 +18,7 @@ class Observation:
     stack: tuple[str, ...]
     load: float
     workers: tuple[str, ...]
+    skipped: int
 
     def is_refused(self) -> bool:
         return isinstance(self.answer, tuple) and bool(self.answer) and self.answer[0] == 409
@@ -40,4 +41,5 @@ class Observer:
         del self.typed[:len(keystrokes)]
         stack = tuple(layer["state"] for layer in agent.stack) if agent else ()
         load = agent.load.rho if agent else 0.0
-        return Observation(answer, keystrokes, tuple(entry.data["key"] for entry in said), tuple(entry.data.get("line", "") for entry in said), stack, load, workers)
+        skipped = self.app.runtime().deferred.skipped
+        return Observation(answer, keystrokes, tuple(entry.data["key"] for entry in said), tuple(entry.data.get("line", "") for entry in said), stack, load, workers, skipped)
