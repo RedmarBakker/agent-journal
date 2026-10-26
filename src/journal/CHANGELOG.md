@@ -2,8 +2,17 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
-## Unreleased
+## 4.63.1
 
+- A paused agent may still run every journal command, its words reach the chat, and no demand is put over the pause, so the resume always reaches it; only the work itself waits.
+- A message the agent answered with a face no longer waits in the message load.
+- The status bar shows two values, the fitness and one load, the work and the messages added; its tooltip names each part.
+- The fitness switch shows off unless it was turned on, at the top of the fitness dropdown.
+- A chat mark keeps its width while it opens and closes, its title on one line, and shows its contents only once it has its size.
+- A plugin's last fault is shown with its time, and one kept without a time is no longer shown as if current.
+- The half-hour idle line is sent only when there is a task to go on with.
+- A message names its chat by a thread field of its own, so the agents' roles name agents only.
+- An answer that spends 300 points or more is written with what it read to runtime/costly-answers.log.
 - A running command writes a heartbeat every ten seconds while its shell lives, so a command that computes for an hour without printing still counts as running, and one whose process vanished is ended 30 seconds after its last beat and never holds a restart.
 - A subagent resumed by a message to review a plan counts as the plan's reviewer until it ends, so the plan is not held for its readying while it reads.
 - A journal that stored agent loads with the minutes the fitness once counted reads them again after an upgrade.
