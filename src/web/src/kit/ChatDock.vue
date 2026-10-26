@@ -1,8 +1,13 @@
 <script setup>
-import {ref} from "vue";
+import {onBeforeUnmount, onMounted, ref} from "vue";
 
 defineProps({label: {type: String, default: ""}, folded: Boolean, lifted: Boolean, kind: {type: String, default: ""}});
 const card = ref(null);
+const content = ref(null);
+const height = ref(null);
+const watcher = new ResizeObserver(() => (height.value = content.value.offsetHeight));
+onMounted(() => watcher.observe(content.value));
+onBeforeUnmount(() => watcher.disconnect());
 defineExpose({card});
 </script>
 
@@ -15,7 +20,11 @@ defineExpose({card});
                 </header>
                 <div :class="['chat-dock-body', {folded}]">
                     <div class="chat-dock-inner">
-                        <slot />
+                        <div class="chat-dock-grow" :style="height === null ? null : {height: `${height}px`}">
+                            <div ref="content">
+                                <slot />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -74,6 +83,11 @@ defineExpose({card});
     overflow: hidden;
 }
 
+.chat-dock-grow {
+    overflow: hidden;
+    transition: height var(--move);
+}
+
 /* a dock comes in two steps, the chat easing up to make room and then the card sliding in, and goes in the same two the other way, the
    card sliding out and then the chat easing down into its space; the whole of each lasts DOCK_MOTION_MS (kit/dockMotion.js) */
 .chat-dock.dock-enter-active {
@@ -127,7 +141,8 @@ defineExpose({card});
     .chat-dock.dock-leave-active,
     .chat-dock.dock-enter-active .chat-dock-card,
     .chat-dock.dock-leave-active .chat-dock-card,
-    .chat-dock-body {
+    .chat-dock-body,
+    .chat-dock-grow {
         transition: none;
     }
 }

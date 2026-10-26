@@ -1,6 +1,6 @@
 <script setup>
-import {otherPlans, othersLine, PLAN_STATES, reviewersLine, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
-import {computed, ref} from "vue";
+import {isWholePlan, otherPlans, othersLine, PLAN_STATES, reviewersLine, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
+import {computed, ref, watchEffect} from "vue";
 import Btn from "../kit/Btn.vue";
 import Chip from "../kit/Chip.vue";
 import ChatDock from "../kit/ChatDock.vue";
@@ -26,7 +26,11 @@ const reviewing = computed(() => status.value === "reviewing");
 const reviewers = computed(() => (reviewing.value ? reviewersLine(props.plan.reviewers || 0) : ""));
 const building = computed(() => status.value === "draft");
 const others = computed(() => otherPlans(rows("plans"), props.plan));
-const phases = computed(() => (props.plan.phases || []).map((ph, i) => ({n: i + 1, title: ph.title, rows: ph.task_ids.length})));
+// the phases of the plan last held whole stay while a list refresh brings the plan as a summary alone, until it is read whole again, so no row is drawn away and back
+const phases = ref([]);
+watchEffect(() => {
+    if (isWholePlan(props.plan)) phases.value = (props.plan.phases || []).map((ph, i) => ({n: i + 1, title: ph.title, rows: ph.task_ids.length}));
+});
 const hidden = computed(() => Math.max(0, phases.value.length - PREVIEW_PHASES));
 const adding = "The agent is still writing the plan…";
 usePlanRows(() => [props.plan]);

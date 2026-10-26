@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-GXN6b8Ji.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-EDi15Ln2.js";import{e as al}from"./tokens-DDFs0RK0.js";import"./tip-DDJbOzXF.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DxmGv4Wz.js";import{e as al}from"./tokens-BKAkHm6K.js";import"./tip-C7krbaFv.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 25fce815fa (Task 3338: The docked plan card never flickers as phases are added or edited):src/web/dist/assets/figure-BN1jUjuL.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
