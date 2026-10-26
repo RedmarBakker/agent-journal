@@ -17860,7 +17860,7 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Agents).save(Agent(environment_id=MAIN, session="worker-s", provider="claude", role=AgentRole.WORKER, state="duty"), Actor.system())
-        with pytest.raises(Rejection, match="names its kind"):
+        with pytest.raises(Rejection, match="has its kind"):
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="something happened"), Actor.system())
         with pytest.raises(Rejection, match="its agent's own chat"):
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, session="worker-s", text="Searched for x", data={"kind": "card"}), Actor.system())
