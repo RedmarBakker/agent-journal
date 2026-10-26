@@ -2422,7 +2422,7 @@ def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_non
     from types import SimpleNamespace
     from journal.features.workers.support.load_items import LoadItems
     from journal.models.support.worker_moves import WorkerMoves
-    reader = LoadItems(None, None, SimpleNamespace(holder_task_ids=lambda ref: []), SimpleNamespace(decimal=lambda option: option.default), None)
+    reader = LoadItems(None, None, None, SimpleNamespace(holder_task_ids=lambda ref: []), SimpleNamespace(decimal=lambda option: option.default), None)
     moves = WorkerMoves((("clocked in", 10.0), ("clocked out", 100.0), ("sent back", 160.0), ("clocked in", 170.0), ("clocked out", 400.0), ("merged", 460.0), ("sent a job", 470.0), ("ended without clocking out", 900.0)))
     items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves))
     assert [(item.arrived_at, item.weight, item.cleared_at, item.ended_at, item.is_repeat) for item in items] == [(100.0, 1.0, 0.0, 160.0, False), (400.0, 1.5, 460.0, 0.0, True), (900.0, 1.0, 0.0, 0.0, False)], "a clock-out ended without a clearing by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"

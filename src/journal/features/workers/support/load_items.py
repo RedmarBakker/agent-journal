@@ -6,6 +6,7 @@ from journal.models.author import Author
 from journal.models.support.ref import Ref
 from journal.models.worker import DELIVERY_MOVE, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.messages import Messages
+from journal.repositories.reactions import Reactions
 from journal.repositories.proofs import Proofs
 from journal.models.proof_state import ProofState
 from journal.repositories.setting_rows import SettingRows
@@ -19,10 +20,10 @@ DISPATCHES = ("dispatched", "sent a job")
 
 
 class LoadItems:
-    """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, its end without clocking out, each cleared by its merge or a checked proof and ended without a clearing by a send-back, a release, a retirement, a stop or a new job; a user's message, cleared by the agent's first reply naming it, never by a reaction or a read; with the times the orchestrator dispatched or sent a job."""
+    """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, its end without clocking out, each cleared by its merge or a checked proof and ended without a clearing by a send-back, a release, a retirement, a stop or a new job; a user's message, cleared by the agent's first reply naming it or its first reaction to it, never by a read; with the times the orchestrator dispatched or sent a job."""
 
-    def __init__(self, workers: Workers, messages: Messages, tasks: Tasks, settings: SettingRows, proofs: Proofs) -> None:
-        self.workers, self.messages, self.tasks, self.settings, self.proofs = workers, messages, tasks, settings, proofs
+    def __init__(self, workers: Workers, messages: Messages, reactions: Reactions, tasks: Tasks, settings: SettingRows, proofs: Proofs) -> None:
+        self.workers, self.messages, self.reactions, self.tasks, self.settings, self.proofs = workers, messages, reactions, tasks, settings, proofs
 
     def read(self, start: float) -> tuple[list[LoadItem], list[float]]:
         window_start = datetime.fromtimestamp(start, timezone.utc)
@@ -69,7 +70,7 @@ class LoadItems:
     def message_items(self, begin: datetime) -> list[LoadItem]:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)
         user_messages = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", begin).order("created_at").order("id"))
-        replied: dict[int, float] = {}
+        replied = dict(self.reactions.agent_message_reactions(begin))
         for reply in self.messages.recent_replies(begin):
             replied[reply.reply_target] = min(replied.get(reply.reply_target, reply.creation_time.timestamp()), reply.creation_time.timestamp())
         return [LoadItem(str(Ref.build(message)), message.creation_time.timestamp(), weight, replied.get(message.row_id, 0.0)) for message in user_messages]
