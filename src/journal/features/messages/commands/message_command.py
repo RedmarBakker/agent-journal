@@ -8,6 +8,7 @@ from journal.models.message import Message
 from journal.support.voice_key import VoiceKey
 from journal.models.support.ref import Ref
 from journal.config import Config
+from journal.features.messages.support.message_files import MessageFiles
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
 from journal.repositories.agents import Agents
@@ -30,8 +31,8 @@ class MessageCommand(Command):
     noun = "message"
     uncut_verbs = frozenset({"read", "unread"})
 
-    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows) -> None:
-        self.agents, self.rows = agents, rows
+    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows, files: MessageFiles) -> None:
+        self.agents, self.rows, self.files = agents, rows, files
         self.messages, self.reactions, self.links, self.config = messages, reactions, links, config
         self.docs, self.reports = docs, reports
 
@@ -39,6 +40,7 @@ class MessageCommand(Command):
         transmit = self.verb(verbs, "send", "leave a message")
         transmit.add_argument("text")
         transmit.add_argument("--reply-to", type=int, default=None)
+        transmit.add_argument("--file", action="append", default=[], metavar="PATH", help="a file the user downloads, shown under the message, a picture inline; repeat it for more files")
         transmit.add_argument("--confirm", action="store_true", help="send a second reply to a message already answered")
         self.verb(verbs, "list", "every message here")
         self.verb(verbs, "read", "show a message and mark it read").add_argument("n", type=int)
@@ -60,14 +62,15 @@ class MessageCommand(Command):
         author = Author.build(caller.actor)
         if Tags.replies(args.text):
             raise Rejection(REPLY_TAG_REFUSED)
+        files = self.files.read(args.file)
         if args.reply_to and author == Author.AGENT:
-            return self.reply(args, caller)
+            return self.reply(args, caller, files)
         draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})
-        message = self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor)
+        message = self.files.attached(self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor), files, caller.actor)
         print(f"message {message.id} sent")
         return 0
 
-    def reply(self, args: Namespace, caller: Caller) -> int:
+    def reply(self, args: Namespace, caller: Caller, files: dict[str, bytes]) -> int:
         answered = self.messages.find(args.reply_to)
         key = VoiceKey.create("reply", str(answered.row_id), args.text.strip())
         if self.messages.sent_with(key):
@@ -77,7 +80,7 @@ class MessageCommand(Command):
         if older is not None and not args.confirm:
             print(f"message {answered.id} already has your reply {older.id}: not sent. Send it again only if it says something new, with --confirm")
             return 1
-        message = self.messages.save(Message.answer(answered, args.text).with_(idempotency=key), caller.actor)
+        message = self.files.attached(self.messages.save(Message.answer(answered, args.text).with_(idempotency=key), caller.actor), files, caller.actor)
         self.messages.read(answered, caller.actor, self._tool_use(caller))
         print(f"message {message.id} sent")
         return 0

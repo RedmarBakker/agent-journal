@@ -55,12 +55,15 @@ const grid = computed(() => pictures.value.length > 1);
             </video>
         </template>
         <template v-for="name in others" :key="name">
-            <a class="thread-file" :href="url(name)" :title="name" @click.prevent="openFiles([{name, url: url(name)}], 0)">
-                <span class="thread-file-name">
-                    <Icon name="paperclip" />
-                    {{ name }}
-                </span>
-            </a>
+            <div class="thread-other">
+                <a class="thread-file" :href="url(name)" :title="name" @click.prevent="openFiles([{name, url: url(name)}], 0)">
+                    <span class="thread-file-name">
+                        <Icon name="paperclip" />
+                        {{ name }}
+                    </span>
+                </a>
+                <a class="thread-download" :href="url(name)" :download="name">Download</a>
+            </div>
         </template>
     </div>
 </template>
@@ -143,6 +146,24 @@ const grid = computed(() => pictures.value.length > 1);
     align-items: center;
     gap: 5px;
     color: var(--accent-text);
+}
+
+.thread-other {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.thread-download {
+    color: var(--text-4);
+    font-size: 11.5px;
+    text-decoration: underline;
+    text-decoration-color: var(--border-3);
+    text-underline-offset: 3px;
+}
+
+.thread-download:hover {
+    color: var(--text);
 }
 
 .thread-file-name .ico {

@@ -21112,3 +21112,20 @@ def test_the_git_page_reads_branches_with_their_distance_from_the_base_the_recen
     assert pulls["available"] and [(row["number"], row["title"], row["review"], row["checks_passed"], row["checks_failed"], row["checks_pending"]) for row in pulls["rows"]] == [(7, "Add the page", "APPROVED", 1, 1, 1)]
     monkeypatch.setattr("shutil.which", lambda name: None)
     assert got(app, "/journal/git/pulls", headers)[1] == {"available": False, "rows": []}, "without gh the page says so and lists nothing"
+
+
+def test_a_message_sent_by_the_agent_with_a_file_lists_it_and_the_route_serves_its_bytes(app: App):
+    from urllib.request import urlopen
+    from journal.repositories.messages import Messages
+    console = app.console()
+    hook(app, "SessionStart")
+    report = app.config.root / "report.csv"
+    report.write_bytes(b"a,b\n1,2\n")
+    refused = console.run(["message", "send", "see the report", "--file", str(app.config.root / "missing.csv")], AGENT)
+    assert refused.code != 0 and "is not a file" in refused.error, "a file that is not there refuses the message before anything is sent"
+    assert console.run(["message", "send", "here is the report", "--file", str(report)], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        [sent] = app.container.get(Messages).all()
+    assert sent.files == ("report.csv",), "the message lists the file"
+    with urlopen(f"http://127.0.0.1:{app.server().port}/journal/messages/{sent.id}/files/report.csv?env=main", timeout=5) as reply:
+        assert reply.read() == b"a,b\n1,2\n", "and the same route as a user's attachment serves its bytes"
