@@ -45,7 +45,7 @@ class Report(Scoped):
     def is_update(self) -> bool:
         return self.kind == UPDATE
 
-    def settled(self, reason: str) -> "Report":
+    def with_no_action_needed(self, reason: str) -> "Report":
         if not reason.strip():
             raise Rejection(f"report {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
         return self.with_(settled_reason=reason.strip())

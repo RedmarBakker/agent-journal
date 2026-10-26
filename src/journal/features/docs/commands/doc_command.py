@@ -37,18 +37,18 @@ class DocCommand(Command):
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
         creation.add_argument("title")
         creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
-        creation.add_argument("--abstract", default="", help="one line that says what it is")
-        update = self.verb(verbs, "update", "write a document's text anew from a markdown file, its title kept")
+        creation.add_argument("--abstract", default="", help="a one-line summary")
+        update = self.verb(verbs, "update", "replace a document's text with a markdown file")
         update.add_argument("n", type=int)
         update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
-        update.add_argument("--abstract", default=None, help="a new one line that says what it is")
+        update.add_argument("--abstract", default=None, help="a new one-line summary")
         display = self.verb(verbs, "show", "a document: its outline, then one section at a time")
         display.add_argument("n", help="the document's number, or a team's name and number such as acme:31")
         Outline.arguments(display)
         self.verb(verbs, "list", "every document found here: this environment's, the project's and every hub's")
         settling = self.verb(verbs, "settle", "sign a document off as needing no action, so it is no longer named as never acted on")
         settling.add_argument("n", type=int)
-        settling.add_argument("--why", required=True, help="why it needs no action, kept on the document")
+        settling.add_argument("--why", required=True, help="why it needs no action")
         self.verb(verbs, "revisions", "a document's revisions: number, when, who and what changed").add_argument("n", type=int)
         revision = self.verb(verbs, "revision", "one revision of a document, whole")
         revision.add_argument("n", type=int)
@@ -70,7 +70,7 @@ class DocCommand(Command):
         attaching.add_argument("n", type=int)
         unsharing = self.verb(verbs, "unshare", "take a document back off the hub, to this environment, where it is a document of your own again; the other members' journals let it go, and a copy or an attachment of it there stays, its source shown as removed")
         unsharing.add_argument("n", type=int)
-        imported = self.verb(verbs, "import", "bring in the documents version 3 kept, each folder's doc.md; one titled as a document here already is left")
+        imported = self.verb(verbs, "import", "import the documents of version 3; a title already here is skipped")
         imported.add_argument("folder", help="version 3's project/doc folder")
 
     def create(self, args: Namespace, caller: Caller) -> int:
@@ -161,7 +161,7 @@ class DocCommand(Command):
         return 0
 
     def settle(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.save(self.docs.find(args.n).settled(args.why), caller.actor)
+        doc = self.docs.save(self.docs.find(args.n).with_no_action_needed(args.why), caller.actor)
         print(f"doc {doc.id} signed off: {doc.settled_reason}")
         return 0
 

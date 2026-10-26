@@ -20,7 +20,7 @@ class Doc(Scoped):
     settled_reason: str = ""
     is_copy: bool = False
 
-    def settled(self, reason: str) -> "Doc":
+    def with_no_action_needed(self, reason: str) -> "Doc":
         if not reason.strip():
             raise Rejection(f"doc {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
         return self.with_(settled_reason=reason.strip())

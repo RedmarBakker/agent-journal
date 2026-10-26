@@ -21151,3 +21151,21 @@ def test_a_message_sent_by_the_agent_with_a_file_lists_it_and_the_route_serves_i
     assert sent.files == ("report.csv",), "the message lists the file"
     with urlopen(f"http://127.0.0.1:{app.server().port}/journal/messages/{sent.id}/files/report.csv?env=main", timeout=5) as reply:
         assert reply.read() == b"a,b\n1,2\n", "and the same route as a user's attachment serves its bytes"
+
+
+def test_a_process_card_keeps_its_id_and_time_and_its_place_among_the_messages_through_its_end(app: App):
+    from journal.chat.process_card_contents import ProcessCardContents
+    from journal.chat.process_cards import ProcessCards
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.messages import Messages
+    from journal.support.card_kind import CardKind
+    with app.container.get(Scope).environment(MAIN):
+        cards, messages = app.container.get(ProcessCards), app.container.get(Messages)
+        began = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
+        later = messages.save(Message(environment_id=MAIN, author=Author.USER, text="a message after the run began"), Actor.system())
+        ended = cards.show(ProcessCardContents("output", MAIN, "watch:77", "Building the viewer", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, False))
+        assert (ended.id, ended.created_at) == (began.id, began.created_at), "the card that ends is the one written when its run began, never a second message with a new time"
+        assert not ended.data["active"] and len(messages.with_key("watch:77")) == 1
+        order = [message.id for message in messages.all() if message.id in (began.id, later.id)]
+        assert order == [began.id, later.id], "the ended card stays before the message that came after its start"
