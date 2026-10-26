@@ -3,7 +3,7 @@ from typing import ClassVar
 
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.scoped import Scoped
-from journal.support.rejection import Rejection
+from journal.support.no_action_reason import NoActionReason
 
 
 @dataclass(frozen=True)
@@ -18,19 +18,17 @@ class Doc(Scoped):
     edit_mode: DocEditMode = DocEditMode.LOCAL
     owner: int = 0
     settled_reason: str = ""
-    being_written: bool = False
+    unfinished: bool = False
     is_copy: bool = False
 
     def writing_status(self) -> str:
-        return "Being written" if self.being_written else "Ready"
+        return "Being written" if self.unfinished else "Ready"
 
     def finished(self) -> "Doc":
-        return self.with_(being_written=False)
+        return self.with_(unfinished=False)
 
     def with_no_action_needed(self, reason: str) -> "Doc":
-        if not reason.strip():
-            raise Rejection(f"doc {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
-        return self.with_(settled_reason=reason.strip())
+        return self.with_(settled_reason=NoActionReason.checked(self, reason))
 
     def is_on_hub(self) -> bool:
         return self.edit_mode != DocEditMode.LOCAL

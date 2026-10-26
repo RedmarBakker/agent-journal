@@ -5,6 +5,7 @@ from typing import ClassVar
 from journal.models.scoped import Scoped
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
+from journal.support.no_action_reason import NoActionReason
 from journal.support.rejection import Rejection
 
 UPDATE = "update"
@@ -26,7 +27,7 @@ class Report(Scoped):
     end_at: datetime | None = None
     read_at: datetime | None = None
     settled_reason: str = ""
-    being_written: bool = False
+    unfinished: bool = False
 
     def title_words(self) -> str:
         return self.title
@@ -47,15 +48,13 @@ class Report(Scoped):
         return self.kind == UPDATE
 
     def writing_status(self) -> str:
-        return "Being written" if self.being_written else "Ready"
+        return "Being written" if self.unfinished else "Ready"
 
     def finished(self) -> "Report":
-        return self.with_(being_written=False)
+        return self.with_(unfinished=False)
 
     def with_no_action_needed(self, reason: str) -> "Report":
-        if not reason.strip():
-            raise Rejection(f"report {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
-        return self.with_(settled_reason=reason.strip())
+        return self.with_(settled_reason=NoActionReason.checked(self, reason))
 
     def read(self, time: datetime) -> "Report":
         return self if self.read_at else self.with_(read_at=time)

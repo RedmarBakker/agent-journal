@@ -77,13 +77,13 @@ class DocCommand(Command):
         imported.add_argument("folder", help="version 3's project/doc folder")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text(), being_written=args.part), caller.actor)
+        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text(), unfinished=args.part), caller.actor)
         print(f"doc {doc.id}: {doc.title}{self.destination.phrase(doc)}")
         return 0
 
     def update(self, args: Namespace, caller: Caller) -> int:
         data = self.docs.find(args.n)
-        doc = self.docs.save(data.with_(body=Path(args.file).read_text(), abstract=data.abstract if args.abstract is None else args.abstract, being_written=args.part), caller.actor)
+        doc = self.docs.save(data.with_(body=Path(args.file).read_text(), abstract=data.abstract if args.abstract is None else args.abstract, unfinished=args.part), caller.actor)
         print(f"doc {doc.id} written anew: {doc.title}")
         return 0
 

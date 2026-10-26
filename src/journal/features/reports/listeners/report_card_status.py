@@ -14,7 +14,7 @@ class ReportCardStatus(Listener[Updated]):
 
     def handle(self, event: Updated) -> None:
         report = event.model
-        if not isinstance(report, Report) or "being_written" not in event.changed() or event.actor.kind != ActorKind.AGENT:
+        if not isinstance(report, Report) or "unfinished" not in event.changed() or event.actor.kind != ActorKind.AGENT:
             return
         contents = self.card.card_contents(report.environment_id, report, event.actor)
         if self.cards.is_shown(contents):

@@ -15,7 +15,7 @@ class DocumentCardStatus(Listener[Updated]):
 
     def handle(self, event: Updated) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or "being_written" not in event.changed() or event.actor.kind != ActorKind.AGENT:
+        if not isinstance(doc, Doc) or "unfinished" not in event.changed() or event.actor.kind != ActorKind.AGENT:
             return
         contents = self.card.card_contents(self.agents.session_agent(event.actor.id).environment_id, doc, event.actor)
         if self.cards.is_shown(contents):

@@ -57,7 +57,7 @@ class ReportCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         body = Path(args.file).read_text() if args.file else args.body
         rows = self.mentioned_rows(args.about)
-        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body, being_written=args.part), caller.actor)
+        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body, unfinished=args.part), caller.actor)
         for row in rows:
             self.links.save(Link(source=Ref.build(report), target=row, kind=Messages.SUBJECT_LINK), caller.actor)
         print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
