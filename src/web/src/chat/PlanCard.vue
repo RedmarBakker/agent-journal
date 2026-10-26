@@ -1,5 +1,6 @@
 <script setup>
-import {isWholePlan, otherPlans, othersLine, PLAN_STATES, reviewersLine, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
+import {cardChoices, isWholePlan, PLAN_STATES, reviewersLine, sizeOf, statusOf, stoppedOf} from "../domain/plans.js";
+import {planCardChoice} from "../state/planCardChoice.js";
 import {computed, ref, watchEffect} from "vue";
 import Btn from "../kit/Btn.vue";
 import Chip from "../kit/Chip.vue";
@@ -16,7 +17,6 @@ import {rows} from "../sync/rows.js";
 const PREVIEW_PHASES = 5;
 const props = defineProps({plan: Object, folded: Boolean});
 const dock = ref(null);
-const listing = ref(false);
 const lifted = ref(false);
 const error = ref("");
 const status = computed(() => statusOf(props.plan));
@@ -25,7 +25,10 @@ const paused = computed(() => status.value === "paused");
 const reviewing = computed(() => status.value === "reviewing");
 const reviewers = computed(() => (reviewing.value ? reviewersLine(props.plan.reviewers || 0) : ""));
 const building = computed(() => status.value === "draft");
-const others = computed(() => otherPlans(rows("plans"), props.plan));
+const choices = computed(() => cardChoices(rows("plans"), props.plan));
+const picking = ref(false);
+const choose = (picked) => (planCardChoice.value = picked.id);
+const named = () => (choices.value.length ? (picking.value = !picking.value) : peek("plans", props.plan.id));
 // the phases of the plan last held whole stay while a list refresh brings the plan as a summary alone, until it is read whole again, so no row is drawn away and back
 const phases = ref([]);
 watchEffect(() => {
@@ -51,9 +54,23 @@ async function start() {
     <ChatDock ref="dock" label="Plan" :kind="status" :folded="folded" :lifted="lifted">
         <template #head>
             <Icon name="plan" class="plan-card-icon" />
-            <button type="button" class="plan-card-title" title="Open plan" @click="peek('plans', plan.id)">
-                {{ plan.title }}
-            </button>
+            <span class="plan-card-more">
+                <button
+                    type="button"
+                    :class="['plan-card-title', {on: picking}]"
+                    :title="choices.length ? 'Show another plan here' : 'Open plan'"
+                    :aria-expanded="choices.length ? picking : undefined"
+                    @click.stop="named"
+                >
+                    {{ plan.title }}
+                    <template v-if="choices.length">
+                        <Icon name="down" :size="12" />
+                    </template>
+                </button>
+                <template v-if="picking">
+                    <PlanList up picks heading="Show another plan here" :plans="choices" @pick="choose" @close="picking = false" />
+                </template>
+            </span>
             <Chip class="plan-card-chip" :tone="status === 'ready' ? 'accent' : ''">{{ PLAN_STATES[status] }}</Chip>
             <template v-if="reviewers">
                 <span class="plan-card-reviewers">{{ reviewers }}</span>
@@ -62,16 +79,6 @@ async function start() {
                 {{ paused ? stoppedOf(plan, rows("tasks")) : sizeOf(plan) }}
             </span>
             <span class="plan-card-acts chat-dock-acts" data-fades>
-                <template v-if="othersLine(others)">
-                    <span class="plan-card-more">
-                        <button type="button" :class="['plan-card-others', {on: listing}]" @click.stop="listing = !listing">
-                            {{ othersLine(others) }}
-                        </button>
-                        <template v-if="listing">
-                            <PlanList up :plans="others" @close="listing = false" />
-                        </template>
-                    </span>
-                </template>
                 <Btn small @click="peek('plans', plan.id)">Open plan</Btn>
                 <template v-if="plan.state === 'ready'">
                     <Btn small @click="critiquing = true">Ask for a critique</Btn>
@@ -184,27 +191,19 @@ async function start() {
 
 .plan-card-more {
     position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
-.plan-card-others {
-    height: 24px;
-    padding: 0 7px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
+.plan-card-title .ico {
+    margin-left: 4px;
+    vertical-align: -1px;
     color: var(--text-3);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    transition:
-        background 0.15s,
-        color 0.15s;
 }
 
-.plan-card-others:hover,
-.plan-card-others.on {
-    background: var(--hover);
-    color: var(--text);
+.plan-card-title.on {
+    text-decoration: underline;
 }
 
 .plan-card-start:disabled {

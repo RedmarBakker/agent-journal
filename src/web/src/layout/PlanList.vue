@@ -11,8 +11,8 @@ import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
 import {rows} from "../sync/rows.js";
 
-const props = defineProps({plans: Array, running: Boolean, up: Boolean, anchor: {type: Object, default: null}});
-const emit = defineEmits(["close"]);
+const props = defineProps({plans: Array, running: Boolean, up: Boolean, anchor: {type: Object, default: null}, heading: {type: String, default: "Other plans"}, picks: Boolean});
+const emit = defineEmits(["close", "pick"]);
 const menu = ref(null);
 const error = ref("");
 useOutside(menu, () => emit("close"));
@@ -20,7 +20,8 @@ usePlanRows(() => props.plans);
 
 function open(p) {
     emit("close");
-    peek("plans", p.id);
+    if (props.picks) emit("pick", p);
+    else peek("plans", p.id);
 }
 
 async function run(action, p) {
@@ -37,12 +38,12 @@ async function run(action, p) {
     <div :class="['plan-list', {up}]">
         <MenuPanel ref="menu" :anchor="anchor" @click.stop @close="emit('close')">
             <div class="plan-list-body">
-                <p class="plan-list-head">Other plans</p>
+                <p class="plan-list-head">{{ heading }}</p>
                 <template v-for="p in plans" :key="p.id">
                     <div class="plan-list-row">
                         <Icon name="plan" class="plan-list-icon" />
                         <div class="plan-list-words">
-                            <button type="button" class="plan-list-name" title="Open plan" @click="open(p)">{{ p.title }}</button>
+                            <button type="button" class="plan-list-name" :title="picks ? 'Show this plan here' : 'Open plan'" @click="open(p)">{{ p.title }}</button>
                             <span class="plan-list-sub">
                                 <Chip class="plan-list-chip" :tone="statusOf(p) === 'ready' ? 'accent' : ''">
                                     {{ PLAN_STATES[statusOf(p)] }}

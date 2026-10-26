@@ -45,6 +45,7 @@ import FileFeed from "./FileFeed.vue";
 import Compose from "./Compose.vue";
 import Turn from "./Turn.vue";
 import PlanCard from "./PlanCard.vue";
+import {planCardChoice} from "../state/planCardChoice.js";
 import {seconds} from "../domain/row.js";
 import {ui} from "../state/ui.js";
 import {useColleague} from "../composables/colleague.js";
@@ -119,7 +120,7 @@ function unedit() {
 }
 const busy = computed(() => isBusy(owner.value));
 const {waiting: waitingNow, open: waitingOpen, anchor: waitingAnchor, toggle: toggleWaiting} = useWaiting(undefined, owner);
-const planCard = computed(() => cardPlan(rows("plans")));
+const planCard = computed(() => cardPlan(rows("plans"), planCardChoice.value));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
 const dockNow = useSharedNow();
 const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));

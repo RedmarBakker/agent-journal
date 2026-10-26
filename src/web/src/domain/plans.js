@@ -50,8 +50,14 @@ export function leadingPlan(plans) {
     return first("started", "waiting") || first("approved") || first(...PLANNED) || first("paused") || null;
 }
 
-export function cardPlan(plans) {
-    return leadingPlan(plans.filter((plan) => !PLAN_RUNNING.includes(statusOf(plan))));
+export function cardPlan(plans, chosen = 0) {
+    const waiting = plans.filter((plan) => !PLAN_RUNNING.includes(statusOf(plan)));
+    return openPlans(waiting).find((plan) => plan.id === chosen) || leadingPlan(waiting);
+}
+
+// the other plans the plan card can show instead of the one it shows: open, and not running on the plan bar
+export function cardChoices(plans, shown) {
+    return openPlans(plans).filter((plan) => plan.id !== shown.id && !PLAN_RUNNING.includes(statusOf(plan)));
 }
 
 const MAX_BARS = 3;
