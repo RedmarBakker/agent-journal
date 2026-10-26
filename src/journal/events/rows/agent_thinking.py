@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class AgentThinking(RowEvent):
     """The agent at work has been quiet long enough to be thinking, by its session."""
 
+    feature_name = "thinking"
+
     agent_session: str

@@ -8,6 +8,8 @@ from journal.events.rows.row_event import RowEvent
 class WorkerNotified(RowEvent):
     """A running worker was given a message in its live session; no wait moves for it."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     text: str
     sender: str

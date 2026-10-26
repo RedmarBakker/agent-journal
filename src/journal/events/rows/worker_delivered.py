@@ -8,4 +8,6 @@ from journal.events.rows.row_resolved import RowResolved
 class WorkerDelivered(RowResolved):
     """A worker handed in its work with a proof for each point of its brief."""
 
+    feature_name = "workers"
+
     worker: WorkerMention

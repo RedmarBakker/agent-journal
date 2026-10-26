@@ -262,7 +262,7 @@ def test_a_command_under_the_sub_agent_actor_runs_only_the_journals_reads(app: A
     assert "a subagent may not" not in post_command(app, ["doc", "show", "1"], subagent)["error"], "and documents"
     for argv in (["task", "create", "x"], ["message", "send", "hello"], ["plan", "approve", "1"]):
         refused = post_command(app, argv, subagent)
-        assert refused["code"] == 1 and refused["error"].startswith(f"a subagent may not run journal {argv[0]} {argv[1]}; a subagent may run ") and "journal task show" in refused["error"] and "journal search find" in refused["error"], f"a subagent writes nothing: {argv}"
+        assert refused["code"] == 1 and refused["error"].startswith(f"a subagent may not run journal {argv[0]} {argv[1]}: ResearcherHelper names the verbs it runs, ") and "journal task show" in refused["error"] and "journal search find" in refused["error"], f"a subagent writes nothing: {argv}"
     assert post_command(app, ["task", "list"], {"X-Journal-Actor": "agent"})["code"] == 0
 
 

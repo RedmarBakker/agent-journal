@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
 from journal.support.row_labels import RowLabels
-from journal.console.command import SUBAGENT_KINDS, Command
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
@@ -32,7 +32,6 @@ from journal.support.row_destination import RowDestination
 from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.orchestrator_mode import OrchestratorMode
-from journal.support.caller_kind import CallerKind
 from journal.support.time_source import TimeSource
 CURRENT = "current"
 
@@ -42,7 +41,6 @@ APPROVAL_REFUSAL = "only the user approves this plan: ask, then wait for their w
 class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
-    callers = {"show": SUBAGENT_KINDS}
 
     def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -212,7 +210,7 @@ class PlanCommand(Command):
         return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
 
     def is_orchestrator(self, caller: Caller) -> bool:
-        return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator"
+        return caller.is_main_agent() and self.settings.option(WorkersOptions.MODE) == "orchestrator"
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)

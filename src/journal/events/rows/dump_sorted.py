@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class DumpSorted(RowEvent):
     """A dump closed: every item filed or failed, or the user stopped it."""
 
+    feature_name = "dumps"
+
     dump_id: int
     outcome: str
     stopped: bool

@@ -2,7 +2,7 @@ from argparse import Namespace
 from pathlib import Path
 
 from journal.features.shell.support.activity_title import ActivityTitle
-from journal.console.command import HELPER_KINDS, WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_process_card import OutputProcessCard
@@ -21,7 +21,6 @@ class OutputCommand(Command):
     """The outputs the runner stored, by number: read one in full or in part, show the status of one, list the newest, or watch a running one."""
 
     noun = "output"
-    callers = {"read": HELPER_KINDS, "list": WORKER_KINDS, "status": WORKER_KINDS, "watch": WORKER_KINDS}
 
     def __init__(self, outputs: CommandOutputs, readers: Readers, card: OutputProcessCard) -> None:
         self.outputs, self.readers, self.card = outputs, readers, card

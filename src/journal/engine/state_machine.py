@@ -55,7 +55,7 @@ class StateMachine:
         return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
-        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)]
+        conduct_sets = [self.features.conducts(role) for role in self.features.roles()]
         self.listener_index = ListenerIndex.built(list(self.states.classes()), conduct_sets, self.event_kinds(Event))
 
     @classmethod
@@ -74,7 +74,8 @@ class StateMachine:
         return replies
 
     def audience(self, event: RowEvent) -> list[Agent]:
-        return [agent for environment_id in event.environment_ids() for agent in self.agents.unended_scoped(environment_id)] if event.environment_id else self.agents.unended()
+        unended = [agent for environment_id in event.environment_ids() for agent in self.agents.unended_scoped(environment_id)] if event.environment_id else self.agents.unended()
+        return [agent for agent in unended if self.features.receives_row_event(type(event).feature_name, agent.role)]
 
     def queue_lines(self, agent: Agent, lines: str) -> None:
         self.agents.save(self.agents.find(agent.row_id).queued(lines), Actor.system())

@@ -1,21 +1,23 @@
 import argparse
+from functools import partial
 from dataclasses import replace
 import io
 import queue
 
 from journal.console.support.streamed_output import StreamedOutput
 from journal.console.support.chained_line import ChainedLine
-from journal.console.support.kind_verbs import KindVerbs
+from journal.console.support.role_verbs import RoleVerbs
 
 from journal.console.support.captured_stream import CapturedStream
-from journal.console.command import HELPER_KINDS, Command
+from journal.console.command import Command
 from journal.console.creations import Creations
 from journal.console.support.outcome import Outcome
 from journal.console.support.row_verbs import RowVerbs
 from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
 from journal.support.caller import Caller
-from journal.support.caller_kind import CallerKind
+from journal.features.registry import Registry
+from journal.models.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -30,11 +32,11 @@ HELP_FLAGS = ("-h", "--help")
 class Console:
     """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from."""
 
-    def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames) -> None:
-        self.names = names
+    def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, registry: Registry) -> None:
+        self.names, self.registry = names, registry
         self.container, self.environments, self.agents, self.scope, self.row_verbs, self.shell = container, environments, agents, scope, row_verbs, shell
         self.commands: dict[str, Command] = {}
-        self._parsers: dict[CallerKind, argparse.ArgumentParser] = {}
+        self._parsers: dict[AgentRole, argparse.ArgumentParser] = {}
 
     def add(self, command: type[Command]) -> None:
         self.commands[command.noun] = self.container.get(command)
@@ -47,21 +49,20 @@ class Console:
         return replace(caller, session=present.session, provider=present.provider) if present else caller
 
     def build_parsers(self) -> None:
-        for kind in CallerKind:
-            self.parser(kind)
+        for role in self.registry.roles():
+            self.parser(role)
 
-    def parser(self, kind: CallerKind) -> argparse.ArgumentParser:
-        shown = kind if kind in HELPER_KINDS else CallerKind.MAIN_AGENT
-        if shown not in self._parsers:
-            self._parsers[shown] = self.built(shown)
-        return self._parsers[shown]
+    def parser(self, role: AgentRole) -> argparse.ArgumentParser:
+        if role not in self._parsers:
+            self._parsers[role] = self.built(role)
+        return self._parsers[role]
 
-    def built(self, kind: CallerKind) -> argparse.ArgumentParser:
+    def built(self, role: AgentRole) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(prog="journal", exit_on_error=False)
         nouns = parser.add_subparsers(dest="noun", required=True)
         groups = {}
         for noun, command in self.commands.items():
-            groups[noun] = KindVerbs(nouns.add_parser(noun).add_subparsers(dest="verb", required=True), command, kind)
+            groups[noun] = RoleVerbs(nouns.add_parser(noun).add_subparsers(dest="verb", required=True), partial(self.registry.runs_verb, type(command), role=role))
             command.arguments(groups[noun])
             self.row_verbs.add(noun, groups[noun])
         nouns.metavar = "{" + ",".join(noun for noun, verbs in groups.items() if verbs.shown) + "}"
@@ -96,8 +97,8 @@ class Console:
         return set(verbs.choices) | self.row_verbs.build(command.noun)
 
     def perform(self, args: argparse.Namespace, caller: Caller) -> int:
-        if not self.commands[args.noun].admits(args.verb, caller.kind):
-            raise Rejection(self.refusal(args, caller.kind))
+        if not self.registry.runs_verb(type(self.commands[args.noun]), args.verb, caller.role):
+            raise Rejection(self.refusal(args, caller.role))
         if self.row_verbs.has(args.noun, args.verb):
             return self.row_verbs.perform(args, caller)
         command = self.commands[args.noun]
@@ -106,9 +107,10 @@ class Console:
             print(f"\n{line.heading()}\n{self.chained_text(line, caller)}")
         return code
 
-    def refusal(self, args: argparse.Namespace, kind: CallerKind) -> str:
-        allowed = [f"journal {noun} {verb}" for noun, command in sorted(self.commands.items()) for verb, kinds in sorted(command.callers.items()) if kind in kinds]
-        return f"a {kind} may not run journal {args.noun} {args.verb}; a {kind} may run {', '.join(allowed) or 'no journal command'}"
+    def refusal(self, args: argparse.Namespace, role: AgentRole) -> str:
+        helper = self.registry.helper(role)
+        allowed = [f"journal {command.noun} {verb}" for command, verb in helper.commands]
+        return f"a {role.value} may not run journal {args.noun} {args.verb}: {helper.__name__} names the verbs it runs, {', '.join(allowed) or 'no journal command'}"
 
     def chained_text(self, line: ChainedLine, caller: Caller) -> str:
         return (self.journal_text(line, caller) if line.is_journal() else self.shell.output(line.text)).rstrip() or "nothing"
@@ -128,10 +130,10 @@ class Console:
         produced = Creations.begin()
         with CapturedStream.capture(output, err):
             try:
-                args = self.parser(caller.kind).parse_args(argv)
+                args = self.parser(caller.role).parse_args(argv)
                 code = self.perform(args, self.attributed(caller))
             except argparse.ArgumentError as refused:
-                self.parser(caller.kind).print_usage(err)
+                self.parser(caller.role).print_usage(err)
                 print(refused, file=err)
                 code = 2
             except SystemExit as ended:

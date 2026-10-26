@@ -11,7 +11,7 @@ from journal.features.tasks.active_task import ActiveTask
 from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.worktree_failure import WorktreeFailure
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -71,7 +71,6 @@ class WorkerCommand(Command):
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
-    callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
     def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, time_source: TimeSource) -> None:
         self.time_source = time_source

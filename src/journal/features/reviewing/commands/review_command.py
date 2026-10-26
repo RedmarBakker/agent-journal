@@ -1,7 +1,7 @@
 from argparse import Namespace
 from datetime import datetime, timezone
 
-from journal.console.command import REVIEWER_KINDS, Command
+from journal.console.command import Command
 from journal.features.reviewing.support.review_links import ReviewLinks
 from journal.features.reviewing.support.review_report import ReviewReport
 from journal.features.reviewing.support.review_sign_off import ReviewSignOff
@@ -25,7 +25,6 @@ class ReviewCommand(Command):
 
     noun = "review"
     default_verb = "record"
-    callers = {"record": REVIEWER_KINDS}
 
     def __init__(self, links: ReviewLinks, reviewers: Reviewers, workers: Workers, tasks: Tasks, messages: Messages, sign_off: ReviewSignOff, time_source: TimeSource) -> None:
         self.time_source = time_source

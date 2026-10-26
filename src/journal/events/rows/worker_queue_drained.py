@@ -8,5 +8,7 @@ from journal.events.rows.row_event import RowEvent
 class WorkerQueueDrained(RowEvent):
     """The tasks waiting in a worker's queue were given back, open again."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     tasks: str

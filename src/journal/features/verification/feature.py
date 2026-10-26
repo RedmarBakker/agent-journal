@@ -13,7 +13,6 @@ from journal.features.verification.listeners.verifier_start import VerifierStart
 from journal.features.verification.states.verifying import Verifying
 from journal.features.verification.verification_nudges import VerificationNudges
 from journal.features.verification.support.verifier_process_card import VerifierProcessCard
-from journal.models.agent_role import AgentRole
 
 
 class Verification(Feature):
@@ -26,7 +25,6 @@ class Verification(Feature):
     fixed = True
     help = "When the agent dismisses a reader report rather than fixing the reader, the journal sends a verifier that judges the dismissal on the evidence; on a no, the agent's writes wait until the reader is written anew."
     states = (Verifying,)
-    floors = {AgentRole.VERIFIER: Verifying}
     process_cards = (VerifierProcessCard,)
     commands = (VerdictCommand,)
     listeners = (VerifierStart, VerifierCard, VerifierRetirement, ModelFitSample, TypedVerdict)

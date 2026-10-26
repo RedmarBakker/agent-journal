@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class PlanStarted(RowEvent):
     """A plan was started, with the task it started first; 0 when it had none to start and the agent follows it until one opens."""
 
+    feature_name = "plans"
+
     plan_id: int
     task_id: int

@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class ColleagueCommented(RowEvent):
     """A colleague left a comment in this environment's chat: their words and their name. It is no message of the user's."""
 
+    feature_name = "messages"
+
     text: str
     colleague: str

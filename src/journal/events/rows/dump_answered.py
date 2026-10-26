@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class DumpAnswered(RowEvent):
     """The user answered the agent's question on a dump."""
 
+    feature_name = "dumps"
+
     dump_id: int
     question: str
     answer: str

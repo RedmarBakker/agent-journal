@@ -8,7 +8,6 @@ from journal.repositories.reviewers import Reviewers
 class ReviewerTestFailed(AgentListener[ToolFailed]):
     """A test a reviewer ran that ended in an error is shown failed in its pane."""
 
-    is_worker_listener = True
 
     def __init__(self, reviewers: Reviewers, steps: ReviewSteps) -> None:
         self.reviewers, self.steps = reviewers, steps

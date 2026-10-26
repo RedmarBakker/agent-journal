@@ -7,7 +7,7 @@ from journal.features.tasks.tasks_part import TasksPart
 
 
 class TaskEditConduct(Conduct):
-    """Every agent's conduct, the main agent's and a worker's alike: a task the agent holds whose title or brief was written anew is named to it to read again."""
+    """The main agent's conduct, and a worker's through its file: a task the agent holds whose title or brief was written anew is named to it to read again."""
 
     def on_task_edited(self, event: TaskEdited, settings: Settings) -> Transition:
         if event.task_id not in event.data.part(TasksPart).agent_tasks:

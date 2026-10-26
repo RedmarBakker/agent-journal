@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class PlanReviewed(RowEvent):
     """Every reviewer of a plan in review is back, so what they found waits to be put into the plan."""
 
+    feature_name = "plans"
+
     plan_id: int

@@ -28,7 +28,6 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
     """The plugins that receive an agent event: those that can block it are asked at once, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest receive it after the reply, and so does every one once the event is blocked. It stays a listener on purpose: it is the one funnel through which a plugin's text and blocks reach the agent, and what it says is each plugin's, never the journal's conduct."""
 
     blocking = True
-    is_worker_listener = True
     free_request = True
     last_request = True
 

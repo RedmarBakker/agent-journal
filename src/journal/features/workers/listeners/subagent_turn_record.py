@@ -7,7 +7,6 @@ from journal.repositories.subagents import Subagents
 class SubagentTurnRecord(AgentListener[AgentEvent]):
     """At each of a subagent's hooks, its end among them, after the hook is answered, the text it wrote since the last read becomes its messages, the first read starting with its prompt."""
 
-    is_worker_listener = True
 
     def __init__(self, chat: SubagentChat, subagents: Subagents) -> None:
         self.chat, self.subagents = chat, subagents

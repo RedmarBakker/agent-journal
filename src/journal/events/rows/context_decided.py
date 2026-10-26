@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class ContextDecided(RowEvent):
     """The agent decided what to keep at a context mark: the pending mark decision is done."""
 
+    feature_name = "memory"
+
     threshold: int

@@ -2,12 +2,11 @@ from argparse import Namespace
 from dataclasses import replace
 from datetime import datetime
 
-from journal.console.command import HELPER_KINDS, SUBAGENT_KINDS, WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.console.support.hub_choice import HubChoice
 from journal.features.tasks.support.hub_filer import HubFiler
 from journal.support.caller import Caller
 from journal.support.row_labels import RowLabels
-from journal.support.caller_kind import CallerKind
 from journal.engine.clock import Clock
 from journal.support.rejection import Rejection
 from journal.features.tasks.states.ready import Ready
@@ -42,7 +41,6 @@ LIST_ROWS = 20
 class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
-    callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
     def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource) -> None:
         self.clock, self.next_task, self.reminder, self.time_source = clock, next_task, reminder, time_source
@@ -177,7 +175,7 @@ class TaskCommand(Command):
 
     def log(self, args: Namespace, caller: Caller) -> int:
         task = self.readable(args.n, caller)
-        if caller.kind == CallerKind.MAIN_AGENT and not task.is_started() and not self.tasks.is_driven(task):
+        if caller.is_main_agent() and not task.is_started() and not self.tasks.is_driven(task):
             raise Rejection(f"{self.labels.name('task', task)} is not in hand, and a log line is read only while a task runs. Put what it has to know in its brief: read it with journal task show {task.id}, then journal task edit {task.id} --brief \"<the whole brief>\"")
         self.logs.save(TaskLog.build(task, args.line, self.clock.time()), caller.actor)
         print(f"{self.labels.name('task', task)} logged")

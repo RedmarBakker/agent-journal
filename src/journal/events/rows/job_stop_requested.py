@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class JobStopRequested(RowEvent):
     """The user requested from the viewer to stop a job an agent scheduled for itself, by the agent's session and the job's id."""
 
+    feature_name = "schedules"
+
     agent_session: str
     job_id: str

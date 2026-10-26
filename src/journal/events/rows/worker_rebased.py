@@ -8,5 +8,7 @@ from journal.events.rows.row_event import RowEvent
 class WorkerRebased(RowEvent):
     """The journal rebased a worker's worktree onto the project's branch on the agent's order: where it stands now, or the files that clash."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     outcome: str

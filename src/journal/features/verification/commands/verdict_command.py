@@ -1,7 +1,7 @@
 from argparse import Namespace
 from datetime import datetime, timezone
 
-from journal.console.command import VERIFIER_KINDS, Command
+from journal.console.command import Command
 from journal.features.verification.support.model_fit_evidence import MODEL_VERDICTS
 from journal.features.verification.support.verifier_dispatch import VerifierDispatch
 from journal.models.reader_report import ReaderReport
@@ -21,7 +21,6 @@ class VerdictCommand(Command):
 
     noun = "verdict"
     default_verb = "give"
-    callers = {"give": VERIFIER_KINDS, "model": VERIFIER_KINDS}
 
     def __init__(self, dispatch: VerifierDispatch, reports: ReaderReports, workers: Workers, agents: Agents, time_source: TimeSource) -> None:
         self.time_source = time_source

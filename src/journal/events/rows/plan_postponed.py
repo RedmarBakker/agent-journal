@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class PlanPostponed(RowEvent):
     """A plan was postponed, by the user or by a command: its task in hand was paused with it."""
 
+    feature_name = "plans"
+
     plan_id: int
     user_origin: bool

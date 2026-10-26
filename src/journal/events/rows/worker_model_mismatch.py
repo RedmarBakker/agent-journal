@@ -8,6 +8,8 @@ from journal.events.rows.row_event import RowEvent
 class WorkerModelMismatch(RowEvent):
     """A worker's merged work did not fit the model it ran on: too strong or too weak, the model, how complex the work measured, and how many times it was sent back."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     fit: str
     model: str

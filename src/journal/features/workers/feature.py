@@ -1,3 +1,4 @@
+from journal.models.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import AGENT
@@ -86,6 +87,7 @@ class Workers(Feature[WorkersData]):
     """A worker is an agent sent to write: code in a worktree of its own, a document, a change. A subagent only reads; a worker is the one that writes."""
 
     name = WorkersPart.name
+    helper_listeners = {AgentRole.WORKER: (WorkerTurnRecord, SubagentMessageRecord, SubagentTurnRecord)}
     card_families = (CardFamily("helpers", "Workers and subagents", "agents", AGENT, CardColouring.OUTCOME), CardFamily("fitness", "Fitness", "activity", AGENT), CardFamily("worker_steps", "Workers' own steps", "agents", AGENT, CardColouring.OUTCOME),)
     card_kinds = (MarkKind("agents", "Agents talking to each other", "helpers", covers=(CardKind.SUBAGENTS, CardKind.WORKERS)), MarkKind(CardKind.SUBAGENTS, "Subagents", "helpers"), MarkKind(CardKind.WORKERS, "Workers", "helpers", messages=("report",)), MarkKind(CardKind.FITNESS, "Drops in the fitness", "fitness"), MarkKind(CardKind.WORKER_STEPS, "Workers' moves: next job, queue given back, restart, rebase", "worker_steps", shown=False), MarkKind(CardKind.WORKER_TESTS, "Workers' test runs", "worker_steps", shown=False),)
     title = "Workers"

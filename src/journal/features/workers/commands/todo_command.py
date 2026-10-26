@@ -1,6 +1,6 @@
 from argparse import Namespace
 
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.worker import Worker
@@ -14,7 +14,6 @@ class TodoCommand(Command):
     """journal todo: the to-do list a worker keeps inside the task it holds, in the order it writes it."""
 
     noun = "todo"
-    callers = {"add": WORKER_KINDS, "check": WORKER_KINDS, "list": WORKER_KINDS}
 
     def __init__(self, tasks: Tasks, todos: WorkerTodos) -> None:
         self.tasks, self.todos = tasks, todos

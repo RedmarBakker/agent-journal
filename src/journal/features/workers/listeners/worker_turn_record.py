@@ -7,7 +7,6 @@ from journal.repositories.workers import Workers
 class WorkerTurnRecord(AgentListener[AgentEvent]):
     """At each of a worker's hooks, after the hook is answered, the text it wrote since the last read becomes its messages; its tags stay plain text."""
 
-    is_worker_listener = True
 
     def __init__(self, chat: WorkerChat, workers: Workers) -> None:
         self.chat, self.workers = chat, workers

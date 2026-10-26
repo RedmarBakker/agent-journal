@@ -8,6 +8,8 @@ from journal.events.rows.row_resolved import RowResolved
 class WorkerUnfinished(RowResolved):
     """A worker's run ended without its clocking out: never clocked in, died or ran out of time; its task stays assigned to it."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     times: int = 1
     is_run_limit: bool = False

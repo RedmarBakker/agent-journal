@@ -3,7 +3,7 @@ from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 
 from journal.config import Config
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.features.workers.support.machine_load import MachineLoad
 from journal.features.workers.support.test_turns import TestTurns
 from journal.features.workers.workers_options import WorkersOptions
@@ -25,7 +25,6 @@ class TestsCommand(Command):
     """A worker's turn to run tests within the test budget; the project's test command, set only once a run of it with the arguments of one test passes; the machine's load with the turns going and waiting, for the orchestrator to judge the budget by; and the budget set, written as the Settings page writes it, the next turns following it and runs already going left to end."""
 
     noun = "tests"
-    callers = {"turn": WORKER_KINDS}
 
     __test__ = False
 

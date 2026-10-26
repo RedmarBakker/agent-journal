@@ -2851,34 +2851,55 @@ def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_a
 
 HELPER_CONDUCTS = {
     "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct"],
-    "verifier": ["DemandConduct", "SafetyConduct"],
     "reviewer": ["DemandConduct", "SafetyConduct"],
+    "verifier": ["DemandConduct", "SafetyConduct"],
+    "subagent": ["DemandConduct", "SafetyConduct"],
 }
-HELPER_FLOORS = {"verifier": "Verifying", "reviewer": "Reviewing"}
-HELPER_LISTENERS = ["HookAnswer", "PluginAgentRelay", "RecordEdit", "ReviewerTestFailed", "ReviewerTestPassed", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"]
+HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Void"}
 HELPER_VERBS = {
     "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "fact list", "fact read", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
-    "verifier": ["verdict give", "verdict model"],
     "reviewer": ["doc show", "fact list", "fact read", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
+    "verifier": ["verdict give", "verdict model"],
     "subagent": ["doc show", "fact list", "fact read", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
+}
+HELPER_LISTENERS = {
+    "worker": ["HookAnswer", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
+    "reviewer": ["HookAnswer", "PluginAgentRelay", "ReviewerTestFailed", "ReviewerTestPassed"],
+    "verifier": ["HookAnswer", "PluginAgentRelay"],
+    "subagent": ["HookAnswer"],
 }
 
 
-def test_what_reaches_each_helper_today_is_recorded_before_the_helper_files_take_it_over(app: App):
-    """The sets each helper role gets as the code stands before plan 1035: the helper files are written from them, and each later change to a set is made here on purpose, named as kept or dropped."""
+def test_each_helpers_file_alone_says_what_reaches_it_and_a_wrong_file_stops_the_boot(app: App):
+    """What each helper role gets, conducts, floor, the verbs it runs and the listeners its hooks reach, is exactly what its file allows; a change to a set is made here on purpose."""
+    from journal.events.agent.agent_event import AgentEvent
+    from journal.events.bus import Bus
+    from journal.features.helper_files_invalid import HelperFilesInvalid
     from journal.features.registry import Registry
+    from journal.features.workers.listeners.fitness_record import FitnessRecord
+    from journal.helpers.helpers import Helpers
+    from journal.helpers.worker_helper import WorkerHelper
     from journal.models.agent_role import AgentRole
-    from journal.support.caller_kind import CallerKind
-    registry = app.container.get(Registry)
-    conducts = {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)}
-    assert conducts == HELPER_CONDUCTS, conducts
-    assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS, "every helper rests on the engine's Void; a verifier and a reviewer work in their own states from their start, and ClockConduct became the worker's own state, WorkingTask, on purpose (plan 1035)"
-    listeners = sorted({listener.__name__ for feature in registry.features for listener in feature.listeners if getattr(listener, "is_worker_listener", False)} | {"HookAnswer"})
-    assert listeners == HELPER_LISTENERS, listeners
-    commands = [*registry.standard_commands, *(command for feature in registry.features for command in feature.commands)]
-    verbs = {kind.value: sorted(f"{command.noun} {verb}" for command in commands for verb, kinds in command.callers.items() if kind in kinds) for kind in (CallerKind.WORKER, CallerKind.VERIFIER, CallerKind.REVIEWER, CallerKind.SUBAGENT)}
+    from journal.repositories.setting_rows import SettingRows
+    registry, roles = app.container.get(Registry), AgentRole.helpers()
+    assert {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in roles} == HELPER_CONDUCTS
+    assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS
+    listeners = {listener.registered_class() for kind in StateMachine.event_kinds(AgentEvent) for listener in app.container.get(Bus).listeners(kind)}
+    reached = {role.value: sorted({listener.__name__ for listener in listeners if registry.reaches_helper(listener, role)}) for role in roles}
+    assert reached == HELPER_LISTENERS, reached
+    console = app.console()
+    verbs = {role.value: sorted(f"{noun} {verb}" for noun, command in console.commands.items() for verb in console.verbs(command) if registry.runs_verb(type(command), verb, role)) for role in roles}
     assert verbs == HELPER_VERBS, verbs
-
+    assert not registry.reaches_helper(FitnessRecord, AgentRole.WORKER), "a listener no helper's file names, such as the main agent's fitness record, reaches no helper"
+    settings = app.container.get(SettingRows)
+    with pytest.raises(HelperFilesInvalid, match="the helper role worker has 0 files"):
+        Registry(registry.features, settings, (), tuple(helper for helper in Helpers.ALL if helper is not WorkerHelper))
+    with pytest.raises(HelperFilesInvalid, match="the helper role worker has 2 files"):
+        Registry(registry.features, settings, (), (*Helpers.ALL, type("SecondWorker", (WorkerHelper,), {})))
+    from journal.features.edits.listeners.record_edit import RecordEdit
+    redundant = type("RedundantWorker", (WorkerHelper,), {"listeners": (*WorkerHelper.listeners, RecordEdit)})
+    with pytest.raises(HelperFilesInvalid, match="RedundantWorker names RecordEdit alone, but a feature in its features already gives it to the worker"):
+        Registry(registry.features, settings, (), (*(helper for helper in Helpers.ALL if helper is not WorkerHelper), redundant))
 
 
 def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_engine(app: App):
@@ -3077,6 +3098,101 @@ def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
     answer = refused.value.read().decode()
     assert app.container.get(Agents).session_agent("early-w").role == AgentRole.WORKER, "a worker's hook before its bind is bound as the worker"
     assert "you are not at work" in answer and "environment overview" not in answer, "and is answered by Void, with no main line"
+
+
+def test_a_helpers_command_events_reach_only_the_listeners_its_file_allows(app: App):
+    from journal.events.agent.command_ended import CommandEnded
+    from journal.events.agent.impasse_report import ImpasseReport
+    from journal.features.registry import Registry
+    from journal.helpers.helper_listeners import HelperListeners
+    from journal.models.agent_role import AgentRole
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(1):
+        app.container.get(Agents).save(Agent(environment_id=1, session="hl", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
+    funnel, registry = app.container.get(HelperListeners), app.container.get(Registry)
+    ended = CommandEnded(output=1, status=0).placed("hl", 1, "claude", None, 1.0)
+    heard = {listener.registered_class() for listener in funnel.listeners(ended)}
+    assert heard and all(registry.reaches_helper(listener, AgentRole.REVIEWER) for listener in heard), "a reviewer's command end reaches the engine's listeners and those its file allows, nothing else"
+    stuck = ImpasseReport(reason="lost").placed("hl", 1, "claude", None, 1.0)
+    main_stuck = ImpasseReport(reason="lost").placed("s1", 1, "claude", None, 1.0)
+    assert "ImpasseCard" not in {listener.registered_class().__name__ for listener in funnel.listeners(stuck)} and "ImpasseCard" in {listener.registered_class().__name__ for listener in funnel.listeners(main_stuck)}, "a reviewer's stuck event makes no main card, the main agent's does"
+    with app.container.get(Scope).environment(1):
+        before = len(app.container.get(Messages).all())
+    assert app.console().run(["stuck", "lost"], Caller.agent("main", "s1", "claude").subagent_caller()).code == 1, "a researcher's stuck is refused by its file"
+    with app.container.get(Scope).environment(1):
+        assert len(app.container.get(Messages).all()) == before, "and makes no card"
+
+
+def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder(app: App):
+    from journal.events.agent.tool_finished import ToolFinished
+    from journal.helpers.helper_listeners import HelperListeners
+    from journal.models.worker import Worker
+    from journal.providers.claude import Claude
+    from journal.repositories.edits import Edits
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Escher", brief="e", session="wd", token_hash=AgentToken.hashed("tok")), Actor.system())
+    target = app.config.root / "drawn.py"
+    target.write_text("HANDS = 2\n")
+    data = json.dumps({"hook_event_name": "PostToolUse", "session_id": "wd", "tool_name": "Write", "tool_input": {"file_path": str(target), "content": "HANDS = 2\n"}, "tool_response": {}}).encode()
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
+    with urlopen(request, timeout=5) as reply:
+        assert reply.status == 200
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(Edits).agent_edits("wd", 0.0, 10), "the edit recorder its file allows runs on the worker's hook"
+    finished = ToolFinished(call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset()), output="").placed("wd", 1, "claude", None, 1.0)
+    reached = {listener.registered_class().__name__ for listener in app.container.get(HelperListeners).listeners(finished)}
+    assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord", "QueueUseRecord"}, "while the main agent's deferred recorders never hear it"
+
+
+def test_a_helper_reads_only_the_data_parts_of_features_its_file_turns_on(app: App):
+    from journal.engine.support.data_readers import DataReaders
+    from journal.engine.support.helper_part_violation import HelperPartViolation
+    from journal.features.workers.workers_part import WorkersPart
+    from journal.features.tasks.tasks_part import TasksPart
+    from journal.models.agent_role import AgentRole
+    hook(app, "SessionStart")
+    agents, readers = app.container.get(Agents), app.container.get(DataReaders)
+    with app.container.get(Scope).environment(1):
+        worker = agents.save(Agent(environment_id=1, session="dw", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        reviewer = agents.save(Agent(environment_id=1, session="dr", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
+    assert readers.agent_data(worker).part(WorkersPart).session_workers == (), "a worker reads the workers part its file turns on"
+    assert readers.agent_data(worker).part(TasksPart) is not None
+    with pytest.raises(HelperPartViolation, match="a reviewer read the workers part, but its helper file does not turn on that feature"):
+        readers.agent_data(reviewer).part(WorkersPart)
+    assert readers.agent_data(agents.session_agent("s1")).part(WorkersPart) is not None, "the main agent reads every part"
+
+
+def test_every_row_event_names_the_feature_it_belongs_to(app: App):
+    from journal.events.rows.row_event import RowEvent
+    from journal.events.rows.task_closed import TaskClosed
+    from journal.events.rows.worker_delivered import WorkerDelivered
+    from journal.features.registry import ENGINE, Registry
+    registry = app.container.get(Registry)
+    unknown = [kind.__name__ for kind in StateMachine.event_kinds(RowEvent) if kind is not RowEvent and kind.feature_name != ENGINE and not registry.has_feature(kind.feature_name)]
+    assert not unknown, f"row events naming no feature the registry knows: {unknown}"
+    assert (TaskClosed.feature_name, WorkerDelivered.feature_name) == ("tasks", "workers"), "a row event names its own feature, a worker's delivery the workers feature though it resolves a wait"
+
+
+def test_a_row_event_reaches_a_helper_only_when_its_feature_is_on_the_helpers_file(app: App):
+    from journal.events.rows.plan_started import PlanStarted
+    from journal.events.rows.worker_mention import WorkerMention
+    from journal.events.rows.worker_ready import WorkerReady
+    from journal.events.rows.worker_reviewed import WorkerReviewed
+    from journal.models.agent_role import AgentRole
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(1):
+        for session, role, state in (("rw", AgentRole.WORKER, "void"), ("rr", AgentRole.REVIEWER, "reviewing")):
+            app.container.get(Agents).save(Agent(environment_id=1, session=session, provider="claude", state=state, role=role), Actor.system())
+    machine, mention = app.container.get(StateMachine), WorkerMention(id=1, name="Mr. Hooke", dispatcher="s1")
+    sessions = lambda event: {agent.session for agent in machine.audience(event)}
+    assert sessions(PlanStarted(environment_id=1, plan_id=1, task_id=0)) == {"s1"}, "a plan's start reaches no helper, whose file turns no plans on"
+    assert "rw" in sessions(WorkerReady(environment_id=1, worker=mention)), "a worker hears the workers feature's events"
+    assert "rr" in sessions(WorkerReviewed(environment_id=1, worker=mention, task=1, reviewer=1, reviewer_session="rr", report="")) and "rr" not in sessions(WorkerReady(environment_id=1, worker=mention)), "a reviewer hears its review and not a worker's clock-in"
 
 
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):

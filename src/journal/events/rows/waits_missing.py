@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class WaitsMissing(RowEvent):
     """Tasks were found naming another open task they do not wait on: the orchestrator's session, and each pair newly found, as task:other."""
 
+    feature_name = "tasks"
+
     agent_session: str
     pairs: tuple[str, ...]
 

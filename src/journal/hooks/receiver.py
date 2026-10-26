@@ -18,6 +18,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.support.hook import Hook
 from journal.hooks.support.transcript_turns import TranscriptTurns
 from journal.hooks.support.checker_hooks import CheckerHooks
+from journal.helpers.helper_listeners import HelperListeners
 from journal.hooks.support.worker_hooks import WorkerHooks
 from journal.hooks.translation import Translation
 from journal.support.actor import Actor
@@ -39,15 +40,15 @@ UNBOUND_SESSION = "unbound_session"
 
 
 class Receiver:
-    """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the listeners that receive sent agents' events, the state machine alone, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
+    """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, time_source: TimeSource) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
         self.transcript, self.slow = transcript, slow
-        self.worker_hooks, self.checker_hooks = worker_hooks, checker_hooks
+        self.worker_hooks, self.checker_hooks, self.helper_listeners = worker_hooks, checker_hooks, helper_listeners
 
     def receive(self, raw_hook: Hook) -> Decision:
         self.slow.begin(self.time_source.seconds())
@@ -84,7 +85,7 @@ class Receiver:
     def sent_recorded(self, hook: Hook, environment: Environment) -> Decision:
         event = self.translation.event(hook, environment)
         self.recorded(hook, environment, event)
-        blocking, deferred = self._split([listener for listener in self.bus.listeners(type(event)) if listener.is_worker_listener])
+        blocking, deferred = self._split(self.helper_listeners.listeners(event))
         decision = self._blocking(event, blocking)
         for listener in deferred:
             self.deferred.add(partial(listener.handle, event))

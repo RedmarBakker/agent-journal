@@ -4,11 +4,11 @@ import threading
 from dataclasses import replace
 from typing import Iterator
 
-from journal.console.command import SUBAGENT_KINDS, WORKER_KINDS
 from journal.features.aliases.support.worker_alias_line import WorkerAliasLine
 from journal.models.alias import Alias
 from journal.console.console import Console
 from journal.features.aliases.support.alias_lines import AliasLines
+from journal.models.agent_role import AgentRole
 from journal.support.caller import Caller
 from journal.support.caller_variables import CallerVariables
 from journal.hooks.support.agent_identity import REFUSAL as IDENTITY_REFUSAL, AgentIdentity
@@ -80,9 +80,13 @@ class CliController:
             lines.put(None)
 
     def alias_answer(self, alias: Alias, argv: list[str], caller: Caller) -> StreamResponse:
-        if caller.kind in WORKER_KINDS | SUBAGENT_KINDS and not (alias.worker_access and caller.kind in WORKER_KINDS):
-            return StreamResponse("text/plain", iter([f"a {caller.kind} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
+        if self.is_alias_refused(alias, caller):
+            return StreamResponse("text/plain", iter([f"a {caller.role.value} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
         return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(self.worker_lines.argv(argv, caller)[1:])}\n{EXIT} 0\n".encode()]))
+
+    @staticmethod
+    def is_alias_refused(alias: Alias, caller: Caller) -> bool:
+        return caller.role in (AgentRole.WORKER, AgentRole.SUBAGENT) and not (alias.worker_access and caller.role == AgentRole.WORKER)
 
     def is_known(self, variables: CallerVariables) -> bool:
         plugin_proof = variables.plugin is None or self.tokens.matches(variables.plugin, variables.token)

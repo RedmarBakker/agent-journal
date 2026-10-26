@@ -8,4 +8,6 @@ from journal.events.rows.row_event import RowEvent
 class WorkerMerged(RowEvent):
     """A worker's checked work was merged, which closes its task."""
 
+    feature_name = "workers"
+
     worker: WorkerMention

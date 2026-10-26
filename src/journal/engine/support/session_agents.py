@@ -6,11 +6,8 @@ from journal.repositories.agents import Agents
 from journal.providers.providers import Providers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
-from journal.support.caller_kind import CallerKind
 from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
-
-HELPER_ROLES = {CallerKind.WORKER: AgentRole.WORKER, CallerKind.VERIFIER: AgentRole.VERIFIER, CallerKind.REVIEWER: AgentRole.REVIEWER}
 
 
 class SessionAgents:
@@ -23,7 +20,7 @@ class SessionAgents:
         return self.row(session, environment_id, provider, AgentRole.MAIN)
 
     def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
-        return self.row(session, environment_id, caller.provider, HELPER_ROLES.get(caller.kind, AgentRole.MAIN))
+        return self.row(session, environment_id, caller.provider, caller.session_role)
 
     def helper_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
         return self.row(session, environment_id, provider, role)

@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class MessageArrived(RowEvent):
     """The user left a message in the chat, by its words."""
 
+    feature_name = "messages"
+
     text: str

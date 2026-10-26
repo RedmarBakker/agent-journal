@@ -8,7 +8,6 @@ from journal.repositories.reviewers import Reviewers
 class ReviewerTestPassed(AgentListener[ToolFinished]):
     """A test a reviewer ran that ended well is shown passed in its pane."""
 
-    is_worker_listener = True
 
     def __init__(self, reviewers: Reviewers, steps: ReviewSteps) -> None:
         self.reviewers, self.steps = reviewers, steps

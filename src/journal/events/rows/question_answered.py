@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class QuestionAnswered(RowEvent):
     """A question was answered."""
 
+    feature_name = "questions"
+
     question_id: int

@@ -10950,10 +10950,12 @@ def test_a_workers_agent_row_is_never_the_main_agent_and_ends_with_its_process(a
 
 def test_every_caller_names_its_kind_and_a_subagent_is_told_by_its_agents_session(app: App):
     from journal.support.announced_commands import AnnouncedCommands
-    from journal.support.caller_kind import CallerKind
+    from journal.models.agent_role import AgentRole
     from journal.http.support.subagent_commands import SubagentCommands
-    assert [c.kind for c in (Caller.user("main"), Caller.agent("main", "s1", "claude"), Caller.shell("main", "claude"), Caller.plugin("main", "echo"), Caller.worker("main", 3, "w-1", "claude"))] == [CallerKind.USER, CallerKind.MAIN_AGENT, CallerKind.MAIN_AGENT, CallerKind.PLUGIN, CallerKind.WORKER]
-    assert Caller.worker("main", 3, "w-1", "claude").subagent_caller().kind == CallerKind.SUBAGENT, "a subagent of a worker is a subagent first"
+    callers = (Caller.user("main"), Caller.agent("main", "s1", "claude"), Caller.shell("main", "claude"), Caller.plugin("main", "echo"), Caller.worker("main", 3, "w-1", "claude"))
+    assert [c.role for c in callers] == [AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.WORKER] and [c.is_main_agent() for c in callers] == [False, True, True, False, False]
+    subagent = Caller.worker("main", 3, "w-1", "claude").subagent_caller()
+    assert subagent.role == AgentRole.SUBAGENT and subagent.session_role == AgentRole.WORKER, "a subagent of a worker is a subagent first, in its worker's session"
     announced, subagents = app.container.get(AnnouncedCommands), app.container.get(SubagentCommands)
     announced.note("main", "w-1", ("journal task list",))
     assert not subagents.runs(Caller.agent("main", "s1", "claude"), ["task", "list"], None, None), "a worker's subagent's announcement never claims the main agent's command"

@@ -11,7 +11,6 @@ class HookAnswer(AgentListener[AgentEvent]):
     """The one blocking listener on every agent event: asks the state machine for its reply, has the delivery carry out what the reply asks of the terminal, and answers the hook with its decision; a worker's lines wait on its row for its next hook."""
 
     blocking = True
-    is_worker_listener = True
 
     rank = 0
 

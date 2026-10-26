@@ -1,6 +1,6 @@
 from argparse import Namespace
 
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.models.proof import Proof
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
@@ -16,7 +16,6 @@ class ProofCommand(Command):
 
     noun = "proof"
     default_verb = "record"
-    callers = {"record": WORKER_KINDS}
 
     def __init__(self, tasks: Tasks, proofs: Proofs) -> None:
         self.tasks, self.proofs = tasks, proofs

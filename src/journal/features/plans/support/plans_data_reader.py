@@ -19,23 +19,20 @@ RECENT_PLAN_TASKS = 3
 
 
 class PlansDataReader:
-    """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, and none for an agent sent to do one job, such as a worker, which never starts, approves or follows a plan, with the fields PlansData names; the started plan's facts the same, with the fields StartedPlan names."""
+    """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields PlansData names; a helper, whose file turns no plans on, never reads it; the started plan's facts the same, with the fields StartedPlan names."""
 
     def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, phase_testing: PhaseTesting, scope: Scope, stages: StageTimes, rounds: ReviewRounds) -> None:
         self.plans, self.briefing, self.entries, self.testing, self.statuses, self.phase_testing = plans, briefing, entries, testing, statuses, phase_testing
         self.scope, self.stages, self.rounds = scope, stages, rounds
 
     def read(self, agent: Agent) -> LazyFacts:
-        return self.sent_agent(agent) if agent.role.is_helper() else LazyFacts("plans", {
+        return LazyFacts("plans", {
             "approved": lambda: tuple(p.row_id for p in self.plans.approved()),
             "started": lambda: self.started(),
             "review_plan": lambda: self.review_plan(agent),
             "started_plans": lambda: self.statuses.started(),
             "review_reports": lambda: self.review_reports(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
-
-    def sent_agent(self, agent: Agent) -> LazyFacts:
-        return LazyFacts("plans", {"approved": lambda: (), "started": lambda: None, "review_plan": lambda: 0, "started_plans": lambda: (), "review_reports": lambda: ()}, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def started(self) -> LazyFacts | None:
         started = next(iter(self.plans.running_plans()), None)

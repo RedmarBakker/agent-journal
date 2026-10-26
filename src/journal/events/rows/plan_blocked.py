@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class PlanBlocked(RowEvent):
     """A plan was blocked, with why."""
 
+    feature_name = "plans"
+
     plan_id: int
     reason: str

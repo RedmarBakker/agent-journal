@@ -3,7 +3,7 @@ from argparse import Namespace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.models.link import Link
@@ -23,7 +23,6 @@ ROW = re.compile(r"^[a-z_]+:\d+$")
 
 class ReportCommand(Command):
     noun = "report"
-    callers = {"show": HELPER_KINDS, "create": WORKER_KINDS}
 
     def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, destination: RowDestination, time_source: TimeSource) -> None:
         self.time_source = time_source

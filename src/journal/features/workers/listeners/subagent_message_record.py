@@ -10,7 +10,6 @@ from journal.support.voice_key import VoiceKey
 class SubagentMessageRecord(AgentListener[ToolStarting]):
     """A message an agent sends one of its subagents after it started is a message to it in its chat."""
 
-    is_worker_listener = True
 
     def __init__(self, chat: SubagentChat, subagents: Subagents) -> None:
         self.chat, self.subagents = chat, subagents

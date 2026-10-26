@@ -7,3 +7,5 @@ from journal.events.rows.row_event import RowEvent
 class OverviewRead(RowEvent):
     """The agent read what is in progress here: the overview due at a start is done."""
 
+    feature_name = "briefing"
+

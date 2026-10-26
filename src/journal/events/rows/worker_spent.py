@@ -9,6 +9,8 @@ from journal.models.model_tier import ModelTier
 class WorkerSpent(RowEvent):
     """A worker's run ended and its cost was added: the model it ran on and that model's tier, the tier of its profile's own model, and its spend in dollars before the run and after it."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     model: str
     tier: ModelTier

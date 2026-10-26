@@ -11,26 +11,26 @@ from journal.engine.demand import Demand
 from journal.console.command import Command
 from journal.features.double_registration import DoubleRegistration
 from journal.features.feature import Feature
+from journal.features.helper_files_invalid import HelperFilesInvalid
+from journal.helpers.helper import Helper
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
 from journal.support.skill import Skill
 from journal.repositories.setting_rows import SettingRows
 
 
-ROLE_CONDUCT = {AgentRole.MAIN: lambda feature: feature.conduct, AgentRole.WORKER: lambda feature: feature.worker_conduct, AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
-# what the journal demands of an agent is the main agent's: the user's messages, the skills and the marks are its, and a worker owes none of them
 ENGINE = "engine"
-ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKER: lambda feature: (), AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
 
 
 class Registry:
-    """Every feature, and whether each is on in an environment. The catalogue, the bus and the console are filled from here at boot."""
+    """Every feature, and whether each is on in an environment, and every helper's file, which alone says what reaches that helper; what the journal demands of an agent is the main agent's alone. The catalogue, the bus and the console are filled from here at boot."""
 
-    def __init__(self, features: tuple[type[Feature], ...], settings: SettingRows, standard_commands: tuple[type[Command], ...] = ()) -> None:
+    def __init__(self, features: tuple[type[Feature], ...], settings: SettingRows, standard_commands: tuple[type[Command], ...] = (), helpers: tuple[type[Helper], ...] = ()) -> None:
         self.features, self.settings, self.standard_commands = features, settings, standard_commands
         self._by_name = {feature.name: feature for feature in features}
         self._by_state = {state.name: feature for feature in features for state in feature.states}
         self._feature_names = self.feature_names(features)
+        self._helpers = self.helper_files(helpers)
 
     @staticmethod
     def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
@@ -44,7 +44,44 @@ class Registry:
 
     @staticmethod
     def registered_classes(feature: type[Feature]) -> set[type]:
-        return {*feature.listeners, *feature.conduct, *feature.worker_conduct, *feature.commands, *feature.states, *feature.floors.values(), *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
+        helper_conducts = {conduct for conducts in feature.helper_conduct.values() for conduct in conducts}
+        return {*feature.listeners, *feature.conduct, *helper_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
+
+    def helper_files(self, helpers: tuple[type[Helper], ...]) -> dict[AgentRole, type[Helper]]:
+        for role in AgentRole.helpers():
+            files = [helper.__name__ for helper in helpers if helper.role == role]
+            if len(files) != 1:
+                raise HelperFilesInvalid(f"the helper role {role.value} has {len(files)} files ({', '.join(files) or 'none'}): each helper role has exactly one")
+        for helper in helpers:
+            redundant = [listed.__name__ for listed in helper.listeners if self.gives_helper(listed, self.owning_feature(listed), helper)]
+            if redundant:
+                raise HelperFilesInvalid(f"{helper.__name__} names {', '.join(redundant)} alone, but a feature in its features already gives it to the {helper.role.value}")
+        return {helper.role: helper for helper in helpers}
+
+    def helper(self, role: AgentRole) -> type[Helper]:
+        return self._helpers[role]
+
+    def reaches_helper(self, registered: type, role: AgentRole) -> bool:
+        feature_name, helper = self.owning_feature(registered), self.helper(role)
+        return feature_name == ENGINE or registered in helper.listeners or self.gives_helper(registered, feature_name, helper)
+
+    def gives_helper(self, registered: type, feature_name: str, helper: type[Helper]) -> bool:
+        return feature_name in helper.feature_names() and registered in self._by_name[feature_name].helper_listeners.get(helper.role, ())
+
+    def refused_parts(self, role: AgentRole) -> frozenset[str]:
+        if not role.is_helper():
+            return frozenset()
+        allowed = self.helper(role).feature_names()
+        return frozenset(name for feature in self.features if feature.name not in allowed for name in feature.part_names())
+
+    def receives_row_event(self, feature_name: str, role: AgentRole) -> bool:
+        return not role.is_helper() or feature_name == ENGINE or feature_name in self.helper(role).feature_names()
+
+    def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool:
+        return not role.is_helper() or self.helper(role).runs(command, verb)
+
+    def roles(self) -> tuple[AgentRole, ...]:
+        return (AgentRole.MAIN, *self._helpers)
 
     def owning_feature(self, registered: type) -> str:
         return self._feature_names.get(registered, ENGINE)
@@ -62,10 +99,14 @@ class Registry:
         return [option for feature in self.features for option in feature.options]
 
     def conducts(self, role: AgentRole) -> tuple[type[Conduct], ...]:
-        return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in ROLE_CONDUCT[role](feature)))
+        if role.is_helper():
+            return (SafetyConduct, DemandConduct, *(conduct for feature in self.helper(role).features for conduct in feature.helper_conduct.get(role, ())))
+        return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in feature.conduct))
 
     def demands(self, role: AgentRole) -> tuple[Demand, ...]:
-        return tuple(demand for feature in self.features for demand in ROLE_DEMANDS[role](feature))
+        if role.is_helper():
+            return ()
+        return tuple(demand for feature in self.features for demand in feature.demands)
 
     def states(self) -> list[type[BaseState]]:
         return [state for feature in self.features for state in feature.states]
@@ -74,7 +115,7 @@ class Registry:
         return [feature.modes for feature in self.features if feature.modes]
 
     def floors(self) -> dict[AgentRole, type[BaseState]]:
-        return {role: state for feature in self.features for role, state in feature.floors.items()}
+        return {role: helper.first_state for role, helper in self._helpers.items()}
 
     def services(self) -> list[Service]:
         return [service for feature in self.features for service in feature.services]

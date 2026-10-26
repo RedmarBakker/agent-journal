@@ -1,4 +1,4 @@
-from typing import ClassVar, Generic, TypeVar, get_args
+from typing import Generic, TypeVar, get_args
 
 from journal.events.event import Event
 
@@ -6,12 +6,13 @@ E = TypeVar("E", bound=Event)
 
 
 class Listener(Generic[E]):
-    """Receives one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. Only a listener that receives workers' events answers a worker's hook."""
-
-    is_worker_listener: ClassVar[bool] = False
+    """Receives one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. A helper's hook reaches it only when the helper's file allows the class it is registered as."""
 
     def handle(self, event: E) -> object:
         return None
+
+    def registered_class(self) -> type:
+        return type(self)
 
     @classmethod
     def kind(cls) -> type[Event]:

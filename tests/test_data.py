@@ -662,8 +662,9 @@ def team_scopes(connection, bus, scope):
     from journal.features.standard import Standard
     from journal.repositories.setting_rows import SettingRows
     from journal.sync.setting_scopes import SettingScopes
+    from journal.helpers.helpers import Helpers
 
-    return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope, TimeSource())))
+    return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope, TimeSource()), (), Helpers.ALL))
 
 
 def environment_withdrawal(config, connection, bus, scope):

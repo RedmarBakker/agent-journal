@@ -1884,8 +1884,8 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
     try:
         server = app.server()
         from journal.console.console import Console
-        from journal.support.caller_kind import CallerKind
-        assert {CallerKind.MAIN_AGENT, CallerKind.WORKER, CallerKind.SUBAGENT} <= set(app.container.get(Console)._parsers), "each kind of caller's parser is built at boot"
+        from journal.models.agent_role import AgentRole
+        assert {AgentRole.MAIN, AgentRole.WORKER, AgentRole.SUBAGENT} <= set(app.container.get(Console)._parsers), "each role's parser is built at boot"
         built, loaded = set(app.container._instances), {name for name in sys.modules if name.startswith("journal")}
         call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "first"})
         call(server, "POST", "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "first", "tool_name": "Bash", "tool_input": {"command": "ls"}})

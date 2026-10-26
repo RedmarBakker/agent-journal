@@ -12,7 +12,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.run_history import RunHistory
 from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.activity_title import TITLE_RULE, ActivityTitle
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
@@ -31,7 +31,6 @@ class ReaderCommand(Command):
     """The project's output readers: add one for a shape of output read again and again, list them, and remove one."""
 
     noun = "reader"
-    callers = {"list": WORKER_KINDS}
 
     def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, aliases: Aliases, backfill: ReaderBackfill, scope: Scope, history: RunHistory) -> None:
         self.backfill, self.scope, self.history = backfill, scope, history

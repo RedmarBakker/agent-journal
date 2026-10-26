@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class TaskReopened(RowEvent):
     """A blocked task was opened again, with the reason it opened as a clause: question 12 was answered or closed."""
 
+    feature_name = "tasks"
+
     task_id: int
     reason: str

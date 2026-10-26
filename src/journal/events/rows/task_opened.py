@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class TaskOpened(RowEvent):
     """A task was made open, free for an agent to take up; row_id is the task's."""
 
+    feature_name = "tasks"
+
     title: str

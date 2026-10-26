@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class UserResumed(RowEvent):
     """The user resumed a paused agent from the viewer, by its session."""
 
+    feature_name = "pausing"
+
     agent_session: str

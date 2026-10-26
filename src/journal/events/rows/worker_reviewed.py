@@ -8,6 +8,8 @@ from journal.events.rows.worker_mention import WorkerMention
 class WorkerReviewed(RowEvent):
     """The journal's reviewer reported on a clocked-out worker's work, one line per point of its task's brief: signed off, sent back short, or left for the agent to decide."""
 
+    feature_name = "reviewing"
+
     worker: WorkerMention
     task: int
     reviewer: int

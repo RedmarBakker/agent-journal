@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class TaskLogged(RowEvent):
     """A line was logged on a task."""
 
+    feature_name = "tasks"
+
     task_id: int

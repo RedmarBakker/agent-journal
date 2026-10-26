@@ -1,6 +1,6 @@
 from argparse import Namespace
 
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.engine.command_events import CommandEvents
 from journal.events.worker_clocking_out import WorkerClockingOut
 from journal.events.worker_delivering import WorkerDelivering
@@ -36,7 +36,6 @@ class DepartureCommand(Command):
 
     noun = "clock-out"
     default_verb = "record"
-    callers = {"record": WORKER_KINDS}
 
     def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource) -> None:
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves

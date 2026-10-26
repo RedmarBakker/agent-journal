@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field, replace
+from typing import ClassVar
 
 from journal.events.event import Event
 from journal.events.feature_data import FeatureData
@@ -9,6 +10,7 @@ from journal.support.actor_kind import ActorKind
 class RowEvent(Event):
     """What happened to a row, named for the moment: created by the model that made the change, dispatched by its repository on save, and answered by every agent of the environment that has not ended, each under its own role's conduct."""
 
+    feature_name: ClassVar[str] = "engine"
     environment_id: int = 0
     time: float = 0.0
     row_id: int = 0

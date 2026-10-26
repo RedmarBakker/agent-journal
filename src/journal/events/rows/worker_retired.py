@@ -8,4 +8,6 @@ from journal.events.rows.row_event import RowEvent
 class WorkerRetired(RowEvent):
     """A worker's report was acted on and the worker let go."""
 
+    feature_name = "workers"
+
     worker: WorkerMention

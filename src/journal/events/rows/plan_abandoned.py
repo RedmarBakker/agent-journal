@@ -7,5 +7,7 @@ from journal.events.rows.row_event import RowEvent
 class PlanAbandoned(RowEvent):
     """A plan was given up, by the user or by a command, with the tasks that were its alone."""
 
+    feature_name = "plans"
+
     plan_id: int
     user_origin: bool

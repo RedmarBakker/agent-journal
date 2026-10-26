@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class DumpArrived(RowEvent):
     """Something to file reached a dump: the user dropped it, or added a file to it; how many of its items wait to be read."""
 
+    feature_name = "dumps"
+
     dump_id: int
     waiting: int
     user_origin: bool

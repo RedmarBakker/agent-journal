@@ -3,28 +3,15 @@ from typing import ClassVar
 from journal.console.support.chained_line import ChainedLine
 
 from journal.support.caller import Caller
-from journal.support.caller_kind import CallerKind
-
-PRINCIPAL_KINDS = frozenset({CallerKind.MAIN_AGENT, CallerKind.USER, CallerKind.PLUGIN})
-HELPER_KINDS = frozenset({CallerKind.WORKER, CallerKind.SUBAGENT, CallerKind.REVIEWER})
-WORKER_KINDS = frozenset({CallerKind.WORKER})
-SUBAGENT_KINDS = frozenset({CallerKind.SUBAGENT})
-VERIFIER_KINDS = frozenset({CallerKind.VERIFIER})
-REVIEWER_KINDS = frozenset({CallerKind.REVIEWER})
 
 
 class Command:
-    """One noun; each verb is a method named after it, taking the parsed arguments and where and by whom it runs. The main agent, the user and a plugin run every verb; a worker, a subagent, a verifier or a reviewer runs only the verbs whose callers name its kind. A verb runs in the agent's shell in the foreground, unless a feature's command names it among its background verbs, which go to the background at once with a card in the chat; and among its whole verbs, whose answer hands the agent its next step or a decision, a verb the agent may never cut with tail, head, grep or the like."""
+    """One noun; each verb is a method named after it, taking the parsed arguments and where and by whom it runs. The main agent, the user and a plugin run every verb; a helper runs only the verbs its own file names. A verb runs in the agent's shell in the foreground, unless a feature's command names it among its background verbs, which go to the background at once with a card in the chat; and among its whole verbs, whose answer hands the agent its next step or a decision, a verb the agent may never cut with tail, head, grep or the like."""
 
     noun: ClassVar[str]
     default_verb: ClassVar[str] = ""
     background_verbs: ClassVar[frozenset[str]] = frozenset()
     uncut_verbs: ClassVar[frozenset[str]] = frozenset()
-    callers: ClassVar[dict[str, frozenset[CallerKind]]] = {}
-
-    def admits(self, verb: str, kind: CallerKind) -> bool:
-        return kind in PRINCIPAL_KINDS or kind in self.callers.get(verb, frozenset())
-
     def arguments(self, verbs) -> None:
         ...
 

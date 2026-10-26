@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class CheckFailed(RowEvent):
     """A check ran and failed."""
 
+    feature_name = "checks"
+
     check_id: int

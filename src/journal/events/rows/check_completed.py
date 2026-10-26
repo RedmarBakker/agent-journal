@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class CheckCompleted(RowEvent):
     """A check ran: whether it passed, the end of what it printed, whether it was failing before and when its failure was last reported, and whether a task waits on it rather than the agent."""
 
+    feature_name = "checks"
+
     check_id: int
     title: str
     passed: bool

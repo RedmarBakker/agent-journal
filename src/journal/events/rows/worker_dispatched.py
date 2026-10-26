@@ -8,5 +8,7 @@ from journal.events.rows.row_pending import RowPending
 class WorkerDispatched(RowPending):
     """A worker was sent out on a job; its awaiter is the session that dispatched it."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     brief: str = ""

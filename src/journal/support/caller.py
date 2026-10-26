@@ -1,7 +1,7 @@
 from dataclasses import dataclass, replace
 
 from journal.support.actor import Actor
-from journal.support.caller_kind import CallerKind
+from journal.models.agent_role import AgentRole
 from journal.support.rejection import Rejection
 
 LOCAL_USER = 1
@@ -16,7 +16,7 @@ AGENT_REQUIRED = "no agent runs this: only an agent's own session can"
 
 @dataclass(frozen=True)
 class Caller:
-    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker, a verifier or a reviewer by its number, its session when its program names one, and its provider, or a subagent of any of these; its kind says which, and the person is the user's account number on a shared journal."""
+    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker, a verifier or a reviewer by its number, its session when its program names one, and its provider, or a subagent of any of these; its role says which helper runs it, the main agent's role standing for the main agent, the user and a plugin alike, and its session role the role of the agent whose session it runs in, a subagent's being its parent's, and the person is the user's account number on a shared journal."""
 
     environment: str
     session: str | None = None
@@ -60,18 +60,21 @@ class Caller:
         return replace(self, subagent=True)
 
     @property
-    def kind(self) -> CallerKind:
-        if self.subagent:
-            return CallerKind.SUBAGENT
-        if self.plugin_name is not None:
-            return CallerKind.PLUGIN
+    def role(self) -> AgentRole:
+        return AgentRole.SUBAGENT if self.subagent else self.session_role
+
+    @property
+    def session_role(self) -> AgentRole:
         if self.worker_number is not None:
-            return CallerKind.WORKER
+            return AgentRole.WORKER
         if self.verifier_number is not None:
-            return CallerKind.VERIFIER
+            return AgentRole.VERIFIER
         if self.reviewer_number is not None:
-            return CallerKind.REVIEWER
-        return CallerKind.USER if self.session is None and self.provider is None else CallerKind.MAIN_AGENT
+            return AgentRole.REVIEWER
+        return AgentRole.MAIN
+
+    def is_main_agent(self) -> bool:
+        return self.role == AgentRole.MAIN and self.plugin_name is None and (self.session is not None or self.provider is not None)
 
     @property
     def actor(self) -> Actor:

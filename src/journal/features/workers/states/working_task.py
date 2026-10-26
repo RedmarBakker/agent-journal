@@ -25,7 +25,7 @@ TESTING_REFUSALS = {MERGER_TESTING: WorkersNudges.TEST_HANDOVER, TEST_BUDGET: Wo
 
 @dataclass(frozen=True)
 class WorkingTask(BaseState):
-    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, and its journal await and journal stuck push the wait and the stuck state over its work."""
+    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, its journal await and journal stuck push the wait and the stuck state over its work."""
 
     name = "working_task"
     title = "At work on its task"

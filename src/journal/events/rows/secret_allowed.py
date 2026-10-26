@@ -7,6 +7,8 @@ from journal.events.rows.row_event import RowEvent
 class SecretAllowed(RowEvent):
     """The user let a secret go to programs it could not go to before."""
 
+    feature_name = "secrets"
+
     secret_id: int
     title: str
     programs: tuple[str, ...]

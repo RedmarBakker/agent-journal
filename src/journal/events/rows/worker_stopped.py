@@ -8,5 +8,7 @@ from journal.events.rows.row_resolved import RowResolved
 class WorkerStopped(RowResolved):
     """A worker was stopped before it reported."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     is_run_limit: bool = False

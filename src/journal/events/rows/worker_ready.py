@@ -8,4 +8,6 @@ from journal.events.rows.row_event import RowEvent
 class WorkerReady(RowEvent):
     """A worker reported that it is ready and started its task."""
 
+    feature_name = "workers"
+
     worker: WorkerMention

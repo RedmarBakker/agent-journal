@@ -11,6 +11,8 @@ UNBLOCKING = re.compile(r"\b(unblock(s|ing)?|permissions?|access|credentials?)\b
 class TaskDelegated(RowEvent):
     """A task was handed to a worker, which works it from now on, or put in a worker's queue; its title and brief, which may say it unblocks the orchestrator."""
 
+    feature_name = "tasks"
+
     task_id: int
     title: str
     brief: str = ""

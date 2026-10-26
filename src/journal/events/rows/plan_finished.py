@@ -7,4 +7,6 @@ from journal.events.rows.row_event import RowEvent
 class PlanFinished(RowEvent):
     """A plan is done: its last task closed."""
 
+    feature_name = "plans"
+
     plan_id: int

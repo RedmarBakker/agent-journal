@@ -22,7 +22,7 @@ from journal.engine.demand import Demand
 
 
 class Feature[D](DataSource[D]):
-    """One switchable subject. It brings its states, its work modes if it has them, the state a kind of sent agent rests on if it adds one, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
+    """One switchable subject. It brings its states, its work modes if it has them, its conduct and the conduct and listeners it gives each helper role whose file turns it on whole, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -35,8 +35,8 @@ class Feature[D](DataSource[D]):
     listeners: ClassVar[tuple[type[Listener], ...]] = ()
     data: ClassVar[tuple[type, ...]] = ()
     conduct: ClassVar[tuple[type[Conduct], ...]] = ()
-    worker_conduct: ClassVar[tuple[type[Conduct], ...]] = ()
-    floors: ClassVar[dict[AgentRole, type[BaseState]]] = {}
+    helper_conduct: ClassVar[dict[AgentRole, tuple[type[Conduct], ...]]] = {}
+    helper_listeners: ClassVar[dict[AgentRole, tuple[type[Listener], ...]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()
@@ -52,3 +52,11 @@ class Feature[D](DataSource[D]):
     @classmethod
     def applies(cls, root: Path) -> bool:
         return True
+
+    @classmethod
+    def part_name(cls, reader: type) -> str:
+        return getattr(reader, "source", cls).name
+
+    @classmethod
+    def part_names(cls) -> frozenset[str]:
+        return frozenset(cls.part_name(reader) for reader in cls.data)

@@ -9,6 +9,8 @@ from journal.support.actor_kind import ActorKind
 class ProofShort(RowEvent):
     """A proof was checked and found short, by the agent or by the journal's reviewer: what is missing goes back to the worker that holds the task."""
 
+    feature_name = "workers"
+
     task_id: int
     worker_id: int
     point: int

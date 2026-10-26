@@ -1,3 +1,4 @@
+from journal.models.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import AGENT
@@ -19,7 +20,6 @@ from journal.features.reviewing.reviewing_conduct import ReviewingConduct
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.reviewing.reviewing_options import ReviewingOptions
 from journal.features.reviewing.states.reviewing import Reviewing
-from journal.models.agent_role import AgentRole
 
 
 class ReviewingFeature(Feature[ReviewingData]):
@@ -32,7 +32,7 @@ class ReviewingFeature(Feature[ReviewingData]):
     fixed = True
     help = "In orchestrator mode with the reviewer on, each worker that clocks out joins a review queue, in order, and the next free reviewer takes it; a reviewer's report on each point comes to the agent, which sends the work back or merges it. journal reviewer add starts another reviewer."
     states = (Reviewing,)
-    floors = {AgentRole.REVIEWER: Reviewing}
+    helper_listeners = {AgentRole.REVIEWER: (ReviewerTestFailed, ReviewerTestPassed)}
     options = (ReviewingOptions.REVIEWER,)
     commands = (ReviewCommand, ReviewerCommand)
     data = (ReviewingDataReader,)

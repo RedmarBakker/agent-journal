@@ -8,4 +8,6 @@ from journal.events.rows.row_event import RowEvent
 class WorkerReleased(RowEvent):
     """A worker's task was let go without its work being merged."""
 
+    feature_name = "workers"
+
     worker: WorkerMention

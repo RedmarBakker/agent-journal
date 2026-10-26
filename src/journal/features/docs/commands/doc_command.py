@@ -3,7 +3,7 @@ from pathlib import Path
 
 from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
-from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
+from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
@@ -28,7 +28,6 @@ from journal.sync.team_account import TeamAccount
 
 class DocCommand(Command):
     noun = "doc"
-    callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
     def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove, sources: DocSources, destination: RowDestination) -> None:
         self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.hub_move, self.sources = docs, revisions, clock, hub_rows, hub, account, links, scope, hub_move, sources

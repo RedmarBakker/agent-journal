@@ -8,5 +8,7 @@ from journal.events.rows.worker_mention import WorkerMention
 class WorkerLimited(RowResolved):
     """A worker's run ended on the provider's usage limit: it waits, holding its task, until the time it resumes, when the limit resets and it is sent on in its own session."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
     resumes_at: float

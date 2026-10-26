@@ -1,7 +1,7 @@
 from argparse import Namespace
 from datetime import datetime, timezone
 
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import Command
 from journal.models.support.ref import Ref
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
@@ -20,7 +20,6 @@ class ArrivalCommand(Command):
 
     noun = "clock-in"
     default_verb = "record"
-    callers = {"record": WORKER_KINDS}
 
     def __init__(self, workers: Workers, tasks: Tasks, moves: PoolWorkerMoves, assigner: WorkerAssigner, time_source: TimeSource) -> None:
         self.time_source = time_source

@@ -8,4 +8,6 @@ from journal.events.rows.worker_mention import WorkerMention
 class WorkerQueueEmpty(RowResolved):
     """A worker's work was merged and nothing waits in its queue, so it has no work left."""
 
+    feature_name = "workers"
+
     worker: WorkerMention
