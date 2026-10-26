@@ -59,8 +59,10 @@ class PlansConduct(Conduct):
         return self.push(NamingTestCommands(), *lines) if not test_commands(settings).programs else self.none(*lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
+        if not any(test_commands(settings).reads(part.text) for part in event.call.parts):
+            return self.none()
         started = event.data.part(PlansPart).started
-        if started is None or not started.refuses_test_runs or not any(test_commands(settings).reads(part.text) for part in event.call.parts):
+        if started is None or not started.refuses_test_runs:
             return self.none()
         return self.refuse(PlansNudges.MID_PHASE_TESTS.create(n=started.plan_id, phase=started.current_phase))
 
