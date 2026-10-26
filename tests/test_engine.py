@@ -1461,7 +1461,9 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     assert requested.target == PlansReady(silenced_at=0.0, pause_reported=True) and requested.nudges[0].rendered().startswith("task 2 is paused:")
     assert tick(of(paused), 59.0).nudges == () and tick(of(paused), 61.0, PlansReady(silenced_at=0.0, pause_reported=True)).nudges == (), "asked once per quiet"
     assert [n.key for n in tick(of(blocked), 45 * 60.0).nudges] == ["tasks.blocked_task_asked_about"] and tick(of(blocked), 20 * 60.0).nudges == ()
-    assert [n.key for n in tick(of(nothing), 30 * 60.0).nudges] == ["tasks.check_in_after_quiet"] and tick(of(nothing), 30 * 60.0, idle, manual).nudges == ()
+    reported = PlansReady(silenced_at=0.0, pause_reported=True)
+    assert [n.key for n in tick(of(paused), 30 * 60.0, reported).nudges] == ["tasks.check_in_after_quiet"] and tick(of(paused), 30 * 60.0, reported, manual).nudges == ()
+    assert tick(of(nothing), 30 * 60.0).nudges == (), "with nothing to go on with, half an hour of quiet sends no line"
     assert tick(of(nothing), 61.0).nudges == ()
     assert idle.respond(SessionStarted(time=5.0).with_data(of(nothing)), auto).target == PlansReady(silenced_at=5.0)
 

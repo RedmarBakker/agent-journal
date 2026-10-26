@@ -89,7 +89,7 @@ class Ready(BaseState):
         return (TasksNudges.NEXT_TASK.create(n=tasks.next_open.id, title=tasks.next_open.title),)
 
     def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
-        return (TasksNudges.IDLE_CHECK.create(),)
+        return (TasksNudges.IDLE_CHECK.create(),) if tasks.next_open or tasks.paused else ()
 
     def on_task_opened(self, event: TaskOpened, settings: Settings) -> Transition:
         return self.none(TasksNudges.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
