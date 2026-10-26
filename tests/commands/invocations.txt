@@ -115,7 +115,8 @@ agent doc attach 1
 agent doc unshare 1
 agent doc import --help
 agent doc settle 1 --why "it holds what the project keeps knowing"
-agent report create "What the cart test found" --body "The total adds the tax twice" --about tasks:2
+agent report create "What the cart test found" --abstract "The cart adds the tax twice" --body "The total adds the tax twice" --about tasks:2
+agent report update 1 --abstract "The cart adds the tax once now"
 agent report list
 agent report ready 1
 agent report show 1

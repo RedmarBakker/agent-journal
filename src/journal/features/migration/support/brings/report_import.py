@@ -4,6 +4,7 @@ from journal.features.migration.support.environment_kind import EnvironmentKind
 from journal.features.migration.support.version_3_row import Version3Row
 from journal.support.actor import Actor
 from journal.models.environment import Environment
+from journal.models.support.abstract_text import AbstractText
 from journal.models.report import Report
 from journal.repositories.environments import Environments
 from journal.repositories.migrated_rows import MigratedRows
@@ -21,4 +22,4 @@ class ReportImport(EnvironmentKind):
         self.reports = reports
 
     def created(self, row: Version3Row, target: Environment, attached: Path, actor: Actor) -> Report:
-        return self.reports.imported(Report(environment_id=target.row_id, title=row.title, abstract=row.abstract, body=row.markdown()), row.creation_moment(), actor)
+        return self.reports.imported(Report(environment_id=target.row_id, title=row.title, abstract=AbstractText.fitted(row.abstract, row.markdown(), row.title), body=row.markdown()), row.creation_moment(), actor)

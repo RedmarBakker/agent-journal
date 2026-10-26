@@ -27,7 +27,7 @@ PLAN_REVIEW_APPLYING = Sequence(
     end_condition=("ready", "approved", "started", "done"),
     steps=(
         PLAIN_WRITING + "Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in",
-        "Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create \"<title>\" --file <path> --about plans:<plan n>`",
+        "Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create \"<title>\" --abstract \"<what it found, in one short line>\" --file <path> --about plans:<plan n>`",
         "Put each finding into the plan: a new task with `journal plan add <plan n> \"<title>\" --brief \"<done when>\"` placed with `journal plan todos <plan n> <phase> <tasks>`, or a wider brief on the task it belongs to with `journal task edit <n> --brief \"<brief>\"`",
         "Mark the plan ready again with `journal plan ready <plan n> --changed \"<what the round changed, in one line>\"`, then tell the user in one or two plain lines what the reviews found, with the report's reference on a line of its own, like report 3",
     ),
@@ -36,7 +36,7 @@ INSTRUCTION_FILES_CHECK = Sequence(
     title="Checking the instruction files",
     steps=(
         PLAIN_WRITING + "Read AGENTS.md and CLAUDE.md at the project root and the journal's block at the head of each, narrowly: grep for the headings, then sed the sections you need; note every place where two of them tell an agent opposite things, with the file and line on both sides",
-        "Write what you found as a report from a markdown file with `journal report create \"Instruction files checked\" --file <path>`: each contradiction with both sides quoted, and the fix you propose for it; never edit the files",
+        "Write what you found as a report from a markdown file with `journal report create \"Instruction files checked\" --abstract \"<what it found, in one short line>\" --file <path>`: each contradiction with both sides quoted, and the fix you propose for it; never edit the files",
         "Tell the user in one short line how many contradictions you found, with the report's reference on a line of its own, like report 3; the user decides which fixes to make",
     ),
 )

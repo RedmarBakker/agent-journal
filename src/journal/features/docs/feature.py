@@ -28,8 +28,8 @@ class DocsFeature(Feature):
 A document holds what the project must keep knowing; the result of a check goes in a report, ordered work in a plan.
 Documents are the project's, the same in every environment.
 
-- `journal doc create "<title>" --file <path> --abstract "<one line>"` writes one from a markdown file, its `##` headings
-  as sections. `journal doc update <n> --file <path>` replaces its whole text and keeps its title. A document written in
+- `journal doc create "<title>" --file <path> --abstract "<one short line>"` writes one from a markdown file, its `##` headings
+  as sections; the abstract is required, at most 200 characters, and is the line its card shows. `journal doc update <n> --file <path>` replaces its whole text and keeps its title. A document written in
   parts takes `--part` on every write but the last, so its card says being written; the last write, or `journal doc ready <n>`, makes it ready.
 - `journal doc show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with

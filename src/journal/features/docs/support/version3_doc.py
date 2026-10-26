@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from journal.models.doc import Doc
+from journal.models.support.abstract_text import AbstractText
 
 FENCE = "---"
 
@@ -19,4 +20,5 @@ class Version3Doc:
         row = json.loads(head)
         if row.get("deleted"):
             return None
-        return Doc(title=str(row.get("title", folder.name)), abstract=str(row.get("abstract", "")), body=body.strip())
+        title = str(row.get("title", folder.name))
+        return Doc(title=title, abstract=AbstractText.fitted(str(row.get("abstract", "")), body.strip(), title), body=body.strip())

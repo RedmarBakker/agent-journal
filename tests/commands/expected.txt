@@ -638,10 +638,14 @@ $ agent: journal doc settle 1 --why 'it holds what the project keeps knowing'
 exit 0
 doc 1 signed off: it holds what the project keeps knowing
 
-$ agent: journal report create 'What the cart test found' --body 'The total adds the tax twice' --about tasks:2
+$ agent: journal report create 'What the cart test found' --abstract 'The cart adds the tax twice' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
 created: message 30
+
+$ agent: journal report update 1 --abstract 'The cart adds the tax once now'
+exit 0
+report 1 written anew: The cart adds the tax once now
 
 $ agent: journal report list
 exit 0
@@ -654,6 +658,7 @@ report 1 is ready: What the cart test found
 $ agent: journal report show 1
 exit 0
 report 1: What the cart test found
+The cart adds the tax once now
   0  (before the first heading)  (1 lines)
 read a section with --section <n or heading>, its bullets with --bullets, search with --grep "<words>", or read it all with --all
 
@@ -1007,7 +1012,7 @@ following sequence 2, step 1: Write what this asks for in the user's own languag
 
 $ agent: journal sequence next
 exit 0
-sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --file <path> --about plans:<plan n>`. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --abstract "<what it found, in one short line>" --file <path> --about plans:<plan n>`. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence pause --why 'the tag waits'
 exit 0
@@ -1015,7 +1020,7 @@ sequence 2 paused at step 2: the tag waits. `journal sequence follow` resumes it
 
 $ agent: journal sequence follow
 exit 0
-following sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --file <path> --about plans:<plan n>`. `journal sequence next` when it is done
+following sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --abstract "<what it found, in one short line>" --file <path> --about plans:<plan n>`. `journal sequence next` when it is done
 
 $ agent: journal sequence abandon --why 'not today' --sure
 exit 0

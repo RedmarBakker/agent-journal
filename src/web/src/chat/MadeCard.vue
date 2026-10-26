@@ -13,6 +13,9 @@ defineProps({made: {type: Object, required: true}});
         <template v-if="made.status">
             <span :class="['thread-made-status', {writing: made.status === 'Being written'}]">{{ made.status }}</span>
         </template>
+        <template v-if="made.summary">
+            <span class="thread-made-summary">{{ made.summary }}</span>
+        </template>
     </button>
 </template>
 
@@ -34,6 +37,17 @@ defineProps({made: {type: Object, required: true}});
 
 .thread-made:hover {
     color: var(--text);
+}
+
+.thread-made {
+    flex-wrap: wrap;
+}
+
+.thread-made-summary {
+    flex-basis: 100%;
+    padding-left: 22px;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
 }
 
 .thread-made-status {

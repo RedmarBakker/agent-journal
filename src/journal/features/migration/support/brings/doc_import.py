@@ -3,6 +3,7 @@ from journal.features.migration.support.version_3_row import Version3Row
 from journal.features.migration.support.version_3_rows import Version3Rows
 from journal.support.actor import Actor
 from journal.models.doc import Doc
+from journal.models.support.abstract_text import AbstractText
 from journal.repositories.docs import Docs
 from journal.repositories.migrated_rows import MigratedRows
 
@@ -21,4 +22,4 @@ class DocImport(ProjectKind):
         return rows.docs()
 
     def created(self, row: Version3Row, actor: Actor) -> Doc:
-        return self.docs.imported_for_project(Doc(title=row.title, abstract=row.abstract, body=row.markdown()), row.creation_moment(), actor)
+        return self.docs.imported_for_project(Doc(title=row.title, abstract=AbstractText.fitted(row.abstract, row.markdown(), row.title), body=row.markdown()), row.creation_moment(), actor)

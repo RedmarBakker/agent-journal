@@ -9,6 +9,7 @@ from journal.support.outline import Outline
 from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.features.reports.support.update_gathering import SECTIONS, UpdateGathering
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS
 from journal.models.report import UPDATE, Report
 from journal.support.rejection import Rejection
 from journal.repositories.links import Links
@@ -31,10 +32,15 @@ class ReportCommand(Command):
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a report: what was checked or researched now")
         creation.add_argument("title")
+        creation.add_argument("--abstract", required=True, help=f"one short description of what it found, at most {ABSTRACT_LENGTH_CHARACTERS} characters, shown as its summary line")
         creation.add_argument("--body", default="", help="the report, as markdown; ## headings are its sections")
         creation.add_argument("--file", default="", help="a file holding the body instead")
         creation.add_argument("--part", action="store_true", help="this is a part; the report is being written until journal report ready")
         self.verb(verbs, "ready", "mark a report as ready").add_argument("n", type=int)
+        revision = self.verb(verbs, "update", "write a report's abstract anew, and its whole text from a file with --file")
+        revision.add_argument("n", type=int)
+        revision.add_argument("--abstract", required=True, help=f"one short description of what it found, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
+        revision.add_argument("--file", default="", help="a file holding its whole text anew")
         creation.add_argument("--about", default=[], nargs="*", help="the rows it is about, as plans:1 or tasks:12, apart by spaces or commas")
         display = self.verb(verbs, "show", "a report: its outline, then one section at a time")
         display.add_argument("n", type=int)
@@ -57,10 +63,17 @@ class ReportCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         body = Path(args.file).read_text() if args.file else args.body
         rows = self.mentioned_rows(args.about)
-        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body, unfinished=args.part), caller.actor)
+        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, abstract=args.abstract, body=body, unfinished=args.part), caller.actor)
         for row in rows:
             self.links.save(Link(source=Ref.build(report), target=row, kind=Messages.SUBJECT_LINK), caller.actor)
         print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
+        return 0
+
+    def update(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.find(args.n)
+        revised = report.with_(abstract=args.abstract, body=Path(args.file).read_text() if args.file else report.body)
+        self.reports.save(revised, caller.actor)
+        print(f"report {report.id} written anew: {args.abstract}")
         return 0
 
     def ready(self, args: Namespace, caller: Caller) -> int:
