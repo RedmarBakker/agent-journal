@@ -4,7 +4,9 @@ from journal.features.plans.support.approved_plan_start import ApprovedPlanStart
 
 
 class SessionStartPlanStart(AgentListener[SessionStarted]):
-    """At a session start with no plan started, the oldest approved plan starts by itself."""
+    """At a session start with no plan started, the oldest approved plan starts by itself, before the hook answers, so no command of the new session starts the same plan beside it."""
+
+    blocking = True
 
     def __init__(self, start: ApprovedPlanStart) -> None:
         self.start = start
