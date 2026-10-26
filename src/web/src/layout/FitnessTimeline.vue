@@ -59,7 +59,7 @@ const openSettings = () => {
     go("settings", 0, "Fitness:");
 };
 // whether the agent is sent the measures' lines and held by them; off, the measures are still worked out and shown here
-const warnings = computed(() => store.settings?.workers?.fitness_warnings !== false);
+const warnings = computed(() => store.settings?.workers?.fitness_warnings === true);
 const setWarnings = (on) => saveSettings({workers: {fitness_warnings: on}});
 const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.at)}`, line: point.moved});
 </script>
@@ -71,6 +71,9 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
             <Btn kind="icon" class="fitness-timeline-settings" aria-label="Open the fitness settings" @click="openSettings"><Icon name="settings" /></Btn>
             <CloseButton @click="emit('close')" />
         </header>
+        <div class="fitness-timeline-warnings">
+            <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the measures are still worked out and shown, and none of their lines or holds reaches the agent" beside @change="setWarnings" />
+        </div>
         <template v-if="bandLine">
             <p class="fitness-timeline-band">{{ bandLine }}</p>
         </template>
@@ -86,9 +89,6 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
                 </template>
             </ul>
         </template>
-        <div class="fitness-timeline-warnings">
-            <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the measures are still worked out and shown, and none of their lines or holds reaches the agent" beside @change="setWarnings" />
-        </div>
         <h5 class="fitness-timeline-label">Scores over the last {{ hours }} hours</h5>
         <template v-if="!points.length">
             <p class="fitness-timeline-none">No score has been recorded in the last {{ hours }} hours.</p>
@@ -133,7 +133,9 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
 
 <style scoped>
 .fitness-timeline-warnings {
-    padding: 4px 0 8px;
+    margin-bottom: 8px;
+    padding: 4px 0 10px;
+    border-bottom: 1px solid var(--border);
 }
 
 .fitness-timeline {
