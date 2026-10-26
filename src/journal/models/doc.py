@@ -3,7 +3,6 @@ from typing import ClassVar
 
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.scoped import Scoped
-from journal.support.no_action_reason import NoActionReason
 
 
 @dataclass(frozen=True)
@@ -26,9 +25,6 @@ class Doc(Scoped):
 
     def finished(self) -> "Doc":
         return self.with_(unfinished=False)
-
-    def with_no_action_needed(self, reason: str) -> "Doc":
-        return self.with_(settled_reason=NoActionReason.checked(self, reason))
 
     def is_on_hub(self) -> bool:
         return self.edit_mode != DocEditMode.LOCAL

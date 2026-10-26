@@ -16,6 +16,7 @@ from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 from journal.support.row_destination import RowDestination
+from journal.support.no_action_reason import NoActionReason
 from journal.support.rejection import Rejection
 from journal.repositories.docs import Docs
 from journal.repositories.doc_revisions import DocRevisions
@@ -49,9 +50,9 @@ class DocCommand(Command):
         display.add_argument("n", help="the document's number, or a team's name and number such as acme:31")
         Outline.arguments(display)
         self.verb(verbs, "list", "every document found here: this environment's, the project's and every hub's")
-        settling = self.verb(verbs, "settle", "sign a document off as needing no action, so it is no longer named as never acted on")
-        settling.add_argument("n", type=int)
-        settling.add_argument("--why", required=True, help="why it needs no action")
+        exemption = self.verb(verbs, "settle", "sign a document off as needing no action, so it is no longer named as never acted on")
+        exemption.add_argument("n", type=int)
+        exemption.add_argument("--why", required=True, help="why it needs no action")
         self.verb(verbs, "revisions", "a document's revisions: number, when, who and what changed").add_argument("n", type=int)
         revision = self.verb(verbs, "revision", "one revision of a document, whole")
         revision.add_argument("n", type=int)
@@ -169,7 +170,7 @@ class DocCommand(Command):
         return 0
 
     def settle(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.save(self.docs.find(args.n).with_no_action_needed(args.why), caller.actor)
+        doc = self.docs.save(NoActionReason.signed(self.docs.find(args.n), args.why), caller.actor)
         print(f"doc {doc.id} signed off: {doc.settled_reason}")
         return 0
 

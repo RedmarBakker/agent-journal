@@ -5,7 +5,6 @@ from typing import ClassVar
 from journal.models.scoped import Scoped
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
-from journal.support.no_action_reason import NoActionReason
 from journal.support.rejection import Rejection
 
 UPDATE = "update"
@@ -52,9 +51,6 @@ class Report(Scoped):
 
     def finished(self) -> "Report":
         return self.with_(unfinished=False)
-
-    def with_no_action_needed(self, reason: str) -> "Report":
-        return self.with_(settled_reason=NoActionReason.checked(self, reason))
 
     def read(self, time: datetime) -> "Report":
         return self if self.read_at else self.with_(read_at=time)

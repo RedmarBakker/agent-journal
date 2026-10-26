@@ -14,6 +14,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
+from journal.support.no_action_reason import NoActionReason
 from journal.support.row_destination import RowDestination
 from journal.support.time_source import TimeSource
 
@@ -40,9 +41,9 @@ class ReportCommand(Command):
         display.add_argument("n", type=int)
         Outline.arguments(display)
         self.verb(verbs, "list", "every report here")
-        settling = self.verb(verbs, "settle", "sign a report off as needing no action, so it is no longer named as never acted on")
-        settling.add_argument("n", type=int)
-        settling.add_argument("--why", required=True, help="why it needs no action")
+        exemption = self.verb(verbs, "settle", "sign a report off as needing no action, so it is no longer named as never acted on")
+        exemption.add_argument("n", type=int)
+        exemption.add_argument("--why", required=True, help="why it needs no action")
         self.verb(verbs, "changes", "what an update would cover now, by section, gathered since the last update the user read")
         self.verb(verbs, "recap", "write the update: your summary in one or two sentences over the rows the journal gathers; it is docked at the bottom of the chat").add_argument("summary")
         addition = self.verb(verbs, "item", "add a row to the latest update under a section")
@@ -127,7 +128,7 @@ class ReportCommand(Command):
         return [f"{n:>3}  {item['section']:<8} {item['ref']:<14} {item['title']}" + (f" ({item['note']})" if "note" in item else "") for n, item in enumerate(items, start=1)]
 
     def settle(self, args: Namespace, caller: Caller) -> int:
-        report = self.reports.save(self.reports.find(args.n).with_no_action_needed(args.why), caller.actor)
+        report = self.reports.save(NoActionReason.signed(self.reports.find(args.n), args.why), caller.actor)
         print(f"report {report.id} signed off: {report.settled_reason}")
         return 0
 
