@@ -110,7 +110,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
-import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
+import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, attachmentRead, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -1477,6 +1477,7 @@ function lookCandidates(shown) {
         ["carrier", "carrier", saucer.value ?? crane.value?.look],
         [`reading:${reading?.card}`, "reading", readingNow()],
         ["glass", "reading", scanned && scanningAt(scanned)],
+        ["attachment", "attachment", attachmentLook()],
         ["said", "said", newMessage("user")?.point],
         ["message", "message", newMessage("agent")?.point],
         ["composer", typing ?? "typing", typing && composerPoint()],
@@ -1515,6 +1516,13 @@ const composerPoint = () => {
     const box = document.querySelector(HOME)?.getBoundingClientRect();
     return box ? middleOf(box) : null;
 };
+
+// where the image of the message the agent is reading is on the page (looks.js attachmentRead), or null when it reads none or none is drawn
+function attachmentLook() {
+    const message = attachmentRead(store.entries, now.value);
+    const picture = message && document.querySelector(`[data-ref="messages:${message}"] [data-figure-picture]`);
+    return picture ? middleOf(picture.getBoundingClientRect()) : null;
+}
 
 // the newest message `author` said in the chat, for its first seconds there (looks.js MESSAGE_SECONDS), as a look: of the kind said for the
 // user's, message for the agent's, its chat mark, its bubble's box and the middle of it; null with none

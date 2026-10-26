@@ -186,3 +186,15 @@ test("seated sideways the figure turns its head toward the camera by itself, so 
     };
     expect(heading(SEATED_TOWARD) - heading(0)).toBeLessThan(-5);
 });
+
+test("the agent's read of an image attached to a message gives that image the heaviest look for at least three seconds", async () => {
+    const {ATTACHMENT_SECONDS, LOOKS, attachmentRead} = await import("../src/figure/looks.js");
+    const read = (id, at, path) => ({id, kind: "ToolStarting", created_at: new Date(at * 1000).toISOString(), actor: "agent:s1", data: {tool_name: "Read", call: {read_paths: [path]}}});
+    const entries = [read(1, 100, "/p/src/a.py"), read(2, 101, "/p/.journal/files/message/42/shot.png")];
+    expect(ATTACHMENT_SECONDS).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...Object.values(LOOKS)), "no other look weighs more").toBe(LOOKS.attachment);
+    expect(attachmentRead(entries, 101.5)).toBe(42);
+    expect(attachmentRead(entries, 101 + ATTACHMENT_SECONDS)).toBe(42);
+    expect(attachmentRead(entries, 101 + ATTACHMENT_SECONDS + 1), "then it returns to what it was doing").toBe(0);
+    expect(attachmentRead([read(1, 100, "/p/src/a.py")], 100.5), "a read of another file is no look").toBe(0);
+});

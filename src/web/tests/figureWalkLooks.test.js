@@ -72,7 +72,7 @@ test("the user's new message halts the walk: the figure turns and looks at it a 
     expect(haltsWalk({kind: "said"})).toBe(true);
     for (const kind of Object.keys(LOOKS).filter((each) => each !== "said")) expect(haltsWalk({kind}), kind).toBe(false);
     expect(haltsWalk(null)).toBe(false);
-    expect(LOOKS.said, "the strongest look of all").toBe(Math.max(...Object.values(LOOKS)));
+    expect(LOOKS.said, "the strongest look of all but the attachment the agent reads").toBe(Math.max(...Object.entries(LOOKS).filter(([kind]) => kind !== "attachment").map(([, weight]) => weight)));
     // the look held a moment, a second or two
     expect(WALKING.halt).toBeGreaterThanOrEqual(1);
     expect(WALKING.halt).toBeLessThanOrEqual(3);
