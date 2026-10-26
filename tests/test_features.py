@@ -3311,13 +3311,19 @@ def test_a_row_the_agent_writes_right_after_replying_to_a_message_is_linked_to_i
     console = app.console()
     console.run(["message", "send", "please fix the footer and the header"], USER)
     console.run(["task", "create", "the header"], AGENT)
+    console.run(["task", "create", "the menu"], AGENT)
     links, messages = app.container.get(Links), app.container.get(Messages)
     assert links.targets(messages.find(1), Messages.SUBJECT_LINK) == [], "a task made before any reply is linked to nothing"
     console.run(["message", "send", "on it", "--reply-to", "1"], AGENT)
     console.run(["task", "create", "the footer"], AGENT)
-    assert Ref("tasks", 2) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created right after the reply is linked to the message it answers"
+    assert Ref("tasks", 3) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created right after the reply is linked to the message it answers"
     console.run(["task", "edit", "1", "--title", "the header, redone"], AGENT)
     assert Ref("tasks", 1) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "and so is a task edited right after it"
+    assert Ref("tasks", 1) in links.targets(messages.find(1), Messages.EDIT_LINK), "a task edited right after it is marked edited from the message, never created"
+    console.run(["task", "edit", "3", "--brief", "the footer, all of it"], AGENT)
+    assert Ref("tasks", 3) not in links.targets(messages.find(1), Messages.EDIT_LINK), "a task created from the message and then edited stays created from it"
+    console.run(["task", "edit", "2", "--priority", "high"], AGENT)
+    assert Ref("tasks", 2) not in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a change of priority alone, often asked by the journal, is never put down to the message"
 
 
 def test_a_message_read_through_a_pipe_is_refused(app: App):

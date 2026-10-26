@@ -4,10 +4,10 @@ from journal.features.messages.support.reply_cause import ReplyCause
 
 
 class CreatedRowCause(Listener[Created]):
-    """A task, plan, document or report the agent creates right after replying to a message of the user's is linked to that message."""
+    """A task, plan, document or report the agent creates right after replying to a message of the user's is linked to that message as created from it."""
 
     def __init__(self, cause: ReplyCause) -> None:
         self.cause = cause
 
     def handle(self, event: Created) -> None:
-        self.cause.link(event.model, event.actor)
+        self.cause.created(event.model, event.actor)
