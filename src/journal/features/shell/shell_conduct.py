@@ -49,7 +49,7 @@ class ShellConduct(Conduct):
         return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        return Transition.merged(self, [background_check(self, event, settings), ended_check(self, event, settings), unread_check(self, event, settings)])
+        return Transition.merged(self, [background_check(self, event, settings), silent_run_check(self, event, settings), ended_check(self, event, settings), unread_check(self, event, settings)])
 
 
 def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
@@ -156,6 +156,12 @@ def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Tra
     if not interval.reset(shell.last_ending_line).has_passed(Moment(seconds=event.time, tool_uses=shell.tool_uses)):
         return state.none()
     return state.none(ShellNudges.UNREAD_OUTPUT.create(outputs=outcome_text(shell.unread), n=shell.unread[0].id))
+
+
+def silent_run_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
+    shell = event.data.part(ShellPart)
+    unhinted = [run for run in shell.silent_runs if not any(f"output {run.output} has printed nothing" in line for line in shell.tipped)]
+    return state.none(ShellNudges.SILENT_RUN_HINT.create(n=unhinted[0].output, seconds=unhinted[0].quiet_seconds)) if unhinted else state.none()
 
 
 def background_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:

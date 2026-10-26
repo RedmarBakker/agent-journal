@@ -16710,7 +16710,7 @@ def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_n
     with app.container.get(Scope).environment(1):
         assert not app.container.get(ReaderReports).unread("s1"), "go test prints one line per package as each ends, so no percentage or count of a total exists to show"
 
-def test_a_run_that_printed_nothing_for_a_long_stretch_is_told_to_unbuffer_and_one_whose_lines_showed_no_progress_to_fix_its_reader(app: App):
+def test_a_run_that_printed_nothing_for_a_long_stretch_raises_no_reader_report_and_one_whose_lines_showed_no_progress_is_told_to_fix_its_reader(app: App):
     from journal.features.shell.support.output_log import OutputLog
     from journal.features.shell.support.output_silences import OutputSilences
     from journal.repositories.command_outputs import CommandOutputs
@@ -16737,7 +16737,7 @@ def test_a_run_that_printed_nothing_for_a_long_stretch_is_told_to_unbuffer_and_o
 
     assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end", "--label", "Testing the packages"], AGENT).code == 0
     silent = run("silent", "ok  \tshop/cart\t90.2s\n", 90.0)
-    assert any("printed nothing for 90 seconds" in finding for finding in silent) and not any("showed no progress" in finding for finding in silent), "a run that printed no line for 90 seconds is the command's buffering, never the reader's progress"
+    assert not any("printed nothing" in finding for finding in silent) and not any("showed no progress" in finding for finding in silent), "a run that printed no line for 90 seconds is the command's buffering, told while it ran, and never a report on the reader"
     shown = run("counted", "[ 10%] shop/cart\n[ 50%] shop/pay\nok  \tshop/pay\t0.4s\n", 5.0)
     assert any("showed no progress" in finding for finding in shown) and not any("printed nothing" in finding for finding in shown), "lines that came throughout with a percentage the reader did not show are the reader's to fix"
 
@@ -21269,3 +21269,31 @@ def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_r
     watched = [f"✓ build in {seconds}s (ID 121632227066)" for seconds in (12, 55)]
     found = judge.false_progress(jobs, watched)
     assert len(found) == 1 and "121632227066" in found[0] and "an id" in found[0], f"a count towards a job's id, 55/121632227066, is reported: {found}"
+
+
+def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stream_and_its_card_says_why(app: App):
+    from datetime import timedelta
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_views import SILENT_CARD_LINE, OutputViews
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.support.heartbeat import Heartbeat
+    hook(app, "SessionStart")
+    folder = app.config.root / "go-v"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("go test -v ./...")
+    app.container.get(OutputLog).start("q", "go test -v ./...", folder, Caller.agent("main", "s1", "claude"))
+    outputs = app.container.get(CommandOutputs)
+    started = outputs.find(1)
+    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
+    Heartbeat(folder).write(timing.time())
+    for _ in range(2):
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+    app.runtime().deferred.drain()
+    hints = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "shell.silent_run_streams"]
+    assert len(hints) == 1 and "output 1 has printed nothing for 40 seconds" in hints[0] and "go test -json in place of -v" in hints[0] and "a reader change cannot fix it" in hints[0], f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
+    views = app.container.get(OutputViews)
+    assert views.card_text(outputs.find(1), replace(views.view(outputs.find(1)), silent=True)) == SILENT_CARD_LINE, "and its card says the command buffers its output"

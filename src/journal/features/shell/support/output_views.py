@@ -18,6 +18,8 @@ TAIL_LINES = 10
 SUMMARY_LINES = 3
 VIEW_LINES = 20
 SILENT_SECONDS = 30
+# the card of a run that has printed nothing for SILENT_SECONDS says why, since no reader can show what was never printed
+SILENT_CARD_LINE = "nothing printed yet: the command buffers its output"
 
 
 class OutputViews:
@@ -132,4 +134,8 @@ class OutputViews:
         return " / ".join(ending[-SUMMARY_LINES:]) or None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
-        return "\n".join(self.card_lines(output, view) or self.ending_lines(output))
+        return "\n".join(self.card_lines(output, view) or self.ending_lines(output) or self.silent_lines(view))
+
+    @staticmethod
+    def silent_lines(view: OutputView) -> tuple[str, ...]:
+        return (SILENT_CARD_LINE,) if view.silent else ()

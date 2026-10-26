@@ -9,6 +9,7 @@ from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import SHIPPED_READERS, Readers
 from journal.features.shell.support.reader_probes import TESTING, ReaderProbes
+from journal.features.shell.support.silent_runs import SilentRuns
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
 from journal.features.registry import Registry
@@ -32,8 +33,8 @@ RECENT_MOVES = 10
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry) -> None:
-        self.reports, self.registry = reports, registry
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns) -> None:
+        self.reports, self.registry, self.silent = reports, registry, silent
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
 
@@ -48,6 +49,7 @@ class ShellDataReader:
             "output_reads": lambda: self.output_reads(agent),
             "readers": lambda: tuple(self.readers.all()),
             "tipped": lambda: self.tipped(agent),
+            "silent_runs": lambda: self.silent.running(agent.session) if agent.session else (),
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "unwatched_commands": lambda: self.unwatched_commands(agent),
@@ -76,7 +78,7 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION)
+        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.SILENT_RUN_HINT)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def last_ending_line(self, agent: Agent) -> Moment:

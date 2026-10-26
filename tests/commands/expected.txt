@@ -1737,6 +1737,7 @@ shell.reader_report_dismissal_refuted  [shell]  your dismissal was checked again
 shell.reader_report_read_next  [shell]  read reader report {{reports}} before your next write. `journal reader report <n>`
 shell.reader_report_to_act_on  [shell]  fix due for reader report {{reports}}: {{count}}. write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why "<why the report is wrong>"`
 shell.reader_report_to_read  [shell]  read reader report {{reports}}. `journal reader report <n>`
+shell.silent_run_streams  [shell]  output {{n}} has printed nothing for {{seconds}} seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it
 shell.test_run_piped_into_a_filter  [shell]  a test run piped into {{filter}} hides the lines its reader reads, so its mark shows no progress and its output is cut. run it whole with `journal suite <args>`, then read its output by its number with `journal output read N --reader pytest` or `--grep "<words>"`
 shell.unread_output  [shell]  {{outputs}}, and you have not read it yet
 shell.use_the_alias  [shell]  journal {{name}} runs this line: {{line}}. use `journal {{name}} [args]` next time
@@ -1872,7 +1873,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-285 nudges
+286 nudges
 
 $ agent: journal worker list
 exit 0

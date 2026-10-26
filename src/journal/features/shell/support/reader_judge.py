@@ -47,8 +47,6 @@ SINGLE_WORD_TITLE = "its card is titled by a bare word"
 TOTAL_MISSING = "the run prints a counter and no total"
 SUITES_COUNTED = "its progress counts suites, not tests"
 SILENT_RUN = "the run printed nothing for"
-SILENT_RUN_FIX = ("the command held its output back, which no reader can show: run it unbuffered, with stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, "
-                  "go test -json in place of -v, or a runner that prints its count of tests before the first one and a line as each ends")
 UNFILTERED = "its card showed nearly every line of the run, so it filtered nothing"
 STOPPED_PICKING = "it picked lines at the start of the run and none of its newest"
 FINDING_KINDS = (UNFILTERED, STOPPED_PICKING, POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, PROGRESS_LATE, BUILD_UNSHOWN, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
@@ -129,13 +127,13 @@ class ReaderJudge:
         return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
 
     def progress_findings(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
-        return self.silent_run(output) or [*self.missing_progress(reader, output, lines, ended_at), *self.late_progress(reader, output, lines, ended_at), *self.unshown_build(reader, output, lines, ended_at), *self.stalled_progress(output)]
-
-    def silent_run(self, output: CommandOutput) -> list[tuple[str, str]]:
-        seconds = self.silences.longest_seconds(output.row_id)
-        if seconds <= STALL_SECONDS:
+        if self.is_silent_run(output):
             return []
-        return [(f"{SILENT_RUN} {seconds:.0f} seconds while it ran, so its card had nothing to show", SILENT_RUN_FIX)]
+        return [*self.missing_progress(reader, output, lines, ended_at), *self.late_progress(reader, output, lines, ended_at), *self.unshown_build(reader, output, lines, ended_at), *self.stalled_progress(output)]
+
+    # a run that printed nothing for a stretch was its command's buffering, told to the agent while it ran: no reader can show it, so its progress is not the reader's to answer for
+    def is_silent_run(self, output: CommandOutput) -> bool:
+        return self.silences.longest_seconds(output.row_id) > STALL_SECONDS
 
     def late_progress(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()
