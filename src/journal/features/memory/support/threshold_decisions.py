@@ -17,6 +17,6 @@ class ThresholdDecisions:
     def decided(self, caller: Caller) -> None:
         if caller.session is None:
             return
-        agent = self.sessions.agent(caller.session, self.scope.id)
+        agent = self.sessions.caller_agent(caller, caller.session, self.scope.id)
         if agent.threshold_due:
             self.agents.save(agent.context_decided(self.time_source.moment().timestamp()), caller.actor)

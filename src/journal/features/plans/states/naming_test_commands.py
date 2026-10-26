@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
@@ -11,13 +11,14 @@ from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_started import TaskStarted
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
 
 
 @dataclass(frozen=True)
 class NamingTestCommands(BaseState):
-    """A plan's task waits here until the project names the commands that run its tests: reads and journal commands go through, every other tool and a stop are held with the line that says how to name them, and the state leaves by itself once the setting holds a line, or hands down its task's close and the plan's pause, cancel or end to the plan state beneath."""
+    """A plan's task waits here until the project names the commands that run its tests: reads and journal commands go through, every other tool and a stop are held with the line that says how to name them, and the state leaves by itself once the setting holds a line, or hands down its task's close and the plan's pause, cancel or end to the plan state beneath; another task started meanwhile becomes the one it waits for, never a second wait over it."""
 
     name = "naming_test_commands"
     title = "Naming the test commands"
@@ -37,6 +38,10 @@ class NamingTestCommands(BaseState):
         if str(settings.value(PlansOptions.TEST_COMMANDS)).strip():
             return self.pop()
         return self.refuse(PlansNudges.TEST_COMMANDS_NEEDED.create())
+
+    def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
+        event.stop_propagation()
+        return self.swap(replace(self, task_id=event.task_id))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         return self.forward() if event.task_id == self.task_id else self.none()

@@ -46,6 +46,6 @@ class ActiveTask:
         if caller.worker_number is not None:
             return Ref(Worker.table(), caller.worker_number)
         if caller.session is not None:
-            return Ref.build(self.sessions.agent(caller.session, self.scope.id))
+            return Ref.build(self.sessions.caller_agent(caller, caller.session, self.scope.id))
         present = self.agents.current()
         return None if present is None else Ref.build(present)

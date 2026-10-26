@@ -165,7 +165,7 @@ class ShellRunner:
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
         if caller.session is None:
             return ""
-        agent = self.sessions.agent(caller.session, environment)
+        agent = self.sessions.caller_agent(caller, caller.session, environment)
         lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
         if caller.worker_number is not None or caller.subagent:
             return "".join(f"[journal] {line}\n" for line in lines)

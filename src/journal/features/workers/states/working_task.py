@@ -4,12 +4,16 @@ from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.command_ended import CommandEnded
+from journal.events.agent.impasse_report import ImpasseReport
+from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.stop import Stop
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.features.shell.support.activity_label import ActivityLabel
+from journal.features.tasks.states.external_wait import ExternalWait
+from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.features.workers.workers_nudges import WorkersNudges
@@ -21,7 +25,7 @@ TESTING_REFUSALS = {MERGER_TESTING: WorkersNudges.TEST_HANDOVER, TEST_BUDGET: Wo
 
 @dataclass(frozen=True)
 class WorkingTask(BaseState):
-    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, and it is told the end of each of its outputs."""
+    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, and its journal await and journal stuck push the wait and the stuck state over its work."""
 
     name = "working_task"
     title = "At work on its task"
@@ -46,6 +50,12 @@ class WorkingTask(BaseState):
 
     def on_command_ended(self, event: CommandEnded, settings: Settings) -> Transition:
         return self.none(WorkersNudges.OUTPUT_END.create(n=event.output, status=event.status))
+
+    def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
+        return self.push(ExternalWait.opened(*event.wait_terms()))
+
+    def on_impasse_report(self, event: ImpasseReport, settings: Settings) -> Transition:
+        return self.push(Impasse(reason=event.reason))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         if event.task_id not in event.data.part(TasksPart).agent_tasks or event.outcome not in RELEASING:

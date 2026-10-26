@@ -578,6 +578,43 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
     assert outputs.find(output.id).summary is not None
 
 
+def test_a_worker_waits_on_its_own_command_until_it_ends_and_a_reviewer_cannot_say_it_is_stuck(app: App):
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.models.command_output import CommandOutput
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.agents import Agents
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    agents, workers, tasks = app.container.get(Agents), app.container.get(Workers), app.container.get(Tasks)
+    states = lambda: [layer["state"] for layer in agents.session_agent("ww").stack]
+    with app.container.get(Scope).environment(MAIN):
+        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        worker = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=MAIN, title="the boiler", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+    watt = Caller.worker("main", worker.id, "ww", "claude")
+    folder = app.config.root / "build"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("make")
+    (folder / "0.out").write_text("built\n")
+    output = app.container.get(CommandOutputs).save(CommandOutput(chain="build", command="make", session="ww", folder=str(folder)).backgrounded(), Actor.system())
+    assert app.console().run(["await", "the boiler's build", "--output", str(output.id)], watt).code == 0
+    assert states() == ["void", "working_task", "awaiting"], "a worker's wait is pushed over its work"
+    app.container.get(ShellRecord).ended("build", 0, folder, "", watt)
+    app.runtime().deferred.drain()
+    assert states() == ["void", "working_task"], "and ends when its command does"
+    assert app.console().run(["stuck", "the boiler leaks"], watt).code == 0
+    assert states()[-1] == "stuck", "a worker that says it is stuck is put in the stuck state"
+    assert app.console().run(["stuck", "lost"], Caller.reviewer("main", 1, "rv", "claude")).code != 0, "a reviewer has no stuck"
+
+
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
@@ -17498,10 +17535,15 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         with app.container.get(Scope).environment(MAIN):
             workers = app.container.get(Workers)
             worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1", device="1"), Actor.system())
+            from journal.models.agent import Agent
+            from journal.models.agent_role import AgentRole
+            from journal.repositories.agents import Agents
+            app.container.get(Agents).save(Agent(environment_id=main.id, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
         lovelace = Caller.worker("main", worker.id, "w-1", "claude")
         assert console.run(["clock-in"], lovelace).code == 0
         with app.container.get(Scope).environment(MAIN):
             assert workers.find(worker.id).state == WorkerState.DISPATCHED, "this machine does not host the worker's environment, so it makes none of its moves"
+            assert [layer["state"] for layer in app.container.get(Agents).session_agent("w-1").stack] == ["void", "working_task"], "but the machine that runs it puts it to work at its clock-in"
         asked = hosted_requests()
         assert [request.kind for request in asked] == ["worker_ready"], "it asks the environment's host to make the clock-in"
         app.container.get(HostDesk).handle(asked)

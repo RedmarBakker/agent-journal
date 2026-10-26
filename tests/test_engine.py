@@ -3010,6 +3010,75 @@ def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state
     assert (entering.moves, leaving.moves) == (["pause"], ["resume"]), "on_enter and on_exit run on the stack a combined move leaves"
 
 
+def test_a_helper_compacted_mid_task_returns_to_its_job_with_nothing_of_the_main_agent(app: App):
+    from journal.models.agent_role import AgentRole
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    scope, workers, tasks, agents = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents)
+    states = lambda: [layer["state"] for layer in agents.session_agent("wc").stack]
+    with scope.environment(1):
+        agents.save(Agent(environment_id=1, session="wc", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        worker = workers.save(Worker(environment_id=1, name="Mr. Compact", brief="c", session="wc"), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the printer", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+    hook(app, "PreCompact", session_id="wc")
+    assert states() == ["void", "working_task", "compacting"], "the compaction goes over the helper's job"
+    started = hook(app, "SessionStart", session_id="wc", source="compact")[1]
+    assert states() == ["void", "working_task"], "and pops back to it, never pushing the main agent's overview"
+    context = json.dumps(started)
+    assert "environment overview" not in context and "read the journal skill" not in context, "no overview and no main skill debt reach the helper"
+    assert hook(app, "PreToolUse", session_id="wc", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "its next read goes through as before the compaction"
+
+
+def test_helpers_at_work_when_the_journal_restarts_on_the_new_code_keep_working(app: App):
+    from journal.db.connection import Connection
+    from tests.main_journal import main_journal
+    hook(app, "SessionStart")
+    connection = app.container.get(Connection)
+    old_rows = [
+        ("worker", "working", json.dumps([{"state": "duty", "data": {}}, {"state": "working", "data": {"task_id": 7, "logged_at": 1.0}}])),
+        ("reviewer", "reviewing", json.dumps([{"state": "reviewing", "data": {}}])),
+    ]
+    for role, state, stack in old_rows:
+        connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator) VALUES (1, ?, ?, ?, '{}', ?, '2026-10-26', 'system')", (f"up-{role}", role, state, stack))
+    connection.execute("DELETE FROM migrations WHERE number = 59")
+    restarted = main_journal(Config(app.config.root, port=0))
+    agents, catalogue = restarted.container.get(Agents), restarted.container.get(StatesCatalogue)
+    stacks = {role: [state.name for state in catalogue.stack(agents.session_agent(f"up-{role}")).states] for role, _, _ in old_rows}
+    assert stacks == {"worker": ["void", "working_task"], "reviewer": ["void", "reviewing"]}, "a worker mid-task keeps its job and a reviewer mid-review keeps reviewing across the restart"
+    assert catalogue.stack(agents.session_agent("up-worker")).top().task_id == 7, "on the task it held"
+
+
+def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
+    from journal.models.agent_role import AgentRole
+    from journal.models.worker import Worker
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    hook(app, "SessionStart")
+    assert app.container.get(Agents).session_agent("s1").role == AgentRole.MAIN, "the launch's own session is the main agent"
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Morse", brief="m", token_hash=AgentToken.hashed("tok")), Actor.system())
+    raw = f"JOURNAL_ENV=main\0JOURNAL_SESSION=fresh-w\0JOURNAL_ACTOR=worker:{worker.id}\0JOURNAL_ACTOR_TOKEN=tok\0JOURNAL_AGENT_SHELL=1\0\0echo hi\n"
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
+    with urlopen(request, timeout=10) as reply:
+        assert reply.read().decode().rstrip().endswith("__journal_exit 0")
+    shelled = app.container.get(Agents).session_agent("fresh-w")
+    assert shelled.role == AgentRole.WORKER and shelled.state == "void", "a worker's command from a session not seen yet makes the worker's row on Void, never a main one"
+    data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "early-w", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}).encode()
+    with app.container.get(Scope).environment(1):
+        early = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Bell", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
+    hooked = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{early.id}", "X-Journal-Actor-Token": "tok"})
+    with pytest.raises(HTTPError) as refused:
+        urlopen(hooked, timeout=5)
+    answer = refused.value.read().decode()
+    assert app.container.get(Agents).session_agent("early-w").role == AgentRole.WORKER, "a worker's hook before its bind is bound as the worker"
+    assert "you are not at work" in answer and "environment overview" not in answer, "and is answered by Void, with no main line"
+
+
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
     from journal.models.agent_role import AgentRole
     hook(app, "SessionStart")
