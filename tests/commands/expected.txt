@@ -1260,6 +1260,7 @@ plans.test_commands = 'pytest, journal suite'
 sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
+workers.builder_active_workers = 2
 workers.score_warmup_minutes = 30
 workers.orchestrator_high_entry = 0.8
 workers.orchestrator_high_exit = 0.65
@@ -1279,7 +1280,6 @@ workers.fitness_warnings = True  (the user sets it)
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
 workers.clashes_named = 3
-workers.builder_handovers = 2
 workers.orchestrator_lines = 200
 workers.orchestrator_writes_plans = True  (the user sets it)
 workers.orchestrator_approves_plans = False  (the user sets it)
@@ -1294,12 +1294,8 @@ workers.builder_load_ceiling = 0.5
 workers.load_told_from = 0.8
 workers.load_told_step = 0.05
 workers.load_drain_tool_uses = 25
-workers.own_share_full_score = 0.67
-workers.own_share_zero_score = 0.33
-workers.own_share_weight = 4
 workers.reviewers_most = 2
 workers.verifiers_most = 2
-workers.builder_lines_per_handover = 50
 workers.builder_may_dispatch = True  (the user sets it)
 workers.builder_may_queue = True  (the user sets it)
 workers.builder_may_subagents = True  (the user sets it)
@@ -1827,8 +1823,9 @@ voices.the_voice_changed  [voices]  the user changed how you talk to them. from 
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have not acted on it. give it its next job, stop it, or mark it done
 workers.blocked_work_stands_still  [workers]  these blocked or paused tasks stand still: {{tasks}}; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move
 workers.branch_keeps_clashing  [workers]  worker {{n}}'s branch went back to rebase {{clashes}} times in a row, as merges landed under it; it clashes in {{clashing}}. merge the other workers' work in an order that lets it catch up, or hold their merges until it is ready
-workers.builder_handover_budget  [workers]  you wrote {{lines}} lines since your last handover, under the {{budget}} one worker out is worth: write the next piece yourself
-workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
+workers.builder_clear_oldest  [workers]  the worker queue has stood high for {{minutes}} minutes. take in worker {{n}} first: check and merge it
+workers.builder_take_in_first  [workers]  {{count}} workers have been active at once this hour, on average. merge worker {{n}} next, then hand out the next task
+workers.builder_write_next  [workers]  your own share of the code this hour is {{share}}. write task {{n}} yourself
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
 workers.clear_the_oldest_item  [workers]  the worker queue has stood high for {{minutes}} minutes. clear {{first}} first, the oldest: check it, merge it or reply
@@ -1898,7 +1895,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-290 nudges
+291 nudges
 
 $ agent: journal worker list
 exit 0

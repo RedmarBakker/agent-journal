@@ -2,7 +2,6 @@ import re
 from dataclasses import dataclass
 
 from journal.models.agent import WORK_WINDOW_USES, Agent
-from journal.features.workers.support.code_share_limits import CodeShareLimits
 from journal.models.support.agent_load import AgentLoad
 from journal.models.support.queue_use import QueueUse
 from journal.models.support.report_use import ReportUse
@@ -43,7 +42,6 @@ class ToolUseCounts:
     late_tasks: int = 0
     edited_lines: int = 0
     merged_lines: int = 0
-    code_share: CodeShareLimits = CodeShareLimits()
     tasks_filed: int = 0
     tasks_completed: int = 0
     mode: str = ""

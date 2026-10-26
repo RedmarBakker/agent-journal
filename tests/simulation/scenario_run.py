@@ -76,7 +76,7 @@ class ScenarioRun:
 
     def sampled(self, second: int) -> None:
         agent = self.simulator.app.container.get(Agents).session_agent("s1")
-        self.samples.append(Sample(second, ToolUseCounts.counted(agent), agent.work_queue.rho, agent.measures))
+        self.samples.append(Sample(second, ToolUseCounts.counted(agent), agent.work_queue.rho, agent.measures, agent.band))
 
     @staticmethod
     def entry(second: int, actor: str, action: str, seen) -> TraceEntry:

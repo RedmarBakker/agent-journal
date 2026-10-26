@@ -1,10 +1,14 @@
+from collections.abc import Callable
 from dataclasses import dataclass
+
+from journal.features.workers.support.fitness_score import FitnessScore
+from journal.models.support.measure_states import MeasureStates
 
 from tests.simulation.sample import Sample
 from tests.simulation.scenario import Scenario
 from tests.simulation.trace_entry import TraceEntry
 
-# today's measures (plan 1034, phase 1): the fitness score against its threshold, unsmoothed, and the load against its first notice, smoothed
+# the fitness score from the measure states against its threshold, and the work load against its first notice, smoothed
 SCORE_THRESHOLD = 70
 LOAD_LEVEL = 0.8
 LOAD_WINDOW_MINUTES, LOAD_HALF_LIFE_MINUTES = 30, 10
@@ -21,7 +25,7 @@ class Settling:
     scenario: Scenario
     trace: tuple[TraceEntry, ...]
     samples: tuple[Sample, ...]
-    profile: object
+    scoring: Callable[[MeasureStates], FitnessScore]
 
     def limits(self) -> dict[str, float]:
         return {"score": SETTLE_MARGIN_MINUTES, "load": LOAD_WINDOW_MINUTES + 3 * LOAD_HALF_LIFE_MINUTES + SETTLE_MARGIN_MINUTES}
@@ -29,7 +33,7 @@ class Settling:
     def is_on(self, measure: str, sample: Sample) -> bool:
         if measure == "load":
             return sample.rho <= LOAD_LEVEL
-        scored = self.profile.scored(sample.counts)
+        scored = self.scoring(sample.measures)
         return not scored.is_measured or scored.score >= SCORE_THRESHOLD
 
     def last_arrivals(self) -> list[int]:
@@ -65,8 +69,8 @@ class Settling:
         return max(self.trace[-1].second / 3600, 1 / 60) if self.trace else 1.0
 
     def band_changes_hourly(self) -> float:
-        levels = [sample.rho > LOAD_LEVEL for sample in self.samples]
-        return sum(1 for before, after in zip(levels, levels[1:]) if before != after) / self.hours()
+        bands = [sample.band for sample in self.samples]
+        return sum(1 for before, after in zip(bands, bands[1:]) if before != after) / self.hours()
 
     def measure_lines_hourly(self) -> float:
         return sum(1 for entry in self.trace for key in entry.nudges if key.startswith(MEASURE_FEATURES)) / self.hours()
@@ -75,5 +79,5 @@ class Settling:
         return sum(1 for entry in self.trace if not entry.refused for key in entry.nudges if not key.startswith(NOTICE_KEYS)) / self.hours()
 
     def mean_score(self) -> float:
-        scores = [scored.score for sample in self.samples if (scored := self.profile.scored(sample.counts)).is_measured]
+        scores = [scored.score for sample in self.samples if (scored := self.scoring(sample.measures)).is_measured]
         return sum(scores) / len(scores) if scores else 0.0

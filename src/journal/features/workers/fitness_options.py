@@ -14,6 +14,7 @@ class FitnessOptions:
     BUILDER_HIGH_EXIT = Option("workers.builder_high_exit", "Builder band leaves high under", "The worker queue under which the builder's band leaves high", 0.4)
     BUILDER_LOW_ENTRY = Option("workers.builder_low_entry", "Builder band turns low under", "The worker queue under which the builder's band becomes low", 0.3)
     BUILDER_LOW_EXIT = Option("workers.builder_low_exit", "Builder band leaves low at", "The worker queue from which the builder's band leaves low", 0.4)
+    BUILDER_ACTIVE_WORKERS = Option("workers.builder_active_workers", "Builder: most active workers", "The mean number of active workers over an hour, at work or waiting to be checked, past which the builder's active-workers measure fails", 2)
     SCORE_WARMUP_MINUTES = Option("workers.score_warmup_minutes", "Minutes measured before a score", "The minutes a work mode is measured before the agent's fitness is scored in it", 30, unit="min")
     BAND_MINUTES = Option("workers.band_minutes", "Least minutes in a band", "The minutes a band stays before it changes again, but for leaving high on an empty queue", 10, unit="min")
     EMPTY_QUEUE_MINUTES = Option("workers.empty_queue_minutes", "Empty worker queue leaves high after", "The minutes the worker queue stands empty before a high band leaves high", 5, unit="min")

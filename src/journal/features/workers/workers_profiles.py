@@ -4,14 +4,9 @@ from journal.features.workers.support.load_level_measure import LoadLevelMeasure
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.mode_profile import ModeProfile
-from journal.features.workers.support.code_share_measure import CodeShareMeasure
 from journal.features.workers.support.queue_measure import QueueMeasure
 from journal.models.support.model_fit import RIGHT
 
-# the load from which a handover is no fault in the builder, the level the agent is first told its load at
-WORKLOAD_THRESHOLD = WorkersOptions.WORKLOAD_FIRST_NOTICE.default
-FILE_EDIT_SHARE = FitnessMeasure("your own file edits among your edits and the handovers made while your load was under its line", lambda counts: (counts.file_edits, counts.file_edits + (0 if counts.load.rho >= WORKLOAD_THRESHOLD else counts.handovers)), 0.6, 1.0, 3, "take the next task yourself and hand one out only when it is better done beside you")
-RESEARCH_SHARE = FitnessMeasure("your own reads and searches among them and your subagents", lambda counts: (counts.research_count, counts.research_count + counts.subagent_dispatches), 0.5, 1.0, 1, "read and search yourself; a subagent is for a job too wide for your own turns")
 HANDOVER_SHARE = FitnessMeasure("your handovers among your edits and handovers", lambda counts: (counts.handovers, counts.file_edits + counts.handovers), 0.4, 1.0, 3, "hand the work to a worker and review what comes back")
 SOLO_RESEARCH_SHARE = FitnessMeasure("your own reads and searches among them and your subagents", lambda counts: (counts.research_count, counts.research_count + counts.subagent_dispatches), 0.8, 1.0, 2, "read and research this yourself; a subagent is for the rare job too wide to do in your own turns")
 SOLO_FILE_EDIT_SHARE = FitnessMeasure("your own file edits among your edits and handovers", lambda counts: (counts.file_edits, counts.file_edits + counts.handovers), 1.0, 1.0, 2, "do the work yourself: solo hands nothing out")
@@ -22,7 +17,6 @@ BRIEF_SHARE = FitnessMeasure("your handovers whose brief names a done-when and t
 PREPARED_MERGE_SHARE = FitnessMeasure("your merges that followed a read of the proofs and a test run among your merges", lambda counts: (counts.prepared_merges, counts.merges), 0.9, 1.0, 3, "read the proofs with journal task show and run the tests before journal worker merge")
 ORCHESTRATOR_EDIT_SHARE = FitnessMeasure("your own file edits among your tool uses", lambda counts: (counts.file_edits, counts.window_uses), 0.0, 0.2, 2, "hand the work to a worker and keep to reviewing it")
 ORCHESTRATOR_WORKLOAD = LoadLevelMeasure("your load", 5, "clear what waits and hand the work out to workers until your load is back under half of what you can clear", 0.5, 1.0)
-BUILDER_WORKLOAD = LoadLevelMeasure("your load", 3, "take in what workers brought back and stop handing out more before you write on", WORKLOAD_THRESHOLD, 1.2)
 BUSY_MINUTES = LoadMeasure("the minutes your load stayed over the add-a-place level", 3, "clear what waits, oldest first, and ease the load before it holds over the level: turn the reviewer on or queue instead of dispatching")
 OLDEST_FIRST_SHARE = FitnessMeasure("your clearings that took the oldest waiting item first among your clearings", lambda counts: (counts.load.oldest_first, counts.load.clearings_counted), 0.8, 1.0, 2, "clear the worker or message that has waited longest first")
 CALM_DISPATCH_SHARE = FitnessMeasure("your dispatches into idle places while the load was low among them and the dispatches made while the queue grew under a high load", lambda counts: (counts.load.dispatches_for, counts.load.dispatches_for + counts.load.dispatches_against), 0.8, 1.0, 2, "while the queue grows under a high load, clear it before you dispatch more")
@@ -32,18 +26,15 @@ WAIT_SHARE = FitnessMeasure("your started plans' blocked tasks that wait with --
 INTERRUPTIONS = InterruptionMeasure("the reports an hour your workers filed while plenty of work was open", 3, "queue each worker several tasks with journal worker queue <n> <task>... --report queue, so it reports once for all of them")
 STEADY_QUEUES = QueueMeasure("your workers with merges whose queue neither stood empty while tasks were open nor piled up past what they drain", 3)
 
-CODE_SHARE = CodeShareMeasure("the share of the code landed lately that you wrote yourself, against what your workers' merges brought", "write the next piece yourself and hand a worker only what is better done beside you")
-INFLOW_SHARE = FitnessMeasure("your tasks completed or merged among the tasks you filed and those you completed in the window", lambda counts: (counts.tasks_completed, max(counts.tasks_filed, counts.tasks_completed)), 0.5, 1.0, 2, "dispatch a worker on a task that fits one with journal worker dispatch, and take in what is back first", least=3)
 
 class WorkersProfiles:
-    """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; the orchestrator is also scored on its handling of its load, the minutes it stays over the add-a-place level, clearing the oldest first and not dispatching while the queue grows, on whether the models of its merged jobs fit them, and on how its plans' tasks wait; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them; a share of events counts only once it has three of them, save the waits, which are the plans as they stand and count from one task."""
+    """The ideal agent of the orchestrator and the solo modes, scored on tool uses until the measures of plan 1034 replace them (the builder is judged by those already): the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; the orchestrator is also scored on its handling of its load, the minutes it stays over the add-a-place level, clearing the oldest first and not dispatching while the queue grows, on whether the models of its merged jobs fit them, and on how its plans' tasks wait; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them; a share of events counts only once it has three of them, save the waits, which are the plans as they stand and count from one task."""
 
-    BUILDER = ModeProfile("builder", (CODE_SHARE, FILE_EDIT_SHARE, RESEARCH_SHARE, INFLOW_SHARE, INTERRUPTIONS, BUILDER_WORKLOAD))
     ORCHESTRATOR = ModeProfile("orchestrator", (ORCHESTRATOR_WORKLOAD, INTERRUPTIONS, STEADY_QUEUES, WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, ORCHESTRATOR_EDIT_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE, WAIT_SHARE))
     ORCHESTRATOR_REVIEWER_PROFILE = ModeProfile("orchestrator", (ORCHESTRATOR_WORKLOAD, INTERRUPTIONS, STEADY_QUEUES, WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, ORCHESTRATOR_EDIT_SHARE, BUSY_MINUTES, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE, WAIT_SHARE))
     SOLO_PROFILE = ModeProfile("solo", (SOLO_FILE_EDIT_SHARE, SOLO_RESEARCH_SHARE))
 
-    ALL = (BUILDER, ORCHESTRATOR, SOLO_PROFILE)
+    ALL = (ORCHESTRATOR, SOLO_PROFILE)
 
     @classmethod
     def mode_profile(cls, mode: str) -> ModeProfile | None:

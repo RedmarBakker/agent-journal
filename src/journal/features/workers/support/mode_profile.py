@@ -6,7 +6,6 @@ from journal.features.workers.support.load_level_measure import LoadLevelMeasure
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.support.queue_measure import QueueMeasure
 from journal.features.workers.support.fitness_score import FitnessScore
-from journal.features.workers.support.code_share_measure import CodeShareMeasure
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.models.agent import WORK_WINDOW_USES
 
@@ -21,11 +20,11 @@ class ModeProfile:
     """A work mode's ideal agent written down as measures, and an agent's newest tool uses scored against it, once it has made as many in this mode as the score counts over: each measure inside its range counts whole, one outside counts less the further off it is, weighted, so a new mode is a new profile and nothing else."""
 
     mode: str
-    measures: tuple[FitnessMeasure | LoadMeasure | LoadLevelMeasure | InterruptionMeasure | QueueMeasure | CodeShareMeasure, ...]
+    measures: tuple[FitnessMeasure | LoadMeasure | LoadLevelMeasure | InterruptionMeasure | QueueMeasure, ...]
 
     @staticmethod
     def weight(measure: object, counts: ToolUseCounts) -> int:
-        return measure.weighted(counts) if isinstance(measure, CodeShareMeasure) else measure.weight
+        return measure.weight
 
     def scored(self, counts: ToolUseCounts) -> FitnessScore:
         if counts.mode != self.mode or counts.mode_uses < WORK_WINDOW_USES:

@@ -3,7 +3,6 @@ from journal.support.timeout import Timeout
 
 
 class WorkersNudges:
-    BUILDER_ALIGNMENT = Nudge("workers", "builder_takes_the_next_task", "you are the builder: you handed work out {{limit}} times in a row with no code of your own between", "take the next task yourself, and hand one to a worker only when it is better done beside you", repeat=Timeout.tool_uses(50))
     ORCHESTRATOR_ALIGNMENT = Nudge("workers", "orchestrator_hands_the_work_out", "you are the orchestrator: you changed at least {{limit}} lines of code yourself since your last handover", "hand the work to a worker and review what comes back", repeat=Timeout.tool_uses(50))
     FITNESS_LOW = Nudge("workers", "work_mode_fitness_is_low", "your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}", "bring the measures named back into their range", repeat=Timeout.tool_uses(50))
     FITNESS_DROP = Nudge("workers", "work_mode_fitness_fell", "your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses, fallen past a mark: {{gaps}}", "bring the measures named back into their range", repeat=Timeout.tool_uses(5))
@@ -41,11 +40,13 @@ class WorkersNudges:
     ORCHESTRATOR_MODE = Nudge("workers", "now_orchestrating", "orchestrating: dispatch tasks, review and merge, run the suite", repeat=Timeout.seconds(0))
     SOLO_MODE = Nudge("workers", "now_solo", "you now work solo", "do every job yourself: no worker is dispatched", repeat=Timeout.seconds(0))
     SOLO_DISPATCH = Nudge("workers", "no_workers_when_solo", "you work solo: no worker is dispatched", repeat=Timeout.seconds(0))
+    BUILDER_CODE_SHARE_LINE = Nudge("workers", "builder_write_next", "your own share of the code this hour is {{share}}", "write task {{n}} yourself", repeat=Timeout.minutes(30))
+    BUILDER_QUEUE_LINE = Nudge("workers", "builder_clear_oldest", "the worker queue has stood high for {{minutes}} minutes", "take in worker {{n}} first: check and merge it", repeat=Timeout.seconds(300))
+    BUILDER_WORKER_LINE = Nudge("workers", "builder_take_in_first", "{{count}} workers have been active at once this hour, on average", "merge worker {{n}} next, then hand out the next task", repeat=Timeout.seconds(0))
     CLEAR_OLDEST = Nudge("workers", "clear_the_oldest_item", "the worker queue has stood high for {{minutes}} minutes", "clear {{first}} first, the oldest: check it, merge it or reply", repeat=Timeout.seconds(300))
     WORKLOAD_RISING = Nudge("workers", "load_rising", "your load is {{rho}}, past {{level}}: {{queue}} wait; clear {{first}} first, the oldest")
     WORKLOAD_DRAIN = Nudge("workers", "load_drain", "your load is {{rho}}, more arrives than you clear: {{queue}} wait, {{first}} the oldest", "drain it: dispatch workers, or hand the work out better")
     MODE_REFUSAL = Nudge("workers", "mode_may_not", "in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu", repeat=Timeout.seconds(0))
-    BUILDER_BUDGET = Nudge("workers", "builder_handover_budget", "you wrote {{lines}} lines since your last handover, under the {{budget}} one worker out is worth: write the next piece yourself", repeat=Timeout.seconds(0))
     PLACE_OPENED = Nudge("workers", "place_opened", "your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once", repeat=Timeout.seconds(0))
     PLACE_CLOSED = Nudge("workers", "place_closed", "your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once", repeat=Timeout.seconds(0))
     WAIT_MISSING = Nudge("workers", "task_names_another_without_a_wait", "task {{task}} lists task {{other}}, still open, and does not wait on it", "journal task block {{task}} --on task:{{other}}", repeat=Timeout.seconds(0))

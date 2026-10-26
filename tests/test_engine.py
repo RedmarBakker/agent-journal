@@ -1249,7 +1249,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.BUILDER_HANDOVER_LIMIT.key: 2, WorkersOptions.FITNESS_THRESHOLD.key: 70, "workers.fitness_warnings": True, "tasks.auto": False, "reviewing.reviewer": False})
+    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.FITNESS_THRESHOLD.key: 70, "workers.fitness_warnings": True, "tasks.auto": False, "reviewing.reviewer": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
@@ -2662,35 +2662,21 @@ def test_a_git_commit_or_push_is_never_owed_a_reader_and_every_other_git_step_ma
     assert not any(GitWrites.is_writing(command) for command in ("git rebase", "git merge", "git log", "git show", "git diff")), "a rebase, a merge and reading the history keep their readers"
 
 
-def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_a_handover_under_the_line_budget_is_told():
+def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_its_line_budget_is_gone_on_purpose():
     from pathlib import Path
     from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import budget_check, capability_check
+    from journal.features.workers.workers_conduct import capability_check
     from journal.features.workers.workers_options import WorkersOptions
     def event(line, lines=0):
         from journal.support.command_part import CommandPart
         call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
         return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=lines)}))
-    allowed = {WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.SOLO_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_HANDOVER_LINES.key: 50}
+    allowed = {WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.SOLO_SUBAGENTS_ALLOWED.key: True}
     builder = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder"})
     assert capability_check(Ready(), event("journal worker dispatch 1"), builder).refusal is None
     off = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: False, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: False})
     assert "may not dispatch a worker" in capability_check(Ready(), event("journal worker dispatch 1"), off).refusal.rendered()
     assert "may not queue a worker's next task" in capability_check(Ready(), event("journal worker queue 1 2"), off).refusal.rendered()
-    assert [n.rendered() for n in budget_check(Ready(), event("journal worker dispatch 1", 20), builder).nudges] == ["you wrote 20 lines since your last handover, under the 50 one worker out is worth: write the next piece yourself"]
-    assert budget_check(Ready(), event("journal worker dispatch 1", 60), builder).nudges == (), "past the budget of its own lines a handover is let through"
-    assert budget_check(Ready(), event("git status", 0), builder).nudges == (), "only a handover is told"
-
-
-def test_a_builder_with_ten_tasks_filed_and_one_completed_in_the_window_scores_lower_and_is_told_to_dispatch():
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    steady = ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=4, tasks_completed=4)
-    swamped = ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=10, tasks_completed=1)
-    kept, swamp = WorkersProfiles.BUILDER.scored(steady), WorkersProfiles.BUILDER.scored(swamped)
-    assert swamp.score < kept.score and swamp.score < 80, (kept.score, swamp.score)
-    assert any("dispatch a worker on a task that fits one" in line for line in swamp.lines), swamp.lines
-    assert WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1)) == WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, tasks_filed=2)), "under three tasks filed the measure is absent"
 
 
 def test_the_review_queue_gets_its_first_reviewer_itself_and_the_orchestrator_adds_the_others_up_to_the_most():
@@ -2729,24 +2715,6 @@ def test_a_verdict_wanted_past_the_most_verifiers_waits_for_one_to_come_free():
     rows[0] = rows[0].judged()
     dispatch.released()
     assert dispatch.waiting == [] and [brief for brief, _ in sent] == ["one", "two"], "once one is free the waiting verdict goes to it"
-
-
-def test_the_builder_is_scored_on_the_share_of_the_code_it_wrote_itself_against_what_its_workers_merges_brought_with_the_range_and_weight_the_user_sets():
-    from dataclasses import replace
-    from journal.features.workers.support.code_share_limits import CodeShareLimits
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_options import WorkersOptions
-    from journal.features.workers.workers_profiles import CODE_SHARE, WorkersProfiles
-    counts = lambda own, landed: ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1, edited_lines=own, merged_lines=landed)
-    assert CODE_SHARE in WorkersProfiles.BUILDER.measures
-    assert CODE_SHARE.closeness(counts(80, 20)) == 1.0, "two thirds or more of its own is whole"
-    assert CODE_SHARE.closeness(counts(30, 70)) == 0.0, "under a third it scores nothing"
-    assert round(CODE_SHARE.closeness(counts(50, 50)), 2) == 0.5 and CODE_SHARE.closeness(counts(5, 5)) is None, "between the two it falls straight, and under twenty lines it is not scored"
-    mine, handed = WorkersProfiles.BUILDER.scored(counts(80, 20)), WorkersProfiles.BUILDER.scored(counts(10, 90))
-    assert handed.score < mine.score and any("write the next piece yourself" in line for line in handed.lines), (mine.score, handed.score)
-    heavier = WorkersProfiles.BUILDER.scored(replace(counts(10, 90), code_share=CodeShareLimits(0.67, 0.33, 12)))
-    assert heavier.score < handed.score, "the weight is the user's setting"
-    assert all(option.title.startswith("Fitness: ") for option in (WorkersOptions.CODE_SHARE_FULL, WorkersOptions.CODE_SHARE_ZERO, WorkersOptions.CODE_SHARE_WEIGHT)), "the settings are among those under Fitness:"
 
 
 def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
@@ -2816,36 +2784,14 @@ def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_writt
     assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"
 
 
-def test_a_dispatch_at_a_load_over_the_line_gets_no_budget_line():
-    from pathlib import Path
-    from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import budget_check
-    from journal.features.workers.workers_options import WorkersOptions
-    from journal.models.support.agent_load import AgentLoad
-    from journal.support.command_part import CommandPart
-    settings = SettingsValue({WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8})
-    def told(rho):
-        line = "journal worker dispatch 1"
-        call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
-        load = AgentLoad(rho=rho, measured_at=1.0)
-        return budget_check(Ready(), ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=0, workload=load)})), settings).nudges
-    assert told(0.4) != (), "under the line the builder is told to write the next piece itself"
-    assert told(0.96) == (), "over the line the budget line stays quiet, since the load line says the opposite"
-
-
-def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_and_the_builder_by_a_load_it_lets_stand():
-    from dataclasses import replace
+def test_the_orchestrators_old_fitness_reads_its_load_level_and_the_builders_old_load_measure_is_gone_on_purpose():
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import WorkersProfiles
     from journal.models.support.agent_load import AgentLoad
     def orchestrator(rho):
         return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", mode_uses=100, window_uses=100, handovers=20, load=AgentLoad(rho=rho, measured_at=1.0)))
     assert orchestrator(0.3).score > orchestrator(0.95).score + 5, "an orchestrator at a low load scores well, at a high load poorly"
-    def builder(rho, handovers):
-        return WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", mode_uses=100, window_uses=100, file_edits=6, handovers=handovers, research_count=10, load=AgentLoad(rho=rho, measured_at=1.0)))
-    assert builder(0.9, 1).score >= builder(0.9, 0).score - 3, "at a high load one handover is not punished"
-    assert builder(0.3, 12).score < builder(0.3, 1).score, "several handovers at a low load are"
-    assert builder(1.1, 1).score < builder(0.3, 1).score, "writing on while the load climbs is"
+    assert WorkersProfiles.mode_profile("builder") is None, "the builder is judged by its measures alone"
 
 
 HELPER_CONDUCTS = {
@@ -3083,7 +3029,7 @@ def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     from journal.support.time_source import TimeSource
-    failing = MeasureStates("builder", 0.0, (MeasureState("high_queue_minutes", 14.0, is_measured=True, is_failing=True, changed_at=400.0, measured_at=1000.0),))
+    failing = MeasureStates("orchestrator", 0.0, (MeasureState("high_queue_minutes", 14.0, is_measured=True, is_failing=True, changed_at=400.0, measured_at=1000.0),))
     workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=1000.0), measures=failing, band=PressureBand.HIGH)
     event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": workers}))
     lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: True})).nudges
@@ -3133,6 +3079,61 @@ def test_a_held_high_worker_queue_opens_a_place_at_the_dwell_and_says_its_line_f
     assert minutes()[1:] == (10, 16), "the place opens ten minutes into the worker queue held high with an item waiting, and the clear line only once fifteen have passed"
     app.console().run(["settings", "set", WorkersOptions.PLACE_OPENING_MINUTES.key, "20"], AGENT)
     assert minutes()[1:] == (20, 26), "a longer dwell moves both"
+
+
+def test_each_builder_measure_reads_its_series_and_the_builder_that_writes_scores_above_the_one_that_hands_out(app: App):
+    from journal.features.workers.support.active_worker_measure import ActiveWorkerMeasure
+    from journal.features.workers.support.free_place_measure import FreePlaceMeasure
+    from journal.features.workers.support.measure_source import MeasureSource
+    from journal.features.workers.support.mode_measures import ModeMeasures
+    from journal.models.agent import Agent
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    source = lambda agent: MeasureSource(agent, 10000.0, app.container.get(FreePlaceMeasure), app.container.get(ActiveWorkerMeasure), app.container.get(Tasks))
+    writer = Agent(environment_id=1, session="s1", committed_lines=((9000.0, 30),), edited_lines=((9500.0, 30),), merged_lines=((8000.0, 20),))
+    assert source(writer).code_share() == 0.75, "committed and provisional lines of its own over its own and merged, the last hour"
+    assert source(Agent(environment_id=1, session="s1", committed_lines=((9000.0, 20),), merged_lines=((9000.0, 10),))).code_share() is None, "under forty lines there is nothing to measure"
+    assert source(Agent(environment_id=1, session="s1", committed_lines=((5000.0, 300),), merged_lines=((9000.0, 40),))).code_share() == 0.0, "lines older than the hour leave the share"
+    moves = WorkerMoves((("dispatched", 100.0), ("clocked out", 400.0), ("sent back", 500.0), ("clocked out", 700.0), ("merged", 900.0), ("sent a job", 1000.0)))
+    assert ActiveWorkerMeasure.active_spans(Worker(environment_id=1, moves=moves), 1200.0) == [(100.0, 900.0), (1000.0, 1200.0)], "a worker is active from its dispatch through its send-back until its merge, and again from its next job"
+    with app.container.get(Scope).environment(1):
+        specs = app.container.get(ModeMeasures).specs("builder")
+    state = lambda key, value: MeasureState(key, value, is_measured=True, measured_at=3600.0)
+    writing = MeasureStates("builder", 0.0, (state("own_code_share", 0.8), state("high_queue_minutes", 0.0), state("active_workers", 0.5), state("completion_rate", 2.0)))
+    handing = MeasureStates("builder", 0.0, (state("own_code_share", 0.2), state("high_queue_minutes", 0.0), state("active_workers", 3.0), state("completion_rate", 2.0)))
+    assert ModeMeasures.scored(writing, specs, 1800.0).score > ModeMeasures.scored(handing, specs, 1800.0).score, "a builder that writes scores above one with three workers out at once"
+    assert "completion_rate" not in dict(ModeMeasures.scored(writing, specs, 1800.0).parts), "the tasks completed an hour are shown, never scored"
+
+
+def test_each_builder_measure_line_speaks_where_its_measure_fails_in_its_bands_and_nowhere_else():
+    from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import measure_check
+    from journal.models.support.agent_load import AgentLoad
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.pressure_band import PressureBand
+    from journal.models.worker import Worker
+    settings = SettingsValue({FitnessOptions.WARNINGS.key: True})
+    def said(failing: str, value: float, band: PressureBand, current_task: int = 7, refs=("messages:4", "workers:12"), delivered=(Worker(environment_id=1, id=5),), command: str = "ls") -> list[str]:
+        measures = MeasureStates("builder", 0.0, (MeasureState(failing, value, is_measured=True, is_failing=True, measured_at=1000.0),))
+        workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=refs, waiting_items=len(refs), measured_at=1000.0), measures=measures, band=band, delivered_workers=delivered)
+        tasks = TasksData(current_task=current_task, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
+        event = ToolStarting(call=shell(command)).with_data(FeatureData({"workers": workers, "tasks": tasks}))
+        return [line.rendered() for line in measure_check(Ready(), event, settings).nudges]
+    assert said("own_code_share", 0.3, PressureBand.NORMAL) == ["your own share of the code this hour is 0.3. write task 7 yourself"]
+    assert said("own_code_share", 0.3, PressureBand.LOW) != [] and said("own_code_share", 0.3, PressureBand.HIGH) == [], "it speaks in low and normal, never in high"
+    assert said("own_code_share", 0.3, PressureBand.NORMAL, current_task=0) == [], "with no task to write it is silent"
+    assert said("high_queue_minutes", 14.0, PressureBand.HIGH) == ["the worker queue has stood high for 14 minutes. take in worker 12 first: check and merge it"], "the oldest worker item, never a message"
+    assert said("high_queue_minutes", 14.0, PressureBand.NORMAL) == [] and said("high_queue_minutes", 14.0, PressureBand.HIGH, refs=("messages:4",)) == [], "only in high, and silent with no worker item waiting"
+    dispatch = "journal worker dispatch 'Ada' --task 3"
+    assert said("active_workers", 3.2, PressureBand.NORMAL, command=dispatch) == ["3.2 workers have been active at once this hour, on average. merge worker 5 next, then hand out the next task"]
+    assert said("active_workers", 3.2, PressureBand.HIGH, command="journal worker queue 2 9") != [], "on a queue too, in every band"
+    assert said("active_workers", 3.2, PressureBand.NORMAL) == [] and said("active_workers", 3.2, PressureBand.NORMAL, delivered=(), command=dispatch) == [], "only on a dispatch or a queue, and silent with no worker waiting to be checked"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):

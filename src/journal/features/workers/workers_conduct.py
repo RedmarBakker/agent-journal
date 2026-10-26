@@ -74,7 +74,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, a worker that stopped at the usage limit is named with the time it goes on by itself, and in orchestrator mode a stop is refused while work this agent sent out waits clocked out, naming each worker, but for one it awaits, the worker itself or a run in its worktree, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line; with the fitness warnings on, each failing measure's one line, as often as its nudge repeats; and in orchestrator mode a merged worker's model that did not fit its work, too strong or too weak, is named in one short line."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, crowd_check, measure_check, capability_check, budget_check, text_wait_check)
+        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, crowd_check, measure_check, capability_check, text_wait_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -446,8 +446,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if event.subagent:
         return state.none()
     mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
-    delegating = mode == "builder" and high_workload(workers, settings)
-    return state.none(*(line for alignment in WorkersAlignments.ALL if not (delegating and alignment is WorkersAlignments.BUILDER) and (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
+    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
 
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
@@ -465,7 +464,8 @@ def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
 def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     if event.subagent or not settings.value(FitnessOptions.WARNINGS):
         return state.none()
-    return state.none(*MeasureLines.lines(event.data.part(WorkersPart)))
+    handover = any(part.text.startswith(command) for part in event.call.parts for command in HANDOVERS)
+    return state.none(*MeasureLines.lines(event.data), *(MeasureLines.handover_lines(event.data) if handover else ()))
 
 
 def is_full(dispatched: tuple, limit: int) -> bool:
@@ -489,21 +489,6 @@ def capability_check(state: BaseState, event: ToolStarting, settings: Settings) 
             if part.text.startswith(command) and not settings.value(option):
                 return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act=act))
     return state.none()
-
-
-def high_workload(workers, settings: Settings) -> bool:
-    return workers.workload.is_measured() and workers.workload.rho >= settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE)
-
-
-def budget_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent or high_workload(event.data.part(WorkersPart), settings) or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
-        return state.none()
-    budget, lines = settings.integer(WorkersOptions.BUILDER_HANDOVER_LINES), event.data.part(WorkersPart).code_lines
-    return state.none(WorkersNudges.BUILDER_BUDGET.create(lines=lines, budget=budget)) if 0 < budget and lines < budget else state.none()
-
-
-HANDOVER_LINES = ("journal worker dispatch", "journal worker queue")
-
 
 
 DRAINING = 1.0

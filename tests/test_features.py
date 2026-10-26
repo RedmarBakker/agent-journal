@@ -1817,8 +1817,8 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work as the builder" in use("e.py")
 
 
-def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(app: App):
-    """The builder handing work out twice with no code of its own between, the orchestrator past its lines of its own code since its last handover, and the solo agent sending subagents past its own reads each hear their mode's line once, never in another mode."""
+def test_the_orchestrator_and_solo_say_their_alignment_line_when_the_agent_drifts_and_the_builders_is_gone_on_purpose(app: App):
+    """The orchestrator past its lines of its own code since its last handover, and the solo agent sending subagents past its own reads each hear their mode's line once, never in another mode."""
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     settings = app.container.get(SettingRows)
@@ -1833,12 +1833,7 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
         app.runtime().deferred.drain()
         return before
 
-    in_a_row = "times in a row with no code of your own between"
-    assert in_a_row not in handover()
-    edit("a.py", 1)
-    assert in_a_row not in handover(), "a code edit of its own between two handovers starts the count again"
-    assert in_a_row in handover(), "two handovers in a row with no code between tell the builder to take the next task itself"
-    assert in_a_row not in handover(), "and only once within its repeat span"
+    assert "times in a row with no code of your own between" not in handover() + handover(), "the builder is told by its measures, never by handovers in a row"
 
     settings.set("workers.mode", "orchestrator", Actor.user(1))
     settings.set("workers.orchestrator_lines", 5, Actor.user(1))
@@ -1849,7 +1844,6 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
     handover()
     edit("d.py", 3)
     assert "you are the orchestrator" not in shell("echo checked"), "a handover starts its count of lines again"
-    assert "you are the builder" not in handover() + handover(), "the builder's line is never said in another mode"
 
     settings.set("workers.mode", "solo", Actor.user(1))
     settings.set("workers.solo_dispatches", 2, Actor.user(1))
@@ -1903,21 +1897,6 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id} stalled since") and stalled[0].endswith("60 min"), "a plan untouched past the setting is named once as stalled, while the other moves"
     told = lines("workers.started_plans") + stalled
     assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
-
-
-def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_off(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
-    handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
-    edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
-    low = "your fitness as the builder is"
-    for n in range(40):
-        said("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"r{n}.md")})
-    for n in range(6):
-        assert low not in edit(f"a{n}.md") + edit(f"b{n}.md") + handover(), "a builder writing most of its work scores near its ideal and hears nothing"
-    lines = "".join(handover() for _ in range(16))
-    assert low in lines and "your own file edits among your edits and the handovers made while your load was under its line is" in lines and "take the next task yourself" in lines, "a builder handing out most of its work is told its score and the measure furthest off, with what to do"
 
 
 def orchestrator_scored(app: App, setup=None, uses: int = 50):
@@ -1997,13 +1976,13 @@ def test_a_brief_that_names_no_done_when_and_no_files_is_not_counted_as_complete
     assert not ToolUseCounts.is_complete_brief(bare) and ToolUseCounts.is_complete_brief(full)
 
 
-def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_drifted():
+def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_drifted_on_the_solo_profile_since_the_builders_is_gone():
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import WorkersProfiles
-    ideal = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1))
-    assert (ideal.score, ideal.gaps) == (100, ()), "a builder inside every range scores 100"
-    drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
-    assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and the handovers made while your load was under its line", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
+    ideal = WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=12, research_count=10))
+    assert (ideal.score, ideal.gaps) == (100, ()), "a solo agent inside every range scores 100"
+    drifted = WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
+    assert drifted.score < 40 and {gap.label for gap in drifted.gaps} == {"your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"}, "one far off scores low and names the measures off their range"
     assert not WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
@@ -2037,7 +2016,7 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     from journal.features.workers.workers_profiles import WorkersProfiles
     unprepared = ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=0, research_count=20)
     assert WorkersProfiles.ORCHESTRATOR.scored(unprepared).score < 100 and WorkersProfiles.reviewed_mode_profile("orchestrator").scored(unprepared).score == 100, "with the reviewer on, merges with no proof read or test run of its own cost the orchestrator nothing"
-    assert WorkersProfiles.reviewed_mode_profile("builder") is WorkersProfiles.BUILDER, "the other modes are measured as they were"
+    assert WorkersProfiles.reviewed_mode_profile("solo") is WorkersProfiles.SOLO_PROFILE, "the other modes are measured as they were"
     data = type("Workers", (), {"tool_uses": unprepared, "fitness_level": 100})()
     values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, FitnessOptions.LEVEL_STEP.key: 5, FitnessOptions.WARNINGS.key: True, ReviewingOptions.REVIEWER.key: False}
     assert fitness_lines("orchestrator", data, Settings(values)), "with the reviewer off a low score is told as today"
@@ -13206,22 +13185,13 @@ def test_the_orchestrator_is_scored_on_queues_kept_full_and_draining_and_the_bui
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import STEADY_QUEUES, WorkersProfiles
     from journal.models.support.queue_use import QueueUse
-    assert STEADY_QUEUES not in WorkersProfiles.BUILDER.measures and STEADY_QUEUES in WorkersProfiles.ORCHESTRATOR.measures, "only the orchestrator is scored on its queues"
+    assert STEADY_QUEUES in WorkersProfiles.ORCHESTRATOR.measures and WorkersProfiles.mode_profile("builder") is None, "only the orchestrator is scored on its queues"
     counts = lambda use: ToolUseCounts(queue_use=use)
     assert STEADY_QUEUES.closeness(counts(QueueUse())) is None, "with no worker that has merged, the measure is left out"
     empty = counts(QueueUse(counted=2, empty=1))
     assert STEADY_QUEUES.closeness(empty) == 0.5 and STEADY_QUEUES.gap(empty).advice == EMPTY_ADVICE, "an empty queue while tasks are open lowers the score and asks to queue more"
     piling = counts(QueueUse(counted=2, piling=2))
     assert STEADY_QUEUES.closeness(piling) == 0.0 and STEADY_QUEUES.gap(piling).advice == PILING_ADVICE, "a queue piling past what it drains lowers the score and asks to let it drain"
-
-
-def test_a_session_with_no_reports_and_no_queues_scores_as_it_did_before_the_new_measures(app: App):
-    from journal.features.workers.support.mode_profile import ModeProfile
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import FILE_EDIT_SHARE, RESEARCH_SHARE, WorkersProfiles
-    counts = ToolUseCounts(file_edits=6, handovers=4, research_count=5, subagent_dispatches=1, mode="builder", mode_uses=60)
-    before = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE)).scored(counts)
-    assert WorkersProfiles.BUILDER.scored(counts) == before, "a measure with no data is absent, so the score is unchanged"
 
 
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):

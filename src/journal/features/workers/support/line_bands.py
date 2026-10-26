@@ -12,9 +12,9 @@ class LineBands:
     """The one table of where each measure line speaks and which way it pushes, per mode: a line that asks for more handing out never shares a band with one that asks for less, and a line speaks only in its bands."""
 
     ROWS = (
-        LineBand("builder", "workers.builder_write_next", (LOW, NORMAL), DECREASE),
-        LineBand("builder", CLEAR_OLDEST, (HIGH,), DECREASE),
-        LineBand("builder", "workers.builder_take_in_first", (LOW, NORMAL, HIGH), DECREASE),
+        LineBand("builder", WorkersNudges.BUILDER_CODE_SHARE_LINE.key, (LOW, NORMAL), DECREASE),
+        LineBand("builder", WorkersNudges.BUILDER_QUEUE_LINE.key, (HIGH,), DECREASE),
+        LineBand("builder", WorkersNudges.BUILDER_WORKER_LINE.key, (LOW, NORMAL, HIGH), DECREASE),
         LineBand("orchestrator", CLEAR_OLDEST, (HIGH,), DECREASE),
         LineBand("orchestrator", "workers.orchestrator_check_worker", (NORMAL, HIGH), NEUTRAL),
         LineBand("orchestrator", "workers.orchestrator_hand_out", (LOW, NORMAL), INCREASE),
