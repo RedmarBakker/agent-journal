@@ -6786,6 +6786,11 @@ def test_an_output_is_read_by_its_number_whole_by_its_ends_or_in_part_and_listed
     script.write_text("wc -l | tr -d ' '\n")
     assert console.run(["reader", "add", "count", "--script", str(script), "--about", "how many lines"], AGENT).code == 0
     assert console.run(["output", "read", "1", "--reader", "count"], AGENT).text == "50\n", "a script reader is handed the output and prints what matters"
+    python_script = app.config.root / "forty.py"
+    python_script.write_text("#!/usr/bin/env python3\nimport sys\nprint(sum(1 for line in sys.stdin if line.startswith('line 4')))\n")
+    assert console.run(["reader", "add", "forty", "--script", str(python_script), "--about", "the lines in the forties"], AGENT).code == 0
+    assert (app.config.readers / "forty.sh").read_text().startswith("#!/usr/bin/env python3\n# the lines in the forties\n"), "the script's own #! line stays its first"
+    assert console.run(["output", "read", "1", "--reader", "forty"], AGENT).text == "11\n", "a python3 script reader runs under the interpreter its #! line names, not sh (line 20: import: command not found)"
     from journal.features.shell.support.output_views import OutputViews
     from journal.repositories.command_outputs import CommandOutputs
     watched = app.container.get(CommandOutputs).find(1).with_(watch_reader="count")

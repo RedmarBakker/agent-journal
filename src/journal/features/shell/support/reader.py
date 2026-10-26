@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -71,8 +72,17 @@ class Reader:
     def text(self) -> str:
         return "\n".join([f"# {self.subject}", self.pattern, *self.settings()]) + "\n"
 
+    # a script's own #! line stays its first, so the script runs under the interpreter it names; the reader's notes follow it
     def script_text(self, body: str) -> str:
-        return "".join(f"# {line}\n" for line in [self.subject, *self.settings()]) + body
+        notes = "".join(f"# {line}\n" for line in [self.subject, *self.settings()])
+        if not body.startswith("#!"):
+            return notes + body
+        interpreter_line, script_body = (body.split("\n", 1) + [""])[:2]
+        return f"{interpreter_line}\n{notes}{script_body}"
+
+    def script_command(self) -> list[str]:
+        first = Path(self.script).read_text().split("\n", 1)[0]
+        return [*shlex.split(first[2:]), self.script] if first.startswith("#!") else ["sh", self.script]
 
     def topic(self, line: str) -> str:
         if not self.topic_pattern:
@@ -121,7 +131,7 @@ class Reader:
 
     def script_lines(self, lines: list[str]) -> list[str]:
         try:
-            completed = subprocess.run(["sh", self.script], input="\n".join(lines) + "\n", env={**os.environ, STAGE_VARIABLE: self.stage}, capture_output=True, text=True, errors="replace", timeout=SCRIPT_SECONDS)
+            completed = subprocess.run(self.script_command(), input="\n".join(lines) + "\n", env={**os.environ, STAGE_VARIABLE: self.stage}, capture_output=True, text=True, errors="replace", timeout=SCRIPT_SECONDS)
         except subprocess.TimeoutExpired as late:
             raise Rejection(f"reader {self.name} took more than {SCRIPT_SECONDS} seconds") from late
         if completed.returncode != 0:
