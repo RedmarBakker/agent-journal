@@ -7,6 +7,8 @@ from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.process_check import ProcessCheck
 
+SHELL_START_SECONDS = 60
+
 
 class CommandOutputs(ScopedRepository[CommandOutput]):
     model = CommandOutput
@@ -106,12 +108,11 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def unannounced(self, session: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, ended=True, is_announced=False).order("id"))
 
-    @staticmethod
-    def is_running(folder: Path) -> bool:
+    def is_running(self, folder: Path) -> bool:
         if not folder.is_dir() or (folder / "done").is_file():
             return False
         if not (folder / "pid").is_file():
-            return True
+            return self.time_source.seconds() - folder.stat().st_mtime < SHELL_START_SECONDS
         return ProcessCheck.is_running_text((folder / "pid").read_text())
 
     def surplus(self, stored: int) -> list[CommandOutput]:

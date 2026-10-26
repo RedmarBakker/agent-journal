@@ -16971,6 +16971,28 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
 
+def test_a_run_whose_shell_never_started_stops_counting_as_running_after_a_minute_and_holds_no_restart(app: App, monkeypatch):
+    import os
+    from journal.features.shell.support.restart_queue import RestartQueue
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    sent = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: sent.append((environment_id, verb, fields.get("name"))))
+    monkeypatch.setattr(SupervisorLink, "hosting", lambda link: MAIN)
+    monkeypatch.setattr(SupervisorLink, "running", lambda link, environments: [e for e in environments if e.row_id == MAIN])
+    folder = app.config.root / "cut-run"
+    folder.mkdir()
+    (folder / "line").write_text("python3 scripts/suite.py -k x")
+    outputs = app.container.get(CommandOutputs)
+    with app.container.get(Scope).environment(MAIN):
+        output = outputs.save(CommandOutput(chain="cut-run", command="python3 scripts/suite.py -k x", session="s1", folder=str(folder)).backgrounded(), Actor.system())
+        assert [o.id for o in outputs.running(MAIN)] == [output.id], "a run whose shell has not started yet counts as running for its first minute"
+        before = timing.time() - 120
+        os.utime(folder, (before, before))
+        assert outputs.running(MAIN) == [], "a run with no shell process a minute after it began is not running"
+    assert app.container.get(RestartQueue).restart(MAIN, "") == [] and sent == [(MAIN, "restart", "journal")], "it never holds a restart"
+
+
 def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_brings_the_plain_words_reminder(app: App):
     from journal.features.sequences.shipped import INSTRUCTION_FILES_CHECK, PLAIN_WRITING, PLAN_BUILDING, UPDATE_WRITING
     from journal.repositories.agents import Agents
