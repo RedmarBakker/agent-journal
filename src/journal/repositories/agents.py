@@ -63,6 +63,9 @@ class Agents(ScopedRepository[Agent]):
     def unended(self) -> list[Agent]:
         return self.selected_globally(self.unended_query().order("id"))
 
+    def skill_debtors(self) -> list[Agent]:
+        return self.selected_globally(self.unended_query().filter_unequal("skills_due", ()).order("id"))
+
     def unended_scoped(self, environment_id: int) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id).order("id"))
 

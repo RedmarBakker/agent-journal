@@ -64,12 +64,13 @@ class SkillFiles:
 
     def published(self) -> list[PluginSkill]:
         texts = {path.parent.name: path.read_text() for path in sorted((self.config.root / HOMES[0]).glob(f"*/{SKILL_FILE}"))}
-        return [PluginSkill(name, "", "", plugin=self.publisher(text), published=text) for name, text in texts.items() if self.publisher(text)]
+        return [self.plugin_skill(name, text) for name, text in texts.items() if text.startswith(f"---{PLUGIN_STAMP}")]
 
     @staticmethod
-    def publisher(text: str) -> str:
-        head = f"---{PLUGIN_STAMP}"
-        return text[len(head):].split("\n", 1)[0] if text.startswith(head) else ""
+    def plugin_skill(name: str, text: str) -> PluginSkill:
+        front, _, body = text.removeprefix("---\n").partition("\n---\n")
+        keys = dict(line.split(": ", 1) for line in front.splitlines() if ": " in line)
+        return PluginSkill(name, keys.get("description", ""), body.strip(), plugin=keys["plugin"], published=text)
 
     def folder_skill(self, folder: str) -> Skill | None:
         return next((skill for skill in self.catalogue() if skill.folder == folder), None)
