@@ -1719,7 +1719,7 @@ shell.check_the_background  [shell]  output {{background_outputs}} still running
 shell.counting_reader_suggestion  [shell]  optional: no reader counts passed and failed for {{command}}. `journal reader add <name> --commands "{{command}}" --pattern '<failures>' --progress '<count of a total>' --finished '<summary>' --failed '<failures>' --label 'Running tests'`
 shell.drop_alias_time_limit  [shell]  the journal watches alias {{name}}, so it needs no time limit wrapper. edit it with journal alias edit {{name}} --line and this line: {{line}}
 shell.drop_line_time_limit  [shell]  {{command}} needs no time limit wrapper here
-shell.folder_change_refused  [shell]  cd {{target}} would move your shell for every later command. use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, an absolute path)
+shell.folder_change_refused  [shell]  cd {{target}} would move your shell for every later command. use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, a path relative to the project)
 shell.give_the_reader_a_topic  [shell]  {{command}} has run with {{count}} different arguments. give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names
 shell.guessed_a_reader  [shell]  reading it with {{reader}}: {{about}}. it stays when you do nothing more; write your own with `journal reader add <name> --commands "{{command}}" ...`
 shell.journal_command_piped_into_a_filter  [shell]  journal {{command}} piped into {{filter}} hides the lines the journal speaks. run it on its own and read all of its answer
@@ -1730,6 +1730,7 @@ shell.next_write_held_until_read_through_a_reader  [shell]  reader due for {{com
 shell.output_kept  [shell]  output {{n}}: {{counts}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts}}
 shell.outputs_ended  [shell]  {{outputs}}. `journal output read {{n}} --summary` says how
+shell.project_path_refused  [shell]  the command uses the absolute path of this project, so its card and its process show only the path. your shell is already in the project folder: run it relative to it, {{line}}
 shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines, more than the {{cap}} shown at each end. read it in parts with offset and limit, or grep for the line you need
 shell.reader_report_acted_on_next  [shell]  fix due for reader report {{reports}}: 0. your next write waits until the reader is written anew or the report dismissed
 shell.reader_report_dismissal_refuted  [shell]  your dismissal was checked against the run's output and found wrong, {{verdicts}}. write the reader anew with `journal reader add`: a refuted report is never dismissed again
@@ -1871,7 +1872,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-284 nudges
+285 nudges
 
 $ agent: journal worker list
 exit 0

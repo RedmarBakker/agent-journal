@@ -12656,6 +12656,26 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     assert aliases.matching(name="judge") == [] and not (app.config.readers / "verdicts.pattern").exists(), "the plugin's alias and reader go with it"
 
 
+def test_a_command_inside_the_project_is_run_relative_to_it_and_a_plugin_inside_it_gets_relative_alias_lines(app: App):
+    from journal.repositories.aliases import Aliases
+    root = str(app.config.root)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "t", "--start"], AGENT)
+    app.runtime().deferred.drain()
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"cd {root} && python3 -m pytest -q tests/test_engine.py"})
+    assert status == 409 and "absolute path of this project" in body["error"] and "run it relative to it, python3 -m pytest -q tests/test_engine.py" in body["error"], body
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"{root}/bin/commandments-release judge --changes"})
+    assert status == 409 and "run it relative to it, bin/commandments-release judge --changes" in body["error"], "a program inside the project is named relative to it, as the commandments alias was (message 67350)"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"ls {root}-other /tmp"})[0] == 200, "a path outside the project stays allowed"
+    folder = app.config.root / "tools" / "judging"
+    folder.mkdir(parents=True)
+    (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.0", "program": "run.py", "aliases": [{"name": "judge", "line": "bin/judge {args}"}]}))
+    (folder / "run.py").write_text("")
+    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
+    assert app.container.get(Aliases).single(name="judge").line == "tools/judging/bin/judge {args}", "a plugin inside the project gets alias lines relative to it, so its runs and cards show the command"
+
+
 def test_the_shim_runs_an_aliases_line_typed_at_a_terminal(app: App):
     import subprocess
     assert app.console().run(["alias", "add", "hello", "echo hi from"], USER).code == 0
@@ -12670,8 +12690,10 @@ def test_a_cd_that_would_move_the_shell_away_is_refused_and_a_subshell_or_a_fold
     bash = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
     status, body = bash("cd src/web && ls")
     assert status == 409 and "( cd src/web && … )" in body["error"], "the refusal names the subshell form"
-    for line in ("(cd src/web && ls)", "ls src/web", f"cd {app.config.root} && ls"):
+    for line in ("(cd src/web && ls)", "ls src/web"):
         assert bash(line)[0] == 200, f"{line} leaves the shell where it was"
+    status, body = bash(f"cd {app.config.root} && ls")
+    assert status == 409 and "run it relative to it, ls" in body["error"], "a cd into the project the shell already stands in is refused with the line written without it"
     assert bash("cd")[0] == 409, "a bare cd goes to the home folder"
 
 

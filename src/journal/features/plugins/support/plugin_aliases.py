@@ -21,12 +21,16 @@ class PluginAliases:
         folder = self.folders.folder(plugin)
         for alias in plugin.manifest.aliases:
             if not self.names.refusal(alias.name):
-                self.aliases.save(alias.row(folder, plugin.name), actor)
+                self.aliases.save(alias.row(self.line_folder(folder), plugin.name), actor)
         self.config.readers.mkdir(parents=True, exist_ok=True)
         for reader in sorted((folder / READERS).glob("*.pattern")):
             copy = self.config.readers / reader.name
             if not copy.exists() or self.is_stamped(copy, plugin):
                 copy.write_text(reader.read_text().rstrip("\n") + f"\n{STAMP}{plugin.name}\n")
+
+    # a plugin installed inside the project is named relative to it, so its alias line runs and shows without where the project lives
+    def line_folder(self, folder: Path) -> Path:
+        return folder.relative_to(self.config.root) if folder.is_relative_to(self.config.root) else folder
 
     def skipped(self, plugin: Plugin) -> set[str]:
         return plugin.manifest.alias_names() - {alias.name for alias in self.aliases.plugin_rows(plugin.name)}
