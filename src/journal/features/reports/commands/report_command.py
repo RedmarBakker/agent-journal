@@ -33,8 +33,8 @@ class ReportCommand(Command):
         creation.add_argument("title")
         creation.add_argument("--body", default="", help="the report, as markdown; ## headings are its sections")
         creation.add_argument("--file", default="", help="a file holding the body instead")
-        creation.add_argument("--part", action="store_true", help="a report still being written: its card says so until journal report ready")
-        self.verb(verbs, "ready", "say a report is written whole: its card changes from being written to ready").add_argument("n", type=int)
+        creation.add_argument("--part", action="store_true", help="this is a part; the report is being written until journal report ready")
+        self.verb(verbs, "ready", "mark a report as ready").add_argument("n", type=int)
         creation.add_argument("--about", default=[], nargs="*", help="the rows it is about, as plans:1 or tasks:12, apart by spaces or commas")
         display = self.verb(verbs, "show", "a report: its outline, then one section at a time")
         display.add_argument("n", type=int)
@@ -64,7 +64,7 @@ class ReportCommand(Command):
         return 0
 
     def ready(self, args: Namespace, caller: Caller) -> int:
-        report = self.reports.save(self.reports.find(args.n).written(False), caller.actor)
+        report = self.reports.save(self.reports.find(args.n).finished(), caller.actor)
         print(f"report {report.id} is ready: {report.title}")
         return 0
 

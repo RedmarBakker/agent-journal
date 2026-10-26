@@ -49,8 +49,8 @@ class Report(Scoped):
     def writing_status(self) -> str:
         return "Being written" if self.being_written else "Ready"
 
-    def written(self, in_parts: bool) -> "Report":
-        return self.with_(being_written=in_parts)
+    def finished(self) -> "Report":
+        return self.with_(being_written=False)
 
     def with_no_action_needed(self, reason: str) -> "Report":
         if not reason.strip():
