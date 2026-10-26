@@ -4,6 +4,7 @@ from pathlib import Path
 
 from journal.config import Config
 from journal.features.registry import Registry
+from journal.features.skills.support.plugin_skill import PluginSkill
 from journal.support.skill import Skill
 from journal.support.tool_call import ToolCall
 
@@ -14,7 +15,7 @@ PLUGIN_STAMP = "\nplugin: "
 
 
 class SkillFiles:
-    """Writes every feature's skill into the agents' skill folders, and knows each file's hash so a changed skill counts as not loaded."""
+    """Writes every feature's skill into the agents' skill folders, knows the skills the plugins published there beside them, and each file's hash so a changed skill counts as not loaded."""
 
     def __init__(self, config: Config, registry: Registry) -> None:
         self.config, self.registry = config, registry
@@ -58,8 +59,20 @@ class SkillFiles:
     def digest(self, skill: Skill) -> str:
         return hashlib.sha1(skill.text().encode()).hexdigest()[:12]
 
+    def catalogue(self) -> list[Skill]:
+        return [*self.registry.skills(), *self.published()]
+
+    def published(self) -> list[PluginSkill]:
+        texts = {path.parent.name: path.read_text() for path in sorted((self.config.root / HOMES[0]).glob(f"*/{SKILL_FILE}"))}
+        return [PluginSkill(name, "", "", plugin=self.publisher(text), published=text) for name, text in texts.items() if self.publisher(text)]
+
+    @staticmethod
+    def publisher(text: str) -> str:
+        head = f"---{PLUGIN_STAMP}"
+        return text[len(head):].split("\n", 1)[0] if text.startswith(head) else ""
+
     def folder_skill(self, folder: str) -> Skill | None:
-        return next((skill for skill in self.registry.skills() if skill.folder == folder), None)
+        return next((skill for skill in self.catalogue() if skill.folder == folder), None)
 
     def loaded_skills(self, call: ToolCall) -> list[Skill]:
         skills = [self.skill_read(path) for path in call.read_paths] + [self.folder_skill(call.skill_loaded)]
@@ -73,4 +86,4 @@ class SkillFiles:
         if read.name != SKILL_FILE:
             return None
         resolved = read.resolve()
-        return next((skill for skill in self.registry.skills() if any(resolved == self.path(skill, home).resolve() for home in HOMES)), None)
+        return next((skill for skill in self.catalogue() if any(resolved == self.path(skill, home).resolve() for home in HOMES)), None)

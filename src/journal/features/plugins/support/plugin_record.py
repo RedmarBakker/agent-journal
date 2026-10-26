@@ -7,7 +7,7 @@ CHANGES = {"created": "made", "updated": "changed", "deleted": "deleted"}
 
 
 class PluginRecord:
-    """What a plugin did in the journal, newest first: its holds and lines to the agent, the commands it ran, its faults, and every row it wrote, each with when."""
+    """What a plugin did in the journal, newest first: its holds and lines to the agent, the commands it ran, its faults and warnings, and every row it wrote, each with when."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries
@@ -27,5 +27,6 @@ class PluginRecord:
             "plugin_command": lambda: f"ran {data.get('command', '')}" + (f", which failed: {data.get('err', '')}" if data.get("code") else ""),
             "plugin_fault": lambda: f"faulted at {data.get('event', '')}: {data.get('fault', '')}",
             "plugin_unanswered": lambda: f"refused {data.get('event', '')} after the reply, too late to hold it: {data.get('reason', '')}",
+            "plugin_warning": lambda: f"warned: {data.get('warning', '')}",
         }.get(entry.kind)
         return RecordLine(time=time, kind=entry.kind.removeprefix("plugin_"), text=line_text(), ref="") if line_text else None

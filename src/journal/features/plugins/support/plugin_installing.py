@@ -135,9 +135,8 @@ class PluginInstalling:
             saved = self.plugins.save(upgraded.with_(hashes=self.hashes.digest(self.folders.folder(upgraded), upgraded.manifest)), actor)
             self.aliases.withdraw(plugin, actor)
             self.aliases.publish(saved, actor)
-            self.skills.withdraw(saved)
+            self.skills.renew(saved)
             if saved.enabled:
-                self.skills.publish(saved)
                 self.services.start(saved)
             return saved
 
@@ -190,13 +189,13 @@ class PluginInstalling:
 
     def disable(self, name: str, actor: Actor) -> Plugin:
         plugin = self.plugins.lookup(name)
-        self.skills.withdraw(plugin)
+        self.skills.retract(plugin)
         self.services.stop(plugin)
         return self.plugins.save(plugin.with_(enabled=False, is_user_disabled=True), actor)
 
     def remove(self, name: str, actor: Actor) -> None:
         plugin = self.plugins.lookup(name)
-        self.skills.withdraw(plugin)
+        self.skills.retract(plugin)
         self.aliases.withdraw(plugin, actor)
         self.services.stop(plugin)
         for check in self.checks.plugin_rows(plugin.name):

@@ -148,7 +148,8 @@ One line of JSON on its output, the last line counting; an empty output is `allo
 
 ```json
 {"v": 1, "answer": "refuse", "reason": "not on main", "tell": "",
- "cards": [{"kind": "sin", "key": "a.py", "label": "A sin in a.py"}], "commands": ["journal task list"]}
+ "cards": [{"kind": "sin", "key": "a.py", "label": "A sin in a.py"}], "commands": ["journal task list"],
+ "require_skills": ["commandments-php-absence"]}
 ```
 
 - `answer`: `allow`, `refuse` with a `reason`, or `tell` a line. An empty answer is `allow`. Only `tool_starting`, `idle` and
@@ -173,6 +174,13 @@ One line of JSON on its output, the last line counting; an empty output is `allo
   entry with its exit code. A row a plugin's command writes is heard by the other plugins, and a row their commands
   write in turn by none: past that one step the cut is recorded as `plugin_cut`, so two plugins never answer each
   other forever.
+- `require_skills`: ids of skills the plugin publishes from its manifest's `skills` folder, such as
+  `["commandments-php-absence"]`, that the agent must read. Allowed at any event the plugin hears, held or not, and applied
+  after the reply: each id the agent has not read at its current text since its last compaction is owed, so every tool
+  but a read of that skill's file, and a stop, waits until it is read, as for the journal's own skills. Send it every
+  time a skill is needed: an id already owed or already read changes nothing. An id the plugin does not publish changes
+  nothing and is written once as a `plugin_warning` in the plugin's record. An owed skill the plugin no longer publishes,
+  after it is switched off, removed or upgraded, is owed no longer.
 - What it says, its `reason`, `tell` and cards, reaches the agent and the chat with `[journal]` and `[!reply:` made plain
   text and every secret value masked.
 - An answer that does not parse is a fault: the event goes through and the fault is recorded. A fault is never a

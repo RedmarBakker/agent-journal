@@ -67,8 +67,11 @@ class Protocol:
         if not isinstance(raw, dict):
             raise PluginFault("its answer is not a JSON object")
         raw = {ANSWER_FIELDS.get(key, key): value for key, value in raw.items()}
+        skills = raw.get("require_skills", [])
+        if not isinstance(skills, list) or not all(isinstance(name, str) for name in skills):
+            raise PluginFault("its require_skills is not a list of skill ids")
         answer_fields = {f.name for f in fields(PluginAnswer)} - {"ignored"}
-        answer = PluginAnswer(**{**{key: value for key, value in raw.items() if key in answer_fields}, "ignored": tuple(sorted(set(raw) - answer_fields)), "cards": tuple(PluginCard.parsed(card) for card in raw.get("cards", ())), "commands": tuple(raw.get("commands", ()))})
+        answer = PluginAnswer(**{**{key: value for key, value in raw.items() if key in answer_fields}, "ignored": tuple(sorted(set(raw) - answer_fields)), "cards": tuple(PluginCard.parsed(card) for card in raw.get("cards", ())), "commands": tuple(raw.get("commands", ())), "require_skills": tuple(skills)})
         if answer.answer not in ANSWERS:
             raise PluginFault(f"it answered {answer.answer!r}; an answer is allow, refuse or tell")
         if answer.v != self.VERSION:
