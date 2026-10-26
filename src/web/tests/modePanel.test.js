@@ -93,9 +93,8 @@ test("hovering the Builder button shows the Auto toggle, which flips tasks.auto,
     save.mockRestore();
 });
 
-test("hovering the Builder button shows the handover budget warning the agent is told, while its lines since the last handover are under the budget", async () => {
+test("hovering the Builder button shows its settings and no warning line, even with lines written since the last handover", async () => {
     choose("main");
-    const warning = "you wrote 12 lines since your last handover, under the 50 one worker out is worth: write the next piece yourself";
     store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", handover_budget: {lines: 12, budget: 50}}];
     store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
     const host = document.createElement("div");
@@ -108,9 +107,7 @@ test("hovering the Builder button shows the handover budget warning the agent is
     builder.dispatchEvent(new MouseEvent("pointerover", {bubbles: true}));
     await nextTick();
     await nextTick();
-    expect(host.querySelector(".tooltip .tip-warning").textContent.trim()).toBe(warning);
-    store.agents = [{...store.agents[0], handover_budget: null}];
-    await nextTick();
+    expect(host.querySelector(".tooltip")).not.toBeNull();
     expect(host.querySelector(".tooltip .tip-warning")).toBeNull();
     app.unmount();
     host.remove();

@@ -1,5 +1,3 @@
-from journal.features.workers.support.handover_budget import HandoverBudget
-from journal.features.workers.workers_options import WorkersOptions
 import time
 from dataclasses import asdict
 
@@ -109,15 +107,8 @@ class AgentActivity:
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": self.load(agent),
-            "handover_budget": budget.as_data() if (budget := self.handover_budget(agent)) else None,
             **self.rolling(),
         }
-
-    def handover_budget(self, agent: Agent) -> HandoverBudget | None:
-        budget = self.settings.integer(WorkersOptions.BUILDER_HANDOVER_LINES)
-        if self.settings.option(WorkersOptions.MODE) != "builder" or budget <= 0 or not agent.consecutive_handovers or agent.handover_lines() >= budget:
-            return None
-        return HandoverBudget(agent.handover_lines(), budget)
 
     @staticmethod
     def load(agent: Agent) -> dict | None:
