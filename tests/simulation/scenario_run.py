@@ -5,6 +5,7 @@ from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.simulation.builder_policy import BuilderPolicy
 from tests.simulation.careless_policy import CarelessPolicy
+from tests.simulation.engine_events import EngineEvents
 from tests.simulation.main_agent import AGENT, MainAgent
 from tests.simulation.orchestrator_policy import OrchestratorPolicy
 from tests.simulation.scenario import Scenario
@@ -31,6 +32,7 @@ class ScenarioRun:
         agent = MainAgent(self.simulator, POLICIES[self.scenario.policy](), random.Random(self.seed), self.scenario.worker_seconds)
         user = UserActor(self.simulator, random.Random(self.seed + 1), self.scenario.user_messages_hourly, STEP_SECONDS)
         workers = WorkerActor(self.simulator)
+        engine = EngineEvents(self.simulator, random.Random(self.seed + 2), self.scenario.engine_events_hourly * STEP_SECONDS / 3600)
         for step in range(self.scenario.minutes * 60 // STEP_SECONDS):
             self.simulator.advance(STEP_SECONDS)
             second = (step + 1) * STEP_SECONDS
@@ -39,6 +41,9 @@ class ScenarioRun:
                 trace.append(TraceEntry(second, "user", "message", written.is_refused(), written.nudges))
             for number, seen in workers.finished(world):
                 trace.append(TraceEntry(second, f"worker {number}", "clock-out", seen.answer[0] != 0, seen.nudges))
+            happened = engine.maybe_event()
+            if happened is not None:
+                trace.append(TraceEntry(second, "engine", happened[0], happened[1].is_refused(), happened[1].nudges))
             action, seen = agent.act(world)
             trace.append(TraceEntry(second, "agent", action, seen.is_refused() or seen.answer[0] not in (0, 200), seen.nudges))
         return trace

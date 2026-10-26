@@ -16,7 +16,7 @@ from tests.replay import Frozen, differences
 from tests.replays_run import a_queue_runs_to_merge
 from tests.simulation.scenario import Scenario
 from tests.simulation.scenario_run import ScenarioRun
-from tests.simulation.scenarios import ALL, QUIET_BUILDER
+from tests.simulation.scenarios import ALL, ENGINE_MOMENTS, QUIET_BUILDER
 from tests.simulation.simulator import Simulator
 from tests.test_features import MAIN
 
@@ -96,3 +96,10 @@ def test_a_scripted_clash_sends_the_worker_back_and_a_third_in_a_row_is_named_to
         simulated.run(["clock-in"], Caller.worker("main", 1, "w1", "claude"))
     assert named.count("workers.branch_keeps_clashing") == 1, named
     assert simulated.observer.observe().skipped == 0, "no deferred work was skipped"
+
+
+def test_the_engines_own_moments_replay_from_their_seed(tmp_path, monkeypatch):
+    first = played(tmp_path / "first", monkeypatch, replace(ENGINE_MOMENTS, minutes=15), SEED)
+    second = played(tmp_path / "second", monkeypatch, replace(ENGINE_MOMENTS, minutes=15), SEED)
+    assert any(entry.actor == "engine" for entry in first) and first == second, "compactions, pauses, questions, restarts and approvals replay exactly from one seed"
+

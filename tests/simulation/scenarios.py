@@ -5,4 +5,5 @@ FLOODED_BUILDER = Scenario("a builder under a flood of messages", "builder", 30,
 ORCHESTRATOR = Scenario("an orchestrator with five tasks and three places", "orchestrator", 30, 5, 2, 600, "orchestrator")
 SOLO = Scenario("solo", "solo", 30, 3, 1, 600, "solo")
 CARELESS = Scenario("a careless agent", "builder", 20, 4, 4, 300, "careless")
-ALL = (QUIET_BUILDER, FLOODED_BUILDER, ORCHESTRATOR, SOLO, CARELESS)
+ENGINE_MOMENTS = Scenario("a builder through the engine's own moments", "builder", 30, 4, 2, 600, "builder", engine_events_hourly=40)
+ALL = (QUIET_BUILDER, FLOODED_BUILDER, ORCHESTRATOR, SOLO, CARELESS, ENGINE_MOMENTS)
