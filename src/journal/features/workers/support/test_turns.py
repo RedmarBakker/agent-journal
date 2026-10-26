@@ -25,6 +25,7 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 POLL_SECONDS = 0.2
 LAST_LINES = 10
@@ -36,7 +37,8 @@ class TestTurns:
 
     __test__ = False
 
-    def __init__(self, turns: TurnRows, runner: ShellRunner, branch: WorkerBranch, readers: Readers, settings: SettingRows, outputs: CommandOutputs, scope: Scope, workers: Workers, environments: Environments) -> None:
+    def __init__(self, turns: TurnRows, runner: ShellRunner, branch: WorkerBranch, readers: Readers, settings: SettingRows, outputs: CommandOutputs, scope: Scope, workers: Workers, environments: Environments, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.turns, self.runner, self.branch, self.readers, self.settings, self.outputs = turns, runner, branch, readers, settings, outputs
         self.scope, self.workers, self.environments = scope, workers, environments
         self.lock = threading.Lock()
@@ -71,8 +73,8 @@ class TestTurns:
         turn = self.open_turn(worker, ids, f"{self.command(folder)} {ids}", folder)
         if not self.waited(turn):
             raise Rejection("your test run was taken back before it ran: clock out again")
-        self.turns.save(self.turns.find(turn.id).with_run_event(time.time()), Actor.system())
-        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, time.time()))
+        self.turns.save(self.turns.find(turn.id).with_run_event(self.time_source.seconds()), Actor.system())
+        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, self.time_source.seconds()))
         limit.start()
         try:
             output, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id)
@@ -81,7 +83,7 @@ class TestTurns:
             self.recorded(turn, TestRunResult.printed(text, self.readers.reading(turn.command)))
         finally:
             limit.cancel()
-            self.turns.save(self.turns.find(turn.id).ended().with_run_event(time.time()), Actor.system())
+            self.turns.save(self.turns.find(turn.id).ended().with_run_event(self.time_source.seconds()), Actor.system())
         return self.turns.find(turn.id), self.result(turn, text)
 
     def proved(self, line: str, folder: str, caller: Caller, environment: int) -> tuple[int, str]:
@@ -90,7 +92,7 @@ class TestTurns:
         return code, "\n".join([line for line in text.splitlines() if not line.startswith(EXIT)][-LAST_LINES:])
 
     def whole_run(self, line: str, folder: str, caller: Caller, environment: int):
-        started = time.time()
+        started = self.time_source.seconds()
         text = b"".join(self.runner.run(ShellRequest(line=line, cwd=folder, shell="bash", environment=dict(os.environ)), caller, environment)).decode(errors="replace")
         output = next((row for row in self.outputs.folder_runs(folder) if row.creation_time.timestamp() >= started), None)
         moved = output is not None and not output.ended
@@ -121,12 +123,12 @@ class TestTurns:
                 open_runs = self.running()
                 free = [row for row in self.turns.waiting() if row.folder not in {run.folder for run in open_runs}]
                 if free and free[0].id == turn.id and len(open_runs) < self.budget():
-                    self.turns.save(self.turns.find(turn.id).started(time.time()), Actor.system())
+                    self.turns.save(self.turns.find(turn.id).started(self.time_source.seconds()), Actor.system())
                     return True
             time.sleep(POLL_SECONDS)
 
     def run_turn(self, turn: TestTurn, caller: Caller, environment: int) -> str:
-        started = time.time()
+        started = self.time_source.seconds()
         limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, started))
         limit.start()
         try:
@@ -151,7 +153,7 @@ class TestTurns:
     # a run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground
     def foreground_output(self, output, started: float):
         deadline = started + self.settings.integer(FOREGROUND_OPTION)
-        while output is not None and not output.ended and time.time() < deadline:
+        while output is not None and not output.ended and self.time_source.seconds() < deadline:
             time.sleep(POLL_SECONDS)
             output = self.outputs.find(output.row_id)
         return output
@@ -168,7 +170,7 @@ class TestTurns:
         later = self.turns.find(turn.id)
         self.turns.save(later.passed_run() if summary.is_passed() else later.failed_run(summary.failed), Actor.system())
         worker = self.workers.find(turn.worker)
-        self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, time.time()), Actor.system())
+        self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, self.time_source.seconds()), Actor.system())
 
     def run_output(self, turn: TestTurn, started: float):
         return next((row for row in self.outputs.folder_runs(turn.folder) if row.creation_time.timestamp() >= started), None)

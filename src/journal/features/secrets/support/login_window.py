@@ -13,6 +13,7 @@ from journal.repositories.mcp_servers import McpServers
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.secrets import Secrets
+from journal.support.time_source import TimeSource
 
 STORAGE = "--storage-state"
 BROWSER = "playwright"
@@ -21,7 +22,8 @@ BROWSER = "playwright"
 class LoginWindow:
     """A browser login taken on its own thread: the window opens on the user's computer, the journal continues, and when the user closes it the login is saved, merged, given to the agent's browser and the agents restarted to use it. A login that saved nothing is reported in a message."""
 
-    def __init__(self, logins: BrowserLogins, secrets: Secrets, servers: McpServers, installing: McpInstalling, messages: Messages, scope: Scope) -> None:
+    def __init__(self, logins: BrowserLogins, secrets: Secrets, servers: McpServers, installing: McpInstalling, messages: Messages, scope: Scope, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.logins, self.secrets, self.servers, self.installing, self.messages, self.scope = logins, secrets, servers, installing, messages, scope
 
     def open(self, secret: Secret, environment_id: int, actor: Actor) -> Secret:
@@ -29,7 +31,7 @@ class LoginWindow:
             raise Rejection(f"secret {secret.id}, {secret.title}, has no site address to log in to")
         if secret.login_started_at:
             return secret
-        opening = self.secrets.save(secret.with_(login_started_at=datetime.now(timezone.utc)), actor)
+        opening = self.secrets.save(secret.with_(login_started_at=self.time_source.moment()), actor)
         threading.Thread(target=self.claimed, args=(opening, environment_id), daemon=True).start()
         return opening
 
@@ -41,7 +43,7 @@ class LoginWindow:
             with self.scope.environment(environment_id):
                 self.messages.save(Message(author=Author.AGENT, text=f"The login to {secret.title} was not saved: {failed}"), Actor.system())
             return
-        self.secrets.save(self.secrets.find(secret.row_id).with_(login_started_at=None, session_at=datetime.now(timezone.utc), session_expires=self.logins.expires(saved, secret.url)), Actor.system())
+        self.secrets.save(self.secrets.find(secret.row_id).with_(login_started_at=None, session_at=self.time_source.moment(), session_expires=self.logins.expires(saved, secret.url)), Actor.system())
         self.supplied()
 
     def dropped(self, secret: Secret, actor: Actor) -> Secret:

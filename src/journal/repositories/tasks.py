@@ -232,7 +232,7 @@ class Tasks(ScopedRepository[Task]):
         if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, kind=WORKED_LINK):
             self.links.save(Link(source=holder, target=target, kind=WORKED_LINK), actor)
         if holder.type == WORKERS and not task.delegated:
-            self.save(task.delegate(datetime.now(timezone.utc)), actor)
+            self.save(task.delegate(self.time_source.moment()), actor)
         for link in self.links.all_matching(source=holder, target=target, kind=QUEUED_LINK):
             self.links.delete(link, actor)
 
@@ -241,7 +241,7 @@ class Tasks(ScopedRepository[Task]):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, or a started or paused one in your own hands, waits in a worker's queue")
         if not self.links.all_matching(source=worker, target=Ref.build(task), kind=QUEUED_LINK):
             self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
-        return self.save(task.delegate(datetime.now(timezone.utc)), actor)
+        return self.save(task.delegate(self.time_source.moment()), actor)
 
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
         queue_links = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
@@ -254,7 +254,7 @@ class Tasks(ScopedRepository[Task]):
             self.links.delete(link, actor)
         for queued in (task, *remaining):
             self.links.save(Link(source=worker, target=Ref.build(queued), kind=QUEUED_LINK), actor)
-        return task if task.delegated else self.save(task.delegate(datetime.now(timezone.utc)), actor)
+        return task if task.delegated else self.save(task.delegate(self.time_source.moment()), actor)
 
     def drop_holder(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):
@@ -310,7 +310,7 @@ class Tasks(ScopedRepository[Task]):
             self.links.delete(link, actor)
             for task in self.matching(id=link.target.id, delegated=True):
                 if not task.state.is_closed():
-                    self.save(task.released(datetime.now(timezone.utc).timestamp()), actor)
+                    self.save(task.released(self.time_source.moment().timestamp()), actor)
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]

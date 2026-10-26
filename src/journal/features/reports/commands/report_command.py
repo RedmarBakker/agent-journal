@@ -15,6 +15,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
 from journal.support.row_destination import RowDestination
+from journal.support.time_source import TimeSource
 
 ROW = re.compile(r"^[a-z_]+:\d+$")
 
@@ -23,7 +24,8 @@ class ReportCommand(Command):
     noun = "report"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS}
 
-    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, destination: RowDestination) -> None:
+    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, destination: RowDestination, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.reports, self.links, self.gathering, self.destination = reports, links, gathering, destination
 
     def arguments(self, verbs) -> None:
@@ -73,7 +75,7 @@ class ReportCommand(Command):
         return 0
 
     def changes(self, args: Namespace, caller: Caller) -> int:
-        end = datetime.now(timezone.utc)
+        end = self.time_source.moment()
         start = self.gathering.start(end)
         print(f"an update now covers {start:%Y-%m-%d %H:%M} to {end:%H:%M}:")
         print("\n".join(self.item_lines(tuple(item.as_data() for item in self.gathering.items(start, end)))) or "nothing happened in that time")
@@ -81,7 +83,7 @@ class ReportCommand(Command):
         return 0
 
     def recap(self, args: Namespace, caller: Caller) -> int:
-        end = datetime.now(timezone.utc)
+        end = self.time_source.moment()
         start = self.gathering.start(end)
         items = tuple(item.as_data() for item in self.gathering.items(start, end))
         report = self.reports.save(Report(kind=UPDATE, title=f"Update {end:%Y-%m-%d} at {end:%H.%M}", abstract=args.summary, items=items, start_at=start, end_at=end), caller.actor)

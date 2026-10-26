@@ -31,6 +31,7 @@ from journal.support.hook_kind import HookKind
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
 from journal.sync.environment_names import EnvironmentNames
+from journal.support.time_source import TimeSource
 
 
 GUARD_FAILED = "guard_failed"
@@ -40,7 +41,8 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the listeners that receive sent agents' events, the state machine alone, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
@@ -48,7 +50,7 @@ class Receiver:
         self.worker_hooks, self.checker_hooks = worker_hooks, checker_hooks
 
     def receive(self, raw_hook: Hook) -> Decision:
-        self.slow.begin(time.time())
+        self.slow.begin(self.time_source.seconds())
         hook = self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
@@ -98,7 +100,7 @@ class Receiver:
         recorded = {} if decision.allowed else {"refused": decision.reason}
         if not hook.started_ms:
             return recorded
-        elapsed = int(time.time() * 1000) - hook.started_ms
+        elapsed = int(self.time_source.seconds() * 1000) - hook.started_ms
         self.slow.measured(HOOK, f"/hooks/{hook.kind.value}", elapsed)
         boot_wait = {"boot_wait_ms": round(hook.boot_wait_seconds * 1000)} if hook.boot_wait_seconds else {}
         return {**recorded, "hook_ms": elapsed, **boot_wait}

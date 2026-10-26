@@ -6,6 +6,7 @@ from pathlib import Path
 from journal.config import Config
 from journal.http.files.project_entry import ProjectEntry
 from journal.http.files.project_file import ProjectFile
+from journal.support.time_source import TimeSource
 
 PAGE_FILES = 50
 HIDDEN = ("node_modules", "__pycache__")
@@ -14,15 +15,16 @@ HIDDEN = ("node_modules", "__pycache__")
 class ProjectFiles:
     """The project's files as the Files page reads them: a folder's entries, a file's text or bytes, its uncommitted diff, and a find by name. Nothing outside the project is ever read."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.root = config.root.resolve()
         self._branch = ("", 0.0)
 
     def branch(self) -> str:
         name, time = self._branch
-        if timing.time() - time > 5:
+        if self.time_source.seconds() - time > 5:
             finished = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=self.root, capture_output=True, text=True, timeout=5)
-            self._branch = (finished.stdout.strip() if finished.returncode == 0 else "", timing.time())
+            self._branch = (finished.stdout.strip() if finished.returncode == 0 else "", self.time_source.seconds())
         return self._branch[0]
 
     def folder(self, value: str) -> list[ProjectEntry]:

@@ -21,6 +21,7 @@ from journal.events.announcer import Announcer
 from journal.features.git.support.git_facts import GitFacts
 from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.support.decision import Decision
+from journal.support.time_source import TimeSource
 
 COMMIT = "commit"
 COMMIT_WINDOW_SECONDS = 60
@@ -33,7 +34,8 @@ class CommitDetection(AgentListener[ToolFinished]):
 
     blocking = True
 
-    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_task: NextOpenTask, entries: Entries, announcer: Announcer) -> None:
+    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_task: NextOpenTask, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.announcer = announcer
         self.config, self.console, self.environments, self.tasks, self.events = config, console, environments, tasks, events
         self.next_task, self.entries = next_task, entries
@@ -58,7 +60,7 @@ class CommitDetection(AgentListener[ToolFinished]):
         return self.commit(event, head.sha, head.body if self.is_agents(event, head) else "")
 
     def is_agents(self, event: ToolFinished, head: HeadCommit) -> bool:
-        if timing.time() - head.committed <= COMMIT_WINDOW_SECONDS:
+        if self.time_source.seconds() - head.committed <= COMMIT_WINDOW_SECONDS:
             return True
         starts = self.entries.tool_starts(event.session, last=RECENT_TOOL_STARTS)
         return any(part.text.startswith("git commit") for start in starts for part in start.recorded_call().parts)

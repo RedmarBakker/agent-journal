@@ -20,6 +20,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.secrets import Secrets
 from journal.repositories.workers import Workers
 from journal.support.secret_values import SecretValues
+from journal.support.time_source import TimeSource
 
 
 class SecretCommand(Command):
@@ -27,7 +28,8 @@ class SecretCommand(Command):
 
     noun = "secret"
 
-    def __init__(self, secrets: Secrets, values: SecretValues, messages: Messages, servers: McpServers, runner: SecretRun, workers: Workers, window: LoginWindow, scope: Scope) -> None:
+    def __init__(self, secrets: Secrets, values: SecretValues, messages: Messages, servers: McpServers, runner: SecretRun, workers: Workers, window: LoginWindow, scope: Scope, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.secrets, self.values, self.messages, self.servers, self.runner, self.workers, self.window, self.scope = secrets, values, messages, servers, runner, workers, window, scope
 
     def arguments(self, verbs) -> None:
@@ -76,7 +78,7 @@ class SecretCommand(Command):
         reaching = [server.name for server in self.servers.reaching(args.title)]
         if reaching:
             raise Rejection(f"{args.title} is reached through the MCP server {', '.join(reaching)} already: use its tools, and if they cannot do what you need, say what is missing in the chat")
-        secret = self.secrets.save(self.file(args.title, "", SecretKind.lookup(args.kind), caller).with_(url=args.url, questioned_at=datetime.now(timezone.utc)), caller.actor)
+        secret = self.secrets.save(self.file(args.title, "", SecretKind.lookup(args.kind), caller).with_(url=args.url, questioned_at=self.time_source.moment()), caller.actor)
         asking = f"Please log in to {secret.title} with the Log in button on the Secrets page; a browser opens on your computer, and the login is saved when you close it" if secret.kind == SecretKind.BROWSER_LOGIN else f"Please fill in the secret {secret.title} on the Secrets page, never in the chat"
         self.messages.save(Message(author=Author.AGENT, text=f"{asking}: I need it {args.why}.\n\nsecret {secret.id}"), caller.actor)
         print(f"secret {secret.id} asked for: the user fills it on the Secrets page")
@@ -128,7 +130,7 @@ class SecretCommand(Command):
         if not secret.helpers and caller.session is not None and self.workers.session_worker(caller.session):
             raise Rejection(f"secret {secret.id} is the main agent's alone: the user lets helpers have it on the Secrets page")
         code, output = self.runner.run(secret, [c for c in args.command if c != "--"], args.stdin, args.env)
-        self.secrets.save(secret.with_(used_at=datetime.now(timezone.utc)), caller.actor)
+        self.secrets.save(secret.with_(used_at=self.time_source.moment()), caller.actor)
         print(output.decode(errors="replace"), end="")
         return code
 
@@ -155,8 +157,8 @@ class SecretCommand(Command):
         return 0
 
     def waited(self, secret: Secret) -> int:
-        began = time.time()
-        while self.secrets.find(secret.row_id).login_started_at and time.time() - began < WINDOW_SECONDS:
+        began = self.time_source.seconds()
+        while self.secrets.find(secret.row_id).login_started_at and self.time_source.seconds() - began < WINDOW_SECONDS:
             time.sleep(1)
         finished = self.secrets.find(secret.row_id)
         print(f"logged in to {finished.title}" if finished.session_at else f"no login to {finished.title} is saved")
@@ -173,7 +175,7 @@ class SecretCommand(Command):
         return 0
 
     def delete(self, args: Namespace, caller: Caller) -> int:
-        secret = self.secrets.save(self.secrets.find(args.n).deleted(datetime.now(timezone.utc)), caller.actor)
+        secret = self.secrets.save(self.secrets.find(args.n).deleted(self.time_source.moment()), caller.actor)
         print(f"secret {secret.id} deleted; its values are kept thirty days, journal secret restore {secret.id} brings it back")
         return 0
 

@@ -16,6 +16,7 @@ from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import posted
 from journal.support.time_source import TimeSource
+from tests.observation import Observer
 
 RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
@@ -89,22 +90,15 @@ class Replay:
 
     def __init__(self, app, monkeypatch) -> None:
         """On a started journal, the lines typed to its agent caught."""
-        self.app, self.typed, self.steps, self.seen = app, [], [], 0
+        self.app, self.typed, self.steps = app, [], []
+        self.observer = Observer(app, self.typed)
         catch_typed(app, monkeypatch, self.typed)
         drive_the_clock(app, monkeypatch)
 
     def step(self, name: str, answer=None) -> None:
-        """Closes a step: the hook's answer when the step was a hook, the lines typed since the last step, the nudges said since, the environment's counts as they stand once the worker has settled, so a count raised after the reply is in, and what the count checks of the walks since read."""
-        keystrokes = list(self.typed)
-        with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
-            entries = list(reversed(self.app.container.get(Entries).kind_entries_scoped(1000)))
-            nudges = [e.data["key"] for e in entries if e.kind == "nudge"]
-            self.app.runtime().deferred.drain()
-            agent = self.app.container.get(Agents).current()
-        stack = [layer["state"] for layer in agent.stack] if agent else []
-        self.steps.append({"name": name, "answer": answer, "typed": keystrokes, "nudges": nudges[self.seen:], "stack": stack})
-        self.seen = len(nudges)
-        del self.typed[:len(keystrokes)]
+        """Closes a step: the hook's answer when the step was a hook, the lines typed since the last step, the nudges said since and the stack, read by the observer the simulator shares."""
+        seen = self.observer.observe(answer)
+        self.steps.append({"name": name, "answer": answer, "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
 
     def record(self) -> list[dict]:
         return list(self.steps)

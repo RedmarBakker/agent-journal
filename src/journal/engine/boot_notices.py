@@ -4,6 +4,7 @@ from journal.config import Config
 from journal.events.announcer import Announcer
 from journal.events.moments.boot_failed import BootFailed
 from journal.version import VERSION
+from journal.support.time_source import TimeSource
 
 BOOT_NOTICE = "boot_failures.txt"
 BOOT_SECONDS = "boot_seconds"
@@ -12,7 +13,8 @@ BOOT_SECONDS = "boot_seconds"
 class BootNotices:
     """What went wrong at boot, told once the journal answers: the faults of its own seeds, and the lines the supervisor left in a notice file when it started a boot again or took it back to the last version that booted."""
 
-    def __init__(self, config: Config, announcer: Announcer) -> None:
+    def __init__(self, config: Config, announcer: Announcer, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.config, self.announcer = config, announcer
         self._faults: list[str] = []
 
@@ -25,7 +27,7 @@ class BootNotices:
         notice.unlink(missing_ok=True)
         faults, self._faults = [*lines, *self._faults], []
         for text in faults:
-            self.announcer.announce(BootFailed(text=text, time=time.time()))
+            self.announcer.announce(BootFailed(text=text, time=self.time_source.seconds()))
 
     def write_boot_seconds(self, seconds: float) -> None:
         path = self.config.home / "runtime" / BOOT_SECONDS

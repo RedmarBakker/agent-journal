@@ -246,6 +246,7 @@ agent worker queue --help
 agent worker notify --help
 agent worker check --help
 agent worker merge --help
+agent worker rebase --help
 agent worker drain --help
 agent worker discard --help
 agent worker release --help

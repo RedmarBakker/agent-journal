@@ -23,6 +23,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.states.wait import Wait
 from journal.models.command_output import CommandOutput
 from journal.features.shell.shell_options import ShellOptions
+from journal.support.time_source import TimeSource
 
 TAIL_CHARACTERS = 2000
 PIPED = re.compile(r"(?<!\|)\|(?!\|)")
@@ -32,7 +33,8 @@ PART_START, PART_END, MOVED, ENDED = "running", "ran", "background", "ended"
 class ShellRecord:
     """What the runner records as a chain runs: each of the agent's own parts as it starts and ends with its status, time, output tail and the files it changed (the edits feature stores the changed lines from the tool's end), the move to the background with its card and event, the end of a moved chain, and whether an ended output is stored under its number or discarded."""
 
-    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue, announcer: Announcer) -> None:
+    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue, announcer: Announcer, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.announcer = announcer
         self.entries, self.log, self.outputs, self.views = entries, log, outputs, views
         self.events, self.agents, self.settings, self.scope, self.states = events, agents, settings, scope, states
@@ -64,7 +66,7 @@ class ShellRecord:
     def ended(self, chain: str, status: int, folder: Path, last: str, caller: Caller) -> None:
         self.record(caller, ENDED, {"chain": chain, "status": status, "file": str(folder), "last": last})
         agent = self.agents.current()
-        output, moment = self.outputs.chain_output(chain), datetime.now(timezone.utc).timestamp()
+        output, moment = self.outputs.chain_output(chain), self.time_source.moment().timestamp()
         summary = self.views.ended_summary(output.with_(ended=True, status=status))
         finish = output.wait_end(status, moment, summary) if agent is not None and self.wait_covers(output, agent) else output.ended_with(status, moment, summary)
         saved = self.outputs.save(finish, caller.actor)
@@ -73,7 +75,7 @@ class ShellRecord:
 
     def foreground_end(self, chain: str, status: int, caller: Caller) -> None:
         output = self.outputs.chain_output(chain)
-        self.outputs.save(output.ended_with(status, datetime.now(timezone.utc).timestamp()).unwatched(), caller.actor)
+        self.outputs.save(output.ended_with(status, self.time_source.moment().timestamp()).unwatched(), caller.actor)
 
     def wait_covers(self, output: CommandOutput, agent: Agent) -> bool:
         top = self.states.stack(agent).top() if agent.session == output.session else None
@@ -88,4 +90,4 @@ class ShellRecord:
         shutil.rmtree(output.folder, ignore_errors=True)
 
     def record(self, caller: Caller, kind: str, data: dict) -> None:
-        self.entries.save(Entry(environment_id=self.scope.id, kind=kind, actor=caller.actor, data={**data, "session": caller.session, "time": datetime.now(timezone.utc).timestamp()}), caller.actor)
+        self.entries.save(Entry(environment_id=self.scope.id, kind=kind, actor=caller.actor, data={**data, "session": caller.session, "time": self.time_source.moment().timestamp()}), caller.actor)

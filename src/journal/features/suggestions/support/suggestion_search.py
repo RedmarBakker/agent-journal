@@ -16,6 +16,7 @@ from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.repositories.scope import Scope
 from journal.features.suggestions.suggestions_options import SuggestionsOptions
+from journal.support.time_source import TimeSource
 
 MINUTE_SECONDS = 60
 
@@ -23,10 +24,11 @@ MINUTE_SECONDS = 60
 class SuggestionSearch:
     """Rounds of suggestions: the first a while after the journal started, then one each interval; a round makes each suggestion that applies and was never made, as one card in the chat the user answers once."""
 
-    def __init__(self, settings: SettingRows, suggestions: Suggestions, agents: Agents, environments: Environments, messages: Messages, scope: Scope, commandments: PackageCommandments) -> None:
+    def __init__(self, settings: SettingRows, suggestions: Suggestions, agents: Agents, environments: Environments, messages: Messages, scope: Scope, commandments: PackageCommandments, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.settings, self.suggestions, self.agents, self.environments, self.messages, self.scope = settings, suggestions, agents, environments, messages, scope
         self.suggesters: tuple[Suggester, ...] = (commandments,)
-        self.started_at = timing.time()
+        self.started_at = self.time_source.seconds()
         self.last_round: float | None = None
 
     def tick(self, time: float) -> None:

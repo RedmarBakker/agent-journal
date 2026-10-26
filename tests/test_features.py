@@ -61,6 +61,7 @@ from journal.features.briefing.briefing_options import BriefingOptions
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.time_source import TimeSource
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -2159,12 +2160,8 @@ def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_sched
         hook(app, "UserPromptSubmit", prompt=prompt)
     app.runtime().deferred.drain()
 
-    class HalfAnHourOn(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.now(tz) + timedelta(minutes=30)
-
-    monkeypatch.setattr(recording, "datetime", HalfAnHourOn)
+    from journal.support.time_source import TimeSource
+    monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", (datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
     hook(app, "UserPromptSubmit", prompt=check)
     app.runtime().deferred.drain()
     messages = app.container.get(Messages)
@@ -3767,6 +3764,9 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
     building = next(s for s in app.container.get(Sequences).all() if s.title == "Building a plan")
     shown = next(r for r in api("GET", "sequences")[1]["rows"] if r["id"] == building.id)
     assert shown["trigger_event"] == "plan.created", "the page is told a new plan starts it, as the engine does"
+    assert api("POST", f"sequences/{building.id}/starts", {"trigger_event": ""})[0] != 200, "a shipped sequence is locked"
+    app.console().run(["sequence", "create", "Ship it", "--steps", "bump | tag", "--starts-on", "plan.created"], USER)
+    building = next(s for s in app.container.get(Sequences).all() if s.title == "Ship it")
     assert api("POST", f"sequences/{building.id}/starts", {"trigger_event": ""})[0] == 200 and app.container.get(Sequences).find(building.id).trigger_event == ""
     status, refused = api("POST", f"sequences/{building.id}/starts", {"trigger_event": "plan.approved"})
     assert status != 200 and "none of them" in json.dumps(refused), "only a created row or a trigger starts a sequence"
@@ -3776,13 +3776,12 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
     started_by = triggers.starting("Writing an update")[0]
     assert api("GET", f"sequences?ids={update.id}")[1]["rows"][0]["trigger_ids"] == [started_by.id], "the page is told the update starts on its words"
     assert "tldr" in started_by.phrases and "check agents.md" in triggers.starting("Checking the instruction files")[0].phrases, "version 3's worded sequences start on their words"
-    api("POST", f"sequences/{update.id}/starts", {"trigger_event": ""})
-    assert triggers.starting("Writing an update") == [], "by hand, the trigger no longer starts it"
+    assert api("POST", f"sequences/{update.id}/starts", {"trigger_event": ""})[0] != 200 and triggers.starting("Writing an update") == [started_by], "a shipped sequence keeps its trigger: it is locked"
     from journal.models.trigger import Trigger
     from journal.models.trigger_action import TriggerAction
     plan_words = triggers.save(Trigger(phrases=("plan it",), action=TriggerAction.NUDGE, text="say something"), Actor.user(1))
     api("POST", f"sequences/{building.id}/starts", {"trigger_event": f"trigger:{plan_words.id}"})
-    assert [t.id for t in triggers.starting("Building a plan")] == [plan_words.id] and app.container.get(Sequences).find(building.id).trigger_event == "", "a trigger picked on the page starts the sequence"
+    assert [t.id for t in triggers.starting("Ship it")] == [plan_words.id] and app.container.get(Sequences).find(building.id).trigger_event == "", "a trigger picked on the page starts the sequence"
 
 
 def test_creating_a_plan_starts_the_shipped_building_a_plan_sequence(app: App, monkeypatch):
@@ -4217,7 +4216,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
         def save(self, row, actor):
             return row
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), Crew(), app.container.get(Environments), app.container.get(TimeSource))
 
     def ask(number):
         with app.container.get(Scope).environment(1):
@@ -4375,7 +4374,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -4477,7 +4476,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     def fresh():
         started.clear(), gates.clear(), results.clear(), stops.clear()
         gates.update({n: threading.Event() for n in range(1, 5)})
-        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments))
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments), app.container.get(TimeSource))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -4569,7 +4568,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
         (folders[name] / "tests").mkdir(parents=True)
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     settings.set(WorkersOptions.TEST_RUNS.key, 3, Actor.user(1))
     results = {}
 
@@ -4645,7 +4644,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             going.pop()
             yield outcome
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
     settings.set(WorkersOptions.TEST_ID_LIMIT.key, 2, Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
@@ -5610,8 +5609,10 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     plugins.save(Plugin(name="lint", source=str(folder), linked=True, manifest=PluginManifest(name="lint")), Actor.user(1))
     now = timing.time()
 
+    from journal.support.time_source import TimeSource
+
     def tick(after: float) -> list[str]:
-        monkeypatch.setattr(Clock, "time", lambda self: now + after)
+        monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", now + after)
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=now + after, silence_seconds=10.0))
         app.runtime().deferred.drain()
         return [line for line in keystrokes if "plugin lint" in line]
@@ -7979,6 +7980,8 @@ def test_a_workers_merge_never_touches_the_users_work_and_says_what_stood_in_its
     commit("shared.py", "A = 3\n")
     line_text = branch.merge(worker)
     assert "conflict in shared.py" in line_text and (root / "shared.py").read_text() == "A = 3\n", "a conflict is named and nothing is left half merged"
+    assert "a rebase stopped on conflicts in shared.py" in branch.merge(worker), "the worker's worktree waits in its stopped rebase for the worker to fix it"
+    git("-C", str(tree), "rebase", "--abort")
     git("checkout", "-q", "--detach")
     assert "the project is on no branch, a detached head" in branch.merge(worker)
 
@@ -10224,10 +10227,8 @@ def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_st
     console.run(["proof", "1", "parser.py:30, test_reads_all passes"], lovelace)
     folder = app.container.get(WorkerBranch).place(worker)
     (folder / "parser.py").write_text("x = 1\n")
-    assert "uncommitted files" in clock_out().error and "parser.py" in clock_out().error, "refused while files are uncommitted, naming them"
-    subprocess.run(["git", "add", "parser.py"], cwd=folder, capture_output=True, timeout=30)
-    subprocess.run(["git", "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "parser"], cwd=folder, capture_output=True, timeout=30)
-    assert clock_out().code == 0, "with each point proved and nothing uncommitted, the worker clocks out"
+    assert clock_out().code == 0, "with each point proved, the worker clocks out and the journal commits its file"
+    assert subprocess.run(["git", "status", "--porcelain"], cwd=folder, capture_output=True, text=True, timeout=30).stdout == "", "nothing is left uncommitted"
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Workers).find(1).state == WorkerState.DELIVERED
     shown = console.run(["task", "show", "1"], AGENT).text
@@ -17087,6 +17088,7 @@ def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_
     edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
     said = told + json.dumps(edit()[1]) + " ".join(keystrokes)
     assert "plan 1's reviewers are all back" in said, "the agent is told to put the review into the plan"
+    assert console.run(["sequence", "follow"], AGENT).code == 0, "the sequence that applies the reviews started, and its step is taken up"
     statuses = [edit()[0] for _ in range(8)]
     held = edit()
     assert statuses == [200] * 8 and held[0] == 409 and "your writes wait until plan 1 is readied" in held[1]["error"], (statuses, held)

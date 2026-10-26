@@ -8,12 +8,14 @@ from journal.models.worker import Worker
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 
 
 class WorkerRebase:
     """The journal rebases workers' worktrees onto the project's branch on the agent's order, never the worker: one out on a task rebases at its next clock-out, any other at once; with force a running worker is rebased at once, its writes held while the journal stashes its changes, rebases and takes them back; a clash goes back to the worker to fix, and each rebase is one mark in the chat."""
 
-    def __init__(self, workers: Workers, tasks: Tasks, branch: WorkerBranch, actions: WorkerActions, clashes: ClashReturn) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, branch: WorkerBranch, actions: WorkerActions, clashes: ClashReturn, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.workers, self.tasks, self.branch, self.actions, self.clashes = workers, tasks, branch, actions, clashes
 
     def rebase(self, worker: Worker, actor: Actor) -> str:
@@ -31,7 +33,7 @@ class WorkerRebase:
             heads = self.branch.project_heads(worker)
         finally:
             self.workers.save(self.workers.find(worker.id).with_(edit_lock=False), actor)
-        self.workers.save(self.workers.find(worker.id).rebased(self.outcome(heads, clashing), time.time()), actor)
+        self.workers.save(self.workers.find(worker.id).rebased(self.outcome(heads, clashing), self.time_source.seconds()), actor)
         return f"worker {worker.id}, {worker.name}: {self.outcome(heads, clashing)}" + self.delivery(worker, self.worker_line(heads, clashing), actor)
 
     def delivery(self, worker: Worker, line: str, actor: Actor) -> str:
@@ -44,7 +46,7 @@ class WorkerRebase:
     def resting_rebase(self, worker: Worker, actor: Actor) -> str:
         clashing = self.branch.rebased_onto_branch(worker)
         outcome = self.outcome(self.branch.project_heads(worker), clashing)
-        self.workers.save(self.workers.find(worker.id).rebased(outcome, time.time()), actor)
+        self.workers.save(self.workers.find(worker.id).rebased(outcome, self.time_source.seconds()), actor)
         if clashing:
             self.clashes.send(self.workers.find(worker.id), clashing)
         return f"worker {worker.id}, {worker.name}: {outcome}"

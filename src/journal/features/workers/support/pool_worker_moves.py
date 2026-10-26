@@ -9,6 +9,7 @@ from sync_server.device_ask_request import DeviceAskRequest
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.sync.hosts import Hosts
+from journal.support.time_source import TimeSource
 
 READY = "worker_ready"
 DELIVERED = "worker_delivered"
@@ -24,7 +25,8 @@ CLEANUP = "worker_cleanup"
 class PoolWorkerMoves:
     """On a machine running a pool worker for another journal: whether a worker's moves belong to another journal, the host of its environment, the request that asks that journal to make one, so its events fire where its dispatcher waits, on the dispatching journal the request that asks the machine running it to make a send-back or a word, the clearing of a pool worker that is done with, its branches on origin deleted and its machine instructed to drop its worktree, and the end of its pool job here, which frees the slot and tells the team server the request is done."""
 
-    def __init__(self, hosts: Hosts, environments: Environments, jobs: PoolJobs, link: TeamServerLink, account: TeamAccount, branch: WorkerBranch) -> None:
+    def __init__(self, hosts: Hosts, environments: Environments, jobs: PoolJobs, link: TeamServerLink, account: TeamAccount, branch: WorkerBranch, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.hosts, self.environments, self.jobs, self.link, self.account, self.branch = hosts, environments, jobs, link, account, branch
 
     def is_remote(self, worker: Worker) -> bool:
@@ -49,7 +51,7 @@ class PoolWorkerMoves:
 
     def ended(self, worker: Worker) -> None:
         for job in self.jobs.all_matching(worker_id=worker.id, state=PoolJobState.STARTED):
-            self.jobs.save(job.finished(time.time()), Actor.system())
+            self.jobs.save(job.finished(self.time_source.seconds()), Actor.system())
             self.link.finish_host_request(job.request_id)
 
     def ask(self, worker: Worker, kind: str, body: dict, actor: Actor) -> None:

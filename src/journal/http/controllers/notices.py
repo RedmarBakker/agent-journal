@@ -8,6 +8,7 @@ from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.notice import Notice
 from journal.repositories.notices import Notices
+from journal.support.time_source import TimeSource
 
 
 class NoticeController(Controller[Notice]):
@@ -16,7 +17,8 @@ class NoticeController(Controller[Notice]):
     repository: Notices
     page_rows = SHORT_PAGE_ROWS
 
-    def __init__(self, notices: Notices) -> None:
+    def __init__(self, notices: Notices, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.repository = notices
 
     def open_rows(self, query: Query) -> Query:
@@ -30,4 +32,4 @@ class NoticeController(Controller[Notice]):
 
     def close(self, request: Request) -> Response:
         notice = self.repository.find(request.number("id"))
-        return Response.json(self.repository.save(notice.closed(datetime.now(timezone.utc)), request.actor))
+        return Response.json(self.repository.save(notice.closed(self.time_source.moment()), request.actor))

@@ -8,6 +8,7 @@ from journal.config import Config
 from journal.features.updates.support.update_pause import UpdatePause
 from journal.support.rejection import Rejection
 from journal.support.process_check import ProcessCheck
+from journal.support.time_source import TimeSource
 
 FIRST_STEP = "Installing the new version"
 
@@ -15,17 +16,18 @@ FIRST_STEP = "Installing the new version"
 class UpdateCard:
     """The marker file an update keeps while it runs: no second update starts beside it, the viewer's cover stays up through the restart while the process that runs it lives, and the journal that comes up after it knows how it ended."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.path = config.home / "runtime" / "updating.json"
 
     def claim(self, previous: str, destination: str) -> None:
         blocked = self.running()
-        if blocked is not None and not blocked.is_stale(timing.time()):
+        if blocked is not None and not blocked.is_stale(self.time_source.seconds()):
             raise Rejection(f"an update to {blocked.target} is under way since {timing.strftime('%H:%M', timing.localtime(blocked.time))}")
         self.begin(previous, destination)
 
     def begin(self, previous: str, destination: str) -> None:
-        self.write(UpdatePause(previous, destination, FIRST_STEP, timing.time(), os.getpid()))
+        self.write(UpdatePause(previous, destination, FIRST_STEP, self.time_source.seconds(), os.getpid()))
 
     def step(self, step: str) -> None:
         blocked = self.paused()

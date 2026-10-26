@@ -14,12 +14,14 @@ from journal.repositories.tasks import WORKERS, Tasks
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.support.orchestrator_mode import OrchestratorMode
+from journal.support.time_source import TimeSource
 
 
 class AdvancePlan(Listener[TaskClosed]):
     """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. For each started plan the closed task is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in orchestrator mode, whose open tasks wait for workers, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
-    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, settings: SettingRows, testing: PhaseTesting, orchestrator: OrchestratorMode) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, settings: SettingRows, testing: PhaseTesting, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.orchestrator = orchestrator
         self.plans, self.tasks, self.agents, self.settings, self.testing = plans, tasks, agents, settings, testing
 
@@ -27,7 +29,7 @@ class AdvancePlan(Listener[TaskClosed]):
         task = self.tasks.find(event.task_id)
         if not task.is_closed():
             return
-        time, actor = datetime.now(timezone.utc), Actor.parse(event.actor)
+        time, actor = self.time_source.moment(), Actor.parse(event.actor)
         for plan in self.plans.finished_plans(task):
             self.plans.save(plan.finished(time.timestamp()), actor)
         for plan in self.plans.started_plans(task):

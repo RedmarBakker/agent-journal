@@ -41,6 +41,7 @@ from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
 from journal.features.workers.support.fitness_point import FitnessPoint
 from journal.features.workers.support.fitness_scoring import FitnessScoring
+from journal.support.time_source import TimeSource
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
 HISTORY_ENTRIES = 5
@@ -55,7 +56,8 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
         self.jobs, self.numbers, self.registry, self.settings, self.scoring = jobs, numbers, registry, settings, scoring
 
@@ -132,7 +134,7 @@ class AgentActivity:
         return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines), "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     def timeline(self, session: str) -> list[dict]:
-        start_at = time.time() - TIMELINE_HOURS * 3600
+        start_at = self.time_source.seconds() - TIMELINE_HOURS * 3600
         points = [FitnessPoint.parsed(entry.data) for entry in reversed(self.entries.session_kind_newest(session, FitnessPoint.KIND, TIMELINE_POINTS))]
         return [point.shown() for point in points if point.scored_at >= start_at]
 
@@ -146,7 +148,7 @@ class AgentActivity:
         return {**averages, "points_average": self.numbers.rolling_points(), "point_parts": self.numbers.rolling_point_parts()}
 
     def scheduled(self, agent: Agent) -> list[dict]:
-        moment = time.time()
+        moment = self.time_source.seconds()
         return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if agent.state != ENDED else []
 
     @staticmethod

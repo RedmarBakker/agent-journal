@@ -6,12 +6,14 @@ from journal.support.actor import Actor
 from journal.models.support.ref import Ref
 from journal.repositories.plans import Plans
 from journal.repositories.tasks import Tasks
+from journal.support.time_source import TimeSource
 
 
 class ClearPlanWaits(Listener[Updated]):
     """A question answered, a task closed or a check that passed after being waited on opens the plans blocked on it by a link, once nothing else blocks them, and the running agent is informed."""
 
-    def __init__(self, plans: Plans, tasks: Tasks) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.plans, self.tasks = plans, tasks
 
     def handle(self, event: Updated) -> None:
@@ -21,4 +23,4 @@ class ClearPlanWaits(Listener[Updated]):
         for plan in self.plans.waiting_plans(event.model):
             if self.tasks.open_waits(plan):
                 continue
-            self.plans.save(plan.unblocked(f"{ref.type[:-1]} {ref.id} came", datetime.now(timezone.utc).timestamp()), Actor.system())
+            self.plans.save(plan.unblocked(f"{ref.type[:-1]} {ref.id} came", self.time_source.moment().timestamp()), Actor.system())

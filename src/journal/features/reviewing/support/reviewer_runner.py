@@ -14,6 +14,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 
 REVIEWER_SECONDS = 1200
 
@@ -23,8 +24,8 @@ class ReviewerRunner(HelperRunner[Reviewer]):
 
     seconds = REVIEWER_SECONDS
 
-    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, reviewers: Reviewers, environments: Environments, agents: Agents, scope: Scope, workers: Workers, tasks: Tasks, links: ReviewLinks) -> None:
-        super().__init__(config, providers, setup, reviewers, environments, agents, scope)
+    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, reviewers: Reviewers, environments: Environments, agents: Agents, scope: Scope, workers: Workers, tasks: Tasks, links: ReviewLinks, time_source: TimeSource) -> None:
+        super().__init__(config, providers, setup, reviewers, environments, agents, scope, time_source)
         self.workers, self.tasks, self.links = workers, tasks, links
 
     def ended(self, reviewer: Reviewer) -> None:
@@ -39,4 +40,4 @@ class ReviewerRunner(HelperRunner[Reviewer]):
     def return_work(self, reviewer: Reviewer) -> None:
         worker = self.workers.find(self.links.worker(reviewer).id)
         if worker.review_pending:
-            self.workers.save(worker.review_failed(time.time(), self.tasks.last_task_id(Ref.build(worker))), Actor.system())
+            self.workers.save(worker.review_failed(self.time_source.seconds(), self.tasks.last_task_id(Ref.build(worker))), Actor.system())

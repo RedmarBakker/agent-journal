@@ -41,12 +41,12 @@ class Plans(ScopedRepository[Plan]):
         return self.save(plan.approved(self._time().timestamp(), actor.is_user()), actor)
 
     def cancel(self, plan: Plan, actor: Actor) -> list[Task]:
-        self.save(plan.cancelled(datetime.now(timezone.utc).timestamp(), actor.is_user()), actor)
+        self.save(plan.cancelled(self.time_source.moment().timestamp(), actor.is_user()), actor)
         cancelled = []
         for task in self.plan_tasks(plan):
             if task.is_closed() or self.is_shared(task, plan):
                 continue
-            cancelled.append(self.tasks.save(task.cancelled(datetime.now(timezone.utc), f"its plan {plan.id} was cancelled"), actor))
+            cancelled.append(self.tasks.save(task.cancelled(self.time_source.moment(), f"its plan {plan.id} was cancelled"), actor))
         return cancelled
 
     def is_shared(self, task: Task, plan: Plan) -> bool:
@@ -234,7 +234,7 @@ class Plans(ScopedRepository[Plan]):
         return max(((task.completed_at or task.update_time).timestamp() for task in self.phase_tasks(phase)), default=0.0)
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
-        time = datetime.now(timezone.utc)
+        time = self.time_source.moment()
         task = self.resumable(plan)
         if task is None or self.is_complete(plan):
             return self.opened(plan, actor)
@@ -245,14 +245,14 @@ class Plans(ScopedRepository[Plan]):
         return started
 
     def opened(self, plan: Plan, actor: Actor) -> Plan:
-        time = datetime.now(timezone.utc).timestamp()
+        time = self.time_source.moment().timestamp()
         return self.save(plan.finished(time) if self.is_complete(plan) else plan.started_without_task(time), actor)
 
     def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
-        time = datetime.now(timezone.utc)
+        time = self.time_source.moment()
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
             self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
         return self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)

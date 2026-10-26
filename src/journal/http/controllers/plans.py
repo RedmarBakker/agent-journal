@@ -19,6 +19,7 @@ from journal.models.task import Task
 from journal.repositories.links import Links
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.tasks import Tasks
+from journal.support.time_source import TimeSource
 
 CLOSED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed())
 
@@ -28,7 +29,8 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
         self.plan_testing = testing
 
@@ -70,7 +72,7 @@ class PlanController(Controller[Plan]):
         return self.answered(self.repository.postpone(self.repository.find(request.number("id")), request.actor))
 
     def finish(self, request: Request) -> Response:
-        return self.moved(request, lambda plan: plan.finished(datetime.now(timezone.utc).timestamp()))
+        return self.moved(request, lambda plan: plan.finished(self.time_source.moment().timestamp()))
 
     def testing(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))

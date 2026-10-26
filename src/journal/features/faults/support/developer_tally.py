@@ -6,6 +6,7 @@ from journal.models.support.request_loads import RequestLoads
 from journal.models.timing import Timing
 from journal.repositories.setting_rows import SettingRows
 from journal.support.stage_times import StageTimes
+from journal.support.time_source import TimeSource
 
 STAGES_PREFIX = "developer.stages."
 LOG_ROWS = 1000
@@ -20,7 +21,8 @@ LOG_SECONDS = 60 * 60
 class DeveloperTally:
     """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, the rolling log of the newest thousand timings within the last hour, and the newest 250 timings of each hook kind and each route within the last fifteen minutes, whose averages are averaged so a frequent cheap one counts as much as a rare dear one."""
 
-    def __init__(self, stages: StageTimes, settings: SettingRows) -> None:
+    def __init__(self, stages: StageTimes, settings: SettingRows, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.stages, self.settings = stages, settings
         self._lock = threading.Lock()
         self._numbers: dict[str, int] = {}
@@ -53,7 +55,7 @@ class DeveloperTally:
     def logged(self, timing: Timing) -> None:
         with self._lock:
             self._log.append(timing)
-            start = time.time() - LOG_SECONDS
+            start = self.time_source.seconds() - LOG_SECONDS
             self._log[:] = [row for row in self._log[-LOG_ROWS:] if row.time >= start]
 
     def series(self, prefix: str) -> dict[str, int]:

@@ -12,12 +12,14 @@ from journal.support.rejection import Rejection
 from journal.repositories.scope import Scope
 from journal.repositories.secrets import Secrets
 from journal.support.secret_values import SecretValues
+from journal.support.time_source import TimeSource
 
 
 class SecretController(Controller[Secret]):
     """What the Secrets page does to a secret: make it, change it, fill a value, delete, restore, and log in or stop a login. A value goes straight to the values file and never into the row, which is all the page ever reads."""
 
-    def __init__(self, secrets: Secrets, values: SecretValues, window: LoginWindow, scope: Scope) -> None:
+    def __init__(self, secrets: Secrets, values: SecretValues, window: LoginWindow, scope: Scope, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.repository, self.values, self.window, self.scope = secrets, values, window, scope
 
     def open_rows(self, query: Query) -> Query:
@@ -49,7 +51,7 @@ class SecretController(Controller[Secret]):
         return Response.json(self.repository.save(secret.is_filled(field), request.actor))
 
     def delete(self, request: Request) -> Response:
-        return Response.json(self.repository.save(self.repository.find(request.number("id")).deleted(datetime.now(timezone.utc)), request.actor))
+        return Response.json(self.repository.save(self.repository.find(request.number("id")).deleted(self.time_source.moment()), request.actor))
 
     def restore(self, request: Request) -> Response:
         return Response.json(self.repository.save(self.repository.find(request.number("id")).restored(), request.actor))

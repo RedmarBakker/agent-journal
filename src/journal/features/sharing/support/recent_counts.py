@@ -1,5 +1,6 @@
 import threading
 import time as timing
+from journal.support.time_source import TimeSource
 
 
 class RecentCounts:
@@ -8,12 +9,13 @@ class RecentCounts:
     MAXIMUM_COUNT = 0
     WINDOW_SECONDS = 0
 
-    def __init__(self) -> None:
+    def __init__(self, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.lock = threading.Lock()
         self.tries: dict[str, list[float]] = {}
 
     def recent(self, key: str) -> list[float]:
-        start = timing.time() - self.WINDOW_SECONDS
+        start = self.time_source.seconds() - self.WINDOW_SECONDS
         return [time for time in self.tries.get(key, []) if time > start]
 
     def locked(self, key: str) -> bool:
@@ -22,4 +24,4 @@ class RecentCounts:
 
     def count(self, key: str) -> None:
         with self.lock:
-            self.tries[key] = [*self.recent(key), timing.time()]
+            self.tries[key] = [*self.recent(key), self.time_source.seconds()]

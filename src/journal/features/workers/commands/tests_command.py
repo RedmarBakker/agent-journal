@@ -15,6 +15,7 @@ from journal.repositories.test_turns import TestTurns as TurnRows
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 # how far back the counts of passed and failed runs reach
 COUNTED_HOURS = 1
@@ -28,7 +29,8 @@ class TestsCommand(Command):
 
     __test__ = False
 
-    def __init__(self, turns: TestTurns, rows: TurnRows, workers: Workers, settings: SettingRows, config: Config, scope: Scope) -> None:
+    def __init__(self, turns: TestTurns, rows: TurnRows, workers: Workers, settings: SettingRows, config: Config, scope: Scope, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.turns, self.rows, self.workers, self.settings, self.config, self.scope = turns, rows, workers, settings, config, scope
 
     def arguments(self, verbs) -> None:
@@ -69,7 +71,7 @@ class TestsCommand(Command):
                 print(f"{state}: {self.turn_line(turn, names)}")
         if not started_turns and not waiting:
             print("no turn going or waiting")
-        counts = self.rows.outcome_counts(datetime.now(timezone.utc) - timedelta(hours=COUNTED_HOURS))
+        counts = self.rows.outcome_counts(self.time_source.moment() - timedelta(hours=COUNTED_HOURS))
         print(f"last hour: {counts.get(TestOutcome.PASSED, 0)} passed, {counts.get(TestOutcome.FAILED, 0)} failed")
         return 0
 

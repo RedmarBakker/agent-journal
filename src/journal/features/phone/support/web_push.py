@@ -7,6 +7,7 @@ from journal.config import Config
 from journal.features.phone.support.push_keys import PushKeys
 from journal.features.sharing.support.tunnel import Tunnel
 from journal.support.private_folder import PrivateFolder
+from journal.support.time_source import TimeSource
 
 SERVICES = ("web.push.apple.com", "fcm.googleapis.com", "updates.push.services.mozilla.com")
 WINDOWS = ".notify.windows.com"
@@ -16,7 +17,8 @@ NOTIFICATION_TIMEOUT_SECONDS = 10
 class WebPush:
     """Pushes the paired phone, as version 3 did: an empty push signed with the journal's VAPID keys, sent only to Apple's, Google's, Mozilla's or Microsoft's push service; the phone's service worker then asks what waits."""
 
-    def __init__(self, config: Config, tunnel: Tunnel) -> None:
+    def __init__(self, config: Config, tunnel: Tunnel, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.config, self.tunnel = config, tunnel
 
     def keys(self) -> PushKeys:
@@ -33,7 +35,7 @@ class WebPush:
         if not self.is_allowed(endpoint) or not address:
             return 0
         keys = self.keys()
-        token = keys.token(endpoint, f"https://{address}", time.time())
+        token = keys.token(endpoint, f"https://{address}", self.time_source.seconds())
         headers = {"Authorization": f"vapid t={token}, k={PushKeys.unpadded(keys.public)}", "TTL": "3600", "Urgency": "high", "Content-Length": "0"}
         try:
             with urllib.request.urlopen(urllib.request.Request(endpoint, data=b"", headers=headers, method="POST"), timeout=NOTIFICATION_TIMEOUT_SECONDS) as answer:

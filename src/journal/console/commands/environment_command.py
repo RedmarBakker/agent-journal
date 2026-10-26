@@ -37,6 +37,7 @@ from journal.features.team.support.start_rule import StartRule
 from journal.features.hydration.support.session_hydration import SessionHydration
 from journal.features.team.support.environment_sharing import EnvironmentSharing
 from journal.engine.support.launch_files import LaunchFiles
+from journal.support.time_source import TimeSource
 
 TAKEOVER_WINDOW = timedelta(hours=12)
 
@@ -45,7 +46,8 @@ class EnvironmentCommand(Command):
     noun = "environment"
     uncut_verbs = frozenset({"overview"})
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles) -> None:
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
@@ -92,7 +94,7 @@ class EnvironmentCommand(Command):
         return self.overview_commands.lines()
 
     def current_work(self, caller: Caller) -> list[str]:
-        start = datetime.now(timezone.utc) - TAKEOVER_WINDOW
+        start = self.time_source.moment() - TAKEOVER_WINDOW
         peer = self.agents.recent_peer(caller.session, start)
         holder = self.taking.holder(caller)
         current = None if holder is None else self.tasks.holder_task(holder)
@@ -127,7 +129,7 @@ class EnvironmentCommand(Command):
         if caller.session is None:
             return
         try:
-            self.agents.save(self.agents.session_agent(caller.session).overview_read(datetime.now(timezone.utc).timestamp()), caller.actor)
+            self.agents.save(self.agents.session_agent(caller.session).overview_read(self.time_source.moment().timestamp()), caller.actor)
         except MissingRow:
             return
 
@@ -192,9 +194,8 @@ class EnvironmentCommand(Command):
         print(f"environment {renamed.id} renamed: {args.name} is now {renamed.name}")
         return 0
 
-    @staticmethod
-    def age(time: datetime) -> str:
-        seconds = (datetime.now(timezone.utc) - time).total_seconds()
+    def age(self, time: datetime) -> str:
+        seconds = (self.time_source.moment() - time).total_seconds()
         for unit, span in (("day", 86400), ("hour", 3600), ("minute", 60)):
             if seconds >= span:
                 n = int(seconds // span)

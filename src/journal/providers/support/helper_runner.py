@@ -18,6 +18,7 @@ from journal.support.actor import Actor
 from journal.support.actor_kind import ActorKind
 from journal.support.agent_token import AgentToken
 from journal.support.process_check import ProcessCheck
+from journal.support.time_source import TimeSource
 
 
 class HelperRunner[H: Helper]:
@@ -25,7 +26,8 @@ class HelperRunner[H: Helper]:
 
     seconds: ClassVar[int]
 
-    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, rows: ScopedRepository[H], environments: Environments, agents: Agents, scope: Scope) -> None:
+    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, rows: ScopedRepository[H], environments: Environments, agents: Agents, scope: Scope, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.config, self.providers, self.setup, self.rows = config, providers, setup, rows
         self.environments, self.agents, self.scope = environments, agents, scope
 
@@ -61,7 +63,7 @@ class HelperRunner[H: Helper]:
 
     def ended(self, helper: H) -> None:
         for agent in self.agents.active_session_agents(helper.session):
-            self.agents.save(agent.retired(time.time()), Actor.system())
+            self.agents.save(agent.retired(self.time_source.seconds()), Actor.system())
         self.rows.rewritten(helper, Actor.system(), lambda current: current.ended())
 
     def stop(self, helper: H) -> None:

@@ -6,12 +6,14 @@ from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.repositories.links import Links
 from journal.repositories.plans import PLAN_LINK, Plans
+from journal.support.time_source import TimeSource
 
 
 class PlanReopening(Listener[Updated]):
     """A closed task opened again starts its done plan again: a plan with open work is never shown done."""
 
-    def __init__(self, plans: Plans, links: Links) -> None:
+    def __init__(self, plans: Plans, links: Links, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.plans, self.links = plans, links
 
     def handle(self, event: Updated) -> None:
@@ -20,4 +22,4 @@ class PlanReopening(Listener[Updated]):
             return
         for plan in [self.plans.find(ref.id) for ref in self.links.targets(task, PLAN_LINK)]:
             if plan.state == PlanState.FINISHED:
-                self.plans.save(plan.reopened(datetime.now(timezone.utc).timestamp()), event.actor)
+                self.plans.save(plan.reopened(self.time_source.moment().timestamp()), event.actor)

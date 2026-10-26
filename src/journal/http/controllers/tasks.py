@@ -20,6 +20,7 @@ from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.repositories.proofs import Proofs
 from journal.repositories.worker_todos import WorkerTodos
 from journal.repositories.workers import Workers
+from journal.support.time_source import TimeSource
 
 
 class TaskController(Controller[Task]):
@@ -27,7 +28,8 @@ class TaskController(Controller[Task]):
 
     repository: Tasks
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.repository, self.task_logs, self.workers, self.waits, self.taking, self.task_holders, self.todos, self.proofs = tasks, logs, workers, waits, taking, task_holders, todos, proofs
 
     def open_rows(self, query: Query) -> Query:
@@ -88,6 +90,5 @@ class TaskController(Controller[Task]):
         task = self.repository.find(request.number("id"))
         return Response.json(self.task_logs.save(TaskLog.build(task, request.body.get("line", ""), self.time().timestamp()), request.actor), 201)
 
-    @staticmethod
-    def time() -> datetime:
-        return datetime.now(timezone.utc)
+    def time(self) -> datetime:
+        return self.time_source.moment()

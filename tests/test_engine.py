@@ -2637,7 +2637,7 @@ def test_the_review_queue_gets_its_first_reviewer_itself_and_the_orchestrator_ad
     from journal.support.rejection import Rejection
     added = []
     dispatch = SimpleNamespace(added=lambda environment_id: added.append(environment_id) or SimpleNamespace(id=len(added)))
-    queue = lambda waiting, idle, out: ReviewQueue(SimpleNamespace(queued_reviews=lambda: list(range(waiting))), SimpleNamespace(idle=lambda: list(idle), active=lambda: list(out)), None, None, None, dispatch, None)
+    queue = lambda waiting, idle, out: ReviewQueue(SimpleNamespace(queued_reviews=lambda: list(range(waiting))), SimpleNamespace(idle=lambda: list(idle), active=lambda: list(out)), None, None, None, dispatch, None, TimeSource())
     assert len(queue(3, [], []).free_reviewers(1)) == 1, "a queue with no reviewer gets its first"
     assert queue(3, [], ["a"]).free_reviewers(1) == [], "and never a second by itself"
     command = lambda out: ReviewerCommand(SimpleNamespace(active=lambda: list(out)), SimpleNamespace(queued_reviews=lambda: []), dispatch, SimpleNamespace(assigned=lambda environment_id: None), SimpleNamespace(is_enabled=lambda: True), SimpleNamespace(id=1), SimpleNamespace(integer=lambda option: 2))

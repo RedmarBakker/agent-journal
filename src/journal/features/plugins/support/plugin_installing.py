@@ -31,6 +31,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.dashboard_rows import DashboardRows
 from journal.support.missing_row import MissingRow
 from journal.repositories.plugins import Plugins
+from journal.support.time_source import TimeSource
 
 DOWNLOAD_SECONDS = 120
 STEP_SECONDS = 300
@@ -43,7 +44,8 @@ SHIPPED_FILE = ".shipped-files"
 class PluginInstalling:
     """A plugin taken in: a folder linked where it lies, or a git address fetched into the journal's plugins folder; its manifest read and checked, a preview of all it will run, and only then its row, its data folder, its skills and its aliases."""
 
-    def __init__(self, config: Config, reader: ManifestReader, plugins: Plugins, folders: PluginFolders, hashes: PluginHashes, settings: PluginSettings, skills: PluginSkills, runner: PluginRunner, services: PluginServices, dashboard: DashboardRows, aliases: PluginAliases, checks: Checks, tags: PluginTags) -> None:
+    def __init__(self, config: Config, reader: ManifestReader, plugins: Plugins, folders: PluginFolders, hashes: PluginHashes, settings: PluginSettings, skills: PluginSkills, runner: PluginRunner, services: PluginServices, dashboard: DashboardRows, aliases: PluginAliases, checks: Checks, tags: PluginTags, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.tags = tags
         self.config, self.reader, self.plugins, self.folders, self.hashes, self.settings, self.skills, self.runner = config, reader, plugins, folders, hashes, settings, skills, runner
         self.services, self.dashboard, self.aliases, self.checks = services, dashboard, aliases, checks
@@ -198,7 +200,7 @@ class PluginInstalling:
         self.aliases.withdraw(plugin, actor)
         self.services.stop(plugin)
         for check in self.checks.plugin_rows(plugin.name):
-            self.checks.save(check.retired(time.time()), actor)
+            self.checks.save(check.retired(self.time_source.seconds()), actor)
         if not plugin.linked:
             shutil.rmtree(self.folders.folder(plugin), ignore_errors=True)
         self.plugins.delete(plugin, actor)

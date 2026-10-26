@@ -12,6 +12,7 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.host_writer import HostWriter
 from sync_server.host_request import HostRequest
+from journal.support.time_source import TimeSource
 
 
 UNCLAIMED_LINE = "no machine of the team's pool took it up within ten minutes: dispatch it again, here or to the pool"
@@ -23,14 +24,15 @@ OFFLINE_LINE = "{device}, the machine running it, has not reached the team serve
 class PoolWorkerWrites(HostWriter):
     """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, a stop by the member whose machine runs it, each refused for a worker already closed here, whose machine is instructed to drop it, so a machine back from offline never adds to a worker sent again, and a pool request nobody took up or whose machine went quiet, which end the worker."""
 
-    def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope, moves: PoolWorkerMoves) -> None:
+    def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope, moves: PoolWorkerMoves, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.workers, self.reports, self.runner, self.environments, self.scope, self.moves = workers, reports, runner, environments, scope, moves
 
     def makers(self) -> dict[str, Callable[[HostRequest], None]]:
         return {READY: self.ready, DELIVERED: self.delivered, ENDED: self.ended, UNCLAIMED: self.unclaimed, STOPPED: self.stopped, OFFLINE_MACHINE: self.offline_machine}
 
     def ready(self, request: HostRequest) -> None:
-        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.ready(time.time()), actor))
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.ready(self.time_source.seconds()), actor))
 
     def delivered(self, request: HostRequest) -> None:
         self.scoped(request, request.body["worker_id"], lambda worker, actor: self.reports.delivered(worker, request.body["report"], actor))
@@ -46,13 +48,13 @@ class PoolWorkerWrites(HostWriter):
         self.runner.reported(worker.with_(touched_paths=end.touched), end.outcome, end.summary, actor)
 
     def unclaimed(self, request: HostRequest) -> None:
-        self.scoped(request, request.body["body"]["worker_id"], lambda worker, actor: self.workers.save(worker.unfinished(time.time(), UNCLAIMED_LINE), actor))
+        self.scoped(request, request.body["body"]["worker_id"], lambda worker, actor: self.workers.save(worker.unfinished(self.time_source.seconds(), UNCLAIMED_LINE), actor))
 
     def stopped(self, request: HostRequest) -> None:
-        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.stopped(time.time(), f"stopped on the machine running it: {request.body['reason']}"), actor))
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.stopped(self.time_source.seconds(), f"stopped on the machine running it: {request.body['reason']}"), actor))
 
     def offline_machine(self, request: HostRequest) -> None:
-        self.scoped(request, request.body["body"]["worker_id"], lambda worker, actor: self.workers.save(worker.unfinished(time.time(), OFFLINE_LINE.format(device=worker.device or "the machine")), actor))
+        self.scoped(request, request.body["body"]["worker_id"], lambda worker, actor: self.workers.save(worker.unfinished(self.time_source.seconds(), OFFLINE_LINE.format(device=worker.device or "the machine")), actor))
 
     def scoped(self, request: HostRequest, worker_id: int, change: Callable[[Worker, Actor], None]) -> None:
         for environment in self.environments.keyed(request.environment_key):

@@ -13,6 +13,7 @@ from journal.repositories.messages import Messages
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.card_outcome import CardOutcome
+from journal.support.time_source import TimeSource
 
 MOMENT = "moment"
 FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind within", "Seconds within which a chat mark of the same kind as the chat's newest message, a mark too, is counted in it instead of posted", 10, unit="seconds")
@@ -21,7 +22,8 @@ FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind wit
 class MomentCards:
     """A card for a moment, in the chat of the agent whose session it names, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, save one of a kind that folds, posted within the fold window after a mark of its kind that is the chat's newest message, which is counted in that mark with its detail."""
 
-    def __init__(self, messages: Messages, settings: SettingRows, agents: Agents) -> None:
+    def __init__(self, messages: Messages, settings: SettingRows, agents: Agents, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.messages, self.settings, self.agents = messages, settings, agents
 
     def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardKind, outcome: CardOutcome = CardOutcome.NONE) -> Message:
@@ -36,7 +38,7 @@ class MomentCards:
     def show_role_card(self, role: AgentRole, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
         card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=role, text=label, data=data)
-        cutoff_at = datetime.now(timezone.utc) - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))
+        cutoff_at = self.time_source.moment() - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))
         foldable = self.messages.fold_target(card, cutoff_at) if shows.folds() else []
         return self.messages.save(foldable[0].folded(label, detail) if foldable else card, actor)
 

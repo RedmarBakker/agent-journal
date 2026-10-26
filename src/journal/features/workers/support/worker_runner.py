@@ -35,6 +35,7 @@ from journal.support.worktree_failure import WorktreeFailure
 from journal.support.process_check import ProcessCheck
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.time_source import TimeSource
 
 REPORT_CHARACTERS = 12000
 REPORT_END_CHARACTERS = 3000
@@ -50,7 +51,8 @@ POOL_PREFIXES = ("LC_", "JOURNAL_")
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup
@@ -95,7 +97,7 @@ class WorkerRunner:
         except OSError as error:
             self.reports.file(worker, f"could not start: {error}", actor)
             return
-        worker = self.workers.save(worker.running_as(process.pid, time.time()), actor)
+        worker = self.workers.save(worker.running_as(process.pid, self.time_source.seconds()), actor)
         self.finish(worker, self.waited(worker, process, actor), actor)
 
     def worker_variables(self, worker: Worker, token: AgentToken) -> dict[str, str]:
@@ -160,13 +162,13 @@ class WorkerRunner:
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             self.moves.ended(current)
             return
-        resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", time.time())
+        resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", self.time_source.seconds())
         if resumes_at and current.is_running():
-            self.workers.save(current.limited(time.time(), resumes_at, outcome), actor)
+            self.workers.save(current.limited(self.time_source.seconds(), resumes_at, outcome), actor)
             return
         moved_task = self.reports.moved_task(current)
         if current.is_mid_turn() and moved_task:
-            self.workers.save(current.queue_turn_ended(time.time(), moved_task), actor)
+            self.workers.save(current.queue_turn_ended(self.time_source.seconds(), moved_task), actor)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)
@@ -178,7 +180,7 @@ class WorkerRunner:
         if not cost:
             return worker
         provider = self.providers.lookup(worker.provider)
-        return self.workers.save(worker.spent(cost, provider.tier(worker.model), self.profile_tier(worker), time.time()), actor)
+        return self.workers.save(worker.spent(cost, provider.tier(worker.model), self.profile_tier(worker), self.time_source.seconds()), actor)
 
     def profile_tier(self, worker: Worker) -> ModelTier:
         if worker.profile is None or not self.profiles.kind(worker.profile):
@@ -191,7 +193,7 @@ class WorkerRunner:
         return not current.is_mid_turn() and current.state == WorkerState.DISPATCHED
 
     def close(self, current: Worker, outcome: str, actor: Actor) -> None:
-        self.workers.save(current.unfinished(time.time(), outcome) if current.is_mid_turn() else current, actor)
+        self.workers.save(current.unfinished(self.time_source.seconds(), outcome) if current.is_mid_turn() else current, actor)
 
     def reported(self, current: Worker, outcome: str, summary: str, actor: Actor) -> None:
         self.reports.file(current, f"{outcome}\n\n{summary}" if summary else outcome, actor)
@@ -199,7 +201,7 @@ class WorkerRunner:
     def session_ended(self, worker: Worker) -> None:
         unended = self.agents.active_session_agents(worker.session)
         for agent in unended:
-            self.agents.save(agent.retired(time.time()), Actor.system())
+            self.agents.save(agent.retired(self.time_source.seconds()), Actor.system())
 
     @staticmethod
     def shortened_report(text: str) -> str:
@@ -213,7 +215,7 @@ class WorkerRunner:
 
     def remaining_seconds(self, worker: Worker) -> float | None:
         limit = self.minutes() * 60
-        return max(0.0, limit - (time.time() - worker.began)) if limit else None
+        return max(0.0, limit - (self.time_source.seconds() - worker.began)) if limit else None
 
     def minutes(self) -> float:
         return self.settings.decimal(WorkersOptions.TIMEOUT)

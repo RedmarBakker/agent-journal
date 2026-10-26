@@ -7,6 +7,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.questions import Questions
 from journal.repositories.workers import Workers
 from journal.support.sequence_run import SequenceRun
+from journal.support.time_source import TimeSource
 
 STEP_KEYS = ("sequences.step_to_follow", "sequences.sequence_paused", "sequences.following_the_step")
 DISTANT_SECONDS = 10.0 ** 9
@@ -15,7 +16,8 @@ DISTANT_SECONDS = 10.0 ** 9
 class SequencesDataReader:
     """Reads the sequences feature's part of the feature data for an agent, from the run on its row and the record: the step lines typed and the tool uses."""
 
-    def __init__(self, entries: Entries, questions: Questions, workers: Workers, providers: Providers) -> None:
+    def __init__(self, entries: Entries, questions: Questions, workers: Workers, providers: Providers, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.entries, self.questions, self.workers, self.providers = entries, questions, workers, providers
 
     def read(self, agent: Agent) -> SequencesData:
@@ -31,7 +33,7 @@ class SequencesDataReader:
             sequence_id=run.sequence_id, step=run.step + 1, step_text=run.text, pause_reason=run.pause_reason, is_adopted=bool(run.adopted_at),
             adoption_edits=self.edit_count(agent, run),
             step_repeated=line_time > (uses[0].creation_time.timestamp() if uses else 0.0),
-            step_silence_seconds=datetime.now(timezone.utc).timestamp() - line_time if line_time else DISTANT_SECONDS,
+            step_silence_seconds=self.time_source.moment().timestamp() - line_time if line_time else DISTANT_SECONDS,
             is_typable=not any(agent.session in (w.session, w.resume) for w in self.workers.global_matching(environment_id=agent.environment_id)),
             question_open=bool(self.questions.open()),
             obligations_due=not agent.is_overview_read or bool(agent.threshold_due) or bool(agent.skills_due))

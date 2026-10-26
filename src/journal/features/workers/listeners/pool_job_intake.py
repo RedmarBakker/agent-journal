@@ -20,6 +20,7 @@ from journal.support.worktree_failure import WorktreeFailure
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.time_source import TimeSource
 
 
 FREE_DISK_BYTES = 5 * 2**30
@@ -28,7 +29,8 @@ FREE_DISK_BYTES = 5 * 2**30
 class PoolJobIntake(Listener[PoolJobArrived]):
     """Takes up a worker the team's pool offered this machine, off the sync thread: turns it down while every slot this machine gives is taken, once the day's minutes of pool work are used up, or with too little disk free, claims it so no other machine starts it, fetches its base, turns it down when the libraries it links here were installed from lockfiles other than its base's, cuts its worktree from it, runs it on the model its profile names here keeping the request claimed until the worker ends, so the team server knows the machine is running it. A job whose worker row has not reached this machine yet is forgotten, so the next pull brings it again; one that cannot be cut is turned down with the reason, so the server offers it to another machine."""
 
-    def __init__(self, jobs: PoolJobs, link: TeamServerLink, workers: Workers, runner: WorkerRunner, branch: WorkerBranch, settings: SettingRows, scope: Scope, environments: Environments, providers: Providers, profiles: ProfileFiles, lockfiles: PoolLockfiles, config: Config) -> None:
+    def __init__(self, jobs: PoolJobs, link: TeamServerLink, workers: Workers, runner: WorkerRunner, branch: WorkerBranch, settings: SettingRows, scope: Scope, environments: Environments, providers: Providers, profiles: ProfileFiles, lockfiles: PoolLockfiles, config: Config, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.jobs, self.link, self.workers, self.runner, self.branch, self.settings = jobs, link, workers, runner, branch, settings
         self.scope, self.environments, self.providers, self.profiles, self.lockfiles, self.config = scope, environments, providers, profiles, lockfiles, config
 
@@ -46,7 +48,7 @@ class PoolJobIntake(Listener[PoolJobArrived]):
             self.claimed(job, self.workers.find(job.worker_id))
 
     def machine_refusal(self) -> str:
-        cap, moment = self.settings.integer(WorkersOptions.POOL_MINUTES), time.time()
+        cap, moment = self.settings.integer(WorkersOptions.POOL_MINUTES), self.time_source.seconds()
         refusals = (
             (self.jobs.started_count() >= self.settings.integer(WorkersOptions.POOL_SLOTS), "every worker slot this machine gives the pool is taken"),
             (bool(cap) and self.jobs.today_minutes(moment) >= cap, f"this machine has run its {cap} minutes of pool work for today"),
@@ -78,7 +80,7 @@ class PoolJobIntake(Listener[PoolJobArrived]):
             self.declined(job, str(failed))
             return
         self.runner.start(self.workers.save(local.with_(repositories=repositories), Actor.user(job.account_id)), Actor.user(job.account_id))
-        self.jobs.save(job.started(time.time()), Actor.system())
+        self.jobs.save(job.started(self.time_source.seconds()), Actor.system())
 
     def declined(self, job: PoolJob, reason: str) -> None:
         self.link.decline_request(job.request_id, reason)

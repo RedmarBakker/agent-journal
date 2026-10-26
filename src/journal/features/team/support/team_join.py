@@ -49,6 +49,7 @@ from sync_server.login_request import LoginRequest
 from journal.sync.team_refusal import TeamRefusal
 from sync_server.team_details import ANY
 from sync_server.team_summary import TeamSummary
+from journal.support.time_source import TimeSource
 
 BACKUP_NAME = "journal-before-team-%Y%m%d-%H%M%S.db"
 TABLES = {folder: table for table, folder in FOLDERS.items()}
@@ -57,7 +58,8 @@ TABLES = {folder: table for table, folder in FOLDERS.items()}
 class TeamJoin:
     """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, the code and password traded for this machine's token, and any row numbers stored from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, stored when the journal holds one and made when it holds none, and, for a team on the hub, its hub environment, named after the checkout's folder, which names the team on the server too, a team not yet moved there taking it from journal team migrate; a team with one is joined keeping every row of this journal's own, which are moved into the team's row number blocks with everything that names them, so the team's copy is laid in beside them and none of its rows takes the place of a kept one, this journal stored as it was in a backup file beside it, and each kept environment given its team name and owned by this person, and sent to the team with its owner unless the team holds it already; and adds this person's user row. A journal in a team joins a further one beside it, refused for a team it holds already or one of a number T it holds: a new team takes its hub, named after the checkout's folder or with a number after it, and a team with rows lays them beside this journal's own, refused while any of their numbers is one of this journal's; a team tied to its repository refuses a checkout of another, an untied one takes any. No environment's name on this machine is ever changed by a join. The sync service is told once it is done."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, backups: JournalBackup, config: Config, environments: Environments, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks, renumbering: RowRenumbering, recording: RecordOutgoingChange, accounts: TeamAccounts, bindings: PlanBindings) -> None:
+    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, backups: JournalBackup, config: Config, environments: Environments, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks, renumbering: RowRenumbering, recording: RecordOutgoingChange, accounts: TeamAccounts, bindings: PlanBindings, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.account, self.link, self.tables, self.outgoing, self.identity = account, link, tables, outgoing, identity
         self.backups, self.config, self.environments = backups, config, environments
         self.owners, self.links, self.copy, self.schema, self.hosting, self.blocks, self.supply = owners, links, copy, schema, hosting, blocks, supply
@@ -97,7 +99,7 @@ class TeamJoin:
             self.bindings.unbind(ref, Actor.system())
         self.blocks.clear()
         self.outgoing.clear()
-        backup = self.account.leave(time.time())
+        backup = self.account.leave(self.time_source.seconds())
         self.hooks.post(ServiceEvent(TEAM_DEPARTURE))
         return f"left the team at {address}: {departure}; sync stopped, every local row kept, copies and environments of your own among them, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
 
@@ -263,7 +265,7 @@ class TeamJoin:
 
     def name_user(self, account_id: int, name: str) -> None:
         users = self.tables.rows(User.table())
-        moment = datetime.now(timezone.utc).isoformat()
+        moment = self.time_source.moment().isoformat()
         if not users.pulled_update(account_id, {"name": name, "updated_at": moment}, Actor.system()):
             users.pulled_creation(account_id, {"name": name, "created_at": moment, "updated_at": moment}, Actor.system())
 

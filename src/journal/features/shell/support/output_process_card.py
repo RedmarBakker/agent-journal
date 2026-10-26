@@ -23,6 +23,7 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.command_text import CommandText
 from journal.features.shell.shell_options import ShellOptions
+from journal.support.time_source import TimeSource
 
 HEADLINE_CHARACTERS = 60
 ENDED_DOCK_SECONDS = 5
@@ -35,7 +36,8 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, cardless: CardlessRuns) -> None:
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, cardless: CardlessRuns, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.cardless = outputs, views, readers, messages, settings, docking, cardless
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
@@ -70,9 +72,8 @@ class OutputProcessCard(ProcessCard):
             return {}
         return {UNDOCK_TIME_KEY: cards[0].data.get(UNDOCK_TIME_KEY) or self.undock_time(cards[0].data.get(DOCK_TIME_KEY, 0))}
 
-    @staticmethod
-    def undock_time(dock_time: float) -> float:
-        current_time = time.time()
+    def undock_time(self, dock_time: float) -> float:
+        current_time = self.time_source.seconds()
         return dock_time if current_time < dock_time else current_time + ENDED_DOCK_SECONDS
 
     @staticmethod

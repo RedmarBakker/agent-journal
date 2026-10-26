@@ -8,19 +8,21 @@ from journal.support.response import Response
 from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
 from journal.features.sharing.sharing_options import SharingOptions
+from journal.support.time_source import TimeSource
 
 
 class TunnelController:
     """The tunnel that carries links to the journal: its status and what stops it answering, a restart, tunler's login, version and domains, and the journal's address."""
 
-    def __init__(self, tunnel: Tunnel, tunler: Tunler, settings: SettingRows) -> None:
+    def __init__(self, tunnel: Tunnel, tunler: Tunler, settings: SettingRows, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.tunnel, self.tunler, self.settings = tunnel, tunler, settings
 
     def show(self, request: Request) -> Response:
         return Response.json(self.tunnel.data())
 
     def services(self, request: Request) -> Response:
-        return Response.json([self.tunnel.service()] if self.tunnel.is_wanted(datetime.now(timezone.utc)) else [])
+        return Response.json([self.tunnel.service()] if self.tunnel.is_wanted(self.time_source.moment()) else [])
 
     def check(self, request: Request) -> Response:
         self.tunler.drop()

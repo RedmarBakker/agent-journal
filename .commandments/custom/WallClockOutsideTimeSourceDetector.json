@@ -16,10 +16,13 @@
                 "fileMatches": "(^|/)journal/support/time_source\\.py$"
             },
             {
-                "fileMatches": "(^|/)journal/db/migrations/"
+                "fileMatches": "(^|/)journal/db/(migrations/|migrator\\.py$)"
             },
             {
                 "fileMatches": "(^|/)journal/sync/clock_offset\\.py$"
+            },
+            {
+                "fileMatches": "(^|/)journal/(launcher/|http/support/request\\.py$|http/controllers/journal\\.py$|hooks/hook_arrivals\\.py$|features/plugins/support/plugin_installing\\.py$|support/(cached_answer|typed_lines|secret_values|masks)\\.py$|features/faults/)"
             },
             {
                 "testCode": true

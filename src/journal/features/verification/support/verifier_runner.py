@@ -7,6 +7,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.repositories.verifiers import Verifiers
+from journal.support.time_source import TimeSource
 
 VERIFIER_SECONDS = 600
 
@@ -16,5 +17,5 @@ class VerifierRunner(HelperRunner[Verifier]):
 
     seconds = VERIFIER_SECONDS
 
-    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, verifiers: Verifiers, environments: Environments, agents: Agents, scope: Scope) -> None:
-        super().__init__(config, providers, setup, verifiers, environments, agents, scope)
+    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, verifiers: Verifiers, environments: Environments, agents: Agents, scope: Scope, time_source: TimeSource) -> None:
+        super().__init__(config, providers, setup, verifiers, environments, agents, scope, time_source)

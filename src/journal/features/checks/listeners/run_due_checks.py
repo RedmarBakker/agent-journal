@@ -6,16 +6,18 @@ from journal.events.listener import Listener
 from journal.support.actor import Actor
 from journal.repositories.checks import Checks
 from journal.sync.hosting import Hosting
+from journal.support.time_source import TimeSource
 
 
 class RunDueChecks(Listener[ClockTicked]):
     """Every tick, the checks whose interval has passed start, each on a thread of its own, so a slow check never holds the clock and the other jobs; one still running is not started again; a hosted journal runs none, having no checkout to run them in."""
 
-    def __init__(self, checks: Checks, runner: CheckRunner, hosting: Hosting) -> None:
+    def __init__(self, checks: Checks, runner: CheckRunner, hosting: Hosting, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.checks, self.runner, self.hosting = checks, runner, hosting
 
     def handle(self, event: ClockTicked) -> None:
         if self.hosting.is_hosted():
             return
-        for check in self.checks.due(datetime.now(timezone.utc)):
+        for check in self.checks.due(self.time_source.moment()):
             self.runner.start(check, Actor.system())

@@ -20,6 +20,7 @@ from journal.models.share import Share
 from journal.support.rejection import Rejection
 from journal.repositories.scope import Scope
 from journal.repositories.shares import Shares
+from journal.support.time_source import TimeSource
 
 APP = Path(__file__).resolve().parents[3] / "web" / "dist"
 APP_PAGE = "share.html"
@@ -32,7 +33,8 @@ MISSING_PAGE = ("<!doctype html><meta charset=utf-8><meta name=viewport content=
 class SharePages:
     """What the share server answers: its health, and a link's page, the page's data, its files and a visitor's comment. A link that is unknown, waiting, stopped or ended opens nothing."""
 
-    def __init__(self, shares: Shares, data: SharedData, comments: SharedComments, registry: Registry, scope: Scope, wrong: WrongPasswords) -> None:
+    def __init__(self, shares: Shares, data: SharedData, comments: SharedComments, registry: Registry, scope: Scope, wrong: WrongPasswords, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.shares, self.data, self.comments, self.registry, self.scope, self.wrong = shares, data, comments, registry, scope, wrong
         self._unlocked: dict[int, str] = {}
 
@@ -76,7 +78,7 @@ class SharePages:
         share = self.shares.token_match(parts[1])
         if share is None or not share.approved or not self.is_sharing(share):
             return self.missing(404)
-        if not share.is_active(datetime.now(timezone.utc)):
+        if not share.is_active(self.time_source.moment()):
             return self.missing(410)
         return self.locked(share, self.password(authorization), place) or share
 

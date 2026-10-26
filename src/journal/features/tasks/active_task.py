@@ -14,12 +14,14 @@ from journal.repositories.scope import Scope
 from journal.support.missing_row import MissingRow
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
+from journal.support.time_source import TimeSource
 
 
 class ActiveTask:
     """The work an agent has current, started and stopped in one place for the task and the work commands alike; a task started is assigned to the worker that started it, whose hooks never reach the journal, to the agent whose session started it, or to the environment's working agent when the user started it."""
 
-    def __init__(self, tasks: Tasks, sessions: SessionAgents, agents: Agents, scope: Scope, clock: Clock, plans: Plans) -> None:
+    def __init__(self, tasks: Tasks, sessions: SessionAgents, agents: Agents, scope: Scope, clock: Clock, plans: Plans, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.tasks, self.sessions, self.agents, self.scope, self.clock, self.plans = tasks, sessions, agents, scope, clock, plans
 
     def current(self, caller: Caller) -> Working | None:
@@ -38,7 +40,7 @@ class ActiveTask:
         self.tasks.guard_worker_task(task, holder, caller.actor)
         if task.state == TaskState.STARTED and self.tasks.holder(task) == holder:
             raise Rejection(f"task {task.id} is already in hand: it was started already")
-        return self.tasks.holder_started(task.started(datetime.now(timezone.utc)), holder, caller.actor)
+        return self.tasks.holder_started(task.started(self.time_source.moment()), holder, caller.actor)
 
     def holder(self, caller: Caller) -> Ref | None:
         if caller.worker_number is not None:

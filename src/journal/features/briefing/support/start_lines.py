@@ -11,6 +11,7 @@ from journal.repositories.questions import Questions
 from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.repositories.tasks import Tasks
+from journal.support.time_source import TimeSource
 
 TAKEOVER_WINDOW = timedelta(days=1)
 HISTORY_MESSAGES = 10
@@ -23,7 +24,8 @@ INTERRUPTION_WINDOW = timedelta(minutes=30)
 class StartLines:
     """What the start block names, worked out here once: when another session worked here lately, the rules, facts and reminders numbered, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
 
-    def __init__(self, agents: Agents, rules: Rules, facts: Facts, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs) -> None:
+    def __init__(self, agents: Agents, rules: Rules, facts: Facts, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.agents, self.rules, self.facts, self.reminders = agents, rules, facts, reminders
         self.outputs = outputs
         self.tasks, self.messages, self.questions = tasks, messages, questions
@@ -32,7 +34,7 @@ class StartLines:
         return "" if event.source == "compact" else self.other_session_time(event.session)
 
     def other_session_time(self, session: str) -> str:
-        peer = self.agents.recent_peer(session, datetime.now(timezone.utc) - TAKEOVER_WINDOW)
+        peer = self.agents.recent_peer(session, self.time_source.moment() - TAKEOVER_WINDOW)
         return peer.update_time.astimezone().strftime("%H:%M") if peer else ""
 
     def rules_numbered(self) -> str:
@@ -62,5 +64,5 @@ class StartLines:
         return "; ".join(f"{n}. {text}" for n, text in enumerate(texts, 1))
 
     def interrupted_runs(self) -> str:
-        cutoff_at = datetime.now(timezone.utc) - INTERRUPTION_WINDOW
+        cutoff_at = self.time_source.moment() - INTERRUPTION_WINDOW
         return "; ".join(f"output {output.id}, {output.headline()}" for output in self.outputs.recent_interruptions(cutoff_at))

@@ -14,6 +14,7 @@ from journal.sync.team_account import TeamAccount
 from journal.sync.team_placement import TeamPlacement
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
+from journal.support.time_source import TimeSource
 
 CHECK_SECONDS = 2
 RESEND_SECONDS = 30
@@ -24,7 +25,8 @@ TERMINAL_LINE_COUNT = 50
 class AgentViewSender:
     """Sends the team server the agent bar rows of each environment this journal hosts whose rows TeamPlacement sends the team, on a team on the hub a shared one or the hub and never a person's environment they have not shared, on a team not yet moved there every one as before, and the Team chat only from the machine that holds it, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
 
-    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice, placement: TeamPlacement) -> None:
+    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice, placement: TeamPlacement, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.account, self.hosts, self.agents, self.activity, self.terminal, self.scope, self.link = account, hosts, agents, activity, terminal, scope, link
         self.voices, self.placement = voices, placement
         self.last_views: dict[str, list[dict]] = {}
@@ -41,7 +43,7 @@ class AgentViewSender:
     def run(self) -> None:
         while not self.stopping.is_set():
             try:
-                self.check(time.time())
+                self.check(self.time_source.seconds())
                 self.stopping.wait(CHECK_SECONDS)
             except (OSError, TeamRefusal) as fault:
                 print(f"the agent views could not be sent to the team server: {fault}", flush=True)

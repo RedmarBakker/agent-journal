@@ -30,6 +30,7 @@ from journal.features.sharing.support.share_place import SharePlace
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.team_account import TeamAccount
+from journal.support.time_source import TimeSource
 
 PAGE = "phone.html"
 WORKER = "phone-sw.js"
@@ -46,7 +47,8 @@ PHONE_REFUSAL = "a phone reaches only the pages its app uses, in its own environ
 class PhonePages:
     """What the tunnel's listener answers under /p/, as version 3 did: the phone page, its files, its service worker, its manifest and its icons, so the page installs on a phone as an app; the pairing, which sets the phone's cookie; and the phone's own data, read by that cookie alone."""
 
-    def __init__(self, config: Config, pairing: PhoneConnector, phones: Phones, tunnel: Tunnel, router: Router, environments: Environments, allow: PhoneAllowList, stacked: WebPush, waits: PhoneWaits, place: SharePlace, account: TeamAccount) -> None:
+    def __init__(self, config: Config, pairing: PhoneConnector, phones: Phones, tunnel: Tunnel, router: Router, environments: Environments, allow: PhoneAllowList, stacked: WebPush, waits: PhoneWaits, place: SharePlace, account: TeamAccount, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.account = account
         self.config, self.pairing, self.phones, self.tunnel, self.place = config, pairing, phones, tunnel, place
         self.router, self.environments, self.allow, self.push, self.waits = router, environments, allow, stacked, waits
@@ -121,7 +123,7 @@ class PhonePages:
         if request.rest == ["push"]:
             return self.subscribe(phone, str(value.get("endpoint", "")))
         if request.rest == ["disconnect"]:
-            self.pairing.disconnect(phone, Actor.phone(phone.row_id), datetime.now(timezone.utc))
+            self.pairing.disconnect(phone, Actor.phone(phone.row_id), self.time_source.moment())
             return self.json(200, {"disconnected": phone.id}, {"Set-Cookie": f"{COOKIE}=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict"})
         return self.json(404, {"error": "no such action"})
 
@@ -139,7 +141,7 @@ class PhonePages:
         return origin in (f"https://{self.tunnel.address()}", f"http://127.0.0.1:{port}", f"http://localhost:{port}")
 
     def pair(self, requested: PairRequest) -> ShareAnswer:
-        time = datetime.now(timezone.utc)
+        time = self.time_source.moment()
         try:
             paired = self.pairing.pair(requested.code, requested.device, time)
         except Rejection as refused:
@@ -155,7 +157,7 @@ class PhonePages:
         phone = self.phones.key_match(PhoneConnector.hashed(stored.value))
         if phone is None:
             return self.json(401, {"error": "this phone was paired with an earlier version of the journal, or was forgotten: pair it again", "paired_before": True})
-        time = datetime.now(timezone.utc)
+        time = self.time_source.moment()
         if not phone.is_active(time):
             return self.json(410, {"error": "this phone was disconnected" if phone.ended_at else "this phone's connection has run out"})
         return self.phones.save(phone.visit(time), Actor.phone(phone.row_id)) if phone.is_presence_due(time) else phone

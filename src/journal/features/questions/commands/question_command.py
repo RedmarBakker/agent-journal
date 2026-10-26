@@ -11,13 +11,15 @@ from journal.repositories.messages import Messages
 from journal.repositories.questions import Questions
 from journal.support.rejection import Rejection
 from journal.repositories.workers import Workers
+from journal.support.time_source import TimeSource
 
 
 class QuestionCommand(Command):
     noun = "question"
     uncut_verbs = frozenset({"show", "ask"})
 
-    def __init__(self, questions: Questions, respondent: AnswerDelivery, messages: Messages, links: Links, workers: Workers) -> None:
+    def __init__(self, questions: Questions, respondent: AnswerDelivery, messages: Messages, links: Links, workers: Workers, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.questions, self.answering, self.messages, self.links, self.workers = questions, respondent, messages, links, workers
 
     def arguments(self, verbs) -> None:
@@ -39,7 +41,7 @@ class QuestionCommand(Command):
         requested = Question(text=args.text, options=options)
         if requested.unclear_options():
             raise Rejection(f"an option says who acts by name, the agent or the user, never I, we or you: {'; '.join(requested.unclear_options())}")
-        question = self.questions.save(self.questions.save(requested, caller.actor).posed(datetime.now(timezone.utc).timestamp()), caller.actor)
+        question = self.questions.save(self.questions.save(requested, caller.actor).posed(self.time_source.moment().timestamp()), caller.actor)
         print(f"question {question.id} asked; waiting for the answer")
         for i, option in enumerate(question.options, 1):
             print(f"  {i}. {option}")

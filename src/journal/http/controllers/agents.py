@@ -31,6 +31,7 @@ from journal.sync.hosts import Hosts
 from journal.sync.remote_agents import RemoteAgents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
+from journal.support.time_source import TimeSource
 
 EDITS_SHOWN = 50
 
@@ -41,7 +42,8 @@ class AgentController(Controller[Agent]):
     repository: Agents
 
     def __init__(self, agents: Agents, activity: AgentActivity, supervisor: SupervisorLink, terminal_lines: TerminalLines, edits: Edits, scope: Scope, environments: Environments,
-                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, job_stop: JobStop, writes: AgentBarWrites, hosts: Hosts, owners: EnvironmentOwners, remote: RemoteAgents) -> None:
+                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, job_stop: JobStop, writes: AgentBarWrites, hosts: Hosts, owners: EnvironmentOwners, remote: RemoteAgents, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.repository, self.activity, self.supervisor, self.terminal_lines, self.file_edits, self.scope = agents, activity, supervisor, terminal_lines, edits, scope
         self.environments, self.providers, self.running, self.config, self.pausing, self.job_stop = environments, providers, active, config, pausing, job_stop
         self.writes, self.hosts, self.owners, self.remote = writes, hosts, owners, remote
@@ -50,7 +52,7 @@ class AgentController(Controller[Agent]):
         environment = self.environment()
         if self.hosts.is_host(environment):
             return super().listed(listing)
-        rows = self.remote.rows(environment, timing.time())
+        rows = self.remote.rows(environment, self.time_source.seconds())
         return RowList(rows=rows, is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0))
 
     def open_rows(self, query: Query) -> Query:
@@ -99,7 +101,7 @@ class AgentController(Controller[Agent]):
         session = self.session(request.number("id"))
         shown = self.file_edits.agent_edits(session, request.queried("since"), EDITS_SHOWN, int(request.queried("before")))
         older = bool(shown) and self.file_edits.has_older(session, shown[0].row_id)
-        return Response.json({"cursor": timing.time(), "edits": [self.listed_edit(edit) for edit in shown], "older": older})
+        return Response.json({"cursor": self.time_source.seconds(), "edits": [self.listed_edit(edit) for edit in shown], "older": older})
 
     def listed_edit(self, edit: Edit) -> dict:
         return {**ModelFields.build(edit), "old_text": "", "new_text": "", "has_text": bool(edit.old_text or edit.new_text), "image": ImageFiles.is_image(edit.path)}
@@ -125,14 +127,14 @@ class AgentController(Controller[Agent]):
         environment = self.environment()
         if self.hosts.is_host(environment):
             return self.repository.find(id).session
-        sessions = [row["session"] for row in self.remote.rows(environment, timing.time()) if row["id"] == id]
+        sessions = [row["session"] for row in self.remote.rows(environment, self.time_source.seconds()) if row["id"] == id]
         if not sessions:
             raise Rejection(f"agent {id} is not running in {environment.name}")
         return sessions[0]
 
     def terminal(self, request: Request) -> Response:
         if not self.hosts.is_host(self.environment()):
-            return Response.json(self.remote.terminal(self.environment(), request.number("id"), request.queried("after"), timing.time()))
+            return Response.json(self.remote.terminal(self.environment(), request.number("id"), request.queried("after"), self.time_source.seconds()))
         return Response.json(self.terminal_lines.lines(self.repository.find(request.number("id")), request.queried("after")))
 
     def pause(self, request: Request) -> Response:

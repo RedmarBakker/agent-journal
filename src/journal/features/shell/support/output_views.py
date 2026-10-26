@@ -11,6 +11,7 @@ from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.step_tally import StepTally
 from journal.models.command_output import CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
+from journal.support.time_source import TimeSource
 
 TAIL_LINES = 10
 # the lines of how a run ended that the agent is told, its progress lines left on the card
@@ -22,7 +23,8 @@ SILENT_SECONDS = 30
 class OutputViews:
     """The view of a watched output, read from its files through its reader, and the lines, progress and silence its process card shows."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.readers, self.outputs = readers, outputs
 
     def view(self, output: CommandOutput) -> OutputView:
@@ -33,7 +35,7 @@ class OutputViews:
         return self.readers.found(output.watch_reader)
 
     def is_silent(self, output: CommandOutput, view: OutputView) -> bool:
-        return not output.ended and time.time() - output.creation_time.timestamp() >= SILENT_SECONDS and not view.figure and not self.card_lines(output, view)
+        return not output.ended and self.time_source.seconds() - output.creation_time.timestamp() >= SILENT_SECONDS and not view.figure and not self.card_lines(output, view)
 
     def measured(self, output: CommandOutput) -> OutputView:
         files = OutputFiles(Path(output.folder))

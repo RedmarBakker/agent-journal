@@ -47,6 +47,7 @@ from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
+from journal.support.time_source import TimeSource
 
 DELEGATED_REFUSAL = "task {n} is delegated to a worker already: send that worker the next job, or release it first"
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
@@ -72,7 +73,8 @@ class WorkerCommand(Command):
     background_verbs = frozenset({"merge"})
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
@@ -180,7 +182,7 @@ class WorkerCommand(Command):
             raise Rejection(self.pool_refusal(args))
         task = self.assignment(args.task, caller)
         provider = args.provider or self.provider_default(caller)
-        moment = datetime.now(timezone.utc).timestamp()
+        moment = self.time_source.moment().timestamp()
         if args.changes.strip().lower() in EMPTY_CHANGES:
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
         links, copies = self.library_names(args)
@@ -355,7 +357,7 @@ class WorkerCommand(Command):
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))
-        advice = self.fitting.advice(self.workers.find(worker.id), time.time())
+        advice = self.fitting.advice(self.workers.find(worker.id), self.time_source.seconds())
         if advice:
             print(advice)
         return 0
@@ -373,7 +375,7 @@ class WorkerCommand(Command):
         waiting = self.tasks.queue(Ref.build(worker))
         self.tasks.unqueued(Ref.build(worker), caller.actor)
         if waiting:
-            self.workers.save(worker.queue_drained([task.id for task in waiting], time.time()), caller.actor)
+            self.workers.save(worker.queue_drained([task.id for task in waiting], self.time_source.seconds()), caller.actor)
         print(f"worker {worker.id} {worker.name}: {', '.join(f'task {task.id}' for task in waiting)} given back, open again" if waiting else f"worker {worker.id} {worker.name} had nothing queued")
         return 0
 

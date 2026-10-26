@@ -7,12 +7,14 @@ from journal.features.checks.support.check_runner import CheckRunner
 from journal.models.check import Check
 from journal.repositories.checks import Checks
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 
 class CheckCommand(Command):
     noun = "check"
 
-    def __init__(self, checks: Checks, runner: CheckRunner) -> None:
+    def __init__(self, checks: Checks, runner: CheckRunner, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.checks, self.runner = checks, runner
 
     def arguments(self, verbs) -> None:
@@ -65,6 +67,6 @@ class CheckCommand(Command):
         check = self.checks.find(args.n)
         if check.is_retired:
             raise Rejection(f"check {check.id} is removed already")
-        self.checks.save(check.retired(time.time()), caller.actor)
+        self.checks.save(check.retired(self.time_source.seconds()), caller.actor)
         print(f"check {check.id} removed: it runs no more, and a task or plan that waited on it alone is open again")
         return 0

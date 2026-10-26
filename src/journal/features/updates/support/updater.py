@@ -29,6 +29,7 @@ from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
 from journal.features.updates.updates_options import UpdatesOptions
+from journal.support.time_source import TimeSource
 
 PLUGIN = "code-commandments"
 FIRST_CHECK_DELAY_SECONDS = 60
@@ -41,7 +42,8 @@ UNREACHABLE = "not_connected"
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus) -> None:
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.official, self.sync = official, sync
         self.ancestry = ancestry
         self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
@@ -52,7 +54,7 @@ class Updater:
         self.is_head_ahead = False
         self.problem = ""
         self.team_version_seen = ""
-        self._next_check_at = timing.time() + FIRST_CHECK_DELAY_SECONDS
+        self._next_check_at = self.time_source.seconds() + FIRST_CHECK_DELAY_SECONDS
         self._working = threading.Lock()
 
     def running(self) -> Release:

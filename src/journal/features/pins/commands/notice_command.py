@@ -5,12 +5,14 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.models.notice import Notice
 from journal.repositories.notices import Notices
+from journal.support.time_source import TimeSource
 
 
 class NoticeCommand(Command):
     noun = "notice"
 
-    def __init__(self, notices: Notices) -> None:
+    def __init__(self, notices: Notices, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.notices = notices
 
     def arguments(self, verbs) -> None:
@@ -28,7 +30,7 @@ class NoticeCommand(Command):
         return 0
 
     def close(self, args: Namespace, caller: Caller) -> int:
-        notice = self.notices.save(self.notices.find(args.n).closed(datetime.now(timezone.utc)), caller.actor)
+        notice = self.notices.save(self.notices.find(args.n).closed(self.time_source.moment()), caller.actor)
         print(f"notice {notice.id} closed")
         return 0
 

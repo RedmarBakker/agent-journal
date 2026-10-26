@@ -13,6 +13,7 @@ from journal.models.share import Share
 from journal.support.rejection import Rejection
 from journal.repositories.messages import Messages
 from journal.repositories.shares import Shares
+from journal.support.time_source import TimeSource
 
 SPANS = {"h": timedelta(hours=1), "d": timedelta(days=1)}
 DISABLED_VALUES = ("", "0", "never")
@@ -21,7 +22,8 @@ DISABLED_VALUES = ("", "0", "never")
 class ShareActions:
     """What the viewer and the share command do to a link: make one for a document, report or plan, open one that waits, and stop one. The tunnel runs while a link is open."""
 
-    def __init__(self, shares: Shares, targets: ShareTargets, tunnel: Tunnel, messages: Messages) -> None:
+    def __init__(self, shares: Shares, targets: ShareTargets, tunnel: Tunnel, messages: Messages, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.shares, self.targets, self.tunnel, self.messages = shares, targets, tunnel, messages
 
     def create(self, matched: str, expires: str, password: str, comments: bool, actor: Actor) -> Share:
@@ -48,15 +50,14 @@ class ShareActions:
         return opened
 
     def stop(self, share: Share, actor: Actor) -> Share:
-        stopped = self.shares.save(share.stopped(datetime.now(timezone.utc)), actor)
+        stopped = self.shares.save(share.stopped(self.time_source.moment()), actor)
         self.tunnel.reconcile()
         return stopped
 
-    @staticmethod
-    def expiry(expires: str) -> datetime | None:
+    def expiry(self, expires: str) -> datetime | None:
         value = expires.strip().lower()
         if value in DISABLED_VALUES:
             return None
         if not re.fullmatch(r"\d+[hd]", value):
             raise Rejection("expires is a number of hours or days, like 12h or 7d, or never")
-        return datetime.now(timezone.utc) + int(value[:-1]) * SPANS[value[-1]]
+        return self.time_source.moment() + int(value[:-1]) * SPANS[value[-1]]

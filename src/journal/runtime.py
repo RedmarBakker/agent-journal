@@ -57,6 +57,7 @@ from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
 from journal.events.models.purged import Purged
 from journal.console.console import Console
+from journal.support.time_source import TimeSource
 
 
 
@@ -64,7 +65,8 @@ from journal.console.console import Console
 class Runtime:
     """What the server process keeps running: the HTTP server and the share server beside it, the deferred worker and the job runner with the clock, the menu watcher and every feature's jobs, with the machine on the bus. It boots in phases: the server listens first and holds every request while everything loads, and only once booted do the requests go through and the workers, jobs and services start, and the launches of a server on older code it stopped are told so. State itself is in the database, so a restart loses nothing."""
 
-    def __init__(self, container: Container, server: Server, deferred: ListenerQueue, clock: Clock, machine: StateMachine, bus: Bus, registry: Registry, scope: Scope, watcher: MenuWatcher, share_server: ShareServer, reserve: InstanceGuard, jobs: JobRunner, lifecycle: Lifecycle) -> None:
+    def __init__(self, container: Container, server: Server, deferred: ListenerQueue, clock: Clock, machine: StateMachine, bus: Bus, registry: Registry, scope: Scope, watcher: MenuWatcher, share_server: ShareServer, reserve: InstanceGuard, jobs: JobRunner, lifecycle: Lifecycle, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.container, self.server, self.deferred, self.clock, self.machine, self.bus, self.registry, self.scope = container, server, deferred, clock, machine, bus, registry, scope
         self.watcher, self.share_server, self.standby, self.jobs, self.lifecycle = watcher, share_server, reserve, jobs, lifecycle
 
@@ -136,7 +138,7 @@ class Runtime:
 
     def replacement_announced(self) -> None:
         if self.standby.replaced_version:
-            self.container.get(Announcer).announce(ServerReplaced(previous=self.standby.replaced_version, version=VERSION, time=timing.time()))
+            self.container.get(Announcer).announce(ServerReplaced(previous=self.standby.replaced_version, version=VERSION, time=self.time_source.seconds()))
 
     def register_jobs(self) -> None:
         self.jobs.register(self.clock)

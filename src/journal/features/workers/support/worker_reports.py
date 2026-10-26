@@ -12,6 +12,7 @@ from journal.models.worker_state import WorkerState
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.workers import Workers
+from journal.support.time_source import TimeSource
 
 
 REPORTED = "reported"
@@ -20,17 +21,18 @@ REPORTED = "reported"
 class WorkerReports:
     """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on, a pool worker's aside, whose work is on another machine."""
 
-    def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting, tasks: Tasks) -> None:
+    def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting, tasks: Tasks, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.workers, self.messages, self.links, self.routing, self.tasks = workers, messages, links, routing, tasks
 
     def file(self, worker: Worker, text: str, actor: Actor) -> Message:
         message = self.posted(worker, text, actor)
-        self.workers.save(worker.reported(datetime.now(timezone.utc).timestamp(), message.row_id), actor)
+        self.workers.save(worker.reported(self.time_source.moment().timestamp(), message.row_id), actor)
         return message
 
     def delivered(self, worker: Worker, text: str, actor: Actor) -> None:
         self.posted(worker, text, actor)
-        current, time = self.workers.find(worker.row_id), datetime.now(timezone.utc).timestamp()
+        current, time = self.workers.find(worker.row_id), self.time_source.moment().timestamp()
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
     # the task a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move

@@ -11,6 +11,7 @@ from journal.repositories.reader_reports import ReaderReports
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 SOUND_VERDICT, REFUTED_VERDICT = "yes", "no"
 
@@ -22,7 +23,8 @@ class VerdictCommand(Command):
     default_verb = "give"
     callers = {"give": VERIFIER_KINDS, "model": VERIFIER_KINDS}
 
-    def __init__(self, dispatch: VerifierDispatch, reports: ReaderReports, workers: Workers, agents: Agents) -> None:
+    def __init__(self, dispatch: VerifierDispatch, reports: ReaderReports, workers: Workers, agents: Agents, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.dispatch, self.reports, self.workers, self.agents = dispatch, reports, workers, agents
 
     def arguments(self, verbs) -> None:
@@ -40,7 +42,7 @@ class VerdictCommand(Command):
         if judged.type != ReaderReport.table():
             raise Rejection("you judge a worker's model: journal verdict model too-strong|right|too-weak \"<reason>\"")
         report = self.reports.find(judged.id)
-        moment = datetime.now(timezone.utc)
+        moment = self.time_source.moment()
         judged = report.judged_sound(args.reason, caller.agent_session, moment) if args.verdict == SOUND_VERDICT else report.refuted(args.reason, caller.agent_session, moment)
         self.reports.save(judged, caller.actor)
         print(f"verdict {args.verdict} on reader report {report.id}: {args.reason}; your session ends now")
@@ -53,7 +55,7 @@ class VerdictCommand(Command):
         if judged.type != Worker.table():
             raise Rejection("you judge a dismissal: journal verdict yes|no \"<reason>\"")
         verdict = args.verdict.replace("-", " ")
-        worker = self.workers.save(self.workers.find(judged.id).model_judged(verdict, args.reason, caller.agent_session, datetime.now(timezone.utc).timestamp()), caller.actor)
+        worker = self.workers.save(self.workers.find(judged.id).model_judged(verdict, args.reason, caller.agent_session, self.time_source.moment().timestamp()), caller.actor)
         dispatcher = self.agents.active_main_agent(worker.dispatcher) if worker.dispatcher else None
         if dispatcher is not None:
             self.agents.save(dispatcher.model_fit_kept(worker.row_id, verdict), caller.actor)

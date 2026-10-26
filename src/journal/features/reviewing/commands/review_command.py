@@ -17,6 +17,7 @@ from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 
 class ReviewCommand(Command):
@@ -26,7 +27,8 @@ class ReviewCommand(Command):
     default_verb = "record"
     callers = {"record": REVIEWER_KINDS}
 
-    def __init__(self, links: ReviewLinks, reviewers: Reviewers, workers: Workers, tasks: Tasks, messages: Messages, sign_off: ReviewSignOff) -> None:
+    def __init__(self, links: ReviewLinks, reviewers: Reviewers, workers: Workers, tasks: Tasks, messages: Messages, sign_off: ReviewSignOff, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.links, self.reviewers, self.workers, self.tasks, self.messages, self.sign_off = links, reviewers, workers, tasks, messages, sign_off
 
     def arguments(self, verbs) -> None:
@@ -45,9 +47,9 @@ class ReviewCommand(Command):
         return 0
 
     def undecided(self, reviewer: Reviewer, worker: Worker, task: int, report: ReviewReport, actor: Actor) -> str:
-        self.workers.save(worker.review_undecided(datetime.now(timezone.utc).timestamp(), task, reviewer, report.text), actor)
+        self.workers.save(worker.review_undecided(self.time_source.moment().timestamp(), task, reviewer, report.text), actor)
         return "a point is undecided or not named, so the agent that sent the worker decides"
 
     def decided(self, reviewer: Reviewer, worker: Worker, task: int, report: ReviewReport, actor: Actor) -> str:
-        self.workers.save(worker.reviewed(datetime.now(timezone.utc).timestamp(), task, reviewer, report.text), actor)
+        self.workers.save(worker.reviewed(self.time_source.moment().timestamp(), task, reviewer, report.text), actor)
         return self.sign_off.applied(worker.id, report, actor)

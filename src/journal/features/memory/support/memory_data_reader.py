@@ -14,12 +14,14 @@ from journal.repositories.rules import Rules
 from journal.repositories.setting_rows import SettingRows
 from journal.support.card_kind import CardKind
 from journal.features.memory.memory_options import MemoryOptions
+from journal.support.time_source import TimeSource
 
 
 class MemoryDataReader:
     """Reads the memory feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields MemoryData names."""
 
-    def __init__(self, facts: Facts, rules: Rules, reminders: Reminders, settings: SettingRows, counts: RowCounts, scope: Scope, stages: StageTimes) -> None:
+    def __init__(self, facts: Facts, rules: Rules, reminders: Reminders, settings: SettingRows, counts: RowCounts, scope: Scope, stages: StageTimes, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.facts, self.rules, self.reminders, self.settings, self.counts, self.scope, self.stages = facts, rules, reminders, settings, counts, scope, stages
 
     def row(self, noun: str, memory, kind: CardKind) -> MemoryRow:
@@ -47,8 +49,7 @@ class MemoryDataReader:
     def memories(self) -> list[tuple]:
         return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
 
-    @staticmethod
-    def stale(memories: list, days: int) -> tuple[str, ...]:
-        moment = datetime.now(timezone.utc)
+    def stale(self, memories: list, days: int) -> tuple[str, ...]:
+        moment = self.time_source.moment()
         ages = [(noun, memory.row_id, (moment - memory.update_time).days) for noun, memory in memories]
         return tuple(f"{noun} {row_id}, {age} days" for noun, row_id, age in ages if age >= days)

@@ -10,6 +10,7 @@ from journal.events.models.updated import Updated
 from journal.features.plugins.support.plugin_fault import PluginFault
 from journal.features.plugins.support.plugin_answer import PluginAnswer
 from journal.features.plugins.support.plugin_card import PluginCard
+from journal.support.time_source import TimeSource
 
 ANSWERS = ("allow", "refuse", "tell")
 ANSWER_COMMANDS = 20
@@ -25,12 +26,15 @@ class Protocol:
 
     VERSION = 1
 
+    def __init__(self, time_source: TimeSource) -> None:
+        self.time_source = time_source
+
     @staticmethod
     def published_name(event: Event) -> str:
         return EVENT_NAMES.get(event.key, event.key)
 
     def event_line(self, event: Event, environment: str, state: str = "") -> str:
-        line = {"v": self.VERSION, "event": self.published_name(event), "at": datetime.now(timezone.utc).isoformat(), "environment": environment, "state": state, "data": self.event_data(event)}
+        line = {"v": self.VERSION, "event": self.published_name(event), "at": self.time_source.moment().isoformat(), "environment": environment, "state": state, "data": self.event_data(event)}
         if isinstance(event, AgentEvent):
             line |= {"session": event.session, "provider": event.provider, "subagent": event.subagent}
         return json.dumps(line, default=str)

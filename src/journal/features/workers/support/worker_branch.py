@@ -139,6 +139,9 @@ class WorkerBranch:
         return files
 
     def merge(self, worker: Worker) -> str:
+        stopped = self.stopped_rebase(worker)
+        if stopped:
+            return f"its commits were not taken in, since its worktree is in a rebase stopped on conflicts in {stopped}; the worker fixes them and the journal goes on with the rebase at its clock-out"
         pending = self.pending(worker)
         if not pending:
             return ""
@@ -259,6 +262,10 @@ class WorkerBranch:
 
     def is_automatic_step(self, folder: Path, outcome: subprocess.CompletedProcess) -> bool:
         return outcome.returncode != 0 and self.is_rebasing(folder) and (self.is_built_clash(folder) or self.is_empty_step(folder))
+
+    def stopped_rebase(self, worker: Worker) -> str:
+        stopped = [repository for repository in self.repositories(worker) if repository.is_present and self.is_rebasing(repository.worktree)]
+        return ", ".join(repository.path(path) for repository in stopped for path in self.conflicts(repository.worktree).split(", ") if path) or ", ".join(repository.label() for repository in stopped)
 
     def is_rebasing(self, folder: Path) -> bool:
         return any((folder / self.git("rev-parse", "--git-path", name, cwd=folder).stdout.strip()).exists() for name in ("rebase-merge", "rebase-apply"))

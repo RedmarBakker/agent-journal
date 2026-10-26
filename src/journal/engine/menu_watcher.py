@@ -11,6 +11,7 @@ from journal.supervisor_link import SupervisorLink
 from journal.engine.support.launch_files import LaunchFiles
 from journal.engine.support.menu_answers import MenuAnswers
 from journal.support.timeout import Timeout
+from journal.support.time_source import TimeSource
 
 STILLNESS_SECONDS = 1.5
 CAUSE_WINDOW_SECONDS = 15.0
@@ -22,7 +23,8 @@ class MenuWatcher(Job):
 
     interval_seconds = 0.5
 
-    def __init__(self, agents: Agents, supervisor: SupervisorLink, announcer: Announcer, scope: Scope, answers: MenuAnswers, launches: LaunchFiles) -> None:
+    def __init__(self, agents: Agents, supervisor: SupervisorLink, announcer: Announcer, scope: Scope, answers: MenuAnswers, launches: LaunchFiles, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.agents, self.supervisor, self.announcer, self.scope = agents, supervisor, announcer, scope
         self.answers, self.launches = answers, launches
         self._menu_signatures: dict[int, tuple] = {}
@@ -35,7 +37,7 @@ class MenuWatcher(Job):
                 self.check(agent)
 
     def check(self, agent: Agent) -> str:
-        environment, moment = agent.environment_id, time.time()
+        environment, moment = agent.environment_id, self.time_source.seconds()
         menu = Menu.parsed(self.supervisor.screen(environment)[-8192:])
         if menu is None or not (menu.foreign() or self.answers_permission(menu, environment)):
             self._menu_signatures.pop(environment, None)

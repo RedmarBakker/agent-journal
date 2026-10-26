@@ -945,27 +945,28 @@ options:
 
 $ agent: journal sequence create 'Ship a release' --steps 'bump the version | tag it | publish it'
 exit 0
-sequence 5: Ship a release, 3 steps
+sequence 6: Ship a release, 3 steps
 
 $ agent: journal sequence list
 exit 0
    1  Building a plan (4 steps, starts on plan.created)
-   2  Writing an update (3 steps)
-   3  Checking the instruction files (3 steps)
-   4  Filing a document that is already written (2 steps, starts on doc.created)
-   5  Ship a release (3 steps)
+   2  Applying a plan's reviews (4 steps, starts on plan.reviewed)
+   3  Writing an update (3 steps)
+   4  Checking the instruction files (3 steps)
+   5  Filing a document that is already written (2 steps, starts on doc.created)
+   6  Ship a release (3 steps)
 
 $ agent: journal sequence run 2
 exit 0
-sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. See what the update covers with `journal report changes`: the rows since the last update the user read, by section; read any row you do not remember before you sum it up. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence follow
 exit 0
-following sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. See what the update covers with `journal report changes`: the rows since the last update the user read, by section; read any row you do not remember before you sum it up. `journal sequence next` when it is done
+following sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in. `journal sequence next` when it is done
 
 $ agent: journal sequence next
 exit 0
-sequence 2, step 2: Write the update with `journal report recap "<one or two sentences>"`: what got done and what waits on the user, in plain words; the journal puts the rows under it and docks it at the bottom of the chat. Take out what does not belong with `journal report drop <n>` and add a note with `journal report note <n> "<text>"`. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --file <path> --about plans:<plan n>`. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence pause --why 'the tag waits'
 exit 0
@@ -973,21 +974,21 @@ sequence 2 paused at step 2: the tag waits. `journal sequence follow` resumes it
 
 $ agent: journal sequence follow
 exit 0
-following sequence 2, step 2: Write the update with `journal report recap "<one or two sentences>"`: what got done and what waits on the user, in plain words; the journal puts the rows under it and docks it at the bottom of the chat. Take out what does not belong with `journal report drop <n>` and add a note with `journal report note <n> "<text>"`. `journal sequence next` when it is done
+following sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --file <path> --about plans:<plan n>`. `journal sequence next` when it is done
 
 $ agent: journal sequence abandon --why 'not today' --sure
 exit 0
 sequence 2 abandoned
-sequence 4, step 1: Check the document you filed reads as you meant: `journal doc show <doc n>` lists its sections, one for each ## heading of the file. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 5, step 1: Check the document you filed reads as you meant: `journal doc show <doc n>` lists its sections, one for each ## heading of the file. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence dock 2
 exit 0
-Sequence 2: Writing an update docked above the chat
+Sequence 2: Applying a plan's reviews docked above the chat
 created: message 42
 
 $ agent: journal sequence undock 2
 exit 0
-Sequence 2: Writing an update undocked
+Sequence 2: Applying a plan's reviews undocked
 
 $ agent: journal trigger create 'deploy,ship it' 'Read the deploy steps first' --do nudge
 exit 0
@@ -1226,6 +1227,7 @@ workers.idle_hours = 4
 workers.fitness_level_step = 5
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
+workers.clashes_named = 3
 workers.builder_handovers = 2
 workers.orchestrator_lines = 200
 workers.orchestrator_writes_plans = True  (the user sets it)
@@ -1304,7 +1306,7 @@ workers.build_command = ''
 workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
 workers.pool_profiles = journal-medior  (the user sets it)
-workers.reviewer_model = 'haiku'
+workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex journal-senior: gpt-5.6-sol, gpt-6.1-sol, gpt-6-astra | codex reviewer: gpt-5.6-sol, gpt-6.1-sol | codex verifier: gpt-5.6-sol, gpt-6.1-sol
 checks.repeat_minutes = 60
 shell.foreground = 15
 shell.reader_after = 5
@@ -1337,6 +1339,7 @@ voices.avatar_shown = 'always'
 profiles.model.claude = 'sonnet'
 profiles.model.codex = 'gpt-6.1-sol'
 plugins.hold_window_ms = 2000
+plugins.clock_out_window_seconds = 180
 plugins.holds_in_a_row = 5
 plugins.passed_over_minutes = 3
 faults.report = False
@@ -1763,6 +1766,7 @@ voices.say_you_are_back  [voices]  you are back in an earlier conversation. say 
 voices.the_voice_changed  [voices]  the user changed how you talk to them. from now on: {{voice}} Open your next chat line in the new voice, and say nothing else about it
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have not acted on it. give it its next job, stop it, or mark it done
 workers.blocked_work_stands_still  [workers]  these blocked or paused tasks stand still: {{tasks}}; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move
+workers.branch_keeps_clashing  [workers]  worker {{n}}'s branch went back to rebase {{clashes}} times in a row, as merges landed under it; it clashes in {{clashing}}. merge the other workers' work in an order that lets it catch up, or hold their merges until it is ready
 workers.builder_handover_budget  [workers]  you wrote {{lines}} lines since your last handover, under the {{budget}} one worker out is worth: write the next piece yourself
 workers.builder_load_over_ceiling  [workers]  your load is {{rho}}, over {{ceiling}}: {{queue}} wait; hand less out and take in what is back first, {{first}} the oldest
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
@@ -1826,13 +1830,15 @@ workers.worker_place_free  [workers]  worker {{n}} free; open: {{tasks}}
 workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}
 workers.worker_quiet_split  [workers]  worker {{n}} quiet {{minutes}} min; split its job?
 workers.worker_reported  [workers]  worker {{n}} reported
+workers.worker_runs_no_git  [workers]  you never run git: the journal commits your work and rebases it onto the project's branch when you clock out, and goes on with a rebase once you have fixed the files that clash. change the files, then journal clock-out
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
 workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} again; earlier: {{earlier}}
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}. change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> "<job>"
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-282 nudges
+workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
+285 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1976,13 +1982,28 @@ options:
 
 $ agent: journal worker merge --help
 exit 0
-usage: journal worker merge [-h] n
+usage: journal worker merge [-h] [--all] [n]
 
 positional arguments:
   n
 
 options:
   -h, --help  show this help message and exit
+  --all       take in every worker of yours whose work waits with every point
+              checked, one after another
+
+$ agent: journal worker rebase --help
+exit 0
+usage: journal worker rebase [-h] [--force] [workers ...]
+
+positional arguments:
+  workers     the workers to rebase; all of yours with a worktree when none
+              are named
+
+options:
+  -h, --help  show this help message and exit
+  --force     rebase a running worker at once: the journal pauses its writes,
+              stashes its changes, rebases and takes them back
 
 $ agent: journal worker drain --help
 exit 0

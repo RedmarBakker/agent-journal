@@ -11,6 +11,7 @@ from journal.features.workers.support.pool_worker_moves import READY, PoolWorker
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 
 class ArrivalCommand(Command):
@@ -20,7 +21,8 @@ class ArrivalCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, moves: PoolWorkerMoves) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, moves: PoolWorkerMoves, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.workers, self.tasks, self.moves = workers, tasks, moves
 
     def arguments(self, verbs) -> None:
@@ -35,7 +37,7 @@ class ArrivalCommand(Command):
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
         if not holdings:
             raise Rejection(f"worker {worker.id} holds no task: a worker clocks in on the task it was sent on")
-        moment, task = datetime.now(timezone.utc), self.tasks.find(holdings[0])
+        moment, task = self.time_source.moment(), self.tasks.find(holdings[0])
         if not task.delegated:
             task = self.tasks.save(task.delegate(moment), caller.actor)
         if task.state != TaskState.STARTED:

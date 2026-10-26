@@ -9,6 +9,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.templates import Templates
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
+from journal.support.time_source import TimeSource
 
 TESTING_LINK = "testing"
 NONE_TITLE = "none"
@@ -18,7 +19,8 @@ PLAN_TARGET = "plan"
 class PlanTesting:
     """The testing template a plan follows, stored as a link from the plan to the template: chosen by its title, none clearing it, and read back; a change is the plan's event, which tells the agent how the plan tests now."""
 
-    def __init__(self, links: Links, templates: Templates, plans: Plans) -> None:
+    def __init__(self, links: Links, templates: Templates, plans: Plans, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.links, self.templates, self.plans = links, templates, plans
 
     def templates_offered(self) -> list[Template]:
@@ -30,10 +32,10 @@ class PlanTesting:
     def follow(self, plan: Plan, title: str, actor: Actor) -> list[Template]:
         if title == NONE_TITLE:
             self.clear(plan, actor)
-            self.plans.save(plan.testing_changed(time.time(), NONE_TITLE, "no testing template: test as the work needs"), actor)
+            self.plans.save(plan.testing_changed(self.time_source.seconds(), NONE_TITLE, "no testing template: test as the work needs"), actor)
             return []
         template = self.choose(plan, title, actor)
-        self.plans.save(plan.testing_changed(time.time(), template.title, template.brief), actor)
+        self.plans.save(plan.testing_changed(self.time_source.seconds(), template.title, template.brief), actor)
         return [template]
 
     def choose(self, plan: Plan, title: str, actor: Actor) -> Template:

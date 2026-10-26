@@ -16,6 +16,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.rows import Rows
 from journal.repositories.workers import Workers
 from journal.features.sequences.sequences_nudges import SequencesNudges
+from journal.support.time_source import TimeSource
 
 COMMAND_PATTERN = re.compile(r"`([^`<]+)")
 
@@ -23,7 +24,8 @@ COMMAND_PATTERN = re.compile(r"`([^`<]+)")
 class RunTracker:
     """The sequences an agent works through, stored on its row as a stack: one started inside another is the current one, and when it ends the other becomes current again. Every start goes through here."""
 
-    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger) -> None:
+    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.sessions, self.agents, self.requiring, self.workers, self.rows, self.nudger = sessions, agents, requirements, workers, rows, nudger
 
     def runs(self, agent: Agent) -> list[SequenceRun]:
@@ -149,6 +151,5 @@ class RunTracker:
     def line(self, agent: Agent, nudge: Nudge) -> str:
         return self.nudger.answer(agent, nudge) or ""
 
-    @staticmethod
-    def timestamp() -> str:
-        return datetime.now(timezone.utc).isoformat()
+    def timestamp(self) -> str:
+        return self.time_source.moment().isoformat()

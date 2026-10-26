@@ -19,6 +19,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.shares import Shares
 from journal.supervisor_link import SupervisorLink
 from journal.features.sharing.sharing_options import SharingOptions
+from journal.support.time_source import TimeSource
 
 SERVICE = "sharing.tunnel"
 DEFAULT_SERVER = "tunler.jessegall.nl"
@@ -41,7 +42,8 @@ CURRENT_ADDRESS = "{domain} is this journal's own address. Move the journal to a
 class Tunnel:
     """The tunler process that gives the share server its web address: started under the supervisor that hosts the journal while a link is open, with every tunler still running for the journal's address ended first, including an orphan of an earlier supervisor, stopped while none is open, and asked whether its address answers."""
 
-    def __init__(self, tunler: Tunler, place: SharePlace, settings: SettingRows, link: SupervisorLink, shares: Shares, phones: Phones, codes: PhoneCodes, config: Config) -> None:
+    def __init__(self, tunler: Tunler, place: SharePlace, settings: SettingRows, link: SupervisorLink, shares: Shares, phones: Phones, codes: PhoneCodes, config: Config, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.tunler, self.place, self.settings, self.link, self.shares, self.config = tunler, place, settings, link, shares, config
         self.phones, self.codes = phones, codes
         self.log = config.home / "runtime" / f"{SERVICE}.log"
@@ -81,7 +83,7 @@ class Tunnel:
         return []
 
     def reconcile(self) -> None:
-        self.reconcile_moment(datetime.now(timezone.utc))
+        self.reconcile_moment(self.time_source.moment())
 
     def reconcile_moment(self, time: datetime) -> None:
         self.wanted = self.is_wanted(time)

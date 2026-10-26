@@ -14,6 +14,7 @@ from journal.sync.team_account import TeamAccount
 from journal.sync.team_requests import TeamRequests
 from journal.sync.team_server_link import TeamServerLink
 from journal.version import VERSION
+from journal.support.time_source import TimeSource
 
 ONLINE_SECONDS = 120
 
@@ -21,7 +22,8 @@ ONLINE_SECONDS = 120
 class TeamController:
     """The viewer's Team tab: how this journal stands with its team, the join a journal in no team makes from it by a team URL, the email git knows filled in, as journal team join does, the team's people with their environments and when they were last seen, the worker pool, the slots this machine gives and the pool workers it runs, a stop of one of them, this journal's pool workers elsewhere and the team's, and for an admin the invitation, answered with the line the person joins with, and the devices, one of which can be revoked."""
 
-    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners, identity: RepositoryIdentity, pool_overview: PoolOverview) -> None:
+    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners, identity: RepositoryIdentity, pool_overview: PoolOverview, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.account, self.joining, self.link, self.status, self.identity = account, joining, link, status, identity
         self.environments, self.owners, self.pool_overview = environments, owners, pool_overview
 
@@ -59,7 +61,7 @@ class TeamController:
     def people(self, request: Request) -> Response:
         answer = TeamRequests.reached(self.link.people)
         rows = self.environments.rows()
-        checked_at = time.time()
+        checked_at = self.time_source.seconds()
         return Response.json({"people": [{"id": person.id, "name": person.name, "role": person.role, "me": person.id == request.actor.number(), "online": checked_at - person.pulled_at < ONLINE_SECONDS, "seen_at": person.pulled_at, "environments": [{"id": row.row_id, "name": row.name} for row in rows if self.owners.owner_number(row.row_id) == person.id]} for person in answer.people]})
 
     def password(self, request: Request) -> Response:

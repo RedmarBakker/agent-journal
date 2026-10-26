@@ -18,6 +18,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.reports import Reports
 from journal.repositories.rows import Rows
 from journal.repositories.tasks import Tasks
+from journal.support.time_source import TimeSource
 
 LABEL_CHARACTERS = 40
 DUMP_LOG_ENTRIES = 20
@@ -31,17 +32,18 @@ TABLES = {"doc": "docs", "report": "reports", "todo": "tasks", "task": "tasks", 
 class DumpFiler:
     """What is done to a dump: the agent's notes on its items and the user's choices on it; what it files joins the dump's own collection, which takes the dump's name. The command and the viewer both come here."""
 
-    def __init__(self, dumps: Dumps, links: Links, messages: Messages, docs: Docs, reports: Reports, tasks: Tasks, plans: Plans, rows: Rows, collections: Collections) -> None:
+    def __init__(self, dumps: Dumps, links: Links, messages: Messages, docs: Docs, reports: Reports, tasks: Tasks, plans: Plans, rows: Rows, collections: Collections, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.dumps, self.links, self.messages, self.rows, self.collections = dumps, links, messages, rows, collections
         self.removable: dict[str, Docs | Reports | Tasks | Plans] = {"docs": docs, "reports": reports, "tasks": tasks, "plans": plans}
 
     def create(self, brief: str, actor: Actor) -> Dump:
-        dump = self.dumps.save(Dump(title="Dump", brief=brief.strip(), queued_at=time.time()), actor)
-        return self.dumps.save(dump.with_(title=f"Dump {dump.id}").arrived(time.time(), actor.is_user()), actor)
+        dump = self.dumps.save(Dump(title="Dump", brief=brief.strip(), queued_at=self.time_source.seconds()), actor)
+        return self.dumps.save(dump.with_(title=f"Dump {dump.id}").arrived(self.time_source.seconds(), actor.is_user()), actor)
 
     def attach(self, n: int, name: str, actor: Actor) -> Dump:
         dump = self.open(n, f"dump {n} is already filed: start a new dump for more")
-        return self.dumps.save(dump.with_(files=tuple(dict.fromkeys((*dump.files, name)))).arrived(time.time(), actor.is_user()), actor)
+        return self.dumps.save(dump.with_(files=tuple(dict.fromkeys((*dump.files, name)))).arrived(self.time_source.seconds(), actor.is_user()), actor)
 
     def items(self, n: int) -> list[str]:
         dump = self.dumps.find(n)
@@ -82,7 +84,7 @@ class DumpFiler:
         return self.close(saved, f"{len(saved.item_names) - failed} filed" + (f", {failed} failed" if failed else ""), actor)
 
     def close(self, dump: Dump, manner: str, actor: Actor) -> Dump:
-        return self.dumps.save(dump.filed(manner, time.time()), actor)
+        return self.dumps.save(dump.filed(manner, self.time_source.seconds()), actor)
 
     def log(self, n: int, status: str, enabled: str, making: str, detail: str, actor: Actor) -> Dump:
         dump = self.dumps.find(n)
@@ -106,7 +108,7 @@ class DumpFiler:
             raise Rejection("say what you need to know")
         dump = self.open(n, f"dump {n} is closed")
         rows = [g.strip()[:LABEL_CHARACTERS] for g in guesses.split("|") if g.strip()][:GUESS_COUNT]
-        return self.dumps.save(dump.posed_question(question.strip(), rows, time.time()), actor)
+        return self.dumps.save(dump.posed_question(question.strip(), rows, self.time_source.seconds()), actor)
 
     def answer(self, n: int, text: str, actor: Actor) -> Dump:
         self.require_user(actor, "answers a question on a dump")
@@ -115,7 +117,7 @@ class DumpFiler:
             raise Rejection(f"dump {n} has no question waiting")
         if not text.strip():
             raise Rejection("say the answer")
-        return self.dumps.save(dump.answered(text.strip(), time.time()), actor)
+        return self.dumps.save(dump.answered(text.strip(), self.time_source.seconds()), actor)
 
     def split(self, n: int, parts: str, actor: Actor) -> Dump:
         dump = self.dumps.find(n)
@@ -155,7 +157,7 @@ class DumpFiler:
             raise Rejection(f"dump {n} has no option {choice}: pick is the number of an offered step, or -1 for You decide")
         if str(choice) in dump.claimed:
             raise Rejection(f"{dump.options[choice]['label']} was already taken on dump {n}")
-        return self.dumps.save(dump.step_chosen(choice, dump.options[choice]["label"] if choice >= 0 else "You decide", time.time()), actor)
+        return self.dumps.save(dump.step_chosen(choice, dump.options[choice]["label"] if choice >= 0 else "You decide", self.time_source.seconds()), actor)
 
     def decline(self, n: int, choice: int, actor: Actor) -> Dump:
         self.require_user(actor, "chooses what a dump does next")
@@ -171,7 +173,7 @@ class DumpFiler:
         dump = self.dumps.find(n)
         message = self.messages.save(Message(author=Author.USER, text=manner.strip()).arrived(), actor)
         self.links.save(Link(source=Ref.build(message), target=Ref.build(dump), kind=Messages.COMMENT_LINK), actor)
-        return self.dumps.save(dump.step_directed(manner.strip(), time.time()), actor)
+        return self.dumps.save(dump.step_directed(manner.strip(), self.time_source.seconds()), actor)
 
     def stop(self, n: int, actor: Actor) -> Dump:
         self.require_user(actor, "stops a dump")
@@ -182,7 +184,7 @@ class DumpFiler:
         return self.close(dump.with_(stopped=True), f"stopped, {filed} filed, {len(dump.item_names) - filed} left out", actor)
 
     def reopen(self, n: int, actor: Actor) -> Dump:
-        return self.dumps.save(self.dumps.find(n).with_(completed_at=0.0, outcome="", stopped=False, queued_at=time.time()), actor)
+        return self.dumps.save(self.dumps.find(n).with_(completed_at=0.0, outcome="", stopped=False, queued_at=self.time_source.seconds()), actor)
 
     def remove(self, n: int, actor: Actor) -> Dump:
         self.require_user(actor, "removes what a dump filed")
@@ -192,7 +194,7 @@ class DumpFiler:
         if not dump.is_completed:
             dump = self.stop(n, actor)
         missing = [ref for ref in dump.created_refs() if self.deleted(Ref.parse(ref), dump, actor)]
-        return self.dumps.save(dump.with_(removed_at=time.time(), removed_refs=tuple(missing)), actor)
+        return self.dumps.save(dump.with_(removed_at=self.time_source.seconds(), removed_refs=tuple(missing)), actor)
 
     def deleted(self, ref: Ref, dump: Dump, actor: Actor) -> bool:
         repository = self.removable.get(ref.type)
@@ -214,9 +216,8 @@ class DumpFiler:
         if actor.kind == ActorKind.AGENT:
             raise Rejection(f"only the user {subject}")
 
-    @staticmethod
-    def entry(text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:
-        return {"time": time.time(), "text": text.strip(), "on": enabled.strip(), "making": making.strip(), "detail": detail.strip(), **extra}
+    def entry(self, text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:
+        return {"time": self.time_source.seconds(), "text": text.strip(), "on": enabled.strip(), "making": making.strip(), "detail": detail.strip(), **extra}
 
     @staticmethod
     def refs(text: str) -> list[str]:

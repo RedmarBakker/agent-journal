@@ -33,6 +33,7 @@ from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.orchestrator_mode import OrchestratorMode
 from journal.support.caller_kind import CallerKind
+from journal.support.time_source import TimeSource
 CURRENT = "current"
 
 
@@ -43,7 +44,8 @@ class PlanCommand(Command):
     uncut_verbs = frozenset({"start", "show", "priorities"})
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: OrchestratorMode) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
@@ -223,13 +225,13 @@ class PlanCommand(Command):
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
-        plan = self.plans.save(self.plans.find(args.n).blocked(args.why, datetime.now(timezone.utc).timestamp()), caller.actor)
+        plan = self.plans.save(self.plans.find(args.n).blocked(args.why, self.time_source.moment().timestamp()), caller.actor)
         self.waits.linked(plan, args.on, args.until, args.every, caller.actor)
         print(f"plan {plan.id} blocked, waiting on: {self.tasks.reason(plan)}")
         return 0
 
     def unblock(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.save(self.plans.find(args.n).unblocked("the user opened it", datetime.now(timezone.utc).timestamp()), caller.actor)
+        plan = self.plans.save(self.plans.find(args.n).unblocked("the user opened it", self.time_source.moment().timestamp()), caller.actor)
         print(f"plan {plan.id} open again: `journal plan start {plan.id}` goes on with it")
         return 0
 
@@ -264,7 +266,7 @@ class PlanCommand(Command):
         if plan is None:
             raise Rejection("no plan is started: name the plan with --plan")
         phases = self.plans.phase_states(plan)
-        plan = self.plans.save(plan.prioritised(args.order, plan.current_phase(phases), time.time()), caller.actor)
+        plan = self.plans.save(plan.prioritised(args.order, plan.current_phase(phases), self.time_source.seconds()), caller.actor)
         print(f"plan {plan.id} priorities recorded")
         return 0
 
@@ -280,7 +282,7 @@ class PlanCommand(Command):
         started = self.statuses.started()
         if not started:
             print("no plan is started")
-        moment = time.time()
+        moment = self.time_source.seconds()
         for status in started:
             print(f"started: {status.line(moment)}")
             self.shown(self.plans.find(status.plan_id))

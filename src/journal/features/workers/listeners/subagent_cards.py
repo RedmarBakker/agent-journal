@@ -17,18 +17,20 @@ from journal.support.actor import Actor
 from journal.repositories.agents import Agents
 from journal.support.card_kind import CardKind
 from journal.support.subagent_dispatch import SubagentDispatch
+from journal.support.time_source import TimeSource
 
 
 class SubagentCards(AgentListener[AgentEvent]):
     """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the last thing it sent or the tool's error."""
 
-    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, agents: Agents) -> None:
+    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, agents: Agents, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.subagents, self.card, self.cards, self.processes, self.agents = subagents, card, cards, processes, agents
 
     def handle(self, event: AgentEvent) -> None:
         if not self.moves(event):
             return
-        actor, agent, moment = Actor.agent(event.session), self.agents.session_agent(event.session).row_id, time.time()
+        actor, agent, moment = Actor.agent(event.session), self.agents.session_agent(event.session).row_id, self.time_source.seconds()
         for row in self.subagents.current_rows(event.session, moment):
             self.carded(event, row, agent, actor)
 

@@ -16,6 +16,7 @@ from journal.support.supervisor_announcement import SupervisorAnnouncement
 from journal.support.supervisor_reply import SupervisorReply
 from journal.support.supervisor_socket import SupervisorSocket
 from journal.repositories.environments import Environments
+from journal.support.time_source import TimeSource
 
 JOURNAL_PREFIX = "[journal]"
 LINE_ERASE = "\x15"
@@ -28,7 +29,8 @@ AGENT, JOURNAL, SUPERVISOR = "agent", "journal", "supervisor"
 class SupervisorLink:
     """The journal's end of each supervisor's inbox: a request is a line of JSON, its answer a line back, or, to a supervisor that takes datagrams, a datagram with no reply read. A supervisor announces its inbox under the runtime folder by its environment's name while it runs; an environment with none announced receives nothing. Every line typed starts with the marker, so the agent can tell the journal from the user."""
 
-    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows) -> None:
+    def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.config, self.environments, self.typed, self.settings = config, environments, keystrokes, settings
         self._chosen_at: dict[int, float] = {}
         self._viewer_keyed_at: dict[int, float] = {}
@@ -61,7 +63,7 @@ class SupervisorLink:
 
     def is_queue_open(self, environment_id: int) -> bool:
         oldest = self.typed.queue_start(environment_id)
-        return self.typed.is_working(environment_id) and (oldest is None or time.time() - oldest < self.settings.integer(FOREGROUND_OPTION))
+        return self.typed.is_working(environment_id) and (oldest is None or self.time_source.seconds() - oldest < self.settings.integer(FOREGROUND_OPTION))
 
     def working(self, environment_id: int) -> None:
         self.typed.work(environment_id)
@@ -113,14 +115,14 @@ class SupervisorLink:
         self._send(environment_id, "type", {"name": AGENT, "line": flagged, "after": 0.0})
 
     def type_raw(self, environment_id: int, line: str) -> None:
-        self._viewer_keyed_at[environment_id] = time.time()
+        self._viewer_keyed_at[environment_id] = self.time_source.seconds()
         self._send(environment_id, "type", {"name": AGENT, "line": line, "after": 0.0})
 
     def keys(self, environment_id: int, keys: str) -> None:
         self._send(environment_id, "keys", {"name": AGENT, "keys": keys})
 
     def choose(self, environment_id: int, command: str) -> None:
-        self._chosen_at[environment_id] = time.time()
+        self._chosen_at[environment_id] = self.time_source.seconds()
         self._send(environment_id, "type", {"name": AGENT, "line": command, "after": 0.0})
 
     def last_selection(self, environment_id: int) -> float:

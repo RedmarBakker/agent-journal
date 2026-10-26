@@ -7,6 +7,7 @@ from journal.features.phone.support.web_push import WebPush
 from journal.models.phone import Phone
 from journal.repositories.phones import Phones
 from journal.support.actor import Actor
+from journal.support.time_source import TimeSource
 
 MISSING_STATUSES = (404, 410)
 
@@ -14,11 +15,12 @@ MISSING_STATUSES = (404, 410)
 class PhoneNotice(Listener[ClockTicked]):
     """As the clock ticks, once for the whole journal, the paired phone that subscribed is pushed when something new is waiting for the user, once for each item, as version 3 did."""
 
-    def __init__(self, phones: Phones, waits: PhoneWaits, notifications: WebPush) -> None:
+    def __init__(self, phones: Phones, waits: PhoneWaits, notifications: WebPush, time_source: TimeSource) -> None:
+        self.time_source = time_source
         self.phones, self.waits, self.notifications = phones, waits, notifications
 
     def handle(self, event: ClockTicked) -> None:
-        time = datetime.now(timezone.utc)
+        time = self.time_source.moment()
         for phone in self.phones.subscribed_phones(time):
             obligations = self.waits.refs(phone)
             if phone.is_push_due(obligations, time):
