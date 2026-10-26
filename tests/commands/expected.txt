@@ -1758,6 +1758,7 @@ skills.read_the_skill_first  [skills]  read the {{skill}} skill before anything 
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}
 skills.stopped_owing  [skills]  you stopped with the {{skills}} skill still to read. read it first, or `journal stuck "<why>"`
 tasks.await_only_what_ends_soon  [tasks]  {{what}} runs {{left}}, too long to wait for while task {{n}} is open. carry on with task {{n}} instead; you are informed when it ends
+tasks.await_switches_task  [tasks]  {{what}} runs {{left}}, too long to wait for while task {{n}} is open. pause task {{current}} first, `journal task pause {{current}} "<why>"`, then `journal task start {{n}}`; you are informed when it ends
 tasks.blocked_task_asked_about  [tasks]  blocked, with nothing that opens it by itself: {{tasks}}. `journal task unblock <n>` once what it waits on has come
 tasks.carry_on  [tasks]  {{name}} is in hand, {{logged}}: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say so in one line
@@ -1873,7 +1874,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-286 nudges
+287 nudges
 
 $ agent: journal worker list
 exit 0

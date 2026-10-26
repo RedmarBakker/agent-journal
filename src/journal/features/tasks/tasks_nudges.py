@@ -38,6 +38,7 @@ class TasksNudges:
     WAIT_LONG = Nudge("tasks", "park_the_wait", "{{what}} has about {{seconds}} seconds left, too long to wait", "park it and carry on with task {{n}}; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_NEXT_TASK = Nudge("tasks", "next_task_while_waiting", "while you wait for {{what}}, task {{n}} is next", "work on it meanwhile; you are informed when the wait ends", repeat=Timeout.seconds(0))
     WAIT_STOP = Nudge("tasks", "no_stop_while_waiting", "{{what}} still runs, {{left}}, and task {{n}} is open", "carry on with task {{n}}; you are informed when the wait ends", repeat=Timeout.seconds(0))
+    WAIT_SWITCH_REFUSAL = Nudge("tasks", "await_switches_task", "{{what}} runs {{left}}, too long to wait for while task {{n}} is open", "pause task {{current}} first, `journal task pause {{current}} \"<why>\"`, then `journal task start {{n}}`; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_REFUSAL = Nudge("tasks", "await_only_what_ends_soon", "{{what}} runs {{left}}, too long to wait for while task {{n}} is open", "carry on with task {{n}} instead; you are informed when it ends", repeat=Timeout.seconds(0))
     TASK_OPENED = Nudge("tasks", "task_opened", "task {{n}} is open", "`journal task start {{n}}` takes it up", repeat=Timeout.seconds(0))
     PAUSE_WAIT_END = Nudge("tasks", "paused_wait_ended", "what paused task {{n}} waited on came: {{reason}}", "`journal task resume {{n}}`", repeat=Timeout.seconds(0))
