@@ -41,7 +41,12 @@ class UnlinkedNumberRecord(Listener[Saved]):
     def store_missing_rows(self, message: Message) -> None:
         missing = [f"{kind} {number}" for kind, number in RowReferences.rows(message.text) if not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
         if missing != message.data.get(Message.MISSING_ROWS, []):
-            self.messages.touched(message, Actor.system(), lambda current: {"data": {**current.data, Message.MISSING_ROWS: missing}})
+            self.messages.touched(message, Actor.system(), lambda current: {"data": self.missing_rows_data(current.data, missing)})
+
+    @staticmethod
+    def missing_rows_data(data: dict, missing: list[str]) -> dict:
+        unrelated = {key: value for key, value in data.items() if key != Message.MISSING_ROWS}
+        return {**unrelated, Message.MISSING_ROWS: missing} if missing else unrelated
 
     def likely_kind(self, number: int) -> str:
         return next((kind for kind, table in ROW_TABLES.items() if self.rows.is_row(Ref(table, number))), "")
