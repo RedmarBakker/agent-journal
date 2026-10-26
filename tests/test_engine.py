@@ -2864,3 +2864,21 @@ def test_what_reaches_each_helper_today_is_recorded_before_the_helper_files_take
     verbs = {kind.value: sorted(f"{command.noun} {verb}" for command in commands for verb, kinds in command.callers.items() if kind in kinds) for kind in (CallerKind.WORKER, CallerKind.VERIFIER, CallerKind.REVIEWER, CallerKind.SUBAGENT)}
     assert verbs == HELPER_VERBS, verbs
 
+
+
+def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_engine(app: App):
+    import pytest
+    from journal.engine.hook_answer import HookAnswer
+    from journal.engine.safety_conduct import SafetyConduct
+    from journal.features.double_registration import DoubleRegistration
+    from journal.features.feature import Feature
+    from journal.features.registry import ENGINE, Registry
+    from journal.repositories.setting_rows import SettingRows
+    registry = app.container.get(Registry)
+    assert all(registry.owning_feature(registered) == feature.name for feature in registry.features for registered in Registry.registered_classes(feature)), "each registered listener, conduct, command, state and job is known by its feature"
+    assert {registry.owning_feature(registered) for registered in (HookAnswer, SafetyConduct, *registry.standard_commands)} == {ENGINE}, "the engine's own pieces belong to no feature"
+    shared = type("SharedListener", (), {})
+    first = type("First", (Feature,), {"name": "first", "listeners": (shared,)})
+    second = type("Second", (Feature,), {"name": "second", "listeners": (shared,)})
+    with pytest.raises(DoubleRegistration, match="SharedListener is registered by the features first and second"):
+        Registry((first, second), app.container.get(SettingRows))

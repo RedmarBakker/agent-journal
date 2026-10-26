@@ -1837,7 +1837,6 @@ onUnmounted(() => {
     window.removeEventListener("mousemove", pointerMoved);
     window.removeEventListener("pointermove", dragged);
     window.removeEventListener("pointerup", released);
-    clearTimeout(liftTimer);
 });
 
 // the mark the clip on screen draws drifting up from the head in this frame (figure.js CLIPS marks), or ""

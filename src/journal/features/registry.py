@@ -9,6 +9,7 @@ from journal.engine.safety_conduct import SafetyConduct
 from journal.engine.demand_conduct import DemandConduct
 from journal.engine.demand import Demand
 from journal.console.command import Command
+from journal.features.double_registration import DoubleRegistration
 from journal.features.feature import Feature
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
@@ -18,6 +19,7 @@ from journal.repositories.setting_rows import SettingRows
 
 ROLE_CONDUCT = {AgentRole.MAIN: lambda feature: feature.conduct, AgentRole.WORKER: lambda feature: feature.worker_conduct, AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
 # what the journal demands of an agent is the main agent's: the user's messages, the skills and the marks are its, and a worker owes none of them
+ENGINE = "engine"
 ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKER: lambda feature: (), AgentRole.VERIFIER: lambda feature: (), AgentRole.REVIEWER: lambda feature: ()}
 
 
@@ -28,6 +30,24 @@ class Registry:
         self.features, self.settings, self.standard_commands = features, settings, standard_commands
         self._by_name = {feature.name: feature for feature in features}
         self._by_state = {state.name: feature for feature in features for state in feature.states}
+        self._feature_names = self.feature_names(features)
+
+    @staticmethod
+    def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
+        names: dict[type, str] = {}
+        for feature in features:
+            for registered in Registry.registered_classes(feature):
+                if registered in names:
+                    raise DoubleRegistration(f"{registered.__name__} is registered by the features {names[registered]} and {feature.name}")
+                names[registered] = feature.name
+        return names
+
+    @staticmethod
+    def registered_classes(feature: type[Feature]) -> set[type]:
+        return {*feature.listeners, *feature.conduct, *feature.worker_conduct, *feature.commands, *feature.states, *feature.floors.values(), *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
+
+    def owning_feature(self, registered: type) -> str:
+        return self._feature_names.get(registered, ENGINE)
 
     def has_feature(self, name: str) -> bool:
         return name in self._by_name
