@@ -1,4 +1,6 @@
 <script setup>
+import MarkIcon from "../kit/MarkIcon.vue";
+import TextDisplay from "../kit/TextDisplay.vue";
 import {turnFold} from "../domain/turnFolds.js";
 import {meta} from "../domain/tables.js";
 import {store} from "../state/store.js";
@@ -53,7 +55,7 @@ const reactions = computed(() => {
     return Object.entries(seen).map(([emoji, who]) => ({emoji, n: who.length, mine: who.includes("user"), title: who.join(", ")}));
 });
 
-const bubbled = computed(() => Boolean(words.value.text || quoteText.value || files.value.length || filed.value.length || resourceComment.value || props.turn.kind !== "message"));
+const bubbled = computed(() => Boolean(words.value.text || quoteText.value || files.value.length || resourceComment.value || props.turn.kind !== "message"));
 const LONG_TEXT = 600;
 const long = computed(() => props.turn.who === "agent" && words.value.text.length > LONG_TEXT);
 const answers = computed(() => answered(props.turn));
@@ -82,8 +84,6 @@ function toQuoted() {
     if (hit) focusTurn(`messages:${hit.id}`);
 }
 
-// The tasks filed from this message, each a pill that opens it.
-const filed = computed(() => (props.turn.filed || []).map((id) => ({id, word: `task ${id}`})));
 const files = computed(() => props.turn.files || []);
 useTurnShape(bubble, {sources: [html, laidOut], holdsCard: () => files.value.length > 0 || props.turn.kind === "question"});
 
@@ -127,20 +127,17 @@ async function drop() {
         <template v-if="report">
             <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task-id="turn.data.task || reportedTask?.id || 0" :text="report.text" />
         </template>
+        <template v-if="turn.who === 'colleague'">
+            <p class="thread-who">{{ (turn.data || {}).colleague }}</p>
+        </template>
         <div v-show="bubbled && !opening && !report && !fromMain" ref="bubble" class="thread-bubble md" data-figure-bubble :data-figure-mark="turn.key" @click="resourceComment && openComment()">
             <template v-if="resourceComment">
                 <TurnParent :label="commentParent.label" @open="openComment" />
             </template>
             <Transition :css="false" @enter="growHeight">
-                <div v-if="filed.length || turn.kind === 'question'" :class="['thread-results', {live: turn.kind === 'question' && !turn.question.closedAt}]">
-                    <template v-if="turn.kind === 'question'">
-                        <p class="thread-ask-label">Question</p>
-                    </template>
-                    <template v-for="b in filed" :key="b.id">
-                        <button type="button" class="thread-pill" title="filed from this message" @click.stop="open('tasks', b.id)">
-                            {{ b.word }}
-                        </button>
-                    </template>
+                <div v-if="turn.kind === 'question'" :class="['thread-results', {live: !turn.question.closedAt}]">
+                    <MarkIcon name="question" />
+                    <p class="thread-ask-label">Question {{ turn.question.id }} · {{ turn.question.closedAt ? "you answered" : "the agent waits for your answer" }}</p>
                 </div>
             </Transition>
             <template v-if="quoteText">
@@ -170,6 +167,12 @@ async function drop() {
             <TurnReactions :reactions="reactions" @react="react" />
         </template>
         <TurnHeader :turn="turn" />
+        <template v-if="turn.receipt">
+            <div class="thread-filed">
+                <MarkIcon class="thread-filed-icon" name="filed" />
+                <TextDisplay :text="turn.receipt" inline />
+            </div>
+        </template>
     </div>
 </template>
 
@@ -197,11 +200,13 @@ async function drop() {
     max-width: calc(100% - var(--turn-gutter));
 }
 
+/* a box means words: a message is a soft filled box with no edge, which no mark the journal records has */
 .thread-bubble {
     padding: 9px 12px;
-    border: 1px solid #232529;
-    border-radius: 9px;
-    background: #161719;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: var(--bubble);
+    line-height: 1.5;
     overflow-wrap: anywhere;
     transition: opacity 0.12s ease;
 }
@@ -213,90 +218,88 @@ async function drop() {
 
 .thread-turn.long .thread-bubble {
     width: 100%;
-    padding: 14px 18px;
-    border-color: var(--border);
-    border-radius: 12px;
-    background: var(--raised);
-    line-height: 1.65;
+    padding: 13px 17px;
+    line-height: 1.62;
 }
 
 .thread-turn.mine .thread-bubble {
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    background: color-mix(in srgb, var(--accent) 17%, var(--bg));
 }
 
 .thread-turn.colleague .thread-bubble {
-    border-color: color-mix(in srgb, var(--person-colour) 45%, transparent);
-    background: color-mix(in srgb, var(--person-colour) 14%, transparent);
+    background: color-mix(in srgb, var(--person-colour) 13%, var(--bg));
 }
 
 .thread-turn.report .thread-bubble {
-    border-color: color-mix(in srgb, var(--tone-work) 40%, var(--border-2));
-    border-left-width: 3px;
-    background: color-mix(in srgb, var(--tone-work) 7%, #161719);
+    border-left: 3px solid color-mix(in srgb, var(--tone-work) 55%, transparent);
+    background: color-mix(in srgb, var(--tone-work) 6%, var(--bubble));
 }
 
 .thread-turn.comment-origin .thread-bubble {
-    border-color: color-mix(in srgb, var(--blocking) 45%, var(--border-2));
-    background: color-mix(in srgb, var(--blocking) 9%, #161719);
+    background: color-mix(in srgb, var(--blocking) 9%, var(--bubble));
     cursor: pointer;
 }
 
-.thread-turn.mine :deep(.thread-text) {
-    padding-bottom: 4px;
-}
-
+/* a question waits on the user: a card with an amber edge until it is answered */
 .thread-turn.ask .thread-bubble {
     width: 100%;
     box-sizing: border-box;
-    border-color: color-mix(in srgb, var(--blocking) 40%, transparent);
+    padding: 12px 14px 13px;
+    border-color: color-mix(in srgb, var(--tone-warn) 40%, var(--border-2));
+    border-radius: 12px;
+}
+
+.thread-turn.ask:has(.thread-results:not(.live)) .thread-bubble {
+    border-color: var(--border);
 }
 
 .thread-results {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin: -2px -12px 5px;
-    padding: 0 12px 1px;
-    font-size: 10.5px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    gap: 6px;
+    margin: 0 0 5px;
     color: var(--text-3);
+    font-size: 11px;
+    font-weight: 500;
 }
 
 .thread-results.live {
-    color: var(--accent-text);
+    color: var(--tone-warn);
 }
 
-.thread-pill {
-    padding: 0 6px;
-    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border-2));
-    border-radius: 99px;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--text-2);
-    font-size: 10px;
-    line-height: 1.6;
-    letter-spacing: 0.03em;
-    white-space: nowrap;
-    text-transform: none;
+.thread-results :deep(svg) {
+    width: 13px;
+    height: 13px;
 }
 
-button.thread-pill {
-    cursor: pointer;
+/* a colleague's name above their message, in their own colour */
+.thread-who {
+    margin: 0 0 3px;
+    padding: 0 2px;
+    color: var(--person-colour);
+    font-size: 11px;
+    font-weight: 500;
 }
 
-button.thread-pill:hover {
-    border-color: var(--accent);
-    color: var(--accent-text);
+/* what was created or edited from the user's message: one quiet line under it */
+.thread-filed {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+    padding: 2px 6px;
+    color: var(--text-3);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.thread-filed-icon {
+    color: var(--group-work);
 }
 
 .thread-ask-label {
     margin: 0 auto 0 0;
-    font-size: 10.5px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--blocking);
 }
 
 .thread-turn.quoting {

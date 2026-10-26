@@ -17,5 +17,5 @@ const openWorker = () => (props.workerId ? peek("workers", props.workerId) : pee
 </script>
 
 <template>
-    <GrowingCard :title="title" :text="text" action="Open the worker" @act="openWorker" />
+    <GrowingCard :title="title" :text="text" :person="worker" action="Open the worker" @act="openWorker" />
 </template>

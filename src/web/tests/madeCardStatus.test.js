@@ -6,7 +6,7 @@ import {threadTurns} from "../src/domain/thread.js";
 
 const card = (status) => ({table: "messages", id: 7, created_at: new Date(1e4).toISOString(), creator: "agent:1", author: "system", agent_role: "main", text: "Created document 3: The cart", files: [], comments_on: [], idempotency: "", data: {kind: "made", made_type: "docs", row: "docs:3", status}});
 
-test("a document's chat mark carries its title and says it is being written until it is ready", async () => {
+test("a document's card carries its title and says it is being written until it is ready", async () => {
     window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
     const {default: MadeCard} = await import("../src/chat/MadeCard.vue");
     const held = reactive({made: threadTurns([card("Being written")], []).turns[0].made});
@@ -15,11 +15,12 @@ test("a document's chat mark carries its title and says it is being written unti
     const app = createApp({render: () => h(MadeCard, {made: held.made})});
     app.mount(host);
     await nextTick();
-    expect(host.querySelector(".thread-made").textContent).toContain("Created document 3: The cart");
-    expect(host.querySelector(".settled").textContent).toBe("Being written");
+    expect(host.querySelector(".thread-made").textContent).toContain("Document 3");
+    expect(host.querySelector(".made-status.writing").textContent).toBe("Being written");
     held.made = threadTurns([card("Ready")], []).turns[0].made;
     await nextTick();
-    expect(host.querySelector(".settled")).toBe(null);
+    expect(host.querySelector(".made-status.writing")).toBe(null);
+    expect(host.querySelector(".made-status").textContent).toBe("Ready");
     app.unmount();
     host.remove();
 });

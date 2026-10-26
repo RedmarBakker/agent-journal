@@ -20,15 +20,15 @@ const emit = defineEmits(["activate"]);
 }
 
 .thread-text :deep(p + p) {
-    margin-top: 0.7em;
+    margin-top: 6px;
 }
 
 .thread-text :deep(code) {
-    padding: 1px 5px;
+    padding: 0.05em 0.42em;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--chip);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 0.92em;
+    font-size: 0.86em;
 }
 
 .thread-text :deep(:not(pre) > code) {
@@ -83,16 +83,8 @@ const emit = defineEmits(["activate"]);
 }
 
 .thread-text :deep(.file-pill) {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-}
-
-.thread-text :deep(.file-pill .ico) {
-    width: 11px;
-    height: 11px;
+    font-size: 0.86em;
 }
 
 .thread-text :deep(.console-card) {

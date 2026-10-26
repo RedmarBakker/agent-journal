@@ -18,7 +18,7 @@ describe("a bubble that opens near the foot", () => {
 });
 
 describe("a chat mark pressed at the foot of the chat", () => {
-    const turn = (bottom) => ({isConnected: true, getBoundingClientRect: () => ({top: 400, bottom})});
+    const turn = (bottom) => ({isConnected: true, querySelector: () => null, getBoundingClientRect: () => ({top: 400, bottom})});
     const pressOn = (element) => ({target: {closest: () => element}});
 
     it("holds the follow to the foot while it opens, and scrolls its bottom into view rather than snapping to the foot", () => {

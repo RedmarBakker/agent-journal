@@ -159,3 +159,13 @@ describe("a new message", () => {
         expect(after[1]).not.toBe(before[1]);
     });
 });
+
+describe("what was created from a message", () => {
+    test("is one line under the user's message, never a mark of its own nor a copy under the reply", () => {
+        const receipt = card(9, 12, {kind: "card", key: "filed:5", shows: "filed", row: "tasks:3721"}, "Created task 3721 from your message");
+        const got = turns([message(5, 10, {filed: [3721]}), message(6, 11, {author: "agent", reply_target: 5, filed: [3721]}), receipt]);
+        expect(got.map((t) => t.key)).toEqual(["messages:5", "messages:6"]);
+        expect(got[0].receipt).toBe("Created task 3721 from your message");
+        expect(got[1].receipt).toBeUndefined();
+    });
+});

@@ -16,13 +16,11 @@ async function shown(component, props) {
     return host;
 }
 
-test("a report's chat mark shows its abstract when opened, never the first bullet of its text", async () => {
+test("a report's card shows its abstract as its summary, never the first bullet of its text", async () => {
     const {default: MadeCard} = await import("../src/chat/MadeCard.vue");
     const message = {table: "messages", id: 7, created_at: new Date(1e4).toISOString(), creator: "agent:1", author: "system", agent_role: "main", text: "Created report 2: The cart", files: [], comments_on: [], idempotency: "", data: {kind: "made", made_type: "reports", row: "reports:2", status: "Ready", summary: abstract}};
     const host = await shown(MadeCard, {made: threadTurns([message], []).turns[0].made});
-    host.querySelector(".thread-made").click();
-    await nextTick();
-    expect(host.querySelector(".thread-made .detail").textContent).toBe(abstract);
+    expect(host.querySelector(".thread-made .made-sum").textContent).toBe(abstract);
 });
 
 test("a report's docked card shows its abstract as its summary line", async () => {

@@ -11,6 +11,16 @@
     --tone-paused: #93a0e8;
     --tone-danger: var(--danger);
     --tone-bad: var(--danger);
+    /* whose a chat mark is, on its icon: the agent, work, reminders, the journal */
+    --group-agent: oklch(0.75 0.075 295);
+    --group-work: oklch(0.75 0.075 215);
+    --group-reminders: oklch(0.75 0.075 350);
+    --group-journal: oklch(0.72 0.012 260);
+    --bubble: #1a1b1f;
+    --chip: #24262b;
+    /* a mark that asks the user for something, and the terminal an opened mark shows output in */
+    --asks: #a3a8f0;
+    --term: #0a0b0c;
     --raised: #18191c;
     --hover: #1d1e22;
     --sel: #212329;
@@ -157,23 +167,24 @@ textarea {
     }
 }
 
+/* a link to a row: a faint fill with no edge, clickable without looking like a button */
 .row-pill {
-    padding: 0 0.3em;
-    border: 1px solid var(--pill-border, var(--border-2));
-    border-radius: 5px;
-    color: var(--pill-text, var(--text-2));
-    font-size: var(--pill-size, 1em);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    padding: 0.05em 0.42em;
+    border-radius: 4px;
+    line-height: 1.35;
+    cursor: pointer;
+    background: var(--chip);
+    color: var(--text-2);
+    font-size: var(--pill-size, 0.93em);
     text-decoration: none;
     white-space: nowrap;
 }
 
 .row-pill:hover {
-    border-color: var(--accent);
     color: var(--accent-text);
-}
-
-.row-pill-num {
-    font-size: 0.88em;
 }
 
 @keyframes fade-in {

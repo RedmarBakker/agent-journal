@@ -21,7 +21,7 @@ class RowProcessCard(ProcessCard):
         return f"made:{row.noun()}:{row.id}"
 
     def card_contents(self, environment_id: int, row: Model, actor: Actor) -> ProcessCardContents:
-        data = {"kind": "made", "made_type": row.table(), "n": row.id, **RowCard.build(row).as_data()}
+        data = {"kind": "made", "made_type": row.table(), "n": row.id, "title": row.title_words(), **RowCard.build(row).as_data()}
         return ProcessCardContents(self.name, environment_id, self.key(row), self.created_line(row), data, actor, CardKind.CREATED, False, session=actor.id)
 
     @staticmethod

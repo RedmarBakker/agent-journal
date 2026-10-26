@@ -1,7 +1,6 @@
 <script setup>
 import {computed} from "vue";
 import ChatMark from "../kit/ChatMark.vue";
-import {SUBAGENT_COLOR} from "../domain/thread.js";
 import {peek} from "../route.js";
 
 const props = defineProps({
@@ -32,9 +31,8 @@ const label = computed(() => {
 const tone = computed(() => {
     if (props.refusal || props.failed) return "danger";
     if (props.stopped || props.unfinished) return "warn";
-    return props.finished ? "good" : "";
+    return props.finished ? "good" : "work";
 });
-const color = computed(() => (tone.value ? "" : SUBAGENT_COLOR));
 const detail = computed(() => {
     if (props.refusal) return `${props.task}: ${props.refusal}`;
     return props.failed || props.unfinished ? `${props.task}: ${props.reason || "the tool gave no reason"}` : props.task;
@@ -43,7 +41,9 @@ const card = computed(() => (props.report ? `report ${props.report}` : ""));
 const name = computed(() => [props.kind || "subagent", props.model].filter(Boolean).join(" · "));
 const mark = computed(() => ({
     icon: "agents",
-    color: color.value,
+    group: "agent",
+    active: !props.finished,
+    markIcon: "subagent",
     tone: tone.value,
     label: label.value,
     name: name.value,
@@ -51,6 +51,7 @@ const mark = computed(() => ({
     detail: detail.value,
     // a subagent that came back opens to the whole text it returned, as a message's mark opens to its words
     body: props.finished ? props.returned : "",
+    bodyLabel: "What it returned",
 }));
 const openable = computed(() => ({...mark.value, title: "Open the subagent"}));
 const reported = computed(() => ({...mark.value, card: card.value}));

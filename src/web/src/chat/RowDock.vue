@@ -89,12 +89,12 @@ const press = (button) => (OWN[button.act] || (() => scope.api.act(row.value.tab
     display: block;
     width: 100%;
     overflow: hidden;
-    padding: 0 15px 10px;
+    padding: 0 12px 10px 35px;
     border: 0;
     background: none;
-    color: var(--text-3);
+    color: var(--text-2);
     font: inherit;
-    font-size: 9.5px;
+    font-size: 12px;
     text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;

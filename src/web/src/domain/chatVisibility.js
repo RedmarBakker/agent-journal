@@ -1,4 +1,5 @@
 import {store} from "../state/store.js";
+import {markIcon} from "./markIcon.js";
 
 // The chat card kinds, their families and groups as the features declare them, served with the manifest the viewer boots from:
 // each kind's label, its family's icon, group and colouring, whether it is one of the family's main cards, whether it is shown until
@@ -10,13 +11,12 @@ const keysOf = (rows) => rows.map((kind) => kind.key);
 // the colour of each outcome a card reports: blue running, green passed, red failed, orange warned
 const OUTCOME_TONES = {running: "work", passed: "good", failed: "bad", warned: "warn"};
 
-// A card's icon, its family's, and its colour, its outcome's where its family is coloured or the card warns; a card from before
-// the registry, or of a kind it does not know, keeps the icon and tone it was written with
-export const cardLook = (card) => {
+// A card's icon, its family's, its own mark icon, its group, whose mark it is, and its colour, its outcome's wherever it reports one;
+// a card from before the registry, or of a kind it does not know, keeps the icon and tone it was written with
+export const cardLook = (card, label = "") => {
     const kind = kinds().find((row) => row.key === card.shows);
-    if (!kind) return {icon: card.icon || "dot", tone: card.tone || OUTCOME_TONES[card.outcome] || ""};
-    const coloured = kind.colouring === "outcome" || card.outcome === "warned";
-    return {icon: kind.icon, tone: coloured ? OUTCOME_TONES[card.outcome] || "" : ""};
+    if (!kind) return {icon: card.icon || "dot", tone: card.tone || OUTCOME_TONES[card.outcome] || "", group: "", markIcon: ""};
+    return {icon: kind.icon, tone: OUTCOME_TONES[card.outcome] || "", group: kind.group, markIcon: markIcon(kind.key, {...card, label})};
 };
 
 // the marks the chat hides until the user shows them

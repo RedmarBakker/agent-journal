@@ -10,6 +10,8 @@ const mark = computed(() => ({
     icon: props.turn.icon,
     tone: props.turn.data.tone,
     color: props.turn.data.color,
+    group: props.turn.data.group,
+    markIcon: props.turn.data.markIcon,
     label: props.turn.title,
     time: props.turn.time,
     title: unfolded.value ? "Fold them back into one line" : "Show each of them",

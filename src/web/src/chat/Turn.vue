@@ -25,12 +25,14 @@ const data = computed(() => props.turn.data);
 const skillMark = computed(() => ({
     icon: "book",
     tone: "",
+    group: "agent",
+    markIcon: "skill",
     label: "Loaded skill",
     name: props.turn.title,
     time: props.turn.time,
     title: `Read the ${props.turn.title} skill`,
 }));
-const compactedMark = computed(() => ({icon: "activity", tone: "warn", label: "Conversation compacted", time: props.turn.time}));
+const compactedMark = computed(() => ({icon: "activity", markIcon: "compact", group: "agent", label: "Conversation compacted", time: props.turn.time}));
 const opened = ref(false);
 const cardMark = computed(() => ({...data.value, key: props.turn.key, detail: data.value.collapsed ? "" : data.value.detail, time: props.turn.time}));
 const lines = computed(() => (data.value.lines || []).filter(Boolean));
@@ -65,6 +67,9 @@ function markClick(data) {
         <template #thought>
             <TurnThought :turn="turn" @reply="emit('reply', $event)" />
         </template>
+        <template #day>
+            <p class="thread-turn thread-day" :data-ref="turn.key">{{ turn.title }}</p>
+        </template>
         <template #compacted>
             <div class="thread-turn compacted" :data-ref="turn.key">
                 <ChatMark :mark="compactedMark" />
@@ -74,16 +79,19 @@ function markClick(data) {
             <div :class="['thread-turn', 'card', {mine: data.side === 'user', docked: data.docked}]" :data-ref="turn.key">
                 <span class="mark-row">
                     <ChatMark :mark="cardMark" :open="opens ? opened : undefined" v-on="markClick(data)">
-                        <template v-if="opens">
-                            <div :class="['mark-more', {open: opened}]">
+                        <template v-if="opens" #default="{shown}">
+                            <div :class="['mark-more', {open: shown}]">
                                 <div class="mark-more-inner">
                                     <template v-if="data.line">
+                                        <p class="mark-label">Command</p>
                                         <p class="mark-command">{{ data.line }}</p>
                                     </template>
                                     <template v-if="data.summary">
+                                        <p class="mark-label">Summary</p>
                                         <p class="mark-summary">{{ data.summary }}</p>
                                     </template>
                                     <template v-if="data.output && pages.loaded.value">
+                                        <p class="mark-label">Output</p>
                                         <OutputLines class="mark-terminal" :lines="pages.lines.value" @older="pages.older" />
                                     </template>
                                     <template v-if="data.proof_task">
@@ -149,44 +157,58 @@ function markClick(data) {
 }
 
 .thread-turn.suggestion {
-    width: min(580px, calc(100% - var(--turn-gutter)));
+    width: min(560px, calc(100% - var(--turn-gutter)));
 }
 
+.thread-day {
+    align-self: center;
+    margin: 0;
+    padding: 4px 0;
+    color: var(--text-4);
+    font-size: 10.5px;
+}
+
+/* the compaction is a line across the whole chat, since what is above it was summed up */
 .thread-turn.compacted {
+    flex-direction: row;
     align-items: center;
+    align-self: stretch;
+    gap: 10px;
+    max-width: none;
+    margin: 4px 0;
+}
+
+.thread-turn.compacted > .mark {
+    flex: none;
+}
+
+.thread-turn.compacted::before,
+.thread-turn.compacted::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border-2);
 }
 
 .mark-lines {
     grid-column: 1 / -1;
     margin: 0;
-    padding: 2px 0 0 22px;
+    padding: 2px 0 0 20px;
     text-align: left;
-    color: var(--text-3);
-    font-size: 11px;
-    line-height: 1.4;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.45;
     list-style: none;
     overflow-wrap: anywhere;
 }
 
 .mark-more {
-    display: grid;
     grid-column: 1 / -1;
     contain: inline-size;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transition:
-        grid-template-rows var(--move),
-        opacity var(--fade);
 }
 
-.mark-more.open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-}
-
-.mark-more-inner {
-    min-height: 0;
-    overflow: hidden;
+.mark-more:not(.open) {
+    display: none;
 }
 
 .mark-proofs {
@@ -201,26 +223,34 @@ function markClick(data) {
 }
 
 .mark-command {
-    margin: 4px 0 0 22px;
-    color: var(--text-3);
+    margin: 0 0 0 20px;
+    color: var(--text-2);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
 }
 
 .mark-summary {
-    margin: 4px 0 0 22px;
+    margin: 0 0 0 20px;
     color: var(--text-2);
-    font-size: 11.5px;
+    font-size: 12px;
+}
+
+/* each part of an opened mark has its label above it */
+.mark-label {
+    margin: 8px 0 2px 20px;
+    color: var(--text-4);
+    font-size: 10.5px;
 }
 
 .mark-terminal {
-    max-height: 240px;
-    margin: 6px 0 2px;
+    max-height: 150px;
+    margin: 0 0 2px 20px;
     padding: 8px 10px;
     overflow: auto;
     border-radius: 6px;
-    background: #000;
+    background: var(--term);
     color: #d6d6d6;
-    font: 11px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    font: 11px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -267,6 +297,6 @@ function markClick(data) {
 }
 
 .thread-turn.card.docked {
-    opacity: 0.5;
+    opacity: 0.55;
 }
 </style>

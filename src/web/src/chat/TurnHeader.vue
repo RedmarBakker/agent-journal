@@ -17,10 +17,6 @@ const mine = computed(() => props.turn.who === "user");
                 <span class="thread-meta-dot" />
             </template>
         </template>
-        <template v-else-if="turn.who === 'colleague'">
-            <span class="thread-colleague">{{ (turn.data || {}).colleague }}, colleague</span>
-            <span class="thread-meta-dot" />
-        </template>
         <template v-else-if="mine && !isMe(turn.creator, store.people) && (turn.creator || '').startsWith('user:')">
             <span class="thread-colleague">{{ actorName(turn.creator, store.people) }}</span>
             <span class="thread-meta-dot" />
@@ -43,8 +39,9 @@ const mine = computed(() => props.turn.who === "user");
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 0 3px;
+    padding: 0 2px;
     font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
     color: var(--text-4);
 }
 
@@ -68,10 +65,5 @@ const mine = computed(() => props.turn.who === "user");
 .thread-writer {
     font-weight: 600;
     color: var(--text-3);
-}
-
-.thread-ref {
-    font-size: 11px;
-    opacity: 0.62;
 }
 </style>

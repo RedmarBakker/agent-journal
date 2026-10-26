@@ -50,24 +50,24 @@ async function answer(act) {
 .suggestion-card {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 12px 14px;
+    gap: 4px;
+    max-width: 560px;
+    padding: 11px 14px 12px;
     border: 1px solid var(--border-2);
-    border-radius: 9px;
-    background: var(--raised);
+    border-radius: 12px;
+    background: var(--bg);
 }
 
 .suggestion-kind {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    color: var(--accent);
+    gap: 6px;
+    color: var(--text-3);
     font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .suggestion-title {
+    margin-top: 4px;
     font-weight: 500;
 }
 
@@ -79,8 +79,8 @@ async function answer(act) {
 .suggestion-acts {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 .suggestion-outcome {

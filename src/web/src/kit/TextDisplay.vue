@@ -60,11 +60,11 @@ const html = computed(() => {
 }
 
 .md :deep(code) {
-    padding: 1px 5px;
+    padding: 0.05em 0.42em;
     border-radius: 4px;
-    background: var(--raised);
+    background: var(--chip);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 0.92em;
+    font-size: 0.86em;
 }
 
 .md :deep(:not(pre) > code) {
@@ -129,15 +129,7 @@ const html = computed(() => {
 }
 
 .md :deep(.file-pill) {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-}
-
-.md :deep(.file-pill .ico) {
-    width: 11px;
-    height: 11px;
+    font-size: 0.86em;
 }
 </style>

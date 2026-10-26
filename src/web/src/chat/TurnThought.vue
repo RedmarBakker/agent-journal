@@ -24,15 +24,9 @@ const {words} = useTurnText(() => props.turn, env);
 </template>
 
 <style scoped>
-.thread-turn.thought {
-    max-width: 88%;
-}
-
+/* a summary steps back from the conversation: no box, quieter grey text lined up with the text in the agent's boxes */
 .thought-text {
-    padding: 7px 11px;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--raised) 50%, transparent);
+    padding: 0 12px;
     color: var(--text-2);
     font-size: 12.5px;
     line-height: 1.5;

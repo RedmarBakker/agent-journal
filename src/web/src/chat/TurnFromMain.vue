@@ -12,5 +12,5 @@ const title = computed(() => {
 </script>
 
 <template>
-    <GrowingCard :title="title" :text="text" :bad="failed" :icon="data.sent_to ? 'send' : 'reply'" :incoming="!data.sent_to" />
+    <GrowingCard :title="title" :text="text" :bad="failed" :icon="data.sent_to ? 'send' : 'reply'" :person="data.sent_to || data.peer || ''" :incoming="!data.sent_to" />
 </template>

@@ -37,6 +37,7 @@ import OutputDialog from "./OutputDialog.vue";
 import {useRevealPressed} from "../composables/revealPressed.js";
 import ChatDock from "./ChatDock.vue";
 import DumpDock from "./DumpDock.vue";
+import {withDayLines} from "../domain/dayLines.js";
 import {dockedDump, dockedRows, streamRows} from "../domain/docks.js";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
@@ -177,7 +178,7 @@ const revoke = (p) => Object.values(p.previews || {}).forEach(URL.revokeObjectUR
 const {pending, promise, drop, change, keep, link, keyOf} = usePromised(revoke);
 const thread = computed(() => threadTurns(streamRows(shownChat.value, dockNow.value), pending.value, here && !!store.paging.more.messages, props.hidden));
 watch(thread, (made) => made.keys.forEach((placeholder, ref) => link(ref, placeholder)), {immediate: true});
-const turns = computed(() => thread.value.turns);
+const turns = computed(() => withDayLines(thread.value.turns));
 const turnsLoaded = computed(() => scope.loaded("messages"));
 watch(turns, keep);
 
@@ -658,9 +659,9 @@ const {colleague, me} = useColleague();
     align-items: center;
     gap: 4px;
     padding: 10px 12px;
-    border: 1px solid #232529;
-    border-radius: 9px;
-    background: #161719;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: var(--bubble);
 }
 
 .thread-turn.busy {
@@ -729,6 +730,11 @@ const {colleague, me} = useColleague();
     pointer-events: none;
 }
 
+/* marks one after another sit closer together than the messages around them */
+.thread-scroll :deep(.thread-turn:is(.skill, .card, .whisper, .subagent, .group) + .thread-turn:is(.skill, .card, .whisper, .subagent, .group)) {
+    margin-top: -5px;
+}
+
 .thread-scroll {
     order: 1;
     overflow-anchor: none;
@@ -742,8 +748,8 @@ const {colleague, me} = useColleague();
     overscroll-behavior: none;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 14px 8px 20px;
+    gap: 10px;
+    padding: 18px 8px 20px;
     /* bubbles scrolled under the foot fade out over its last stretch rather than end at a hard line; the padding keeps the newest clear of the fade */
     mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }

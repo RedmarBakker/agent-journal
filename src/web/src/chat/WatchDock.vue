@@ -5,7 +5,7 @@ import Btn from "../kit/Btn.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import Icon from "../kit/Icon.vue";
 import {store} from "../state/store.js";
-import Dot from "../kit/Dot.vue";
+import MarkIcon from "../kit/MarkIcon.vue";
 import OutputLines from "../kit/OutputLines.vue";
 import {useScope} from "../composables/scope.js";
 import {keepDocked, undock} from "../actions/docking.js";
@@ -24,6 +24,8 @@ const {colleague} = useColleague();
 const card = computed(() => props.message.data);
 // the badge on the dock's icon and its progress bar, in the colour of the state of its run: running, passed (good) or failed (bad)
 const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad: "var(--tone-bad)"};
+// the dock's icon: the terminal while its run goes, a tick once it passed, a cross once it failed
+const STATE_ICONS = {running: "terminal", good: "tick", bad: "cross"};
 // how the run ended, as its card reports it, or as its colour said on a card from before cards reported their outcome
 const ENDED = {passed: "good", failed: "bad"};
 const endedTone = computed(() => ENDED[card.value.outcome] || card.value.tone || "good");
@@ -38,6 +40,7 @@ const now = useSharedNow();
 const ranFor = computed(() => (card.value.began_at ? elapsed((card.value.ended_at || now.value) - card.value.began_at) : ""));
 
 const opened = ref(false);
+const foldedByHand = ref(false);
 const shown = ref(false);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
@@ -66,10 +69,10 @@ watch(
 </script>
 
 <template>
-    <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
+    <ChatDock label="Watched output" :folded="folded || foldedByHand" kind="watch-dock">
         <template #head>
             <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
-                <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
+                <MarkIcon :name="STATE_ICONS[runState]" />
             </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')" @click="toggle">{{ message.text }}</button>
             <template v-if="card.count">
@@ -81,6 +84,7 @@ watch(
             <template v-if="ranFor">
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
+            <button type="button" class="watch-dock-fold" :aria-expanded="!foldedByHand" @click="foldedByHand = !foldedByHand">{{ foldedByHand ? "Unfold" : "Fold" }}</button>
             <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout"><Icon name="bubble" /></Btn>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
@@ -136,11 +140,29 @@ watch(
     overflow: hidden;
 }
 
+.watch-dock-fold {
+    flex: none;
+    padding: 2px 8px;
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.watch-dock-fold:hover {
+    color: var(--text);
+    border-color: var(--border-3);
+}
+
 .watch-dock-state {
     display: flex;
     flex: none;
     justify-content: center;
     width: 16px;
+    color: var(--tone);
 }
 
 .watch-dock-elsewhere {
@@ -175,7 +197,9 @@ watch(
     text-align: left;
     cursor: pointer;
     overflow: hidden;
-    color: var(--text-2);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -190,7 +214,7 @@ watch(
 
 .watch-dock-statuses {
     margin: 0;
-    padding: 0 15px 8px 39px;
+    padding: 0 12px 10px 35px;
     color: var(--text-3);
     font-size: 11px;
     line-height: 1.5;
@@ -200,7 +224,7 @@ watch(
 
 .watch-dock-lines {
     margin: 0;
-    padding: 0 15px 8px;
+    padding: 0 12px 10px 35px;
     color: var(--text-3);
     font-family: var(--mono, monospace);
     font-size: 11px;

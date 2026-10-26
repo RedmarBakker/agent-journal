@@ -58,10 +58,10 @@ defineExpose({card});
 .chat-dock-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     min-width: 0;
     height: 36px;
-    padding: 0 6px 0 15px;
+    padding: 0 6px 0 12px;
     white-space: nowrap;
 }
 

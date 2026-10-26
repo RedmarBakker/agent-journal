@@ -41,7 +41,7 @@ const SYSTEM_TURNS = {
     }),
     made: (card, label) => ({
         kind: "made",
-        made: {table: card.made_type, id: Number(String(card.row).split(":")[1]), title: label, status: card.status || "", summary: card.summary || ""},
+        made: {table: card.made_type, id: Number(String(card.row).split(":")[1]), title: card.title || label, status: card.status || "", summary: card.summary || ""},
         data: {},
     }),
     docked: (card) => ({
@@ -73,7 +73,7 @@ const SYSTEM_TURNS = {
     card: (card, label) => ({
         kind: "card",
         data: {
-            ...cardLook(card),
+            ...cardLook(card, label),
             label,
             detail: card.detail,
             lines: card.lines || [],
@@ -109,7 +109,7 @@ const SYSTEM_TURNS = {
     plugin: (card, label) => ({
         kind: "card",
         data: {
-            ...cardLook(card),
+            ...cardLook(card, label),
             label,
             name: card.plugin,
             detail: card.detail,
@@ -150,14 +150,21 @@ export const EARLIER = "An earlier message";
 // What a message answers: the message it is a reply to, as messages:12.
 export const answered = (m) => (m.reply_target ? `messages:${m.reply_target}` : "");
 
+// the receipt the journal writes for a user's message, naming the tasks created or edited from it, keyed filed:<message id>
+const receiptOf = (m) => (fromSystem(m) && String(m.data?.key || "").startsWith("filed:") ? Number(m.data.key.split(":")[1]) : 0);
+
+// a user's message with the line saying what was created or edited from it under it, once, in place of a mark of its own elsewhere
+const withReceipt = (turn, receipt) => (receipt ? {...turn, receipt} : turn);
+
 export function threadTurns(messages, pending, older = false, hidden = []) {
     const keys = new Map();
+    const receipts = new Map(hidden.includes("filed") ? [] : messages.filter(receiptOf).map((m) => [receiptOf(m), m.text]));
     const said = messages.filter((m) => !fromSystem(m));
     const floor = older && said.length ? Math.min(...said.map((m) => seconds(m.created_at))) : 0;
     messages.forEach((m) => pending.filter((p) => promisedFor(p, m)).forEach((p) => keys.set(refOf(m), p.key)));
     const turns = [
-        ...said.filter((m) => !pending.some((p) => promisedFor(p, m) && !delivered(p, m))).map(spoken),
-        ...messages.filter(fromSystem).map(systemTurn),
+        ...said.filter((m) => !pending.some((p) => promisedFor(p, m) && !delivered(p, m))).map((m) => withReceipt(spoken(m), receipts.get(m.id))),
+        ...messages.filter((m) => fromSystem(m) && !receiptOf(m)).map(systemTurn),
         ...pending.filter((p) => !messages.some((m) => promisedFor(p, m) && delivered(p, m))).map(placeholderTurn),
     ]
         .filter((t) => t.kind === "message" || t.time >= floor)
@@ -167,16 +174,17 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
 }
 
 const GROUP_FROM = 4;
-export const SUBAGENT_COLOR = "var(--tone-work)";
 const GROUPS = {
-    skill: () => ({key: "skill", icon: "book", label: (n) => `${n} skills loaded`}),
-    whisper: () => ({key: "whisper", icon: "rules", label: (n) => `${n} rules and facts recalled`}),
-    subagent: () => ({key: "subagent", icon: "agents", color: SUBAGENT_COLOR, label: (n) => `${n} subagent updates`}),
+    skill: () => ({key: "skill", icon: "book", markIcon: "skill", group: "agent", label: (n) => `${n} skills loaded`}),
+    whisper: () => ({key: "whisper", icon: "rules", markIcon: "rule", group: "reminders", label: (n) => `${n} rules and facts recalled`}),
+    subagent: () => ({key: "subagent", icon: "agents", markIcon: "subagent", group: "agent", label: (n) => `${n} subagent updates`}),
     card: (t) => ({
         key: `card:${t.data.icon}:${t.data.label}`,
         icon: t.data.icon,
         tone: t.data.tone,
         color: t.data.color,
+        group: t.data.group,
+        markIcon: t.data.markIcon,
         label: (n, run) => {
             const settled = run.filter((r) => r.data.settled);
             return `${n} × ${t.data.label}${settled.length ? `, ${settled.length} ${settled[0].data.settled}` : ""}`;
@@ -193,7 +201,7 @@ function folded(run) {
         kind: "group",
         who: "agent",
         time: last.time,
-        data: {tone: run.every((t) => t.data.settled) ? "good" : group.tone || "", color: group.color || ""},
+        data: {tone: run.every((t) => t.data.settled) ? "good" : group.tone || "", color: group.color || "", group: group.group || "", markIcon: group.markIcon || ""},
         title: group.label(run.length, run),
         text: "",
         icon: group.icon,

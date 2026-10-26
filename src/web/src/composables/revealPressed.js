@@ -24,9 +24,10 @@ export function useRevealPressed(scroller) {
         return Boolean(pressed && pressed.isConnected && Date.now() - pressedAt <= REVEAL_MS);
     }
 
+    // a mark that is still opening keeps its top where it was; the pane follows only once it has its size
     function reveal() {
         const pane = scroller.value;
-        if (!pane || !isRevealing()) return;
+        if (!pane || !isRevealing() || pressed.querySelector(".mark.leaving, .mark.resizing")) return;
         const offset = revealOffset(pressed.getBoundingClientRect(), pane.getBoundingClientRect());
         if (offset) pane.scrollTo({top: pane.scrollTop + offset, behavior: "smooth"});
     }

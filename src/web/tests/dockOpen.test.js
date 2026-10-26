@@ -101,9 +101,10 @@ describe("where a document is read", () => {
     });
 });
 
-test("a created report is one line in its family's icon, opening the report on a click", async () => {
-    const made = await shown(MadeCard, {made: {table: "reports", id: 1072, title: "Created report 1072: Plan 1032 reviewed for what is missing"}});
-    expect(made.textContent.trim()).toBe("Created report 1072: Plan 1032 reviewed for what is missing");
+test("a created report is a small card naming what it is once and its title, in its own icon, opening the report on a click", async () => {
+    const made = await shown(MadeCard, {made: {table: "reports", id: 1072, title: "Plan 1032 reviewed for what is missing"}});
+    expect(made.querySelector(".made-kind").textContent).toBe("Report 1072");
+    expect(made.querySelector(".made-title").textContent).toBe("Plan 1032 reviewed for what is missing");
     expect(made.querySelector("svg, .icon")).not.toBeNull();
     expect(made.querySelectorAll(".thread-made-line").length).toBe(0);
 });
