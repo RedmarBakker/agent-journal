@@ -18110,7 +18110,7 @@ def test_a_journal_command_that_hands_the_agent_its_next_step_is_refused_when_cu
         assert bash(line)[0] == 200, line
 
 
-def test_an_outward_route_is_left_out_of_the_points_and_a_reader_add_tries_two_runs_at_once_and_the_older_ones_after(app: App, tmp_path):
+def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_and_a_reader_add_tries_two_runs_at_once(app: App, tmp_path):
     from types import SimpleNamespace
     from journal.support.listener_queue import ListenerQueue
     from journal.features.faults.support.developer_tally import DeveloperTally
@@ -18125,6 +18125,14 @@ def test_an_outward_route_is_left_out_of_the_points_and_a_reader_add_tries_two_r
         slow.windowed("developer.requests", f"POST {path}", Timing(method="POST", route=path, ms=40, time=0.0, loads=RequestLoads()))
     assert [part["name"] for part in tally.point_parts() if "plugin upgrade" in part["name"]] == [], "the plugin upgrade, which reaches outside, is no part of the points"
     assert any(part["name"] == "POST /journal/plans" for part in tally.point_parts()), "and an ordinary answer still is"
+    from collections import Counter
+    from journal.features.faults.support.slow_requests import COSTLY_POINTS
+    costly = RequestLoads.measured(Counter({"entries": COSTLY_POINTS}), Counter({"entries": 2048}), Counter())
+    slow.windowed("developer.hooks", "Stop", Timing(method="HOOK", route="/hooks/claude/Stop", ms=900, time=0.0, loads=costly))
+    slow.windowed("developer.hooks", "PreToolUse", Timing(method="HOOK", route="/hooks/claude/PreToolUse", ms=9, time=0.0, loads=RequestLoads()))
+    app.runtime().deferred.drain()
+    logged = (app.config.home / "runtime" / "costly-answers.log").read_text().splitlines()
+    assert len(logged) == 1 and f"Stop {COSTLY_POINTS + 2} points in 900 ms: entries" in logged[0], "an answer over the costly line is written with what it read, to a file that outlives a restart; a cheap one is not"
     runs = []
     for number in range(5):
         folder = tmp_path / f"run-{number}"

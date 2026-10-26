@@ -29,6 +29,8 @@ from journal.features.faults.faults_nudges import FaultsNudges
 from journal.features.faults.faults_options import FaultsOptions
 
 CHECK_INTERVAL_SECONDS = 5.0
+# an answer that spends this many points or more is written with what it read to runtime/costly-answers.log, which outlives a restart
+COSTLY_POINTS = 300
 
 
 HOOK = "HOOK"
@@ -93,6 +95,12 @@ class SlowRequests:
         if self.settings.option(FaultsOptions.LOADS) and not self.is_outward(self.route(timing.route)):
             self.tally.windowed(POINTS_GROUP, kind, timing.loads.points())
             self.tally.loaded(kind, timing.loads)
+        if timing.loads.points() >= COSTLY_POINTS:
+            self.deferred.add(lambda: self.costly(kind, timing))
+
+    def costly(self, kind: str, timing: Timing) -> None:
+        with (self.config.home / "runtime" / "costly-answers.log").open("a") as log:
+            log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {kind} {timing.loads.points()} points in {timing.ms} ms: {timing.loads.line()}\n")
 
     def is_first(self, route: str) -> bool:
         first = route not in self.measured_routes
