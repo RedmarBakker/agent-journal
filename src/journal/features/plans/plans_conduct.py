@@ -18,7 +18,6 @@ from journal.features.plans.states.naming_test_commands import NamingTestCommand
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.plans.plans_part import PlansPart
 from journal.features.plans.support.started_plan import StartedPlan
-from journal.features.tasks.tasks_part import TasksPart
 
 
 class PlansConduct(Conduct):
@@ -52,13 +51,11 @@ class PlansConduct(Conduct):
         return self.none(PlansNudges.PLAN_TESTING_CHANGED.create(n=event.plan_id, template=event.title, testing=event.testing))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
-        if event.task_id not in event.data.part(TasksPart).agent_tasks:
-            return self.none()
         started = event.data.part(PlansPart).started
+        if not is_started_plan_task(event, started):
+            return self.none()
         lines = next_task_lines(event, started)
-        if is_plan_task(event, started) and not test_commands(settings).programs:
-            return self.push(NamingTestCommands(task_id=event.task_id), *lines)
-        return self.none(*lines)
+        return self.none(*lines) if test_commands(settings).programs else self.push(NamingTestCommands(task_id=event.task_id), *lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if not any(test_commands(settings).reads(part.text) for part in event.call.parts):
@@ -73,7 +70,7 @@ class PlansConduct(Conduct):
         if started is None or event.task_id not in started.recent_tasks:
             return self.none()
         testing = testing_lines(started)
-        if started.started_task or started.next_task or started.checkpoint_pause or not started.remaining_tasks:
+        if started.started_task or started.has_next_task or started.checkpoint_pause or not started.remaining_tasks:
             return self.none(*testing)
         return self.none(*testing, PlansNudges.PLAN_STALLED.create(n=started.plan_id, left=started.remaining_tasks))
 
@@ -93,5 +90,5 @@ def next_task_lines(event: TaskStarted, started: StartedPlan | None) -> tuple[Nu
     return (PlansNudges.NEXT_PLAN_TASK.create(n=event.plan_id, task=event.task_id, title=event.title, briefing=briefing),)
 
 
-def is_plan_task(event: TaskStarted, started: StartedPlan | None) -> bool:
-    return bool(event.plan_id) or (started is not None and started.started_task == event.task_id)
+def is_started_plan_task(event: TaskStarted, started: StartedPlan | None) -> bool:
+    return started is not None and started.started_task == event.task_id

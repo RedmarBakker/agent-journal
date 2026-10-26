@@ -219,6 +219,13 @@ class Plans(ScopedRepository[Plan]):
         unphased = matching.filter_absent(self.links.query().filter(kind=PHASE_LINK).filter_listed("target", phases).filter_ref("source", self.tasks.query())) if phases else matching
         return self.first_link(self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)), unphased)
 
+    def has_resumable(self, plan: Plan) -> bool:
+        plan_links = self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan))
+        return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
+
+    def has_link(self, links: Query, tasks: Query) -> bool:
+        return bool(self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).limit(1)))
+
     def first_link(self, links: Query, tasks: Query) -> Task | None:
         first = self.links.selected(links.filter_existing(tasks.filter_named(links, "source")).order("id").limit(1))
         return self.tasks.find(first[0].source.id) if first else None

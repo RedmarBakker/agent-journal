@@ -51,6 +51,7 @@ class PlansDataReader:
         facts = LazyFacts("plans started", {
             "plan_id": lambda: plan.row_id,
             "next_task": lambda: self.next_task(plan),
+            "has_next_task": lambda: self.plans.has_resumable(plan),
             "started_task": lambda: self.started_task(plan),
             "started_task_briefing": lambda: self.briefing_text(plan),
             "recent_tasks": lambda: tuple(self.plans.recent_task_ids(plan, RECENT_PLAN_TASKS)),

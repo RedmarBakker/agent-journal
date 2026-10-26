@@ -34,6 +34,7 @@ from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.notices import Notices
 from journal.repositories.scope import PROJECT, Scope
+from journal.features.plans.plans_options import PlansOptions
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.subagents import Subagents
 from journal.repositories.tasks import Tasks
@@ -103,6 +104,7 @@ def booted(root: Path) -> App:
     settings.save(Setting(environment_id=PROJECT, key=VoicesOptions.NAME.key, value="Ada"), Actor.system())
     for key in ("skills.session_start", "skills.after_compaction"):
         settings.set(key, [], Actor.user(1))
+    settings.set(PlansOptions.TEST_COMMANDS.key, "pytest, journal suite", Actor.user(1))
     app.runtime().start()
     for name in ("main", "spare"):
         app.container.get(Environments).lookup(name)

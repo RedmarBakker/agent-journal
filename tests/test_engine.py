@@ -1136,7 +1136,8 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
     assert [nudge.key for nudge in approved.nudges] == ["plans.the_user_approved_the_plan"]
     agent_index = PlansReady().respond(PlanApproved(environment_id=1, time=1.0, plan_id=5, user_origin=False).with_data(data), settings, (PlansConduct,))
     assert agent_index.nudges == ()
-    next_task = PlansReady().respond(TaskStarted(environment_id=1, time=1.0, task_id=8, title="the next", plan_id=5).with_data(data), settings, (PlansConduct,))
+    in_hand = FeatureData({"plans": replace(plans, started=replace(plans.started, started_task=8)), "tasks": tasks})
+    next_task = PlansReady().respond(TaskStarted(environment_id=1, time=1.0, task_id=8, title="the next", plan_id=5).with_data(in_hand), settings, (PlansConduct,))
     assert next_task.nudges[0].rendered() == "plan 5: task 8 is next. it has no brief and nothing logged yet"
 
 
