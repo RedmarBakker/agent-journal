@@ -110,7 +110,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
-import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
+import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -218,6 +218,7 @@ let cleared = {until: 0};
 let hands = [];
 // the user has typed in the compose box since the last look, and when the agent's work in hand began
 let typed = false;
+let typedAt = 0;
 let workBegan = 0;
 let walkBegan = 0;
 // The parcels of code the figure has built (figure/parcels.js), oldest first, each {id, along, up, state, until, blows}: on the compose
@@ -1462,12 +1463,13 @@ function stepForward() {
 
 // The looks the figure could take this frame (looks.js), each {key, kind, point} with its point on the page: the pointer tickling it, the
 // mark or the docked bar of the run whose end the visor waits to light, the UFO or the crane's claw, the bubble it reads or holds its glass
-// to, a new message, the box it builds, pushes or stacks while it works (parcels.js workLook), a picture it admires, the leading edge of a
+// to, a new message, the composer while the user types in it, the box it builds, pushes or stacks while it works (parcels.js workLook), a picture it admires, the leading edge of a
 // progress bar on the docks in a stretch it chose to watch it (reactions.js barWatchAt, places.js watchLook), and its own idle glances; none
 // while an act that keeps its head alone plays, as the telephone call (looks.js looksFor)
 function lookCandidates(shown) {
     const scanned = shown.clip.name === "glass_bubble" && nearBubble();
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
+    const typing = composerLook(typedAt, now.value);
     const looks = [
         ["pointer", "pointer", shown.clip.name === "tickle_swat" ? pointerAt : null],
         ["run", "run", waitingMark()],
@@ -1476,6 +1478,7 @@ function lookCandidates(shown) {
         ["glass", "reading", scanned && scanningAt(scanned)],
         ["said", "said", newMessage("user")?.point],
         ["message", "message", newMessage("agent")?.point],
+        ["composer", typing ?? "typing", typing && composerPoint()],
         ["work", "work", work?.at],
         ["confession", "confession", confessionLook(shown)],
         ["picture", "picture", admiring.picture && admiringLook(admiring.picture.getBoundingClientRect())],
@@ -1505,6 +1508,12 @@ function barLook(shown) {
     const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
 }
+
+// the middle of the compose box on the page the figure glances at while the user types in it (looks.js composerLook), or null with no box
+const composerPoint = () => {
+    const box = document.querySelector(HOME)?.getBoundingClientRect();
+    return box ? middleOf(box) : null;
+};
 
 // the newest message `author` said in the chat, for its first seconds there (looks.js MESSAGE_SECONDS), as a look: of the kind said for the
 // user's, message for the agent's, its chat mark, its bubble's box and the middle of it; null with none
@@ -1635,7 +1644,9 @@ function lookingAt(shown) {
 const headCenter = () => ({x: body.at.x + SIZE / 2, y: body.at.y + SIZE * HEAD_HEIGHT});
 
 const onType = (event) => {
-    if (event.target.closest?.(HOME)) typed = true;
+    if (!event.target.closest?.(HOME)) return;
+    typed = true;
+    typedAt = Date.now() / 1000;
 };
 
 // what the figure does about a moment, as reactions.js answerTo decides: a beat the body plays, or a look the eyes take on

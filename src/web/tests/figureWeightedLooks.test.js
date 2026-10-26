@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
-import {HEAD, LINGER_SECONDS, LOOKS, SWITCH_SECONDS, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
+import {COMPOSER_FULL_SECONDS, COMPOSER_SECONDS, HEAD, LINGER_SECONDS, LOOKS, SWITCH_SECONDS, composerLook, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
 import {gazeAfter} from "../src/figure/reactions.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -164,4 +164,26 @@ test("on the telephone the head follows nothing but the call: no look is taken u
     leading = leadingLook(leading, looksFor(idle, offered), seconds + 1 / 12);
     expect(leading.look).toMatchObject({kind: "said"});
     expect(headBlend(leading.look, idle)).toBeGreaterThan(0.5);
+});
+
+test("the composer is a look while the user types, strongest just after a keystroke and weaker after a pause, and lapses", () => {
+    expect(composerLook(0, 100)).toBe(null);
+    expect(composerLook(100, 100)).toBe("typing");
+    expect(composerLook(100, 100 + COMPOSER_FULL_SECONDS)).toBe("typing");
+    expect(composerLook(100, 100 + COMPOSER_FULL_SECONDS + 0.1)).toBe("typing_pause");
+    expect(composerLook(100, 100 + COMPOSER_SECONDS)).toBe("typing_pause");
+    expect(composerLook(100, 100 + COMPOSER_SECONDS + 0.1)).toBe(null);
+    expect(LOOKS.typing).toBeGreaterThan(LOOKS.typing_pause);
+    expect(LOOKS.typing_pause).toBeGreaterThan(LOOKS.glance);
+});
+
+test("typing is one look among the others: it wins over the figure's idle glances, and a new message from the agent keeps the head", () => {
+    const composer = look("typing", 300, 600, "composer");
+    expect(leadingLook(null, [look("glance", 100, 100), composer], 10).look.key).toBe("composer");
+    const message = look("message", 900, 200);
+    expect(leadingLook(null, [composer, message], 10).look.kind).toBe("message");
+    const held = leadingLook(null, [composer], 10);
+    const weaker = look("typing_pause", 300, 600, "composer");
+    expect(leadingLook(held, [weaker], 11).look.key, "the same look goes on as it weakens").toBe("composer");
+    expect(leadingLook(held, [], 10 + LINGER_SECONDS + 1).look).toBe(null);
 });
