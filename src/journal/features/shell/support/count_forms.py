@@ -39,6 +39,10 @@ class CountForms:
     def figures(pattern: str, lines: list[str]) -> list[tuple[int, int]]:
         return [(int(match[0]), int(match[1])) for line in lines for match in re.findall(pattern, line) if len(match) == 2 and all(match)]
 
+    @staticmethod
+    def percentages(pattern: str, lines: list[str]) -> list[int]:
+        return [int(match) for line in lines for match in re.findall(pattern, line) if isinstance(match, str) and match.isdigit()]
+
     # figures that count towards a total never pass it, and most of them share it, as a run's progress does; numbers inside
     # names, such as the card numbers 65/131 and 225/182 in a list of products, pass their total or each name a total of its own
     @staticmethod

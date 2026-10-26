@@ -54,6 +54,8 @@ STOPPED_PICKING = "it picked lines at the start of the run and none of its newes
 FINDING_KINDS = (UNFILTERED, STOPPED_PICKING, POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, PROGRESS_LATE, BUILD_UNSHOWN, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
 # the newest runs of a reader looked through for one title given to different work
 MIXED_RUNS = 6
+# a total past this is no count of a run's work but a number such as a job's id
+LARGEST_TOTAL = 1_000_000
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
 BUILD_LINE = re.compile(r"\bbuilt in\b|\bbuild (?:succeeded|complete|finished)\b", re.IGNORECASE)
 
@@ -231,13 +233,26 @@ class ReaderJudge:
 
     # a count of a total read from figures that are no count, such as the card numbers inside product names, draws a bar that lies
     def false_progress(self, reader: Reader, lines: list[str]) -> list[str]:
-        if reader.script or not reader.is_counting() or re.compile(reader.progress_pattern).groups != 2:
+        if reader.script or not reader.is_counting():
+            return []
+        groups = re.compile(reader.progress_pattern).groups
+        if groups == 1:
+            return self.false_percentage(reader, lines)
+        if groups != 2:
             return []
         figures = CountForms.figures(reader.progress_pattern, lines)
+        if figures and CountForms.is_count_series(figures) and max(total for _, total in figures) > LARGEST_TOTAL:
+            return [f"its --progress counts towards a total of {max(total for _, total in figures)}, {', '.join(f'{count}/{total}' for count, total in figures[:QUOTED_LINES])}: no run does that much work, so the second figure is a number such as an id; give it a pattern for the run's own count, or none, and the card shows how long the run has gone"]
         if not figures or CountForms.is_count_series(figures):
             return []
         shown = [line for line in lines if reader.is_progress_line(line)][:QUOTED_LINES]
         return [f"its --progress selects figures that count towards no total, {', '.join(f'{count}/{total}' for count, total in figures[:QUOTED_LINES])}, in {self.quoted(shown)}: a count of a total never passes its total and shares it from line to line; give it a pattern for the run's own count, or none"]
+
+    def false_percentage(self, reader: Reader, lines: list[str]) -> list[str]:
+        large_values = [value for value in CountForms.percentages(reader.progress_pattern, lines) if value > 100]
+        if not large_values:
+            return []
+        return [f"its --progress has one group, which is read as a percentage, and it caught {', '.join(map(str, large_values[:QUOTED_LINES]))}, past 100, so the bar sat full: give it two groups for a count of a total, such as (\\d+)/(\\d+), or none, and the card shows how long the run has gone"]
 
     @staticmethod
     def quoted(lines: list[str]) -> str:

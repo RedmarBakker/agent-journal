@@ -1,3 +1,4 @@
+import shlex
 from datetime import datetime, timezone
 import re
 from argparse import Namespace
@@ -62,6 +63,12 @@ class ReaderCommand(Command):
         dismissal.add_argument("n", type=int)
         dismissal.add_argument("--why", required=True, help="why the report is wrong")
 
+    # the options a reader written again keeps from the one before because the line left them out, each with the value it keeps
+    @staticmethod
+    def kept_options(prior: Reader, args: Namespace) -> list[str]:
+        options = {"progress": prior.progress_pattern, "label": prior.label, "commands": prior.commands.text(), "step": prior.step_pattern, "topic": prior.topic_pattern, "finished": prior.finished_pattern, "failed": prior.failed_pattern, "summary": prior.summary_pattern}
+        return [f"--{option} {shlex.quote(value)}" for option, value in options.items() if value and getattr(args, option) is None]
+
     def add(self, args: Namespace, caller: Caller) -> int:
         if not NAME.fullmatch(args.name):
             raise Rejection(f"a reader's name is lowercase words joined by -, such as failed-tests, not {args.name}")
@@ -88,6 +95,9 @@ class ReaderCommand(Command):
             self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
+        kept = self.kept_options(prior, args) if prior is not None else []
+        if kept:
+            print(f"kept from the reader before, as you did not give them: {', '.join(kept)}; give one as '' to drop it, such as --progress ''")
         return 0
 
     def tried(self, reader: Reader) -> None:

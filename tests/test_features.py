@@ -21222,3 +21222,50 @@ def test_the_workers_recent_activity_is_their_marks_newest_first_and_no_other(ap
         cards.show_fields(MAIN, None, "Worker 1, A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardKind.WORKER_TESTS)
     status, body = got(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
     assert status == 200 and [row["text"] for row in body["rows"]] == ["Worker 1, A: its tests passed", "Worker 1, A: sent its next job"]
+
+
+def test_a_reader_written_anew_takes_effect_on_the_card_of_a_run_already_going(app: App):
+    from journal.chat.process_cards import ProcessCards
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    console = app.console()
+    assert console.run(["reader", "add", "tests", "--pattern", "PASS|FAIL", "--about", "a go test run", "--commands", "go test", "--progress", r"=== RUN\s+\S+\s+(\d+)"], AGENT).code == 0
+    folder = app.config.root / "go-run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("go test -v ./...")
+    (folder / "0.out").write_text("".join(f"=== RUN   TestCase {n}\n--- PASS: TestCase (0.01s)\n" for n in range(1, 120)))
+    app.container.get(OutputLog).start("g", "go test -v ./...", folder, Caller.agent("main", "s1", "claude"))
+    outputs = app.container.get(CommandOutputs)
+    outputs.save(outputs.find(1).backgrounded(), Actor.system())
+    assert console.run(["output", "watch", "1", "--reader", "tests"], AGENT).code == 0
+    card = app.container.get(OutputProcessCard)
+    app.container.get(ProcessCards).show(card.card_contents(outputs.find(1)))
+    with app.container.get(Scope).environment(1):
+        message = app.container.get(Messages).with_key("watch:1")[0]
+        assert card.refresh(message)["fraction"] == 1.0, "a one-group progress reads case 119 as 119 per cent, held at the whole bar"
+        again = console.run(["reader", "add", "tests", "--pattern", "PASS|FAIL", "--about", "a go test run", "--commands", "go test"], AGENT)
+        assert again.code == 0 and "kept from the reader before, as you did not give them: --progress" in again.text and "--progress ''" in again.text, "a reader written again says the progress it kept and how to drop it, the step the agent missed on output 4662"
+        assert card.refresh(message)["fraction"] == 1.0, "the progress it kept still reads"
+        assert console.run(["reader", "add", "tests", "--progress", ""], AGENT).code == 0
+        refreshed = card.refresh(message)
+    assert refreshed["fraction"] == 0 and not refreshed["counting"] and refreshed["figure"] == "", f"the progress dropped, the run already going loses its bar at once: {refreshed}"
+
+
+def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_reported():
+    from types import SimpleNamespace
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    judge = ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: []), None, None, SimpleNamespace(index=lambda: {}))
+    percent = Reader("tests", "a go test run", progress_pattern=r"=== RUN\s+\S+\s+(\d+)")
+    cases = [f"=== RUN   TestCase {n}" for n in (99, 119, 121)]
+    found = judge.false_progress(percent, cases)
+    assert len(found) == 1 and "read as a percentage" in found[0] and "119, 121" in found[0], f"case 119 read as 119 per cent is reported (output 4662 of the code-commandments project): {found}"
+    assert judge.false_progress(percent, ["=== RUN   TestCase 40", "=== RUN   TestCase 80"]) == [], "a percentage within 100 is fine"
+    jobs = Reader("release-watch", "a release watch", progress_pattern=r"in (\d+)s \(ID (\d+)\)")
+    watched = [f"✓ build in {seconds}s (ID 121632227066)" for seconds in (12, 55)]
+    found = judge.false_progress(jobs, watched)
+    assert len(found) == 1 and "121632227066" in found[0] and "an id" in found[0], f"a count towards a job's id, 55/121632227066, is reported: {found}"

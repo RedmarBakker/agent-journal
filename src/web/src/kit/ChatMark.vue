@@ -3,7 +3,8 @@ import {computed, onBeforeUnmount, ref, useAttrs, watch} from "vue";
 import ChatMarkStatus from "./ChatMarkStatus.vue";
 import Icon from "./Icon.vue";
 import TextDisplay from "./TextDisplay.vue";
-import {clock} from "../format/time.js";
+import {clock, elapsed} from "../format/time.js";
+import {useSharedNow} from "../composables/now.js";
 
 defineOptions({inheritAttrs: false});
 const props = defineProps({mark: {type: Object, required: true}, open: {type: Boolean, default: undefined}});
@@ -40,6 +41,9 @@ const shade = computed(() => props.mark.color || (props.mark.tone ? `var(--tone-
 const barShade = computed(() => shade.value || "var(--tone-work)");
 // a run's bar shows while the run is active: a process or watch card that has ended, finished or failed, or any ended mark, has none
 const running = computed(() => !props.mark.ending && !props.mark.ended);
+// a running card whose reader counts no progress shows how long its run has gone, in place of a bar nobody can work out
+const now = useSharedNow();
+const ranFor = computed(() => (props.mark.began_at && running.value && !props.mark.figure && !props.mark.counting ? elapsed(now.value - props.mark.began_at) : ""));
 const hover = computed(() => [props.mark.title, props.mark.time ? clock(props.mark.time) : ""].filter(Boolean).join(" · "));
 const tint = computed(() => ({
     ...(shade.value ? {"--mark": shade.value} : {}),
@@ -76,6 +80,9 @@ const tint = computed(() => ({
                 <span class="figure">{{ mark.figure }}</span>
             </template>
         </span>
+        <template v-if="ranFor">
+            <span class="figure ran-for">{{ ranFor }}</span>
+        </template>
         <template v-if="(mark.figure || mark.counting) && running">
             <span class="progress" :style="{width: `${Math.round((mark.fraction || 0) * 100)}%`, background: barShade}"></span>
         </template>
