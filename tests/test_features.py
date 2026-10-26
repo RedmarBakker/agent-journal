@@ -12557,6 +12557,21 @@ def test_a_worker_merge_goes_to_the_background_at_once_with_the_reader_the_journ
     assert readers.reading("journal worker merge 3").name == "worker-merge", "the reader the journal ships for a merge reads it, and the seed that removes readers of journal commands keeps it"
 
 
+def test_a_merge_card_is_titled_with_the_worker_it_merges_and_a_merge_of_all_with_the_checked_workers(app: App):
+    from journal.features.shell.seeds.default_readers import DefaultReaders
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.features.shell.support.readers import Readers
+    from journal.models.command_output import CommandOutput
+    hook(app, "SessionStart")
+    app.container.get(DefaultReaders).run()
+    cards, readers = app.container.get(OutputProcessCard), app.container.get(Readers)
+    titled = lambda line: cards.title(CommandOutput(chain="m", command=line, session="s1", folder=str(app.config.root / "m")).watched("worker-merge", ""), line)
+    assert titled("journal worker merge 3") == "Merging worker 3's work", "a merge names the worker it merges"
+    assert titled("journal worker merge 1127") == "Merging worker 1127's work"
+    assert titled("journal worker merge --all") == "Merging the checked workers' work", "a merge of every checked worker says so"
+    assert "topic label: Merging worker {topic}'s work" in readers.definition("worker-merge"), "the title with its topic is kept in the reader's own file"
+
+
 def test_while_a_restart_waits_a_merge_or_a_long_run_is_not_started_and_a_short_command_still_runs(app: App):
     from journal.features.shell.support.restart_queue import RestartQueue
     from journal.features.shell.support.shell_request import ShellRequest

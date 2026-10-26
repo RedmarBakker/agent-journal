@@ -92,7 +92,7 @@ class OutputProcessCard(ProcessCard):
             return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
-        full = f"{heading}: {topic}" if topic else heading
+        full = reader.topic_label.replace("{topic}", topic) if topic and reader.topic_label and not output.watch_title else (f"{heading}: {topic}" if topic else heading)
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]
 
     @staticmethod

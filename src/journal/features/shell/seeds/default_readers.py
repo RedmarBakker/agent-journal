@@ -12,7 +12,8 @@ SHIPPED = (
     Reader("dotnet-test", "the failed tests and the totals of a dotnet test run", r"Failed |error |Passed!|Failed!|Total tests", "", "Running tests", ReaderCommands(("dotnet test",)), finished_pattern=r"Passed!|Total tests", failed_pattern=r"Failed |Failed!|error "),
     Reader("phpunit", "the failures and the totals of a phpunit or pest run", r"FAILURES!|ERRORS!|Tests: |FAIL |Failed asserting|OK \(", r"\( *([0-9]+)%\)", "Running tests", ReaderCommands(("phpunit", "pest", "artisan test")), r"[.FEWRSI]",
            finished_pattern=r"OK \(|Tests: ", failed_pattern=r"FAILURES!|ERRORS!|FAIL |Failed asserting|Tests: "),
-    Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^step [0-9]+/[0-9]+: |^now: .{1,120}$|^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^step ([0-9]+)/([0-9]+): ", "Merging a worker's work", ReaderCommands(("journal worker merge",)),
+    Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^step [0-9]+/[0-9]+: |^now: .{1,120}$|^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^step ([0-9]+)/([0-9]+): ", "Merging the checked workers' work", ReaderCommands(("journal worker merge",)),
+           topic_pattern=r"journal worker merge +([0-9]+)", topic_label="Merging worker {topic}'s work",
            finished_pattern=r"^task [0-9]+ done: [^;]{1,90}$", failed_pattern=r"^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$"),
     Reader("git-commit", "a commit: the commit it made and its files, or why its hooks refused it", r"^\[[^\]]+ [0-9a-f]{7,}\]|^ [0-9]+ files? changed|^error:|^fatal:|FAILED|hook", "", "Committing", ReaderCommands(("git commit",)),
            finished_pattern=r"^\[[^\]]+ [0-9a-f]{7,}\]|^ [0-9]+ files? changed", failed_pattern=r"^error:|^fatal:|FAILED|hook"),
@@ -21,7 +22,7 @@ SHIPPED = (
 )
 
 
-RETIRED_LABELS = ("Tests", "Running the tests")
+RETIRED_LABELS = ("Tests", "Running the tests", "Merging a worker's work")
 RETIRED_PATTERNS = (r"^step [0-9]+/[0-9]+: |^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$",)
 
 

@@ -122,7 +122,7 @@ test("a card keeps the same mark element while it opens and closes, and its titl
     await nextTick();
     expect(host.querySelector(".mark")).toBe(mark);
     const {readFileSync} = await import("node:fs");
-    const css = readFileSync(new URL("../src/kit/ChatMark.vue", import.meta.url), "utf8");
+    const css = readFileSync("src/kit/ChatMark.vue", "utf8");
     expect(css).toMatch(/\.head \{[^}]*white-space: nowrap/);
     app.unmount();
     host.remove();

@@ -261,7 +261,7 @@ test("the worker's Tasks section lists every task it held with its state, and co
         {id: 6, title: "the help page", state: "started"},
     ];
     const list = mount(WorkerTasks, {worked, queue: [{id: 7, title: "the footer"}]});
-    expect([...list.querySelectorAll(".worked")].map((row) => [row.textContent.replace(/\s+/g, " ").trim(), row.classList.contains("done")])).toEqual([
+    expect([...list.querySelectorAll(".worked")].map((row) => [`${row.querySelector(".worked-task").textContent} ${row.querySelector(".worked-state").textContent}`, row.classList.contains("done")])).toEqual([
         ["Task 4: the parser merged", true],
         ["Task 5: the docs done", true],
         ["Task 6: the help page started", false],
