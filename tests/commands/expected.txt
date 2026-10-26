@@ -585,6 +585,16 @@ $ agent: journal doc undock 1
 exit 0
 Doc 1: The cart undocked
 
+$ agent: journal doc ready --help
+exit 0
+usage: journal doc ready [-h] n
+
+positional arguments:
+  n
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal doc share 1
 exit 1
 there is no hub to file in: no team is joined, or the team is not on the hub yet, which journal team migrate moves it to
@@ -670,6 +680,16 @@ update 2: item 1 taken out
 $ agent: journal report settle 1 --why 'it was read and needs no action'
 exit 0
 report 1 signed off: it was read and needs no action
+
+$ agent: journal report ready --help
+exit 0
+usage: journal report ready [-h] n
+
+positional arguments:
+  n
+
+options:
+  -h, --help  show this help message and exit
 
 $ agent: journal template create 'Find what is missing' --brief 'Read the plan against its goal' --applies-to plan --purpose critique
 exit 0
@@ -826,12 +846,14 @@ reader totals added: journal output read N --reader totals
 
 $ agent: journal reader list
 exit 0
-dotnet-test: the failed tests and the totals of a dotnet test run
-phpunit: the failures and the totals of a phpunit or pest run
-pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
+dotnet-test: the failed tests and the totals of a dotnet test run (locked)
+git-commit: a commit: the commit it made and its files, or why its hooks refused it (locked)
+git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
+phpunit: the failures and the totals of a phpunit or pest run (locked)
+pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
 totals: a test run's totals
-vitest: the failed tests of a vitest run with their assertion lines, and its totals
-worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal
+vitest: the failed tests of a vitest run with their assertion lines, and its totals (locked)
+worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal (locked)
 
 $ agent: journal reader default totals
 exit 0
@@ -1232,6 +1254,7 @@ sequences.say_every = 10
 usage.check_minutes = 15
 workers.idle_hours = 4
 workers.fitness_level_step = 5
+workers.fitness_warnings = True  (the user sets it)
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
 workers.clashes_named = 3
@@ -1414,12 +1437,14 @@ no worker or subagent to act on
 nothing
 
 == journal reader list ==
-dotnet-test: the failed tests and the totals of a dotnet test run
-phpunit: the failures and the totals of a phpunit or pest run
-pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
+dotnet-test: the failed tests and the totals of a dotnet test run (locked)
+git-commit: a commit: the commit it made and its files, or why its hooks refused it (locked)
+git-push: a push: the commits it sent, the tests its gate counts, or why it was refused (locked)
+phpunit: the failures and the totals of a phpunit or pest run (locked)
+pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it (locked)
 totals: a test run's totals (the default for its commands)
-vitest: the failed tests of a vitest run with their assertion lines, and its totals
-worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal
+vitest: the failed tests of a vitest run with their assertion lines, and its totals (locked)
+worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal (locked)
 
 == journal task show current ==
 no task is in hand
@@ -1849,7 +1874,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-285 nudges
+286 nudges
 
 $ agent: journal worker list
 exit 0

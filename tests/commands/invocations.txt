@@ -105,6 +105,7 @@ agent doc revisions 1
 agent doc revision 1 1
 agent doc dock 1
 agent doc undock 1
+agent doc ready --help
 agent doc share 1
 agent doc mode 1 free
 agent doc copy 1
@@ -123,6 +124,7 @@ agent report dock 1
 agent report undock 1
 agent report drop 1
 agent report settle 1 --why "it was read and needs no action"
+agent report ready --help
 agent template create "Find what is missing" --brief "Read the plan against its goal" --applies-to plan --purpose critique
 agent template list
 agent template show 1
