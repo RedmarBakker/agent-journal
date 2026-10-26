@@ -149,3 +149,16 @@ test("a figure grabbed into the air has the act it was playing cut at once, a se
     expect(grabbedInAir(chuteFrom(100, 0, 300, 0))).toBe(false);
     expect(CLIPS.find((clip) => clip.name === "chute").cuts).toBe(true);
 });
+
+test("the body pressed and moved up at all is grabbed at once, and hangs from the pointer as a damped pendulum that settles straight down", async () => {
+    const {risesFrom} = await import("../src/figure/grab.js");
+    const {STILL, swung} = await import("../src/figure/pendulum.js");
+    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 49})).toBe(true);
+    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 50})).toBe(false);
+    expect(risesFrom({x: 50, y: 50}, {x: 50, y: 60})).toBe(false);
+    expect(GRAB.hold, "no hold is waited for").toBeUndefined();
+    let hang = swung(STILL, 1 / 60, 0, 40, 112);
+    expect(Math.abs(hang.angle), "carried sideways it swings out").toBeGreaterThan(0.1);
+    for (let frame = 1; frame < 60 * 20; frame++) hang = swung(hang, 1 / 60, frame / 60, 0, 112);
+    expect(Math.abs(hang.angle), "with the pointer still it settles nearly straight down").toBeLessThan(0.05);
+});

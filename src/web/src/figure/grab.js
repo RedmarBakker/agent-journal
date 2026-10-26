@@ -1,12 +1,12 @@
 import {fallFrame} from "../domain/figureMotion.js";
 
 // The figure handled with the pointer. Its head, pressed and dragged across, tilts with the pointer `pull` degrees a pixel up to `tilt`
-// degrees either way, the head being the picture above `neck` of it under the eyes. Its body, pressed `hold` seconds, is lifted and
-// dangles under the pointer; let go, it flies off at the pointer's speed over its last `sampled` seconds, never faster than `fastest`
+// degrees either way, the head being the picture above `neck` of it under the eyes. Its body, pressed and then moved up at all, is lifted at once and
+// dangles under the pointer as a damped pendulum (pendulum.js); let go, it flies off at the pointer's speed over its last `sampled` seconds, never faster than `fastest`
 // pixels a second, tumbling `spin` degrees a second and off the chat's sides keeping `bounce` of its speed across, and falls from where it
 // is let go to the nearest floor below; thrown up past the chat's top it flies on freely, out of sight, and is gone off the screen once
 // its feet are `away` pixels above that top, to come back from above.
-export const GRAB = {tilt: 30, pull: 0.6, neck: 0.06, hold: 0.25, sampled: 0.1, fastest: 3000, spin: 900, bounce: 0.5, away: 500};
+export const GRAB = {tilt: 30, pull: 0.6, neck: 0.06, rise: 1, sampled: 0.1, fastest: 3000, spin: 900, bounce: 0.5, away: 500};
 
 // the longest step the flight takes at once, in seconds, so a frame missed while the tab was away does not carry it through a wall
 const LONGEST_STEP = 0.05;
@@ -15,6 +15,9 @@ const clamp = (value, least, most) => Math.min(Math.max(value, least), most);
 
 // whether a press at `point`, as shares of the picture, is on the head, whose eyes are at `head`: anything above the neck
 export const onHead = (point, head) => point.y <= head.y + GRAB.neck;
+
+// whether a pointer pressed at `from` and now at `at` has moved up, even a little: the body pressed is grabbed then
+export const risesFrom = (from, at) => from.y - at.y >= GRAB.rise;
 
 // how far the head tilts, in degrees, for a drag `across` pixels to the right of where it was pressed: with the pointer, never past GRAB.tilt
 export const headTiltFor = (across) => clamp(across * GRAB.pull, -GRAB.tilt, GRAB.tilt);

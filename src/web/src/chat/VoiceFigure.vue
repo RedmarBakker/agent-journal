@@ -52,7 +52,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {CLEARED_SECONDS, MARK_STAY, phoneSide, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
-import {GRAB, grabbedInAir, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, thrownFrom} from "../figure/grab.js";
+import {grabbedInAir, headTiltFor, onHead, pointerSpeed, resumedClock, risesFrom, thrownFrame, thrownFrom} from "../figure/grab.js";
 import {jumpMost} from "../figure/climbs.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, beamOf, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, boxTop, buildAim, buildRunAt, isPileLeft, grabberAt, grabsOf, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
@@ -1138,7 +1138,6 @@ function clicked(event) {
 // ever; one that tilted or threw it is not.
 let grab = null;
 let handled = false;
-let liftTimer = 0;
 
 const grabbable = () => Boolean(playing.shown) && !body.trip && !body.airborne && !flight && !body.arriving && !body.leaving && body.place.posture !== "hang";
 
@@ -1148,36 +1147,38 @@ function pressed(event) {
     const box = event.currentTarget.parentElement.getBoundingClientRect();
     const point = {x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height};
     const now = performance.now();
-    grab = {head: onHead(point, headAt.value), from: {x: event.clientX, y: event.clientY}, began: now, moves: [{x: event.clientX, y: event.clientY, at: now / 1000}], tilt: 0};
+    grab = {head: onHead(point, headAt.value), from: {x: event.clientX, y: event.clientY}, point, began: now, moves: [{x: event.clientX, y: event.clientY, at: now / 1000}], tilt: 0};
     window.addEventListener("pointermove", dragged);
     window.addEventListener("pointerup", released, {once: true});
-    if (!grab.head) liftTimer = setTimeout(lift, GRAB.hold * 1000);
 }
 
 function dragged(event) {
     grab.moves = [...grab.moves.slice(-19), {x: event.clientX, y: event.clientY, at: performance.now() / 1000}];
     if (grab.head) grab.tilt = headTiltFor(event.clientX - grab.from.x);
+    else if (!grab.lifted && risesFrom(grab.from, {x: event.clientX, y: event.clientY})) lift();
 }
 
-// held a moment, the body is lifted off where it rests, its feet kept as far from the pointer as when it was pressed
+// moved up, the body is lifted off where it rests at once, its feet kept as far from the pointer as when it was pressed
 function lift() {
     if (!grabbable()) return;
     const [feet, pointer] = [feetOf(body.at), grab.moves.at(-1)];
     grab.lifted = {offset: {x: feet.x - pointer.x, y: feet.y - pointer.y}};
     body.footing = null;
-    body.airborne = {...feet, posture: "stand", face: 0, held: true};
+    body.airborne = {...feet, posture: "stand", face: 0, held: true, hang: 0, grip: grab.point};
 }
 
 // lifted, it dangles under the pointer, kept inside its world
 function dangle() {
     const [pointer, room] = [grab.moves.at(-1), flightRoom()];
     const {offset} = grab.lifted;
-    body.airborne = {...body.airborne, x: Math.min(Math.max(pointer.x + offset.x, room.left), room.right), y: Math.min(Math.max(pointer.y + offset.y, room.top), room.bottom)};
+    const now = performance.now() / 1000;
+    grab.hang = swung(grab.hang ?? STILL, grab.hangAt ? now - grab.hangAt : 0, now, pointer.x - (grab.hangX ?? pointer.x), SIZE);
+    [grab.hangAt, grab.hangX] = [now, pointer.x];
+    body.airborne = {...body.airborne, x: Math.min(Math.max(pointer.x + offset.x, room.left), room.right), y: Math.min(Math.max(pointer.y + offset.y, room.top), room.bottom), hang: grab.hang.angle, grip: grab.point};
     body.at = placed(body.airborne, "stand");
 }
 
 function released() {
-    clearTimeout(liftTimer);
     window.removeEventListener("pointermove", dragged);
     const now = performance.now();
     handled = grab.head || Boolean(grab.lifted);
@@ -1920,6 +1921,7 @@ const actorStyle = computed(() => ({
     ...(squeezed.value && {scale: `${squeezed.value.x} ${squeezed.value.y}`, transformOrigin: `50% ${(1 - below.value) * 100}%`}),
     ...(chasing.value && {animationDuration: `${chaseMs.value}ms`, "--chase": `${chaseRun.value}px`}),
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
+    ...(body.airborne?.held && {rotate: `${body.airborne.hang}rad`, transformOrigin: `${body.airborne.grip.x * 100}% ${body.airborne.grip.y * 100}%`}),
     ...(body.airborne?.thrown && {rotate: `${body.airborne.spin}deg`, transformOrigin: "50% 55%"}),
     ...(onSwing.value && {scale: `${onSwing.value.scale}`, transformOrigin: `${onSwing.value.origin.x * 100}% ${onSwing.value.origin.y * 100}%`}),
 }));
