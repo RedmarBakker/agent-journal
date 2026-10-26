@@ -4,6 +4,8 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- A subagent resumed by a message to review a plan counts as the plan's reviewer until it ends, so the plan is not held for its readying while it reads.
+- A journal that stored agent loads with the minutes the fitness once counted reads them again after an upgrade.
 - Starting a task of an approved plan that is paused or not started yet starts its plan with it, so the plan is followed; a task of an unapproved plan is still refused.
 - A commit in the environment's own worktree closes the tasks its trailer names at the commit, and the merge that lands it closes nothing again.
 - The last open task of a plan's phase may run the tests its brief asks for, in a plan that tests at each phase end.

@@ -87,7 +87,7 @@ class SubagentEntries:
                 continue
             operation = e.recorded_call().operation
             if isinstance(operation, AgentMessage):
-                SubagentEntries.resumed(rows, background, operation.receiver, e.kind, time)
+                SubagentEntries.resumed(rows, background, operation, e.kind, time)
                 continue
             if not isinstance(operation, SubagentDispatch) or e.data.get("refused"):
                 continue
@@ -115,8 +115,9 @@ class SubagentEntries:
     @staticmethod
     def moved(row: Subagent, entry: Entry) -> Subagent:
         time, agent_id = entry.created_at.timestamp(), entry.data.get("agent_id", "")
-        if entry.kind == "ToolStarting" and isinstance(entry.recorded_call().operation, AgentMessage) and entry.recorded_call().operation.receiver == row.session:
-            return row.resumed(time)
+        operation = entry.recorded_call().operation if entry.kind == "ToolStarting" else None
+        if isinstance(operation, AgentMessage) and operation.receiver == row.session:
+            return row.resumed(time, operation.text)
         if not row.is_running():
             return row
         if entry.kind == "SubagentEnded" and agent_id == row.session:
@@ -144,12 +145,12 @@ class SubagentEntries:
         background[agent_id] = i
 
     @staticmethod
-    def resumed(rows: list[Subagent], background: dict[str, int], receiver: str, kind: str, time: float) -> None:
+    def resumed(rows: list[Subagent], background: dict[str, int], message: AgentMessage, kind: str, time: float) -> None:
         if kind != "ToolStarting":
             return
-        for i in [i for i, row in enumerate(rows) if row.session and row.session == receiver]:
-            rows[i] = rows[i].resumed(time)
-            background[receiver] = i
+        for i in [i for i, row in enumerate(rows) if row.session and row.session == message.receiver]:
+            rows[i] = rows[i].resumed(time, message.text)
+            background[message.receiver] = i
 
     @staticmethod
     def failed_rows(rows: list[Subagent], active: dict[str, int], reason: str, time: float) -> None:

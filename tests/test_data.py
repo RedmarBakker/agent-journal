@@ -327,6 +327,19 @@ def test_the_paused_tasks_migration_turns_a_parked_task_and_plan_into_paused_one
     assert (task["state"], task["pause_reason"]) == ("paused", "waits on the lexer") and connection.one("SELECT state FROM plans")["state"] == "paused"
 
 
+def test_the_load_keys_migration_lets_a_load_stored_with_the_dropped_minutes_read_again(connection):
+    """Migration 64: the over_full_minutes and over_zero_minutes keys leave the stored queues and the loads by mode, and each reads as an AgentLoad."""
+    import json
+    from journal.db.migrations.load_keys_drop import LoadKeysDrop
+    from journal.models.support.agent_load import AgentLoad
+    stale = {"rho": 0.5, "over_full_minutes": 10.0, "over_zero_minutes": 60.0}
+    connection.execute("INSERT INTO agents (environment_id, session, created_at, creator, work_queue, message_queue, mode_loads) VALUES (1, 's1', '2026-10-26', 'system', ?, ?, ?)", (json.dumps(stale), json.dumps(stale), json.dumps({"builder": stale})))
+    LoadKeysDrop().apply(connection)
+    row = connection.one("SELECT work_queue, message_queue, mode_loads FROM agents")
+    loads = [json.loads(row["work_queue"]), json.loads(row["message_queue"]), json.loads(row["mode_loads"])["builder"]]
+    assert [AgentLoad.parsed(load).rho for load in loads] == [0.5, 0.5, 0.5]
+
+
 def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_shared_environments_the_team_key_and_puts_documents_in_the_project(tmp_path):
     """Migration 52 on a copy of a pre-hub database: no row is lost, the Team chat is a session in the team, a shared environment carries the team's key, one known later as unknown, the flags go, and every document is in environment 0."""
     import json

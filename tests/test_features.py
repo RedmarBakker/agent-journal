@@ -16995,6 +16995,37 @@ def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_
     assert edit()[0] == 200, "the hold is gone once the plan is ready"
 
 
+def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_ends(app: App, monkeypatch):
+    from journal.repositories.plans import Plans
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    console = app.console()
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
+    console.run(["plan", "todos", "1", "1", "1"], USER)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the review", "--start"], AGENT)
+    reader = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads the design", "prompt": "read the design document", "model": "sonnet", "run_in_background": True}
+    hook(app, "PreToolUse", tool_name="Agent", tool_input=reader, tool_use_id="t-1")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=reader, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
+    hook(app, "SubagentStop", agent_id="a1")
+    console.run(["plan", "review", "1"], AGENT)
+    message = {"to": "a1", "message": "now review plan 1 against the design"}
+    hook(app, "PreToolUse", tool_name="SendMessage", tool_input=message, tool_use_id="t-2")
+    hook(app, "PostToolUse", tool_name="SendMessage", tool_input=message, tool_response={}, tool_use_id="t-2")
+    app.runtime().deferred.drain()
+    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
+    assert app.container.get(Plans).find(1).reviewers == 1, "the subagent resumed with a message naming the plan is its reviewer out"
+    statuses = [edit()[0] for _ in range(12)]
+    assert statuses == [200] * 12 and "reviewers are all back" not in " ".join(keystrokes), "no countdown and no hold while it reads"
+    hook(app, "SubagentStop", agent_id="a1")
+    app.runtime().deferred.drain()
+    said = json.dumps(edit()[1]) + " ".join(keystrokes)
+    assert app.container.get(Plans).find(1).reviewers == 0 and "plan 1's reviewers are all back" in said, "once it ends the countdown starts"
+
+
 def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_in(app: App):
     import threading
 

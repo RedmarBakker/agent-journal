@@ -56,8 +56,8 @@ class Subagent(Scoped):
     def failed(self, reason: str, time: float) -> "Subagent":
         return self.with_(state=SubagentState.FAILED, ended_at=time, reason=reason)
 
-    def resumed(self, time: float) -> "Subagent":
-        return self.with_(state=SubagentState.ACTIVE, ended_at=0.0, resumed_at=time)
+    def resumed(self, time: float, job: str) -> "Subagent":
+        return self.with_(state=SubagentState.ACTIVE, ended_at=0.0, resumed_at=time, brief=f"{self.brief} {job}")
 
     def retired(self, time: float) -> "Subagent":
         return self.with_(state=SubagentState.RETIRED, ended_at=time)
