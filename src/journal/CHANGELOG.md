@@ -4,6 +4,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- A running command writes a heartbeat every ten seconds while its shell lives, so a command that computes for an hour without printing still counts as running, and one whose process vanished is ended 30 seconds after its last beat and never holds a restart.
 - A subagent resumed by a message to review a plan counts as the plan's reviewer until it ends, so the plan is not held for its readying while it reads.
 - A journal that stored agent loads with the minutes the fitness once counted reads them again after an upgrade.
 - Starting a task of an approved plan that is paused or not started yet starts its plan with it, so the plan is followed; a task of an unapproved plan is still refused.

@@ -5,9 +5,7 @@ from journal.support.actor import Actor
 from journal.models.command_output import CommandOutput
 from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
-from journal.support.process_check import ProcessCheck
-
-SHELL_START_SECONDS = 60
+from journal.support.heartbeat import Heartbeat
 
 
 class CommandOutputs(ScopedRepository[CommandOutput]):
@@ -53,10 +51,13 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def running(self, environment_id: int) -> list[CommandOutput]:
         query = self.query().filter(environment_id=environment_id, ended=False).order("id")
-        return [o for o in self.selected_globally(query) if self.is_alive(Path(o.folder))]
+        return [o for o in self.selected_globally(query) if self.is_running(Path(o.folder))]
 
     def running_among(self, ids: list[int]) -> list[CommandOutput]:
-        return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_alive(Path(output.folder))] if ids else []
+        return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_running(Path(output.folder))] if ids else []
+
+    def stopped_outputs(self) -> list[CommandOutput]:
+        return [output for output in self.selected(self.query().filter(ended=False).order("id")) if not self.is_running(Path(output.folder))]
 
     def unended(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).order("id"))
@@ -108,18 +109,10 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def unannounced(self, session: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, ended=True, is_announced=False).order("id"))
 
-    @staticmethod
-    def is_running(folder: Path) -> bool:
+    def is_running(self, folder: Path) -> bool:
         if not folder.is_dir() or (folder / "done").is_file():
             return False
-        if not (folder / "pid").is_file():
-            return True
-        return ProcessCheck.is_running_text((folder / "pid").read_text())
-
-    def is_alive(self, folder: Path) -> bool:
-        if not self.is_running(folder):
-            return False
-        return (folder / "pid").is_file() or self.time_source.seconds() - folder.stat().st_mtime < SHELL_START_SECONDS
+        return Heartbeat(folder).is_running(self.time_source.seconds(), folder.stat().st_mtime)
 
     def surplus(self, stored: int) -> list[CommandOutput]:
         return list(reversed(self.selected_globally(self.query().order_descending("id").offset(stored))))

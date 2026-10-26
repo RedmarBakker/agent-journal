@@ -7662,11 +7662,14 @@ def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: A
 
 def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_most_every_five(app: App, monkeypatch, tmp_path):
     from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.heartbeat import Heartbeat
+    from journal.support.time_source import TimeSource
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     drive_the_clock(app, monkeypatch)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
+    started_at = app.container.get(TimeSource).seconds()
     folder = app.config.root / "c1"
     folder.mkdir()
     outputs = app.container.get(CommandOutputs)
@@ -7675,15 +7678,15 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
     active = outputs.chain_output("c1")
     tick_after(app, 30.0)
     assert not any("still running" in line for line in keystrokes), "a command moved to the background a moment ago is left to run"
-    tick_after(app, 360.0)
-    tick_after(app, 370.0)
+    for later in (360.0, 370.0):
+        Heartbeat(folder).write(started_at + later - 5)
+        tick_after(app, later)
     matched = [line for line in keystrokes if "still running" in line]
     assert len(matched) == 1 and f"output {active.id} still running" in matched[0] and "pytest" not in matched[0], "past five minutes the agent is told to look at it, once until five more pass"
-    (folder / "pid").write_text(str(os.getpid()))
-    assert [o.id for o in outputs.background("s1")] == [active.id], "a chain whose runner lives is still in the background"
-    (folder / "pid").write_text("99999999")
-    assert outputs.background("s1") == [], "a chain whose runner was killed is no longer in the background, though it wrote no end"
-    (folder / "pid").unlink()
+    assert [o.id for o in outputs.background("s1")] == [active.id], "a chain that beats is still in the background"
+    Heartbeat(folder).write(started_at - 60)
+    assert outputs.background("s1") == [], "a chain whose beats stopped is no longer in the background, though it wrote no end"
+    Heartbeat(folder).write(started_at + 368)
     (folder / "done").write_text("0")
     assert outputs.background("s1") == [], "a command that ended is no longer in the background"
 
@@ -16781,26 +16784,57 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
 
-def test_a_run_whose_shell_never_started_stops_counting_as_running_after_a_minute_and_holds_no_restart(app: App, monkeypatch):
+def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopped_beating_is_ended_and_holds_no_restart(app: App, monkeypatch):
     import os
+    from journal.events.agent.ticked import Ticked
+    from journal.features.shell.listeners.stopped_output_end import StoppedOutputEnd
     from journal.features.shell.support.restart_queue import RestartQueue
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.heartbeat import Heartbeat
+    from journal.support.time_source import TimeSource
     sent = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda link, environment_id, verb, fields: sent.append((environment_id, verb, fields.get("name"))))
     monkeypatch.setattr(SupervisorLink, "hosting", lambda link: MAIN)
     monkeypatch.setattr(SupervisorLink, "running", lambda link, environments: [e for e in environments if e.row_id == MAIN])
+    clock = app.container.get(TimeSource)
+    clock.pin(timing.time())
     folder = app.config.root / "cut-run"
     folder.mkdir()
     (folder / "line").write_text("python3 scripts/suite.py -k x")
     outputs = app.container.get(CommandOutputs)
     with app.container.get(Scope).environment(MAIN):
         output = outputs.save(CommandOutput(chain="cut-run", command="python3 scripts/suite.py -k x", session="s1", folder=str(folder)).backgrounded(), Actor.system())
-        assert [o.id for o in outputs.running(MAIN)] == [output.id], "a run whose shell has not started yet counts as running for its first minute"
-        before = timing.time() - 120
+        assert [o.id for o in outputs.running(MAIN)] == [output.id], "a run that has not beaten yet counts as running for its first 30 seconds"
+        before = clock.seconds() - 120
         os.utime(folder, (before, before))
-        assert outputs.running(MAIN) == [], "a run with no shell process a minute after it began is not running"
+        assert outputs.running(MAIN) == [], "a run that never beat 30 seconds after it began is not running"
+        Heartbeat(folder).write(clock.seconds() - 10)
+        assert [o.id for o in outputs.running(MAIN)] == [output.id] and [o.id for o in outputs.background("s1")] == [output.id], "a beat ten seconds ago keeps it running, in the background list too, however long since it began"
+        clock.pin(clock.seconds() + 25)
+        assert outputs.running(MAIN) == [] and outputs.background("s1") == [], "35 seconds after its last beat it is not running"
     assert app.container.get(RestartQueue).restart(MAIN, "") == [] and sent == [(MAIN, "restart", "journal")], "it never holds a restart"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(StoppedOutputEnd).handle(Ticked(session="s1", environment_id=MAIN, time=clock.seconds(), silence_seconds=0.0))
+        ended = outputs.find(output.id)
+    assert ended.ended and ended.is_interrupted, "the next tick ends it as cut off"
+
+
+def test_a_silent_command_beats_while_it_runs(app: App):
+    import threading
+    from journal.support.heartbeat import Heartbeat
+    raw = "JOURNAL_ENV=main\0\0sleep 2\n"
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
+    running = threading.Thread(target=lambda: urlopen(request, timeout=10).read(), daemon=True)
+    running.start()
+    outputs, beats = app.config.home / "runtime" / "outputs", []
+    for _ in range(40):
+        beats = [Heartbeat(folder).last_seconds() for folder in outputs.glob("*") if (folder / "heartbeat").is_file()] if outputs.is_dir() else []
+        if beats:
+            break
+        timing.sleep(0.05)
+    running.join(timeout=10)
+    assert beats and abs(beats[0] - timing.time()) < 5, "the chain's watcher beats while the command prints nothing"
 
 
 def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_brings_the_plain_words_reminder(app: App):
