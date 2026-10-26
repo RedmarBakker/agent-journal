@@ -13,6 +13,7 @@ from journal.features.workers.listeners.branch_clash_check import BranchClashChe
 from journal.features.workers.listeners.test_run_record import TestRunRecord
 from journal.features.workers.listeners.fitness_record import FitnessRecord
 from journal.features.workers.listeners.load_record import LoadRecord
+from journal.features.workers.listeners.load_tick_record import LoadTickRecord
 from journal.features.workers.listeners.wait_record import WaitRecord
 from journal.features.workers.listeners.model_fit_record import ModelFitRecord
 from journal.features.workers.listeners.task_touch import TaskTouch
@@ -94,7 +95,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (FitnessLevelRecord, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, LimitResumes, QueueTurnResumes, ReportUseRecord, MergedLinesRecord, QuickReportDropCard, TinyJobDropCard, ReportUseMeasure, QueueUseRecord, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, ModelFitRecord, WaitRecord, FitnessRecord)
+    listeners = (FitnessLevelRecord, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, LimitResumes, QueueTurnResumes, ReportUseRecord, MergedLinesRecord, QuickReportDropCard, TinyJobDropCard, ReportUseMeasure, QueueUseRecord, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

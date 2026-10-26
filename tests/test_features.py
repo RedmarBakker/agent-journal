@@ -20926,3 +20926,33 @@ def test_a_commit_is_one_card_whichever_session_sees_it_and_a_merge_read_twice_a
     git("merge", "-q", "--no-ff", "--no-edit", "side")
     merged = [posted(app, "/hooks/claude", {"hook_event_name": "PostToolUse", "session_id": "s2", "tool_name": "Bash", "tool_input": {"command": "git merge side"}, "tool_response": {}}, {"X-Journal-Env": "main"})[1] for _ in range(2)]
     assert "task 1 is worker 1's" in json.dumps(merged[0]) and "task 1 is worker 1's" not in json.dumps(merged[1]), "a merged commit's trailer is acted on once, by the same check as a commit read at the head"
+
+
+def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_from_its_stored_inputs(app: App):
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_meter import LOAD_INPUTS, LoadMeter
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import Entries
+    source = app.container.get(TimeSource)
+    start = 1_800_000_000.0
+    source.pin(start)
+    try:
+        hook(app, "SessionStart")
+        app.console().run(["environment", "overview"], AGENT)
+        app.console().run(["message", "send", "a word for the agent"], USER)
+        for minutes in (1, 20):
+            source.pin(start + minutes * 60)
+            app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=start + minutes * 60, silence_seconds=minutes * 60))
+            app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            agent = app.container.get(Agents).session_agent("s1")
+            stored = [entry for entry in app.container.get(Entries).kind_entries(LOAD_INPUTS, 10)]
+        assert agent.load.measured_at == start + 20 * 60, "twenty idle minutes later the load was measured again by the clock, with no tool use"
+        newest = max(stored, key=lambda entry: entry.data["time"])
+        items = [LoadItem(**item) for item in newest.data["items"]]
+        rebuilt = app.container.get(LoadMeter).series().measured(items, newest.data["dispatches"], newest.data["time"])
+        assert round(rebuilt.rho, 6) == round(agent.load.rho, 6) and round(rebuilt.arrivals, 6) == round(agent.load.arrivals, 6), "the stored inputs measure the same load again"
+    finally:
+        source.unpin()
