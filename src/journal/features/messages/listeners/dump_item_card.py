@@ -22,7 +22,7 @@ class DumpItemCard(Listener[Created]):
                 self.cards.show(contents)
 
     def subjects(self, row) -> list[Message]:
-        if isinstance(row, Link) and row.kind == Messages.SUBJECT_LINK and row.source.type == Message.table():
+        if isinstance(row, Link) and row.kind in (Messages.SUBJECT_LINK, Messages.EDIT_LINK) and row.source.type == Message.table():
             return [self.messages.find(row.source.id)]
         if isinstance(row, Message) and row.author == Author.AGENT and row.reply_target:
             return self.requested(row.reply_target)

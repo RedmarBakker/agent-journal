@@ -95,6 +95,10 @@ class Agents(ScopedRepository[Agent]):
     def session_rows(self, session: str) -> list[Agent]:
         return self.selected_globally(self.session_query(session))
 
+    def main_row(self, session: str) -> Agent | None:
+        rows = self.session_rows(session)
+        return rows[0] if rows and rows[0].role == AgentRole.MAIN else None
+
     def session_query(self, session: str) -> Query:
         return self.query().filter(session=session).order("id").limit(1)
 

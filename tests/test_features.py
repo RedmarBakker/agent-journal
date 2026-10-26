@@ -21034,3 +21034,16 @@ def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app:
         settings.set("workers.mode", "orchestrator", Actor.user(1))
         assert titles() == ["a2", "b1", "b2"], "the orchestrator is offered the plans' tasks in turn"
         assert following.following(closed).id == 3, "and after a task of the first plan closes the second plan's next task goes out"
+
+
+def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark(app: App):
+    from journal.repositories.messages import Messages
+    console = app.console()
+    console.run(["message", "send", "write the notes"], USER)
+    console.run(["message", "send", "also the tags"], USER)
+    assert console.run(["task", "create", "write the notes", "--from", "1"], AGENT).code == 0
+    assert console.run(["task", "edit", "1", "--from", "2"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        filed = sorted(m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed")
+    assert filed == ["Created task 1 from your message", "Edited task 1 from your message"], "the creation is one mark and the edit its own, never a second creation"

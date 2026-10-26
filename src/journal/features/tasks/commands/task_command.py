@@ -17,6 +17,7 @@ from journal.features.tasks.support.block_check import BlockCheck
 from journal.features.tasks.support.message_reminder import MessageReminder
 from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
+from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.support.task_priority import NORMAL, TaskPriority
@@ -52,7 +53,7 @@ class TaskCommand(Command):
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
         creation.add_argument("title")
-        rename = self.verb(verbs, "rename", "a task's title said again, when the first one was wrong")
+        rename = self.verb(verbs, "rename", "a task's title written again, when the first one was wrong")
         rename.add_argument("n", type=int)
         rename.add_argument("title")
         edit = self.verb(verbs, "edit", "a task's title or brief written anew, as when the user corrects what it is about")
@@ -82,7 +83,7 @@ class TaskCommand(Command):
         dropped = self.verb(verbs, "cancel", "give a task up, undone, with why")
         dropped.add_argument("n", type=int)
         dropped.add_argument("--why", required=True)
-        declined = self.verb(verbs, "decline", "turn down a request filed for you, with why: the task is cancelled, its requester sees the reason, and your agent is not told")
+        declined = self.verb(verbs, "decline", "turn down a request filed for you, with why: the task is cancelled, its requester sees the reason, and your agent is not informed")
         declined.add_argument("n", type=int)
         declined.add_argument("--why", required=True)
         block = self.verb(verbs, "block", "a task waits on something outside your hands: blocked, with why, it is neither offered nor nudged")
@@ -99,7 +100,7 @@ class TaskCommand(Command):
         driving.add_argument("n", type=int)
         driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
         self.verb(verbs, "release", "let a hub task you drive go, so anyone may drive it").add_argument("n", type=int)
-        priorities = self.verb(verbs, "priorities", "the open tasks you made at the default priority: confirm says normal is right for each")
+        priorities = self.verb(verbs, "priorities", "the open tasks you made at the default priority: confirm states that normal is right for each")
         priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
@@ -109,7 +110,7 @@ class TaskCommand(Command):
         with self.hub.writing_in(team):
             task = self.tasks.save(self.created(args), caller.actor)
             self.filer.link(task, args, person, team, caller.actor)
-            self.message_link(args.message, task, caller)
+            self.link_creation(args.message, task, caller)
             if args.start:
                 task = self.taking.start(task, caller)
             unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
@@ -122,9 +123,18 @@ class TaskCommand(Command):
         task = Task(title=args.title, brief=args.brief)
         return task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
 
-    def message_link(self, message: int, task: Task, caller: Caller) -> None:
+    def link_creation(self, message: int, task: Task, caller: Caller) -> None:
+        if not message:
+            return
+        if len(self.links.typed_sources(task, Messages.SUBJECT_LINK, Message.table())) > len(self.links.typed_sources(task, Messages.EDIT_LINK, Message.table())):
+            raise Rejection(f"task {task.id} was created from a message already, and its creation is marked once")
+        self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+
+    def link_edit(self, message: int, task: Task, caller: Caller) -> None:
         if message:
-            self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+            source = Ref.build(self.messages.find(message))
+            self.links.save(Link(source=source, target=Ref.build(task), kind=Messages.EDIT_LINK), caller.actor)
+            self.links.save(Link(source=source, target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
 
     def start(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "started")
@@ -154,14 +164,14 @@ class TaskCommand(Command):
         task = self.tasks.find(args.n)
         priority_task = task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
         new_task = self.tasks.save(priority_task.edited(args.title or task.title, args.brief or task.brief, self.clock.time()), caller.actor)
-        self.message_link(args.message, new_task, caller)
+        self.link_edit(args.message, new_task, caller)
         summary = f"{self.labels.name('task', task)} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
         print("\n".join(filter(None, [summary + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
         return 0
 
     def message_linked(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.find(args.n)
-        self.message_link(args.message, task, caller)
+        self.link_edit(args.message, task, caller)
         print(f"message {args.message} linked to task {task.id}")
         return 0
 

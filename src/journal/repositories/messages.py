@@ -29,6 +29,7 @@ NEWEST_SHOWN = 2000
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
     SUBJECT_LINK = "about"
+    EDIT_LINK = "edited"
     COMMENT_LINK = "comments_on"
 
     model = Message
@@ -50,7 +51,7 @@ class Messages(ScopedRepository[Message]):
 
     def check_chat(self, message: Message) -> None:
         if message.author == Author.SYSTEM and not message.data.get("kind"):
-            raise Rejection("a system message names its kind, so the chat knows what it shows")
+            raise Rejection("a system message has its kind, so the chat knows what it shows")
         roles = self.agents.session_roles(message.session) if message.session else []
         if roles and message.agent_role not in roles:
             raise Rejection(f"a message of session {message.session} belongs to its agent's own chat, the {roles[0]} one, not the {message.agent_role} one")
@@ -98,8 +99,7 @@ class Messages(ScopedRepository[Message]):
         return [m for m in read if not m.is_terminal_line and not any(ref.type == "tasks" for ref in self.links.targets(m, self.SUBJECT_LINK))]
 
     def prompt_repeats(self, text: str) -> list[Message]:
-        typed = self.selected(self.main_chat().filter(text=text).filter_json("data->kind", TERMINAL_LINE).order("id"))
-        return [*typed, *self.selected(self.main_chat().filter(text=text).filter_json("data->kind", Message.SCHEDULED_PROMPT).order("id"))]
+        return [message for kind in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", kind).order("id"))]
 
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()
