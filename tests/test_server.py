@@ -592,6 +592,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
 
 def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_postpones_it_with_the_plan(tmp_path: Path):
     from journal.engine.state_machine import StateMachine
+    from journal.repositories.agents import Agents
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
@@ -607,10 +608,10 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_post
         call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1", "cwd": str(tmp_path)})
         started = call(server, "POST", "/journal/plans/1/start", {})[1]
         assert started["state"] == "started" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "started", "the viewer's start takes the first task in hand, as the command does"
-        assert app.container.get(SessionAgents).top("s1").name == "following_plan"
+        assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle", "following_plan", "naming_test_commands"], "a fresh journal names no test commands, so the plan's task waits for them over the plan"
         paused = call(server, "POST", "/journal/plans/1/pause", {})[1]
         assert paused["state"] == "paused" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "paused", "the plan's task in hand is postponed with it"
-        assert app.container.get(SessionAgents).top("s1").name == "idle", "the agent following the plan is popped by the plan's own event"
+        assert app.container.get(SessionAgents).top("s1").name == "idle", "the plan's own event reaches the plan state through the wait over it and pops both"
     finally:
         app.runtime().stop()
 

@@ -2389,7 +2389,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     app.runtime().deferred.drain()
     from journal.repositories.messages import Messages
     thresholds = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "commits"]
-    assert len(thresholds) == 1 and thresholds[0].text.startswith("Committed ") and thresholds[0].text.endswith(": Ship the footer"), "the commit is a message in the chat, once"
+    assert len(thresholds) == 1 and thresholds[0].text.startswith("Committed ") and thresholds[0].text.endswith(" on `main`") and "Ship the footer" not in thresholds[0].text, "the commit is one bare mark in the chat, its hash on its branch, nothing of its message"
 
 
 def test_the_start_block_carries_the_quiet_rule_the_laws_a_takeover_and_what_waits(app: App):
@@ -2563,10 +2563,13 @@ def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_w
 def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_ends_refuses_them_mid_phase(app: App, monkeypatch):
     from journal.features.plans.plans_options import PlansOptions
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    keystrokes: list[str] = []
+    catch_typed(app, monkeypatch, keystrokes)
+    console = app.console()
+    named = lambda: [line for line in keystrokes if "name the commands that run this project's tests" in line]
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(MAIN):
         app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "", Actor.user(1))
-    console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "phase", "1", "one", "--when", "done"], USER)
@@ -2581,6 +2584,7 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     run = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
     write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(app.config.root / "a.py"), "content": "x"})
     assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task started with no test commands named waits in a state of its own"
+    assert len(named()) == 1, "the agent is told at once to name them, before any tool of its is refused"
     status, body = write()
     assert status == 409 and "name the commands that run this project's tests" in body["error"], "a write is held with the line that says how to name them"
     assert run("grep -n parse src/a.py")[0] == 200, "a read goes through while it waits"
@@ -2602,6 +2606,11 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     console.run(["task", "pause", "3", "a moment"], AGENT)
     console.run(["task", "start", "3"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task the agent starts by hand waits for the test commands too"
+    assert "name the commands that run this project's tests" in run("grep -n parse src/a.py")[1]["hookSpecificOutput"]["additionalContext"], "and is told so with its next tool, since a working agent's lines wait for its next hook"
+    keystrokes.clear()
+    console.run(["task", "complete", "3"], AGENT)
+    console.run(["plan", "add", "1", "p fourth"], USER)
+    console.run(["plan", "todos", "1", "2", "4"], USER)
 
 
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):

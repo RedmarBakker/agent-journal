@@ -93,6 +93,7 @@ from journal.events.event import Event
 from journal.support.option import Option
 from journal.engine.support.settings import Settings as SettingsValue
 from journal.engine.support.stack import Stack
+from journal.engine.support.typist import Typist
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.features.shell.shell_nudges import ShellNudges
@@ -1120,7 +1121,8 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
     from journal.features.plans.states.plans_working import PlansWorking
     from journal.events.rows.plan_approved import PlanApproved
     from journal.events.rows.task_started import TaskStarted
-    settings = SettingsValue({WorkersOptions.MODE.key: "builder"})
+    from journal.features.plans.plans_options import PlansOptions
+    settings = SettingsValue({WorkersOptions.MODE.key: "builder", PlansOptions.TEST_COMMANDS.key: "pytest"})
     from journal.features.plans.support.started_plan import StartedPlan
     plans = PlansData(approved=(), started=StartedPlan(plan_id=5, next_task=0, started_task=7, started_task_briefing="it has no brief and nothing logged yet", recent_tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing=""), review_plan=0)
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(7, 8))
@@ -2957,6 +2959,55 @@ def test_a_helper_is_put_to_work_on_each_path_and_the_engine_imports_no_feature_
     assert top("we") == "working_task", "a worker sent back and clocked in again is put to work again"
     engine = Path(__file__).resolve().parents[1] / "src" / "journal" / "engine"
     assert not [path.name for path in engine.rglob("*.py") if "journal.features" in path.read_text()], "the engine imports no feature to put a helper to work"
+
+
+@dataclass(frozen=True)
+class Beneath(BaseState):
+    name = "beneath_probe"
+    count: int = 0
+
+    def on_pause(self, settings: SettingsValue) -> tuple[Nudge, ...]:
+        return (Nudge("engine", "paused", "paused"),)
+
+    def on_resume(self, data: FeatureData, settings: SettingsValue) -> tuple[Nudge, ...]:
+        return (Nudge("engine", "resumed", "resumed"),)
+
+
+@dataclass(frozen=True)
+class Above(BaseState):
+    name = "above_probe"
+    count: int = 0
+
+    def on_enter(self, typist: Typist) -> None:
+        typist.pause()
+
+    def on_exit(self, typist: Typist) -> None:
+        typist.resume()
+
+    def on_push(self, settings: SettingsValue) -> tuple[Nudge, ...]:
+        return (Nudge("engine", "pushed", "pushed"),)
+
+    def on_pop(self, settings: SettingsValue) -> tuple[Nudge, ...]:
+        return (Nudge("engine", "popped", "popped"),)
+
+
+def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state_it_moves_from(app: App):
+    from journal.models.agent_role import AgentRole
+    machine, settings, data = app.container.get(StateMachine), SettingsValue({}), FeatureData(())
+    keys = lambda answer: [nudge.key for nudge in answer.nudges]
+    plain_push = machine.answer_moves(Stack((Beneath(),)), Beneath().push(Above()), AgentRole.MAIN, settings, data)
+    assert keys(plain_push) == ["engine.paused", "engine.pushed"]
+    updated_push = machine.answer_moves(Stack((Beneath(),)), Beneath(count=1).push(Above()), AgentRole.MAIN, settings, data)
+    assert keys(updated_push) == ["engine.paused", "engine.pushed"], "a push in the event that also updates the state beneath still pauses it and pushes"
+    assert updated_push.stack.states == (Beneath(count=1), Above()), "and keeps the update"
+    plain_pop = machine.answer_moves(Stack((Beneath(), Above())), Above().pop(), AgentRole.MAIN, settings, data)
+    assert keys(plain_pop) == ["engine.popped", "engine.resumed"]
+    updated_pop = machine.answer_moves(Stack((Beneath(), Above())), Above(count=1).pop(), AgentRole.MAIN, settings, data)
+    assert keys(updated_pop) == ["engine.popped", "engine.resumed"], "a pop in the event that also updates the state it leaves still pops it and resumes the one beneath"
+    entering, leaving = Typist(), Typist()
+    updated_push.stack.replace(Stack((Beneath(),)), entering)
+    updated_pop.stack.replace(Stack((Beneath(), Above())), leaving)
+    assert (entering.moves, leaving.moves) == (["pause"], ["resume"]), "on_enter and on_exit run on the stack a combined move leaves"
 
 
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):

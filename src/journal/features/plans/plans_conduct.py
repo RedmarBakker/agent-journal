@@ -57,7 +57,7 @@ class PlansConduct(Conduct):
         started = event.data.part(PlansPart).started
         lines = next_task_lines(event, started)
         if is_plan_task(event, started) and not test_commands(settings).programs:
-            return self.push(NamingTestCommands(), *lines)
+            return self.push(NamingTestCommands(task_id=event.task_id), *lines)
         return self.none(*lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:

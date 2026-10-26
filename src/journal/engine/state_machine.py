@@ -92,7 +92,7 @@ class StateMachine:
         if isinstance(event, ToolStarting) and not event.subagent:
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
         transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
-        machine_answer = self.hook_machine(stack, self.moved(self.placed(stack, transition.target, agent.role), transition), settings, event.data)
+        machine_answer = self.answer_moves(stack, transition, agent.role, settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         typist = Typist()
@@ -136,6 +136,9 @@ class StateMachine:
     def top_state(self) -> Settings:
         return Settings.applied(self.settings, self.features.options())
 
+    def answer_moves(self, stack: Stack, transition: Transition, role: AgentRole, settings: Settings, data: FeatureData) -> MachineAnswer:
+        placed = self.placed(stack, transition.target, role)
+        return self.hook_machine(placed, self.moved(placed, transition), settings, data)
 
     def hook_machine(self, previous: Stack, following: Stack, settings: Settings, data: FeatureData) -> MachineAnswer:
         if following.states[:-1] == previous.states and len(following.states) == len(previous.states) + 1:
