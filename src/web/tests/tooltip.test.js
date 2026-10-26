@@ -124,3 +124,9 @@ test("scrolling a list that does not hold the button leaves the bubble open, and
     document.dispatchEvent(new Event("scroll"));
     expect(shown.key).toBeNull();
 });
+
+test("the tooltip is drawn above every menu panel, so a tooltip over a menu is never hidden behind it", async () => {
+    const {readFileSync} = await import("node:fs");
+    const zOf = (file, rule) => Number(new RegExp(`${rule} \\{[^}]*z-index: (\\d+)`).exec(readFileSync(new URL(file, import.meta.url), "utf8"))[1]);
+    expect(zOf("../src/kit/Tooltip.vue", "\\.tooltip")).toBeGreaterThan(zOf("../src/kit/MenuPanel.vue", "\\.menu-panel"));
+});
