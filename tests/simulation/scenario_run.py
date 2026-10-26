@@ -38,15 +38,20 @@ class ScenarioRun:
             second = (step + 1) * STEP_SECONDS
             written = user.maybe_message()
             if written is not None:
-                trace.append(TraceEntry(second, "user", "message", written.is_refused(), written.nudges))
+                trace.append(self.entry(second, "user", "message", written))
             for number, seen in workers.finished(world):
-                trace.append(TraceEntry(second, f"worker {number}", "clock-out", seen.answer[0] != 0, seen.nudges))
+                trace.append(self.entry(second, f"worker {number}", "clock-out", seen))
             happened = engine.maybe_event()
             if happened is not None:
-                trace.append(TraceEntry(second, "engine", happened[0], happened[1].is_refused(), happened[1].nudges))
+                trace.append(self.entry(second, "engine", happened[0], happened[1]))
             action, seen = agent.act(world)
-            trace.append(TraceEntry(second, "agent", action, seen.is_refused() or seen.answer[0] not in (0, 200), seen.nudges))
+            trace.append(self.entry(second, "agent", action, seen))
         return trace
+
+    @staticmethod
+    def entry(second: int, actor: str, action: str, seen) -> TraceEntry:
+        status = seen.answer[0] if isinstance(seen.answer, tuple) and seen.answer else 0
+        return TraceEntry(second, actor, action, status not in (0, 200), seen.nudges, seen.stack, status, seen.skipped)
 
     def prepared(self, world: World) -> None:
         settings = self.simulator.app.container.get(SettingRows)

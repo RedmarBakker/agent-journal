@@ -103,3 +103,33 @@ def test_the_engines_own_moments_replay_from_their_seed(tmp_path, monkeypatch):
     second = played(tmp_path / "second", monkeypatch, replace(ENGINE_MOMENTS, minutes=15), SEED)
     assert any(entry.actor == "engine" for entry in first) and first == second, "compactions, pauses, questions, restarts and approvals replay exactly from one seed"
 
+
+
+def test_each_invariant_fires_on_a_planted_bad_trace_and_not_on_a_clean_one():
+    from tests.simulation.hold_lifts import HoldLifts
+    from tests.simulation.no_contradiction import NoContradiction
+    from tests.simulation.no_faults import NoFaults
+    from tests.simulation.stack_bounded import StackBounded
+    from tests.simulation.stop_releases import StopReleases
+    from tests.simulation.trace_entry import TraceEntry
+    from tests.simulation.wait_ends import WaitEnds
+    clean = [TraceEntry(30 * n, "agent", "write", False, (), ("idle", "working"), 200) for n in range(1, 40)]
+    planted = {
+        HoldLifts(): [TraceEntry(30 * n, "agent", "write", True, ("x.y",), ("idle",), 409) for n in range(1, 13)],
+        StopReleases(): [TraceEntry(30 * n, "agent", "stop", True, (), ("idle",), 409) for n in range(1, 8)],
+        StackBounded(): [TraceEntry(30, "agent", "write", False, (), tuple(f"layer {n}" for n in range(10)), 200)],
+        WaitEnds(): [TraceEntry(60 * n, "agent", "read", False, (), ("idle", "external_wait"), 200) for n in range(1, 40)],
+        NoContradiction(): [TraceEntry(30, "agent", "write", False, ("workers.load_critical", "workers.builder_handover_budget"), ("idle",), 200)],
+        NoFaults(): [TraceEntry(30, "agent", "write", False, (), ("idle",), 500)],
+    }
+    for invariant, trace in planted.items():
+        assert invariant.violated(trace), f"{type(invariant).__name__} fires on its planted trace"
+        assert not invariant.violated(clean), f"{type(invariant).__name__} stays quiet on a clean one"
+
+
+@pytest.mark.parametrize("scenario", ALL, ids=lambda scenario: scenario.name)
+def test_no_invariant_is_broken_by_a_scenario(tmp_path, monkeypatch, scenario):
+    from tests.simulation.invariants import ALL as INVARIANTS
+    trace = played(tmp_path / "journal", monkeypatch, scenario, SEED)
+    broken = [found for invariant in INVARIANTS if (found := invariant.violated(trace))]
+    assert broken == [], f"{scenario.name} from seed {SEED}: " + "; ".join(broken)
