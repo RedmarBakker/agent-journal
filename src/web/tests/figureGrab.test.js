@@ -137,3 +137,15 @@ test("thrown up hard, it flies freely past the chat's top, five hundred pixels u
     for (let frame = 1; frame < 60 * 30 && !came; frame++) ({airborne: back, landed: came} = airborneFrame(back, FLOORS, (frame * 1000) / 60));
     expect(came.spot).toMatchObject({x: highest.x, y: HOME.top, posture: "stand"});
 });
+
+test("a figure grabbed into the air has the act it was playing cut at once, a seated one included, so the parachute shows on the throw", async () => {
+    const {grabbedInAir} = await import("../src/figure/grab.js");
+    const {canSwitch} = await import("../src/figure/timeline.js");
+    const sit = {name: "waiting", frames: 40, fps: 10, loops: true, leaves: 20, interruptible: false};
+    expect(canSwitch(sit, 3, 2), "left to itself a seated loop waits for its next leave point").toBe(false);
+    expect(grabbedInAir({x: 1, y: 2, posture: "stand", held: true})).toBe(true);
+    expect(grabbedInAir(thrownFrom({x: 1, y: 2}, {x: 0, y: -900}, 0))).toBe(true);
+    expect(grabbedInAir(null)).toBe(false);
+    expect(grabbedInAir(chuteFrom(100, 0, 300, 0))).toBe(false);
+    expect(CLIPS.find((clip) => clip.name === "chute").cuts).toBe(true);
+});

@@ -35,6 +35,9 @@ export function pointerSpeed(moves, now) {
     return {x: x * scale, y: y * scale};
 }
 
+// Whether a grab has the figure in the air, held or thrown: whatever act it was playing, even one that may not be interrupted, is cut at once
+export const grabbedInAir = (airborne) => Boolean(airborne?.held || airborne?.thrown);
+
 // The figure let go with its feet at `feet` at `speed` ({x, y} pixels a second, down is more), at `now` in milliseconds: in the air,
 // tumbling as it flies, falling from there
 export const thrownFrom = (feet, speed, now) => ({x: feet.x, y: feet.y, posture: "stand", face: 0, vx: speed.x, speed: speed.y, at: now, spin: 0, peak: 0, thrown: true});

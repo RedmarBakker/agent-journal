@@ -52,7 +52,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {CLEARED_SECONDS, MARK_STAY, phoneSide, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
-import {GRAB, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, thrownFrom} from "../figure/grab.js";
+import {GRAB, grabbedInAir, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, thrownFrom} from "../figure/grab.js";
 import {jumpMost} from "../figure/climbs.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, beamOf, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, boxTop, buildAim, buildRunAt, isPileLeft, grabberAt, grabsOf, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
@@ -410,7 +410,7 @@ function step() {
     // beat it breaks off dropped
     const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted)) && mayCut(playing.shown, body.trip);
     if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
-    const finished = cutting || playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
+    const finished = cutting || (grabbedInAir(body.airborne) && playing.shown?.clip.name !== wanted.clip.name) || playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
     cutting = false;
     const sameAct = goesOnFacing(wanted, playing.shown, finished);
     const continuing = (keyOf(wanted) === playing.name || sameAct) && playing.closing === null;
