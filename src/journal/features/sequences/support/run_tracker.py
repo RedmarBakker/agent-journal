@@ -4,7 +4,7 @@ from journal.engine.nudger import Nudger
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.session_agents import SessionAgents
 from journal.engine.nudge import Nudge
-from journal.features.sequences.support.stacked_runs import StackedRuns
+from journal.features.sequences.support.stacked_runs import FOLLOWING_SEQUENCE, StackedRuns
 from journal.features.skills.support.requirements import Requirements
 from journal.support.actor import Actor
 from journal.models.agent import Agent
@@ -85,16 +85,16 @@ class RunTracker:
         return run.paused(reason)
 
     def finish_matching(self, environment_id: int, missing, reason: str) -> None:
-        for agent in self.agents.main_agents():
+        for agent in self.agents.stacked_main_agents(FOLLOWING_SEQUENCE):
             for run in [run for run in self.runs(agent) if agent.environment_id == environment_id and missing(run)]:
                 self.moved(agent, self.unfinishable(run, reason))
 
     def environments_running(self, sequence_id: int) -> set[int]:
-        return {agent.environment_id for agent in self.agents.main_agents() for run in self.runs(agent) if run.sequence_id == sequence_id}
+        return {agent.environment_id for agent in self.agents.stacked_main_agents(FOLLOWING_SEQUENCE) for run in self.runs(agent) if run.sequence_id == sequence_id}
 
     def transfer(self, session: str, environment_id: int) -> None:
         agent = self.sessions.agent(session, environment_id)
-        ended = self.agents.last_ended_main(environment_id, session)
+        ended = self.agents.ended_stacked_agent(environment_id, session, FOLLOWING_SEQUENCE)
         if self.runs(agent) or ended is None:
             return
         for run in self.runs(ended):

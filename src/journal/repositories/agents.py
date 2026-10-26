@@ -26,8 +26,12 @@ class Agents(ScopedRepository[Agent]):
     def main_agents(self) -> list[Agent]:
         return self.global_matching(role=AgentRole.MAIN)
 
-    def last_ended_main(self, environment_id: int, session: str) -> Agent | None:
-        return next(iter(self.selected_globally(self.ended_main_query(environment_id).filter_unequal("session", session).order_descending("id").limit(1))), None)
+    def ended_stacked_agent(self, environment_id: int, session: str, state_name: str) -> Agent | None:
+        newest = self.selected_ids(self.ended_main_query(environment_id).filter_unequal("session", session).order_descending("id").limit(1))
+        return next(iter(self.selected_globally(self.query().filter(id=newest[0]).filter_record("stack", state=state_name))), None) if newest else None
+
+    def stacked_main_agents(self, state_name: str) -> list[Agent]:
+        return self.selected_globally(self.unended_query().filter(role=AgentRole.MAIN).filter_record("stack", state=state_name).order("id"))
 
     def active_session_agents(self, session: str) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(session=session).order("id")) if session else []

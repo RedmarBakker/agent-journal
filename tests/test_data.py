@@ -1447,7 +1447,8 @@ def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_n
         agents.save(Agent(environment_id=1, session="ended", provider="claude", state="ended", stack=({"state": "following_sequence", "data": {"run": {"sequence_id": 1, "title": "n", "steps": []}}},)), USER)
         agents.save(Agent(environment_id=1, session="ended-bare", provider="claude", state="ended"), USER)
         assert [agent.session for agent in agents.running_peers(own)] == ["peer"], "a running main agent of its provider"
-        assert agents.last_ended_main(1, "own").session == "ended-bare", "the newest ended main agent of the environment, whatever its stack"
+        assert agents.ended_stacked_agent(1, "own", "following_sequence") is None, "the newest ended main agent holds no sequence, and an older one's never comes back"
+        assert [agent.session for agent in agents.stacked_main_agents("following_sequence")] == [], "no running main agent holds a sequence state"
         start = datetime.now(timezone.utc) - timedelta(minutes=10)
         assert agents.recent_peer("own", start).session == "worker", "the newest peer, as an agent ended a moment after it began is no peer"
         assert agents.recent_peer("own", datetime.now(timezone.utc) + timedelta(minutes=1)) is None
