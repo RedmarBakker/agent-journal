@@ -24,7 +24,7 @@ class NamingTestCommands(BaseState):
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if str(settings.value(PlansOptions.TEST_COMMANDS)).strip():
             return self.forward()
-        if event.call.is_journal or not event.call.writes and not event.call.parts:
+        if event.call.is_journal or not event.call.writes:
             return self.none()
         return self.refuse(PlansNudges.TEST_COMMANDS_NEEDED.create())
 

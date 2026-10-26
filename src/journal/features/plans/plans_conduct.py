@@ -52,11 +52,13 @@ class PlansConduct(Conduct):
         return self.none(PlansNudges.PLAN_TESTING_CHANGED.create(n=event.plan_id, template=event.title, testing=event.testing))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
-        if not event.plan_id or event.task_id not in event.data.part(TasksPart).agent_tasks:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         started = event.data.part(PlansPart).started
-        lines = () if event.is_agents(event.session) else (PlansNudges.NEXT_PLAN_TASK.create(n=event.plan_id, task=event.task_id, title=event.title, briefing=started.started_task_briefing if started else ""),)
-        return self.push(NamingTestCommands(), *lines) if not test_commands(settings).programs else self.none(*lines)
+        lines = next_task_lines(event, started)
+        if is_plan_task(event, started) and not test_commands(settings).programs:
+            return self.push(NamingTestCommands(), *lines)
+        return self.none(*lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if not any(test_commands(settings).reads(part.text) for part in event.call.parts):
@@ -82,3 +84,14 @@ def test_commands(settings: Settings) -> ReaderCommands:
 
 def testing_lines(started: StartedPlan) -> tuple[Nudge, ...]:
     return (PlansNudges.PLAN_TESTING.create(n=started.plan_id, testing=started.testing),) if started.testing else ()
+
+
+def next_task_lines(event: TaskStarted, started: StartedPlan | None) -> tuple[Nudge, ...]:
+    if not event.plan_id or event.is_agents(event.session):
+        return ()
+    briefing = started.started_task_briefing if started else ""
+    return (PlansNudges.NEXT_PLAN_TASK.create(n=event.plan_id, task=event.task_id, title=event.title, briefing=briefing),)
+
+
+def is_plan_task(event: TaskStarted, started: StartedPlan | None) -> bool:
+    return bool(event.plan_id) or (started is not None and started.started_task == event.task_id)

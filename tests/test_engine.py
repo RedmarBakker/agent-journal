@@ -466,6 +466,12 @@ def test_settings_is_a_frozen_value_of_the_options_read_by_option():
     assert SettingsValue.applied(Rows(), [option]).value(option) == 7
 
 
+def test_every_shipped_option_is_declared_with_the_kind_of_its_default(app: App):
+    kinds = {"number": (int, float), "switch": (bool,), "text": (str,), "choice": (str,), "lines": (list, tuple)}
+    wrong = [option.key for option in app.container.get(Registry).options() if option.kind in kinds and (not isinstance(option.default, kinds[option.kind]) or option.kind == "number" and isinstance(option.default, bool))]
+    assert not wrong, f"declared with a kind their default is not, so journal settings set refuses a right value: {wrong}"
+
+
 def test_every_agent_event_carries_the_time_it_was_placed_and_a_tick_carries_its_own():
     placed = ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).placed("s1", 1, "claude", None, 12.5)
     assert placed.time == 12.5 and placed.session == "s1"
@@ -2951,3 +2957,40 @@ def test_a_helper_is_put_to_work_on_each_path_and_the_engine_imports_no_feature_
     assert top("we") == "working_task", "a worker sent back and clocked in again is put to work again"
     engine = Path(__file__).resolve().parents[1] / "src" / "journal" / "engine"
     assert not [path.name for path in engine.rglob("*.py") if "journal.features" in path.read_text()], "the engine imports no feature to put a helper to work"
+
+
+def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
+    from journal.models.agent_role import AgentRole
+    hook(app, "SessionStart")
+    agents = app.container.get(Agents)
+    with app.container.get(Scope).environment(1):
+        for session, role in (("hw", AgentRole.WORKER), ("hr", AgentRole.REVIEWER)):
+            agents.save(Agent(environment_id=1, session=session, provider="claude", state="void", role=role), Actor.system())
+    for session in ("hw", "hr"):
+        assert [hook(app, "Stop", session_id=session)[1].get("decision") for _ in range(6)] == [None] * 6, f"{session}: a helper in Void stops without a hold, so it never loops on its stop"
+        hook(app, "SessionEnd", session_id=session)
+        assert agents.session_agent(session).stack[-1]["state"] == "ended", f"{session}: its row ends with the session"
+
+
+def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
+    from journal.engine.states.void import Void
+    from journal.features.workers.states.working_task import WorkingTask
+    from journal.models.agent_role import AgentRole
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    scope, workers, tasks, agents, machine = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents), app.container.get(StateMachine)
+    with scope.environment(1):
+        agents.save(Agent(environment_id=1, session="wr", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        worker = workers.save(Worker(environment_id=1, name="Mr. Reset", brief="r", session="wr"), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the lexer", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+        machine.push("wr", 1, Void(), Actor.user(1), "a state over the job")
+        machine.reset("wr", 1, Actor.user(1), "journal panic idle")
+    assert [layer["state"] for layer in agents.session_agent("wr").stack] == ["void", "working_task"], "a reset worker keeps Void and its job, and loses what was over it"
+    swapped = machine.placed(Stack((Void(), WorkingTask(task_id=1))), Void(), AgentRole.WORKER)
+    assert [type(state) for state in swapped.states] == [Void], "a swap on a helper keeps Void at the bottom, never idle"
+    assert [state.name for state in machine.placed(Stack((Void(),)), WorkingTask(task_id=1), AgentRole.WORKER).states] == ["void", "working_task"]

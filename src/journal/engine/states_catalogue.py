@@ -93,11 +93,12 @@ class StatesCatalogue:
         return [base for base in type(self.first()).__mro__ if getattr(base, "name", "") == "idle"][-1]
 
     def stack(self, agent: Agent) -> Stack:
-        stored = Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.restored(agent.state, agent.data))
+        stored = Stack(tuple(self.restored(row["state"], row["data"]) for row in agent.stack)) if agent.stack else self.stack_base(self.restored(agent.state, agent.data), agent.role)
         return self.helper_floor(stored) if agent.role.is_helper() else stored
 
-    def stack_base(self, state: BaseState) -> Stack:
-        layers = [state]
-        if not self.is_bottom(layers[-1]):
-            layers.append(self.first())
-        return Stack(tuple(reversed(layers)))
+    def stack_base(self, state: BaseState, role: AgentRole) -> Stack:
+        layers = Stack((state,)) if self.is_bottom(state) else Stack((self.first(), state))
+        return self.helper_floor(layers) if role.is_helper() else layers
+
+    def reset_stack(self, stack: Stack, role: AgentRole) -> Stack:
+        return Stack(self.helper_floor(stack).states[:2]) if role.is_helper() else Stack((self.first(),))

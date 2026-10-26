@@ -8,7 +8,7 @@ COMMIT = "commit"
 
 
 class CommitCard(Listener[GitCommitted]):
-    """A commit made in an agent's session is one mark in its chat, whatever ran it, alone or chained, and once for each commit in its environment, whichever session saw it."""
+    """A commit made in an agent's session is one mark in its chat, its hash and its branch as a chip, nothing of its message, whatever ran it, alone or chained, and once for each commit in its environment, whichever session saw it."""
 
     def __init__(self, cards: MomentCards) -> None:
         self.cards = cards
@@ -18,5 +18,4 @@ class CommitCard(Listener[GitCommitted]):
         key = f"{COMMIT}:{event.sha}"
         if self.cards.is_key_shown(key):
             return
-        files = f"{event.files} file" + ("" if event.files == 1 else "s")
-        self.cards.show(event.environment_id, event.session, f"Committed {files} on {event.branch}: {event.subject}", actor=actor, key=key, shows=CardKind.COMMITS)
+        self.cards.show(event.environment_id, event.session, f"Committed {event.sha[:8]} on `{event.branch}`", actor=actor, key=key, shows=CardKind.COMMITS)

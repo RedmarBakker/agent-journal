@@ -92,7 +92,7 @@ class StateMachine:
         if isinstance(event, ToolStarting) and not event.subagent:
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
         transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
-        machine_answer = self.hook_machine(stack, self.moved(self.placed(stack, transition.target), transition), settings, event.data)
+        machine_answer = self.hook_machine(stack, self.moved(self.placed(stack, transition.target, agent.role), transition), settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         typist = Typist()
@@ -119,7 +119,7 @@ class StateMachine:
 
     def reset(self, session: str, environment_id: int, actor: Actor, text: str) -> MachineReply:
         agent = self.sessions.agent(session, environment_id)
-        return self.manual(agent, Stack((self.states.first(),)), actor, text)
+        return self.manual(agent, self.states.reset_stack(self.states.stack(agent), agent.role), actor, text)
 
     def compactions_ended(self) -> list[MachineReply]:
         return [self.manual(agent, self.states.stack(agent).popped(), Actor.system(), JOURNAL_START) for agent in self.agents.global_state(Compacting.name)]
@@ -168,10 +168,10 @@ class StateMachine:
             return stack.popped()
         return stack
 
-    def placed(self, stack: Stack, destination: BaseState) -> Stack:
+    def placed(self, stack: Stack, destination: BaseState, role: AgentRole) -> Stack:
         if type(destination) is type(stack.top()):
             return stack.with_top(destination)
-        return self.states.stack_base(destination)
+        return self.states.stack_base(destination, role)
 
     def _store(self, agent: Agent, machine_answer: MachineAnswer, cause: str, actor: Actor, typist: Typist) -> Agent:
         stack, destination = machine_answer.stack, machine_answer.stack.top()

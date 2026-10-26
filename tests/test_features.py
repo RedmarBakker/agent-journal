@@ -2583,9 +2583,9 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task started with no test commands named waits in a state of its own"
     status, body = write()
     assert status == 409 and "name the commands that run this project's tests" in body["error"], "a write is held with the line that says how to name them"
+    assert run("grep -n parse src/a.py")[0] == 200, "a read goes through while it waits"
     assert run("journal settings set plans.test_commands 'pytest, journal suite'")[0] == 200, "the settings command goes through"
-    with app.container.get(Scope).environment(MAIN):
-        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "pytest, journal suite", Actor.user(1))
+    assert console.run(["settings", "set", PlansOptions.TEST_COMMANDS.key, "pytest, journal suite"], AGENT).code == 0, "the agent names them with the settings command"
     assert write()[0] == 200 and app.container.get(SessionAgents).top("s1").name != "naming_test_commands", "once they are named the state leaves and the write goes through"
     assert run("pytest -q")[0] == 200, "until a task of the phase in hand is done, the run of the phase before may still go"
     console.run(["task", "complete", "1"], AGENT)
@@ -2597,6 +2597,11 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     console.run(["plan", "testing", "1", "Test throughout"], USER)
     console.run(["task", "start", "3"], AGENT)
     assert run("pytest -q")[0] == 200, "a plan that tests throughout never refuses it"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(SettingRows).set(PlansOptions.TEST_COMMANDS.key, "", Actor.user(1))
+    console.run(["task", "pause", "3", "a moment"], AGENT)
+    console.run(["task", "start", "3"], AGENT)
+    assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task the agent starts by hand waits for the test commands too"
 
 
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
@@ -20799,7 +20804,8 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
         record.start("c3", "git push origin phone", tmp_path / "out3", caller, str(folder))
         record.finish_part("c3", "git push origin phone", 0, 0.1, "", [], caller)
         record.finish_part("c3", "git commit -qm 'Two files'", 1, 0.1, "", [], caller)
-    assert marks() == ["Committed 2 files on development: Two files", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
+    head = git_run(folder, "rev-parse", "development").stdout.strip()[:8]
+    assert marks() == [f"Committed {head} on `development`", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
 
 
 def test_a_line_of_only_everyday_git_a_commit_among_it_shows_no_command_card_and_one_with_other_work_a_push_or_heavy_git_keeps_its_card():
