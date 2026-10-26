@@ -2,6 +2,12 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.63.3
+
+- A chain is known by the command doing its work: a branch switch in front of it counts as setup, like cd, so a release chain is read as its merge and push, never as a git checkout that owes a reader.
+- A reader being added is tried on the output of the parts it reads, not on every part of a chain.
+- The reader a moved command owes is named by the command doing the work of its line, its lines read as one chain.
+
 ## 4.63.2
 
 - A one-word command Claude Code evals unquoted, such as `./scripts/test.sh`, goes through the journal's runner, so it becomes an output with its card when it runs long; before, it ran in the shell unseen.
