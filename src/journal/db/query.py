@@ -46,6 +46,19 @@ class Query:
     def filter_json(self, path: str, value) -> "Query":
         return self._compared(path, "=", value)
 
+    def filter_record(self, column: str, **fields) -> "Query":
+        checks = " AND ".join(f"{self.record_key(column, key)} = ?" for key in fields)
+        return self._with(Condition(f"EXISTS (SELECT 1 FROM json_each({self._column(column).name}) WHERE {checks})", tuple(fields.values())))
+
+    def filter_record_listed(self, column: str, key: str, values: list) -> "Query":
+        marks = ", ".join("?" for _ in values)
+        return self._with(Condition(f"EXISTS (SELECT 1 FROM json_each({self._column(column).name}) WHERE {self.record_key(column, key)} IN ({marks}))", tuple(values)))
+
+    def record_key(self, column: str, key: str) -> str:
+        if not JSON_KEY.match(key):
+            raise UnknownColumn(self.table, f"{column}{JSON_ARROW}{key}")
+        return f"json_extract(value, '$.{key}')"
+
     def filter_unequal(self, column: str, value) -> "Query":
         return self._compared(column, "IS NOT", value)
 

@@ -9,6 +9,7 @@ import {api} from "../api/client.js";
 import Dialog from "../kit/Dialog.vue";
 import ResourceEdit from "./ResourceEdit.vue";
 import NewTrigger from "./NewTrigger.vue";
+import NewSequence from "./NewSequence.vue";
 
 const props = defineProps({table: String});
 const emit = defineEmits(["made", "close"]);
@@ -31,6 +32,9 @@ async function submit() {
 <template>
     <template v-if="table === 'triggers'">
         <NewTrigger @made="emit('made', $event)" @close="emit('close')" />
+    </template>
+    <template v-else-if="table === 'sequences'">
+        <NewSequence @made="emit('made', $event)" @close="emit('close')" />
     </template>
     <template v-else>
         <Dialog :title="`New ${meta(table).title.toLowerCase()}`" @close="emit('close')">

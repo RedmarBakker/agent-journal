@@ -30,6 +30,9 @@ class Compacting(BaseState):
     def on_exit(self, typist: Typist) -> None:
         typist.enable()
 
+    def takes_pushes(self) -> bool:
+        return False
+
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
         return self.pop()
 

@@ -21,7 +21,7 @@ from journal.features.plans.support.started_plan import StartedPlan
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied, which the plans feature's review demand then counts down."""
+    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id)) if event.user_origin else self.none()

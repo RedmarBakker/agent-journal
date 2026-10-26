@@ -1,7 +1,5 @@
-import {meta} from "./tables.js";
-import {rows} from "../sync/rows.js";
 
-// What a trigger does when its words come up: version 4's four actions, in the user's words.
+// What a trigger does when its words come up: version 4's three actions, in the user's words.
 export const DOES = [
     {
         value: "nudge",
@@ -27,14 +25,6 @@ export const DOES = [
         ask: "Reason the agent is given",
         example: "Never force-push. Ask me first.",
     },
-    {
-        value: "sequence",
-        label: "Start a sequence",
-        short: "It starts a sequence.",
-        hint: "Starts the sequence you pick below. Nothing is sent.",
-        ask: "",
-        example: "",
-    },
 ];
 
 export const EXAMPLES = [
@@ -44,9 +34,6 @@ export const EXAMPLES = [
 ];
 
 export const doesOf = (value) => DOES.find((option) => option.value === value) || DOES[0];
-
-// The sequences a trigger starts: the server names the triggers that start each sequence.
-export const startedBy = (id) => rows("sequences").filter((s) => (s.trigger_ids || []).includes(id));
 
 const quoted = (word) => `“${word}”`;
 
@@ -62,21 +49,10 @@ const DOING = {
     nudge: (text) => `remind the agent ${text}`,
     instruct: (text) => `tell the agent to do this now: ${text}`,
     deny: (text) => `block it and tell the agent ${text}`,
-    sequence: (text) => `start the sequence ${text}`,
 };
 
 // What a trigger does, as one sentence.
 export function sentence(trigger) {
     if (!trigger.phrases.length) return "Add the words to watch for and choose what happens.";
     return `When ${wordsText(trigger.phrases)} comes up, ${DOING[trigger.action](trigger.text ? quoted(trigger.text) : "(no text yet)")}.`;
-}
-
-// When a sequence starts by itself: by hand only, when a row of a table is created, or when a trigger matches.
-export function startWords(sequence) {
-    const trigger = rows("triggers").find((t) => (sequence.trigger_ids || []).includes(t.id));
-    if (trigger) return `When the trigger on ${wordsText(trigger.phrases)} matches`;
-    if (!sequence.trigger_event) return "Only when you or the agent start it";
-    if (sequence.trigger_event === "plan.reviewed") return "When every reviewer of a plan in review is back";
-    const table = sequence.trigger_event.split(".")[0];
-    return `When a ${(meta(table)?.title || table).toLowerCase()} is created`;
 }

@@ -18,6 +18,9 @@ class Ended(BaseState):
     title = "Ended"
     final = True
 
+    def takes_pushes(self) -> bool:
+        return False
+
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.pop()
 

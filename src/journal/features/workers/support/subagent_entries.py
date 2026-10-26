@@ -25,7 +25,7 @@ class SubagentEntries:
         return sum(1 for row in self.mentioning(session, subject) if row.is_running())
 
     def dispatches_mentioning(self, session: str, subject: str, start: float) -> list[Subagent]:
-        return [row for row in self.mentioning(session, subject) if row.started_at >= start]
+        return [row for row in self.mentioning(session, subject) if row.latest_start_at >= start]
 
     def mentioning(self, session: str, subject: str) -> list[Subagent]:
         matched = re.compile(rf"\b{re.escape(subject)}\b", re.IGNORECASE)

@@ -37,6 +37,7 @@ const opened = ref(false);
 .growing-card-wrap {
     display: flex;
     flex-direction: column;
+    width: fit-content;
     max-width: 560px;
     border: 1px solid var(--border-2);
     border-radius: 9px;
@@ -67,6 +68,14 @@ const opened = ref(false);
 
 .growing-card-title {
     font-weight: 500;
+}
+
+.growing-card-wrap.incoming {
+    margin-left: auto;
+}
+
+.growing-card-wrap:not(.open) .growing-card-body {
+    width: 0;
 }
 
 .growing-card-wrap.incoming .growing-card {

@@ -33,4 +33,4 @@ def matching_triggers(triggers: tuple[Trigger, ...], text: str) -> list[Trigger]
 
 
 def trigger_lines(triggers: list[Trigger]) -> list[Nudge]:
-    return [(TriggersNudges.INSTRUCT if trigger.action == TriggerAction.INSTRUCT else TriggersNudges.NUDGE).create(title=trigger.text) for trigger in triggers if trigger.action != TriggerAction.SEQUENCE]
+    return [(TriggersNudges.INSTRUCT if trigger.action == TriggerAction.INSTRUCT else TriggersNudges.NUDGE).create(title=trigger.text) for trigger in triggers]

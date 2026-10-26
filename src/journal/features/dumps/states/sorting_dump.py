@@ -1,10 +1,12 @@
 from dataclasses import dataclass, replace
 
 from journal.engine.base_state import BaseState
+from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
+from journal.events.feature_data import FeatureData
 from journal.events.rows.dump_answered import DumpAnswered
 from journal.events.rows.dump_arrived import DumpArrived
 from journal.events.rows.dump_question import DumpQuestion
@@ -20,13 +22,16 @@ AGENT_HANDOVER = -1
 
 @dataclass(frozen=True)
 class SortingDump(BaseState):
-    """The agent files the dump the user dropped: the stop is blocked until every item is filed or failed, except while it waits for the user's answer; what arrives on the dump, the user's answer and the user's choice of a next step are typed to it; it pops when the dump is filed, when the agent is instructed to sum it up, or when it moves on to the next dump waiting."""
+    """The agent files the dump the user dropped: the stop is blocked until every item is filed or failed, except while it waits for the user's answer; what arrives on the dump, the user's answer and the user's choice of a next step are typed to it; it pops when the dump is filed, when the agent is instructed to sum it up, or when it moves on to the next dump waiting, and when it comes back on top over a dump already filed."""
 
     name = "sorting_dump"
     title = "Sorting a dump"
     allows = frozenset({Permission.FILE_EDITS, Permission.RUN_COMMANDS, Permission.DISPATCH_SUBAGENTS})
     dump_id: int = 0
     asking: bool = False
+
+    def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
+        return self.pop() if data.part(DumpsPart).current_dump != self.dump_id else ()
 
     def wait_description(self) -> tuple[str, str]:
         return (f"your answer on dump {self.dump_id}", f"dump:{self.dump_id}") if self.asking else ("", "")

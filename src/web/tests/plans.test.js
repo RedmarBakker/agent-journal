@@ -35,6 +35,21 @@ test("starting a plan pauses the started ones before the server answers", async 
     expect(api.act).toHaveBeenCalledWith("plans", 3, "start");
 });
 
+test("an orchestrator starting a plan keeps its other started plans", async () => {
+    store.settings = {features: {}, workers: {mode: "orchestrator"}};
+    const [, , ready] = rows("plans");
+    const sending = startPlan(ready);
+    expect(states()).toEqual(["started", "started", "started"]);
+    await sending;
+    store.settings = null;
+});
+
+test("the started plan is marked active in the plan bar, the paused, approved and blocked ones are not", async () => {
+    const {isActivePlan} = await import("../src/domain/plans.js");
+    const marked = [plan(1, "started"), plan(2, "started", {held: true}), plan(3, "paused"), plan(4, "approved"), plan(5, "blocked")].filter(isActivePlan);
+    expect(marked.map((p) => p.id)).toEqual([1, 2]);
+});
+
 test("a refused approval is passed on and the rows are read again, so the card does not stay approved", async () => {
     api.act.mockRejectedValue(new Error("not yet"));
     const [, , ready] = rows("plans");

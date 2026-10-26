@@ -1,73 +1,52 @@
 from journal.engine.conduct import Conduct
-from journal.support.timeout import Timeout
-from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
-from journal.events.agent.stop import Stop
-from journal.events.agent.session_started import SessionStarted
-from journal.events.agent.ticked import Ticked
-from journal.events.agent.tool_starting import ToolStarting
-from journal.support.command_part import CommandPart
-from journal.support.subagent_dispatch import SubagentDispatch
-from journal.support.tool_call import ToolCall
-from journal.features.sequences.support.run_tracker import RunTracker
-from journal.features.sequences.support.sequences_data import SequencesData
-from journal.features.sequences.sequences_nudges import SequencesNudges
-from journal.features.sequences.sequences_options import SequencesOptions
-from journal.features.sequences.sequences_part import SequencesPart
-
-SILENCE_SECONDS = 60.0
+from journal.events.rows.row_event import RowEvent
+from journal.events.rows.sequence_run_abandoned import SequenceRunAbandoned
+from journal.events.rows.sequence_run_cancelled import SequenceRunCancelled
+from journal.events.rows.sequence_run_cannot_finish import SequenceRunCannotFinish
+from journal.events.rows.sequence_run_paused import SequenceRunPaused
+from journal.events.rows.sequence_run_started import SequenceRunStarted
+from journal.events.rows.sequence_run_transferred import SequenceRunTransferred
+from journal.events.rows.sequence_step_finished import SequenceStepFinished
+from journal.events.rows.sequence_step_adopted import SequenceStepAdopted
+from journal.events.rows.sequence_step_skipped import SequenceStepSkipped
+from journal.features.sequences.states.following_sequence import FollowingSequence
 
 
 class SequencesConduct(Conduct):
-    """The sequences feature's conduct in every state: a write, a run of anything but reading and journal commands, or a subagent's dispatch waits while the step in hand, the top of the sequences started inside one another, is not taken up or has stood too long since it was, a stop with a step open is blocked with the step unless it was sent since the agent last used a tool, a session that starts with a run is informed its step or that the run is paused, a step unheard for the set minutes is typed again to a quiet agent, and the tool use that ends a wait is informed the step again; nothing while the run is paused, a question to the user is open or the agent still has a duty to the journal."""
+    """The sequences feature's conduct in every state: a sequence started for this agent pushes its state over whatever the agent was doing, a sequence already in hand among them, which the new one then drives until it ends; never over a state that pops on an event of its own, such as a compaction, a wait or the overview after a compaction, which the start path refuses first. A run a new session takes over from the last ended one is pushed the same way, with its step said once. A move of the run in hand made while a wait sits over it, a step followed, finished or skipped, the run paused, abandoned, cancelled or unable to finish, ends the wait and goes down to the sequence state beneath."""
 
-    def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        runs = event.data.part(SequencesPart)
-        if not runs.has_run() or runs.pause_reason or is_step_command(runs, event.call.parts):
+    def on_sequence_run_started(self, event: SequenceRunStarted, settings: Settings) -> Transition:
+        return self.push(FollowingSequence(run=event.run)) if event.agent_session == event.session and self.takes_pushes() else self.none()
+
+    def on_sequence_run_transferred(self, event: SequenceRunTransferred, settings: Settings) -> Transition:
+        if event.agent_session != event.session or not self.takes_pushes():
             return self.none()
-        if self.is_waiting() and runs.is_typable and not runs.question_open:
-            return self.none().typing(step_line(runs))
-        if not is_work(event.call) or runs.obligations_due:
-            return self.none()
-        if not runs.is_adopted:
-            return self.refuse(SequencesNudges.STEP_EDIT_BLOCK.create(n=runs.sequence_id, step=runs.step, text=runs.step_text))
-        if event.call.writes and Timeout.edits(settings.integer(SequencesOptions.STALENESS_LIMIT)).is_elapsed(runs.adoption_edits):
-            return self.refuse(SequencesNudges.STALE_STEP.create(writes=runs.adoption_edits, n=runs.sequence_id, step=runs.step, text=runs.step_text))
-        return self.none()
+        state = FollowingSequence(run=event.run)
+        return self.push(state, state.reminder())
 
-    def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        runs = event.data.part(SequencesPart)
-        if not runs.has_run() or runs.pause_reason or runs.question_open or runs.obligations_due or runs.step_repeated or self.is_waiting():
-            return self.none()
-        return self.refuse(SequencesNudges.PENDING_STEP.create(n=runs.sequence_id, step=runs.step, text=runs.step_text))
+    def on_sequence_step_adopted(self, event: SequenceStepAdopted, settings: Settings) -> Transition:
+        return wait_handover(self, event)
 
-    def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        runs = event.data.part(SequencesPart)
-        return self.none(reminder_line(runs)) if runs.has_run() else self.none()
+    def on_sequence_step_finished(self, event: SequenceStepFinished, settings: Settings) -> Transition:
+        return wait_handover(self, event)
 
-    def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        runs = event.data.part(SequencesPart)
-        if not runs.has_run() or runs.pause_reason or runs.question_open or not runs.is_typable or not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds):
-            return self.none()
-        if not Timeout.minutes(settings.decimal(SequencesOptions.STEP_REPEAT_INTERVAL)).is_elapsed(runs.step_silence_seconds):
-            return self.none()
-        return self.none().typing(reminder_line(runs))
+    def on_sequence_step_skipped(self, event: SequenceStepSkipped, settings: Settings) -> Transition:
+        return wait_handover(self, event)
+
+    def on_sequence_run_paused(self, event: SequenceRunPaused, settings: Settings) -> Transition:
+        return wait_handover(self, event)
+
+    def on_sequence_run_abandoned(self, event: SequenceRunAbandoned, settings: Settings) -> Transition:
+        return wait_handover(self, event)
+
+    def on_sequence_run_cancelled(self, event: SequenceRunCancelled, settings: Settings) -> Transition:
+        return wait_handover(self, event)
+
+    def on_sequence_run_cannot_finish(self, event: SequenceRunCannotFinish, settings: Settings) -> Transition:
+        return wait_handover(self, event)
 
 
-def is_work(call: ToolCall) -> bool:
-    return call.writes or isinstance(call.operation, SubagentDispatch) or (call.work == "running" and not call.is_journal)
-
-
-def is_step_command(runs: SequencesData, parts: tuple[CommandPart, ...]) -> bool:
-    return bool(parts) and RunTracker.names(runs.step_text, parts)
-
-
-def step_line(runs: SequencesData) -> Nudge:
-    return SequencesNudges.PENDING_STEP.create(n=runs.sequence_id, step=runs.step, text=runs.step_text)
-
-
-def reminder_line(runs: SequencesData) -> Nudge:
-    if runs.pause_reason:
-        return SequencesNudges.SEQUENCE_PAUSED.create(n=runs.sequence_id, step=runs.step, why=runs.pause_reason)
-    return step_line(runs)
+def wait_handover(state: Conduct, event: RowEvent) -> Transition:
+    return state.forward() if event.agent_session == event.session and state.is_waiting() else state.none()

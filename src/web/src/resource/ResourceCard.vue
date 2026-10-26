@@ -1,6 +1,6 @@
 <script setup>
 import {meta} from "../domain/tables.js";
-import {startWords} from "../domain/triggerWords.js";
+import {startWords} from "../domain/sequenceTriggers.js";
 import TextDisplay from "../kit/TextDisplay.vue";
 import Icon from "../kit/Icon.vue";
 import ProgressBar from "../kit/ProgressBar.vue";
@@ -40,7 +40,7 @@ const partWord = computed(() => (props.resource.table === "sequences" ? "step" :
                 {{ parts }} {{ partWord }}{{ parts > 1 ? "s" : "" }}
                 <template v-if="resource.table === 'sequences'">
                     ·
-                    {{ startWords(resource) }}
+                    {{ startWords(resource).join("; ") }}
                 </template>
             </span>
         </template>

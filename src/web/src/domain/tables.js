@@ -114,11 +114,12 @@ export const TABLES = {
     test_turns: kind("Test turn", "terminal", "A worker's turn to run the tests it named, under the test budget"),
     reviewers: kind("Reviewer", "reviewer", "An agent the journal sends by itself, in orchestrator mode with the reviewer on, to test and check each worker's work and report each point to the agent"),
     subagents: kind("Subagent", "bot", "A helper the agent started inside its own session for one job", {nested: true}),
-    sequences: kind("Sequence", "list", "Steps the agent follows in order, one at a time, started by hand or by a moment", {
+    sequences: kind("Sequence", "list", "Steps the agent follows in order, one at a time, started by hand or by its triggers", {
         view: "document",
         scope: "project",
         in_sidebar: true,
         listed_under: "sidebar",
+        created_in_viewer: true,
         listed_as_cards: true,
         takes_comments: true,
         labels: {brief: "What it is for"},

@@ -1,5 +1,6 @@
 import {api} from "../api/client.js";
 import {patched, rows} from "../sync/rows.js";
+import {workMode} from "../composables/settings.js";
 
 const act = (plan, method) => api.act("plans", plan.id, method);
 const becomes = (state) => (plan) => (plan.state = state);
@@ -12,9 +13,11 @@ export const dismissPlan = (plan) => patched(plan, (row) => (row.is_dismissed = 
 
 export function startPlan(plan) {
     const takeOver = (row) => {
-        rows("plans")
-            .filter((p) => p !== row && p.state === "started")
-            .forEach(becomes("paused"));
+        if (workMode.value !== "orchestrator") {
+            rows("plans")
+                .filter((p) => p !== row && p.state === "started")
+                .forEach(becomes("paused"));
+        }
         becomes("started")(row);
     };
     return patched(plan, takeOver, () => act(plan, "start"));

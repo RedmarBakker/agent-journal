@@ -1,10 +1,10 @@
-import re
-from datetime import datetime, timezone
+from typing import Callable
 
 from journal.engine.nudger import Nudger
+from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.session_agents import SessionAgents
 from journal.engine.nudge import Nudge
-from journal.support.command_part import CommandPart
+from journal.features.sequences.support.stacked_runs import StackedRuns
 from journal.features.skills.support.requirements import Requirements
 from journal.support.actor import Actor
 from journal.models.agent import Agent
@@ -18,134 +18,99 @@ from journal.repositories.workers import Workers
 from journal.features.sequences.sequences_nudges import SequencesNudges
 from journal.support.time_source import TimeSource
 
-COMMAND_PATTERN = re.compile(r"`([^`<]+)")
-
 
 class RunTracker:
-    """The sequences an agent works through, stored on its row as a stack: one started inside another is the current one, and when it ends the other becomes current again. Every start goes through here."""
+    """The one way a sequence run is started and moved: each start and move is an event on the agent's row, which the sequence state on its stack answers; the runs themselves are read from those states, the bottom one first and the one in hand last."""
 
-    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows, nudger: Nudger, time_source: TimeSource, states: StatesCatalogue) -> None:
+        self.time_source, self.states = time_source, states
         self.sessions, self.agents, self.requiring, self.workers, self.rows, self.nudger = sessions, agents, requirements, workers, rows, nudger
 
-    def runs(self, agent: Agent) -> list[SequenceRun]:
-        return [SequenceRun.build(raw) for raw in agent.sequence_runs or ()]
+    @staticmethod
+    def runs(agent: Agent) -> list[SequenceRun]:
+        return StackedRuns.runs(agent)
 
     def current(self, session: str, environment_id: int) -> SequenceRun | None:
-        runs = self.runs(self.sessions.agent(session, environment_id))
-        return runs[-1] if runs else None
+        return StackedRuns.current(self.sessions.agent(session, environment_id))
 
     def start(self, sequence: Sequence, session: str, environment_id: int, topic: str = "") -> str:
-        started = self.new_run(sequence, session, environment_id, topic)
-        if started is None:
-            return ""
-        run, liabilities = started
-        return "\n".join([*liabilities, self.line(self.sessions.agent(session, environment_id), self.step(run))])
-
-    def new_run(self, sequence: Sequence, session: str, environment_id: int, topic: str = "") -> tuple[SequenceRun, list[str]] | None:
         agent = self.sessions.agent(session, environment_id)
-        runs = self.runs(agent)
-        if any(run.sequence_id == sequence.id for run in runs) or not sequence.steps:
-            return None
+        if any(run.sequence_id == sequence.id for run in self.runs(agent)) or not sequence.steps or not self.states.stack(agent).top().takes_pushes():
+            return ""
         run = SequenceRun(sequence.row_id, sequence.title, tuple(sequence.steps), subject=topic, started_at=self.timestamp(), announced_at=self.timestamp(), end_condition=tuple(sequence.end_condition))
-        self.rewritten(agent, lambda time: [*time, run])
-        return run, self.requiring.require(agent, self.requiring.obligations(agent, self.requiring.lookup("sequences")))
+        liabilities = self.requiring.require(agent, self.requiring.obligations(agent, self.requiring.lookup("sequences")))
+        self.moved(agent, lambda current: current.sequence_started(run, self.time_source.seconds()))
+        return "\n".join([*liabilities, self.line(agent, self.step(run))])
+
+    def follow(self, session: str, environment_id: int) -> SequenceRun:
+        agent = self.sessions.agent(session, environment_id)
+        run = StackedRuns.current(agent)
+        self.moved(agent, lambda current: current.sequence_step_adopted(self.time_source.seconds()))
+        return run.adopted(self.timestamp()).paused("")
 
     def next(self, session: str, environment_id: int) -> str:
         agent = self.sessions.agent(session, environment_id)
-        runs = self.runs(agent)
-        run = runs[-1]
+        run = StackedRuns.current(agent)
         self.refuse_open_end(run)
-        if not run.last:
-            return self.line(agent, self.step(self.changed(session, environment_id, lambda time: time.advanced().announced(self.timestamp()))))
-        return self.ended(agent, runs, self.line(agent, SequencesNudges.SEQUENCE_ENDED.create(n=run.sequence_id)))
-
-    def ended(self, agent: Agent, runs: list[SequenceRun], ended: str) -> str:
-        if len(runs) == 1:
-            self.stored(agent, [])
-            return ended
-        outer = self.rewritten(agent, lambda time: [*time[:-2], self.resumed(time[-2])])[-1]
-        return f"{ended}\n{self.line(agent, self.step(outer))}"
-
-    def resumed(self, run: SequenceRun) -> SequenceRun:
-        return (run.adopted(self.timestamp()) if run.adopted_at else run).announced(self.timestamp())
-
-    def skip(self, session: str, environment_id: int) -> str:
-        agent = self.sessions.agent(session, environment_id)
-        runs = self.runs(agent)
-        run = runs[-1]
-        skipped = self.line(agent, SequencesNudges.STEP_OMISSION.create(n=run.sequence_id, step=run.step + 1))
+        self.moved(agent, lambda current: current.sequence_step_finished(run, self.time_source.seconds()))
         if run.last:
-            return self.ended(agent, runs, f"{skipped}\n{self.line(agent, SequencesNudges.SEQUENCE_ENDED.create(n=run.sequence_id))}")
-        moved = self.changed(session, environment_id, lambda time: time.advanced().announced(self.timestamp()))
-        return f"{skipped}\n{self.line(agent, self.step(moved))}"
+            return self.line(agent, SequencesNudges.SEQUENCE_ENDED.create(n=run.sequence_id))
+        return self.line(agent, self.step(run.advanced()))
 
-    def end(self, session: str, environment_id: int) -> str:
+    def skip(self, session: str, environment_id: int) -> None:
         agent = self.sessions.agent(session, environment_id)
-        runs = self.runs(agent)
-        return self.ended(agent, runs, self.line(agent, SequencesNudges.SEQUENCE_CANCELLED.create(n=runs[-1].sequence_id)))
+        run = StackedRuns.current(agent)
+        self.moved(agent, lambda current: current.sequence_step_skipped(run, self.time_source.seconds()))
+
+    def end(self, session: str, environment_id: int) -> None:
+        agent = self.sessions.agent(session, environment_id)
+        run = StackedRuns.current(agent)
+        self.moved(agent, lambda current: current.sequence_cancelled(run, self.time_source.seconds()))
 
     def refuse_open_end(self, run: SequenceRun) -> None:
         state = self.rows.row_state(Ref.parse(run.subject)) if run.last and run.subject and run.end_condition else ""
         if state and state not in run.end_condition:
             raise Rejection(f"sequence {run.sequence_id} ends when {run.subject} is {' or '.join(run.end_condition)}; it is {state}. finish it first, or `journal sequence abandon --why \"<why>\"`")
 
-    def abandon(self, session: str, environment_id: int) -> tuple[SequenceRun, str]:
+    def abandon(self, session: str, environment_id: int, reason: str) -> tuple[SequenceRun, str]:
         agent = self.sessions.agent(session, environment_id)
-        runs = self.runs(agent)
-        return runs[-1], self.ended(agent, runs, self.line(agent, SequencesNudges.SEQUENCE_ABANDONED.create(n=runs[-1].sequence_id)))
+        run = StackedRuns.current(agent)
+        self.moved(agent, lambda current: current.sequence_abandoned(reason, self.time_source.seconds()))
+        return run, self.line(agent, SequencesNudges.SEQUENCE_ABANDONED.create(n=run.sequence_id))
 
-    def finish_matching(self, environment_id: int, missing, reason: str) -> list[tuple[Agent, str]]:
-        notified = []
-        for agent in self.agents.sequence_agents(environment_id):
-            runs = self.runs(agent)
-            retained = [run for run in runs if not missing(run)]
-            if len(retained) < len(runs):
-                self.stored(agent, retained)
-                notified.append((agent, "\n".join(self.line(agent, SequencesNudges.SEQUENCE_CANNOT_FINISH.create(n=run.sequence_id, why=reason)) for run in runs if missing(run))))
-        return notified
+    def pause(self, session: str, environment_id: int, reason: str) -> SequenceRun:
+        agent = self.sessions.agent(session, environment_id)
+        run = StackedRuns.current(agent)
+        self.moved(agent, lambda current: current.sequence_paused(reason, self.time_source.seconds()))
+        return run.paused(reason)
+
+    def finish_matching(self, environment_id: int, missing, reason: str) -> None:
+        for agent in self.agents.main_agents():
+            for run in [run for run in self.runs(agent) if agent.environment_id == environment_id and missing(run)]:
+                self.moved(agent, self.unfinishable(run, reason))
 
     def environments_running(self, sequence_id: int) -> set[int]:
         return {agent.environment_id for agent in self.agents.main_agents() for run in self.runs(agent) if run.sequence_id == sequence_id}
 
-    def follow(self, session: str, environment_id: int) -> SequenceRun:
-        return self.changed(session, environment_id, lambda run: run.adopted(self.timestamp()).announced(self.timestamp()).paused(""))
-
-    def pause(self, session: str, environment_id: int, reason: str) -> SequenceRun:
-        return self.changed(session, environment_id, lambda run: run.paused(reason))
-
-    def announce(self, session: str, environment_id: int) -> SequenceRun:
-        return self.changed(session, environment_id, lambda run: run.announced(self.timestamp()))
-
-    def changed(self, session: str, environment_id: int, change) -> SequenceRun:
-        return self.rewritten(self.sessions.agent(session, environment_id), lambda time: [*time[:-1], change(time[-1])])[-1]
-
-    def rewritten(self, agent: Agent, change) -> list[SequenceRun]:
-        recent = self.agents.touched(agent, Actor.system(), lambda time: {"sequence_runs": tuple(run.as_dict() for run in change(self.runs(time)))})
-        return self.runs(recent)
-
     def transfer(self, session: str, environment_id: int) -> None:
         agent = self.sessions.agent(session, environment_id)
-        ended = self.agents.ended_sequence_agents(session)
-        if agent.sequence_runs or not ended:
+        ended = self.agents.last_ended_main(environment_id, session)
+        if self.runs(agent) or ended is None:
             return
-        self.stored(agent, self.runs(ended[-1]))
-        self.stored(ended[-1], [])
+        for run in self.runs(ended):
+            self.moved(agent, self.transferred(run))
 
-    def stored(self, agent: Agent, runs: list[SequenceRun]) -> None:
-        self.agents.touch(agent, Actor.system(), sequence_runs=tuple(run.as_dict() for run in runs))
+    def unfinishable(self, run: SequenceRun, reason: str) -> Callable[[Agent], Agent]:
+        return lambda current: current.sequence_cannot_finish(run.sequence_id, reason, self.time_source.seconds())
 
-    @staticmethod
-    def names(step_text: str, parts: tuple[CommandPart, ...]) -> bool:
-        step_commands = [command.strip() for command in COMMAND_PATTERN.findall(step_text) if command.strip()]
-        return any(part.text.strip().startswith(command) for part in parts for command in step_commands)
+    def transferred(self, run: SequenceRun) -> Callable[[Agent], Agent]:
+        return lambda current: current.sequence_transferred(run, self.time_source.seconds())
+
+    def moved(self, agent: Agent, change: Callable[[Agent], Agent]) -> None:
+        self.agents.rewritten(agent, Actor.system(), change)
 
     def typed_agent(self, session: str, environment_id: int) -> bool:
         return not any(session in (w.session, w.resume) for w in self.workers.global_matching(environment_id=environment_id))
-
-    @classmethod
-    def reminder(cls, run: SequenceRun) -> Nudge:
-        return SequencesNudges.SEQUENCE_PAUSED.create(n=run.sequence_id, step=run.step + 1, why=run.pause_reason) if run.pause_reason else cls.step(run)
 
     @staticmethod
     def step(run: SequenceRun) -> Nudge:

@@ -92,6 +92,10 @@ class BaseState:
     def blocks_tools(self) -> bool:
         return False
 
+    # whether a state pushed by a feature over this one may sit on top of it; a state that pops on an event of its own refuses, since it would never hear it
+    def takes_pushes(self) -> bool:
+        return True
+
     def mode_lines(self) -> tuple[Nudge, ...]:
         return ()
 

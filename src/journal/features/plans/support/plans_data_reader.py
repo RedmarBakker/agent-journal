@@ -30,7 +30,6 @@ class PlansDataReader:
         return LazyFacts("plans", {
             "approved": lambda: tuple(p.row_id for p in self.plans.approved()),
             "started": lambda: self.started(),
-            "review_plan": lambda: self.review_plan(agent),
             "started_plans": lambda: self.statuses.started(),
             "review_reports": lambda: self.review_reports(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
@@ -38,11 +37,6 @@ class PlansDataReader:
     def started(self) -> LazyFacts | None:
         started = next(iter(self.plans.running_plans()), None)
         return self.started_plan(started) if started else None
-
-    def review_plan(self, agent: Agent) -> int:
-        review = next(iter(self.plans.reviewed()), None)
-        review_line = self.entries.last_line_entry(agent.session, (PlansNudges.REVIEW_ENTRY_REQUEST.key,)) if review else None
-        return review.row_id if review_line else 0
 
     def review_reports(self) -> tuple[int, ...]:
         review = next(iter(self.plans.reviewed()), None)

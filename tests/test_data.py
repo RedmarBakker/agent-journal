@@ -1397,13 +1397,13 @@ def test_a_written_agent_answers_its_next_read_by_id_and_by_session_as_a_load_wo
     with scope.environment(1):
         agent = agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
         agents.session_agent("s1")
-        changed = agents.save(agents.find(agent.id).with_(tool_uses=3, sequence_runs=({"name": "n"},), skills_due=("a",)), USER)
+        changed = agents.save(agents.find(agent.id).with_(tool_uses=3, skills_due=("a",)), USER)
         agents.touch(changed, USER, is_overview_read=False)
         LoadTally.begin()
         found, by_session = agents.find(agent.id), agents.session_agent("s1")
         assert LoadTally.ended().points() == 0, "both reads are answered from the writes"
         connection.cache.cleared()
-        assert found == by_session == agents.find(agent.id) and found.sequence_runs == ({"name": "n"},) and found.is_overview_read is False, "as a load returns it"
+        assert found == by_session == agents.find(agent.id) and found.skills_due == ("a",) and found.is_overview_read is False, "as a load returns it"
         with pytest.raises(Rejection):
             with connection.transaction():
                 agents.save(found.with_(tool_uses=9), USER)
@@ -1444,10 +1444,10 @@ def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_n
         agents.save(Agent(environment_id=1, session="peer", provider="claude"), USER)
         agents.save(Agent(environment_id=1, session="codex", provider="codex"), USER)
         agents.save(Agent(environment_id=1, session="worker", provider="claude", role=AgentRole.WORKER), USER)
-        agents.save(Agent(environment_id=1, session="ended", provider="claude", state="ended", sequence_runs=({"name": "n"},)), USER)
+        agents.save(Agent(environment_id=1, session="ended", provider="claude", state="ended", stack=({"state": "following_sequence", "data": {"run": {"sequence_id": 1, "title": "n", "steps": []}}},)), USER)
         agents.save(Agent(environment_id=1, session="ended-bare", provider="claude", state="ended"), USER)
         assert [agent.session for agent in agents.running_peers(own)] == ["peer"], "a running main agent of its provider"
-        assert [agent.session for agent in agents.ended_sequence_agents("own")] == ["ended"], "an ended agent with sequence runs"
+        assert agents.last_ended_main(1, "own").session == "ended-bare", "the newest ended main agent of the environment, whatever its stack"
         start = datetime.now(timezone.utc) - timedelta(minutes=10)
         assert agents.recent_peer("own", start).session == "worker", "the newest peer, as an agent ended a moment after it began is no peer"
         assert agents.recent_peer("own", datetime.now(timezone.utc) + timedelta(minutes=1)) is None
@@ -1606,3 +1606,40 @@ def test_an_old_reports_table_gets_its_abstracts_written_and_checked_by_the_data
     with old.transaction() as db:
         AbstractChecks().apply(db)
     assert len(old.all("SELECT id FROM reports")) == 3, "a table already checked is left as it is"
+
+
+def test_the_sequence_step_records_migration_turns_a_stored_string_step_into_a_record(connection):
+    """Migration 67: a sequence's step stored as a string becomes a record, its instructions, with file edits allowed."""
+    from journal.db.migrations.sequence_step_records import SequenceStepRecords
+    connection.execute("INSERT INTO sequences (title, steps, created_at, creator) VALUES ('release', '[\"tag it\", \"push it\"]', '2026-10-26', 'system')")
+    SequenceStepRecords().apply(connection)
+    steps = json.loads(connection.one("SELECT steps FROM sequences")["steps"])
+    assert steps[0] == {"title": "", "instructions": "tag it", "file_edits_allowed": True, "allowed_commands": [], "ending_moment": ""} and steps[1]["instructions"] == "push it", steps
+
+
+def test_the_sequence_runs_stacked_migration_pushes_each_kept_run_as_a_sequence_state_and_drops_the_runs_column(connection):
+    """Migration 68: the runs kept on an agent's row become sequence states on its stack, the run in hand on top, string steps as records and a pause reason under its present name, and the runs column is dropped."""
+    from journal.db.migrations.sequence_runs_stacked import SequenceRunsStacked
+    from journal.features.sequences.support.stacked_runs import StackedRuns
+    from journal.models.agent import Agent
+    connection.execute("ALTER TABLE agents ADD COLUMN sequence_runs TEXT DEFAULT '[]'")
+    runs = [{"sequence_id": 1, "title": "outer", "steps": ["a", "b"], "step": 1, "suspension_reason": "a question first"}, {"sequence_id": 2, "title": "inner", "steps": ["c"], "step": 0, "adopted_at": "2026-10-26T10:00:00+00:00"}]
+    connection.execute("INSERT INTO agents (session, stack, sequence_runs, created_at, creator) VALUES ('s1', ?, ?, '2026-10-26', 'system')", (json.dumps([{"state": "idle", "data": {}}]), json.dumps(runs)))
+    SequenceRunsStacked().apply(connection)
+    assert "sequence_runs" not in {row["name"] for row in connection.all("PRAGMA table_info(agents)")}, "the runs column is dropped"
+    stack = json.loads(connection.one("SELECT stack FROM agents")["stack"])
+    assert [layer["state"] for layer in stack] == ["idle", "following_sequence", "following_sequence"]
+    stacked = StackedRuns.runs(Agent(session="s1", stack=tuple(stack)))
+    assert [(run.sequence_id, run.step, run.text) for run in stacked] == [(1, 1, "b"), (2, 0, "c")] and stacked[-1].adopted_at, "the run in hand is on top, its step and its taking up kept"
+    assert stacked[0].pause_reason == "a question first", "a pause reason stored under its old name is kept"
+
+
+def test_a_sequence_step_stored_or_pulled_as_a_string_loads_as_a_step_record_with_file_edits_allowed():
+    from journal.models.sequence import Sequence
+    from journal.models.support.column import Column
+    from journal.models.support.sequence_step import SequenceStep
+    from typing import get_type_hints
+    column = Column.build("steps", get_type_hints(Sequence)["steps"])
+    steps = column.parsed(json.dumps(["tag it", {"title": "Push", "instructions": "push it", "file_edits_allowed": False, "allowed_commands": ["^git push"]}]))
+    assert steps == (SequenceStep(instructions="tag it"), SequenceStep(title="Push", instructions="push it", file_edits_allowed=False, allowed_commands=("^git push",))), "a string from a peer on the old version is its instructions, file edits allowed"
+    assert json.loads(column.sql(steps))[1]["allowed_commands"] == ["^git push"], "and a record is stored as a record"

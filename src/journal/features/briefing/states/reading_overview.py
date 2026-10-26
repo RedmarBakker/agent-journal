@@ -21,6 +21,9 @@ class ReadingOverview(BaseState):
     assigner = NoTaskAssigner
     title = "Reading the overview"
 
+    def takes_pushes(self) -> bool:
+        return False
+
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if event.call.command.strip().startswith(OVERVIEW_COMMAND) or is_skill_read(event, event.data.part(SkillsPart).debt_cards()):
             return self.none()

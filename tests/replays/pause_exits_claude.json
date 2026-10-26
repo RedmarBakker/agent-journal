@@ -136,33 +136,33 @@
       "name": "running a sequence",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\nsequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
+        "reason": "sequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
       },
       "typed": [],
       "nudges": [
         "sequences.step_to_follow",
-        "tasks.carry_on",
         "sequences.step_to_follow"
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "following_sequence"
       ]
     },
     {
       "name": "the last step ends the sequence",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\nsequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
+        "reason": "sequence 6, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
       },
       "typed": [],
       "nudges": [
-        "tasks.carry_on",
         "sequences.step_to_follow"
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "following_sequence"
       ]
     }
   ]

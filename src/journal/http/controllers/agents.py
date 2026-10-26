@@ -165,12 +165,12 @@ class AgentController(Controller[Agent]):
 
     def skip_step(self, request: Request) -> Response:
         agent = self.running_agent(request.number("id"))
-        self.notice(agent, self.running.skip(agent.session, agent.environment_id))
+        self.running.skip(agent.session, agent.environment_id)
         return Response.json(self.shown(self.repository.find(agent.row_id)))
 
     def end_sequence(self, request: Request) -> Response:
         agent = self.running_agent(request.number("id"))
-        self.notice(agent, self.running.end(agent.session, agent.environment_id))
+        self.running.end(agent.session, agent.environment_id)
         return Response.json(self.shown(self.repository.find(agent.row_id)))
 
     def running_agent(self, id: int) -> Agent:
@@ -179,6 +179,3 @@ class AgentController(Controller[Agent]):
             raise Rejection(f"agent {id} runs no sequence")
         return agent
 
-    def notice(self, agent: Agent, line: str) -> None:
-        if self.running.typed_agent(agent.session, agent.environment_id):
-            self.supervisor.type(agent.environment_id, line)

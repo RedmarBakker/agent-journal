@@ -24,16 +24,8 @@ class PlansNudges:
     DRIVE_ENDED = Nudge("plans", "drive_ended", "{{name}} is driven from here no longer: {{why}}", "its writes here are refused; `journal {{noun}} drive {{n}}` takes it again once it is free", repeat=Timeout.seconds(0))
     PLAN_REOPENED = Nudge("plans", "plan_reopened", "plan {{n}} is open again: {{why}}", "`journal plan start {{n}}` goes on with it", repeat=Timeout.seconds(0))
     UNAPPROVED_PLAN = Nudge("plans", "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat=Timeout.seconds(0))
-    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}'s reviewers are all back{{reports}}", "put their findings in as tasks, then `journal plan ready {{n}} --changed \"<what changed>\"`", repeat=Timeout.seconds(0))
-    REVIEW_COUNTDOWN = Nudge("plans", "writes_held_soon_until_the_review_is_in", "plan {{n}} readied due: {{count}}{{reports}}", repeat=Timeout.seconds(0))
-    REVIEW_LAST_USE = Nudge("plans", "next_write_held_until_the_review_is_in", "plan {{n}} readied due: 0{{reports}}", "your next write waits until it is readied", repeat=Timeout.seconds(0))
-    REVIEW_ENTRY_BLOCK = Nudge("plans", "review_write_up_waits", "your writes wait until plan {{n}} is readied", "put the reviewers' findings into it and `journal plan ready {{n}} --changed \"<what changed>\"`", repeat=Timeout.seconds(0))
+    REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}'s reviewers are all back{{reports}}", repeat=Timeout.seconds(0))
 
     @staticmethod
     def unread(reports: tuple[int, ...]) -> str:
         return f"; unread: reports {', '.join(map(str, reports))}" if reports else ""
-
-    @classmethod
-    def review_countdown(cls, plan: int, remaining_uses: int, reports: tuple[int, ...] = ()) -> Nudge:
-        named = cls.unread(reports)
-        return cls.REVIEW_COUNTDOWN.create(n=plan, count=remaining_uses, reports=named) if remaining_uses else cls.REVIEW_LAST_USE.create(n=plan, reports=named)

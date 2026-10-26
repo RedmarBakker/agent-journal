@@ -10,7 +10,7 @@ E = TypeVar("E", bound=AgentEvent)
 
 
 class TriggerWatch(AgentListener[E]):
-    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards, and a sequence one starts, on the user's own words, is started, with its first step informed at the agent's next stop."""
+    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards."""
 
     blocking = True
 
@@ -20,10 +20,7 @@ class TriggerWatch(AgentListener[E]):
     def text(self, event: E) -> str:
         raise NotImplementedError
 
-    def is_users(self, event: E) -> bool:
-        return False
-
     def handle(self, event: E) -> None:
         matched = self.triggers.matches(self.text(event))
         if matched:
-            self.firing.fired(matched, event.session, event.environment_id, self.is_users(event))
+            self.firing.fired(matched, event.session, event.environment_id)

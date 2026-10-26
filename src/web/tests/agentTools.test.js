@@ -4,7 +4,7 @@ import {expect, test} from "vitest";
 const {leadOf, runningAgent} = await import("../src/domain/agents.js");
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
-const agent = (id, status = "idle", heard = id) => ({table: "agents", id, status, heard_at: at(heard)});
+const agent = (id, status = "idle", heard = id) => ({table: "agents", id, role: "main", status, heard_at: at(heard)});
 
 test("the lead agent is the live one most lately heard from, else the one most lately seen", () => {
     expect(leadOf([agent(1), agent(3, "stopped"), agent(2)]).id).toBe(2);

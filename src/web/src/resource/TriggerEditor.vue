@@ -2,7 +2,6 @@
 import {computed, ref} from "vue";
 import {api} from "../api/client.js";
 import {DOES, doesOf, sentence} from "../domain/triggerWords.js";
-import {open} from "../domain/records.js";
 import ChoiceList from "../kit/ChoiceList.vue";
 import FormField from "../kit/FormField.vue";
 import TextArea from "../kit/TextArea.vue";
@@ -14,7 +13,6 @@ const error = ref("");
 const values = computed(() => props.draft || props.resource);
 const does = computed(() => doesOf(values.value.action));
 const pickable = (options, current) => options.map((option) => ({...option, current: option.value === current}));
-const sequences = computed(() => open("sequences").map((s) => ({value: s.title, label: s.title, current: s.title === values.value.text})));
 
 async function commit(patch) {
     error.value = "";
@@ -42,16 +40,9 @@ async function commit(patch) {
                 <FormField label="What this trigger does">
                     <ChoiceList stacked :choices="pickable(DOES, values.action)" @pick="(action) => commit({action})" />
                 </FormField>
-                <template v-if="values.action === 'sequence'">
-                    <FormField label="The sequence it starts">
-                        <ChoiceList stacked :choices="sequences" @pick="(text) => commit({text})" />
-                    </FormField>
-                </template>
-                <template v-else>
-                    <FormField :label="does.ask">
-                        <TextArea :value="values.text || ''" :placeholder="does.example" @change="commit({text: $event.target.value})" />
-                    </FormField>
-                </template>
+                <FormField :label="does.ask">
+                    <TextArea :value="values.text || ''" :placeholder="does.example" @change="commit({text: $event.target.value})" />
+                </FormField>
             </div>
         </ResourceBlock>
         <template v-if="error">

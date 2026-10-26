@@ -16,7 +16,7 @@ class TriggerCommand(Command):
     def arguments(self, verbs) -> None:
         new_trigger = self.verb(verbs, "create", "watch for words")
         new_trigger.add_argument("phrases", help="comma-separated")
-        new_trigger.add_argument("text", help="the line said, or for --do sequence the title of the sequence to start")
+        new_trigger.add_argument("text", help="the line the journal says to the agent")
         new_trigger.add_argument("--do", choices=[action.value for action in TriggerAction], default=TriggerAction.NUDGE.value)
         self.verb(verbs, "list", "every trigger")
         self.verb(verbs, "strike", "stop watching").add_argument("n", type=int)

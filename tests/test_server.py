@@ -577,7 +577,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
         check = call(server, "GET", "/journal/checks/1")[1]
         assert check["last_passed"] is True and "progress" in check
         release = app.console().run(["sequence", "create", "release", "--steps", "tag|push"], Caller.user("main")).text.split()[1].rstrip(":")
-        assert call(server, "GET", f"/journal/sequences/{release}")[1]["steps"] == ["tag", "push"]
+        assert [step["instructions"] for step in call(server, "GET", f"/journal/sequences/{release}")[1]["steps"]] == ["tag", "push"]
         data = call(server, "GET", "/journal/summary")[1]["environments"][0]
         assert {"messages", "tasks", "questions"} <= set(data)
         (tmp_path / "hello.py").write_text("print('hi')\n")
@@ -778,7 +778,7 @@ def test_the_remaining_pages_act_through_the_viewer(tmp_path: Path):
         assert completed()["last_passed"] is True, "and its result lands on the row"
         assert call(server, "POST", "/journal/checks/1", {"interval": 5})[1]["interval"] == 5
         release = app.console().run(["sequence", "create", "release", "--steps", "tag|push"], Caller.user("main")).text.split()[1].rstrip(":")
-        assert call(server, "POST", f"/journal/sequences/{release}/steps", {"steps": ["tag", "test", "push"]})[1]["steps"] == ["tag", "test", "push"]
+        assert [step["instructions"] for step in call(server, "POST", f"/journal/sequences/{release}/steps", {"steps": ["tag", "test", "push"]})[1]["steps"]] == ["tag", "test", "push"]
         app.console().run(["trigger", "create", "deploy", "say so"], Caller.user("main"))
         updated = call(server, "POST", "/journal/triggers/1", {"phrases": ["deploy", "release"], "action": "deny", "text": "wait"})[1]
         assert updated["phrases"] == ["deploy", "release"] and updated["action"] == "deny"

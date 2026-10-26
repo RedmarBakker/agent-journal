@@ -409,7 +409,7 @@ plan 1 is shown on the plan card again
 $ agent: journal plan dock 1
 exit 0
 Plan 1: The shop's checkout docked above the chat
-created: message 14
+created: message 15
 
 $ agent: journal plan undock 1
 exit 0
@@ -436,7 +436,7 @@ exit 0
 question 1 asked; waiting for the answer
   1. Stripe
   2. Mollie
-created: message 17
+created: message 18
 
 $ agent: journal question list
 exit 0
@@ -450,12 +450,12 @@ question 1: Which payment provider?  [Stripe / Mollie]
 $ user: journal question answer 1 Mollie
 exit 0
 question 1 answered: Mollie
-created: message 18
+created: message 19
 
 $ agent: journal question dock 1
 exit 0
 Question 1 docked above the chat
-created: message 19
+created: message 20
 
 $ agent: journal question undock 1
 exit 0
@@ -464,7 +464,7 @@ Question 1 undocked
 $ agent: journal fact create 'The shop sells in euros' --reason 'the customers are Dutch' --keywords euro
 exit 0
 fact 1: The shop sells in euros
-created: message 20
+created: message 21
 
 $ agent: journal fact list
 exit 0
@@ -477,7 +477,7 @@ fact 1: The shop sells in euros
 $ agent: journal fact dock 1
 exit 0
 Fact 1 docked above the chat
-created: message 21
+created: message 22
 
 $ agent: journal fact undock 1
 exit 0
@@ -486,12 +486,12 @@ Fact 1 undocked
 $ agent: journal fact strike 1
 exit 0
 fact 1 struck
-created: message 22
+created: message 23
 
 $ user: journal rule create 'Always round money to cents' --reason 'the bank does'
 exit 0
 rule 1: Always round money to cents
-created: message 23
+created: message 24
 
 $ agent: journal rule list
 exit 0
@@ -504,7 +504,7 @@ rule 1: Always round money to cents
 $ agent: journal rule dock 1
 exit 0
 Rule 1 docked above the chat
-created: message 24
+created: message 25
 
 $ agent: journal rule undock 1
 exit 0
@@ -513,12 +513,12 @@ Rule 1 undocked
 $ user: journal rule strike 1
 exit 0
 rule 1 struck
-created: message 25
+created: message 26
 
 $ agent: journal reminder create 'Run the tests before a commit'
 exit 0
 reminder 1: Run the tests before a commit
-created: message 26
+created: message 27
 
 $ agent: journal reminder list
 exit 0
@@ -531,7 +531,7 @@ reminder 1: Run the tests before a commit
 $ agent: journal reminder dock 1
 exit 0
 Reminder 1 docked above the chat
-created: message 27
+created: message 28
 
 $ agent: journal reminder undock 1
 exit 0
@@ -540,7 +540,7 @@ Reminder 1 undocked
 $ agent: journal reminder strike 1
 exit 0
 reminder 1 struck
-created: message 28
+created: message 29
 
 $ agent: journal memory skip 'nothing new to keep'
 exit 0
@@ -549,7 +549,7 @@ noted; carry on
 $ agent: journal doc create 'The cart' --file <root>/cart.md --abstract 'how the cart adds up'
 exit 0
 doc 1: The cart
-created: message 30, doc revision 1
+created: message 31, doc revision 1
 
 $ agent: journal doc list
 exit 0
@@ -655,7 +655,7 @@ doc 1 signed off: it holds what the project keeps knowing
 $ agent: journal report create 'What the cart test found' --abstract 'The cart adds the tax twice' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
-created: message 31
+created: message 32
 
 $ agent: journal report update 1 --abstract 'The cart adds the tax once now'
 exit 0
@@ -679,7 +679,7 @@ read a section with --section <n or heading>, its bullets with --bullets, search
 $ agent: journal report recap 'the footer is done'
 exit 0
 report 2: the update, docked at the bottom of the chat; done 1, doing 1, also 2
-created: message 32
+created: message 33
 
 $ agent: journal report note 1 'checked again'
 exit 0
@@ -758,7 +758,7 @@ A functional design says what is to be built, never how: anyone, the user or a c
 $ agent: journal template dock 1
 exit 0
 Template 1: Functional design docked above the chat
-created: message 33
+created: message 34
 
 $ agent: journal template undock 1
 exit 0
@@ -813,7 +813,7 @@ check 1: The cart sums its lines
 $ agent: journal check dock 1
 exit 0
 Check 1: The cart sums its lines docked above the chat
-created: message 35
+created: message 36
 
 $ agent: journal check undock 1
 exit 0
@@ -834,7 +834,7 @@ exit 0
 $ agent: journal notice dock 1
 exit 0
 Notice 1: The shop's design docked above the chat
-created: message 36
+created: message 37
 
 $ agent: journal notice undock 1
 exit 0
@@ -1009,24 +1009,39 @@ sequence 6: Ship a release, 3 steps
 
 $ agent: journal sequence list
 exit 0
-   1  Building a plan (4 steps, starts on plan.created)
-   2  Applying a plan's reviews (4 steps, starts on plan.reviewed)
-   3  Writing an update (3 steps)
-   4  Checking the instruction files (3 steps)
-   5  Filing a document that is already written (2 steps, starts on doc.created)
+   1  Building a plan (4 steps, starts on row:plan.created)
+   2  Applying a plan's reviews (3 steps, starts on row:plan.review_started)
+   3  Writing an update (3 steps, starts on 16 phrases)
+   4  Checking the instruction files (3 steps, starts on 7 phrases)
+   5  Filing a document that is already written (2 steps, starts on row:doc.created)
    6  Ship a release (3 steps)
+
+$ agent: journal sequence create 'Reviewing a diff' --step 'Read | read the diff' --hold-edits --allow-commands '^git (status|diff)' --step 'Ship | push it'
+exit 0
+sequence 7: Reviewing a diff, 2 steps
+
+$ agent: journal sequence show 3
+exit 0
+sequence 3: Writing an update, starts on phrase:give me an update, phrase:an update please, phrase:any updates, phrase:status update, phrase:tldr, phrase:tl;dr, phrase:catch me up, phrase:what happened since, phrase:geef me een update, phrase:update graag, phrase:nog updates, phrase:statusupdate, phrase:stand van zaken, phrase:praat me bij, phrase:bijpraten, phrase:wat is er gebeurd
+1. See what the update covers (file edits wait): Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. See what the update covers with `journal report changes`: the rows since the last update the user read, by section; read any row you do not remember before you sum it up
+2. Write the update (file edits wait): Write the update with `journal report recap "<one or two sentences>"`: what got done and what waits on the user, in plain words; the journal puts the rows under it and docks it at the bottom of the chat. Take out what does not belong with `journal report drop <n>` and add a note with `journal report note <n> "<text>"`
+3. Tell the user (file edits wait): Tell the user in one short line that the update is docked above the chat, with the report's reference on a line of its own, like report 3; talk about the work, never about rows or commands
+
+$ agent: journal sequence edit 3 --step 'Read | read the diff again' --hold-edits
+exit 1
+sequence 3, Writing an update, ships with the journal and is locked: it cannot be changed or deleted
 
 $ agent: journal sequence run 2
 exit 0
-sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Send the plan's reviewers and read what each finds as it comes back, noting every finding with the phase it belongs in; you may work on other files meanwhile. The step moves on by itself once the last reviewer is back. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence follow
 exit 0
-following sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in. `journal sequence next` when it is done
+following sequence 2, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Send the plan's reviewers and read what each finds as it comes back, noting every finding with the phase it belongs in; you may work on other files meanwhile. The step moves on by itself once the last reviewer is back. `journal sequence next` when it is done
 
 $ agent: journal sequence next
 exit 0
-sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --abstract "<what it found, in one short line>" --file <path> --about plans:<plan n>`. `journal sequence follow`, then `journal sequence next` when it is done
+sequence 2, step 2: Put each finding into the plan: a new task with `journal plan add <plan n> "<title>" --brief "<done when>"` placed with `journal plan todos <plan n> <phase> <tasks>`, or a wider brief on the task it belongs to with `journal task edit <n> --brief "<brief>"`. File edits wait until this step is done; plan, task, report and reading commands go through. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence pause --why 'the tag waits'
 exit 0
@@ -1034,17 +1049,16 @@ sequence 2 paused at step 2: the tag waits. `journal sequence follow` resumes it
 
 $ agent: journal sequence follow
 exit 0
-following sequence 2, step 2: Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create "<title>" --abstract "<what it found, in one short line>" --file <path> --about plans:<plan n>`. `journal sequence next` when it is done
+following sequence 2, step 2: Put each finding into the plan: a new task with `journal plan add <plan n> "<title>" --brief "<done when>"` placed with `journal plan todos <plan n> <phase> <tasks>`, or a wider brief on the task it belongs to with `journal task edit <n> --brief "<brief>"`. File edits wait until this step is done; plan, task, report and reading commands go through. `journal sequence next` when it is done
 
 $ agent: journal sequence abandon --why 'not today' --sure
 exit 0
 sequence 2 abandoned
-sequence 5, step 1: Check the document you filed reads as you meant: `journal doc show <doc n>` lists its sections, one for each ## heading of the file. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence dock 2
 exit 0
 Sequence 2: Applying a plan's reviews docked above the chat
-created: message 43
+created: message 41
 
 $ agent: journal sequence undock 2
 exit 0
@@ -1052,18 +1066,16 @@ Sequence 2: Applying a plan's reviews undocked
 
 $ agent: journal trigger create 'deploy,ship it' 'Read the deploy steps first' --do nudge
 exit 0
-trigger 3: deploy, ship it -> nudge
+trigger 1: deploy, ship it -> nudge
 
 $ agent: journal trigger list
 exit 0
-   1  sequence give me an update, an update please, any updates, status update, tldr, tl;dr, catch me up, what happened since, geef me een update, update graag, nog updates, statusupdate, stand van zaken, praat me bij, bijpraten, wat is er gebeurd: Writing an update
-   2  sequence check the instruction files, check agents.md, check claude.md, contradictions in the instructions, controleer de instructiebestanden, controleer agents.md, tegenstrijdigheden in de instructies: Checking the instruction files
-   3  nudge    deploy, ship it: Read the deploy steps first
+   1  nudge    deploy, ship it: Read the deploy steps first
 
 $ agent: journal trigger dock 1
 exit 0
 Trigger 1 docked above the chat
-created: message 44
+created: message 42
 
 $ agent: journal trigger undock 1
 exit 0
@@ -1142,7 +1154,7 @@ exit 0
 $ agent: journal dump dock 1
 exit 0
 Dump 1: The call docked above the chat
-created: message 46
+created: message 44
 
 $ agent: journal dump undock 1
 exit 0
@@ -1171,7 +1183,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 47
+created: message 45
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1278,10 +1290,8 @@ messages.hold_after = 10  (the user sets it)
 messages.hold_after_unread = 5  (the user sets it)
 messages.sweep_after = 10  (the user sets it)
 messages.fold_marks_seconds = 10
-plans.review_ready_within = 10
 plans.testing = 'none'
 plans.test_commands = 'pytest, journal suite'
-sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
 workers.write_block_minutes = 15
@@ -1688,7 +1698,6 @@ plans.drive_ended  [plans]  {{name}} is driven from here no longer: {{why}}. its
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  name the commands that run this project's tests before the plan's task goes on: journal settings set plans.test_commands "<line>, <line>". such as journal suite, python3 -m pytest or npm test; reads and journal commands go through until they are set
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing}}
-plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0{{reports}}. your next write waits until it is readied
 plans.now_building  [plans]  you now work as the builder
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} is complete, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} is complete. `journal plan start {{n}}` begins the next phase
@@ -1698,14 +1707,12 @@ plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main 
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it
 plans.plan_reopened  [plans]  plan {{n}} is open again: {{why}}. `journal plan start {{n}}` goes on with it
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
-plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}. put their findings in as tasks, then `journal plan ready {{n}} --changed "<what changed>"`
-plans.review_write_up_waits  [plans]  your writes wait until plan {{n}} is readied. put the reviewers' findings into it and `journal plan ready {{n}} --changed "<what changed>"`
+plans.put_the_review_into_the_plan  [plans]  plan {{n}}'s reviewers are all back{{reports}}
 plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} runs its tests only at the end of each phase, and phase {{phase}} still has open tasks: write the tests this task needs and run them when the phase ends
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
-plans.writes_held_soon_until_the_review_is_in  [plans]  plan {{n}} readied due: {{count}}{{reports}}
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
 plugins.plugin_not_working  [plugins]  the plugin {{plugin}} was on and no longer works: {{fault}}. fix it, or switch it off with journal plugin disable {{plugin}}
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker profile. `journal worker dispatch "<Name>" --task <n> --profile {{name}}`
@@ -1722,12 +1729,12 @@ reviewing.reviews_wait_for_a_reviewer  [reviewing]  reviews waiting for a review
 schedules.stop_scheduled_job  [schedules]  the user stopped your scheduled job {{job}}. delete it now with CronDelete, id {{job}}
 secrets.secret_allowed_for_programs  [secrets]  the user let secret {{n}} go to {{programs}}. run it with `journal secret run {{n}} -- <program> ...`
 secrets.secrets_out_of_reach  [secrets]  secrets are out of your reach. pass one to a program with `journal secret run <n> -- <program>`
+sequences.file_edits_wait_for_the_step  [sequences]  step {{step}} of sequence {{n}}, {{heading}}, lets no file edit through. finish it first with `journal sequence next`; it lets reads and journal commands through{{allowed}}
 sequences.following_the_step  [sequences]  following sequence {{n}}, step {{step}}: {{text}}. `journal sequence next` when it is done
 sequences.sequence_abandoned  [sequences]  sequence {{n}} abandoned
 sequences.sequence_cannot_finish  [sequences]  sequence {{n}} ended: {{why}}
 sequences.sequence_ended  [sequences]  sequence {{n}} ran its last step
 sequences.sequence_paused  [sequences]  sequence {{n}} is paused at step {{step}}: {{why}}. `journal sequence follow` resumes it
-sequences.step_stale_move_it_on  [sequences]  {{writes}} writes since sequence {{n}}, step {{step}} was taken up: {{text}}. `journal sequence next` if it is done, `journal sequence follow` to carry on, or `journal sequence pause --why "<why>"`
 sequences.step_to_follow  [sequences]  sequence {{n}}, step {{step}}: {{text}}. `journal sequence follow`, then `journal sequence next` when it is done
 sequences.the_user_ended_the_sequence  [sequences]  the user ended sequence {{n}}
 sequences.the_user_skipped_a_step  [sequences]  the user skipped step {{step}} of sequence {{n}}
@@ -1884,7 +1891,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-278 nudges
+275 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2206,7 +2213,7 @@ options:
 $ agent: journal panic report
 exit 0
 report 3 written: read it with journal report show 3 --all, take out anything private, then journal panic issue 3 files it on jessegall/agent-journal
-created: message 49
+created: message 47
 
 $ agent: journal panic apply --help
 exit 0

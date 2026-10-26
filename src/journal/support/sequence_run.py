@@ -1,5 +1,7 @@
 from dataclasses import asdict, dataclass, fields, replace
 
+from journal.models.support.sequence_step import SequenceStep
+
 
 @dataclass(frozen=True)
 class SequenceRun:
@@ -7,7 +9,7 @@ class SequenceRun:
 
     sequence_id: int
     title: str
-    steps: tuple[str, ...]
+    steps: tuple[SequenceStep, ...]
     step: int = 0
     subject: str = ""
     started_at: str = ""
@@ -19,14 +21,18 @@ class SequenceRun:
     @classmethod
     def build(cls, raw: dict) -> "SequenceRun":
         existing = {f.name for f in fields(cls)}
-        return cls(**{**{k: v for k, v in raw.items() if k in existing}, "steps": tuple(raw.get("steps", ())), "end_condition": tuple(raw.get("end_condition", ()))})
+        return cls(**{**{k: v for k, v in raw.items() if k in existing}, "steps": tuple(SequenceStep.parsed(step) for step in raw.get("steps", ())), "end_condition": tuple(raw.get("end_condition", ()))})
 
     def as_dict(self) -> dict:
-        return {**asdict(self), "steps": list(self.steps), "end_condition": list(self.end_condition)}
+        return {**asdict(self), "steps": [step.published() for step in self.steps], "end_condition": list(self.end_condition)}
+
+    @property
+    def current_step(self) -> SequenceStep:
+        return self.steps[self.step]
 
     @property
     def text(self) -> str:
-        return self.steps[self.step]
+        return self.current_step.instructions
 
     @property
     def last(self) -> bool:
@@ -45,7 +51,7 @@ class SequenceRun:
         return replace(self, pause_reason=reason)
 
     @property
-    def skipped(self) -> tuple[str, ...]:
+    def skipped(self) -> tuple[SequenceStep, ...]:
         return self.steps[self.step:]
 
     @property

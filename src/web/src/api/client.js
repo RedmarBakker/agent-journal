@@ -307,8 +307,8 @@ export class ApiClient {
     }
 
     // what starts a sequence, and its steps
-    setStartsOn(id, startsOn) {
-        return this.act("sequences", id, "starts", {trigger_event: startsOn});
+    setTriggers(id, triggers) {
+        return this.act("sequences", id, "triggers", {triggers});
     }
 
     setSteps(id, steps) {

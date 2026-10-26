@@ -178,6 +178,9 @@ agent await begin --help
 agent await clear --help
 agent sequence create "Ship a release" --steps "bump the version | tag it | publish it"
 agent sequence list
+agent sequence create "Reviewing a diff" --step "Read | read the diff" --hold-edits --allow-commands "^git (status|diff)" --step "Ship | push it"
+agent sequence show 3
+agent sequence edit 3 --step "Read | read the diff again" --hold-edits
 agent sequence run 2
 agent sequence follow
 agent sequence next

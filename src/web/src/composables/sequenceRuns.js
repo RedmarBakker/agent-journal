@@ -1,6 +1,7 @@
 import {computed} from "vue";
 import {refOf} from "../domain/row.js";
 import {rows} from "../sync/rows.js";
+import {stepHeading} from "../domain/sequenceSteps.js";
 
 // The sequence runs in hand here: each live agent's run, with the sequence's steps.
 const runs = computed(() =>
@@ -8,7 +9,7 @@ const runs = computed(() =>
         .filter((agent) => agent.sequence && agent.status !== "stopped")
         .map((agent) => {
             const sequence = rows("sequences").find((s) => s.id === agent.sequence.sequence_id) || null;
-            const titles = sequence ? sequence.steps : [];
+            const titles = sequence ? sequence.steps.map(stepHeading) : [];
             return {sequence, named: agent.sequence.title, opens: `sequences:${agent.sequence.sequence_id}`, about: agent.sequence.subject, step: agent.sequence.step, titles, steps: titles.length, agent};
         })
 );

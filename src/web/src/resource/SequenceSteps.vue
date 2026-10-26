@@ -1,40 +1,23 @@
 <script setup>
-import {computed, nextTick, reactive, ref} from "vue";
+import {computed, reactive} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
 import TextDisplay from "../kit/TextDisplay.vue";
 import {rows} from "../sync/rows.js";
-import StartsOn from "./StartsOn.vue";
+import SequenceTriggers from "./SequenceTriggers.vue";
+import StepCards from "./StepCards.vue";
+import {stepBody, stepCard, stepGuards, stepHeading, stepsProblem} from "../domain/sequenceSteps.js";
 
 const props = defineProps({resource: {type: Object, required: true}});
 const steps = computed(() => props.resource.steps || []);
 const inHand = computed(() => new Set(rows("agents").filter((a) => a.sequence?.sequence_id === props.resource.id).map((a) => a.sequence.step)));
 
 const draft = reactive({open: false, steps: [], error: "", busy: false});
-const fields = ref([]);
-let made = 0;
-const card = (text) => ({key: ++made, text});
-const trimmed = computed(() => draft.steps.map((s) => s.text.trim()));
-const problem = computed(() => {
-    if (!draft.steps.length) return "A sequence needs at least one step.";
-    if (trimmed.value.some((t) => !t)) return "Every step needs its words.";
-    return "";
-});
+const problem = computed(() => stepsProblem(draft.steps));
 
 function edit() {
-    Object.assign(draft, {open: true, steps: steps.value.map(card), error: "", busy: false});
-}
-
-async function add() {
-    draft.steps.push(card(""));
-    await nextTick();
-    fields.value.at(-1)?.focus();
-}
-
-function move(i, by) {
-    const [step] = draft.steps.splice(i, 1);
-    draft.steps.splice(i + by, 0, step);
+    Object.assign(draft, {open: true, steps: steps.value.map((step, i) => stepCard(step, i)), error: "", busy: false});
 }
 
 async function save() {
@@ -42,7 +25,7 @@ async function save() {
     draft.busy = true;
     draft.error = "";
     try {
-        await api.setSteps(props.resource.id, trimmed.value);
+        await api.setSteps(props.resource.id, draft.steps.map(stepBody));
         draft.open = false;
     } catch (e) {
         draft.error = e.message;
@@ -79,17 +62,25 @@ async function save() {
                     </span>
                     <div class="stop-body">
                         <span class="stop-title">Starts</span>
-                        <StartsOn :resource="resource" bare :locked="resource.locked" />
+                        <SequenceTriggers :resource="resource" />
                     </div>
                 </li>
-                <template v-for="(text, i) in steps" :key="`${i}-${text}`">
+                <template v-for="(step, i) in steps" :key="`${i}-${step.instructions}`">
                     <li :class="['stop', {now: inHand.has(i + 1)}]">
                         <span class="node">{{ i + 1 }}</span>
                         <div class="stop-body">
-                            <template v-if="inHand.has(i + 1)">
-                                <span class="now-label">In progress</span>
-                            </template>
-                            <TextDisplay class="stop-text" :text="text" />
+                            <span class="stop-title">
+                                {{ stepHeading(step) }}
+                                <template v-if="inHand.has(i + 1)">
+                                    <span class="now-label">In progress</span>
+                                </template>
+                            </span>
+                            <TextDisplay class="stop-text" :text="step.instructions" />
+                            <span class="guards">
+                                <template v-for="guard in stepGuards(step)" :key="guard">
+                                    <span class="guard">{{ guard }}</span>
+                                </template>
+                            </span>
                         </div>
                     </li>
                 </template>
@@ -106,38 +97,7 @@ async function save() {
             </ol>
         </template>
         <template v-else>
-            <TransitionGroup tag="ol" name="step" class="editor">
-                <template v-for="(s, i) in draft.steps" :key="s.key">
-                    <li class="step-card">
-                        <div class="step-row">
-                            <span class="node">{{ i + 1 }}</span>
-                            <span class="grow" />
-                            <span class="step-tools">
-                                <button type="button" class="step-tool" title="Move up" :disabled="i === 0" @click="move(i, -1)">
-                                    <Icon name="up" :size="12" />
-                                </button>
-                                <button
-                                    type="button"
-                                    class="step-tool"
-                                    title="Move down"
-                                    :disabled="i === draft.steps.length - 1"
-                                    @click="move(i, 1)"
-                                >
-                                    <Icon name="down" :size="12" />
-                                </button>
-                                <button type="button" class="step-tool" aria-label="Remove this step" @click="draft.steps.splice(i, 1)">
-                                    <Icon name="close" :size="12" />
-                                </button>
-                            </span>
-                        </div>
-                        <textarea ref="fields" v-model="s.text" rows="3" placeholder="What to do in this step. Markdown works here." />
-                    </li>
-                </template>
-            </TransitionGroup>
-            <button type="button" class="add-step" @click="add">
-                <Icon name="plus" :size="12" />
-                Add a step
-            </button>
+            <StepCards :cards="draft.steps" />
             <div class="editor-foot">
                 <Btn kind="primary" small :busy="draft.busy" :disabled="!!problem" @click="save">Save steps</Btn>
                 <Btn small @click="draft.open = false">Cancel</Btn>
@@ -199,8 +159,7 @@ async function save() {
     font-size: 11.5px;
 }
 
-.track,
-.editor {
+.track {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -328,103 +287,19 @@ async function save() {
     color: var(--text-4);
     font-size: 12px;
 }
-
-.editor {
+.guards {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.step-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 10px 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--raised);
-}
-
-.step-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.step-title-input {
-    flex: 1;
-    min-width: 0;
-    font-weight: 600;
-}
-
-.step-tools {
-    display: flex;
-    gap: 2px;
-}
-
-.step-tool {
-    display: inline-grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--text-3);
-    cursor: pointer;
-}
-
-.step-tool:hover:enabled {
-    background: var(--hover);
-    color: var(--text);
-}
-
-.step-tool:disabled {
-    opacity: 0.35;
-    cursor: default;
-}
-
-textarea {
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 76px;
-    padding: 8px 10px;
-    border: 1px solid var(--border-2);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
-    line-height: 1.5;
-    resize: vertical;
-}
-
-textarea:focus {
-    border-color: var(--accent);
-    outline: none;
-}
-
-.add-step {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-wrap: wrap;
     gap: 6px;
-    width: 100%;
-    margin-top: 10px;
-    padding: 9px;
-    border: 1px dashed var(--border-2);
-    border-radius: 10px;
-    background: none;
-    color: var(--text-3);
-    font: inherit;
-    font-size: 12.5px;
-    cursor: pointer;
 }
 
-.add-step:hover {
-    border-color: var(--accent);
-    color: var(--accent-text);
+.guard {
+    padding: 0 7px;
+    border-radius: 99px;
+    background: var(--hover);
+    color: var(--text-3);
+    font-size: 11px;
+    line-height: 18px;
 }
 
 .editor-foot {
@@ -439,20 +314,4 @@ textarea:focus {
     font-size: 12px;
 }
 
-.step-move {
-    transition: transform 0.2s var(--ease, ease);
-}
-
-.step-enter-active,
-.step-leave-active {
-    transition:
-        opacity 0.18s ease,
-        transform 0.18s ease;
-}
-
-.step-enter-from,
-.step-leave-to {
-    opacity: 0;
-    transform: translateY(-4px);
-}
 </style>

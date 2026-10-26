@@ -183,7 +183,7 @@ class PlanCommand(Command):
             raise Rejection(f"plan {plan.id} is in review and {output} of its reviewers are still out: wait for them, put what they found into the plan, then ready it")
         if plan.state == PlanState.REVIEWING:
             self.close_round(plan, args.changed, caller)
-        plan = self.plans.save(plan.ready(), caller.actor)
+        plan = self.plans.save(plan.ready(self.time_source.seconds()), caller.actor)
         print(f"plan {plan.id} ready: the user approves it on the plan page")
         return 0
 

@@ -2,6 +2,16 @@ from typing import ClassVar
 from dataclasses import dataclass, field, replace
 
 from journal.events.rows.user_paused import UserPaused
+from journal.events.rows.sequence_run_started import SequenceRunStarted
+from journal.events.rows.sequence_run_transferred import SequenceRunTransferred
+from journal.events.rows.sequence_step_adopted import SequenceStepAdopted
+from journal.events.rows.sequence_step_finished import SequenceStepFinished
+from journal.events.rows.sequence_step_skipped import SequenceStepSkipped
+from journal.events.rows.sequence_run_paused import SequenceRunPaused
+from journal.events.rows.sequence_run_abandoned import SequenceRunAbandoned
+from journal.events.rows.sequence_run_cancelled import SequenceRunCancelled
+from journal.events.rows.sequence_run_cannot_finish import SequenceRunCannotFinish
+from journal.support.sequence_run import SequenceRun
 from journal.events.rows.agent_thinking import AgentThinking
 from journal.events.rows.agent_thinking_ended import AgentThinkingEnded
 from journal.events.rows.user_resumed import UserResumed
@@ -42,7 +52,6 @@ class Agent(Scoped):
     is_overview_read: bool = True
     threshold_due: int = 0
     skills_due: tuple[str, ...] = ()
-    sequence_runs: tuple = ()
     tool_uses: int = 0
     code_edits: int = 0
     edited_lines: tuple[tuple[float, int], ...] = ()
@@ -67,6 +76,33 @@ class Agent(Scoped):
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
+
+    def sequence_started(self, run: SequenceRun, time: float) -> "Agent":
+        return self.with_event(SequenceRunStarted(environment_id=self.environment_id, time=time, agent_session=self.session, run=run))
+
+    def sequence_transferred(self, run: SequenceRun, time: float) -> "Agent":
+        return self.with_event(SequenceRunTransferred(environment_id=self.environment_id, time=time, agent_session=self.session, run=run))
+
+    def sequence_step_adopted(self, time: float) -> "Agent":
+        return self.with_event(SequenceStepAdopted(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def sequence_step_finished(self, run: SequenceRun, time: float) -> "Agent":
+        return self.with_event(SequenceStepFinished(environment_id=self.environment_id, time=time, agent_session=self.session, run=run))
+
+    def sequence_step_skipped(self, run: SequenceRun, time: float) -> "Agent":
+        return self.with_event(SequenceStepSkipped(environment_id=self.environment_id, time=time, agent_session=self.session, run=run))
+
+    def sequence_paused(self, reason: str, time: float) -> "Agent":
+        return self.with_event(SequenceRunPaused(environment_id=self.environment_id, time=time, agent_session=self.session, reason=reason))
+
+    def sequence_abandoned(self, reason: str, time: float) -> "Agent":
+        return self.with_event(SequenceRunAbandoned(environment_id=self.environment_id, time=time, agent_session=self.session, reason=reason))
+
+    def sequence_cancelled(self, run: SequenceRun, time: float) -> "Agent":
+        return self.with_event(SequenceRunCancelled(environment_id=self.environment_id, time=time, agent_session=self.session, run=run))
+
+    def sequence_cannot_finish(self, sequence_id: int, reason: str, time: float) -> "Agent":
+        return self.with_event(SequenceRunCannotFinish(environment_id=self.environment_id, time=time, agent_session=self.session, sequence_id=sequence_id, reason=reason))
 
     def user_paused(self, time: float) -> "Agent":
         return self.with_event(UserPaused(environment_id=self.environment_id, time=time, agent_session=self.session))

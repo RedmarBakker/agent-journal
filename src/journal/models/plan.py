@@ -5,6 +5,8 @@ from journal.models.plan_state import PlanState
 from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_approved import PlanApproved
 from journal.events.rows.plan_reviewed import PlanReviewed
+from journal.events.rows.plan_review_started import PlanReviewStarted
+from journal.events.rows.plan_readied import PlanReadied
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_postponed import PlanPostponed
 from journal.events.rows.plan_reopened import PlanReopened
@@ -40,11 +42,11 @@ class Plan(Scoped):
     def waiting_reason(self) -> str:
         return self.block_reason
 
-    def ready(self) -> "Plan":
-        return self.moved(PlanState.READY)
+    def ready(self, time: float) -> "Plan":
+        return self.moved(PlanState.READY).with_event(PlanReadied(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def reviewing(self) -> "Plan":
-        return self.moved(PlanState.REVIEWING)
+    def reviewing(self, time: float) -> "Plan":
+        return self.moved(PlanState.REVIEWING).with_(reviewers=0).with_event(PlanReviewStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
     def reviewers_counted(self, reviewers: int, time: float) -> "Plan":
         counted = self.with_(reviewers=reviewers)

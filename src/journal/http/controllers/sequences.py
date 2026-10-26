@@ -1,37 +1,39 @@
 from journal.http.controllers.controller import Controller
-from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.sequence import Sequence
-from journal.models.trigger_action import TriggerAction
-from journal.support.rejection import Rejection
+from journal.models.support.sequence_step import SequenceStep
+from journal.models.support.sequence_trigger import SequenceTrigger
 from journal.repositories.sequences import Sequences
-from journal.repositories.triggers import Triggers
-
-TRIGGER = "trigger:"
+from journal.support.rejection import Rejection
 
 
 class SequenceController(Controller[Sequence]):
-    """Sequences, one read by id with the trigger that starts it, if one does; what starts one and its steps are set from here."""
+    """Sequences, read whole with their steps and triggers; one is made here, and the triggers and the steps of one not locked are set here."""
 
-    def __init__(self, sequences: Sequences, triggers: Triggers) -> None:
-        self.repository, self.triggers = sequences, triggers
+    def __init__(self, sequences: Sequences) -> None:
+        self.repository = sequences
 
-    def shown_page(self, rows: list[Sequence]) -> list[dict]:
-        return [{**ModelFields.build(s), "trigger_ids": [t.id for t in self.triggers.starting(s.title)]} for s in rows]
+    def store(self, request: Request) -> Response:
+        title = str(request.body.get("title", "")).strip()
+        steps = self.body_steps(request)
+        if not title or not steps:
+            raise Rejection("a sequence needs a title and at least one step with its instructions")
+        sequence = Sequence(title=title, steps=steps, triggers=self.body_triggers(request))
+        return Response.json(self.shown(self.repository.save(sequence, request.actor)), 201)
 
-    def starts(self, request: Request) -> Response:
-        sequence, value = self.repository.find(request.number("id")).unlocked(), str(request.body.get("trigger_event", ""))
-        if value.startswith(TRIGGER):
-            self.triggers.save(self.triggers.find(int(value.removeprefix(TRIGGER))).with_(action=TriggerAction.SEQUENCE, text=sequence.title), request.actor)
-            return Response.json(self.shown(self.repository.save(sequence.with_(trigger_event=""), request.actor)))
-        if value and not value.endswith(".created"):
-            raise Rejection(f"a sequence starts by hand, when a row is created, written <table>.created, or by a trigger, written trigger:<id>; {value!r} is none of them")
-        for trigger in self.triggers.starting(sequence.title):
-            self.triggers.delete(trigger, request.actor)
-        return Response.json(self.shown(self.repository.save(sequence.with_(trigger_event=value), request.actor)))
+    @staticmethod
+    def body_steps(request: Request) -> tuple[SequenceStep, ...]:
+        return tuple(step for step in (SequenceStep.parsed(item) for item in request.body.get("steps", [])) if step.instructions.strip())
+
+    @staticmethod
+    def body_triggers(request: Request) -> tuple[SequenceTrigger, ...]:
+        return tuple(SequenceTrigger.parsed(item).checked() for item in request.body.get("triggers", []))
+
+    def triggers(self, request: Request) -> Response:
+        sequence = self.repository.find(request.number("id")).unlocked()
+        return Response.json(self.shown(self.repository.save(sequence.with_(triggers=self.body_triggers(request)), request.actor)))
 
     def steps(self, request: Request) -> Response:
         sequence = self.repository.find(request.number("id")).unlocked()
-        steps = tuple(str(step).strip() for step in request.body.get("steps", []) if str(step).strip())
-        return Response.json(self.shown(self.repository.save(sequence.with_(steps=steps), request.actor)))
+        return Response.json(self.shown(self.repository.save(sequence.with_(steps=self.body_steps(request)), request.actor)))

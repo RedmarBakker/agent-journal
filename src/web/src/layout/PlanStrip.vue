@@ -1,5 +1,5 @@
 <script setup>
-import {phaseCount, phaseOf, standingOf} from "../domain/plans.js";
+import {isActivePlan, phaseCount, phaseOf, standingOf} from "../domain/plans.js";
 import {onUnmounted, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import MenuPanel from "../kit/MenuPanel.vue";
@@ -41,7 +41,7 @@ function open(p) {
 <template>
     <div class="planstrip">
         <template v-for="p in plans" :key="p.id">
-            <button type="button" class="planstrip-plan" :title="`Plan ${p.id}: ${p.title}`" @mouseenter="show(p, $event)" @mouseleave="leave" @click.stop="show(p, $event)">
+            <button type="button" :class="['planstrip-plan', {'planstrip-plan-active': isActivePlan(p)}]" :title="`Plan ${p.id}: ${p.title}${isActivePlan(p) ? ' (active)' : ''}`" @mouseenter="show(p, $event)" @mouseleave="leave" @click.stop="open(p)">
                 <Icon name="plan" class="planstrip-icon" />
                 <span class="planstrip-number">{{ p.id }}</span>
                 <span class="planstrip-track" role="progressbar">
@@ -54,6 +54,9 @@ function open(p) {
             <MenuPanel :anchor="anchor" @click.stop @close="shown = 0">
                 <div class="planstrip-card" @mouseenter="keep" @mouseleave="leave">
                     <p class="planstrip-card-title">{{ plan().title }}</p>
+                    <template v-if="isActivePlan(plan())">
+                        <p class="planstrip-card-line">The plan being worked on</p>
+                    </template>
                     <template v-if="phaseOf(plan())">
                         <p class="planstrip-card-line">Phase {{ plan().current_phase || 1 }} of {{ phaseCount(plan()) }} · {{ phaseOf(plan()) }}</p>
                     </template>
@@ -104,9 +107,21 @@ function open(p) {
     cursor: pointer;
 }
 
+.planstrip-plan:first-child {
+    margin-left: -7px;
+}
+
 .planstrip-plan:hover {
     background: var(--hover);
     color: var(--text);
+}
+
+.planstrip-plan-active {
+    color: var(--accent-text);
+}
+
+.planstrip-plan-active .planstrip-track > span {
+    background: var(--accent);
 }
 
 .planstrip-track {

@@ -14,6 +14,9 @@ class Wait(BaseState):
 
     assigner = NoTaskAssigner
 
+    def takes_pushes(self) -> bool:
+        return False
+
     def wait_description(self) -> tuple[str, str]:
         return "", ""
 

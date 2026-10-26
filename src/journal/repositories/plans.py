@@ -159,6 +159,9 @@ class Plans(ScopedRepository[Plan]):
     def running_plans(self) -> list[Plan]:
         return self.matching(state=PlanState.STARTED)
 
+    def running_plans_beside(self, plan_id: int) -> list[Plan]:
+        return self.selected(self.query().filter(state=PlanState.STARTED).filter_unequal("id", plan_id))
+
     def finished_plans(self, task: Task) -> list[Plan]:
         return [plan for plan in self.containing(task) if self.finished(plan)]
 

@@ -736,9 +736,7 @@ def test_a_sequence_is_stepped_through_and_goes_back_where_it_began(app: App):
     assert app.container.get(RunTracker).current("s1", 1).adopted_at, "and takes the step up"
     assert "step 3: push" in console.run(["sequence", "next"], AGENT).text
     console.run(["sequence", "follow"], AGENT)
-    user_set(app, "sequences.stale_after", 2)
-    edit(), edit()
-    assert "2 writes since sequence" in json.dumps(edit()), "a step taken up and not moved on holds again after the set writes"
+    assert all("a write waits" not in json.dumps(edit()) for _ in range(30)), "a step taken up lets every write through until it is moved on"
     assert "paused at step 3" in console.run(["sequence", "pause", "--why", "the user wants the docs first"], AGENT).text
     assert "a write waits" not in json.dumps(edit()) and "step 3" not in json.dumps(hook(app, "Stop")[1]), "a paused run holds nothing"
     console.run(["sequence", "follow"], AGENT)
@@ -1877,6 +1875,54 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id} stalled since") and stalled[0].endswith("60 min"), "a plan untouched past the setting is named once as stalled, while the other moves"
     told = lines("workers.started_plans") + stalled
     assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
+
+
+def test_a_builder_keeps_one_started_plan_the_furthest_along_at_a_mode_switch_and_an_orchestrator_keeps_them_all(app: App):
+    from journal.models.plan_state import PlanState
+    from journal.models.task_state import TaskState
+    from journal.repositories.plans import Plans
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    plans, tasks = app.container.get(Plans), app.container.get(Tasks)
+    for title, titles in (("release", ("write the notes", "tag it")), ("billing", ("the invoice", "the receipt")), ("docs", ("the page",))):
+        console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
+        for task in titles:
+            console.run(["plan", "add", str(plans.rows()[-1].id), task], USER)
+    release, billing, docs = [plans.save(plan.with_(state=PlanState.APPROVED), Actor.user(1)) for plan in plans.rows()[-3:]]
+    drain = app.runtime().deferred.drain
+    states = lambda: drain() or [plans.find(plan.id).state for plan in (release, billing, docs)]
+
+    plans.opened(release, Actor.user(1))
+    drain()
+    plans.opened(billing, Actor.user(1))
+    drain()
+    assert states() == [PlanState.PAUSED, PlanState.STARTED, PlanState.APPROVED], "a builder starting a second plan pauses the first"
+
+    user_set(app, "workers.mode", "orchestrator")
+    drain()
+    plans.opened(release, Actor.user(1))
+    drain()
+    plans.opened(docs, Actor.user(1))
+    drain()
+    assert states() == [PlanState.STARTED] * 3, "an orchestrator keeps every plan it starts"
+
+    first = tasks.find(plans.plan_task_ids(billing)[0])
+    tasks.save(first.with_(state=TaskState.COMPLETED), Actor.user(1))
+    user_set(app, "workers.mode", "builder")
+    drain()
+    assert states() == [PlanState.PAUSED, PlanState.STARTED, PlanState.PAUSED], "a switch to the builder keeps the plan with the most of its tasks done"
+
+    plans.opened(docs, Actor.user(1))
+    drain()
+    user_set(app, "workers.mode", "orchestrator")
+    drain()
+    plans.opened(release, Actor.user(1))
+    drain()
+    user_set(app, "workers.mode", "solo")
+    drain()
+    assert states() == [PlanState.STARTED, PlanState.PAUSED, PlanState.PAUSED], "with none further along than another, the oldest plan is kept"
 
 
 def clocked_out(app: App, at: float):
@@ -3648,27 +3694,36 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
                 return reply.status, json.loads(reply.read())
         except HTTPError as error:
             return error.code, json.loads(error.read())
-    building = next(s for s in app.container.get(Sequences).all() if s.title == "Building a plan")
+    sequences = app.container.get(Sequences)
+    building = next(s for s in sequences.all() if s.title == "Building a plan")
     shown = next(r for r in api("GET", "sequences")[1]["rows"] if r["id"] == building.id)
-    assert shown["trigger_event"] == "plan.created", "the page is told a new plan starts it, as the engine does"
-    assert api("POST", f"sequences/{building.id}/starts", {"trigger_event": ""})[0] != 200, "a shipped sequence is locked"
-    app.console().run(["sequence", "create", "Ship it", "--steps", "bump | tag", "--starts-on", "plan.created"], USER)
-    building = next(s for s in app.container.get(Sequences).all() if s.title == "Ship it")
-    assert api("POST", f"sequences/{building.id}/starts", {"trigger_event": ""})[0] == 200 and app.container.get(Sequences).find(building.id).trigger_event == ""
-    status, refused = api("POST", f"sequences/{building.id}/starts", {"trigger_event": "plan.approved"})
-    assert status != 200 and "none of them" in json.dumps(refused), "only a created row or a trigger starts a sequence"
-    from journal.repositories.triggers import Triggers
-    triggers = app.container.get(Triggers)
-    update = next(s for s in app.container.get(Sequences).all() if s.title == "Writing an update")
-    started_by = triggers.starting("Writing an update")[0]
-    assert api("GET", f"sequences?ids={update.id}")[1]["rows"][0]["trigger_ids"] == [started_by.id], "the page is told the update starts on its words"
-    assert "tldr" in started_by.phrases and "check agents.md" in triggers.starting("Checking the instruction files")[0].phrases, "version 3's worded sequences start on their words"
-    assert api("POST", f"sequences/{update.id}/starts", {"trigger_event": ""})[0] != 200 and triggers.starting("Writing an update") == [started_by], "a shipped sequence keeps its trigger: it is locked"
-    from journal.models.trigger import Trigger
-    from journal.models.trigger_action import TriggerAction
-    plan_words = triggers.save(Trigger(phrases=("plan it",), action=TriggerAction.NUDGE, text="say something"), Actor.user(1))
-    api("POST", f"sequences/{building.id}/starts", {"trigger_event": f"trigger:{plan_words.id}"})
-    assert [t.id for t in triggers.starting("Ship it")] == [plan_words.id] and app.container.get(Sequences).find(building.id).trigger_event == "", "a trigger picked on the page starts the sequence"
+    assert shown["triggers"] == [{"kind": "row", "moment": "plan.created"}], "the page is told a new plan starts it, as the engine does"
+    assert api("POST", f"sequences/{building.id}/triggers", {"triggers": []})[0] != 200, "a shipped sequence is locked"
+    update = next(s for s in sequences.all() if s.title == "Writing an update")
+    assert any(trigger.text == "tldr" for trigger in update.triggers) and [s.title for s in sequences.requested_sequences("tldr")] == ["Writing an update"], "the update starts on its own phrases"
+    created = app.console().run(["sequence", "create", "Ship it", "--steps", "bump | tag", "--trigger", "row:plan.created", "--trigger", "file-text:src/*.py:TODO"], USER)
+    assert created.code == 0, created.error
+    ship = next(s for s in sequences.all() if s.title == "Ship it")
+    assert [trigger.line() for trigger in ship.triggers] == ["row:plan.created", "file-text:src/*.py:TODO"] and ship in sequences.triggered_sequences("plan.created") and ship in sequences.call_sequences()
+    assert "starts on row:plan.created, file-text:src/*.py:TODO" in app.console().run(["sequence", "show", str(ship.id)], USER).text
+    assert api("POST", f"sequences/{ship.id}/triggers", {"triggers": [{"kind": "phrase", "text": "ship it now"}]})[0] == 200 and [s.title for s in sequences.requested_sequences("ship it now")] == ["Ship it"], "the page sets the triggers anew"
+    for bad, said in (({"kind": "rows"}, "is none of them"), ({"kind": "command", "pattern": "("}, "not a regular expression"), ({"kind": "file"}, "path glob")):
+        status, refused = api("POST", f"sequences/{ship.id}/triggers", {"triggers": [bad]})
+        assert status != 200 and said in json.dumps(refused), (bad, refused)
+    refused = app.console().run(["sequence", "edit", str(ship.id), "--trigger", "row:plan"], USER)
+    assert refused.code != 0 and "such as plan.created" in refused.error, "the command refuses a bad trigger in plain words"
+
+
+def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_rows_into_trigger_records(connection):
+    from journal.db.migrations.sequence_triggers import SequenceTriggers
+    connection.execute("ALTER TABLE sequences ADD COLUMN trigger_event TEXT DEFAULT ''")
+    connection.execute("INSERT INTO sequences (title, steps, trigger_event, created_at, creator) VALUES ('Building a plan', '[]', 'plan.created', '2026-10-26', 'system'), ('Writing an update', '[]', '', '2026-10-26', 'system')")
+    connection.execute("INSERT INTO triggers (phrases, action, text, created_at, creator) VALUES ('[\"tldr\", \"catch me up\"]', 'sequence', 'Writing an update', '2026-10-26', 'system'), ('[\"careful\"]', 'nudge', 'be careful', '2026-10-26', 'system')")
+    SequenceTriggers().apply(connection)
+    triggers = {row["title"]: json.loads(row["triggers"]) for row in connection.all("SELECT title, triggers FROM sequences")}
+    assert triggers == {"Building a plan": [{"kind": "row", "moment": "plan.created"}], "Writing an update": [{"kind": "phrase", "text": "tldr"}, {"kind": "phrase", "text": "catch me up"}]}
+    assert [row["action"] for row in connection.all("SELECT action FROM triggers")] == ["nudge"], "the rows that started a sequence are gone, the others stay"
+    assert "trigger_event" not in {row["name"] for row in connection.all("PRAGMA table_info(sequences)")}
 
 
 def test_creating_a_plan_starts_the_shipped_building_a_plan_sequence(app: App, monkeypatch):
@@ -3678,7 +3733,7 @@ def test_creating_a_plan_starts_the_shipped_building_a_plan_sequence(app: App, m
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     listed = app.console().run(["sequence", "list"], AGENT).text
-    assert "Building a plan (4 steps, starts on plan.created)" in listed, "the shipped sequence is seeded at boot"
+    assert "Building a plan (4 steps, starts on row:plan.created)" in listed, "the shipped sequence is seeded at boot"
     app.console().run(["plan", "create", "Behaviour tree", "--brief", "a flowchart"], AGENT)
     app.runtime().deferred.drain()
     active = app.container.get(RunTracker)
@@ -3752,7 +3807,7 @@ def test_a_plan_is_built_in_phases_made_ready_approved_by_the_user_and_followed_
     assert "task 1," in console.run(["plan", "start", "1"], AGENT).text
     console.run(["task", "complete", "1"], AGENT)
     app.runtime().deferred.drain()
-    assert app.container.get(SessionAgents).top("s1").task_id == 3, "the second task of phase 1 comes before the first of phase 2"
+    assert console.run(["task", "show", "current"], AGENT).text.startswith("task 3:"), "the second task of phase 1 comes before the first of phase 2"
 
 
 def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved(app: App):
@@ -3782,7 +3837,7 @@ def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved
     from journal.features.sequences.support.run_tracker import RunTracker
     from journal.repositories.agents import Agents
     reviewing = lambda: [run for run in app.container.get(RunTracker).runs(app.container.get(Agents).session_agent("s1")) if run.title == "Applying a plan's reviews"]
-    assert len(reviewing()) == 1 and reviewing()[0].subject == "plans:1", "the last reviewer back starts the sequence that applies the reviews, about the plan"
+    assert len(reviewing()) == 1 and reviewing()[0].subject == "plans:1", "the review start started the sequence that applies the reviews, about the plan, and only once"
     assert console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).code == 0, "the reviewer back, its findings in, the plan is ready again"
     assert console.run(["plan", "approve", "1"], USER).code == 0
 
@@ -3791,8 +3846,8 @@ def test_a_shipped_sequence_is_locked_and_cannot_be_changed_or_deleted(app: App)
     from journal.repositories.sequences import Sequences
     hook(app, "SessionStart")
     reviewing = next(s for s in app.container.get(Sequences).all() if s.title == "Applying a plan's reviews")
-    assert reviewing.locked and reviewing.trigger_event == "plan.reviewed", "the review sequence ships locked and starts when a plan's reviewers are back"
-    for method, path, body in (("POST", f"sequences/{reviewing.id}/steps", {"steps": ["one step"]}), ("POST", f"sequences/{reviewing.id}/starts", {"trigger_event": ""})):
+    assert reviewing.locked and [trigger.line() for trigger in reviewing.triggers] == ["row:plan.review_started"] and len(reviewing.steps) == 3, "the review sequence ships locked, with its three steps, and starts when a plan goes into review"
+    for method, path, body in (("POST", f"sequences/{reviewing.id}/steps", {"steps": ["one step"]}), ("POST", f"sequences/{reviewing.id}/triggers", {"triggers": []})):
         status, refused = answered(app, method, f"/journal/{path}", json.dumps(body).encode() if body is not None else b"", {"X-Journal-Env": "main"})
         assert status != 200 and "is locked" in json.dumps(refused), (path, refused)
     assert app.container.get(Sequences).find(reviewing.id).steps == reviewing.steps, "nothing was written"
@@ -4556,9 +4611,8 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
     from journal.repositories.reports import Reports
     done = PlansNudges.PLAN_FINISHED.create(n=7).rendered()
     assert "plan 7 done" in done and "final suite" in done and "merging to main and releasing wait for the user's word" in done, done
-    assert PlansNudges.review_countdown(3, 2, (12, 14)).rendered().startswith("plan 3 readied due: 2; unread: reports 12, 14")
-    assert PlansNudges.review_countdown(3, 0, (12,)).rendered().startswith("plan 3 readied due: 0; unread: reports 12")
-    assert PlansNudges.review_countdown(3, 2).rendered() == "plan 3 readied due: 2", "no unread report, nothing named"
+    assert PlansNudges.REVIEW_ENTRY_REQUEST.create(n=3, reports=PlansNudges.unread((12, 14))).rendered() == "plan 3's reviewers are all back; unread: reports 12, 14", "the reviewers back, the reports of the round still unread are named beside the sequence's next step"
+    assert PlansNudges.REVIEW_ENTRY_REQUEST.create(n=3, reports=PlansNudges.unread(())).rendered() == "plan 3's reviewers are all back", "no unread report, nothing named"
     plan = app.container.get(Plans).save(Plan(title="the hub"), Actor.user(1))
     rounds, reports, links = app.container.get(ReviewRounds), app.container.get(Reports), app.container.get(Links)
     rounds.begin(plan, Actor.user(1))
@@ -4706,16 +4760,13 @@ def test_words_start_a_sequence_from_a_prompt_or_from_the_users_message(app: App
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    assert "sequence give me an update" in console.run(["trigger", "list"], AGENT).text, "the update words are a shipped trigger"
-    console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER)
-    console.run(["trigger", "create", "ship it", "release", "--do", "sequence"], USER)
-    body = hook(app, "UserPromptSubmit", prompt="ok, ship it now")[1]
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(1):
-        fired = [m for m in app.container.get(Messages).rows() if m.text == "Trigger release"]
-    assert fired and fired[-1].data["detail"] == "ship it", "the trigger's card names its phrases"
+    assert "Writing an update (3 steps, starts on 16 phrases)" in console.run(["sequence", "list"], AGENT).text and "phrase:give me an update" in console.run(["sequence", "show", "3"], AGENT).text, "the update words are shipped phrase triggers of its sequence"
+    console.run(["sequence", "create", "release", "--steps", "bump | tag", "--trigger", "phrase:ship it"], USER)
+    hook(app, "UserPromptSubmit", prompt="ok, ship it now")
     active = app.container.get(RunTracker)
-    assert active.current("s1", 1).title == "release" and "step 1: bump" in hook(app, "Stop")[1].get("reason", ""), "a prompt's words start the sequence and its first step is told at the next stop"
+    app.runtime().deferred.drain()
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]) + " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
+    assert active.current("s1", 1).title == "release" and "step 1: bump" in told, "a prompt's words start the sequence and its first step is told to the agent"
     for _ in range(2):
         console.run(["sequence", "follow"], AGENT)
         console.run(["sequence", "next"], AGENT)
@@ -4728,15 +4779,53 @@ def test_words_start_a_sequence_from_a_prompt_or_from_the_users_message(app: App
     said = " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
     assert active.current("s1", 1).title == "Writing an update" and "See what the update covers" in said, "the user's message starts the update sequence, and the step goes to the agent: typed once it is quiet, or on its next tool use while its held stop keeps it at work"
 
+def test_a_file_text_trigger_starts_its_sequence_on_the_main_agents_edit_alone_and_its_held_step_waits_for_the_next_write(app: App):
+    from journal.models.worker import Worker
+    from journal.repositories.load_tally import LoadTally
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    created = console.run(["sequence", "create", "Clear the todo", "--step", "Find it | find what the todo asks", "--hold-edits", "--step", "Do it | do what it asks", "--trigger", "file-text:src/*.py:TODO"], USER)
+    assert created.code == 0, created.error
+    active = app.container.get(RunTracker)
+    edited = lambda session, text, **more: hook(app, "PostToolUse", tool_name="Edit", tool_input={"file_path": "src/a.py", "old_string": "a", "new_string": text}, tool_response={}, session_id=session, **more)
+    app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Pitman", session="s2"), Actor.system())
+    hook(app, "SessionStart", session_id="s2")
+    edited("s2", "# TODO tidy")
+    edited("s1", "# TODO tidy", agent_id="sub-1")
+    app.runtime().deferred.drain()
+    assert active.current("s2", 1) is None and active.current("s1", 1) is None, "a worker's edit and a subagent's start nothing"
+    edited("s1", "no marker here")
+    app.runtime().deferred.drain()
+    assert active.current("s1", 1) is None, "an edit without the text starts nothing"
+    from journal.repositories.sequences import Sequences
+    sequences = app.container.get(Sequences)
+    sequences.call_sequences()
+    LoadTally.begin()
+    sequences.call_sequences(), sequences.call_sequences()
+    assert [count.rows for count in LoadTally.ended().counts if count.model == "sequences"] in ([], [0]), "the sequences a tool call is matched against are read once and kept until a sequence changes"
+    edited("s1", "# TODO tidy")
+    app.runtime().deferred.drain()
+    assert active.current("s1", 1).title == "Clear the todo", "the main agent's edit with the text starts it"
+    edited("s1", "# TODO again")
+    app.runtime().deferred.drain()
+    assert len(active.runs(app.container.get(SessionAgents).agent("s1", 1))) == 1, "an edit the running sequence's own trigger matches never starts it twice"
+    locked = next(sequence for sequence in app.container.get(Sequences).all() if sequence.locked)
+    assert "is locked" in console.run(["sequence", "edit", str(locked.id), "--trigger", "phrase:go"], USER).error, "a shipped sequence's triggers are not changed"
+    console.run(["sequence", "follow"], AGENT)
+    status, held = hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "src/b.py", "old_string": "a", "new_string": "b"})
+    assert status == 409 and "lets no file edit through" in json.dumps(held), "its first step holds the next write"
+
+
 def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
     from journal.models.trigger import Trigger
     from journal.models.trigger_action import TriggerAction
-    from journal.features.sequences.shipped import UPDATE_PHRASES
+    from journal.features.sequences.shipped import UPDATE_WRITING
 
-    update = Trigger(phrases=UPDATE_PHRASES, action=TriggerAction.SEQUENCE, text="Writing an update")
-    assert update.matches("give me an update") and update.matches("could you give me an update?"), "the request itself starts it"
-    assert not update.matches("update the plan and tell me") and not update.matches("please update me"), "the bare word update starts nothing"
-    assert not update.matches("relay the plan to the other agent so it can build it and send me a tldr when it is done with the first phase"), "a phrase inside a long message about something else starts nothing"
+    assert UPDATE_WRITING.is_requested("give me an update") and UPDATE_WRITING.is_requested("could you give me an update?"), "the request itself starts it"
+    assert not UPDATE_WRITING.is_requested("update the plan and tell me") and not UPDATE_WRITING.is_requested("please update me"), "the bare word update starts nothing"
+    assert not UPDATE_WRITING.is_requested("relay the plan to the other agent so it can build it and send me a tldr when it is done with the first phase"), "a phrase inside a long message about something else starts nothing"
     assert Trigger(phrases=("release",), action=TriggerAction.NUDGE).matches("when we release the build, check the notes first and then tag it"), "a nudge still matches its words anywhere"
 
 
@@ -5097,8 +5186,8 @@ def test_an_agent_in_the_old_running_sequence_state_is_unwrapped_at_boot_with_th
         with second.container.get(Scope).environment(MAIN):
             agent = second.container.get(Agents).session_agent("s1")
             run = second.container.get(RunTracker).runs(agent)[-1]
-            assert agent.state == "waiting" and [layer["state"] for layer in agent.stack] == ["idle", "working", "waiting"], "the run's layer is taken out of the chain, the rest stands on the stack"
-            assert run.title == "release" and run.steps == ("bump", "tag", "push") and run.text == "tag", "the run is on the row at the step it stood at"
+            assert agent.state == "waiting" and [layer["state"] for layer in agent.stack] == ["idle", "working", "following_sequence", "waiting"], "the run's layer is taken out of the chain and stands on the stack beneath the wait"
+            assert run.title == "release" and [step.instructions for step in run.steps] == ["bump", "tag", "push"] and run.text == "tag", "the run is on the row at the step it stood at"
     finally:
         second.runtime().stop()
 
@@ -5112,9 +5201,24 @@ def test_a_run_goes_with_the_agent_to_its_next_session(app: App):
     hook(app, "SessionEnd")
     hook(app, "SessionStart", session_id="s2")
     active = app.container.get(RunTracker)
-    assert active.current("s2", 1).title == "release" and active.current("s1", 1) is None, "the next session takes the run over"
+    assert active.current("s2", 1).title == "release", "the next session takes the run over"
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import NUDGE, Entries
+    agent = app.container.get(Agents).session_agent("s2")
+    assert agent.stack[-1]["state"] == "following_sequence", "its sequence state is on top of the new session's stack"
+    said = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("session") == "s2" and "step 1: bump" in entry.data.get("line", "")]
+    assert len(said) == 1, f"the step is said once in the new session: {said}"
+    hook(app, "SessionEnd", session_id="s2")
+    hook(app, "SessionStart", session_id="s3")
+    console.run(["environment", "overview"], Caller.agent("main", "s3", "claude"))
+    console.run(["sequence", "follow"], Caller.agent("main", "s3", "claude"))
+    abandoned = console.run(["sequence", "abandon", "--why", "not needed", "--sure"], Caller.agent("main", "s3", "claude"))
+    assert abandoned.code == 0, abandoned.error
+    hook(app, "SessionEnd", session_id="s3")
+    hook(app, "SessionStart", session_id="s4")
+    assert active.current("s4", 1) is None, "a run given up in the last session never comes back from an older one"
 
-def test_a_run_a_worker_starts_is_its_own_and_its_step_waits_for_its_stop(app: App, monkeypatch):
+def test_a_worker_not_at_work_starts_no_sequence_and_the_agent_is_not_given_one(app: App, monkeypatch):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     transmitted = []
@@ -5129,8 +5233,10 @@ def test_a_run_a_worker_starts_is_its_own_and_its_step_waits_for_its_stop(app: A
     app.console().run(["plan", "create", "Side work", "--brief", "b"], Caller.agent("main", "s2", "claude"))
     app.runtime().deferred.drain()
     active = app.container.get(RunTracker)
-    assert active.current("s2", 1).title == "Building a plan" and active.current("s1", 1) is None and not any("Building" in line or "step 1" in line for line in transmitted), "the run is the worker's, and its step is not typed to the agent"
+    assert active.current("s2", 1) is None and active.current("s1", 1) is None and not any("Building" in line or "step 1" in line for line in transmitted), "a helper not at work runs no sequence, and the main agent is not given the worker's"
     assert "step 1" not in str(hook(app, "Stop")[1]), "the agent's stop is not told the worker's step"
+    from journal.engine.states_catalogue import StatesCatalogue
+    assert {"key": "following_sequence", "title": "Following a sequence", "parent": ""} in app.container.get(StatesCatalogue).listed(), "the states catalogue, which the Home diagram draws, lists it"
 
 def test_the_steps_hold_comes_after_the_look_the_mark_and_the_skill_and_each_is_paid_in_turn(skilled):
     app, console = skilled, skilled.console()
@@ -5161,10 +5267,12 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
     produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
     console.run(["sequence", "run", produced], AGENT)
     assert "step 1: bump" in json.dumps(hook(app, "SessionStart", source="compact")[1]), "after a compaction the step is told"
+    console.run(["environment", "overview"], AGENT)
     console.run(["await", "the build", "--until", "false"], AGENT)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    lifted = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
     app.runtime().deferred.drain()
-    assert any("step 1: bump" in line for line in transmitted), "a wait that ends types the step"
+    said = json.dumps(lifted) + " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
+    assert "step 1: bump" in said, "a wait that ends says the step as the sequence comes back on top"
     transmitted.clear()
 
     def tick():
@@ -5235,7 +5343,10 @@ def test_a_run_is_abandoned_with_its_reason_or_ends_when_its_row_or_sequence_is_
     app.runtime().deferred.drain()
     assert active.current("s1", 1) is None and any(f"sequence {produced} was deleted" in line for line in transmitted), "a deleted sequence ends its runs"
 
-def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: App):
+def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: App, monkeypatch):
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    catch_typed(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -5248,7 +5359,9 @@ def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: A
     assert active.current("s1", 1).title == "check", "one started inside another is the one followed"
     console.run(["sequence", "follow"], AGENT)
     ended = console.run(["sequence", "next"], AGENT).text
-    assert f"sequence {inner} ran its last step" in ended and "step 1: bump" in ended and active.current("s1", 1).title == "release", "when it ends the other is said again"
+    app.runtime().deferred.drain()
+    resumed = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]) + " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
+    assert f"sequence {inner} ran its last step" in ended and "step 1: bump" in resumed and active.current("s1", 1).title == "release", "when it ends the other is said again, by the sequence state beneath as it comes back on top"
     console.run(["sequence", "follow"], AGENT)
     console.run(["sequence", "next"], AGENT)
     console.run(["sequence", "follow"], AGENT)
@@ -5280,11 +5393,9 @@ def test_the_agents_panel_shows_the_run_and_the_user_can_skip_a_step_or_end_it(a
     app.runtime().deferred.drain()
     shown = json.dumps(api("GET", "agents/1")[1])
     assert '"title": "release"' in shown and '"step": 1' in shown and "Not taken up yet" in shown, "the panel shows the run, its step and why it holds"
-    assert api("POST", "agents/1/skip-step")[0] == 200 and any("the user skipped step 1" in line and "step 2: tag" in line for line in transmitted), "Skip step moves the run on and tells the agent"
+    assert api("POST", "agents/1/skip-step")[0] == 200 and "the user skipped step 1" in " ".join(transmitted) and "step 2: tag" in " ".join(transmitted), "Skip step moves the run on and tells the agent"
     assert api("POST", "agents/1/end-sequence")[0] == 200 and any(f"the user ended sequence {produced}" in line for line in transmitted) and app.container.get(RunTracker).current("s1", 1) is None, "End ends the run"
     app.runtime().deferred.drain()
-    history = json.dumps(api("GET", "agents/1")[1])
-    assert "release: started" in history and "release: moved on to step 2" in history and "release: ended at step 2" in history, "the panel lists what the run did"
     from journal.repositories.messages import Messages
     cards = [m.text for m in app.container.get(Messages).scoped() if m.author == "system"]
     assert f"Sequence {produced}, release: started" in cards and f"Sequence {produced}, release: moved on to step 2" in cards and f"Sequence {produced}, release: ended at step 2" in cards, "each change is a card in the chat"
@@ -6544,23 +6655,6 @@ def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
     assert row["awaiting"] == "the suite" and row["awaiting_since"], "the bar reads a wait from the agent's row, which changes when its state does"
 
 
-def test_a_step_moved_on_is_never_written_back_by_a_change_read_before_it(app: App):
-    from journal.engine.state_machine import StateMachine
-    from journal.features.sequences.support.run_tracker import RunTracker
-    console = app.console()
-    release = console.run(["sequence", "create", "release", "--steps", "one | two | three"], USER).text.split()[1].rstrip(":")
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["sequence", "run", release], AGENT)
-    console.run(["sequence", "follow"], AGENT)
-    active, machine = app.container.get(RunTracker), app.container.get(StateMachine)
-    with app.container.get(Scope).environment(MAIN):
-        stale = app.container.get(SessionAgents).agent("s1", 1)
-        console.run(["sequence", "next"], AGENT)
-        active.rewritten(stale, lambda time: [*time[:-1], time[-1].announced(active.timestamp())])
-        assert active.current("s1", 1).step == 1, "the pace's own write, read before the step moved on, keeps the step it moved to"
-
-
 def test_an_agent_waiting_in_auto_mode_is_pointed_to_the_next_task_after_a_quiet_minute(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -6971,7 +7065,7 @@ def test_a_hand_read_that_does_a_readers_work_is_pointed_at_the_reader(app: App)
 def test_a_sequence_ported_from_version_3_is_written_at_boot(app: App):
     from journal.repositories.sequences import Sequences
     sorting = next(s for s in app.container.get(Sequences).all() if s.title == "Filing a document that is already written")
-    assert sorting.trigger_event == "doc.created" and len(sorting.steps) == 2
+    assert [trigger.line() for trigger in sorting.triggers] == ["row:doc.created"] and len(sorting.steps) == 2
 
 
 def version_3_row(folder, kind: str, n: int, brief: str = "", **header) -> None:
@@ -7185,7 +7279,7 @@ def test_version_3_checks_triggers_sequences_templates_and_settings_come_across_
     assert [(t.phrases, t.action, t.text) for t in app.container.get(Triggers).rows() if "deploy" in t.phrases] == [(("deploy",), "instruct", "read the deploy notes")]
     assert not any("hold" in t.text for t in app.container.get(Triggers).rows()), "a trigger version 4 cannot do stays behind"
     titles = {s.title: s for s in app.container.get(Sequences).rows()}
-    assert titles["Releasing"].steps == ("Tag it", "Push it: with the tags") and "Shipped one" not in titles, "version 3's shipped sequences stay behind"
+    assert [(step.title, step.instructions) for step in titles["Releasing"].steps] == [("Tag it", "Tag it"), ("Push it", "with the tags")] and "Shipped one" not in titles, "version 3's shipped sequences stay behind"
     assert any(t.title == "Report" and t.purpose == "critique" for t in app.container.get(Templates).rows())
     assert app.container.get(SettingRows).project("features.checks") is False and app.container.get(SettingRows).project("features.boards") is None, "only a feature version 4 has"
 
@@ -7717,7 +7811,10 @@ def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: A
     assert console.run(["dump", "filed", "1", "a.png", "x", "--refs", "docs:99"], AGENT).code != 0, "a row that is not there is refused"
     assert console.run(["dump", "failed", "1", "a.png", "unreadable"], AGENT).text.endswith("closed: 1 filed, 1 failed\n")
     assert "dump 1 is filed (1 filed, 1 failed)" in link.pending_lines(1)
-    assert app.container.get(SessionAgents).top("s1").name == "idle", "the dump filed, the agent is back where it was"
+    console.run(["sequence", "follow"], AGENT)
+    console.run(["sequence", "abandon", "--why", "the document came from the dump", "--sure"], AGENT)
+    app.runtime().deferred.drain()
+    assert app.container.get(SessionAgents).top("s1").name == "idle", "the dump filed and the document's sequence over it ended, the dump state pops as it comes back on top and the agent is back where it was"
     assert console.run(["dump", "stop", "1"], AGENT).code != 0 and console.run(["dump", "remove", "1"], AGENT).code != 0, "only the user stops or removes"
     assert app.container.get(Dumps).find(1).created_refs() == ["docs:1"]
     console.run(["dump", "remove", "1"], USER)
@@ -16999,7 +17096,7 @@ def test_a_silent_command_beats_while_it_runs(app: App):
 def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_brings_the_plain_words_reminder(app: App):
     from journal.features.sequences.shipped import INSTRUCTION_FILES_CHECK, PLAIN_WRITING, PLAN_BUILDING, UPDATE_WRITING
     from journal.repositories.agents import Agents
-    assert all(sequence.steps[0].startswith(PLAIN_WRITING) for sequence in (PLAN_BUILDING, UPDATE_WRITING, INSTRUCTION_FILES_CHECK)), "each sequence that writes opens with the plain words line"
+    assert all(sequence.steps[0].instructions.startswith(PLAIN_WRITING) for sequence in (PLAN_BUILDING, UPDATE_WRITING, INSTRUCTION_FILES_CHECK)), "each sequence that writes opens with the plain words line"
     hook(app, "SessionStart")
     agents = app.container.get(Agents)
     edit = lambda path: json.dumps(hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": path, "old_string": "a", "new_string": "b"})[1])
@@ -17158,7 +17255,8 @@ def test_a_worker_sent_and_started_shows_one_mark_a_moment_and_none_says_clocked
     assert not any("clocked" in text for text in texts)
 
 
-def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_it_is_readied(app: App, monkeypatch):
+def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewers_are_out_hold_them_while_findings_go_in_and_end_when_it_is_readied(app: App, monkeypatch):
+    from journal.repositories.agents import Agents
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     console = app.console()
@@ -17170,22 +17268,36 @@ def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the review", "--start"], AGENT)
     console.run(["plan", "review", "1"], AGENT)
+    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
+    assert "Send the plan's reviewers" in " ".join(keystrokes), "the review starts the sequence and its first step is typed"
+    early = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads the design", "prompt": "read the design", "model": "sonnet", "run_in_background": True}
+    assert hook(app, "PreToolUse", tool_name="Agent", tool_input=early, tool_use_id="t-0")[0] == 200, "a subagent's dispatch goes through before the step is taken up"
+    assert console.run(["sequence", "follow"], AGENT).code == 0
+    assert edit()[0] == 200, "edits go through while the reviewers are out"
     reviewer = {"subagent_type": "journal-researcher", "description": "Lady Lovelace reads plan 1", "prompt": "read plan 1", "model": "sonnet"}
     hook(app, "PreToolUse", tool_name="Agent", tool_input=reviewer, tool_use_id="t-1")
     app.runtime().deferred.drain()
     told = json.dumps(hook(app, "PostToolUse", tool_name="Agent", tool_input=reviewer, tool_use_id="t-1", tool_response="found two gaps")[1])
     app.runtime().deferred.drain()
-    edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
-    said = told + json.dumps(edit()[1]) + " ".join(keystrokes)
-    assert "plan 1's reviewers are all back" in said, "the agent is told to put the review into the plan"
-    assert console.run(["sequence", "follow"], AGENT).code == 0, "the sequence that applies the reviews started, and its step is taken up"
-    statuses = [edit()[0] for _ in range(8)]
-    held = edit()
-    assert statuses == [200] * 8 and held[0] == 409 and "your writes wait until plan 1 is readied" in held[1]["error"], (statuses, held)
-    assert console.run(["plan", "show", "1"], AGENT).code == 0, "plan commands still go through"
+    said = told + " ".join(keystrokes) + app.container.get(SupervisorLink).pending_lines(1)
+    assert "plan 1's reviewers are all back" in said and "Put each finding into the plan" in said, "the last reviewer back moves the sequence on to its second step by itself"
+    assert console.run(["sequence", "follow"], AGENT).code == 0
+    status, body = edit()
+    assert status == 409 and "lets no file edit through" in json.dumps(body), "while the findings go in, file edits wait"
+    assert console.run(["plan", "show", "1"], AGENT).code == 0 and hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.md"})[0] == 200, "plan commands and reads go through"
+    assert console.run(["sequence", "next"], AGENT).code == 0 and console.run(["sequence", "follow"], AGENT).code == 0
+    assert edit()[0] == 200, "the last step writes the report's file"
     assert console.run(["plan", "ready", "1", "--changed", "two gaps filled"], AGENT).code == 0
     app.runtime().deferred.drain()
-    assert edit()[0] == 200, "the hold is gone once the plan is ready"
+    with app.container.get(Scope).environment(MAIN):
+        agent = app.container.get(Agents).session_agent("s1")
+    assert "following_sequence" not in [layer["state"] for layer in agent.stack], "the sequence ends when the plan is readied"
+    console.run(["plan", "review", "1"], AGENT)
+    app.runtime().deferred.drain()
+    assert app.container.get(RunTracker).current("s1", 1).title == "Applying a plan's reviews", "a second round starts a fresh run"
+    assert console.run(["plan", "ready", "1", "--changed", "nothing found"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    assert app.container.get(RunTracker).current("s1", 1) is None, "a plan readied with no reviewer sent ends the run from its first step"
 
 
 def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_ends(app: App, monkeypatch):
@@ -17205,6 +17317,7 @@ def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_end
     hook(app, "PostToolUse", tool_name="Agent", tool_input=reader, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
     hook(app, "SubagentStop", agent_id="a1")
     console.run(["plan", "review", "1"], AGENT)
+    console.run(["sequence", "follow"], AGENT)
     message = {"to": "a1", "message": "now review plan 1 against the design"}
     hook(app, "PreToolUse", tool_name="SendMessage", tool_input=message, tool_use_id="t-2")
     hook(app, "PostToolUse", tool_name="SendMessage", tool_input=message, tool_response={}, tool_use_id="t-2")
@@ -17217,6 +17330,41 @@ def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_end
     app.runtime().deferred.drain()
     said = json.dumps(edit()[1]) + " ".join(keystrokes)
     assert app.container.get(Plans).find(1).reviewers == 0 and "plan 1's reviewers are all back" in said, "once it ends the countdown starts"
+
+
+def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_sent_before_moves_nothing(app: App, monkeypatch):
+    from types import SimpleNamespace
+    from journal.events.bus import Bus
+    from journal.events.rows.plan_reviewed import PlanReviewed
+    from journal.models.plan_state import PlanState
+    from journal.repositories.plans import Plans
+    catch_typed(app, monkeypatch, [])
+    console = app.console()
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first"], USER)
+    plans = app.container.get(Plans)
+    plans.save(plans.find(1).with_(reviewers=3), Actor.system())
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    reviewed = []
+    app.container.get(Bus).listen(PlanReviewed, SimpleNamespace(handle=reviewed.append))
+    early = {"subagent_type": "journal-researcher", "description": "Sir Babbage reads plan 1 early", "prompt": "read plan 1", "model": "sonnet", "run_in_background": True}
+    hook(app, "PreToolUse", tool_name="Agent", tool_input=early, tool_use_id="t-1")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=early, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
+    console.run(["plan", "review", "1"], AGENT)
+    app.runtime().deferred.drain()
+    assert plans.find(1).state == PlanState.REVIEWING and plans.find(1).reviewers == 0, "a round starts its count at zero, and a subagent sent before it is no reviewer"
+    hook(app, "SubagentStop", agent_id="a1")
+    app.runtime().deferred.drain()
+    assert reviewed == [], "a stale count with no reviewer sent moves nothing"
+    sent = {"subagent_type": "journal-plan-reviewer", "description": "Dame Nightingale reviews plan 1", "prompt": "review plan 1", "model": "opus", "run_in_background": True}
+    hook(app, "PreToolUse", tool_name="Agent", tool_input=sent, tool_use_id="t-2")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=sent, tool_response={"isAsync": True, "agentId": "a2"}, tool_use_id="t-2")
+    app.runtime().deferred.drain()
+    assert plans.find(1).reviewers == 1, "a reviewer sent in the round is counted"
+    hook(app, "SubagentStop", agent_id="a2")
+    app.runtime().deferred.drain()
+    assert plans.find(1).reviewers == 0 and len(reviewed) == 1, "its return ends the round's count once"
 
 
 def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_in(app: App):
@@ -20461,7 +20609,8 @@ def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_a
     user_set(app, "workers.mode", "orchestrator")
     own, users = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan")
     with app.container.get(Scope).environment(MAIN):
-        others = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal").ready(), Actor.worker(3)).id
+        drafted = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal"), Actor.worker(3))
+        others = app.container.get(Plans).save(drafted.ready(0.0), Actor.worker(3)).id
         assert app.container.get(Plans).find(others).creation_actor.kind == ActorKind.WORKER, "the plan is the worker's, saved with its actor"
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
     choose = lambda approval: user_set(app, "workers.orchestrator_plan_approval", approval.value)
@@ -20843,14 +20992,23 @@ def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_unti
     assert bash("make build")[0] == 200, "a taken up step lets work through"
     assert "step 1: check it" in console.run(["sequence", "run", inner], AGENT).text
     assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(inner), "a sequence started inside another takes priority"
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.agents import Agents
+        from journal.engine.support.stack_history import StackHistory
+        from journal.repositories.entries import Entries
+        layers = [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack]
+        trail = [entry.data for entry in app.container.get(Entries).all_matching(kind=StackHistory.KIND) if entry.data.get("session") == "s1"]
+    assert layers.count("following_sequence") == 2 and json.dumps(trail[-1]["after"]).count("following_sequence") == 2, "a push of the top's own kind leaves two layers and a trail entry"
     status, body = bash("make build")
     assert status == 409 and f"a write waits for sequence {inner}" in json.dumps(body), "work that is not reading is held while the top step is not taken up"
     assert bash("journal task list")[0] == 200 and hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "journal commands and reads go through"
     assert "step 1 of sequence" in console.run(["sequence", "next"], AGENT).error, "only the top can be moved on, and not before it is followed"
     console.run(["sequence", "follow"], AGENT)
     assert bash("make build")[0] == 200
+    link = app.container.get(SupervisorLink)
+    link.working(MAIN)
     ended = console.run(["sequence", "next"], AGENT).text
-    assert "ran its last step" in ended and "step 1: plan it" in ended, "when the inner ends the outer's step is announced again"
+    assert "ran its last step" in ended and "step 1: plan it" in link.pending_lines(MAIN), "when the inner ends the outer's state, on top again, says its step"
     assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(outer), "and the outer is the top again"
     assert bash("make build")[0] == 200, "the outer, taken up before, resumes with its step taken up"
 
@@ -21124,6 +21282,7 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
             console.run(["plan", "add", str(plan), title], USER)
     for plan in (1, 2):
         console.run(["plan", "approve", str(plan)], USER)
+    user_set(app, "workers.mode", "orchestrator")
     with app.container.get(Scope).environment(MAIN):
         for plan in (1, 2):
             plans.opened(plans.find(plan), Actor.user(1))
@@ -21431,3 +21590,83 @@ def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_qu
     assert updater.problem == "" and updater._next_check_at == 4102444800.0, "a refusal says nothing to the user and waits until the reset"
     memory.store(ReleaseCheck(1000.0, 0.0, ("v4.70.0",)))
     assert source.next_check_time(3600) == 4600.0 and source.stored_tags("v4.") == ["v4.70.0"], "a journal that starts again counts its next look from the machine's last one and keeps its tags"
+
+
+def test_a_sequence_step_is_written_with_its_title_and_guards_and_read_back(app: App):
+    console = app.console()
+    hook(app, "SessionStart")
+    made = console.run(["sequence", "create", "Releasing", "--step", "Review | read the diff", "--hold-edits", "--allow-commands", "^git (status|diff)", "--step", "Ship | push the tag"], AGENT)
+    assert made.code == 0 and "2 steps" in made.text, made.error
+    number = made.text.split(":")[0].split()[-1]
+    shown = console.run(["sequence", "show", number], AGENT).text
+    assert "1. Review (file edits wait, lets through ^git (status|diff)): read the diff" in shown and "2. Ship (file edits allowed): push the tag" in shown, shown
+    assert "a guard of the step before it" in console.run(["sequence", "create", "Odd", "--hold-edits"], AGENT).error, "a guard needs a step before it"
+    edited = console.run(["sequence", "edit", number, "--step", "Ship | push the tag"], AGENT)
+    assert edited.code == 0 and "1. Ship (file edits allowed): push the tag" in edited.text, edited.text + edited.error
+
+
+def test_a_sequence_is_a_state_on_the_stack_whose_held_step_lets_only_reads_journal_commands_and_its_named_commands_through(app: App):
+    from journal.engine.support.stack_history import StackHistory
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import Entries
+    console = app.console()
+    made = console.run(["sequence", "create", "Reviewing", "--step", "Read | read the diff", "--hold-edits", "--allow-commands", "^git (status|diff)", "--step", "Ship | push it"], USER)
+    number = made.text.split()[1].rstrip(":")
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    console.run(["sequence", "run", number], AGENT)
+    console.run(["sequence", "follow"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        agent = app.container.get(Agents).session_agent("s1")
+    assert [layer["state"] for layer in agent.stack][-1] == "following_sequence", "the sequence is a state on top of the agent's stack"
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+    assert status == 409 and "lets no file edit through" in json.dumps(body), "a step whose file edits wait refuses a write"
+    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "a read goes through"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "a journal command goes through"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git status"})[0] == 200, "and the command the step lets through"
+    console.run(["message", "send", "are you there?"], USER)
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1])
+    assert "new message" in told, "a message from the user is still told with the sequence on top"
+    console.run(["sequence", "next"], AGENT)
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})[0] == 409, "the next step is not taken up yet"
+    console.run(["sequence", "follow"], AGENT)
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})[0] == 200, "a step that allows file edits lets the write through"
+    console.run(["sequence", "next"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        trail = [entry.data for entry in app.container.get(Entries).all_matching(kind=StackHistory.KIND) if entry.data.get("session") == "s1"]
+        agent = app.container.get(Agents).session_agent("s1")
+    assert "following_sequence" not in [layer["state"] for layer in agent.stack], "the last step pops it"
+    assert any("following_sequence" in json.dumps(entry["after"]) for entry in trail) and any("following_sequence" in json.dumps(entry["before"]) and "following_sequence" not in json.dumps(entry["after"]) for entry in trail), "the trail shows its push and its pop"
+
+
+def test_a_sequence_is_never_started_over_a_compaction_or_a_wait_whose_own_event_it_would_hide(app: App):
+    from journal.repositories.agents import Agents
+    console = app.console()
+    number = console.run(["sequence", "create", "Checking", "--steps", "check it"], USER).text.split()[1].rstrip(":")
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    stack = lambda: [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack]
+    for state in ("compacting", "awaiting"):
+        assert console.run(["panic", "apply", state], AGENT).code == 0
+        refused = console.run(["sequence", "run", number], AGENT)
+        with app.container.get(Scope).environment(MAIN):
+            layers = stack()
+        assert refused.code != 0 and "once that is over" in refused.error and "following_sequence" not in layers, (state, refused.error, layers)
+        assert console.run(["panic", "apply", "pop"], AGENT).code == 0
+    assert console.run(["sequence", "run", number], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert stack()[-1] == "following_sequence", "once the wait is over the sequence starts on top"
+
+
+def test_a_running_sequence_keeps_the_steps_it_started_with_when_the_sequence_is_edited(app: App):
+    console = app.console()
+    number = console.run(["sequence", "create", "Shipping", "--step", "Tag | tag it", "--hold-edits", "--step", "Push | push it"], USER).text.split()[1].rstrip(":")
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["sequence", "run", number], AGENT)
+    assert console.run(["sequence", "edit", number, "--step", "Bump | bump the version"], USER).code == 0
+    followed = console.run(["sequence", "follow"], AGENT).text
+    assert "tag it" in followed and "bump" not in followed, "the run keeps the steps as they were at its start"
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+    assert status == 409 and "lets no file edit through" in json.dumps(body), "and their guards"

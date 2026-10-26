@@ -2,19 +2,26 @@ from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.models.model import Model
+from journal.models.support.sequence_step import SequenceStep
+from journal.models.support.sequence_trigger import SequenceTrigger
+from journal.models.support.sequence_trigger_kind import SequenceTriggerKind
+from journal.support.phrases import Phrases
 from journal.support.rejection import Rejection
 
 
 @dataclass(frozen=True)
 class Sequence(Model):
-    """Steps the agent follows in order, one at a time. Project-wide, so every environment can run it. One shipped with the journal is locked: shown, never changed or deleted."""
+    """Steps the agent follows in order, one at a time, and the triggers that start it. Project-wide, so every environment can run it. One shipped with the journal is locked: shown, never changed or deleted."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title",)
     title: str = ""
-    steps: tuple[str, ...] = ()
-    trigger_event: str = ""
+    steps: tuple[SequenceStep, ...] = ()
+    triggers: tuple[SequenceTrigger, ...] = ()
     end_condition: tuple[str, ...] = ()
     locked: bool = False
+
+    def is_requested(self, text: str) -> bool:
+        return any(trigger.kind == SequenceTriggerKind.PHRASE and Phrases.is_request(text, trigger.text) for trigger in self.triggers)
 
     def title_words(self) -> str:
         return self.title

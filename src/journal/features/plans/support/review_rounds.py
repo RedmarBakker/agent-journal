@@ -1,4 +1,5 @@
 from journal.repositories.plans import Plans
+from journal.support.time_source import TimeSource
 from journal.models.link import Link
 from journal.models.plan import Plan
 from journal.models.plan_review import PlanReview
@@ -16,11 +17,11 @@ from journal.support.caller import Caller
 class ReviewRounds:
     """A plan's review rounds: one opens when the plan goes into review and closes when it is marked ready, naming the subagents dispatched about the plan in the meantime, what the round changed and the reports filed about the plan while it ran."""
 
-    def __init__(self, reviews: PlanReviews, links: Links, reports: Reports, subagents: SubagentEntries, plans: Plans) -> None:
-        self.reviews, self.links, self.reports, self.subagents, self.plans = reviews, links, reports, subagents, plans
+    def __init__(self, reviews: PlanReviews, links: Links, reports: Reports, subagents: SubagentEntries, plans: Plans, time_source: TimeSource) -> None:
+        self.reviews, self.links, self.reports, self.subagents, self.plans, self.time_source = reviews, links, reports, subagents, plans, time_source
 
     def begin(self, plan: Plan, actor: Actor) -> Plan:
-        reviewing = self.plans.save(plan.reviewing(), actor)
+        reviewing = self.plans.save(plan.reviewing(self.time_source.seconds()), actor)
         self.open(reviewing, actor)
         return reviewing
 

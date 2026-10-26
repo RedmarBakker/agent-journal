@@ -14,7 +14,6 @@ const error = ref("");
 
 const missing = computed(() => {
     if (!draft.phrases.length) return "Add at least one word.";
-    if (draft.action === "sequence") return draft.text ? "" : "Pick the sequence it starts.";
     return draft.text.trim() ? "" : `Write ${doesOf(draft.action).ask.toLowerCase()}.`;
 });
 

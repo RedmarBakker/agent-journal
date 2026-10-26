@@ -3,7 +3,6 @@ import {computed, ref} from "vue";
 import {api} from "../api/client.js";
 import {actsOf} from "../domain/acts.js";
 import {DELETE_NOTE} from "../domain/tables.js";
-import {startedBy} from "../domain/triggerWords.js";
 import AlertDialog from "../kit/AlertDialog.vue";
 import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
@@ -17,7 +16,6 @@ const asking = ref(false);
 const anchor = ref(null);
 const refusal = ref("");
 const acts = computed(() => actsOf(props.resource));
-const sequences = computed(() => (props.resource.table === "triggers" ? startedBy(props.resource.id) : []));
 
 async function run(act) {
     open.value = false;
@@ -62,10 +60,6 @@ function sure() {
                     <AlertDialog :title="`${asking.label}?`">
                         <p>
                             {{ DELETE_NOTE }}
-                            <template v-if="sequences.length">
-                                {{ sequences.length === 1 ? "The sequence it starts" : `The ${sequences.length} sequences it starts` }} will
-                                then start only when you or the agent start {{ sequences.length === 1 ? "it" : "them" }}.
-                            </template>
                         </p>
                         <template #actions>
                             <Btn @click="asking = false">Keep it</Btn>

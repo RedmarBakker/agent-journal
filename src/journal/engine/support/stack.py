@@ -26,7 +26,7 @@ class Stack:
         return [{"state": state.name, "data": state.serialized()} for state in self.states]
 
     def replace(self, previous: "Stack", typist: Typist) -> None:
-        if type(previous.top()) is type(self.top()):
+        if type(previous.top()) is type(self.top()) and len(previous.states) == len(self.states):
             return
         previous.top().on_exit(typist)
         self.top().on_enter(typist)

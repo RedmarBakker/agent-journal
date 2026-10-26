@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
-import {store} from "../src/state/store.js";
-import {doesOf, sentence, startWords, startedBy, wordsText} from "../src/domain/triggerWords.js";
+import {doesOf, sentence, wordsText} from "../src/domain/triggerWords.js";
+import {startWords, triggerBody, triggersProblem} from "../src/domain/sequenceTriggers.js";
 
 const trigger = (more = {}) => ({table: "triggers", id: 3, phrases: ["force push"], action: "deny", text: "Never force-push", ...more});
 
@@ -15,7 +15,6 @@ describe("the words a trigger watches", () => {
 describe("the sentence a trigger reads as", () => {
     it("names the words and what happens", () => {
         expect(sentence(trigger())).toBe("When “force push” comes up, block it and tell the agent “Never force-push”.");
-        expect(sentence(trigger({action: "sequence", text: "Release"}))).toBe("When “force push” comes up, start the sequence “Release”.");
     });
 
     it("asks for words while it has none", () => {
@@ -28,12 +27,29 @@ describe("the sentence a trigger reads as", () => {
 });
 
 describe("when a sequence starts", () => {
-    it("by a trigger, by a row being created, or only by hand", () => {
-        store.rows = {triggers: [trigger()], sequences: [{table: "sequences", id: 1, title: "Release", trigger_event: "", trigger_ids: [3]}]};
-        expect(startedBy(3).map((s) => s.id)).toEqual([1]);
-        expect(startWords(store.rows.sequences[0])).toBe("When the trigger on “force push” matches");
-        expect(startWords({trigger_event: "tasks.created", trigger_ids: []})).toBe("When a task is created");
-        expect(startWords({trigger_event: "plan.reviewed", trigger_ids: []})).toBe("When every reviewer of a plan in review is back");
-        expect(startWords({trigger_event: "", trigger_ids: []})).toBe("Only when you or the agent start it");
+    it("reads each of its triggers as a sentence, or by hand only", () => {
+        const triggers = [
+            {kind: "row", moment: "task.created"},
+            {kind: "phrase", text: "give me an update"},
+            {kind: "command", pattern: "^git push"},
+            {kind: "file", pattern: "src/*.py"},
+            {kind: "file-text", pattern: "src/*.py", text: "TODO"},
+            {kind: "tool", tool: "Edit", pattern: ""},
+        ];
+        expect(startWords({triggers})).toEqual([
+            "When a task is made",
+            "When you ask “give me an update”",
+            "When a command matching “^git push” runs",
+            "When a file matching “src/*.py” is edited",
+            "When an edit to “src/*.py” adds “TODO”",
+            "When Edit is used",
+        ]);
+        expect(startWords({triggers: []})).toEqual(["Only when you or the agent start it"]);
+    });
+
+    it("sends only the fields a trigger's kind reads and names the first one missing", () => {
+        expect(triggerBody({kind: "file-text", pattern: " src/*.py ", text: "TODO", moment: "x", tool: ""})).toEqual({kind: "file-text", pattern: "src/*.py", text: "TODO"});
+        expect(triggersProblem([{kind: "file-text", pattern: "src/*.py", text: ""}])).toBe("An edit adds a text: fill in text in the new content.");
+        expect(triggersProblem([{kind: "tool", tool: "Bash", pattern: ""}])).toBe("");
     });
 });

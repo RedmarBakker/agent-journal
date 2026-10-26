@@ -1,12 +1,9 @@
-import re
 from typing import ClassVar
 from dataclasses import dataclass
 
 from journal.models.model import Model
 from journal.models.trigger_action import TriggerAction
-
-# a sequence starts on its phrase as the request itself, a short message and not a long one that happens to hold the words
-REQUEST_EXTRA_TOKENS = 4
+from journal.support.phrases import Phrases
 
 
 @dataclass(frozen=True)
@@ -19,17 +16,7 @@ class Trigger(Model):
     text: str = ""
 
     def matches(self, text: str) -> bool:
-        tokens = self.tokens(text)
-        return any(self.is_request(tokens, self.tokens(phrase)) for phrase in self.phrases)
-
-    def is_request(self, tokens: list[str], phrase: list[str]) -> bool:
-        if not phrase or f" {' '.join(phrase)} " not in f" {' '.join(tokens)} ":
-            return False
-        return self.action != TriggerAction.SEQUENCE or len(tokens) - len(phrase) <= REQUEST_EXTRA_TOKENS
-
-    @staticmethod
-    def tokens(text: str) -> list[str]:
-        return re.findall(r"[\w;/-]+", text.lower())
+        return any(Phrases.contains(text, phrase) for phrase in self.phrases)
 
     def summary_line(self) -> str:
         return self.opening_line(self.text)

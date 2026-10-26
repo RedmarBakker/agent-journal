@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from dataclasses import dataclass, field, replace
 from typing import ClassVar
 
@@ -22,6 +23,9 @@ class RowEvent(Event):
     @property
     def typing_delay(self) -> float:
         return 0.0
+
+    def time_text(self) -> str:
+        return datetime.fromtimestamp(self.time, timezone.utc).isoformat()
 
     def with_data(self, data: FeatureData) -> "RowEvent":
         return replace(self, data=data)

@@ -4,7 +4,7 @@ from dataclasses import asdict
 from journal.engine.support.stack_history import StackHistory
 from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
-from journal.features.sequences.listeners.record_run_changes import RUN
+from journal.features.sequences.support.run_cards import RUN
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.features.shell.support.activity_label import LONG_RUNS
@@ -23,7 +23,7 @@ from journal.http.files.project_files import ProjectFiles
 from journal.http.support.model_fields import ModelFields
 from journal.models.agent import Agent
 from journal.http.agents.status_load import StatusLoad
-from journal.support.sequence_run import SequenceRun
+from journal.features.sequences.support.stacked_runs import StackedRuns
 from journal.repositories.entries import Entries
 from journal.repositories.scheduled_jobs import ScheduledJobs
 from journal.repositories.messages import Messages
@@ -157,7 +157,7 @@ class AgentActivity:
 
     @staticmethod
     def sequence(agent: Agent) -> CurrentSequence | None:
-        runs = [SequenceRun.build(raw) for raw in agent.sequence_runs or ()]
+        runs = StackedRuns.runs(agent)
         if not runs:
             return None
         run = runs[-1]

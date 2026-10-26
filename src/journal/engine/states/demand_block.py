@@ -16,6 +16,9 @@ class DemandBlock(BaseState):
     title = "Demand block"
     key: str = ""
 
+    def takes_pushes(self) -> bool:
+        return False
+
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         progress = next((entry for entry in event.data.part(DemandsPart) if entry.demand.key == self.key), None)
         if progress is None or not progress.is_active():

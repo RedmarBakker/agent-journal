@@ -18,10 +18,11 @@ class Column:
     name: str
     kind: type
     characters: tuple[int, ...] = ()
+    item_type: type = object
 
     @classmethod
     def build(cls, name: str, annotation, characters: tuple[int, ...] = ()) -> "Column":
-        return cls(name, cls._plain_type(annotation), characters)
+        return cls(name, cls._plain_type(annotation), characters, cls._item_type(annotation))
 
     # the column as a table is made with it: its type, and for a text the database bounds, its length checked
     @property
@@ -84,6 +85,8 @@ class Column:
         loaded = json.loads(value)
         if is_dataclass(self.kind):
             return self.kind.parsed(loaded)
+        if self.kind is tuple and is_dataclass(self.item_type):
+            return tuple(self.item_type.parsed(item) for item in loaded)
         return tuple(loaded) if self.kind is tuple else loaded
 
     @staticmethod
@@ -94,6 +97,12 @@ class Column:
         if origin is not None:
             return origin
         return annotation if isinstance(annotation, type) else object
+
+    # the type of a tuple's items, such as SequenceStep in tuple[SequenceStep, ...], so a stored tuple of records is read back as records
+    @staticmethod
+    def _item_type(annotation) -> type:
+        arguments = get_args(annotation)
+        return arguments[0] if get_origin(annotation) is tuple and arguments and isinstance(arguments[0], type) else object
 
     @staticmethod
     def json_value(value: object) -> object:

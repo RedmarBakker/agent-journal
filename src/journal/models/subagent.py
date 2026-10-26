@@ -31,6 +31,10 @@ class Subagent(Scoped):
     def title_words(self) -> str:
         return self.task
 
+    @property
+    def latest_start_at(self) -> float:
+        return max(self.started_at, self.resumed_at)
+
     def is_running(self) -> bool:
         return self.state == SubagentState.ACTIVE
 

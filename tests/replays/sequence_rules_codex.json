@@ -14,7 +14,8 @@
         "sequences.step_to_follow"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "following_sequence"
       ]
     },
     {
@@ -27,7 +28,8 @@
         "sequences.write_held_for_the_step"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "following_sequence"
       ]
     },
     {
@@ -41,7 +43,8 @@
         "sequences.step_to_follow"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "following_sequence"
       ]
     },
     {
@@ -52,7 +55,8 @@
         "sequences.following_the_step"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "following_sequence"
       ]
     },
     {
@@ -67,7 +71,8 @@
         "sequences.step_to_follow"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "following_sequence"
       ]
     }
   ]

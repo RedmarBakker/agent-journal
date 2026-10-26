@@ -1,5 +1,5 @@
 <script setup>
-import {delegationOf, NOT_STARTED, phaseCount, phaseOf, planButton, standingOf, statusOf} from "../domain/plans.js";
+import {delegationOf, isActivePlan, NOT_STARTED, phaseCount, phaseOf, planButton, standingOf, statusOf} from "../domain/plans.js";
 import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import MenuItem from "../kit/MenuItem.vue";
@@ -52,6 +52,9 @@ async function pause() {
         <button type="button" class="planbar-link" :title="`Plan ${p.id}: ${p.title}`" @click="peek('plans', p.id)">
             <Icon name="plan" class="planbar-icon" />
             <span class="planbar-title">{{ p.title }}</span>
+            <template v-if="isActivePlan(p)">
+                <span class="planbar-active">Active</span>
+            </template>
             <template v-if="phaseOf(p)">
                 <span class="planbar-phase">
                     <b>Phase {{ p.current_phase || 1 }} of {{ count }}</b>
@@ -183,6 +186,16 @@ async function pause() {
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.planbar-active {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 11px;
+    font-weight: 500;
 }
 
 .planbar-phase {
