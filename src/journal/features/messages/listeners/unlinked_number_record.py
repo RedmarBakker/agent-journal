@@ -3,7 +3,7 @@ from functools import partial
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.messages.support.unlinked_row_numbers import ROW_TABLES, UnlinkedRowNumbers
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref

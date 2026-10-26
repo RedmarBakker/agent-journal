@@ -5,7 +5,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.states.void import Void
 from journal.events.listener import Listener
 from journal.features.feature import Feature
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 
 
 class Helper:

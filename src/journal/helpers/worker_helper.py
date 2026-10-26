@@ -18,8 +18,8 @@ from journal.features.workers.commands.proof_command import ProofCommand
 from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.todo_command import TodoCommand
 from journal.features.workers.commands.worker_command import WorkerCommand
-from journal.helpers.helper import Helper
-from journal.models.agent_role import AgentRole
+from journal.features.helper import Helper
+from journal.support.agent_role import AgentRole
 
 
 class WorkerHelper(Helper):

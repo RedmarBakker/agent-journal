@@ -1,4 +1,4 @@
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.features.edits.listeners.record_edit import RecordEdit
 from journal.features.edits.listeners.script_start_recorder import ScriptStartRecorder
 from journal.features.feature import Feature

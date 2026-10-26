@@ -7,7 +7,7 @@ from journal.engine.conduct import Conduct
 from journal.engine.base_state import BaseState
 from journal.engine.job import Job
 from journal.engine.support.modes import Modes
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.events.data_source import DataSource
 from journal.events.listener import Listener
 from journal.engine.nudge import Nudge

@@ -1,6 +1,6 @@
 from journal.events.rows.worker_mention import WorkerMention
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.worker import Worker

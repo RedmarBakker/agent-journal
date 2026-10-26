@@ -1,5 +1,5 @@
 from journal.engine.base_state import BaseState
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.engine.states.compacting import Compacting
 from journal.engine.support.typist import Typist
 from journal.engine.nudger import Nudger

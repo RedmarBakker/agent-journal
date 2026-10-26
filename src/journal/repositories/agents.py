@@ -2,7 +2,7 @@ from datetime import datetime
 
 from journal.db.query import Query
 from journal.models.agent import Agent
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
 

@@ -643,7 +643,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
 
 
 def test_a_worker_clocking_out_leaves_another_workers_stack_alone(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.support.ref import Ref
     from journal.models.task import Task
     from journal.models.worker import Worker
@@ -672,7 +672,7 @@ def test_a_worker_clocking_out_leaves_another_workers_stack_alone(app: App):
 def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what_it_dispatched(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.task import Task
     from journal.models.worker import Worker
     from journal.models.worker_state import WorkerState
@@ -831,7 +831,7 @@ def test_the_users_edits_and_closes_of_a_workers_task_reach_the_worker(app: App)
     from datetime import datetime, timezone
     from journal.http.controllers.tasks import TaskController
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.proof import Proof
     from journal.models.support.ref import Ref
     from journal.models.task import Task
@@ -1681,7 +1681,7 @@ def test_the_engine_indexes_its_listeners_once_at_boot_and_the_container_builds_
     from journal.events.agent.stop import Stop
     from journal.features.messages.messages_conduct import MessagesConduct
     from journal.repositories.agents import Agents
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     machine = app.container.get(StateMachine)
     index, conducts = machine.listener_index, machine.features.conducts(AgentRole.MAIN)
     state = next(iter(machine.states.classes()))
@@ -1794,7 +1794,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     catalogue = StatesCatalogue(ModeRegistry())
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
     from journal.engine.states.void import Void
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.features.workers.states.working_task import WorkingTask
     worker_stacks = [catalogue.floor(Stack(layers), settings("orchestrator"), AgentRole.WORKER).states for layers in ((Orchestrating(), WorkingTask(task_id=4)), (WorkingTask(task_id=4),), (Void(),))]
     assert [[type(layer) for layer in layers] for layers in worker_stacks] == [[Void, WorkingTask], [Void, WorkingTask], [Void]], "a helper's stack rests on Void, never on the main agent's mode, and keeps its work above it"
@@ -1935,7 +1935,7 @@ def test_every_listener_of_a_state_or_a_conduct_is_named_on_and_its_event():
 
 def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_tags_left_as_text(app: App, tmp_path, monkeypatch):
     """What a worker writes, read from its transcript after its hooks are answered and again at its run's end, becomes its messages once each, in a worker's chat, its tags plain text; the job it was given is the first message to it."""
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.worker import Worker
     from journal.providers.claude import Claude
     from journal.repositories.messages import Messages
@@ -1979,7 +1979,7 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
 
 def test_a_subagents_prompt_the_message_sent_to_it_and_its_turns_are_messages_of_its_own_chat(app: App, tmp_path, monkeypatch):
     """A subagent's prompt opens its chat once its transcript has words, each block it writes follows once, read after its hooks, and a message the agent sends it later is a message to it; none of it is in the main chat."""
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.providers.claude import Claude
     from journal.repositories.messages import Messages
     home = tmp_path / "home"
@@ -2346,7 +2346,7 @@ def test_the_test_budget_choice_refuses_a_workers_direct_test_run_with_the_line_
 
 
 def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.author import Author
     from journal.models.message import Message
     from journal.models.support.ref import Ref
@@ -2879,7 +2879,7 @@ def test_each_helpers_file_alone_says_what_reaches_it_and_a_wrong_file_stops_the
     from journal.features.workers.listeners.fitness_record import FitnessRecord
     from journal.helpers.helpers import Helpers
     from journal.helpers.worker_helper import WorkerHelper
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.repositories.setting_rows import SettingRows
     registry, roles = app.container.get(Registry), AgentRole.helpers()
     assert {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in roles} == HELPER_CONDUCTS
@@ -2922,7 +2922,7 @@ def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_eng
 
 def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command(app: App):
     from journal.engine.support.session_agents import SessionAgents
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     sessions = app.container.get(SessionAgents)
     hook(app, "SessionStart")
     floors = {role: [layer["state"] for layer in app.container.get(StatesCatalogue).stack(sessions.helper_agent(f"h-{role.value}", 1, "claude", role)).serialized()] for role in (AgentRole.WORKER, AgentRole.REVIEWER, AgentRole.VERIFIER)}
@@ -2955,7 +2955,7 @@ def test_stored_helper_stacks_move_onto_void(connection):
 
 def test_a_helper_is_put_to_work_on_each_path_and_the_engine_imports_no_feature_to_do_it(app: App):
     from pathlib import Path
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.support.ref import Ref
     from journal.models.task import Task
     from journal.models.worker import Worker
@@ -3013,7 +3013,7 @@ class Above(BaseState):
 
 
 def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state_it_moves_from(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     machine, settings, data = app.container.get(StateMachine), SettingsValue({}), FeatureData(())
     keys = lambda answer: [nudge.key for nudge in answer.nudges]
     plain_push = machine.answer_moves(Stack((Beneath(),)), Beneath().push(Above()), AgentRole.MAIN, settings, data)
@@ -3032,7 +3032,7 @@ def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state
 
 
 def test_a_helper_compacted_mid_task_returns_to_its_job_with_nothing_of_the_main_agent(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.support.ref import Ref
     from journal.models.task import Task
     from journal.models.worker import Worker
@@ -3075,7 +3075,7 @@ def test_helpers_at_work_when_the_journal_restarts_on_the_new_code_keep_working(
 
 
 def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     from journal.support.agent_token import AgentToken
@@ -3105,7 +3105,7 @@ def test_a_helpers_command_events_reach_only_the_listeners_its_file_allows(app: 
     from journal.events.agent.impasse_report import ImpasseReport
     from journal.features.registry import Registry
     from journal.helpers.helper_listeners import HelperListeners
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(1):
@@ -3154,7 +3154,7 @@ def test_a_helper_reads_only_the_data_parts_of_features_its_file_turns_on(app: A
     from journal.engine.support.helper_part_violation import HelperPartViolation
     from journal.features.workers.workers_part import WorkersPart
     from journal.features.tasks.tasks_part import TasksPart
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     hook(app, "SessionStart")
     agents, readers = app.container.get(Agents), app.container.get(DataReaders)
     with app.container.get(Scope).environment(1):
@@ -3183,7 +3183,7 @@ def test_a_row_event_reaches_a_helper_only_when_its_feature_is_on_the_helpers_fi
     from journal.events.rows.worker_mention import WorkerMention
     from journal.events.rows.worker_ready import WorkerReady
     from journal.events.rows.worker_reviewed import WorkerReviewed
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(1):
         for session, role, state in (("rw", AgentRole.WORKER, "void"), ("rr", AgentRole.REVIEWER, "reviewing")):
@@ -3196,7 +3196,7 @@ def test_a_row_event_reaches_a_helper_only_when_its_feature_is_on_the_helpers_fi
 
 
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     hook(app, "SessionStart")
     agents = app.container.get(Agents)
     with app.container.get(Scope).environment(1):
@@ -3211,7 +3211,7 @@ def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
 def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
     from journal.engine.states.void import Void
     from journal.features.workers.states.working_task import WorkingTask
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.support.ref import Ref
     from journal.models.task import Task
     from journal.models.worker import Worker

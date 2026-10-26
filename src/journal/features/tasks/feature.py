@@ -13,7 +13,7 @@ from journal.features.tasks.listeners.ended_agent_tasks import EndedAgentTasks
 from journal.features.tasks.listeners.wait_cycle_check import WaitCycleCheck
 from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.features.tasks.task_edit_conduct import TaskEditConduct
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.skill import Skill
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse

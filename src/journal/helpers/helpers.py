@@ -1,6 +1,6 @@
 from typing import ClassVar
 
-from journal.helpers.helper import Helper
+from journal.features.helper import Helper
 from journal.helpers.researcher_helper import ResearcherHelper
 from journal.helpers.reviewer_helper import ReviewerHelper
 from journal.helpers.verifier_helper import VerifierHelper

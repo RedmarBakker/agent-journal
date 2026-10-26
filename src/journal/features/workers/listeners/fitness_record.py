@@ -1,7 +1,7 @@
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent_listener import AgentListener
 from journal.features.workers.support.fitness_points import FitnessPoints
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 
 

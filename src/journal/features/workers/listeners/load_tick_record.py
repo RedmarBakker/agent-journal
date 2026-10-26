@@ -1,7 +1,7 @@
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.features.workers.support.load_meter import LoadMeter
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 
 STALE_SECONDS = 60

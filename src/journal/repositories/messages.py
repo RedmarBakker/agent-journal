@@ -4,7 +4,7 @@ from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.db.query import Query
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import TERMINAL_LINE, Message
 from journal.models.support.ref import Ref

@@ -581,7 +581,7 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
 def test_a_worker_waits_on_its_own_command_until_it_ends_and_a_reviewer_cannot_say_it_is_stuck(app: App):
     from journal.features.shell.support.shell_record import ShellRecord
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.command_output import CommandOutput
     from journal.models.support.ref import Ref
     from journal.models.task import Task
@@ -835,7 +835,7 @@ def test_a_codex_workers_turns_are_read_from_its_rollout_into_its_chat(app: App,
     """A Codex worker's conversation is the thread it printed; its rollout, found by that thread, is read into its own chat as a Claude worker's transcript is."""
     from datetime import date
     from journal.features.workers.support.worker_chat import WorkerChat
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.worker import Worker
     from journal.repositories.messages import Messages
     from journal.repositories.workers import Workers
@@ -2709,7 +2709,7 @@ def test_a_line_typed_in_the_terminal_reaches_the_chat_and_a_face_answers_any_me
 
 def test_a_workers_words_never_answer_the_users_message_nor_count_as_the_main_agents(app: App):
     """A worker's turn and its report, saved after the user's message, leave that message unanswered, and a user's message in a worker's chat is never the main agent's to read; the main agent's own words are its alone."""
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.message import Message
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
@@ -2734,7 +2734,7 @@ def test_a_workers_words_never_answer_the_users_message_nor_count_as_the_main_ag
 def test_search_finds_the_main_chats_message_among_a_workers_many_and_names_the_worker_of_its_hits(app: App):
     """Fifty of a worker's messages holding a word never crowd out the main chat's one, and a hit in the worker's chat names that worker."""
     from journal.features.search.support.search import Search
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.message import Message
     from journal.models.worker import Worker
     from journal.repositories.messages import Messages
@@ -8598,7 +8598,7 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     line_text = console.run(["environment", "delete", "calm-river"], USER).text
     assert "stays" in line_text and tree.is_dir() and "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout, "a merged one stays too, with its branch: only the person removes a worktree"
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.repositories.agents import Agents
     from journal.repositories.environments import Environments
     console.run(["environment", "create", "calm-river"], USER)
@@ -9240,7 +9240,7 @@ def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still
 
 def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_told_once_and_linked_by_one_command(app: App, monkeypatch):
     from journal.features.messages.support import unlinked_row_numbers
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.author import Author
     from journal.models.message import Message
     from journal.models.task import Task
@@ -10122,7 +10122,7 @@ def test_one_link_holds_a_task_for_its_worker_until_it_is_released(app: App, mon
     from journal.features.tasks.support.tasks_data_reader import TasksDataReader
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.repositories.agents import Agents
     from journal.repositories.workers import Workers
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
@@ -10178,7 +10178,7 @@ def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_g
 
 def test_a_workers_stop_hears_nothing_of_an_approved_plan_waiting(app: App):
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.repositories.agents import Agents
     hook(app, "SessionStart")
     console = app.console()
@@ -10930,7 +10930,7 @@ def test_a_worker_is_started_with_hook_settings_of_its_own(app: App):
 def test_a_workers_agent_row_is_never_the_main_agent_and_ends_with_its_process(app: App):
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.worker import Worker
     from journal.repositories.agents import Agents
     from journal.repositories.workers import Workers
@@ -10950,7 +10950,7 @@ def test_a_workers_agent_row_is_never_the_main_agent_and_ends_with_its_process(a
 
 def test_every_caller_names_its_kind_and_a_subagent_is_told_by_its_agents_session(app: App):
     from journal.support.announced_commands import AnnouncedCommands
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.http.support.subagent_commands import SubagentCommands
     callers = (Caller.user("main"), Caller.agent("main", "s1", "claude"), Caller.shell("main", "claude"), Caller.plugin("main", "echo"), Caller.worker("main", 3, "w-1", "claude"))
     assert [c.role for c in callers] == [AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.MAIN, AgentRole.WORKER] and [c.is_main_agent() for c in callers] == [False, True, True, False, False]
@@ -11453,7 +11453,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
         assert console.run(["worker", "notify", "1", "the lexer too"], AGENT).code == 0
         assert arrived(received, 2)[-1]["message"]["content"] == '<cross-session-message from-name="the agent that dispatched you" from-mode="bypass">\nthe lexer too\n</cross-session-message>'
         assert sessions.top("s1") == waiting and workers.find(1).brief == row.brief, "a notify changes nothing the worker was sent and leaves the dispatcher's wait as it was"
-        from journal.models.agent_role import AgentRole
+        from journal.support.agent_role import AgentRole
         from journal.repositories.messages import Messages
         messages = app.container.get(Messages)
         unread = len(messages.unread())
@@ -17538,7 +17538,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
             workers = app.container.get(Workers)
             worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1", device="1"), Actor.system())
             from journal.models.agent import Agent
-            from journal.models.agent_role import AgentRole
+            from journal.support.agent_role import AgentRole
             from journal.repositories.agents import Agents
             app.container.get(Agents).save(Agent(environment_id=main.id, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
         lovelace = Caller.worker("main", worker.id, "w-1", "claude")
@@ -17925,7 +17925,7 @@ def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_t
 
 def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_its_row_names_its_agent(app: App, tmp_path):
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.command_output import CommandOutput
     from journal.models.message import Message
     from journal.models.worker import Worker
@@ -17986,7 +17986,7 @@ def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_t
 def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_reaches_the_main_chat(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.author import Author
     from journal.models.message import Message
     from journal.repositories.agents import Agents
@@ -19700,7 +19700,7 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
 
 def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_holds_the_agents_next_write(app: App):
     from journal.features.shell.support.output_log import OutputLog
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.reader_report import ReaderReport
     from journal.models.verifier_state import VerifierState
     from journal.repositories.agents import Agents
@@ -20018,7 +20018,7 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
 def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_reviewer_whose_report_reaches_the_orchestrator(app: App, monkeypatch):
     from journal.models.proof_state import ProofState
     from journal.features.reviewing.support.reviewer_dispatch import JURAN
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.reviewer_state import ReviewerState
     from journal.repositories.agents import Agents
     from journal.repositories.entries import Entries

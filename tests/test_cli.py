@@ -212,7 +212,7 @@ def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, mo
     from journal.support.caller import Caller
     from journal.support.actor import Actor
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.providers.claude import Claude
     from journal.repositories.agents import Agents
     stored = tmp_path / "kept.jsonl"
@@ -490,7 +490,7 @@ def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_an
             assert {entry.data["session_id"] for entry in app.container.get(Entries).kind_entries("unbound_session")} == {"stray", "bare"}, "its hooks are recorded"
             assert any("stray" in message.text and "launch id" in message.text for message in app.container.get(Messages).all()), "and it is reported in the chat"
         assert started("bound", "launch-main") == 200 and agents.session_agent("bound").environment_id == 1
-        from journal.models.agent_role import AgentRole
+        from journal.support.agent_role import AgentRole
         from journal.models.worker import Worker
         from journal.repositories.workers import Workers
         from journal.support.actor import Actor
@@ -513,7 +513,7 @@ def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_an
 
 
 def test_a_helper_runs_only_the_verbs_its_file_names(app: App):
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     console, worker, agent = app.console(), Caller.worker("main", 1, "w1", "claude"), Caller.agent("main", "s1", "claude")
     refused = console.run(["panic", "pop"], worker)
     assert refused.code == 1 and refused.error.startswith("a worker may not run journal panic apply: WorkerHelper names the verbs it runs, ") and "journal fact list" in refused.error and "journal rule read" in refused.error, "a verb its file does not name is refused, naming the file and the verbs it runs"

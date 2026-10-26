@@ -2,7 +2,7 @@ from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.workers.support.worker_assigner import WorkerAssigner
 from journal.models.agent import Agent
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.workers import Workers
 
 

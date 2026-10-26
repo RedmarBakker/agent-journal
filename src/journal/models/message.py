@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.scoped import Scoped
 TERMINAL_LINE = "typed"

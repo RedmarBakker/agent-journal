@@ -2,7 +2,7 @@ from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import MarkKinds
 from journal.engine.support.modes import Modes
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.safety_conduct import SafetyConduct
@@ -12,7 +12,7 @@ from journal.console.command import Command
 from journal.features.double_registration import DoubleRegistration
 from journal.features.feature import Feature
 from journal.features.helper_files_invalid import HelperFilesInvalid
-from journal.helpers.helper import Helper
+from journal.features.helper import Helper
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
 from journal.support.skill import Skill
@@ -79,6 +79,12 @@ class Registry:
 
     def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool:
         return not role.is_helper() or self.helper(role).runs(command, verb)
+
+    def helper_file(self, role: AgentRole) -> str:
+        return self.helper(role).__name__
+
+    def helper_verbs(self, role: AgentRole) -> tuple[str, ...]:
+        return tuple(f"journal {command.noun} {verb}" for command, verb in self.helper(role).commands)
 
     def roles(self) -> tuple[AgentRole, ...]:
         return (AgentRole.MAIN, *self._helpers)

@@ -1,5 +1,5 @@
 from journal.events.agent.agent_event import AgentEvent
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from collections.abc import Callable
 from dataclasses import replace
 

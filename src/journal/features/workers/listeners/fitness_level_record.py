@@ -4,7 +4,7 @@ from journal.features.workers.support.fitness_levels import FitnessLevels
 from journal.features.workers.support.fitness_scoring import FitnessScoring
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import WorkersOptions
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor

@@ -2,7 +2,7 @@ from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.features.reviewing.support.review_report import ReviewReport
 from journal.events.rows.worker_mention import WorkerMention
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.reviewer import Reviewer
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind

@@ -3,7 +3,7 @@ from journal.chat.card_category import CardCategory
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.models.author import Author
 from journal.models.message import Message
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 

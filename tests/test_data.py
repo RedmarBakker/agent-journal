@@ -1412,7 +1412,7 @@ def test_a_load_tally_counts_on_the_thread_that_began_it_and_never_work_another_
 def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_name(connection, bus, scope):
     from datetime import timedelta
     from journal.models.agent import Agent
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     agents = Agents(connection, bus, scope, TimeSource())
     with scope.environment(1):
         own = agents.save(Agent(environment_id=1, session="own", provider="claude"), USER)

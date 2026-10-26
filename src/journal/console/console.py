@@ -16,8 +16,8 @@ from journal.console.support.row_verbs import RowVerbs
 from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
 from journal.support.caller import Caller
-from journal.features.registry import Registry
-from journal.models.agent_role import AgentRole
+from journal.console.support.verb_rules import VerbRules
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -32,8 +32,8 @@ HELP_FLAGS = ("-h", "--help")
 class Console:
     """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from."""
 
-    def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, registry: Registry) -> None:
-        self.names, self.registry = names, registry
+    def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, verb_rules: VerbRules) -> None:
+        self.names, self.verb_rules = names, verb_rules
         self.container, self.environments, self.agents, self.scope, self.row_verbs, self.shell = container, environments, agents, scope, row_verbs, shell
         self.commands: dict[str, Command] = {}
         self._parsers: dict[AgentRole, argparse.ArgumentParser] = {}
@@ -49,7 +49,7 @@ class Console:
         return replace(caller, session=present.session, provider=present.provider) if present else caller
 
     def build_parsers(self) -> None:
-        for role in self.registry.roles():
+        for role in self.verb_rules.roles():
             self.parser(role)
 
     def parser(self, role: AgentRole) -> argparse.ArgumentParser:
@@ -62,7 +62,7 @@ class Console:
         nouns = parser.add_subparsers(dest="noun", required=True)
         groups = {}
         for noun, command in self.commands.items():
-            groups[noun] = RoleVerbs(nouns.add_parser(noun).add_subparsers(dest="verb", required=True), partial(self.registry.runs_verb, type(command), role=role))
+            groups[noun] = RoleVerbs(nouns.add_parser(noun).add_subparsers(dest="verb", required=True), partial(self.verb_rules.runs_verb, type(command), role=role))
             command.arguments(groups[noun])
             self.row_verbs.add(noun, groups[noun])
         nouns.metavar = "{" + ",".join(noun for noun, verbs in groups.items() if verbs.shown) + "}"
@@ -97,7 +97,7 @@ class Console:
         return set(verbs.choices) | self.row_verbs.build(command.noun)
 
     def perform(self, args: argparse.Namespace, caller: Caller) -> int:
-        if not self.registry.runs_verb(type(self.commands[args.noun]), args.verb, caller.role):
+        if not self.verb_rules.runs_verb(type(self.commands[args.noun]), args.verb, caller.role):
             raise Rejection(self.refusal(args, caller.role))
         if self.row_verbs.has(args.noun, args.verb):
             return self.row_verbs.perform(args, caller)
@@ -108,9 +108,8 @@ class Console:
         return code
 
     def refusal(self, args: argparse.Namespace, role: AgentRole) -> str:
-        helper = self.registry.helper(role)
-        allowed = [f"journal {command.noun} {verb}" for command, verb in helper.commands]
-        return f"a {role.value} may not run journal {args.noun} {args.verb}: {helper.__name__} names the verbs it runs, {', '.join(allowed) or 'no journal command'}"
+        allowed = self.verb_rules.helper_verbs(role)
+        return f"a {role.value} may not run journal {args.noun} {args.verb}: {self.verb_rules.helper_file(role)} names the verbs it runs, {', '.join(allowed) or 'no journal command'}"
 
     def chained_text(self, line: ChainedLine, caller: Caller) -> str:
         return (self.journal_text(line, caller) if line.is_journal() else self.shell.output(line.text)).rstrip() or "nothing"

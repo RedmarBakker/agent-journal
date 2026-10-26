@@ -3,7 +3,7 @@ import shutil
 import sqlite3
 import threading
 import types
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from enum import Enum
 from pathlib import Path
 

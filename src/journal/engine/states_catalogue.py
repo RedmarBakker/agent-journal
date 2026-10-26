@@ -9,7 +9,7 @@ from journal.engine.states.ended import Ended
 from journal.engine.states.demand_block import DemandBlock
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.engine.support.settings import Settings
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 
 
 class StatesCatalogue:

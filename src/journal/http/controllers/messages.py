@@ -19,7 +19,7 @@ from journal.sync.hosts import Hosts
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.http.support.comment_target import REPLIED, CommentTarget
 from journal.models.link import Link
 from journal.models.support.ref import Ref

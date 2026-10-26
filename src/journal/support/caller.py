@@ -1,7 +1,7 @@
 from dataclasses import dataclass, replace
 
 from journal.support.actor import Actor
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.rejection import Rejection
 
 LOCAL_USER = 1

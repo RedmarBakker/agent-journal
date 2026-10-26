@@ -1,5 +1,5 @@
 from journal.engine.support.session_agents import SessionAgents
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.environment import Environment
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor

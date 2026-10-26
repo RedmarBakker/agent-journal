@@ -1,6 +1,6 @@
 from journal.config import Config
 from journal.features.search.support.search_hit import SearchHit
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.providers.providers import Providers

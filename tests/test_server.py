@@ -369,7 +369,7 @@ def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_se
 
 def test_the_main_chat_and_a_workers_chat_each_page_their_own_rows(app: App, server):
     """With six hundred of a worker's rows written before one of the main chat's, the main chat's poll and page still hold the main row and fill with main rows, and the worker's chat pages back to its first row."""
-    from journal.models.agent_role import AgentRole
+    from journal.support.agent_role import AgentRole
     from journal.models.message import Message
     from journal.repositories.messages import Messages
     messages = app.container.get(Messages)
@@ -1884,7 +1884,7 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
     try:
         server = app.server()
         from journal.console.console import Console
-        from journal.models.agent_role import AgentRole
+        from journal.support.agent_role import AgentRole
         assert {AgentRole.MAIN, AgentRole.WORKER, AgentRole.SUBAGENT} <= set(app.container.get(Console)._parsers), "each role's parser is built at boot"
         built, loaded = set(app.container._instances), {name for name in sys.modules if name.startswith("journal")}
         call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "first"})

@@ -7,7 +7,7 @@ from journal.support.option import Option
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor

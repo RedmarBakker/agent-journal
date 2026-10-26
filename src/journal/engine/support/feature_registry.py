@@ -4,7 +4,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.support.modes import Modes
 from journal.engine.conduct import Conduct
 from journal.engine.nudge import Nudge
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.option import Option
 from journal.engine.demand import Demand
 

@@ -11,7 +11,7 @@ from journal.events.rows.overview_read import OverviewRead
 from journal.events.rows.context_decided import ContextDecided
 from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.places_scaled import PlacesScaled
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
 from journal.events.rows.quick_report_dropped import QuickReportDropped
 from journal.events.rows.tiny_job_dropped import TinyJobDropped

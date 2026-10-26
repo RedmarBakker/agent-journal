@@ -8,7 +8,7 @@ from journal.features.aliases.support.worker_alias_line import WorkerAliasLine
 from journal.models.alias import Alias
 from journal.console.console import Console
 from journal.features.aliases.support.alias_lines import AliasLines
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 from journal.support.caller_variables import CallerVariables
 from journal.hooks.support.agent_identity import REFUSAL as IDENTITY_REFUSAL, AgentIdentity

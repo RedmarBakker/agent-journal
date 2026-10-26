@@ -2,8 +2,8 @@ from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRel
 from journal.features.verification.commands.verdict_command import VerdictCommand
 from journal.features.verification.feature import Verification
 from journal.features.verification.states.verifying import Verifying
-from journal.helpers.helper import Helper
-from journal.models.agent_role import AgentRole
+from journal.features.helper import Helper
+from journal.support.agent_role import AgentRole
 
 
 class VerifierHelper(Helper):

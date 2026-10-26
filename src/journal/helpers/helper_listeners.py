@@ -2,7 +2,7 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.bus import Bus
 from journal.events.listener import Listener
 from journal.features.registry import Registry
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 
 

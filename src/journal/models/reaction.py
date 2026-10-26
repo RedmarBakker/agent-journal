@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.events.rows.reaction_added import ReactionAdded
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.scoped import Scoped

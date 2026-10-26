@@ -12,7 +12,7 @@ from journal.support.worktree import Worktree
 from journal.config import Config
 from journal.features.shell.support.shell_record import ENDED, MOVED
 from journal.support.environment_row import EnvironmentRow
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.task_state import TaskState
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents

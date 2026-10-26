@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from journal.config import Config
 from journal.features.hydration.support.transcript_chat import TranscriptChat
 from journal.models.agent import Agent
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.environment import Environment
 from journal.models.message import Message
 from journal.providers.providers import Providers

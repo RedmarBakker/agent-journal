@@ -1,6 +1,6 @@
 from journal.engine.support.session_agents import SessionAgents
 from journal.hooks.support.agent_identity import AgentIdentity
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.models.environment import Environment
 from journal.models.helper import Helper
 from journal.repositories.reviewers import Reviewers

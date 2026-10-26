@@ -9,8 +9,8 @@ from journal.features.reviewing.states.reviewing import Reviewing
 from journal.features.search.commands.search_command import SearchCommand
 from journal.features.shell.commands.output_command import OutputCommand
 from journal.features.tasks.commands.task_command import TaskCommand
-from journal.helpers.helper import Helper
-from journal.models.agent_role import AgentRole
+from journal.features.helper import Helper
+from journal.support.agent_role import AgentRole
 
 
 class ReviewerHelper(Helper):

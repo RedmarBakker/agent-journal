@@ -1,4 +1,4 @@
-from journal.models.agent_role import AgentRole
+from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import AGENT
