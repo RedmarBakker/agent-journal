@@ -8,6 +8,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.reader_report_judged import ReaderReportJudged
 from journal.events.rows.worker_model_judged import WorkerModelJudged
 from journal.features.verification.verification_nudges import VerificationNudges
+from journal.engine.no_task_assigner import NoTaskAssigner
 
 VERDICT = "verdict"
 
@@ -17,6 +18,7 @@ class Verifying(BaseState):
     """A verifier at its one job, which it never leaves: judging a dismissal, or whether a worker's model fit its merged work, on the evidence it was handed. Every tool but its verdict command is refused, file edits among them, it hears no feature's conduct, and its verdict ends its session."""
 
     name = "verifying"
+    assigner = NoTaskAssigner
     title = "Verifying a dismissal"
     conduct_free = True
 
