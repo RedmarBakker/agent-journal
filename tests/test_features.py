@@ -7004,10 +7004,10 @@ def test_one_task_is_started_whatever_starts_it_and_a_paused_plan_pauses_its_tas
     console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
     console.run(["plan", "todos", "1", "1", "1", "2"], USER)
     console.run(["plan", "ready", "1"], USER)
-    console.run(["plan", "approve", "1"], USER)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "aside", "--start"], AGENT)
+    console.run(["plan", "approve", "1"], USER)
     refused = console.run(["plan", "start", "1"], AGENT)
     assert refused.code == 1 and "task 3 is in hand" in refused.error, "a plan's start obeys the one task in hand"
     assert app.container.get(Plans).find(1).state == "approved", "a refused start leaves the plan as it was"
