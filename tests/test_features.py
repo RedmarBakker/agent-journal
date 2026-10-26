@@ -21003,3 +21003,34 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
         assert round(rebuilt.rho, 6) == round(agent.load.rho, 6) and round(rebuilt.arrivals, 6) == round(agent.load.arrivals, 6), "the stored inputs measure the same load again"
     finally:
         source.unpin()
+
+
+def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app: App):
+    from journal.features.tasks.support.next_open_task import NextOpenTask
+    from journal.features.tasks.support.task_deliveries import TaskDeliveries
+    from journal.models.task_state import TaskState
+    from journal.repositories.plans import Plans
+    from journal.repositories.setting_rows import SettingRows
+    from journal.repositories.tasks import Tasks
+    console, plans, tasks, settings = app.console(), app.container.get(Plans), app.container.get(Tasks), app.container.get(SettingRows)
+    for title in ("first", "second"):
+        console.run(["plan", "create", title, "--brief", "b"], USER)
+    for plan, titles in ((1, ("a1", "a2")), (2, ("b1", "b2"))):
+        for title in titles:
+            console.run(["plan", "add", str(plan), title], USER)
+    for plan in (1, 2):
+        console.run(["plan", "approve", str(plan)], USER)
+    with app.container.get(Scope).environment(MAIN):
+        for plan in (1, 2):
+            plans.opened(plans.find(plan), Actor.user(1))
+        deliveries, following = app.container.get(TaskDeliveries), app.container.get(NextOpenTask)
+        closed = tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
+        titles = lambda: [task.title for task in deliveries.current().offers()]
+        settings.set("workers.mode", "builder", Actor.user(1))
+        assert titles() == ["a2"], "a builder is offered the started plan's next task alone, and finishes the plan before the other one goes out"
+        assert following.following(closed).id == 2, "and after a task closes it goes on in the same plan"
+        settings.set("workers.mode", "solo", Actor.user(1))
+        assert titles() == ["a2"], "solo matches the builder"
+        settings.set("workers.mode", "orchestrator", Actor.user(1))
+        assert titles() == ["a2", "b1", "b2"], "the orchestrator is offered the plans' tasks in turn"
+        assert following.following(closed).id == 3, "and after a task of the first plan closes the second plan's next task goes out"

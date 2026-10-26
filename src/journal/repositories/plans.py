@@ -22,6 +22,8 @@ from journal.support.time_source import TimeSource
 
 
 PHASE_LINK = "in_phase"
+# the most tasks of one plan on offer at once
+QUEUED_TASKS = 10
 
 
 class Plans(ScopedRepository[Plan]):
@@ -170,10 +172,6 @@ class Plans(ScopedRepository[Plan]):
     def unapproved(self, task: Task) -> list[Plan]:
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state.is_unapproved()]
 
-    def offers(self) -> list[Task]:
-        planned = [task for plan in self.running_plans() if (task := self.next_task(plan)) is not None]
-        return [*planned, *self.free()]
-
     def free(self) -> list[Task]:
         open_tasks = self.tasks.open_tasks()
         planned = {link.source.id for link in self.links.model_links("source", open_tasks, PLAN_LINK)}
@@ -191,8 +189,16 @@ class Plans(ScopedRepository[Plan]):
         return started[0] if started else None
 
     def next_task(self, plan: Plan) -> Task | None:
-        startable = self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
-        return self.first_task(plan, TaskState.OPEN, startable)
+        return self.first_task(plan, TaskState.OPEN, self.startable_tasks(plan))
+
+    def startable_tasks(self, plan: Plan) -> Query:
+        return self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+
+    def queued_tasks(self, plan: Plan) -> list[Task]:
+        queued: list[Task] = []
+        while len(queued) < QUEUED_TASKS and (task := self.first_task(plan, TaskState.OPEN, self.startable_tasks(plan).filter_unlisted("id", [queued_task.row_id for queued_task in queued]))) is not None:
+            queued.append(task)
+        return queued
 
     # the order a plan's work is taken up in: a paused task first, then a blocked one to check, then the next open one
     def following_task(self, plan: Plan) -> Task | None:

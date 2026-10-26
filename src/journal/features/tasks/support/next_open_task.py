@@ -1,3 +1,4 @@
+from journal.features.tasks.support.task_deliveries import TaskDeliveries
 from journal.models.open_task import OpenTask
 from journal.models.plan import Plan
 from journal.models.task import Task
@@ -7,22 +8,20 @@ from journal.repositories.tasks import Tasks
 
 
 class NextOpenTask:
-    """What a task's close leaves open next, closed by command or by a commit: the task the plan it moves took in hand at the close or that plan's next open task, else a started plan's next paused, blocked or open task, else the first paused, blocked or free open task outside it, never one a worker holds; nothing when the plan keeps an older task in hand or the closer has another task in hand."""
+    """What a task's close leaves open next, closed by command or by a commit: the task the plan it moves took in hand at the close or that plan's next open task, else, in the order the work mode delivers them, a started plan's next paused, blocked or open task, else the first paused, blocked or free open task outside it, never one a worker holds; nothing when the plan keeps an older task in hand or the closer has another task in hand."""
 
-    def __init__(self, tasks: Tasks, plans: Plans) -> None:
-        self.tasks, self.plans = tasks, plans
+    def __init__(self, tasks: Tasks, plans: Plans, deliveries: TaskDeliveries) -> None:
+        self.tasks, self.plans, self.deliveries = tasks, plans, deliveries
 
     def following(self, closed: Task) -> OpenTask | None:
         started_plans = self.plans.started_plans(closed)
+        ordered = self.deliveries.current().ordered_plans(self.plans.running_plans(), started_plans[0].row_id if started_plans else 0)
         if started_plans:
-            return self.plan_next(started_plans[0], closed)
+            return self.plan_next(ordered[0], closed) if ordered else self.loose_next()
         holder = self.tasks.holder(closed)
         if holder is not None and self.tasks.holder_task(holder) is not None:
             return None
-        active_plans = self.plans.running_plans()
-        if active_plans:
-            return self.plan_next(active_plans[0], closed)
-        return self.loose_next()
+        return self.plan_next(ordered[0], closed) if ordered else self.loose_next()
 
     def plan_next(self, plan: Plan, closed: Task) -> OpenTask | None:
         current = self.plans.started_task(plan)

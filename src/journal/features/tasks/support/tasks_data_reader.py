@@ -4,6 +4,7 @@ from journal.models.open_task import OpenTask
 from journal.models.task import Task
 from journal.repositories.entries import Entries
 from journal.features.tasks.support.person_wait import PersonWait
+from journal.features.tasks.support.task_deliveries import TaskDeliveries
 from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.repositories.setting_rows import SettingRows
@@ -28,8 +29,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows) -> None:
-        self.progress, self.settings = progress, settings
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, deliveries: TaskDeliveries) -> None:
+        self.progress, self.settings, self.deliveries = progress, settings, deliveries
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -70,7 +71,7 @@ class TasksDataReader:
         return self.last_log(current) if current else ""
 
     def next_open(self) -> OpenTask | None:
-        free = self.plans.offers()
+        free = self.deliveries.current().offers()
         return OpenTask(free[0].row_id, free[0].title, free[0].brief, 0) if free else None
 
     def last_commands(self, agent: Agent) -> tuple[str, ...]:
