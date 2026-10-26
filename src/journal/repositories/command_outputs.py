@@ -7,6 +7,9 @@ from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.heartbeat import Heartbeat
 
+# the most runs of one command read to find the longest of them
+RUN_HISTORY = 50
+
 
 class CommandOutputs(ScopedRepository[CommandOutput]):
     model = CommandOutput
@@ -81,6 +84,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def started_with(self, prefix: str) -> list[CommandOutput]:
         return self.selected(self.query().filter_prefix("command", prefix).order("id"))
+
+    def longest_run_seconds(self, command: str) -> float:
+        return max((run.run_seconds() for run in self.selected(self.query().filter(command=command, ended=True).order_descending("id").limit(RUN_HISTORY))), default=0.0)
 
     def last_run(self, command: str) -> CommandOutput | None:
         rows = self.selected(self.query().filter(command=command, ended=True).order_descending("id").limit(1))

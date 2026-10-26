@@ -19018,10 +19018,15 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
         assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
         assert cardless.is_cardless(run("git rebase main")), "nor a rebase"
         assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
-        pushed = run("git status -s")
-        stored = app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="Pushing", data={"kind": "card", "shows": "commands", "output": pushed.id, "card_type": "process"}), Actor.system())
+        from datetime import timedelta
+        mark = lambda output: app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="A run", data={"kind": "card", "shows": "commands", "output": output.id, "card_type": "process"}), Actor.system())
+        long_build = run("make release")
+        long_build = outputs.save(long_build.with_(created_at=long_build.creation_time - timedelta(seconds=20)), Actor.system())
+        stray = [mark(run("git status -s")), mark(run("git push origin topic", status=1)), mark(outputs.save(run("python3 tool.py").with_(moved=False), Actor.system())), mark(run("python3 quick.py"))]
+        kept = [mark(long_build), mark(run("make release")), mark(outputs.save(run("python3 -m pytest -q").with_(created_at=long_build.creation_time), Actor.system()))]
         app.container.get(CardlessCards).run()
-        assert not app.container.get(Messages).matching(id=stored.id), "the card a git line wrote before is removed at boot"
+        assert not any(app.container.get(Messages).matching(id=card.id) for card in stray), "at boot the marks of a git line, failed or not, of a run never moved to the background and of a command that never ran past 5 seconds go"
+        assert all(app.container.get(Messages).matching(id=card.id) for card in kept), "while a background run of a command that once ran 20 seconds keeps its mark, every run of it"
     readers = app.container.get(Readers)
     (app.config.readers).mkdir(parents=True, exist_ok=True)
     (app.config.readers / "git-pushing.pattern").write_text("# a push\n.\ncommands: git push\n")
