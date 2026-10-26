@@ -58,8 +58,8 @@ class HelperRunner[H: Helper]:
                 process.wait()
             with self.rows.writing():
                 current = self.rows.find(helper.row_id)
-            if current.pid == process.pid:
-                self.ended(current)
+                if current.pid == process.pid:
+                    self.ended(current)
 
     def ended(self, helper: H) -> None:
         for agent in self.agents.active_session_agents(helper.session):

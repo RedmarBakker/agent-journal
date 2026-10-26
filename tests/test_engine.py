@@ -1134,6 +1134,12 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
     started = TaskStarted(environment_id=1, time=1.0, task_id=7, title="t", plan_id=0).with_data(data)
     assert PlansWorking(task_id=7, logged_at=2.0).respond(started, settings).target == FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=2.0)
     assert FollowingPlan(plan_id=5, task_id=7).respond(started, settings).target == FollowingPlan(plan_id=5, task_id=7, logged_at=1.0)
+    from journal.events.rows.task_closed import TaskClosed
+    from journal.features.tasks.states.working import Working
+    taken = TasksData(current_task=8, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(7, 8))
+    closed = TaskClosed(environment_id=1, time=3.0, task_id=7, outcome="completed").with_data(FeatureData({"plans": plans, "tasks": taken}))
+    assert FollowingPlan(plan_id=5, task_id=7, approved=True).respond(closed, settings).target.task_id == 8, "a next task started before the close reached the state stays the task in hand"
+    assert "not logged since it was taken up" in Working(task_id=8).logged_words(100.0), "a state that never saw a log time never says the epoch"
     approved = PlansReady().respond(PlanApproved(environment_id=1, time=1.0, plan_id=5, user_origin=True).with_data(data), settings, (PlansConduct,))
     assert [nudge.key for nudge in approved.nudges] == ["plans.the_user_approved_the_plan"]
     agent_index = PlansReady().respond(PlanApproved(environment_id=1, time=1.0, plan_id=5, user_origin=False).with_data(data), settings, (PlansConduct,))
@@ -1534,7 +1540,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     following = FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=10.0)
     assert following.on_push(auto) == () and isinstance(FollowingPlan(plan_id=5).on_push(auto), Block), "an unapproved plan is refused"
     closed = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="completed").with_data(of(plan)), auto)
-    assert closed.target == replace(following, task_id=0, origin_state=7) and not closed.popped
+    assert closed.target == replace(following, task_id=0, origin_state=7, logged_at=20.0) and not closed.popped
     assert following.respond(TaskClosed(environment_id=1, time=20.0, task_id=9, outcome="completed").with_data(of(plan)), auto).target == following
     started = closed.target.respond(TaskStarted(environment_id=1, time=30.0, task_id=8, title="next", plan_id=5).with_data(of(replace(plan, started_task=8))), auto)
     assert started.target == replace(following, task_id=8, origin_state=7, logged_at=30.0)
@@ -3578,3 +3584,23 @@ def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
     swapped = machine.placed(Stack((Void(), WorkingTask(task_id=1))), Void(), AgentRole.WORKER)
     assert [type(state) for state in swapped.states] == [Void], "a swap on a helper keeps Void at the bottom, never idle"
     assert [state.name for state in machine.placed(Stack((Void(),)), WorkingTask(task_id=1), AgentRole.WORKER).states] == ["void", "working_task"]
+
+
+def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that_counts_regularly_is_no_finding():
+    from types import SimpleNamespace
+    from journal.features.shell.support.count_forms import CountForms
+    from journal.features.shell.support.progress_stalls import ProgressStalls
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    watched = ["Refreshing run status every 20 seconds. Press Ctrl+C to quit.", "✓ main CI · 18822", "JOBS", "✓ test in 2m3s", "✓ build in 1m10s"]
+    assert CountForms.form(watched) is None, "gh run watch names its refresh interval, never a total"
+    assert CountForms.form(["collected 40 items", "tests/a.py .", "tests/b.py ."]) is not None, "a total of items is still read"
+    stalls = ProgressStalls()
+    for step, fraction in enumerate((63 / 252, 126 / 252, 189 / 252, 200 / 252, 220 / 252, 240 / 252)):
+        stalls.seen(4, fraction, step * 5.0)
+    stalls.seen(4, 240 / 252, 25.0 + 39.0)
+    judge = ReaderJudge(None, None, stalls, None, None, None, None, None, None)
+    assert judge.stalled_progress(SimpleNamespace(row_id=4)) == [], "a phpunit run that printed its count every 63 tests and sat 39 seconds over slow tests once is no finding"
+    lonely = ProgressStalls()
+    lonely.seen(5, 0.1, 0.0)
+    lonely.seen(5, 0.1, 40.0)
+    assert ReaderJudge(None, None, lonely, None, None, None, None, None, None).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"

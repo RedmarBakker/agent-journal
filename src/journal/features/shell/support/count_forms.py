@@ -6,8 +6,9 @@ SLASH_PROGRESS = r"(\d+)\s*/\s*(\d+)"
 WORD_PROGRESS = r"(\d+)\s+(?:of|out of)\s+(\d+)"
 COUNT_PATTERN = re.compile(rf"\b{SLASH_PROGRESS}\b|\b{WORD_PROGRESS}\b")
 PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]")
-# a line that names a total once and what it counts: collected 40 items, Found 12 servers, Deploying to 8 hosts
-TOTAL_LINE = re.compile(r"^\W*(?P<lead>[A-Za-z][A-Za-z ]*?[A-Za-z])\s+(?P<total>\d+)\s+[A-Za-z]+s\b")
+# a line that names a total once and what it counts: collected 40 items, Found 12 servers, Deploying to 8 hosts; never a span of
+# time, such as Refreshing run status every 20 seconds, whose number is an interval
+TOTAL_LINE = re.compile(r"^\W*(?P<lead>[A-Za-z][A-Za-z ]*?[A-Za-z])\s+(?P<total>\d+)\s+(?!(?:seconds|secs|minutes|mins|hours|hrs|days|weeks|milliseconds|ms)\b)[A-Za-z]+s\b")
 # a line that is a counter alone: processed 120, Downloaded: 15 files
 COUNTER_LINE = re.compile(r"^\W*(?P<lead>[A-Za-z][A-Za-z ]*?[A-Za-z])\s*[:=]?\s*(?P<count>\d+)(?:\s+[A-Za-z]+)?\s*$")
 # the lines that name one finished item each before the total counts, and the readings of a counter before it is one

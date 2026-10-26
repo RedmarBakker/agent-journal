@@ -54,6 +54,9 @@ class MessageCommand(Command):
         link.set_defaults(verb="amend_links")
         link.add_argument("n", type=int, help="the message")
         link.add_argument("kinds", nargs="+", choices=[*sorted(ROW_TABLES), PLAIN], help="task, plan, worker, report, doc, question or message, one for each number in order, or one for all; none for a number that names no row, which stays as written")
+        editing = self.verb(verbs, "edit", "write the text of your own message anew, in place, with its links and reply as they were; correct a message this way, never with a second one")
+        editing.add_argument("n", type=int)
+        editing.add_argument("text")
         react = self.verb(verbs, "react", "put an emoji on a message, or take it off again")
         react.add_argument("n", type=int)
         react.add_argument("emoji")
@@ -123,6 +126,14 @@ class MessageCommand(Command):
             raise Rejection(f"no {', no '.join(missing)} exists, so nothing was changed: give the kind each number really is")
         linked = self.messages.save(message.with_(text=UnlinkedRowNumbers.linked(message.text, kinds)), caller.actor)
         print(f"message {args.n} now reads: {linked.text}")
+        return 0
+
+    def edit(self, args: Namespace, caller: Caller) -> int:
+        message = self.messages.find(args.n)
+        if message.author != Author.AGENT:
+            raise Rejection(f"message {args.n} is not the agent's: only the agent's own messages are edited")
+        edited = self.messages.save(message.with_(text=args.text), caller.actor)
+        print(f"message {args.n} now reads: {edited.text}")
         return 0
 
     def react(self, args: Namespace, caller: Caller) -> int:

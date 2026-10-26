@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import json
 import os
@@ -19,6 +20,9 @@ TEAM_FILE = "team.json"
 TEAMS_FOLDER = "teams"
 ROOT_FILE = "team-root.crt"
 PREFIX_FILE = "team-prefix"
+
+# the file whose lock every change of the account is made under
+ACCOUNT_LOCK_FILE = "team-account.lock"
 
 
 class TeamAccount:
@@ -50,13 +54,13 @@ class TeamAccount:
         return bool(self.contents().get("on_hub", False))
 
     def record_on_hub(self) -> None:
-        self.write({**self.contents(), "on_hub": True})
+        self.merged({"on_hub": True})
 
     def team_number(self) -> int:
         return int(self.contents().get("team_number", 0))
 
     def record_team(self, key: str, number: int) -> None:
-        self.write({**self.contents(), "team_key": key, "team_number": number})
+        self.merged({"team_key": key, "team_number": number})
 
     def device(self) -> str:
         return str(self.contents().get("device", ""))
@@ -77,10 +81,10 @@ class TeamAccount:
         return int(self.contents().get("sequence", 0))
 
     def record_sequence(self, sequence: int) -> None:
-        self.write({**self.contents(), "sequence": sequence})
+        self.merged({"sequence": sequence})
 
     def record_pull(self, sequence: int, team_version: str) -> None:
-        self.write({**self.contents(), "sequence": sequence, "team_version": team_version})
+        self.merged({"sequence": sequence, "team_version": team_version})
 
     def team_version(self) -> str:
         return str(self.contents().get("team_version", ""))
@@ -93,6 +97,14 @@ class TeamAccount:
         self.path().replace(backup)
         (self.config.home / ROOT_FILE).unlink(missing_ok=True)
         return backup
+
+    # a change of some fields, read and written under one lock that every writer on this machine takes, so a writer of other
+    # fields at the same moment never puts back the old ones
+    def merged(self, fields: dict) -> None:
+        lock_path = self.config.home / ACCOUNT_LOCK_FILE
+        with lock_path.open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            self.write({**self.contents(), **fields})
 
     def write(self, contents: dict) -> None:
         held = self.path()
@@ -150,4 +162,4 @@ class TeamAccount:
         return list(self.contents().get("sessions", []))
 
     def record_held_sessions(self, names: list[str]) -> None:
-        self.write({**self.contents(), "sessions": sorted(set(names))})
+        self.merged({"sessions": sorted(set(names))})

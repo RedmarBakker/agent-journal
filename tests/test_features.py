@@ -9578,6 +9578,34 @@ def test_a_running_codex_workers_transcript_is_found_by_its_rollouts_folder_befo
     assert codex.latest_session(app.config.root, journal_owned.stat().st_mtime + 60) == "", "nothing newer than the time asked for"
 
 
+def test_a_message_that_refers_to_a_row_that_does_not_exist_is_told_after_it_is_saved_and_edited_in_place(app: App):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.task import Task
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    from journal.support.voice_key import VoiceKey
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        messages = app.container.get(Messages)
+        made = app.container.get(Tasks).save(Task(environment_id=MAIN, title="the parser", brief="b"), Actor.system()).id
+        wrong = made + 1
+        reply = messages.save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=f"Filed as task {wrong}, which I take now.", idempotency=VoiceKey.create("turn", "s1", "filed")), Actor.agent("s1"))
+    app.runtime().deferred.drain()
+    line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert f"message {reply.id} refers to task {wrong}, which does not exist" in line and f"journal message edit {reply.id}" in line, line
+    edited = console.run(["message", "edit", str(reply.id), f"Filed as task {made}, which I take now."], AGENT)
+    assert edited.code == 0 and f"task {made}, which I take now" in edited.text, edited.error
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert messages.find(reply.id).text == f"Filed as task {made}, which I take now.", "the message is corrected in place"
+        others = messages.save(Message(environment_id=MAIN, author=Author.USER, text="hello"), Actor.user(1))
+    assert "does not exist" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a message whose rows all exist is told nothing"
+    assert console.run(["message", "edit", str(others.id), "changed"], AGENT).code != 0, "only the agent's own message is edited"
+
+
 def test_a_plugins_linked_skill_folder_is_unlinked_when_withdrawn_and_its_target_kept(app: App, tmp_path):
     from journal.features.plugins.support.plugin_skills import PluginSkills
     from journal.models.plugin import Plugin
@@ -12005,6 +12033,7 @@ def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_s
     from journal.repositories.entries import NUDGE, Entries
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
     for title in ("the colour", "the parser"):
         console.run(["task", "create", title, "--brief", "b"], AGENT)
     assert console.run(["task", "block", "1", "waits for the user's word on the colour"], AGENT).code == 0
@@ -19007,6 +19036,7 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
         assert not policy.forbids_mark(run("git push origin topic", status=1)), "a git line that failed shows its card"
         assert not policy.forbids_mark(run("python3 -m pytest -q")) and not policy.forbids_mark(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
         assert policy.forbids_mark(run("git rebase main")), "nor a rebase"
+        assert policy.forbids_mark(run("sleep 30")) and policy.forbids_mark(run("sleep 30; echo checked")) and policy.forbids_mark(run("sleep 5 && sleep 5")) and not policy.forbids_mark(run("sleep 5 && make release")), "nor a pause, which does nothing to watch, while a pause before real work keeps its mark"
         assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
         from datetime import timedelta
         mark = lambda output: app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="A run", data={"kind": "card", "shows": "commands", "output": output.id, "card_type": "process"}), Actor.system())
@@ -20297,7 +20327,7 @@ def test_a_summary_reader_turns_a_runs_output_into_its_summary_and_the_judge_nam
     assert judge.missing_summary_reader(Reader("tests", "x", "y"), short, lines, datetime.now(timezone.utc)) == [], "a short run needs none"
 
 
-def test_a_plans_next_task_is_its_paused_one_then_none_while_a_blocked_one_waits_and_free_tasks_go_by_priority(app: App):
+def test_a_plans_next_task_is_its_paused_one_unless_it_waits_and_a_blocked_one_never_stops_the_plan(app: App):
     from datetime import datetime, timezone
     from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
     from journal.models.task_state import TaskState
@@ -20316,10 +20346,12 @@ def test_a_plans_next_task_is_its_paused_one_then_none_while_a_blocked_one_waits
         tasks.save(replace(tasks.find(number), state=state, completed_at=datetime.now(timezone.utc) if state == TaskState.COMPLETED else None), Actor.user(1))
     assigner, plan = app.container.get(PlanTaskAssigner), app.container.get(Plans).find(1)
     assert assigner.following_task(plan).id == 2, "the plan's paused task comes first"
-    tasks.save(replace(tasks.find(2), state=TaskState.COMPLETED), Actor.user(1))
-    assert assigner.following_task(plan) is None, "nothing while a blocked task of the plan waits to be checked"
-    tasks.save(replace(tasks.find(3), state=TaskState.OPEN), Actor.user(1))
-    assert assigner.following_task(plan).id == 3, "once it opens, the plan goes on in its order"
+    tasks.save(replace(tasks.find(2), state=TaskState.STARTED), Actor.user(1))
+    assert console.run(["task", "pause", "2", "after the open one", "--on", "task:4"], USER).code == 0
+    assert assigner.following_task(plan).id == 4, "a paused task that waits on another is passed over, and a blocked one never stops the plan"
+    tasks.save(replace(tasks.find(4), state=TaskState.COMPLETED, completed_at=datetime.now(timezone.utc)), Actor.user(1))
+    app.runtime().deferred.drain()
+    assert assigner.following_task(plan).id == 2, "once its wait is over, the paused task comes first again"
     assert [task.title for task in tasks.next_open_tasks(5) if task.title.startswith("outside")] == ["outside high", "outside low"], "free tasks go by priority"
 
 def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_writes_no_mark(app: App):
@@ -21318,6 +21350,16 @@ def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stre
     assert len(hints) == 1 and "output 1 has printed nothing for 40 seconds" in hints[0] and "go test -json in place of -v" in hints[0] and "a reader change cannot fix it" in hints[0], f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
     views = app.container.get(OutputViews)
     assert views.card_text(outputs.find(1), replace(views.view(outputs.find(1)), silent=True)) == SILENT_CARD_LINE, "and its card says the command buffers its output"
+    from journal.features.shell.support.silent_runs import SilentRuns
+    resting = app.config.root / "nap"
+    resting.mkdir()
+    (resting / "parts").write_text("R-\n")
+    (resting / "0.part").write_text("sleep 60")
+    app.container.get(OutputLog).start("n", "sleep 60", resting, Caller.agent("main", "s1", "claude"))
+    nap = max(outputs.all(), key=lambda output: output.id)
+    outputs.save(nap.backgrounded().with_(created_at=nap.creation_time - timedelta(seconds=40)), Actor.system())
+    with app.container.get(Scope).environment(MAIN):
+        assert [run.output for run in app.container.get(SilentRuns).running("s1")] == [1], "a sleep prints nothing by its nature and is never told to stream"
 
 
 def test_a_report_and_a_document_need_a_short_abstract_shown_as_their_summary_line(app: App):
@@ -21345,3 +21387,13 @@ def test_a_report_and_a_document_need_a_short_abstract_shown_as_their_summary_li
     assert console.run(["doc", "create", "The parser", "--file", str(note)], AGENT).code != 0, "a document without an abstract is refused too"
     assert console.run(["doc", "create", "The parser", "--file", str(note), "--abstract", "How the parser reads a line"], AGENT).code == 0
 
+
+
+def test_the_counting_reader_hint_names_a_script_the_way_a_reader_matches_it(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 scripts/suite.py -k parser"})[1])
+    assert 'no reader counts passed and failed for suite.py' in told and '--commands \\"suite.py\\"' in told, told
+    app.console().run(["reader", "add", "suites", "--pattern", "passed", "--progress", r"(\d+)/(\d+)", "--commands", "suite.py", "--about", "the suite", "--label", "Running tests"], AGENT)
+    told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 scripts/suite.py -k parser"})[1]) for _ in range(51)]
+    assert not any("counts passed and failed" in line for line in told), "the reader named as the hint said reads it, so the hint is never given again"

@@ -113,7 +113,7 @@ def counting_reader_check(state: BaseState, event: ToolStarting, settings: Setti
         return state.none()
     if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(ShellPart).readers):
         return state.none()
-    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=shape))
+    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=CommandShape.command_name(event.call.command)))
 
 
 def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

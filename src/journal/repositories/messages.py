@@ -24,6 +24,8 @@ CHAT_PAGE_ROWS = 400
 
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
+# the agent's latest messages read for one that refers to a row that does not exist
+RECENT_VOICE = 5
 
 
 class Messages(ScopedRepository[Message]):
@@ -68,6 +70,9 @@ class Messages(ScopedRepository[Message]):
 
     def main_chat(self) -> Query:
         return self.query().filter(thread=MessageThread.MAIN)
+
+    def missing_rows_message(self, session: str) -> Message | None:
+        return next((message for message in self.selected(self.main_voice().filter(session=session).order_descending("id").limit(RECENT_VOICE)) if message.data.get(Message.MISSING_ROWS)), None)
 
     def agent_chat(self, session: str) -> Query:
         return self.query().filter(session=session).filter_unlisted("thread", (MessageThread.MAIN,))

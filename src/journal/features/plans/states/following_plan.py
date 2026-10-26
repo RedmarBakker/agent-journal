@@ -23,7 +23,7 @@ from journal.features.tasks.tasks_part import TasksPart
 
 @dataclass(frozen=True)
 class FollowingPlan(PlanWork):
-    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
+    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task, also when the next one was started before the close reached the state; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
     assigner = PlanTaskAssigner
@@ -77,7 +77,8 @@ class FollowingPlan(PlanWork):
         started = event.data.part(PlansPart).started
         if started is not None and started.checkpoint_pause:
             return self.swap(replace(self, task_id=0, origin_state=event.task_id, checkpoint_pause=True, phase=started.checkpoint_phase, phase_held=bool(started.phase_commands) and not started.is_checkpoint))
-        return self.swap(replace(self, task_id=0, origin_state=event.task_id))
+        current = event.data.part(TasksPart).current_task
+        return self.swap(replace(self, task_id=current if current != event.task_id else 0, origin_state=event.task_id, logged_at=event.time, edits=0))
 
     def on_plan_finished(self, event: PlanFinished, settings: Settings) -> Transition:
         return self.pop(PlansNudges.PLAN_FINISHED.create(n=event.plan_id)) if event.plan_id == self.plan_id else self.none()

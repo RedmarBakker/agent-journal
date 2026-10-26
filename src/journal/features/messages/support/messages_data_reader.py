@@ -30,5 +30,7 @@ class MessagesDataReader:
             "tool_use_reads": lambda: tuple(m.row_id for m in facts.unanswered_rows if m.read_at and m.read_position == agent.tool_uses),
             "unlinked_message": lambda: agent.unlinked_message,
             "unlinked_numbers": lambda: agent.unlinked_numbers,
+            "missing_message": lambda: wrong.row_id if (wrong := self.messages.missing_rows_message(agent.session)) else 0,
+            "missing_rows": lambda: tuple(wrong.data[Message.MISSING_ROWS]) if (wrong := self.messages.missing_rows_message(agent.session)) else (),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

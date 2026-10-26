@@ -28,6 +28,7 @@ class Message(Scoped):
     ASKS_KEY = "asks"
     HYDRATION = "hydration"
     TOOL_SUMMARY = "tool_summary"
+    MISSING_ROWS = "missing_rows"
 
     author: Author = Author.USER
     session: str | None = None

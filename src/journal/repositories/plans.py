@@ -206,12 +206,11 @@ class Plans(ScopedRepository[Plan]):
             queued.append(task)
         return queued
 
-    # the order a plan's work is taken up in: a paused task first, then a blocked one to check, then the next open one
+    # the order a plan's work is taken up in: a paused task whose waits are over first, then the next open one; a blocked task, or a paused
+    # one still waiting, never stops the plan
     def following_task(self, plan: Plan) -> Task | None:
-        paused = self.first_task(plan, TaskState.PAUSED, self.tasks.query())
-        if paused is not None or self.first_task(plan, TaskState.BLOCKED, self.tasks.query()) is not None:
-            return paused
-        return self.next_task(plan)
+        paused = self.first_task(plan, TaskState.PAUSED, self.tasks.query().filter_unlisted("id", sorted(self.waiting_task_ids(plan))))
+        return paused if paused is not None else self.next_task(plan)
 
     # the plan's first task in its order that is in the state and matches the candidates: its phases' tasks phase by phase, each in the order
     # it joined its phase, then its tasks under no phase in the order they joined the plan; the first phase holding one is found in one read

@@ -59,6 +59,8 @@ class Working(BaseState):
         return f"journal task log {self.task_id}" if self.task_id else "journal task log"
 
     def logged_words(self, time: float) -> str:
+        if not self.logged_at:
+            return "not logged since it was taken up"
         minutes = int((time - self.logged_at) // 60)
         return "last logged just now" if minutes < 1 else f"last logged {minutes} min ago"
 

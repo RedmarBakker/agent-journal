@@ -29,6 +29,8 @@ from journal.repositories.setting_rows import SettingRows
 PROGRESS_SECONDS = 30
 # the longest a shown progress may stand still while its run goes on
 STALL_SECONDS = 20
+# the times a card's progress must have moved for the run to count as printing its count regularly, so one slow stretch in it is no finding
+REGULAR_PROGRESS_CHANGES = 5
 # the poor lines a report quotes
 QUOTED_LINES = 3
 # the newest runs looked through for a stored output of the command a new reader reads
@@ -149,7 +151,7 @@ class ReaderJudge:
 
     def stalled_progress(self, output: CommandOutput) -> list[tuple[str, str]]:
         seconds = self.stalls.longest_seconds(output.row_id)
-        if seconds <= STALL_SECONDS:
+        if seconds <= STALL_SECONDS or self.stalls.change_count(output.row_id) >= REGULAR_PROGRESS_CHANGES:
             return []
         return [(f"{PROGRESS_STALLED} {seconds:.0f} seconds while the run went on", "make the run print its progress as it goes, not only when a part of it ends, or give the reader a --progress pattern that picks a figure printed more often")]
 

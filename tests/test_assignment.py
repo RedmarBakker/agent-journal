@@ -212,6 +212,13 @@ def approved_plan_and_open_work(app: App) -> dict:
     return rows
 
 
+def a_plan_running_and_another_approved(app: App) -> dict:
+    running, (first,) = approved(app, [["the floors"]])
+    run(app, ["plan", "start", str(running)])
+    _, (later,) = approved(app, [["the walls"]])
+    return {"first": first, "later": later}
+
+
 def started_by_the_agent_itself(app: App) -> dict:
     rows = {"a": opened(app, "the parser"), "b": opened(app, "the lexer")}
     run(app, ["task", "start", str(rows["b"])])
@@ -262,6 +269,7 @@ ASSIGNMENT_CASES = [
     Case("a new session keeps the task in hand and its stop is refused", False, started_then_a_new_session, stop, lambda rows: Outcome(rows["a"], False)),
     Case("at a stop an approved plan waiting is started, its first task in hand, never a free task beside it", True, approved_plan_and_open_work, stop, lambda rows: Outcome(rows["first"], False)),
     Case("a task the agent started itself is the one in hand, and its stop starts no second", True, started_by_the_agent_itself, stop, lambda rows: Outcome(rows["b"], False)),
+    Case("while a plan runs, a stop goes on with its task and never starts or names another approved plan", True, a_plan_running_and_another_approved, stop, lambda rows: Outcome(rows["first"], False)),
 ]
 
 
