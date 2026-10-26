@@ -40,6 +40,10 @@ describe("a walking figure and the floor under it", () => {
         expect(floorBelow([floor("bar", 450), floor("foot", 900)], 400, 500).id).toBe("foot");
     });
 
+    it("is not pulled up by a card that slides up over the line it walks, a push in the middle of the floor going on where it was", () => {
+        expect(underWalker([floor("home", 440, 0, 1000, "dock")], "home", 400, 500)).toEqual({falls: false, dx: 0, dy: 0});
+    });
+
     it("is carried back inside a floor that narrowed past its feet, as when the side panel opens", () => {
         expect(underWalker([floor("home", 500, 100, 300), floor("foot", 900)], "home", 350, 500)).toEqual({falls: false, dx: -50, dy: 0});
     });

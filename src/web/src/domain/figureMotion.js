@@ -32,11 +32,17 @@ export const SNAP_WAIT_FRAMES = 3;
 // carries the figure with it
 export const HOME_FLOORS = ["dock", "compose", "foot"];
 
+// How far a home floor may rise above a walker's feet in a frame and still be the floor it walks on, growing under it: a rise of more than
+// this is a card arriving and sliding up over it, whose top is not under its feet, so it never pulls the walker up
+export const CARD_RISE = 30;
+
 // What became of the floor a walker set off on: gone, or a home floor dropped away under its feet, so it falls; or still there, `dy`
-// pixels above or below the line it walks and `dx` pixels to bring it back inside a floor that narrowed past its feet, which carry it
+// pixels above or below the line it walks and `dx` pixels to bring it back inside a floor that narrowed past its feet, which carry it; a home
+// floor that rose past CARD_RISE is a card sliding up, which leaves the walker where it is
 export function underWalker(floors, id, x, y) {
     const floor = floors.find((each) => each.id === id);
     if (!floor || (HOME_FLOORS.includes(floor.kind) && floor.top > y + ON_FLOOR)) return {falls: true, dx: 0, dy: 0};
+    if (HOME_FLOORS.includes(floor.kind) && floor.top < y - CARD_RISE) return {falls: false, dx: 0, dy: 0};
     return {falls: false, dx: Math.min(Math.max(x, floor.left), floor.right) - x, dy: floor.top - y};
 }
 
