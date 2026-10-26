@@ -18803,8 +18803,10 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
 def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     from journal.features.shell.support.readers import Readers
     console, readers = app.console(), app.container.get(Readers)
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_commands import ReaderCommands
     for name, commands in (("naps", "sleep"), ("tests", "tox"), ("rewrites", "git filter-repo")):
-        assert console.run(["reader", "add", name, "--commands", commands, "--pattern", "x", "--about", f"the {name}"], AGENT).code == 0
+        readers.add(Reader(name, f"the {name}", pattern="x", commands=ReaderCommands.parsed(commands)))
     assert readers.reading("X=1; curl -s a; echo done; sleep 1; curl b") is None, "a wait between two requests never makes the line a pause"
     assert readers.reading("cd x && tox -e py").name == "tests" and readers.reading("sleep 5").name == "naps", "the working command decides, and a lone wait is still a pause"
     line = "S=/tmp/rewrite; ( cd $S/mirror.git && git filter-repo --force 2>&1 )"
@@ -18940,8 +18942,10 @@ def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_name
     folder = Path(__file__).parent / "shell_corpus_reading"
     console, readers = app.console(), app.container.get(Readers)
     assert console.run(["alias", "add", "sins", "commandments-release judge", "--about", "judges the code"], AGENT).code == 0
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_commands import ReaderCommands
     for name, commands in [(name, commands) for name, commands in json.loads((folder / "readers.json").read_text()).items() if not readers.is_locked(name)]:
-        assert console.run(["reader", "add", name, "--commands", commands, "--pattern", ".", "--about", f"the {name} runs"], AGENT).code == 0
+        readers.add(Reader(name, f"the {name} runs", pattern=".", commands=ReaderCommands.parsed(commands)))
     rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
     chosen = lambda line: (reader.name if (reader := readers.reading(line)) and reader.name in {row for row in json.loads((folder / "readers.json").read_text())} else "")
     found = {str(n): {"expected": row["reading"]["reader"], "journal": got} for n, row in enumerate(rows, 1) if (got := chosen(row["line"])) != row["reading"]["reader"]}
@@ -19500,9 +19504,10 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
         return outputs.find(max(output.id for output in outputs.all()))
 
     add = lambda *arguments: console.run(["reader", "add", "checks", "--commands", "go test", "--about", "the checks", *arguments], AGENT)
-    assert add("--pattern", "^NEVER").code == 0, "with no stored output yet a reader is accepted and tried on its first run"
-    ran("stored", "go test ./...", "[ 50%] building\nFAIL shop/cart\n3 passed, 1 failed in 2.1s\n")
-    nothing = add("--pattern", "^NEVER")
+    assert add("--pattern", "^FAILED ").code == 0, "with no stored output yet a reader is accepted and tried on its first run"
+    stored = ran("stored", "go test ./...", "[ 50%] building\nFAIL shop/cart\n3 passed, 1 failed in 2.1s\n")
+    outputs.save(stored.ended_with(1, timing.time()), Actor.system())
+    nothing = add("--pattern", "^FAILED ")
     assert nothing.code != 0 and "picks no line" in nothing.error and "3 passed" in nothing.error, "a reader that picks nothing from the stored run is refused with the lines it should have matched"
     silent = add("--pattern", "FAIL", "--finished", "passed")
     assert silent.code != 0 and "shows no progress" in silent.error and "[ 50%] building" in silent.error, "a reader that misses the printed progress is refused"
@@ -19587,6 +19592,11 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert refuted.dismissal is None and refuted.is_refuted and judged.state == VerifierState.JUDGED and not judged.token_hash, "a no opens the report again, and the verdict ends the verifier"
     assert card.text.startswith(f"Verifier {verifier.id}, Diogenes") and card.text.endswith("the dismissal is refuted") and card.data["outcome"] == "failed" and "120-character compiler command" in str(card.data), "its one card in the chat turns to its verdict, with its reason"
     assert sessions.top(verifier.session).name == "ended", "and its session ends"
+    assert judged.pid, "its process is left to end its turn, so the reply to its verdict reaches it"
+    os.killpg(judged.pid, signal.SIGTERM)
+    deadline = timing.time() + 10
+    while verifiers.find(verifier.id).pid and timing.time() < deadline:
+        timing.sleep(0.02)
     status, body = write()
     assert status == 409 and "found wrong" in body["error"] and "120-character compiler command" in body["error"] and "verifier" not in body["error"], "the next write is held at once, with the reason, and never names a verifier"
     assert console.run(["reader", "dismiss", str(report.id), "--why", "it is still wrong"], AGENT).code != 0, "a refuted report is never dismissed again"

@@ -7,6 +7,7 @@ from journal.features.feature import Feature
 from journal.features.verification.commands.verdict_command import VerdictCommand
 from journal.features.verification.listeners.model_fit_sample import ModelFitSample
 from journal.features.verification.listeners.verifier_card import VerifierCard
+from journal.features.verification.listeners.verifier_release import VerifierRelease
 from journal.features.verification.listeners.verifier_retirement import VerifierRetirement
 from journal.features.verification.listeners.typed_verdict import TypedVerdict
 from journal.features.verification.listeners.verifier_start import VerifierStart
@@ -27,5 +28,5 @@ class Verification(Feature):
     states = (Verifying,)
     process_cards = (VerifierProcessCard,)
     commands = (VerdictCommand,)
-    listeners = (VerifierStart, VerifierCard, VerifierRetirement, ModelFitSample, TypedVerdict)
+    listeners = (VerifierStart, VerifierCard, VerifierRetirement, VerifierRelease, ModelFitSample, TypedVerdict)
     nudges = (VerificationNudges.VERIFIER_REFUSAL,)

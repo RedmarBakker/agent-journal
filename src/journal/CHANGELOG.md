@@ -2,6 +2,28 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.63.3
+
+- A chain is known by the command doing its work: a branch switch in front of it counts as setup, like cd, so a release chain is read as its merge and push, never as a git checkout that owes a reader.
+- A reader being added is tried on the output of the parts it reads, not on every part of a chain.
+- The reader a moved command owes is named by the command doing the work of its line, its lines read as one chain.
+
+## 4.63.2
+
+- A one-word command Claude Code evals unquoted, such as `./scripts/test.sh`, goes through the journal's runner, so it becomes an output with its card when it runs long; before, it ran in the shell unseen.
+- A shell call Claude Code would run in its own background runs in the foreground through the journal instead, which moves it to the background with its output number and card.
+- A reader whose pattern selects every line is refused, and a test run's reader is refused unless it selects the runner's summary and failures and shows progress.
+- A reader is tried only on runs that ended, never on the start of one still going, such as its image build.
+- Figures that pass their total or each name a total of their own, such as card numbers in product names, are no count of a total: no report asks for progress from them, and a `--progress` that reads them is refused.
+- A test run watched through a reader that misses its progress, failures or summary still owes a reader.
+- While a watched run goes on, its reader is judged again on what the run prints: a card of nearly every line, a reader that fitted the start of the run and selects nothing now, and a count the reader does not show each raise a report, and a dismissal the run disproves is opened again.
+- A second dismissal of the same finding for the same command waits until the first is judged sound.
+- A verifier's verdict is kept and its reply reaches it: its process is no longer stopped under the reply, so it no longer retries and reports its verdict as refused. A verifier takes its next judgement once its process has ended, and a waiting judgement whose report was judged meanwhile is dropped.
+- With auto mode off a stop is handed no task.
+- The plan card's name opens the list of the plans waiting for approval, outside the card.
+- A new file a shell line wrote counts its lines in the folder the command ran in, no longer 0.
+- `$?` in a part of a chained line is the status of the part before it, as in the shell, and a plain `wait` no longer waits on the runner's own watcher.
+
 ## 4.63.1
 
 - A paused agent may still run every journal command, its words reach the chat, and no demand is put over the pause, so the resume always reaches it; only the work itself waits.

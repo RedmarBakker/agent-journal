@@ -136,7 +136,7 @@ describe("the Show in chat switches", () => {
 
 describe("the two chats", () => {
     test("the main chat leaves out a worker's and a subagent's messages, which its own chat keeps", () => {
-        const rows = [message(1, 1, {agent_role: "main", text: "Fix the footer"}), message(2, 2, {author: "agent", agent_role: "worker", session: "w1", text: "On it"}), message(3, 3, {author: "agent", agent_role: "subagent", session: "s9", text: "Found it"}), message(4, 4, {author: "agent", agent_role: "main", text: "Done"})];
+        const rows = [message(1, 1, {thread: "main", text: "Fix the footer"}), message(2, 2, {author: "agent", thread: "workers:1", session: "w1", text: "On it"}), message(3, 3, {author: "agent", thread: "subagents:9", session: "s9", text: "Found it"}), message(4, 4, {author: "agent", thread: "main", text: "Done"})];
         expect(keys(turns(mainChat(rows)))).toEqual(["messages:1", "messages:4"]);
         expect(keys(turns(rows.filter((m) => m.session === "w1")))).toEqual(["messages:2"]);
     });

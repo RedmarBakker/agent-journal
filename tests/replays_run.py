@@ -24,6 +24,8 @@ from journal.repositories.messages import Messages
 from journal.repositories.questions import Questions
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.engine.clock import Clock
+from journal.support.heartbeat import Heartbeat
 from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, tick_after
 from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER, context
@@ -123,10 +125,11 @@ def writes_over_the_log(app, replay: Replay, provider: str) -> None:
 
 
 def the_clock_ticks(app, replay: Replay, provider: str) -> None:
-    """The steps: an idle agent in auto mode hears the clock at a minute, at half an hour and at half an hour again; then with a task paused, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
+    """The steps: an idle agent in auto mode with an open task to go on with hears the clock at a minute, at half an hour and at half an hour again; then with a task paused, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the header", "--brief", "the header names the shop"], USER)
     tick = lambda silent: tick_after(app, silent)
     hook_as(app, provider, "Stop")
     replay.step("idle")
@@ -134,13 +137,13 @@ def the_clock_ticks(app, replay: Replay, provider: str) -> None:
         tick(silent)
         replay.step(f"quiet for {name}")
     console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["task", "pause", "1", "the header first"], AGENT)
+    console.run(["task", "pause", "2", "the header first"], AGENT)
     hook_as(app, provider, "Stop")
     replay.step("a task paused")
     for name in ("a minute with a task paused", "a minute more"):
         tick(60.0)
         replay.step(name)
-    console.run(["task", "resume", "1"], AGENT)
+    console.run(["task", "resume", "2"], AGENT)
     console.run(["await", "the deploy", "--until", "false"], AGENT)
     replay.step("awaiting the deploy")
     for name in ("five quiet minutes awaiting", "five more awaiting"):
@@ -154,7 +157,7 @@ def test_clock_ticks_matches_its_record(journal, monkeypatch):
     replay, rows = played(f"the_clock_ticks_{provider}", app, monkeypatch, the_clock_ticks, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["quiet for a minute"]["typed"] == [] and "nothing has happened for half an hour" in str(name_index["quiet for half an hour"]["typed"]) and name_index["quiet for half an hour again"]["typed"] == [], "the listener checks in at half an hour, once inside the window"
-    assert "task 1 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and asks after the paused task, once inside the window"
+    assert "task 2 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and asks after the paused task, once inside the window"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -766,7 +769,7 @@ def meanwhile_while_waiting(app, replay: Replay, provider: str) -> None:
 
 
 def background_every_five_minutes(app, replay: Replay, provider: str) -> None:
-    """The steps: a command moves to the background, the clock passes five and ten minutes of it, it ends, and the clock ticks again."""
+    """The steps: a command moves to the background and beats as a live one does, the clock passes five and ten minutes of it, it ends, and the clock ticks again."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -776,6 +779,7 @@ def background_every_five_minutes(app, replay: Replay, provider: str) -> None:
     ShellVerbs(app).moved("c7", "pytest -q", str(folder / "out"))
     replay.step("a command in the background")
     for name, silent in (("four minutes", 240.0), ("five minutes and some", 310.0), ("ten minutes and some", 610.0)):
+        Heartbeat(folder).write(app.container.get(Clock).held_at + silent)
         tick(app, silent)
         app.runtime().deferred.drain()
         replay.step(name)
@@ -812,10 +816,8 @@ def line_reminder(app, replay: Replay, provider: str) -> None:
 
 
 def hold_after_namings(app, replay: Replay, provider: str) -> None:
-    """The steps, the unread named every use and a write held after two namings: a message waits unread while the agent writes."""
-    settings = app.container.get(SettingRows)
-    for key, value in (("messages.remind_every", 1), ("messages.hold_after_reminders", 2)):
-        user_set(app, key, value)
+    """The steps, the unread message counted down by tool uses and a write held after two: a message waits unread while the agent writes."""
+    user_set(app, "messages.hold_after_unread", 2)
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -826,8 +828,7 @@ def hold_after_namings(app, replay: Replay, provider: str) -> None:
 
 
 def a_subagents_tool_use(app, replay: Replay, provider: str) -> None:
-    """The steps, the unread named every use: a subagent's tool uses and writes are not the agent's, and the agent's own are."""
-    user_set(app, "messages.remind_every", 1)
+    """The steps, the unread message counted down by tool uses: a subagent's tool uses and writes are not the agent's, and the agent's own are."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)

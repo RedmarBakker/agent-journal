@@ -7,7 +7,7 @@ from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
-from journal.features.shell.support.output_files import OutputFiles
+from journal.features.shell.support.output_files import STYLE_CODES, OutputFiles
 from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
@@ -49,7 +49,9 @@ SUITES_COUNTED = "its progress counts suites, not tests"
 SILENT_RUN = "the run printed nothing for"
 SILENT_RUN_FIX = ("the command held its output back, which no reader can show: run it unbuffered, with stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, "
                   "go test -json in place of -v, or a runner that prints its count of tests before the first one and a line as each ends")
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, PROGRESS_LATE, BUILD_UNSHOWN, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
+UNFILTERED = "its card showed nearly every line of the run, so it filtered nothing"
+STOPPED_PICKING = "it picked lines at the start of the run and none of its newest"
+FINDING_KINDS = (UNFILTERED, STOPPED_PICKING, POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, PROGRESS_LATE, BUILD_UNSHOWN, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
 # the newest runs of a reader looked through for one title given to different work
 MIXED_RUNS = 6
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
@@ -71,7 +73,7 @@ class ReaderJudge:
         files = OutputFiles(Path(output.folder))
         if reader is None or reader.script or reader.name in SHIPPED_READERS or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
-        lines = files.lines()
+        lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
         kinds = self.dismissal_kinds(output.command, ended_at)
         shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
@@ -91,8 +93,19 @@ class ReaderJudge:
             return set()
         name = CommandShape.command_name(command)
         reports = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
-        counts = Counter(kind for report in reports if CommandShape.command_name(report.command) == name for kind in FINDING_KINDS if any(kind in finding for finding in report.findings))
+        counts = Counter(kind for report in reports if CommandShape.command_name(report.command) == name for kind in self.kinds(report))
         return {kind for kind, count in counts.items() if count >= limit}
+
+    # a dismissal of a finding already dismissed for the same command, and not yet judged sound, waits: the same report coming back
+    # means its cause is still there
+    def unjudged_dismissal(self, report: ReaderReport, time: datetime) -> ReaderReport | None:
+        name, kinds = CommandShape.command_name(report.command), self.kinds(report)
+        dismissed = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
+        return next((dismissed_report for dismissed_report in dismissed if dismissed_report.id != report.id and dismissed_report.judged_at is None and CommandShape.command_name(dismissed_report.command) == name and kinds & self.kinds(dismissed_report)), None)
+
+    @staticmethod
+    def kinds(report: ReaderReport) -> set[str]:
+        return {kind for kind in FINDING_KINDS if any(kind in finding for finding in report.findings)}
 
     def poor_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         poor = [line for line in reader.variant(output.stage()).card_lines(lines) if CardLine.is_poor(CardLine.plain(line))][:QUOTED_LINES]
@@ -191,6 +204,14 @@ class ReaderJudge:
             return "test totals"
         return "a build line" if any(BUILD_LINE.search(line) for line in lines) else ""
 
+    # the lines of the parts of a chain the reader reads; the whole output when it names no command a part runs
+    @staticmethod
+    def read_lines(reader: Reader, files: OutputFiles) -> list[str]:
+        read = [i for i in files.recorded() if reader.commands.reads(files.part_text(i))]
+        if not read:
+            return files.lines()
+        return [STYLE_CODES.sub("", line) for i in read for line in files.output_text(i).splitlines()]
+
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
         if lines and not any(reader.variant(stage).card_lines(lines) for stage in (ACTIVE, FINISHED, FAILED)):
@@ -200,7 +221,17 @@ class ReaderJudge:
         summary = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), "")
         if summary and summary not in reader.variant(FINISHED).card_lines(lines):
             misses.append(f"it does not end on a line of its own, though the run printed the summary {self.quoted([summary])}: give it a --finished pattern that picks it")
-        return misses
+        return [*misses, *self.false_progress(reader, lines)]
+
+    # a count of a total read from figures that are no count, such as the card numbers inside product names, draws a bar that lies
+    def false_progress(self, reader: Reader, lines: list[str]) -> list[str]:
+        if reader.script or not reader.is_counting() or re.compile(reader.progress_pattern).groups != 2:
+            return []
+        figures = CountForms.figures(reader.progress_pattern, lines)
+        if not figures or CountForms.is_count_series(figures):
+            return []
+        shown = [line for line in lines if reader.is_progress_line(line)][:QUOTED_LINES]
+        return [f"its --progress selects figures that count towards no total, {', '.join(f'{count}/{total}' for count, total in figures[:QUOTED_LINES])}, in {self.quoted(shown)}: a count of a total never passes its total and shares it from line to line; give it a pattern for the run's own count, or none"]
 
     @staticmethod
     def quoted(lines: list[str]) -> str:
@@ -213,7 +244,7 @@ class ReaderJudge:
             return []
         output = stored[0]
         files = OutputFiles(Path(output.folder))
-        lines = files.lines()
+        lines = self.read_lines(reader, files)
         fixes = []
         progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:

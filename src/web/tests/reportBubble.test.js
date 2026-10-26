@@ -62,8 +62,8 @@ test("a report in the chat is one card saying whose report on which task, and a 
 
 test("a worker's report stays in the main chat while the worker's own turns stay in its chat", async () => {
     const {mainChat} = await import("../src/domain/thread.js");
-    const report = {...message(5, "Lady Montagu reports: the header is fixed", {kind: "report", worker: "Lady Montagu", worker_id: 7}), agent_role: "main"};
-    const turn = {...message(6, "Editing the header"), agent_role: "worker", session: "w7"};
+    const report = {...message(5, "Lady Montagu reports: the header is fixed", {kind: "report", worker: "Lady Montagu", worker_id: 7}), thread: "main"};
+    const turn = {...message(6, "Editing the header"), thread: "workers:7", session: "w7"};
     expect(mainChat([report, turn]).map((m) => m.id)).toEqual([5]);
     expect(reportOf(threadTurns(mainChat([report, turn]), []).turns[0])?.worker).toBe("Lady Montagu");
 });

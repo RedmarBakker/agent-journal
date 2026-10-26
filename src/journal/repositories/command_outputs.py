@@ -34,8 +34,8 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def unfinished(self, creator: Actor) -> list[CommandOutput]:
         return self.selected(self.query().filter(creator=creator, moved=True, ended=False).order("id"))
 
-    def recent_unwatched_moves(self, session: str | None, count: int) -> list[CommandOutput]:
-        return self.selected(self.query().filter(session=session, moved=True, watch_reader="").order_descending("id").limit(count))
+    def recent_moves(self, session: str | None, count: int) -> list[CommandOutput]:
+        return self.selected(self.query().filter(session=session, moved=True).order_descending("id").limit(count))
 
     def latest(self, count: int) -> list[CommandOutput]:
         return self.selected(self.query().order_descending("id").limit(count))

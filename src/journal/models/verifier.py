@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+from journal.events.rows.verifier_exited import VerifierExited
 from journal.models.helper import Helper
 from journal.models.verifier_state import VerifierState
 
@@ -24,8 +25,11 @@ class Verifier(Helper):
     def judged(self) -> "Verifier":
         return self.with_(state=VerifierState.JUDGED, token_hash="")
 
+    def exited(self) -> "Verifier":
+        return self.with_(pid=0).with_event(VerifierExited(environment_id=self.environment_id))
+
     def ended(self) -> "Verifier":
-        return self if self.state != VerifierState.VERIFYING else self.with_(state=VerifierState.ENDED, token_hash="")
+        return self.with_(state=VerifierState.ENDED, token_hash="").exited() if self.state == VerifierState.VERIFYING else self.exited()
 
     def has_ended(self) -> bool:
         return self.state == VerifierState.ENDED

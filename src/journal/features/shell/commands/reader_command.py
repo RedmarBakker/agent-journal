@@ -14,9 +14,11 @@ from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.activity_title import TITLE_RULE, ActivityTitle
 from journal.console.command import Command
 from journal.support.caller import Caller
+from journal.support.command_shape import CommandShape
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_judge import ReaderJudge
+from journal.features.shell.support.reader_probes import ReaderProbes
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.reader_backfill import ReaderBackfill
@@ -89,10 +91,20 @@ class ReaderCommand(Command):
         return 0
 
     def tried(self, reader: Reader) -> None:
-        for run in self.judge.stored_runs(reader)[:QUICK_RUNS]:
-            misses = self.judge.misses(reader, OutputFiles(Path(run.folder)).lines())
+        self.probed(reader)
+        for run in [run for run in self.judge.stored_runs(reader) if run.ended][:QUICK_RUNS]:
+            misses = self.judge.misses(reader, self.judge.read_lines(reader, OutputFiles(Path(run.folder))))
             if misses:
                 raise Rejection(f"reader {reader.name} is refused, tried on output {run.id}: {'; '.join(misses)}")
+
+    @staticmethod
+    def probed(reader: Reader) -> None:
+        unfiltered = ReaderProbes.unfiltered_patterns(reader)
+        if unfiltered:
+            raise Rejection(f"reader {reader.name} is refused: its {' and '.join(unfiltered)} selects every line of any run, so it filters nothing and its card shows the raw output; give it a pattern for the few lines a person reads, such as the failures, the progress and the summary")
+        misses = ReaderProbes.test_run_misses(reader)
+        if misses:
+            raise Rejection(f"reader {reader.name} is refused: {'; '.join(misses)}")
 
     def report(self, args: Namespace, caller: Caller) -> int:
         report = self.reports.save(self.reports.find(args.n).opened(datetime.fromtimestamp(self.clock.time(), timezone.utc)), caller.actor)
@@ -104,6 +116,9 @@ class ReaderCommand(Command):
         findings = self.judge.run_findings(target_report)
         if findings:
             raise Rejection(f"reader report {target_report.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {target_report.reader} ...: {'; '.join(findings)}")
+        repeated_report = self.judge.unjudged_dismissal(target_report, datetime.fromtimestamp(self.clock.time(), timezone.utc))
+        if repeated_report is not None:
+            raise Rejection(f"reader report {target_report.id} is refused a dismissal: report {repeated_report.id} found the same for {CommandShape.command_name(repeated_report.command)} and was dismissed, and its verifier has not judged that dismissal sound, so the cause is still there: fix it, in the reader with journal reader add {target_report.reader} ..., in the command, or in the reader chosen for it")
         report = self.reports.save(target_report.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
         return 0

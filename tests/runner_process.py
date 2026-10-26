@@ -14,6 +14,7 @@ from journal.models.setting import Setting
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.supervisor_link import SupervisorLink
 from tests.main_journal import main_journal
 
 SRC = Path(__file__).resolve().parent.parent / "src"
@@ -47,15 +48,26 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
         cwd.unlink()
         run = subprocess.run([runner, wrapped("echo first && exec echo replaced; echo never", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
         assert run.stdout.split() == ["first", "replaced"] and run.returncode == 0 and "No such file" not in run.stderr, run.stderr
+        bare = tmp_path / "suite.sh"
+        bare.write_text("#!/bin/sh\necho suite ran\n")
+        bare.chmod(0o755)
+        run = subprocess.run([runner, f"setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval {bare} < /dev/null && pwd -P >| {cwd}"], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
+        with app.container.get(Scope).environment(1):
+            ran = [entry.data["part"] for entry in app.container.get(Entries).kind_entries("ran", 5)]
+        assert run.stdout.strip() == "suite ran" and str(bare) in ran, "a one-word command Claude Code evals unquoted goes through the journal too"
         settings.save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
+        link = app.container.get(SupervisorLink)
+        link.working(1)
+        told = lambda run: "\n".join(line for line in (run.stdout + "\n" + link.pending_lines(1)).splitlines() if line.strip())
         run = subprocess.run([runner, wrapped("seq 1 1000", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
-        shown = run.stdout.splitlines()
-        assert len(shown) == 1 and re.fullmatch(r"\[journal\] output (\d+)(: 3893 characters, kept\. read the part you need: journal output read \1 --grep .*| kept: journal output read \1 --tail 20)", shown[0]), "past the cap a command's output is not shown, only named"
-        (cwd.parent / "numbers").write_text("\n".join(str(i) for i in range(1, 3001)) + "\n")
-        run = subprocess.run([runner, wrapped(f"cat {cwd.parent / 'numbers'}", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
-        assert run.stdout.startswith("1\n2\n") and run.stdout.rstrip().endswith("3000") and "cut from the middle" in run.stdout, "a read is cut to its two ends"
+        shown = told(run).splitlines()
+        assert len(shown) == 1 and re.fullmatch(r"(?:\[journal\] )?output \d+: 1000 lines, part \d+", shown[0]), "past the cap a command's output is not shown, only named"
+        numbers = tmp_path.parent / f"{tmp_path.name}-numbers"
+        numbers.write_text("\n".join(str(i) for i in range(1, 3001)) + "\n")
+        run = subprocess.run([runner, wrapped(f"cat {numbers}", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
+        assert run.stdout.startswith("1\n2\n") and run.stdout.rstrip().endswith("3000") and len(run.stdout.splitlines()) < 3000 and "cut; journal output read" in told(run), "a read outside the project is cut to its two ends"
         run = subprocess.run([runner, wrapped("echo fast && sleep 3 && echo slow", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
-        assert "fast" in run.stdout and "moved to the background as output" in run.stdout and "sleep 3" not in run.stdout and run.returncode == 0, run.stderr
+        assert "fast" in run.stdout and "moved to the background as output" in told(run) and "sleep 3" not in run.stdout and run.returncode == 0, run.stderr
         with app.container.get(Scope).environment(1):
             entries = app.container.get(Entries)
             for _ in range(100):
@@ -70,10 +82,10 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
             assert changed == [[{"added": 2, "removed": 0, "path": "made.txt"}], []], changed
         assert cwd.read_text().strip() == str(tmp_path.resolve())
         run = subprocess.run([runner, wrapped("sleep 0.7 && sleep 0.7 && sleep 0.7", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
-        assert "moved to the background" in run.stdout, "parts each under the limit move when the chain as a whole passes it"
+        assert "moved to the background" in told(run), "parts each under the limit move when the chain as a whole passes it"
         heredoc = wrapped("cat <<EOF\nheld\nEOF\nsleep 3", cwd).replace(" < /dev/null", "")
         run = subprocess.run([runner, heredoc], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
-        assert "moved to the background" in run.stdout, "a command with a heredoc, which Claude Code wraps without < /dev/null, goes through the runner too"
+        assert "moved to the background" in told(run), "a command with a heredoc, which Claude Code wraps without < /dev/null, goes through the runner too"
     finally:
         app.runtime().stop()
 
@@ -162,7 +174,8 @@ def test_the_runner_agrees_with_the_shell_on_every_line_of_the_corpus(tmp_path: 
         for line in CORPUS:
             full = subprocess.run(["/bin/zsh", "-c", line], cwd=tmp_path, capture_output=True, text=True, timeout=20)
             parts = subprocess.run([runner, wrapped(line, cwd)], env=environment, cwd=tmp_path, capture_output=True, text=True, timeout=20)
-            if (full.stdout, full.returncode) != (parts.stdout, parts.returncode):
+            seen = lambda run: re.sub(r"^zsh(:\d+)?:", "zsh:", run.stdout + run.stderr, flags=re.M)
+            if (seen(full), full.returncode) != (seen(parts), parts.returncode):
                 differences.append((line, full.stdout, full.returncode, parts.stdout, parts.returncode, parts.stderr[-200:]))
         assert not differences, "\n".join(repr(d) for d in differences)
     finally:

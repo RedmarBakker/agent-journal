@@ -10,4 +10,4 @@ class Verifiers(Checkers[Verifier]):
         return self.selected(self.query().filter_listed("state", [VerifierState.VERIFYING, VerifierState.JUDGED]).order("id"))
 
     def idle(self) -> list[Verifier]:
-        return self.newest(self.query().filter(state=VerifierState.JUDGED).limit(1))
+        return self.newest(self.query().filter(state=VerifierState.JUDGED, pid=0).limit(1))
