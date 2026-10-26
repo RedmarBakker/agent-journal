@@ -16,6 +16,7 @@ from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.engine.delivery import Delivery
 from journal.engine.hook_answer import HookAnswer
+from journal.engine.row_assignment import RowAssignment
 from journal.engine.state_machine import StateMachine
 from journal.console.creations import Creations
 from journal.features.listeners.record_changes import RecordChanges
@@ -103,6 +104,7 @@ class Runtime:
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
+        self.bus.listen(RowEvent, self.container.get(RowAssignment))
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 

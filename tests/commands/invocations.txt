@@ -64,6 +64,7 @@ agent plan priorities "task 3 first: the cart comes before paying"
 agent plan block 1 "waits on the payment provider"
 agent plan unblock 1
 agent plan pause 1
+agent plan card 1
 agent plan dock 1
 agent plan undock 1
 agent plan drive 1

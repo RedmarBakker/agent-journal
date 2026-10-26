@@ -17,7 +17,7 @@ from journal.support.time_source import TimeSource
 
 
 class AdvancePlan(Listener[TaskClosed]):
-    """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. For each started plan the closed task is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in orchestrator mode, whose open tasks wait for workers, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
+    """A plan is done when its last task closes, whoever closes it, heard after the closed task's own mark is in the chat. A task an agent held is followed by that agent's plan task assigner; for a task a worker or nobody held, for each started plan it is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; in orchestrator mode, whose open tasks wait for workers, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
     def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, offers: TaskOffers, testing: PhaseTesting, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -31,10 +31,16 @@ class AdvancePlan(Listener[TaskClosed]):
         time, actor = self.time_source.moment(), Actor.parse(event.actor)
         for plan in self.plans.finished_plans(task):
             self.plans.save(plan.finished(time.timestamp()), actor)
+        if self.is_agent_close(task):
+            return
         for plan in self.plans.started_plans(task):
             following, holder = self.offers.plan_following(plan), self.next_holder(task)
             if following is not None and self.is_advancing(plan, holder):
                 self.tasks.holder_started(following.plan_started(time, plan.row_id), holder, actor)
+
+    def is_agent_close(self, task: Task) -> bool:
+        holder = self.tasks.holder(task)
+        return holder is not None and holder.type != WORKERS
 
     def next_holder(self, task: Task) -> Ref | None:
         holder = self.tasks.holder(task)

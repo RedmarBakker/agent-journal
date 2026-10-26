@@ -1,0 +1,34 @@
+from journal.engine.support.assignment import Assignment
+from journal.events.agent.agent_event import AgentEvent
+from journal.events.agent.stop import Stop
+from journal.events.rows.row_event import RowEvent
+from journal.events.rows.task_closed import TaskClosed
+from journal.features.plans.support.approved_plan_start import ApprovedPlanStart
+from journal.features.tasks.support.round_robin_delivery import RoundRobinDelivery
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.models.agent import Agent
+from journal.models.task import Task
+from journal.repositories.plans import Plans
+from journal.repositories.setting_rows import SettingRows
+from journal.support.agent_role import AgentRole
+
+
+class OrchestratorTaskAssigner:
+    """The task assigner the orchestrator's floor names: its next task is the one it hands a worker, never one it starts itself; at its stop or when a task closes it opens the oldest approved plan, with no task in hand, and names the next task of its started plans in turn, round robin, and in auto mode a free task after them."""
+
+    def __init__(self, start: ApprovedPlanStart, round_robin: RoundRobinDelivery, plans: Plans, settings: SettingRows) -> None:
+        self.start, self.round_robin, self.plans, self.settings = start, round_robin, plans, settings
+
+    def next_task(self, agent: Agent, event: AgentEvent | RowEvent) -> Assignment:
+        if agent.role != AgentRole.MAIN or not self.is_moment(agent, event):
+            return Assignment()
+        self.start.opened()
+        task = next(iter(self.delegable_tasks()), None)
+        return Assignment(task.row_id, task.title, "the next task to hand a worker, plan by plan in turn") if task is not None else Assignment()
+
+    @staticmethod
+    def is_moment(agent: Agent, event: AgentEvent | RowEvent) -> bool:
+        return isinstance(event, TaskClosed) or (isinstance(event, Stop) and event.session == agent.session)
+
+    def delegable_tasks(self) -> list[Task]:
+        return self.round_robin.offers() if self.settings.option(TasksOptions.AUTO) else self.round_robin.planned_offers(self.plans.running_plans())

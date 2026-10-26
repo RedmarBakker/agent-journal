@@ -31,6 +31,7 @@ class ExternalWait(Wait):
     """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
 
     name = "awaiting"
+    assigner = None
     title = "Waiting"
     allows = frozenset({Permission.FILE_EDITS, Permission.RUN_COMMANDS, Permission.DISPATCH_SUBAGENTS})
     focus: str = ""

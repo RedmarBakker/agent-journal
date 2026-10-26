@@ -17,6 +17,7 @@ from journal.features.plans.listeners.driven_row_deletions import DrivenRowDelet
 from journal.features.plans.listeners.ended_drive_write_guard import EndedDriveWriteGuard
 from journal.features.plans.listeners.session_start_plan_start import SessionStartPlanStart
 from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.features.plans.listeners.plan_finished_plan_start import PlanFinishedPlanStart
 from journal.features.plans.plans_conduct import PlansConduct
 from journal.features.plans.seeds.closed_plans import ClosedPlans
@@ -38,7 +39,7 @@ class Plans(Feature[PlansData]):
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands)
     commands = (PlanCommand,)
     listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart)
-    assigners = (PlanStartTaskAssigner,)
+    assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)

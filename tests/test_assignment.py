@@ -10,11 +10,14 @@ from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.assigner_resolution import AssignerResolution
 from journal.features.plans.support.plan_start_task_assigner import PlanStartTaskAssigner
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
+from journal.features.workers.support.orchestrator_task_assigner import OrchestratorTaskAssigner
 from journal.models.agent import Agent
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
+from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.test_features import booted, hook, viewer
 from tests.user_settings import user_set
@@ -147,9 +150,21 @@ def awaiting(app: App) -> dict:
     return rows
 
 
+def plan_task_in_hand_while_awaiting(app: App) -> dict:
+    first, second = planned(app, [["the parser", "the lexer"]])
+    run(app, ["await", "the build", "--until", "sleep 600"])
+    return {"first": first, "second": second}
+
+
 def stuck(app: App) -> dict:
     rows = {"a": started(app, "the parser")}
     run(app, ["stuck", "the parser waits on a library that does not build"])
+    return rows
+
+
+def compacting(app: App) -> dict:
+    rows = {"a": started(app, "the parser"), "b": opened(app, "the lexer")}
+    hook(app, "PreCompact")
     return rows
 
 
@@ -203,6 +218,19 @@ def started_by_the_agent_itself(app: App) -> dict:
     return rows
 
 
+def orchestrating_with_an_approved_plan(app: App) -> dict:
+    user_set(app, "workers.mode", "orchestrator")
+    _, (first,) = approved(app, [["the parser"]])
+    return {"first": first}
+
+
+def orchestrator_starting_a_task_itself(app: App) -> dict:
+    user_set(app, "workers.mode", "orchestrator")
+    rows = {"a": opened(app, "the parser")}
+    run(app, ["task", "start", str(rows["a"])])
+    return rows
+
+
 def orchestrating_with_open_work(app: App) -> dict:
     user_set(app, "workers.mode", "orchestrator")
     return {"a": opened(app, "the parser")}
@@ -219,12 +247,17 @@ ASSIGNMENT_CASES = [
     Case("in auto mode a started plan goes past its checkpoint to its end", True, plan_at_its_checkpoint, complete("second"), lambda rows: Outcome(rows["third"])),
     Case("the user's pause lets a stop through with the task still in hand", True, paused_by_the_user, stop, lambda rows: Outcome(rows["a"], True)),
     Case("a wait lets a stop through with the task still in hand", True, awaiting, stop, lambda rows: Outcome(rows["a"], True)),
+    Case("a plan task closed while the agent awaits something starts the plan's next task", False, plan_task_in_hand_while_awaiting, complete("first"), lambda rows: Outcome(rows["second"])),
     Case("an agent that said it is stuck may stop with the task still in hand", True, stuck, stop, lambda rows: Outcome(rows["a"], True)),
+    Case("a compaction keeps the task in hand and starts no other", True, compacting, stop, lambda rows: Outcome(rows["a"])),
     Case("in auto mode the higher priority goes first", True, by_priority, stop, lambda rows: Outcome(rows["high"], False)),
     Case("in auto mode the agent's own paused task is taken up before an open one", True, own_paused_and_open, stop, lambda rows: Outcome(rows["paused"], False)),
     Case("a blocked task is never started, so with nothing else the stop goes through", True, blocked_only, stop, lambda rows: Outcome(0, True)),
     Case("in auto mode a task the user added while the agent worked is next", True, user_adds_a_task_mid_work, complete("a"), lambda rows: Outcome(rows["new"])),
     Case("the orchestrator never starts a task on itself", True, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),
+    Case("off auto mode the orchestrator never starts a task on itself either", False, orchestrating_with_open_work, stop, lambda rows: Outcome(0)),
+    Case("an orchestrator asked to do a task itself starts it and keeps it in hand", True, orchestrator_starting_a_task_itself, stop, lambda rows: Outcome(rows["a"])),
+    Case("the orchestrator's stop opens an approved plan for the workers and starts none of its tasks on itself", True, orchestrating_with_an_approved_plan, stop, lambda rows: Outcome(0)),
     Case("a task a worker holds is never started on the main agent", True, held_by_a_worker_and_open, stop, lambda rows: Outcome(rows["open"], False)),
     Case("a new session keeps the task in hand and its stop is refused", False, started_then_a_new_session, stop, lambda rows: Outcome(rows["a"], False)),
     Case("at a stop an approved plan waiting is started, its first task in hand, never a free task beside it", True, approved_plan_and_open_work, stop, lambda rows: Outcome(rows["first"], False)),
@@ -251,10 +284,11 @@ RESOLUTION_CASES = [
     (AgentRole.MAIN, ("idle", "working"), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("soloing", "working"), PlanStartTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "sorting_dump"), PlanStartTaskAssigner),
-    (AgentRole.MAIN, ("orchestrating",), NoTaskAssigner),
-    (AgentRole.MAIN, ("idle", "following_plan"), NoTaskAssigner),
+    (AgentRole.MAIN, ("orchestrating",), OrchestratorTaskAssigner),
+    (AgentRole.MAIN, ("idle", "following_plan"), PlanTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "paused"), NoTaskAssigner),
-    (AgentRole.MAIN, ("idle", "working", "awaiting"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "awaiting"), PlanStartTaskAssigner),
+    (AgentRole.MAIN, ("idle", "following_plan", "awaiting"), PlanTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "stuck"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "waiting"), NoTaskAssigner),
     (AgentRole.MAIN, ("idle", "working", "compacting"), NoTaskAssigner),
@@ -280,3 +314,45 @@ def test_every_floor_names_an_assigner(app: App):
     catalogue = app.container.get(StatesCatalogue)
     floors = [catalogue.first(), *(state() for state in catalogue.role_floors.values()), *(state() for modes in catalogue.modes for state in modes.states.values())]
     assert [type(state).__name__ for state in floors if state.assigner is None] == []
+
+
+def test_the_orchestrators_next_task_is_one_it_hands_a_worker_in_turn_across_its_plans_and_never_starts(app: App):
+    from journal.events.agent.stop import Stop
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "tasks.auto", True)
+    first_plan, (floors,) = approved(app, [["the floors"]])
+    run(app, ["plan", "start", str(first_plan)])
+    second_plan, (walls,) = approved(app, [["the walls"]])
+    run(app, ["plan", "start", str(second_plan)])
+    agent = app.container.get(Agents).session_agent("s1")
+    assignment = app.container.get(OrchestratorTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN))
+    assert assignment.task_id in (floors, walls) and "hand a worker" in assignment.reason, assignment
+    assert app.container.get(Tasks).agent_started() == [], "the orchestrator starts none of them on itself"
+
+
+def worker_through_its_task(app: App, queued: bool) -> dict:
+    from journal.repositories.workers import Workers
+    rows = {"first": opened(app, "the parser"), "second": opened(app, "the lexer")}
+    run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["first"]), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet"])
+    if queued:
+        run(app, ["worker", "queue", "1", str(rows["second"])])
+    workers = app.container.get(Workers)
+    workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+    lovelace = Caller.worker("main", 1, "w-1", "claude")
+    run(app, ["proof", "1", "parser.py:3, test_reads_the_grammar passes"], lovelace)
+    run(app, ["clock-out", "the parser reads the grammar"], lovelace)
+    app.runtime().deferred.drain()
+    return rows
+
+
+def test_a_worker_goes_on_to_its_queued_task_and_the_main_agent_takes_none_of_its_tasks(app: App):
+    rows = worker_through_its_task(app, queued=True)
+    tasks = app.container.get(Tasks)
+    assert tasks.find(rows["second"]).delegated, "the queued task is the worker's, handed on by the worker actions"
+    assert tasks.agent_started() == [], "the main agent is started on none of the worker's tasks"
+
+
+def test_a_worker_with_an_empty_queue_is_handed_nothing_more(app: App):
+    rows = worker_through_its_task(app, queued=False)
+    tasks = app.container.get(Tasks)
+    assert not tasks.find(rows["second"]).delegated and tasks.agent_started() == [], "an empty queue hands the worker nothing, and the main agent takes nothing of it"

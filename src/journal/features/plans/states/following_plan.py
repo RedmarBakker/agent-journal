@@ -1,6 +1,6 @@
 from dataclasses import dataclass, replace
 
-from journal.engine.no_task_assigner import NoTaskAssigner
+from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.engine.nudge import Nudge
 from journal.engine.support.block import Block
 from journal.engine.support.settings import Settings
@@ -26,7 +26,7 @@ class FollowingPlan(PlanWork):
     """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
-    assigner = NoTaskAssigner
+    assigner = PlanTaskAssigner
     title = "Following a plan"
     plan_id: int = 0
     approved: bool = False
