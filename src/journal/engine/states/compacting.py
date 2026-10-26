@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -19,6 +20,7 @@ class Compacting(BaseState):
     """The context is being compacted, until the agent shows it is not: the session starting again, a tool call or its end, the agent's words shown, a prompt or a stop pops it and hands that event to the state beneath, and so does a state pushed over it popping, so a compaction that ended without a start, or was cancelled, never holds the agent or keeps its lines from it. The state clears the typist's queue and disables it as it comes to the top, and enables it as it leaves the top: a line the journal would type in the meantime is dropped, and the look at the start after the compaction brings the agent up to date."""
 
     name = "compacting"
+    assigner = NoTaskAssigner
     title = "Compacting"
 
     def on_enter(self, typist: Typist) -> None:

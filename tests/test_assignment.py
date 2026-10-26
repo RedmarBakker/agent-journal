@@ -6,6 +6,12 @@ from typing import Callable
 import pytest
 
 from journal.app import App
+from journal.engine.no_task_assigner import NoTaskAssigner
+from journal.engine.states_catalogue import StatesCatalogue
+from journal.engine.support.assigner_resolution import AssignerResolution
+from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
+from journal.models.agent import Agent
+from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -160,6 +166,7 @@ def user_adds_a_task_mid_work(app: App) -> dict:
 def held_by_a_worker_and_open(app: App) -> dict:
     rows = {"worker": opened(app, "the parser")}
     run(app, ["worker", "dispatch", "Lady Lovelace", "--task", str(rows["worker"]), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet"])
+    hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(app.config.root / "notes.md"), "content": "x"})
     rows["open"] = opened(app, "the lexer")
     return rows
 
@@ -209,3 +216,40 @@ def test_who_takes_which_task_next(app: App, case: Case):
     assert in_hand == ([expected.in_hand] if expected.in_hand else []), f"{case.name}: the agent holds {in_hand or 'nothing'}"
     if expected.stop_passes is not None:
         assert (rows["stop"].get("decision") != "block") == expected.stop_passes, f"{case.name}: the stop answered {rows['stop']}"
+
+
+RESOLUTION_CASES = [
+    (AgentRole.MAIN, (), DefaultTaskAssigner),
+    (AgentRole.MAIN, ("idle",), DefaultTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working"), DefaultTaskAssigner),
+    (AgentRole.MAIN, ("soloing", "working"), DefaultTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "sorting_dump"), DefaultTaskAssigner),
+    (AgentRole.MAIN, ("orchestrating",), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "following_plan"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "paused"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "awaiting"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "stuck"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "waiting"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "working", "compacting"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "reading_overview"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "demand_block"), NoTaskAssigner),
+    (AgentRole.MAIN, ("idle", "panicking"), NoTaskAssigner),
+    (AgentRole.MAIN, ("ended",), NoTaskAssigner),
+    (AgentRole.WORKER, ("void", "working_task"), NoTaskAssigner),
+    (AgentRole.WORKER, ("working_task",), NoTaskAssigner),
+    (AgentRole.REVIEWER, ("reviewing",), NoTaskAssigner),
+    (AgentRole.VERIFIER, ("verifying",), NoTaskAssigner),
+    (AgentRole.SUBAGENT, ("researching",), NoTaskAssigner),
+]
+
+
+@pytest.mark.parametrize("role, stack, expected", RESOLUTION_CASES, ids=["/".join((role.value, *stack)) for role, stack, _ in RESOLUTION_CASES])
+def test_the_state_closest_to_the_top_that_names_an_assigner_decides(app: App, role: AgentRole, stack: tuple, expected: type):
+    agent = Agent(environment_id=MAIN, session="s9", provider="claude", role=role, stack=tuple({"state": name, "data": {}} for name in stack))
+    assert type(app.container.get(AssignerResolution).resolved(agent)) is expected
+
+
+def test_every_floor_names_an_assigner(app: App):
+    catalogue = app.container.get(StatesCatalogue)
+    floors = [catalogue.first(), *(state() for state in catalogue.role_floors.values()), *(state() for modes in catalogue.modes for state in modes.states.values())]
+    assert [type(state).__name__ for state in floors if state.assigner is None] == []

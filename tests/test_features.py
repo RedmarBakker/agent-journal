@@ -20177,7 +20177,7 @@ def test_a_summary_reader_turns_a_runs_output_into_its_summary_and_the_judge_nam
 
 def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
     from datetime import datetime, timezone
-    from journal.features.tasks.support.task_assigner import TaskAssigner
+    from journal.features.tasks.support.task_offers import TaskOffers
     from journal.models.task_state import TaskState
     from journal.repositories.tasks import Tasks
     console, tasks = app.console(), app.container.get(Tasks)
@@ -20192,7 +20192,7 @@ def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_
     states = {1: TaskState.COMPLETED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED, 6: TaskState.PAUSED, 7: TaskState.BLOCKED}
     for number, state in states.items():
         tasks.save(replace(tasks.find(number), state=state, completed_at=datetime.now(timezone.utc) if state == TaskState.COMPLETED else None), Actor.user(1))
-    following = app.container.get(TaskAssigner)
+    following = app.container.get(TaskOffers)
     offered = []
     for _ in range(8):
         offer = following.following(tasks.find(1))
@@ -20969,7 +20969,7 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
 
 
 def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app: App):
-    from journal.features.tasks.support.task_assigner import TaskAssigner
+    from journal.features.tasks.support.task_offers import TaskOffers
     from journal.features.tasks.support.task_deliveries import TaskDeliveries
     from journal.models.task_state import TaskState
     from journal.repositories.plans import Plans
@@ -20986,7 +20986,7 @@ def test_each_work_mode_delivers_the_tasks_of_the_running_plans_its_own_way(app:
     with app.container.get(Scope).environment(MAIN):
         for plan in (1, 2):
             plans.opened(plans.find(plan), Actor.user(1))
-        deliveries, following = app.container.get(TaskDeliveries), app.container.get(TaskAssigner)
+        deliveries, following = app.container.get(TaskDeliveries), app.container.get(TaskOffers)
         closed = tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
         titles = lambda: [task.title for task in deliveries.current().offers()]
         user_set(app, "workers.mode", "builder")

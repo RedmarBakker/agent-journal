@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
@@ -20,6 +21,7 @@ class Orchestrating(PlansReady):
     """The orchestrator's mode state: it plans, gives the work to workers and reviews what comes back. A stop or a long idle time with open tasks is answered with the plans to check and the workers to dispatch, a worker's report with the same, and the task and plan states it pushes say delegate where the builder's say continue."""
 
     name = "orchestrating"
+    assigner = NoTaskAssigner
     title = "Orchestrating"
 
     def mode_lines(self) -> tuple[Nudge, ...]:

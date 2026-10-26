@@ -2,6 +2,7 @@ import gc
 import sys
 import traceback
 import time as timing
+from journal.engine.support.assigner_index import AssignerIndex
 from journal.engine.boot_notices import BootNotices
 from journal.engine.clock import Clock
 from journal.features.updates.updates_options import UpdatesOptions
@@ -91,7 +92,10 @@ class Runtime:
         self.bus.listen(Purged, self.container.get(RecordPurge))
         self.bus.listen(EnvironmentUnshared, self.container.get(RecordWithdrawal))
         self.bus.listen(Deleted, self.container.get(UnlinkDeleted))
+        assigners = self.container.get(AssignerIndex)
         for feature in self.registry.features:
+            for assigner in feature.assigners:
+                assigners.register(self.container.get(assigner))
             for listener in feature.listeners:
                 self.bus.listen(listener.kind(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:

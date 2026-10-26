@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.engine.engine_nudges import EngineNudges
 from journal.engine.support.settings import Settings
@@ -13,6 +14,7 @@ class Void(BaseState):
     """A helper's floor, never popped: no feature's conduct reaches it and every tool but a journal command is refused, until the journal puts the helper to work by pushing its working state over it."""
 
     name = "void"
+    assigner = NoTaskAssigner
     title = "Not at work"
     conduct_free = True
 

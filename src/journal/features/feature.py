@@ -22,7 +22,7 @@ from journal.engine.demand import Demand
 
 
 class Feature[D](DataSource[D]):
-    """One switchable subject. It brings its states, its work modes if it has them, its conduct and the conduct and listeners it gives each helper role whose file turns it on whole, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
+    """One switchable subject. It brings its states, its work modes if it has them, its conduct and the conduct and listeners it gives each helper role whose file turns it on whole, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, the task assigners its states name, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -42,6 +42,7 @@ class Feature[D](DataSource[D]):
     jobs: ClassVar[tuple[type[Job], ...]] = ()
     process_cards: ClassVar[tuple[type[ProcessCard], ...]] = ()
     host_writers: ClassVar[tuple[type[HostWriter], ...]] = ()
+    assigners: ClassVar[tuple[type, ...]] = ()
     skill: ClassVar[Skill | None] = None
     card_families: ClassVar[tuple[CardFamily, ...]] = ()
     card_kinds: ClassVar[tuple[MarkKind, ...]] = ()

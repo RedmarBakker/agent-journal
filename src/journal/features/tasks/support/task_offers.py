@@ -9,8 +9,8 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 
 
-class TaskAssigner:
-    """Which task an agent is handed next, the one place that decides it for every agent, in every work mode and at every moment, and the only one that reads auto mode for it: with auto mode off it hands nothing outside a started plan, no open, paused or blocked task, and a started plan goes task after task until its next checkpoint; with it on a plan is followed to its end. With it on, after a close it hands the task the plan it moves took in hand at the close or that plan's next open task, else, in the order the work mode delivers them, a started plan's next paused, blocked or open task, else the first paused, blocked or free open task outside it, never one a worker holds, and nothing when the plan keeps an older task in hand or the closer has another task in hand; at a stop or a quiet spell the work mode's first offer."""
+class TaskOffers:
+    """The offers of tasks the old next-task facts still read until the task assigners replace them: with auto mode off it hands nothing outside a started plan, no open, paused or blocked task, and a started plan goes task after task until its next checkpoint; with it on a plan is followed to its end. With it on, after a close it hands the task the plan it moves took in hand at the close or that plan's next open task, else, in the order the work mode delivers them, a started plan's next paused, blocked or open task, else the first paused, blocked or free open task outside it, never one a worker holds, and nothing when the plan keeps an older task in hand or the closer has another task in hand; at a stop or a quiet spell the work mode's first offer."""
 
     def __init__(self, tasks: Tasks, plans: Plans, deliveries: TaskDeliveries, settings: SettingRows) -> None:
         self.tasks, self.plans, self.deliveries, self.settings = tasks, plans, deliveries, settings

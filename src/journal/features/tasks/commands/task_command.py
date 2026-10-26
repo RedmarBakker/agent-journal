@@ -29,7 +29,7 @@ from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
-from journal.features.tasks.support.task_assigner import TaskAssigner
+from journal.features.tasks.support.task_offers import TaskOffers
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.sync.team_account import TeamAccount
@@ -43,8 +43,8 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, assigner: TaskAssigner, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource) -> None:
-        self.clock, self.assigner, self.reminder, self.time_source = clock, assigner, reminder, time_source
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, offers: TaskOffers, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource) -> None:
+        self.clock, self.offers, self.reminder, self.time_source = clock, offers, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
         self.destination = destination
@@ -292,7 +292,7 @@ state: {task.state}
         return "\n".join(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]") for task in tasks)
 
     def _name_next(self, closed: Task) -> None:
-        next_open = self.assigner.next_task(closed)
+        next_open = self.offers.next_task(closed)
         if next_open:
             print(next_open.line())
 

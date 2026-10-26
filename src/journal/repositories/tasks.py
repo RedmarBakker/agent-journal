@@ -144,6 +144,9 @@ class Tasks(ScopedRepository[Task]):
     def free_tasks(self, state: TaskState, plan_states: tuple[str, ...]) -> list[Task]:
         return self.selected(self.free_query(state, plan_states))
 
+    def next_open_task(self) -> Task | None:
+        return next(iter(self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(1))), None)
+
     def open_page_ids(self, rows: int) -> list[int]:
         return self.selected_ids(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
 

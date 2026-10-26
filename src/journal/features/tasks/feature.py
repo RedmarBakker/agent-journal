@@ -1,3 +1,4 @@
+from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import AGENT, JOURNAL, WORK
@@ -42,6 +43,7 @@ class Tasks(Feature[TasksData]):
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait)
+    assigners = (DefaultTaskAssigner,)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)

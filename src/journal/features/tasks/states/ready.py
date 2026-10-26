@@ -1,6 +1,7 @@
 from dataclasses import dataclass, replace
 from typing import Self
 
+from journal.features.tasks.support.default_task_assigner import DefaultTaskAssigner
 from journal.engine.base_state import BaseState
 from journal.support.timeout import Timeout
 from journal.support.permission import Permission
@@ -30,6 +31,7 @@ class Ready(BaseState):
     """Nothing in hand: the bottom of the stack, never popped. A stop here is blocked by what is still open: a paused task, a blocked task whose check cannot run, and in auto mode any open task. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
 
     name = "idle"
+    assigner = DefaultTaskAssigner
     title = "Idle"
     allows = frozenset({Permission.RUN_COMMANDS})
     silenced_at: float = 0.0
@@ -65,27 +67,18 @@ class Ready(BaseState):
         return self.swap(active if event.call.is_journal else replace(active, stop_round=0))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        tasks = event.data.part(TasksPart)
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])
-        if stop_nudges and task_summary(tasks):
-            return self.refuse(TasksNudges.TASK_QUEUE.create(tasks=task_summary(tasks)))
         return self.none()
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         tasks = data.part(TasksPart)
-        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
         wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
-        reviewable = [n for n in tasks.blocked if n not in tasks.person_waits]
-        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, reviewable))),) if reviewable else ()
-        return (*pause_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
+        return (*wait_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        tasks = data.part(TasksPart)
-        if not tasks.next_open:
-            return ()
-        return (TasksNudges.NEXT_TASK.create(n=tasks.next_open.id, title=tasks.next_open.title),)
+        return ()
 
     def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
         return (TasksNudges.IDLE_CHECK.create(),) if tasks.next_open or tasks.paused else ()
