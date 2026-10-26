@@ -6,7 +6,7 @@ from journal.features.skills.support.skill_card import SkillCard
 
 @dataclass(frozen=True)
 class SkillsData:
-    """The skills feature's reading: the skills the agent has to read, the hash of each it has read in this window, and every skill the journal ships."""
+    """The skills feature's reading: the skills the agent has to read, the hash of each it has read in this window, and every skill the journal and its plugins publish."""
 
     skills_due: tuple[str, ...]
     loaded: dict

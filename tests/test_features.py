@@ -1558,6 +1558,47 @@ def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
     assert "Name things plainly." in (app.config.root / ".claude/skills/checker-naming/SKILL.md").read_text(), "and the skills it ships are written again"
 
 
+def test_a_plugin_requires_a_skill_it_publishes_and_a_read_of_the_file_pays_it(skilled):
+    from journal.events.agent.prompt_submitted import PromptSubmitted
+    from journal.features.plugins.support.plugin_answers import PluginAnswers
+    from journal.features.plugins.support.plugin_fault import PluginFault
+    from journal.features.plugins.support.plugin_relay import PluginRelay
+    from journal.features.plugins.support.plugin_skills import PluginSkills
+    from journal.features.plugins.support.protocol import Protocol
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import Entries
+    from journal.support.listener_queue import ListenerQueue
+    app = skilled
+    plugin = echo(app, hears=["tasks.created"], holds=[])
+    app.container.get(PluginSkills).publish(plugin)
+    hook(app, "SessionStart")
+    read_skill(app, "journal")
+    app.console().run(["environment", "overview"], AGENT)
+    protocol, agents, entries = app.container.get(Protocol), app.container.get(Agents), app.container.get(Entries)
+    with pytest.raises(PluginFault, match="not a list of skill ids"):
+        protocol.parsed_answer(json.dumps({"require_skills": "echo-guide"}))
+    answer = protocol.parsed_answer(json.dumps({"require_skills": ["echo-guide", "echo-guide", "echo-missing"]}))
+    app.container.get(PluginRelay).applied(plugin, PromptSubmitted(prompt="x").placed("s1", MAIN, "claude", 0.0, 0.0), answer, "main", MAIN)
+    app.container.get(ListenerQueue).drain()
+    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a skill the plugin publishes is owed once, however often the line names it"
+    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    assert status == 409 and "read the echo-guide skill before anything else: .claude/skills/echo-guide/SKILL.md" in body["error"], "the skills conduct holds the write as for the journal's own skills"
+    answers = app.container.get(PluginAnswers)
+    answers.apply(plugin, answer, "main", MAIN, "s1")
+    assert agents.session_agent("s1").skills_due == ("echo-guide",), "a repeat of the line changes nothing"
+    warned = [e.data["warning"] for e in entries.matching(kind="plugin_warning")]
+    assert warned == ["it requires skills it does not publish, ignored: echo-missing"], "an id the plugin does not publish is a warning, written once"
+    read_skill(app, "echo-guide")
+    assert agents.session_agent("s1").skills_due == () and "echo-guide" in agents.session_agent("s1").skills_loaded, "a read of the published file pays the debt"
+    answers.apply(plugin, answer, "main", MAIN, "s1")
+    assert agents.session_agent("s1").skills_due == (), "a skill already read at its text is not owed again"
+    agents.save(agents.session_agent("s1").with_(skills_loaded={}), Actor.system())
+    answers.apply(plugin, answer, "main", MAIN, "s1")
+    assert agents.session_agent("s1").skills_due == ("echo-guide",), "after a compaction it is owed again"
+    app.console().run(["plugin", "remove", "echo"], USER)
+    assert agents.session_agent("s1").skills_due == (), "a skill no longer published is owed no longer once the plugin is removed"
+
+
 def test_a_shell_line_printing_skill_files_loads_each_of_them(skilled):
     app = skilled
     hook(app, "SessionStart")
@@ -5688,11 +5729,11 @@ def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     assert [(l.line, l.creator) for l in app.container.get(TaskLogs).matching(task_id=task.id)] == [("echoed", Actor.plugin("echo"))], "its command ran as the plugin and found the task its row event named"
     answers = app.container.get(PluginAnswers)
     for label in ("first", "second"):
-        answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", label, key="k"),)), "main", 1)
+        answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", label, key="k"),)), "main", 1, "")
     keyed = [m for m in messages.recent(20) if m.data.get("key") == "k"]
     assert [m.text for m in keyed] == ["second"] and keyed[0].created_at < keyed[0].updated_at, "a card of a key is settled in place by the later one"
     app.console().run(["message", "send", "what now?"], USER)
-    answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", "third", key="k"),)), "main", 1)
+    answers.apply(plugin, PluginAnswer(cards=(PluginCard("echoed", "third", key="k"),)), "main", 1, "")
     keyed = [m for m in messages.recent(30) if m.data.get("key") == "k"]
     asked = messages.last_user_message()
     assert [m.text for m in keyed] == ["third"] and keyed[0].row_id > asked.row_id, "a card of a key written again after the user's message is shown below it, the earlier one taken out"
@@ -13831,7 +13872,7 @@ def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_ch
     assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
     answers, plugin, console = app.container.get(PluginAnswers), app.container.get(Plugins).lookup("echo"), app.console()
     cards = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
-    raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(kind="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN)
+    raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(kind="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN, "")
     with app.container.get(Scope).environment(MAIN):
         raised("1 sin in a.py")
         app.runtime().deferred.drain()

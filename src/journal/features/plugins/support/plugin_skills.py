@@ -4,6 +4,7 @@ from pathlib import Path
 from journal.config import Config
 from journal.features.plugins.support.manifest_reader import ManifestReader
 from journal.features.plugins.support.plugin_folders import PluginFolders
+from journal.features.skills.support.requirements import Requirements
 from journal.features.skills.support.skill_files import HOMES
 from journal.models.plugin import Plugin
 from journal.models.support.plugin_manifest import PluginManifest
@@ -13,15 +14,26 @@ STAMP = "plugin: "
 
 
 class PluginSkills:
-    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and stored out of git by a .gitignore of its own; published afresh at every start, so none is stale or missing; taken away when the plugin is switched off or removed."""
+    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and stored out of git by a .gitignore of its own; published afresh at every start, so none is stale or missing; taken away when the plugin is switched off or removed, and an agent's debt to a skill no longer published cleared."""
 
-    def __init__(self, config: Config, folders: PluginFolders, plugins: Plugins) -> None:
-        self.config, self.folders, self.plugins = config, folders, plugins
+    def __init__(self, config: Config, folders: PluginFolders, plugins: Plugins, requirements: Requirements) -> None:
+        self.config, self.folders, self.plugins, self.requirements = config, folders, plugins, requirements
 
     def refresh_all(self) -> None:
         for plugin in self.plugins.enabled():
             self.withdraw(plugin)
             self.publish(plugin)
+        self.requirements.discharge_missing()
+
+    def renew(self, plugin: Plugin) -> None:
+        self.withdraw(plugin)
+        if plugin.enabled:
+            self.publish(plugin)
+        self.requirements.discharge_missing()
+
+    def retract(self, plugin: Plugin) -> None:
+        self.withdraw(plugin)
+        self.requirements.discharge_missing()
 
     def publish(self, plugin: Plugin) -> None:
         folder = self.folders.folder(plugin)

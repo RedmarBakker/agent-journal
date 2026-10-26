@@ -30,7 +30,6 @@ UNANSWERED = "plugin_unanswered"
 WAITING = "plugin_line_waiting"
 PLUGIN_LINE_KIND = "plugin_said"
 CUT = "plugin_cut"
-WARNING = "plugin_warning"
 MERGE_CARDS = "plugin_merge_cards"
 
 
@@ -41,7 +40,6 @@ class PluginRelay:
         self.plugins, self.runner, self.protocol, self.faults, self.answers, self.steps = plugins, runner, protocol, faults, answers, steps
         self.environments, self.agents, self.entries, self.deferred, self.linked = environments, agents, entries, deferred, linked
         self.text, self.scope = text, scope
-        self.warnings: set[tuple[str, str]] = set()
 
     def listeners(self, event: Event, environment_id: int) -> list[Plugin]:
         name, actor = Protocol.published_name(event), getattr(event, "actor", None)
@@ -71,18 +69,15 @@ class PluginRelay:
         return answer
 
     def warned(self, plugin: Plugin, answer: PluginAnswer, environment_id: int) -> None:
-        keys = ", ".join(answer.ignored)
-        if not keys or (plugin.name, keys) in self.warnings:
-            return
-        self.warnings.add((plugin.name, keys))
-        self.logged(environment_id, WARNING, Actor.plugin(plugin.name), {"plugin": plugin.name, "warning": f"its answer has keys this journal does not know, ignored: {keys}"})
+        if answer.ignored:
+            self.answers.warn(plugin, environment_id, f"its answer has keys this journal does not know, ignored: {', '.join(answer.ignored)}")
 
     def applied(self, plugin: Plugin, event: Event, answer: PluginAnswer, environment: str, environment_id: int) -> None:
         if isinstance(event, WorkerMergeEvent) and answer.cards:
             self.logged(environment_id, MERGE_CARDS, Actor.plugin(plugin.name), {"plugin": plugin.name, "worker": event.worker, "task": event.task, "cards": [{"kind": card.kind, "label": card.label, "detail": card.detail} for card in answer.cards]})
             answer = replace(answer, cards=())
-        if answer.cards or answer.commands:
-            self.deferred.add(lambda: self.answers.apply(plugin, answer, environment, environment_id))
+        if answer.cards or answer.commands or answer.require_skills:
+            self.deferred.add(lambda: self.answers.apply(plugin, answer, environment, environment_id, self.agent_session(event, environment_id)))
 
     def postponed(self, plugin: Plugin, event: Event, environment_id: int) -> None:
         answer = self.ask(plugin, event, environment_id, LATER_SECONDS)
@@ -92,12 +87,15 @@ class PluginRelay:
             self.waiting(plugin, event, environment_id, answer.message)
 
     def waiting(self, plugin: Plugin, event: Event, environment_id: int, text: str) -> None:
-        session = event.session if isinstance(event, AgentEvent) else self.current_session(environment_id)
+        session = self.agent_session(event, environment_id)
         self.entries.save(Entry(environment_id=environment_id, kind=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": Protocol.published_name(event), "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
 
     def queued_line(self, plugin: Plugin, environment_id: int, key: str, text: str) -> None:
         session = self.current_session(environment_id)
         self.entries.save(Entry(environment_id=environment_id, kind=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": key, "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
+
+    def agent_session(self, event: Event, environment_id: int) -> str:
+        return event.session if isinstance(event, AgentEvent) else self.current_session(environment_id)
 
     def current_session(self, environment_id: int) -> str:
         with self.scope.environment(environment_id):
