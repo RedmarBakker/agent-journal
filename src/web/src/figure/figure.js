@@ -3234,7 +3234,7 @@ function chute(pose, stance, t) {
 // The binoculars before the visor as the figure scans the chat (BINOCULARS): their eyepieces `ahead` before the eyes and `below` under
 // them, tipped up with the head; both hands up under the barrels, as far as the arms reach; the figure turned `turn` degrees so the barrels
 // show their length
-export const BINOCULAR_HOLD = {ahead: 0.45, below: 0.06, hands: 0.22, turn: 35};
+export const BINOCULAR_HOLD = {ahead: 0.95, below: 0.06, hands: 0.22, turn: 35};
 
 // scans up and down the chat through binoculars from the compose box (acts.js binoculars): head and binoculars tipped up the chat and
 // swept slowly up and down it, the body turning a little left and right, both hands holding them up before the visor
