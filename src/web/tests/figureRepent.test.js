@@ -57,10 +57,10 @@ test("from a seat the figure is drawn standing for it at once, never waiting out
     expect(act.stand[1] - act.stand[0]).toBeGreaterThan(0);
 });
 
-test("the head and body turn to the sin's mark as they do to what it admires, strongly enough for the act", () => {
+test("the confession keeps its bowed head while remaining aware of the sin's mark", () => {
     expect(LOOKS.confession).toBeGreaterThan(LOOKS.picture);
-    expect(headBlend({kind: "confession"}, clip), "the look takes most of the head").toBeGreaterThan(0.5);
-    expect(clip.head).toBeLessThan(HEAD.holds);
+    expect(headBlend({kind: "confession"}, clip), "the external gaze leaves the remorseful bow readable").toBeLessThan(0.2);
+    expect(clip.head).toBe(HEAD.holds);
     const box = {left: 100, top: 50, width: 40, height: 20, right: 140, bottom: 70};
     expect(admiringLook(box)).toMatchObject({faces: true, behind: true, mood: "admiring"});
     const turned = (x) => {
@@ -79,8 +79,8 @@ test("the head and body turn to the sin's mark as they do to what it admires, st
     expect(Math.abs(body(3, 45))).toBeLessThanOrEqual(45);
 });
 
-test("the cross is far bigger than the little one was and is held up before it in both hands", () => {
-    expect(CRUCIFIX.long, "far larger than the 0.86 it was").toBeGreaterThanOrEqual(2);
+test("the token stays within the clasp and below the bowed face", () => {
+    expect(CRUCIFIX.long, "the token supports the body acting").toBeLessThan(0.9);
     const root = new THREE.Group();
     crucifixOf(root);
     root.updateMatrixWorld(true);
@@ -93,5 +93,38 @@ test("the cross is far bigger than the little one was and is held up before it i
         expect(pose.props.get("crucifix"), voice).toMatchObject({bone: "hand_r"});
         expect(at("hand_l").distanceTo(at("hand_r")), `${voice} both hands on the cross`).toBeLessThan(1);
         expect(at("hand_l").z, `${voice} the left hand above the right`).toBeGreaterThanOrEqual(at("hand_r").z - 0.01);
+        const grips = ["l", "r"].map((side) => pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`)));
+        expect(grips[0].distanceTo(grips[1]), `${voice} fingers meet in the clasp`).toBeLessThan(0.16);
+        expect(grips[1].z + CRUCIFIX.long * 0.7, `${voice} the cross stays below the face`).toBeLessThan(at("head").z + 0.3);
+    }
+});
+
+
+test("kneeling carries the torso down and bows the head instead of leaving the shoulders standing", () => {
+    for (const voice of VOICES) {
+        const standing = posed(0, voice);
+        const {pose, at} = posed(0.6, voice);
+        expect(at("chest").z, `${voice} chest descends with the hips`).toBeLessThan(standing.at("chest").z - 0.6);
+        expect(at("head").z, `${voice} head follows the weighted descent`).toBeLessThan(standing.at("head").z - 0.65);
+        expect(new THREE.Vector3(0, -1, 0).transformDirection(pose.matrix("head")).z, `${voice} looks down`).toBeLessThan(-0.55);
+        for (const side of ["l", "r"]) {
+            expect(at(`shin_${side}`).z, `${voice} knee clears the floor`).toBeGreaterThan(0.09);
+            expect(at(`shin_${side}`).z, `${voice} knee rests near the floor`).toBeLessThan(0.25);
+        }
+    }
+});
+
+test("the held confession breathes quietly and finishes with both feet and empty hands back at rest", () => {
+    for (const voice of VOICES) {
+        const first = posed(0, voice);
+        const last = posed((clip.frames - 1) / clip.frames, voice);
+        for (const bone of ["root", "chest", "head", "foot_l", "foot_r", "hand_l", "hand_r"]) {
+            expect(last.at(bone).distanceTo(first.at(bone)), `${voice} ${bone} returns without a snap`).toBeLessThan(1e-7);
+        }
+        expect(last.pose.props.has("crucifix"), `${voice} puts the token away`).toBe(false);
+        const beforeBreath = posed(0.54, voice).at("head");
+        const afterBreath = posed(0.65, voice).at("head");
+        expect(beforeBreath.distanceTo(afterBreath), `${voice} the hold is alive`).toBeGreaterThan(1e-5);
+        expect(beforeBreath.distanceTo(afterBreath), `${voice} breathing does not bob the body`).toBeLessThan(0.02);
     }
 });

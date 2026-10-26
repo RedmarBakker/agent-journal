@@ -40,18 +40,19 @@ export class FigurePlayer {
     // already there and nothing eases; `ticker` is text scrolling across the visor in place of the eyes (visorPixels.js tickerPixels); and the
     // figure `grabbed` by the pointer startled (figure.js startledHeld); and the side of the page a seated call's telephone stands on,
     // `phoneWay` (figure.js seatedCall)
-    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, leanWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1}) {
+    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1}) {
+        if (clip.name === "walk" && stride !== null) index = ((stride % 1 + 1) % 1) * clip.frames;
         const shape = `${clip.name}/${posture}/${facing}`;
         if (shape !== this.shape && this.moves) this.blend = {from: this.moves, began: performance.now(), plant: leavesSeat(this.posture, posture) || (Boolean(this.blend?.plant) && POSTURES[posture].drop === 0)};
         this.shape = shape;
         this.posture = posture;
         const k = this.blend ? Math.min((performance.now() - this.blend.began) / 1000 / CHANGE_SECONDS, 1) : 1;
         const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false, plant: this.blend.plant} : null;
-        const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}/${open}/${screen ? [screen.eyes, screen.across, screen.open, screen.flash, screen.glow].join(",") : ""}/${tilt}/${throws ? throws.map((thrown) => thrown.spin).join(",") : ""}/${leanWay}/${target ? `${target.x},${target.y}` : ""}/${ticker ? `${ticker.step}:${ticker.text}` : ""}`;
+        const key = JSON.stringify([clip.name, index, facing, posture, stride, this.canvas.width, this.canvas.height, eyes, sky, throws, leanWay, walkWay, at, target, open, screen, tilt, ticker, grabbed, phoneWay]);
         if (key === this.shown && !blend) return;
-        const live = eyes || stride !== null || sky || throws || leanWay || at || target || open < 1 || screen || tilt || ticker || grabbed || phoneWay !== 1 || blend || !Number.isInteger(index);
+        const live = eyes || stride !== null || sky || throws || leanWay || walkWay || at || target || open < 1 || screen || tilt || ticker || grabbed || phoneWay !== 1 || blend || !Number.isInteger(index);
         const {frame, moves} = live
-            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, throws, leanWay, at, target, open, screen, tilt, ticker, grabbed, phoneWay})
+            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, throws, leanWay, walkWay, at, target, open, screen, tilt, ticker, grabbed, phoneWay})
             : this.frameOf(clip, index, facing, posture);
         const context = this.canvas.getContext("2d");
         context.clearRect(0, 0, this.canvas.width, this.canvas.height);

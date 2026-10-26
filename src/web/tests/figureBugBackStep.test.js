@@ -82,7 +82,7 @@ test("backing away, the legs step backward and the figure still faces the bug, t
         const pose = new Posing(RIG, "stand", stride);
         pose.walkWay = walkWay;
         pose.target = {x: 0.5, y: -1.6};
-        clip.pose(pose, stanceOf(Object.keys(stances)[0]), ACTS.bug_shot.turn[0] + 0.1);
+        clip.pose(pose, stanceOf(Object.keys(stances)[0]), ACTS.bug_shot.turn[0] + 0.02);
         return pose.moves(0);
     };
     const thigh = (walked) => moves(walked[0], walked[1]).get("thigh_l").elements.join(",");

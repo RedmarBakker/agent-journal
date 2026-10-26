@@ -12,6 +12,7 @@ const {GROUNDED, clipFor} = await import("../src/domain/figureState.js");
 const {write} = await import("./figurePage.js");
 
 const FIGURE = {size: 112, below: 0.05};
+const CONTACT_HANDS = new Set(["phone_call", "yawn", "sleep", "whistle", "sip", "enter", "salute", "wipe_brow"]);
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
 const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
 const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), heads: vectors(rig.heads), along: vectors(rig.along), eyes: rig.eyes.map((at) => new THREE.Vector3(...at))};
@@ -153,7 +154,7 @@ test("on the composer the figure sits on the edge with its legs over it, never l
     expect(turnsToViewer("stand")).toBe(true);
 });
 
-test("lounging, both hands lie flat on the floor beside the hips or a little behind them, level and never below the floor line, for every voice and clip", () => {
+test("lounging, each support hand lies flat beside the hips while at most one hand performs its contact gesture", () => {
     const lounging = CLIPS.filter((clip) => clip.postures.includes("lounge"));
     expect(lounging.length).toBeGreaterThan(3);
     const posed = (clip, voice, t) => {
@@ -162,17 +163,18 @@ test("lounging, both hands lie flat on the floor beside the hips or a little beh
         clip.pose(pose, stanceOf(voice), t);
         LEGS.lounge.over(pose);
         const moves = pose.moves(0);
-        return {at: (name) => pose.head(name, moves.get(name)), tip: (name) => RIG.heads.get(name).clone().add(RIG.along.get(name)).applyMatrix4(moves.get(name))};
+        return {inUse: pose.inUse, at: (name) => pose.head(name, moves.get(name)), tip: (name) => RIG.heads.get(name).clone().add(RIG.along.get(name)).applyMatrix4(moves.get(name))};
     };
     const seated = posed(CLIPS.find((clip) => clip.name === "idle"), "butler", 0).at("hips").z;
     for (const voice of Object.keys(stances)) {
         for (const clip of lounging) {
             for (const t of [0, 0.5]) {
-                const {at, tip} = posed(clip, voice, t);
+                const {at, tip, inUse} = posed(clip, voice, t);
                 const hips = at("hips");
                 // the floor line, carried up with the whole body by a clip that lifts it, as a startle does
                 const floor = LOUNGE.floor + hips.z - seated;
-                for (const [side, sign] of [["l", 1], ["r", -1]]) {
+                expect(inUse.size, `${voice} ${clip.name} keeps a support hand`).toBeLessThanOrEqual(CONTACT_HANDS.has(clip.name) ? 1 : 0);
+                for (const [side, sign] of [["l", 1], ["r", -1]].filter(([side]) => !inUse.has(side))) {
                     const label = `${voice} ${clip.name} ${t} ${side}`;
                     const [wrist, fingers] = [at(`hand_${side}`), tip(`hand_${side}`)];
                     // the wrist and the fingers both at the floor line, the hand level on it, never through it
@@ -238,7 +240,7 @@ test("wherever it sits and leans on a hand, on an edge, lounging or sitting comp
                     }
                     expect(Math.abs(fingers.z - wrist.z), `${label} level`).toBeLessThan(0.05);
                 }
-                expect(pose.inUse.size, `${posture} ${voice} ${clip.name}: at most one hand in use, the other left flat`).toBeLessThanOrEqual(clip.name === "phone_call" ? 1 : 0);
+                expect(pose.inUse.size, `${posture} ${voice} ${clip.name}: at most one hand in use, the other left flat`).toBeLessThanOrEqual(CONTACT_HANDS.has(clip.name) ? 1 : 0);
                 // seated in any way, the tails hanging behind are sat on, never through the seat
                 for (const tail of BUTLER.satOn) expect(pose.stowed.has(tail), `${posture} ${clip.name} ${tail}`).toBe(true);
             }

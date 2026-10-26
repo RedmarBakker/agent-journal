@@ -56,18 +56,18 @@ const message = (id, author, text, data = {}, session = null) => ({table: "messa
 test("each thing the agent does in the journal is its own moment, read from the chat's messages as the server writes them, and nothing else is", () => {
     const agent = {session: "s", data: {}};
     const messages = [
-        message(1, "system", "Completed task 12: the stamp", {shows: "task_moves"}),
+        message(1, "system", "Finished task 12: the stamp", {icon: "todos", tone: "good"}),
         // a new task is no longer acted out (task 2647)
-        message(2, "system", "Started task 13: the parser", {shows: "task_moves"}),
+        message(2, "system", "Started task 13: the parser", {icon: "todos", tone: ""}),
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
         message(4, "system", "Which one?", {kind: "question", process: "question"}, "s"),
-        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", shows: "workers", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
-        message(6, "system", "Fact 15 recorded", {shows: "facts"}),
-        message(7, "system", "Reminder 16 recorded", {shows: "reminders"}),
-        message(8, "system", "Check Check for sins passed", {shows: "checks", outcome: "passed"}),
-        message(9, "system", "Resumed task 13: the parser", {shows: "task_moves"}),
-        message(10, "system", "Worker 57, Mr. Muybridge, motion photographer: released", {shows: "workers"}),
-        message(11, "system", "Completed task 99 in another session", {shows: "task_moves"}, "other"),
+        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
+        message(6, "system", "Fact 15 recorded", {icon: "check", tone: "good"}),
+        message(7, "system", "Reminder 16 recorded", {icon: "check", tone: "good"}),
+        message(8, "system", "Check Check for sins passed", {icon: "check", tone: "good"}),
+        message(9, "system", "Resumed task 13: the parser", {icon: "todos", tone: ""}),
+        message(10, "system", "Worker 57, Mr. Muybridge, motion photographer: released", {icon: "agents", tone: ""}),
+        message(11, "system", "Finished task 99 in another session", {icon: "todos", tone: "good"}, "other"),
         message(12, "agent", "Done: the figure stamps now.", {}, "s"),
         message(13, "agent", "Worker 57 reports: done", {kind: "report"}),
         message(14, "agent", "thinking it over", {kind: "thought"}, "s"),
@@ -75,9 +75,9 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(16, "user", "thanks", {}),
         // an agent given work: a worker's next job; a note sent it in its session, its start again and a message to another session give it
         // none
-        message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", shows: "workers", row: "workers:57", task: 2743}),
-        message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: sent a message in its session", {kind: "card", shows: "workers"}),
-        message(21, "system", "Worker 48, Mr. Sheraton, joiner of panels: started again in its last session", {kind: "card", shows: "workers"}),
+        message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2743}),
+        message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
+        message(21, "system", "Worker 48, Mr. Sheraton, joiner of panels: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         message(19, "system", "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
         // a message from another session is not one the agent sends
         message(20, "system", "Drafted: the reader is committed", {kind: "peer", asks: "x", peer: "code-commandments-e1"}),

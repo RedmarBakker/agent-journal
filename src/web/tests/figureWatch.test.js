@@ -37,7 +37,7 @@ test("watching a docked bar run, and anticipating its end, the figure stands on 
     // on top of the bars, left of the bar's end at 680 by the margin, so the bar runs on past it
     expect(spot).toMatchObject({y: 540, on: bars, posture: "stand"});
     expect(680 - spot.x, "stood back from the bar's end").toBeCloseTo(WATCH.back, 5);
-    expect(WATCH.back, "about the figure's own width").toBeCloseTo(FIGURE.size, -1);
+    expect(WATCH.back, "enough space to look down without reaching the neck limit").toBeGreaterThan(FIGURE.size * 1.25);
     // anticipating the end it goes to that same spot, from the compose box under the bars, and stays once there
     expect(eagerSpot({x: 420, y: 600, on: home}, FIGURE)).toEqual(spot);
     expect(eagerSpot(spot, FIGURE)).toBe(null);

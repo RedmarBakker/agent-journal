@@ -110,6 +110,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
+import {strideAtDistance} from "../figure/gait.js";
 import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, attachmentRead, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
@@ -385,10 +386,9 @@ const playedOut = () =>
 // that drops everything
 const mayCut = (shown, trip = null) => givesWay(shown, (performance.now() - playing.started) / 1000, trip);
 
-// how far through its step the walk under a clip on the move is, stepped as the walk's own frames are, `pace` times as quick
+// Feet follow the distance already travelled, including eased starts, stops and a changed walking pace.
 function strideNow(pace) {
-    const {frames, fps} = clipNamed("walk");
-    return (((performance.now() / 1000) * fps * pace) % frames) / frames;
+    return strideAtDistance(Math.abs(body.at.x - body.walk.from.x), figureSize().size);
 }
 
 // how the head leans while the figure rests idle, now to one side, now the other (figure/headTilt.js)
@@ -442,7 +442,7 @@ function step() {
     halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
     looking = look.looking;
     const pace = shown.pace ?? 1;
-    const stride = drawn === "walk" ? strideNow(pace) : null;
+    const stride = drawn === "walk" || shown.clip.name === "walk" ? strideNow(pace) : null;
     walking.value = stride !== null || shown.clip.name === "walk";
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     drawnClip.value = posed.turning ? clipNamed("idle") : shown.clip;

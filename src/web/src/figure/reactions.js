@@ -116,7 +116,9 @@ export const spellIn = (held, spell, now) => (spell && now < spell.until && WORK
 // foot-tapping intro takes (figure.js EAGERNESS, 18 frames at 12 a second), so it is never begun too late to show before the end. Only a
 // long run counts, one at least `after` seconds old by then, a minute, so a shorter run never does. A run that has gone on `long` seconds
 // is anticipated every time, and `urgent`ly: the figure drops whatever it waits to do for it, once the act it plays has played out.
-export const EAGER = {lead: 5, least: 1.5, after: 60, long: 120};
+export const EAGER = {lead: 10, grace: 5, least: 1.5, after: 60, long: 120};
+// The anticipation starts once the run's projected end, at the pace it has gone, is within `lead` seconds, and calms down again when the
+// projection moves back past `lead` plus `grace` seconds, taking it up once more if the end comes within `lead` again.
 
 // the seconds a run `elapsed` seconds old with `share` of it done has left, at the pace it has gone
 export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
@@ -133,14 +135,22 @@ export function eagerFor(progress, eager, random, now) {
         return {eager: {run: eager.run, on: false}, moment: ending ? {beat: ending} : null, cut: true};
     }
     if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
-    if (same) return {eager, moment: null};
     const elapsed = now - progress.began;
     const left = secondsLeft(elapsed, progress.share);
+    if (same) return {eager: heldEager(eager, left), moment: null};
     if (left > EAGER.lead) return {eager, moment: null};
     if (left < EAGER.least) return {eager: {run: progress.began, on: false}, moment: null};
     if (elapsed > EAGER.long) return {eager: {run: progress.began, on: true, urgent: true}, moment: null};
     if (elapsed < EAGER.after) return {eager: {run: progress.began, on: false}, moment: null};
     return {eager: {run: progress.began, on: draw({moment: "eager", slow: true}, random)?.name === "eager"}, moment: null};
+}
+
+// the eagerness of a run it is already rolled for, as the projected end `left` seconds away puts it: calmed when the end moved back past
+// EAGER.lead plus EAGER.grace, and on again once it is within EAGER.lead and no nearer than EAGER.least
+function heldEager(eager, left) {
+    if (eager.on && left > EAGER.lead + EAGER.grace) return {...eager, on: false, calm: true};
+    if (eager.calm && left <= EAGER.lead && left >= EAGER.least) return {...eager, on: true, calm: false};
+    return eager;
 }
 
 // A jump of more than this many of the figure's own heights is high, and now and then turns over backwards on the way (pile.js jump)

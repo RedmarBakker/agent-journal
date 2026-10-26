@@ -1,9 +1,10 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAt} from "./acts.js";
+import {ACTS, RUMMAGED, SMASH, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAt} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
+import {GAIT} from "./gait.js";
 import {POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {FRAMES_PER_SECOND, GRID, TICKER, litPixels} from "./visorPixels.js";
@@ -92,6 +93,18 @@ const radians = THREE.MathUtils.degToRad;
 
 // how much further than the difference of its two bones a limb reaches at the nearest, folded as far as it folds
 const FOLDED_REACH = 1.2;
+const DESCENDANTS = new WeakMap();
+
+// Cache the bones carried by each joint so later parent edits preserve articulated contact.
+function descendantsOf(rig) {
+    if (DESCENDANTS.has(rig)) return DESCENDANTS.get(rig);
+    const below = new Map(rig.order.map((name) => [name, []]));
+    for (const name of rig.order) {
+        for (let parent = rig.parents.get(name); parent; parent = rig.parents.get(parent)) below.get(parent)?.push(name);
+    }
+    DESCENDANTS.set(rig, below);
+    return below;
+}
 
 // Blender's Euler "XYZ" is Rz Ry Rx, which three.js names "ZYX"
 const euler = (x, y, z) => new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(radians(x), radians(y), radians(z), "ZYX"));
@@ -114,6 +127,7 @@ function hingeAxis(base, side) {
 export class Posing {
     constructor(rig, posture = "stand", stride = 0) {
         this.rig = rig;
+        this.descendants = descendantsOf(rig);
         this.final = new Map();
         this.eyes = 1;
         this.eyeShape = null;
@@ -146,6 +160,7 @@ export class Posing {
         this.screen = null;
         this.facing = 0;
         this.target = null;
+        this.headContact = 0;
     }
 
     standing(name) {
@@ -161,15 +176,25 @@ export class Posing {
         return this.rig.heads.get(name).clone().applyMatrix4(move);
     }
 
+    // A parent move carries descendants already posed, preserving their local articulation.
+    setMove(name, move) {
+        const children = (this.descendants.get(name) ?? []).filter((child) => this.final.has(child));
+        if (children.length) {
+            const change = move.clone().multiply(this.matrix(name).clone().invert());
+            for (const child of children) this.final.set(child, change.clone().multiply(this.final.get(child)));
+        }
+        this.final.set(name, move);
+    }
+
     turn(name, {x = 0, y = 0, z = 0}) {
         const current = this.matrix(name);
-        this.final.set(name, aboutPoint(this.head(name, current), euler(x, y, z)).multiply(current));
+        this.setMove(name, aboutPoint(this.head(name, current), euler(x, y, z)).multiply(current));
     }
 
     face(name, {x = 0, y = 0, z = 0}) {
         const at = this.head(name, this.standing(name));
         const rest = this.rig.heads.get(name).clone().negate();
-        this.final.set(
+        this.setMove(
             name,
             translation(at)
                 .multiply(euler(x, y, z))
@@ -178,7 +203,7 @@ export class Posing {
     }
 
     lift(name, {x = 0, y = 0, z = 0}) {
-        this.final.set(name, translation(new THREE.Vector3(x, y, z)).multiply(this.matrix(name)));
+        this.setMove(name, translation(new THREE.Vector3(x, y, z)).multiply(this.matrix(name)));
     }
 
     bend(name, degrees) {
@@ -186,7 +211,7 @@ export class Posing {
         const standing = this.standing(name);
         const axis = hingeAxis(base, side).transformDirection(standing).normalize();
         const turn = new THREE.Matrix4().makeRotationAxis(axis, radians(degrees));
-        this.final.set(name, aboutPoint(this.head(name, standing), turn).multiply(standing));
+        this.setMove(name, aboutPoint(this.head(name, standing), turn).multiply(standing));
     }
 
     aim(name, direction) {
@@ -195,7 +220,7 @@ export class Posing {
         const turn = new THREE.Matrix4().makeRotationFromQuaternion(
             new THREE.Quaternion().setFromUnitVectors(now, direction.clone().normalize())
         );
-        this.final.set(name, aboutPoint(this.head(name, standing), turn).multiply(standing));
+        this.setMove(name, aboutPoint(this.head(name, standing), turn).multiply(standing));
     }
 
     // rig.Posing.reach for an arm: the hand's head put at `target`, the elbow pointing the way `bend` says
@@ -452,6 +477,7 @@ function hold(pose, side, lift = HOLD_LIFT, forward = 0, tip = 0) {
 }
 
 function armsAtRest(pose, stance, apart = [], swing = {}, level = stance.level) {
+    pose.restArms = {stance, swing, level};
     for (const side of Object.keys(SIDES)) {
         if (apart.includes(side)) {
             continue;
@@ -481,7 +507,7 @@ function idle(pose, stance, t) {
 }
 
 function nod(pose, stance, t) {
-    const dip = Math.max(waveOf(t, 2), 0);
+    const dip = Math.max(waveOf(onceTime(t, 10), 2), 0) ** 2;
     trunk(pose, {lean: 4 * dip, nod: 26 * dip});
     armsAtRest(pose, stance);
 }
@@ -511,7 +537,9 @@ function hand_rub(pose, stance, t) {
 }
 
 function shake(pose, stance, t) {
-    trunk(pose, {turn: 28 * waveOf(t, 2), tilt: 4 * waveOf(t, 2)});
+    const u = onceTime(t, 12);
+    const ready = rise(u, 0, 0.12) * (1 - rise(u, 0.78, 1));
+    trunk(pose, {turn: 28 * waveOf(u, 2) * ready, tilt: 4 * waveOf(u, 2) * ready});
     armsAtRest(pose, stance);
 }
 
@@ -542,15 +570,17 @@ export const PONDERING = {
 
 // the wrist of the hand on `side` put so its grip is at `grip`, the hand pointing along `along`, `k` of the way up from hanging
 function handAlong(pose, side, k, grip, along, elbow) {
-    handTo(pose, side, k, grip.clone().addScaledVector(along, -HAND.grip), elbow);
-    pose.aim(`hand_${side}`, new THREE.Vector3(0, 0, -1).lerp(along, k).normalize());
+    restingPropArm(pose, side);
+    armToward(pose, side, k, grip.clone().addScaledVector(along, -HAND.grip), null, elbow.toArray());
+    aimWristToward(pose, side, k, along);
 }
 
 // the forearm on `side` folded across the body under the elbow of the arm on `other`, `k` of the way up from hanging
 function foldUnder(pose, side, other, k) {
     const elbow = pose.head(`forearm_${other}`, pose.matrix(`forearm_${other}`));
     const under = new THREE.Vector3(elbow.x * PONDERING.inboard, elbow.y, elbow.z - PONDERING.under);
-    handTo(pose, side, k, pose.withinReach(side, under, 0.97), new THREE.Vector3(...PONDERING.folded));
+    restingPropArm(pose, side);
+    armToward(pose, side, k, pose.withinReach(side, under, 0.97), null, PONDERING.folded);
 }
 
 // The figure thinking, `thinking` of the way into the pose, swayed `sway` of its sway, and `got` of the way into "got it", its hand
@@ -615,8 +645,17 @@ function celebrate(pose, stance, t) {
 
 function sleep(pose, stance, t) {
     const frame = t * (ACTING.yawnFrames + SLEEP_FRAMES);
-    if (frame < ACTING.yawnFrames) return yawn(pose, stance, frame / ACTING.yawnFrames);
+    if (frame < ACTING.yawnFrames) {
+        yawn(pose, stance, frame / ACTING.yawnFrames);
+        const settled = rise(frame, ACTING.yawnFrames - 5, ACTING.yawnFrames);
+        trunk(pose, {lean: 4 * settled, nod: 8 * settled, tilt: SIDES[freeSide(stance)] * SLEEP_TILT * settled});
+        for (const side of Object.keys(SIDES)) restingPropArm(pose, side);
+        yawnHand(pose, freeSide(stance), gestureTime(frame / ACTING.yawnFrames, ACTING.yawnFrames).ready);
+        pose.shutEyes(pose.eyes * (1 - settled));
+        return;
+    }
     const breath = waveOf((frame - ACTING.yawnFrames) / SLEEP_FRAMES);
+    breathe(pose, 0);
     trunk(pose, {lean: 4 + 1.5 * breath, nod: 8 + 2 * breath, tilt: SIDES[freeSide(stance)] * SLEEP_TILT});
     armsAtRest(pose, stance);
     pose.shutEyes(0.0);
@@ -636,20 +675,20 @@ function walk(pose, stance, t) {
 // clip drawn on the move walks on these, so the figure goes on thinking or working as it goes; the hips' sway is the walk's own, as a
 // clip that reaches for the chin or the lap places its hands against an upper body that does not swing
 function strideUnder(pose) {
-    pose.lift("root", {z: 0.05 * Math.cos(4 * Math.PI * pose.stride)});
+    const height = -0.11 + 0.012 * Math.cos(4 * Math.PI * pose.stride);
+    pose.lift("root", {z: height - (pose.strideHeight ?? 0)});
+    pose.strideHeight = height;
 }
 
 function strideLegs(pose, k = 1) {
-    for (const [side, offset] of [
-        ["l", 0.0],
-        ["r", Math.PI],
-    ]) {
-        const angle = 2 * Math.PI * pose.stride + offset;
-        const thigh = -30 * k * Math.sin(angle);
-        const knee = 42 * k * Math.max(Math.cos(angle), 0);
-        pose.turn(`thigh_${side}`, {x: thigh});
-        pose.turn(`shin_${side}`, {x: knee});
-        pose.turn(`foot_${side}`, {x: -0.8 * (thigh + knee) + 6 * k});
+    for (const [side, offset] of [["l", 0], ["r", 0.5]]) {
+        const [forward, lift] = strideFoot(pose.stride + offset, WALK_STRIDE[0], WALK_STRIDE[1], WALK_STRIDE[2]);
+        const foot = pose.rig.heads.get(`foot_${side}`);
+        const turn = radians(pose.strideTurn ?? 0);
+        const around = new THREE.Vector3(0, 0, 1);
+        const target = pose.carried(foot).add(new THREE.Vector3(0, forward * k, lift * k - (pose.strideHeight ?? 0)).applyAxisAngle(around, turn));
+        pose.step(side, target, new THREE.Vector3(0, -1, 0).applyAxisAngle(around, turn));
+        pose.face(`foot_${side}`, {x: -8 * lift / WALK_STRIDE[2] * k, z: pose.strideTurn ?? 0});
     }
 }
 
@@ -658,7 +697,7 @@ const ENTRY_DISTANCE = 4.4;
 const ENTRY_TRAVEL_END = 0.72;
 const ENTRY_TURN_END = 0.94;
 const RUN_STRIDE = [1.84, 0.38, 0.2];
-const WALK_STRIDE = [1.36, 0.6, 0.16];
+const WALK_STRIDE = [GAIT.length, GAIT.planted, GAIT.clearance];
 const DEPART_TURN = 0.14;
 const SEAT_LIFT = 0.2;
 // sitting on an edge, how far each thigh is raised from hanging, so it slopes down a little over the edge from the hips, and how far each
@@ -712,13 +751,18 @@ function seat(pose) {
 // figure's units, where the hips' seat meets it
 export const LOUNGE = {lean: -24, feet: 18, hands: [0.62, 0.5], floor: 1.4};
 
+function loungedSeat(pose) {
+    seat(pose);
+    trunk(pose, {lean: LOUNGE.lean, nod: -LOUNGE.lean * 0.6});
+}
+
 function loungedLegs(pose) {
     for (const side of Object.keys(SIDES)) {
         pose.turn(`thigh_${side}`, {x: -88});
         pose.turn(`foot_${side}`, {x: LOUNGE.feet});
     }
-    trunk(pose, {lean: LOUNGE.lean, nod: -LOUNGE.lean * 0.6});
     for (const [side, sign] of Object.entries(SIDES)) {
+        if (pose.inUse.has(side)) continue;
         const flat = new THREE.Vector3(sign * LOUNGE.hands[0], LOUNGE.hands[1], LOUNGE.floor);
         handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(0.6, 1, 0));
         pose.face(`hand_${side}`, {x: -80});
@@ -736,14 +780,18 @@ function loungedLegs(pose) {
 // taking a call, is left as the act has it.
 export const COMPOSED = {feet: [0.32, -0.8, LOUNGE.floor + 0.33], hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor, free: 0.4, lean: {tilt: 12, out: 1.0, knee: [0, -0.2, 0.12]}};
 
+function composedSeat(pose) {
+    seat(pose);
+    trunk(pose, {nod: COMPOSED.nod});
+    if (pose.leanWay) pose.bendAbove("spine", {y: pose.leanWay * COMPOSED.lean.tilt});
+}
+
 function composedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
         const [x, y, z] = COMPOSED.feet;
         pose.step(side, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(0, -1, 1));
     }
-    trunk(pose, {nod: COMPOSED.nod});
     const leans = pose.leanWay;
-    if (leans) pose.bendAbove("spine", {y: leans * COMPOSED.lean.tilt});
     const turned = Math.sign(signedTurn(pose.facing));
     for (const [side, sign] of Object.entries(SIDES)) {
         if (pose.inUse.has(side)) continue;
@@ -1057,7 +1105,7 @@ function armTo(pose, side, k, {y = HANG, x = 0, z = 0, bend = 10}) {
 // the hand carried from hanging (k 0) up through the front to `target` (k 1), the elbow pointing the way `elbow` says; it stays there while the body moves
 function handTo(pose, side, k, target, elbow) {
     const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
-    const toTarget = target.clone().sub(shoulder);
+    const toTarget = pose.withinReach(side, target, 0.999999).clone().sub(shoulder);
     const hanging = new THREE.Vector3(SIDES[side] * Math.cos(radians(HANG)), 0, -Math.sin(radians(HANG)));
     const way = hanging.lerp(toTarget.clone().normalize(), k).normalize();
     pose.reach(side, shoulder.clone().add(way.multiplyScalar(mix(HANG_REACH, toTarget.length(), k))), HANGING_ELBOW.clone().lerp(elbow, k));
@@ -1327,10 +1375,20 @@ function lean(pose, stance, t) {
     const other = side === "l" ? "r" : "l";
     pose.turn(`thigh_${side}`, {y: SIDES[side] * inner});
     pose.turn(`thigh_${other}`, {y: SIDES[other] * outer, x: -over});
+    const feet = new Map(Object.keys(SIDES).map((leg) => {
+        const foot = pose.head(`foot_${leg}`, pose.matrix(`foot_${leg}`));
+        foot.z = pose.rig.heads.get(`foot_${leg}`).z;
+        return [leg, foot];
+    }));
     const tilted = way * tilt * (1 + 0.06 * waveOf(t));
+    pose.lift("root", {z: -0.12});
     pose.turn("root", {y: tilted});
     breathe(pose, t);
     trunk(pose, {tilt: -tilted * 0.4});
+    for (const [leg, foot] of feet) {
+        pose.step(leg, foot, new THREE.Vector3(0, -1, 0));
+        pose.face(`foot_${leg}`, {});
+    }
     armsAtRest(pose, stance, [side, ...(stance.free.has(other) ? [other] : [])]);
     handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(way * wall * FRAMED_HEIGHT, 0, contact)), 0.99), new THREE.Vector3(way, 0.2, -1));
     pose.face(`hand_${side}`, {z: -SIDES[side] * 90});
@@ -1342,14 +1400,16 @@ function lean(pose, stance, t) {
 // holds the magnifying glass up against a bubble beside it in the hand on that side, the lens between its eyes and the bubble's text,
 // scanning along the text through it as its look moves along it, its head following (GLASS_BUBBLE)
 function glass_bubble(pose, stance, t) {
-    const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
+    const restEyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length);
+    const before = restEyes.clone().applyMatrix4(pose.matrix("head"));
     const [across, depth, up] = GLASS_BUBBLE.ahead;
-    const text = lookedPoint(pose, GLASS_BUBBLE.depth) ?? eyes.clone().add(new THREE.Vector3(SIDES[freeSide(stance)] * across, depth, up));
-    // the hand on the bubble's side holds the glass, where it carries nothing
-    const side = reachSide(stance, Math.sign(text.x - eyes.x));
+    const text = lookedPoint(pose, GLASS_BUBBLE.depth) ?? before.clone().add(new THREE.Vector3(SIDES[freeSide(stance)] * across, depth, up));
+    const way = Math.sign(text.x - before.x);
+    const side = way ? (way > 0 ? "l" : "r") : freeSide(stance);
     breathe(pose, t);
-    armsAtRest(pose, stance, [side]);
     trunk(pose, {tilt: -SIDES[side] * GLASS_BUBBLE.lean});
+    armsAtRest(pose, stance, [side]);
+    const eyes = restEyes.applyMatrix4(pose.matrix("head"));
     const sight = text.clone().sub(eyes);
     const slant = THREE.MathUtils.radToDeg(Math.atan2(sight.x, -sight.y));
     const tip = THREE.MathUtils.radToDeg(Math.atan2(-sight.z, Math.hypot(sight.x, sight.y)));
@@ -1446,8 +1506,98 @@ function handGrip(pose, side, offset = [0, 0, 0]) {
 
 function propHand(pose, side, ready, target, turn = {}) {
     if (!ready) return;
-    handTo(pose, side, ready, pose.carried(new THREE.Vector3(SIDES[side] * target[0], target[1], target[2])), new THREE.Vector3(...ACTING.elbow));
-    pose.face(`hand_${side}`, {z: -SIDES[side] * 90 * ready, ...turn});
+    restingPropArm(pose, side);
+    armToward(pose, side, ready, pose.carried(new THREE.Vector3(SIDES[side] * target[0], target[1], target[2])), {z: -SIDES[side] * 90, ...turn});
+}
+
+// Rebuild the same resting arm whether the caller has already posed it or reserved it for the gesture.
+function restingPropArm(pose, side) {
+    for (const role of ["upper_arm", "forearm", "hand"]) pose.final.delete(`${role}_${side}`);
+    const {stance, swing, level} = pose.restArms;
+    if (level.has(side)) return hold(pose, side);
+    hang(pose, side, swing[side] ?? 0);
+    if (stance.shield?.has(side)) pose.turn(`hand_${side}`, {y: -SIDES[side] * SHIELD_ROLL, z: SIDES[side] * SHIELD_TURN});
+}
+
+// Interpolate joint rotations from the actual rest, keeping the limb lengths and its supported prop continuous.
+function armToward(pose, side, ready, target, turn, elbow = ACTING.elbow) {
+    const names = ["upper_arm", "forearm", "hand"].map((role) => `${role}_${side}`);
+    const resting = new Map(names.map((name) => [name, pose.matrix(name).clone()]));
+    pose.reach(side, pose.withinReach(side, target, 0.999999), new THREE.Vector3(...elbow));
+    const intended = new Map(names.map((name) => [name, pose.matrix(name).clone()]));
+    for (const name of names.slice(0, 2)) {
+        const at = pose.head(name, pose.standing(name));
+        const from = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(resting.get(name)));
+        const to = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(intended.get(name)));
+        const transform = translation(at).multiply(new THREE.Matrix4().makeRotationFromQuaternion(from.slerp(to, ready))).multiply(translation(pose.rig.heads.get(name).clone().negate()));
+        pose.setMove(name, transform);
+    }
+    const wrist = turn ?? new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(intended.get(names[2])));
+    wristToward(pose, side, ready, wrist, resting.get(names[2]));
+}
+
+// A wrist turns about its own joint, preserving its scale and easing from the arm's current orientation.
+function wristToward(pose, side, ready, turn, from = pose.matrix(`hand_${side}`)) {
+    const hand = `hand_${side}`;
+    const at = pose.head(hand, pose.standing(hand));
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    from.decompose(position, rotation, scale);
+    const {x = 0, y = 0, z = 0} = turn;
+    const wanted = turn.isQuaternion ? turn : new THREE.Quaternion().setFromRotationMatrix(euler(x, y, z));
+    const transform = new THREE.Matrix4().compose(at, rotation.slerp(wanted, ready), scale).multiply(translation(pose.rig.heads.get(hand).clone().negate()));
+    pose.setMove(hand, transform);
+}
+
+// Fingers turn toward their contact direction while the wrist finishes its approach.
+function aimWristToward(pose, side, ready, direction) {
+    const hand = `hand_${side}`;
+    const from = pose.matrix(hand).clone();
+    pose.aim(hand, direction);
+    const aimed = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(pose.matrix(hand)));
+    wristToward(pose, side, ready, aimed, from);
+}
+
+// A hand's contact point follows the posed head, with the rest of the hand and its prop kept outside the face.
+function faceContactHand(pose, side, ready, contact, turn, offset, shoulder = 0) {
+    if (!ready) return;
+    const sign = SIDES[side];
+    const head = pose.matrix("head");
+    const rotation = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(head))
+        .multiply(new THREE.Quaternion().setFromRotationMatrix(euler(turn.x ?? 0, turn.y ?? 0, turn.z ?? 0)));
+    const target = new THREE.Vector3(sign * contact[0], contact[1], contact[2]).applyMatrix4(head)
+        .sub(offset.clone().applyQuaternion(rotation));
+    if (shoulder) pose.lift(`shoulder_${side}`, {z: shoulder * ready});
+    restingFaceArm(pose, side);
+    armToward(pose, side, ready, target, rotation, [1, -0.35, -0.6]);
+    pose.inUse.add(side);
+    pose.headContact = Math.max(pose.headContact, ready);
+}
+
+// A seated contact gesture leaves the same support hand that the posture restores when the gesture ends.
+function restingFaceArm(pose, side) {
+    restingPropArm(pose, side);
+    if (pose.posture === "lounge") {
+        const flat = new THREE.Vector3(SIDES[side] * LOUNGE.hands[0], LOUNGE.hands[1], LOUNGE.floor);
+        handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(0.6, 1, 0));
+        pose.face(`hand_${side}`, {x: -80});
+    } else if (pose.posture === "composed") {
+        const sign = SIDES[side];
+        const turned = Math.sign(signedTurn(pose.facing));
+        const [x, y, z] = COMPOSED.feet;
+        pose.step(side, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(0, -1, 1));
+        if (pose.leanWay && sign !== pose.leanWay) restOnKnee(pose, side);
+        else if (pose.leanWay) handFlat(pose, side, COMPOSED.lean.out);
+        else if (!turned || sign === turned) handFlat(pose, side, COMPOSED.hands[0]);
+        else if (pose.head(`hand_${side}`, pose.matrix(`hand_${side}`)).z < COMPOSED.floor + COMPOSED.free) restOnKnee(pose, side);
+    }
+}
+
+// The fingers cover the lower face, with the wrist below and the palm slightly clear of the shell.
+function yawnHand(pose, side, ready) {
+    const sign = SIDES[side];
+    faceContactHand(pose, side, ready, [0.1, -1.0, 2.67], {y: -sign * 55, z: -sign * 110}, new THREE.Vector3(sign * HAND.grip, HAND.forward, 0));
 }
 
 // the most the head turns from the way the body faces, either side, in degrees; a look further round turns the body the rest of the way;
@@ -1484,7 +1634,6 @@ function read(pose, stance, t) {
     const open = held ? 1 : rise(taking, READING.ready, READING.opens);
     const phase = held ? (frame - READING.intro) % READING.pageEvery : 0;
     const page = held ? rise(phase, READING.pageFrom, READING.pageTo) : 0;
-    const scan = held ? (frame - READING.intro) / READING.hold : 0;
     breathe(pose, 0);
 
     armsAtRest(pose, stance);
@@ -1503,13 +1652,16 @@ function read(pose, stance, t) {
     for (const [side, sign] of Object.entries(SIDES)) {
         const target = toBlender(bookGrip(side, open).applyMatrix4(matrix));
         if (!ready) continue;
-        handTo(pose, side, ready, target, new THREE.Vector3(...READING.elbow));
         const inward = THREE.MathUtils.radToDeg(Math.atan2(BOOK.closedGrip * (1 - open), BOOK.gripBack));
-        pose.face(`hand_${side}`, {z: -sign * (READING.wristTurn + inward) * ready});
+        armToward(pose, side, ready, target, {z: -sign * (READING.wristTurn + inward)}, READING.elbow);
     }
-    const line = Math.floor(phase / (READING.pageEvery / READING.lines));
-    const along = (phase % (READING.pageEvery / READING.lines)) / (READING.pageEvery / READING.lines - 1);
-    const target = new THREE.Vector3(mix(-READ_GAZE.across, READ_GAZE.across, along), mix(READ_GAZE.top, READ_GAZE.bottom, line / (READING.lines - 1)), -BOOK.pages).applyMatrix4(matrix);
+    const lineTime = phase / (READING.pageEvery / READING.lines);
+    const line = Math.floor(lineTime);
+    const along = lineTime - line;
+    const returnAcross = rise(along, 0.7, 1);
+    const across = rise(along, 0, 0.7) * (1 - returnAcross);
+    const down = Math.min((line + returnAcross) / (READING.lines - 1), 1) * (line === READING.lines - 1 ? 1 - returnAcross : 1);
+    const target = new THREE.Vector3(mix(-READ_GAZE.across, READ_GAZE.across, across), mix(READ_GAZE.top, READ_GAZE.bottom, down), -BOOK.pages).applyMatrix4(matrix);
     eyesToward(pose, toBlender(target), open);
     pose.holdBook(open, page, held || taking >= READING.ready);
     eyesAs(pose, "reading", open);
@@ -1535,7 +1687,7 @@ function yawn(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {lean: -ACTING.rock * ready, nod: -ACTING.nod * ready});
     armsAtRest(pose, stance);
-    propHand(pose, side, ready, ACTING.yawnWrist);
+    yawnHand(pose, side, ready);
     if (ready) pose.putAway(...IN_HAND);
     pose.shutEyes(1 - ACTING.yawnEyes * swell(u, ...ACTING.yawnSpan));
 }
@@ -1547,7 +1699,10 @@ function whistle(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {lean: -ACTING.rock * blast, nod: -ACTING.nod * blast});
     armsAtRest(pose, stance);
-    propHand(pose, side, ready, ACTING.whistleWrist);
+    const mouthpiece = toBlender(new THREE.Vector3(...TOOLS.whistle.mouthAt).add(new THREE.Vector3(0, 0, -TOOLS.whistle.mouthpiece[2] / 2)))
+        .applyMatrix4(euler(0, 0, SIDES[side] * 90));
+    const contact = new THREE.Vector3(SIDES[side] * HAND.grip, HAND.forward, ACTING.whistleLift).add(mouthpiece);
+    faceContactHand(pose, side, ready, [0.1, -0.96, 2.66], {z: -SIDES[side] * 90}, contact, 0.06);
     if (ready) pose.putAway(...IN_HAND, "coach_whistle");
     if (ready > 0.5) pose.holdProp("hand_whistle", side, [0, 0, ACTING.whistleLift], {z: SIDES[side] * 90});
     pose.shutEyes(1 - ACTING.whistleEyes * blast);
@@ -1582,9 +1737,10 @@ function rest(pose, stance, t) {
     trunk(pose, {turn: -REST.glance * lying});
     for (const [side, sign] of Object.entries(SIDES)) {
         const [x, y, z] = REST.wrist;
-        handTo(pose, side, lying, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(...REST.elbow));
+        restingPropArm(pose, side);
+        armToward(pose, side, lying, new THREE.Vector3(sign * x, y, z), null, REST.elbow);
         const [across, forward, up] = REST.fingers;
-        pose.aim(`hand_${side}`, new THREE.Vector3(sign * across, forward, up));
+        aimWristToward(pose, side, lying, new THREE.Vector3(sign * across, forward, up));
     }
     pose.turn("thigh_l", {x: -REST.kneeUp * lying});
     pose.bend("shin_l", REST.kneeBend * lying);
@@ -1600,9 +1756,14 @@ function rest(pose, stance, t) {
     pose.shutEyes(mix(1, mix(REST.eyes, REST.whistleEyes, tune), lying));
 }
 
+// The near top rim of colleague_mug__cup in the supplied model's rest coordinates, converted from its GLB accessor bounds.
+const MUG_NEAR_RIM = [1.781, -0.22, 2.360018];
+
 function sipMotion(pose, stance, ready, tipped) {
+    if (!ready) return;
     for (const side of stance.level) {
-        propHand(pose, side, ready, ACTING.sipWrist, {x: -ACTING.sipTip * tipped});
+        const rim = new THREE.Vector3(SIDES[side] * MUG_NEAR_RIM[0], MUG_NEAR_RIM[1], MUG_NEAR_RIM[2]).sub(pose.rig.heads.get(`hand_${side}`));
+        faceContactHand(pose, side, ready, [0.18, -0.96, 2.66], {y: -SIDES[side] * ACTING.sipTip * tipped, z: -SIDES[side] * 90}, rim);
     }
 }
 
@@ -1688,7 +1849,8 @@ function salute(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {nod: -ACTING.rock * ready});
     armsAtRest(pose, stance);
-    propHand(pose, side, ready, ACTING.saluteWrist);
+    const sign = SIDES[side];
+    faceContactHand(pose, side, ready, [1.0, -0.1, 3.5], {y: -sign * 117}, new THREE.Vector3(sign * HAND.grip, HAND.forward, 0), 0.32);
     if (ready) pose.putAway(...IN_HAND);
 }
 
@@ -1733,19 +1895,16 @@ function onTablet(pose, stance, side, stroke) {
     }
 }
 
-// One blow of `blowFrames` frames a loop, so the hammering can stop after any blow; how long it goes on for each parcel the page decides
-// (figure/parcels.js HAMMER). Each blow comes down quick,
-// gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the wrist snaps the hammer's head `snap` degrees
-// down into the blow. The forearm is turned `roll` degrees so the thumb is on top, the hand closed round the handle near its end, its
-// fingers curled in to `fist` of the open hand's length, and the handle turned `thumb` degrees to run across the palm through the fist,
-// the head out beyond the thumb. The swing stops dead `strike` of the way up from its lowest, where the hammer's head comes to rest on the
-// parcel's top (parcels.js PARCEL height at the chat's 112-pixel picture), so no blow passes into it. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
-// `landsAt` from its feet at rest across and forward; the parcel stands on the page, not in the picture, so it never turns with the figure.
-export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, thumb: 90, roll: -90, fist: 0.62, turn: 80, strike: 0.413, landsAt: [0.72, -1.81]};
+// One repeatable blow: a small preparation, an accelerating strike onto the parcel at `lands`, contact, rebound, then a slower lift.
+export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, prepare: 0.08, contact: 0.34, rebound: 0.46, poised: 0.94, bounce: 0.035, snap: 50, thumb: 90, roll: -90, fist: 0.62, turn: 80, strike: 0.432, landsAt: [0.72, -1.81]};
 
 function blowOf(t) {
-    const phase = (t * WORK.blows) % 1;
-    return phase < WORK.lands ? 1 - (phase / WORK.lands) ** 2 : ease(span(phase, WORK.lands, 1));
+    const phase = ((t * WORK.blows) % 1 + 1) % 1;
+    if (phase < WORK.prepare) return mix(WORK.poised, 1, ease(phase / WORK.prepare));
+    if (phase < WORK.lands) return mix(1, WORK.strike, span(phase, WORK.prepare, WORK.lands) ** 2);
+    if (phase < WORK.contact) return WORK.strike;
+    if (phase < WORK.rebound) return WORK.strike + WORK.bounce * Math.sin(Math.PI * span(phase, WORK.contact, WORK.rebound)) ** 2;
+    return mix(WORK.strike, WORK.poised, ease(span(phase, WORK.rebound, 1)));
 }
 
 // Where the blows land in the picture of a figure of `stance` hammering on its feet, as a share of the picture's width from its middle,
@@ -1762,9 +1921,12 @@ function work(pose, stance, t) {
     const side = freeSide(stance);
     const raised = Math.max(blowOf(t), WORK.strike);
     const blow = 1 - raised;
+    const phase = ((t * WORK.blows) % 1 + 1) % 1;
+    const prepare = Math.sin(Math.PI * span(phase, 0, WORK.prepare)) ** 2;
+    const settle = swell(phase, WORK.lands, WORK.rebound);
     crouch(pose, 0.04 * blow);
     breathe(pose, 0);
-    trunk(pose, {lean: 8 + 6 * blow, nod: 10});
+    trunk(pose, {lean: 8 + 6 * blow - 2 * prepare, nod: 9 + 2 * settle});
     armsAtRest(pose, stance, [side]);
     armTo(pose, side, 1, {y: mix(75, 5, raised), z: -35, bend: mix(15, 70, raised)});
     pose.roll(`forearm_${side}`, SIDES[side] * WORK.roll);
@@ -1960,7 +2122,7 @@ function jump(pose, stance, t) {
     const u = onceTime(t, 16);
     const crouch = rise(u, 0, 0.26) * (1 - rise(u, 0.26, 0.36));
     const air = rise(u, 0.3, 0.45);
-    pose.lift("root", {z: 0.1 * air});
+    pose.lift("root", {z: 0.1 * air - 0.28 * crouch});
     breathe(pose, 0);
     trunk(pose, {lean: 14 * crouch - 6 * air, nod: -4 * air});
     flung(pose, stance, 40 * crouch, 80 * rise(u, 0.26, 0.42) * (1 - 0.4 * rise(u, 0.6, 1)));
@@ -1971,20 +2133,20 @@ function jump(pose, stance, t) {
 const BACKFLIP_RAISE = 25;
 const BACKFLIP_TURN = 360;
 
-// a jump that turns over backwards on the way up a high jump, where the jump carries it: the crouch, then the body tucked and turned all the
-// way round about its hips in the air, and landed
+// The tucked flip turns around the large-headed figure's upper-body centre while the page carries its travel arc.
 function backflip(pose, stance, t) {
     const u = onceTime(t, 22);
     const crouch = rise(u, 0, 0.26) * (1 - rise(u, 0.26, 0.34));
     const turn = rise(u, 0.3, 0.86);
     const air = rise(u, 0.28, 0.4) * (1 - rise(u, 0.86, 0.95));
-    pose.lift("root", {z: 0.1 * air});
+    pose.lift("root", {z: 0.1 * air - 0.28 * crouch});
     breathe(pose, 0);
     trunk(pose, {lean: 12 * crouch});
     flung(pose, stance, 30 * crouch, BACKFLIP_RAISE * air);
     fold(pose, 0.28 * crouch);
     tucked(pose, 1.2 * air);
-    pose.turnAll({x: BACKFLIP_TURN * turn}, pose.head("hips", pose.matrix("hips")));
+    const centre = pose.head("chest", pose.matrix("chest")).lerp(pose.head("neck", pose.matrix("neck")), 0.75);
+    pose.turnAll({x: BACKFLIP_TURN * turn}, centre);
 }
 
 // a fall down to a perch: the arms thrown up and flailing, the legs kicking, the body leaning back as it drops
@@ -2005,23 +2167,25 @@ function fall(pose, stance, t) {
 function land(pose, stance, t) {
     const u = onceTime(t, LANDING.frames);
     const dip = rise(u, 0, 0.2) * (1 - rise(u, 0.2, 1));
+    pose.lift("root", {z: -0.32 * dip});
     breathe(pose, 0);
     trunk(pose, {lean: 16 * dip, nod: 8 * dip});
     flung(pose, stance, 0, 38 * dip);
     fold(pose, 0.32 * dip);
 }
 
-// the squire runs after a bug when a check goes red, quill out ahead of him, and comes back
+// The squire brakes at the bug, turns on the spot, then returns along the same path with the quill leading.
 function squire_chase(pose, stance, t) {
     const u = onceTime(t, 24);
-    const out = u < 0.5;
-    const reach = CHASE_REACH * (out ? ease(span(u, 0, 0.5)) : 1 - ease(span(u, 0.5, 1)));
-    const motion = Math.sqrt(Math.max(Math.sin(Math.PI * u), 0));
+    const reach = CHASE_REACH * (u < 0.5 ? rise(u, 0, 0.5) : 1 - rise(u, 0.5, 1));
+    const turning = swell(u, 0.4, 0.6);
+    const motion = u === 0 || u === 1 ? 0 : ease(Math.sin(Math.PI * u)) * (1 - 0.85 * turning);
+    const facing = 90 * rise(u, 0, 0.12) - 180 * rise(u, 0.4, 0.6) + 90 * rise(u, 0.88, 1);
     const quill = heldUp(stance);
-    pose.lift("root", {y: out ? -reach : reach});
     stride(pose, stance, 4 * u, motion, {running: true, lean: 12, apart: quill});
     quill.forEach((side) => armTo(pose, side, motion, SQUIRE_QUILL));
-    pose.revolve((out ? 90 : -90) * Math.min(1, 3 * Math.sin(Math.PI * u)));
+    pose.revolve(facing);
+    pose.offsetAll([reach, 0, 0]);
 }
 
 // Each voice's one pointed remark after a long wait on the user, played once
@@ -2116,7 +2280,7 @@ const reacting = (t) => gestureTime(t, REACTING.frames);
 
 // the hand on `side` taken from hanging toward `target` (k), and turned so its back faces out and its grip points up
 function handUp(pose, side, k, target, turn = {}) {
-    propHand(pose, side, k, target, {x: -60 * k, ...turn});
+    propHand(pose, side, k, target, {x: -60, ...turn});
 }
 
 // straight up, at rest
@@ -2272,7 +2436,7 @@ function thanks(pose, stance, t) {
     armsAtRest(pose, stance, ready ? Object.keys(SIDES) : []);
     if (ready) pose.putAway(...IN_HAND);
     for (const [side, sign] of Object.entries(SIDES)) {
-        propHand(pose, side, ready, REACTING.prayerWrist, {x: REACTING.prayerRoll * ready, y: -sign * 90 * ready, z: 0});
+        propHand(pose, side, ready, REACTING.prayerWrist, {x: REACTING.prayerRoll, y: -sign * 90, z: 0});
     }
     pose.shutEyes(1 - 0.85 * bow);
 }
@@ -2365,7 +2529,7 @@ function castle(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {nod: 12 * bow, lean: 4 * bow});
     armsAtRest(pose, stance, ready ? [side] : []);
-    propHand(pose, side, ready, REACTING.castleWrist, {x: -30 * ready});
+    propHand(pose, side, ready, REACTING.castleWrist, {x: -30});
     if (ready) pose.putAway("squire_quill");
     if (ready > 0.4) {
         pose.holdUpright("castle", side, [0, 0, 0.12]);
@@ -2400,11 +2564,11 @@ function actHand(pose, stance, ready, at, turn = {}) {
 }
 
 // The call on the telephone (acts.js phone_call): how deep it bends to the telephone and how far it leans and nods into the bend, and how
-// far it nods while it talks, in the figure's units and degrees; where its ear is on the head at rest, against which the handset's ear cup
-// is held, the handset leaning `lean` degrees back from upright; how far it tilts its head to the handset; how far above a hole of the
+// far it nods while it talks, in the figure's units and degrees; where the receiver grille touches the head at rest, the handset leaning
+// back from upright and across toward the mouth; how far it tilts its head to the handset; how far above a hole of the
 // dial its finger's wrist is held, the finger reaching down into it; and how far in from the palm the handset's grip is held, its fingers
 // round the back of the grip: toward the head at the ear, under the palm as it takes the handset off the cradle
-export const CALL = {bend: 0.9, lean: 30, nod: 18, talkNod: 7, ear: [1.24, 0.05, 3.3], handsetLean: 16, tilt: 8, finger: 0.28, palm: 0.16};
+export const CALL = {bend: 0.9, lean: 30, nod: 18, talkNod: 5, ear: [0.94, 0.05, 3.48], handsetLean: 50, tilt: 8, finger: 0.28, palm: 0.13, grip: 0.68, across: 0.2, arc: [0.28, -0.18, 0.25]};
 
 // a point on the telephone, `local` in its own axes (across, back, up from the middle of its base), the base standing at `base` in the
 // figure's, the whole telephone tipped `tip` degrees toward the viewer so its dial shows
@@ -2423,11 +2587,47 @@ function fingerIn(pose, side, k, hole, elbow) {
     const tipped = far - CALL.finger >= near ? 0 : Math.acos(THREE.MathUtils.clamp((far ** 2 + CALL.finger ** 2 - near ** 2) / (2 * far * CALL.finger), -1, 1));
     const down = new THREE.Vector3(0, 0, -1).projectOnPlane(along).normalize();
     const way = along.multiplyScalar(Math.cos(tipped)).addScaledVector(down, Math.sin(tipped));
-    handTo(pose, side, k, pose.withinReach(side, hole.clone().addScaledVector(way, -CALL.finger), 0.97), elbow);
+    callHandTo(pose, side, k, pose.withinReach(side, hole.clone().addScaledVector(way, -CALL.finger), 0.97), elbow);
     const pointing = pose.rig.along.get(`hand_${side}`).clone().transformDirection(pose.matrix(`hand_${side}`));
     pose.aim(`hand_${side}`, pointing.lerp(way, k).normalize());
+    callWristFromSeat(pose, side, k);
 }
 
+// A supported hand leaves its seat along the same reach it returns along.
+function callHandTo(pose, side, ready, target, elbow) {
+    if (pose.posture !== "composed") return handTo(pose, side, ready, target, elbow);
+    const resting = pose.withinReach(side, callRestingHand(pose, side), 0.97);
+    const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
+    const from = resting.sub(shoulder);
+    const to = target.clone().sub(shoulder);
+    const length = mix(from.length(), to.length(), ready);
+    const direction = from.normalize().lerp(to.normalize(), ready).normalize();
+    pose.reach(side, shoulder.addScaledVector(direction, length), new THREE.Vector3(1, 0.3, 0).lerp(elbow, ready));
+}
+
+// A turned or leaning seated figure rests its free hand on its knee and its supporting hand on the floor.
+function callRestingHand(pose, side) {
+    const sign = SIDES[side];
+    const supporting = pose.leanWay || Math.sign(signedTurn(pose.facing));
+    if (supporting && sign !== supporting) {
+        const [x, y, z] = COMPOSED.feet;
+        pose.step(side, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(0, -1, 1));
+        return pose.head(`shin_${side}`, pose.matrix(`shin_${side}`)).add(new THREE.Vector3(...COMPOSED.lean.knee));
+    }
+    const across = pose.leanWay ? COMPOSED.lean.out : COMPOSED.hands[0];
+    return new THREE.Vector3(sign * across, COMPOSED.hands[1], COMPOSED.floor);
+}
+
+// The seated palm turns away from its support gradually, without a wrist flip at the first reach.
+function callWristFromSeat(pose, side, ready) {
+    if (pose.posture !== "composed" || ready >= 1) return;
+    const hand = `hand_${side}`;
+    const wrist = pose.head(hand, pose.matrix(hand));
+    const resting = new THREE.Quaternion().setFromRotationMatrix(euler(-80, 0, 0));
+    const held = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(pose.matrix(hand)));
+    const turn = new THREE.Matrix4().makeRotationFromQuaternion(resting.slerp(held, ready));
+    pose.final.set(hand, translation(wrist).multiply(turn).multiply(translation(pose.rig.heads.get(hand).clone().negate())));
+}
 
 // a point in the telephone's own axes (y up, its front +z) in the figure's (z up, its front -y)
 const fromSet = (point) => new THREE.Vector3(point.x, -point.z, point.y);
@@ -2461,11 +2661,21 @@ export function dialHole(turned) {
 // the turn its prop takes (figure.js euler, degrees about x, y and z) and that axis
 function handsetAtEar(side) {
     const sign = SIDES[side];
-    const along = new THREE.Vector3(0, Math.sin(radians(CALL.handsetLean)), Math.cos(radians(CALL.handsetLean)));
-    const outward = new THREE.Vector3(sign, 0, 0);
+    const up = Math.sqrt(1 - CALL.across ** 2);
+    const along = new THREE.Vector3(sign * CALL.across, up * Math.sin(radians(CALL.handsetLean)), up * Math.cos(radians(CALL.handsetLean)));
+    const outward = new THREE.Vector3(sign, 0, 0).projectOnPlane(along).normalize();
     const basis = new THREE.Matrix4().makeBasis(along, outward.clone().cross(along), outward);
     const turn = new THREE.Euler().setFromRotationMatrix(basis, "ZYX");
-    return {along, turn: {x: THREE.MathUtils.radToDeg(turn.x), y: THREE.MathUtils.radToDeg(turn.y), z: THREE.MathUtils.radToDeg(turn.z)}};
+    return {along, basis, turn: {x: THREE.MathUtils.radToDeg(turn.x), y: THREE.MathUtils.radToDeg(turn.y), z: THREE.MathUtils.radToDeg(turn.z)}};
+}
+
+// The centres of the actual cup grilles, including the outward tilt of their bulbs.
+const handsetGrille = (sign) => new THREE.Vector3(sign * (TELEPHONE.handset.length / 2 + TELEPHONE.handset.end[1] * TELEPHONE.handset.grille * Math.sin(0.22)), 0, -TELEPHONE.handset.drop - TELEPHONE.handset.end[1] * TELEPHONE.handset.grille * Math.cos(0.22));
+
+// A handset leaves and meets its cradle with no sudden acceleration.
+function callLift(u, phase) {
+    const k = span(u, ...phase);
+    return k ** 3 * (10 - 15 * k + 6 * k * k);
 }
 
 // The telephone's way in and out at `u` of the call (acts.js phone_call): whether it is there, how far above the floor it is drawn and how it
@@ -2502,18 +2712,18 @@ function phone_call(pose, stance, t) {
         partOf(u, act.finger) * (1 - partOf(u, act.back)),
         partOf(u, [act.hang[0], (act.hang[0] + act.hang[1]) / 2]) * (1 - partOf(u, [act.hang[1], act.goes[0]])),
     );
-    const lifted = partOf(u, act.lift) * (1 - partOf(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
+    const lifted = callLift(u, act.lift) * (1 - callLift(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
     const talking = span(u, ...act.talk);
     const down = CALL.bend * bent;
     crouch(pose, down);
     breathe(pose, 0);
     trunk(pose, {lean: CALL.lean * bent, nod: CALL.nod * bent + CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
+    pose.bendAbove("chest", {y: SIDES[side] * (stance.voice === "butler" ? 1.2 : 2) * lifted});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, [side, dialler]);
     const reach = u >= act.reach[1] && u < act.hang[1] ? 1 : partOf(u, act.reach) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
     const inHand = u >= act.reach[1] && u < act.hang[1];
     const mouth = handsetHand(pose, side, {base: STANDING_PHONE, reach, lifted, inHand});
-    // the dial: a finger put in its first hole, turned round to the stop, and taken out as the dial springs back
     const turned = act.turn * partOf(u, act.dial) * (1 - partOf(u, act.back));
     const finger = partOf(u, act.finger) * (1 - partOf(u, act.back));
     fingerIn(pose, dialler, finger, onPhoneAt(dialHole(act.turn * partOf(u, act.dial)), STANDING_PHONE), new THREE.Vector3(-1, 0.2, -0.6));
@@ -2533,15 +2743,14 @@ function seatedCall(pose, stance, t) {
     const act = ACTS.phone_call;
     const {finger, dial, back, reach: reaching, lift, beside, behind} = act.seated;
     const u = onceTime(t, act.frames);
-    // the hand on the page's side of it the telephone stands, as it faces: at a corner, turned along the edge, the one toward the viewer
     const side = pose.phoneWay * Math.cos(radians(pose.facing)) >= 0 ? "l" : "r";
-    // the telephone beside it on that side, in its own axes as it faces, clear of its body and within the reach of that hand
     const base = new THREE.Vector3(SIDES[side] * beside, behind, POSTURES[pose.posture].drop * FRAMED_HEIGHT);
     const dialling = partOf(u, finger) * (1 - partOf(u, back));
-    const lifted = partOf(u, lift) * (1 - partOf(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
+    const lifted = callLift(u, lift) * (1 - callLift(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
     const talking = span(u, ...act.talk);
     breathe(pose, 0);
     trunk(pose, {nod: CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
+    pose.bendAbove("chest", {y: SIDES[side] * (stance.voice === "butler" ? 1.6 : 2.6) * lifted});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, [side]);
     pose.inUse.add(side);
@@ -2549,43 +2758,51 @@ function seatedCall(pose, stance, t) {
     const inHand = u >= reaching[1] && u < act.hang[1];
     const turned = act.turn * partOf(u, dial) * (1 - partOf(u, back));
     const mouth = u < reaching[0] ? onPhoneAt(cradled().add(handsetMouth()), base) : handsetHand(pose, side, {base, reach, lifted, inHand});
-    if (u < reaching[0]) fingerIn(pose, side, dialling, onPhoneAt(dialHole(act.turn * partOf(u, dial)), base), new THREE.Vector3(SIDES[side], 0.2, -0.6));
+    if (u < reaching[0]) fingerIn(pose, side, dialling, onPhoneAt(dialHole(act.turn * partOf(u, dial)), base), new THREE.Vector3(1, 0.2, -0.6));
     eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
     phoneProps(pose, {u, base, root: pose.carried(new THREE.Vector3()), side, inHand, mouth, turned});
 }
 
 // where the handset's mouthpiece is against its middle resting on the cradle, in the figure's axes against the telephone
-const handsetMouth = () => new THREE.Vector3(-TELEPHONE.handset.length / 2, 0, -TELEPHONE.handset.drop - TELEPHONE.handset.end[1]);
+const handsetMouth = () => handsetGrille(-1);
 
 // The hand on `side` taking the handset off the cradle of the telephone standing at `base`, `reach` of the way to it, and holding it
 // `lifted` of the way to the ear, the palm behind the grip and the hand running up along the handset once it is `inHand`: the handset held
 // there, and where its mouthpiece is, for the cord
 function handsetHand(pose, side, {base, reach, lifted, inHand}) {
-    const {handset} = TELEPHONE;
     const atEar = handsetAtEar(side);
     const [x, y, z] = CALL.ear;
     const ear = new THREE.Vector3(SIDES[side] * x, y, z).applyMatrix4(pose.matrix("head"));
-    const held = ear.clone().addScaledVector(atEar.along, -handset.length / 2);
+    const heldTurn = new THREE.Matrix4().extractRotation(pose.matrix("head")).multiply(atEar.basis);
+    const held = ear.clone().sub(handsetGrille(1).applyMatrix4(heldTurn));
     const rest = onPhoneAt(cradled(), base);
-    // the palm behind the grip, the way from it to the handset turning from down, over the handset on its cradle, to the head at the ear
-    const inward = new THREE.Vector3(0, 0, -1).lerp(new THREE.Vector3(-SIDES[side], 0, 0), lifted).normalize();
-    const palm = rest.clone().lerp(held, lifted).addScaledVector(inward, -CALL.palm);
+    const rotation = new THREE.Quaternion().setFromRotationMatrix(euler(TELEPHONE.tip, 0, 0)).slerp(new THREE.Quaternion().setFromRotationMatrix(heldTurn), lifted);
+    const turn = new THREE.Matrix4().makeRotationFromQuaternion(rotation);
+    const outward = new THREE.Vector3(0, 0, 1).applyQuaternion(rotation);
+    const arc = Math.sin(Math.PI * lifted) ** 2;
+    const origin = rest.clone().lerp(held, lifted).add(new THREE.Vector3(SIDES[side] * CALL.arc[0], CALL.arc[1], CALL.arc[2]).multiplyScalar(arc));
+    const palm = origin.clone().addScaledVector(outward, CALL.palm);
+    const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
+    const fingers = palm.clone().sub(shoulder).normalize();
     const hand = `hand_${side}`;
-    // the arm solved for the wrist at `wrist`, the hand turning as it lifts to run up along the handset, its fingers round the back of
-    // the grip: where the wrist goes for the hand's grip to come to the palm's place, as the hand now lies
+    const closed = ease(span(reach, 0.65, 1));
+    const elbow = new THREE.Vector3(1, pose.posture === "stand" ? 0.3 : -0.1, mix(-0.6, -0.12, lifted));
     const solve = (wrist) => {
-        handTo(pose, side, reach, pose.withinReach(side, wrist, 0.97), new THREE.Vector3(1, 0.4, -0.6));
-        const pointing = pose.rig.along.get(hand).clone().transformDirection(pose.matrix(hand));
-        pose.aim(hand, pointing.lerp(atEar.along, lifted).normalize());
+        callHandTo(pose, side, reach, pose.withinReach(side, wrist, 0.97), elbow);
+        const pointing = pose.rig.along.get(hand).clone().transformDirection(pose.standing(hand));
+        pose.aim(hand, pointing.lerp(fingers, reach).normalize());
+        pose.roll(hand, SIDES[side] * 18 * reach * lifted);
+        callWristFromSeat(pose, side, reach);
+        pose.clench(side, mix(1, CALL.grip, closed));
         return palm.clone().sub(pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).sub(pose.head(hand, pose.matrix(hand))));
     };
-    solve(solve(palm));
+    solve(solve(solve(palm)));
     if (!inHand) return onPhoneAt(cradled().add(handsetMouth()), base);
-    const along = new THREE.Vector3(1, 0, 0).lerp(atEar.along, lifted).normalize();
-    const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).addScaledVector(inward, CALL.palm);
-    pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: atEar.turn.x * lifted + TELEPHONE.tip * (1 - lifted), y: atEar.turn.y * lifted, z: atEar.turn.z * lifted});
+    const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)).addScaledVector(outward, -CALL.palm);
+    const angles = new THREE.Euler().setFromQuaternion(rotation, "ZYX");
+    pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: THREE.MathUtils.radToDeg(angles.x), y: THREE.MathUtils.radToDeg(angles.y), z: THREE.MathUtils.radToDeg(angles.z)});
     pose.props.get("telephone_handset").at = grip.clone().applyMatrix4(pose.matrix(hand).clone().invert());
-    return grip.addScaledVector(along, -handset.length / 2);
+    return grip.add(handsetMouth().applyMatrix4(turn));
 }
 
 // The telephone at `u` of the call, its base standing at `base` in the figure's axes, `root` how far the root has moved from its place at
@@ -2632,7 +2849,7 @@ function ask_sign(pose, stance, t) {
 // top edge, each hand `across` from the middle toward its own side, the rollers `closed` apart in height while it is rolled and `apart`
 // once it is open; and the head reading it, nodded `nod` degrees down into it and `lineNod` more for each line below, turned slowly from
 // `scan` degrees to its own left to as far to its right over the first `sweep` of a line, and back for the next
-export const SCROLL = {at: [0, -0.74, 2.02], across: 0.4, closed: 0.08, apart: 0.6, elbow: [1, 0.4, -0.6], nod: 16, lineNod: 4, scan: 12, sweep: 0.6};
+export const SCROLL = {at: [0, -0.74, 2.02], across: 0.4, closed: 0.08, apart: 0.64, elbow: [1, 0.4, -0.6], nod: 16, lineNod: 4, scan: 12, sweep: 0.6};
 
 // brings the rolled scroll up before its chest, pulls its two rollers apart between its hands, the free hand's above, reads it down line
 // by line with its head going slowly along each, and rolls it closed between its hands again
@@ -2656,7 +2873,8 @@ function scroll(pose, stance, t) {
     const line = Math.min(Math.floor(read * act.lines), act.lines - 1);
     const along = read * act.lines - line;
     const turn = SCROLL.scan * (1 - 2 * partOf(along, [0, SCROLL.sweep]) + 2 * partOf(along, [SCROLL.sweep, 1]));
-    pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * line) * open, z: turn * open});
+    const down = Math.min(line + partOf(along, [SCROLL.sweep, 1]), act.lines - 1);
+    pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * down) * open, z: turn * open});
     eyesAs(pose, "reading", open);
     if (ready) holdScroll(pose, top, ready === 1 ? (top === "l" ? "r" : "l") : null, open);
 }
@@ -2759,14 +2977,17 @@ function fume(pose, stance, t) {
     const act = ACTS.fume;
     const u = onceTime(t, act.frames);
     const crushed = swell(u, act.crushed[0], act.crushed[1] + 0.06);
-    const mad = partOf(u, [act.mad[0], act.mad[0] + 0.06]) * (1 - partOf(u, [act.mad[1], 1]));
+    const mad = partOf(u, [act.mad[0], act.mad[0] + 0.06]) * (1 - partOf(u, [act.mad[1] - 0.1, 1]));
     const stamp = waveOf(span(u, ...act.mad), act.stamps / 2);
     crouch(pose, 0.14 * crushed);
     pose.lift("root", {z: 0.12 * mad * Math.abs(stamp)});
     breathe(pose, 0);
     trunk(pose, {lean: 16 * crushed + 6 * mad, nod: 28 * crushed + 10 * mad, tilt: 5 * mad * waveOf(u, 14)});
-    armsAtRest(pose, stance, mad ? [...stance.free] : []);
-    for (const side of stance.free) armTo(pose, side, mad, {y: 40, z: -25, bend: 95});
+    armsAtRest(pose, stance, [...stance.free]);
+    for (const side of stance.free) {
+        armTo(pose, side, mad, {y: 40, z: -25, bend: 95});
+        pose.clench(side, 1 - 0.28 * mad);
+    }
     if (pose.posture === "stand") {
         for (const [side, sign] of [["l", 1], ["r", -1]]) {
             const up = mad * Math.max(sign * stamp, 0);
@@ -2889,18 +3110,22 @@ function swatTarget(pose) {
 // tickled by the mouse pointer it swats at it, giggling, its eyes squeezed shut laughing, a kawaii > <: with the pointer in sight each swat
 // goes at the pointer, with the hand on its side, else with one hand and then the other at the air before it
 function tickle_swat(pose, stance, t) {
+    const u = onceTime(t, 24);
+    const ready = rise(u, 0, 0.12) * (1 - rise(u, 0.88, 1));
     const swat = t * SWAT.swats;
     const aimed = swatTarget(pose);
     const which = aimed ? (aimed.x * SIDES.l > 0 ? "l" : "r") : Math.floor(swat) % 2 ? "l" : "r";
     const out = Math.sin(Math.PI * (swat % 1));
-    breathe(pose, t);
-    trunk(pose, {tilt: SWAT.giggle * Math.sin(2 * Math.PI * swat * 2), nod: -3});
+    breathe(pose, u);
+    trunk(pose, {tilt: SWAT.giggle * Math.sin(2 * Math.PI * swat * 2) * ready, nod: -3 * ready});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
     for (const side of Object.keys(SIDES)) {
         const [x, y, z] = SWAT.at;
         const target = side === which && aimed ? pose.withinReach(side, aimed, 0.95) : new THREE.Vector3(SIDES[side] * x, y, z);
-        handTo(pose, side, side === which ? out : 0.25, target, new THREE.Vector3(1, -0.4, -0.3));
+        const amount = ready * (0.25 + (side === which ? 0.75 * out : 0));
+        restingPropArm(pose, side);
+        armToward(pose, side, amount, target, null, [1, -0.4, -0.3]);
     }
     pose.squeezeEyes(1);
 }
@@ -2909,24 +3134,28 @@ function tickle_swat(pose, stance, t) {
 // its shoulder, the other down and out by its hip
 const DISCO = {up: [1.2, -0.3, 2.85], down: [0.95, -0.25, 1.3], sway: 12, bounce: 0.18};
 
-// dances the classic disco move under the disco ball (acts.js disco): one arm pointing up and the other down, switching sides each beat,
-// the hips swaying toward the arm pointing down and the knees bouncing on every beat
+// The pointing arms trade places through a short eased crossover, followed by a readable hold on each beat.
 function disco(pose, stance, t) {
-    const {beats} = ACTS.disco;
-    const beat = t * beats;
+    const act = ACTS.disco;
+    const u = onceTime(t, act.frames);
+    const beat = u * act.beats;
     const which = Math.floor(beat) % 2 ? 1 : -1;
-    const swing = Math.sin(Math.PI * Math.min((beat % 1) * 3, 1) * 0.5);
-    const into = partOf(t, [0, 0.06]) * (1 - partOf(t, [0.94, 1]));
-    breathe(pose, t);
-    trunk(pose, {tilt: which * DISCO.sway * swing * into, nod: -4});
+    const across = which * (2 * rise(beat % 1, 0, 0.42) - 1);
+    const into = partOf(u, [0, 0.08]) * (1 - partOf(u, [0.88, 1]));
+    const bounce = Math.sin(Math.PI * beat) ** 2 * into;
+    crouch(pose, DISCO.bounce * bounce);
+    breathe(pose, u);
+    trunk(pose, {tilt: across * DISCO.sway * into, nod: -4 * into + 2 * bounce});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
     for (const side of Object.keys(SIDES)) {
         const sign = SIDES[side];
-        const [x, y, z] = sign === which ? DISCO.up : DISCO.down;
-        handTo(pose, side, into, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.3, sign === which ? 0.2 : -0.6));
+        const raised = (1 + sign * across) / 2;
+        const target = new THREE.Vector3(...DISCO.down).lerp(new THREE.Vector3(...DISCO.up), raised);
+        target.x *= sign;
+        const elbow = new THREE.Vector3(1, 0.4, mix(-0.6, 0.2, raised));
+        handTo(pose, side, into, pose.carried(target), elbow);
     }
-    fold(pose, DISCO.bounce * Math.abs(Math.sin(Math.PI * beat)) * into);
     eyesAs(pose, "amused", into);
 }
 
@@ -2947,11 +3176,12 @@ export function rifleLine(kick, aim = RIFLE.down, way = 1) {
     return {grip: new THREE.Vector3(way * x, y, z).addScaledVector(along, -RIFLE.kick * kick), along, pitch};
 }
 
-// how far into a burst of the bug shot `t` is: 1 the moment a burst fires, dying away before the next, 0 between bursts
+// The rifle's recoil rises quickly without a jump and eases back before the next burst.
 export const burstKick = (t) => {
     const {shots, count} = ACTS.bug_shot;
     if (t <= shots[0] || t >= shots[1]) return 0;
-    return Math.max(0, 1 - ((((t - shots[0]) / (shots[1] - shots[0])) * count) % 1) * 3);
+    const phase = (((t - shots[0]) / (shots[1] - shots[0])) * count) % 1;
+    return phase < 0.08 ? ease(phase / 0.08) : 1 - ease(span(phase, 0.08, 0.5));
 };
 
 // The way the rifle aims at the bug it shoots, the page point `target` (as shares of the picture, pose.target) in the figure's units, the
@@ -2959,15 +3189,20 @@ export const burstKick = (t) => {
 // to the viewer; how many degrees the body turns round so the barrel points at it across the floor, and how many the barrel points down
 // at it from the grip; the barrel straight out to the figure's left, a little down, with no target
 export function rifleAim(target, facing) {
-    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1, point: null};
+    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1, handed: 1, point: null};
     const point = new THREE.Vector3((target.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - target.y) * FRAMED_HEIGHT).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing));
     const down = THREE.MathUtils.radToDeg(Math.atan2(-(point.z - RIFLE.grip[2]), Math.hypot(point.x, point.y)));
     // aimed steeply up it holds the rifle as ever, the barrel rising before it, and turns the less the steeper it aims
     const way = point.x >= 0 || down < -RIFLE.steep ? 1 : -1;
-    const turn = THREE.MathUtils.radToDeg(Math.atan2(way * point.y, way * point.x)) * way * Math.cos(radians(down));
-    const grip = rifleLine(0, RIFLE.down, way).grip.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
+    const exchange = partOf(point.x, [-3, 3]);
+    const upright = 1 - partOf(down, [-RIFLE.steep - 5, -RIFLE.steep + 5]);
+    const handed = 2 * mix(exchange, 1, upright) - 1;
+    const right = THREE.MathUtils.radToDeg(Math.atan2(point.y, point.x)) * Math.cos(radians(down));
+    const left = -THREE.MathUtils.radToDeg(Math.atan2(-point.y, -point.x)) * Math.cos(radians(down));
+    const turn = mix(left, right, (handed + 1) / 2);
+    const grip = rifleLine(0, RIFLE.down, handed).grip.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
     const toward = point.clone().sub(grip);
-    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way, point};
+    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way, handed, point};
 }
 
 // The rifle's own axes as held, its barrel along `along`, in the pose's own axes: its top up while it is held level, and turned away from
@@ -3006,19 +3241,113 @@ const lowered = (down) => {
     return new THREE.Vector3(0, 0, -RIFLE_HOLD.low * steep);
 };
 
+// Reconstruct the arm's rotations along their actual aiming arcs, keeping quaternion signs continuous as the target crosses the body.
+function rifleArmRotation(pose, side) {
+    const upper = `upper_arm_${side}`;
+    let rotation = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().extractRotation(pose.standing(upper)));
+    for (const role of ["upper_arm", "forearm"]) {
+        const name = `${role}_${side}`;
+        const before = pose.rig.along.get(name).clone().applyQuaternion(rotation).normalize();
+        const after = pose.rig.along.get(name).clone().transformDirection(pose.matrix(name)).normalize();
+        rotation = new THREE.Quaternion().setFromUnitVectors(before, after).multiply(rotation);
+    }
+    return rotation;
+}
+
+// Blend the chosen wrist rotation arcs without exchanging their quaternion signs partway through the handoff.
+function rifleWristRotation(from, to, amount) {
+    return new THREE.Quaternion(mix(from.x, to.x, amount), mix(from.y, to.y, amount), mix(from.z, to.z, amount), mix(from.w, to.w, amount)).normalize();
+}
+
 // The other hand under the rifle, held at `grip` with its barrel along `along`: its wrist placed so its palm lies under the handguard
 // (RIFLE_HOLD), at its middle or as far along it toward the grip as the arm needs to reach it, the palm turned up and the fingers along
 // the barrel
 function cradle(pose, side, k, grip, along) {
     const down = rifleUp(along).negate();
     const wristAt = (fore) => grip.clone().addScaledVector(along, fore - HAND.grip).addScaledVector(down, RIFLE_HOLD.under);
-    const reached = (fore) => pose.withinReach(side, wristAt(fore), 0.97).distanceTo(wristAt(fore)) < 0.02;
-    const fores = Array.from({length: 6}, (_, step) => RIFLE_HOLD.fore - (step * (RIFLE_HOLD.fore - RIFLE_HOLD.nearest)) / 5);
-    const wrist = wristAt(fores.find(reached) ?? fores.at(-1));
-    const fingers = SIDES[side] > 0 ? along : along.clone().negate();
+    const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
+    const upper = pose.rig.heads.get(`upper_arm_${side}`);
+    const elbow = pose.rig.heads.get(`forearm_${side}`);
+    const hand = pose.rig.heads.get(`hand_${side}`);
+    const reach = (upper.distanceTo(elbow) + elbow.distanceTo(hand)) * 0.97;
+    const from = wristAt(0).sub(shoulder);
+    const projected = from.dot(along);
+    const furthest = -projected + Math.sqrt(Math.max(projected ** 2 - from.lengthSq() + reach ** 2, 0));
+    const wrist = wristAt(Math.max(RIFLE_HOLD.nearest, Math.min(RIFLE_HOLD.fore, furthest)));
     handTo(pose, side, k, pose.withinReach(side, wrist, 0.97), new THREE.Vector3(SIDES[side] * 0.6, -0.6, -0.6));
-    const {y, z} = rifleTurn(fingers);
-    if (k > 0.5) pose.face(`hand_${side}`, {x: RIFLE_HOLD.roll, y, z});
+    const pitch = Math.asin(-SIDES[side] * along.z);
+    const yaw = Math.atan2(along.y, along.x) + (side === "r" ? Math.PI : 0);
+    const target = new THREE.Quaternion().setFromEuler(new THREE.Euler(radians(RIFLE_HOLD.roll), pitch, yaw, "ZYX"));
+    const rotation = rifleWristRotation(rifleArmRotation(pose, side), target, k);
+    wristToward(pose, side, 1, rotation);
+    return rotation;
+}
+
+// The gripping hand draws the rifle around the body's side and closes on it.
+function rifleGrip(pose, side, way, line, ready, drawn, aim, down) {
+    const [x, y, z] = RIFLE.behind;
+    const wrist = new THREE.Vector3(way * x, y, z).lerp(line.grip.clone().add(lowered(down)), drawn);
+    wrist.x -= way * 0.55 * Math.sin(Math.PI * drawn);
+    const elbow = new THREE.Vector3(-way, 0.5, -0.5).lerp(new THREE.Vector3(-way, -0.2, -0.6), drawn);
+    handTo(pose, side, ready, pose.withinReach(side, wrist, 0.97), elbow);
+    pose.clench(side, mix(1, 0.66, aim));
+}
+
+// Read a palm without losing the hand's closed shape.
+function riflePalm(pose, side, rotation = rifleArmRotation(pose, side)) {
+    const hand = `hand_${side}`;
+    const scale = new THREE.Vector3();
+    pose.matrix(hand).decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
+    return {point: pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)), rotation, scale};
+}
+
+// The palms exchange roles around the receiver while one continuously aimed rifle remains between them.
+function rifleExchange(pose, onto, kick, ready, drawn, aim) {
+    const weight = (onto.handed + 1) / 2;
+    const grips = {};
+    const supports = {};
+    for (const [side, way] of [["r", 1], ["l", -1]]) {
+        rifleGrip(pose, side, way, rifleLine(kick, onto.down, way), ready, drawn, aim, onto.down);
+        grips[side] = riflePalm(pose, side);
+    }
+    const held = grips.l.point.clone().lerp(grips.r.point, weight);
+    const along = barrelWay(held, onto.point, onto.turn * aim, rifleLine(kick, onto.down, onto.handed).along);
+    for (const side of Object.keys(SIDES)) {
+        pose.final.delete(`hand_${side}`);
+        const rotation = cradle(pose, side, aim, held, along);
+        supports[side] = riflePalm(pose, side, rotation);
+    }
+    const across = new THREE.Vector3(0, 1, 0).applyMatrix4(rifleAxes(along));
+    for (const side of Object.keys(SIDES)) {
+        const share = side === "l" ? weight : 1 - weight;
+        const grip = grips[side];
+        const support = supports[side];
+        const rotation = rifleWristRotation(grip.rotation, support.rotation, share);
+        const scale = grip.scale.clone().lerp(support.scale, share);
+        const shape = new THREE.Matrix4().compose(new THREE.Vector3(), rotation, scale);
+        const point = grip.point.clone().lerp(held, aim).lerp(support.point, share).addScaledVector(across, SIDES[side] * 0.12 * Math.sin(Math.PI * weight) * aim);
+        const hand = `hand_${side}`;
+        const offset = pose.grip(side, [0, 0, 0]).sub(pose.rig.heads.get(hand)).applyMatrix4(shape);
+        const wrist = pose.withinReach(side, point.sub(offset), 0.999999 - 0.03 * ready * Math.sin(Math.PI * share) ** 2);
+        const gripBend = new THREE.Vector3(SIDES[side], mix(0.5, -0.2, drawn), mix(-0.5, -0.6, drawn));
+        const supportBend = new THREE.Vector3(SIDES[side] * 0.6, -0.6, -0.6);
+        const bend = HANGING_ELBOW.clone().lerp(gripBend, ready).lerp(HANGING_ELBOW.clone().lerp(supportBend, aim), share);
+        bend.y += Math.sin(Math.PI * share) * ready;
+        pose.reach(side, wrist, bend);
+        pose.setMove(hand, translation(wrist).multiply(shape).multiply(translation(pose.rig.heads.get(hand).clone().negate())));
+    }
+    return {held, along};
+}
+
+// Match a combat stride to page distance while the torso remains turned toward its target.
+function combatSteps(pose, amount, turn, length, rest = 0) {
+    pose.stride *= length * FRAMED_HEIGHT / WALK_STRIDE[0];
+    pose.strideTurn = pose.walkWay * 90 * Math.sign(pose.stride || 1) - turn - pose.facing;
+    strideUnder(pose);
+    const sideways = 0.1 * Math.abs(Math.sin(radians(pose.strideTurn)));
+    const height = (pose.strideHeight - sideways) * amount - rest * (1 - amount);
+    pose.lift("root", {z: height - pose.strideHeight});
+    pose.strideHeight = height;
 }
 
 // shoots the bugs a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, one hand on its grip, the stock into that
@@ -3033,31 +3362,31 @@ function bug_shot(pose, stance, t) {
     const reach = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [middle, act.draw[1]]));
     const aim = partOf(t, [middle, act.draw[1]]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
     const kick = burstKick(t);
+    const shoulder = burstKick(t - 0.008);
     const onto = rifleAim(pose.target, pose.facing);
-    const line = rifleLine(kick, onto.down, onto.way);
-    // the hand on the grip, the right one for the barrel out to the left, and the other under the handguard
-    const [grip, fore] = onto.way > 0 ? ["r", "l"] : ["l", "r"];
-    const [bx, by, bz] = RIFLE.behind;
+    const grip = onto.way > 0 ? "r" : "l";
     // a bug too steep to shoot is first backed away from along the floor, the figure keeping its face to it (acts.js backPlan): its legs
     // step backward, pose.walkWay naming it while it does, and its body stays turned toward the bug as it is
-    const stepping = Math.abs(pose.walkWay);
-    if (stepping) strideUnder(pose);
-    breathe(pose, t);
-    pose.turn("chest", {z: -onto.way * RIFLE.shoulder * kick});
-    trunk(pose, {nod: RIFLE.cheek * aim - 4 * kick, turn: onto.way * RIFLE.cheek * aim, tilt: -onto.way * RIFLE.cheek * 0.4 * aim});
+    const moving = t >= act.splat ? partOf(t, [act.splat, act.splat + 0.025]) : partOf(t, [act.draw[1], act.draw[1] + 0.025]) * (1 - partOf(t, [act.aim[1] - 0.025, act.aim[1]]));
+    const stepping = Math.abs(pose.walkWay) * moving;
+    if (stepping) combatSteps(pose, stepping, onto.turn * aim, act.back.stride, 0.025 * aim);
+    else crouch(pose, 0.025 * aim);
+    breathe(pose, t, 1 - 0.65 * aim);
+    pose.turn("chest", {z: -onto.handed * RIFLE.shoulder * shoulder});
+    trunk(pose, {lean: 2 * aim - 2 * shoulder, nod: RIFLE.cheek * aim - 4 * shoulder, turn: onto.handed * RIFLE.cheek * aim, tilt: -onto.handed * RIFLE.cheek * 0.4 * aim});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
-    if (reach > aim) handTo(pose, grip, reach, new THREE.Vector3(onto.way * bx, by, bz), new THREE.Vector3(-onto.way, 0.5, -0.5));
-    else handTo(pose, grip, aim, pose.withinReach(grip, line.grip.clone().add(lowered(onto.down)), 0.97), new THREE.Vector3(-onto.way, -0.2, -0.6));
-    const held = pose.grip(grip, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${grip}`));
-    const along = barrelWay(held, onto.point, onto.turn * aim, line.along);
-    cradle(pose, fore, aim, held, along);
+    const drawn = partOf(t, [middle, act.draw[1]]);
+    const ready = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
+    const {held, along} = rifleExchange(pose, onto, kick, ready, drawn, aim);
     if (aim > 0.05 || reach > 0.3) {
         pose.holdUpright("rifle", grip, [0, 0, 0], rifleTurn(along));
-        pose.props.get("rifle").firing = kick > 0.6;
+        const rifle = pose.props.get("rifle");
+        rifle.at = held.clone().applyMatrix4(pose.matrix(`hand_${grip}`).clone().invert());
+        rifle.firing = kick > 0.6;
     }
     fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.fly[0], act.fly[1]])));
-    if (stepping) strideLegs(pose);
+    if (stepping) strideLegs(pose, stepping);
     if (pose.posture === "stand") pose.revolve(onto.turn * aim);
 }
 
@@ -3067,44 +3396,86 @@ function bug_shot(pose, stance, t) {
 // and well in front of the visor and any hat, never passing through them; and swung down onto the bug out on its left (`blow`); the left
 // hand `apart` further up the handle; the figure turned `turn` degrees toward the bug
 export const MALLET_SWING = {
-    rest: {grip: [0.3, -0.5, 1.5], way: [0.6, -0.2, -0.77]},
-    top: {grip: [-0.25, -0.8, 2.2], way: [0.25, -1.35, 1.6]},
-    blow: {grip: [0.5, -0.6, 1.4], way: [1.7, 0.1, -0.98]},
+    rest: {grip: [0.1, -0.65, 1.6], way: [1.6, -0.6, -1]},
+    top: {grip: [-0.05, -0.75, 2.2], way: [0.25, -1.35, 1.6]},
+    blow: {grip: [0.25, -0.75, 1.68], way: [1.7, -0.45, -1.1]},
     apart: 0.3,
     turn: 30,
 };
 
-// where the right hand grips the mallet and the way its handle points `t` of the way through the smash: raised from its rest to the top over
-// `raise` and held there for the wind-up, swung down, gathering speed, onto the bug over `swing` and held there, and lowered to rest over
-// `lower`
+// The mallet lifts in a forward arc, accelerates into contact, rebounds clear, then settles before being put away.
 export function malletAt(t) {
     const {raise, swing, lower} = ACTS.bug_smash;
     const hold = (name) => ({grip: new THREE.Vector3(...MALLET_SWING[name].grip), way: new THREE.Vector3(...MALLET_SWING[name].way).normalize()});
     const between = (from, to, k) => ({grip: from.grip.clone().lerp(to.grip, k), way: from.way.clone().lerp(to.way, k).normalize()});
-    if (t < swing[0]) return between(hold("rest"), hold("top"), partOf(t, raise));
-    if (t < lower[0]) return between(hold("top"), hold("blow"), partOf(t, swing) ** 2);
+    if (t < swing[0]) {
+        const lift = partOf(t, raise);
+        const result = between(hold("rest"), hold("top"), lift);
+        result.grip.y -= 0.14 * Math.sin(Math.PI * lift);
+        return result;
+    }
+    if (t < swing[1]) {
+        const fall = span(t, ...swing) ** 2;
+        const result = between(hold("top"), hold("blow"), fall);
+        result.grip.y -= 0.1 * Math.sin(Math.PI * fall);
+        return result;
+    }
+    if (t < lower[0]) {
+        const rebound = 0.13 * Math.sin(Math.PI * span(t, swing[1], swing[1] + 0.07)) ** 2;
+        const result = hold("blow");
+        result.grip.z += rebound;
+        return result;
+    }
     return between(hold("blow"), hold("rest"), partOf(t, lower));
 }
 
-// smashes the bug flat with a big wooden mallet (acts.js bug_smash): walks to meet the bug the way it goes (pose.walkWay, 1 the viewer's
-// right, its steps pose.stride), turned that way as it walks; takes the mallet up in both hands, raises it high before its head, swings it
-// down onto the bug at its left and holds it there a moment, its eyes in fight mode from the raise until the bug is gone, then lowers it
+// Place the closed palm on the handle, correcting the wrist for the fist's shorter reach.
+function malletHand(pose, side, held, grip, elbow) {
+    const wrist = grip.clone();
+    for (let pass = 0; pass < 3; pass++) {
+        pose.final.delete(`hand_${side}`);
+        handTo(pose, side, held, pose.withinReach(side, wrist, 0.97), elbow);
+        pose.clench(side, mix(1, 0.68, held));
+        const palm = pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`));
+        wrist.addScaledVector(grip.clone().sub(palm), held ** 3);
+    }
+}
+
+// The knees preload under the raised mallet, compress into the blow, and recover behind its small rebound.
 function bug_smash(pose, stance, t) {
     const act = ACTS.bug_smash;
-    const walking = Math.abs(pose.walkWay) * partOf(t, [act.walk[0] - 0.03, act.walk[0]]) * (1 - partOf(t, [act.walk[1], act.walk[1] + 0.04]));
-    const held = partOf(t, [act.raise[0] - 0.08, act.raise[0]]) * (1 - partOf(t, [act.lower[1] - 0.04, act.lower[1]]));
+    const walking = Math.abs(pose.walkWay) * partOf(t, [act.walk[0], act.walk[0] + 0.025]) * (1 - partOf(t, [act.walk[1] - 0.035, act.walk[1]]));
+    const held = partOf(t, [act.raise[0] - 0.08, act.raise[0]]) * (1 - partOf(t, [act.lower[1], 1]));
     const {grip, way} = malletAt(t);
-    const blow = swell(t, act.blow - 0.02, act.blow + 0.06);
-    if (walking) strideUnder(pose);
-    breathe(pose, t);
-    trunk(pose, {lean: 10 * blow, nod: 6 * blow});
-    crouch(pose, 0.12 * blow);
+    const standing = grip.clone();
+    const poised = partOf(t, act.raise) * (1 - partOf(t, act.swing));
+    const swing = partOf(t, act.swing);
+    const settle = 1 - partOf(t, [act.blow + 0.015, act.blow + 0.11]);
+    const blow = swing * settle;
+    if (walking) combatSteps(pose, walking, SIDES.l * MALLET_SWING.turn * held + pose.walkWay * 90 * walking, SMASH.stride);
+    breathe(pose, t, 1 - 0.7 * held);
+    trunk(pose, {lean: -4 * poised + 11 * blow, nod: -4 * poised + 8 * blow, twist: -4 * poised});
+    crouch(pose, 0.045 * poised + 0.14 * blow);
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
-    handTo(pose, "r", held, pose.withinReach("r", grip, 0.97), new THREE.Vector3(-0.6, -0.4, -0.6));
-    handTo(pose, "l", held, pose.withinReach("l", grip.clone().addScaledVector(way, MALLET_SWING.apart), 0.97), new THREE.Vector3(0.6, -0.4, -0.6));
+    malletHand(pose, "r", held, grip, new THREE.Vector3(-0.6, -0.4, -0.6));
+    let palm = pose.grip("r", [0, 0, 0]).applyMatrix4(pose.matrix("hand_r"));
+    const support = BIG_MALLET.head * Math.abs(way.z) + BIG_MALLET.width * 0.5 * Math.sqrt(1 - way.z ** 2);
+    const lift = Math.max(support + 0.006 - palm.z - way.z * BIG_MALLET.handle, 0);
+    if (held > 0.85 && lift > 0) {
+        grip.z += lift * partOf(held, [0.85, 1]);
+        malletHand(pose, "r", held, grip, new THREE.Vector3(-0.6, -0.4, -0.6));
+        palm = pose.grip("r", [0, 0, 0]).applyMatrix4(pose.matrix("hand_r"));
+    }
+    malletHand(pose, "l", held, palm.clone().addScaledVector(way, MALLET_SWING.apart), new THREE.Vector3(0.6, -0.4, -0.6));
     const turn = {y: THREE.MathUtils.radToDeg(-Math.asin(way.z)), z: THREE.MathUtils.radToDeg(Math.atan2(way.y, way.x))};
-    if (held > 0.3) pose.holdUpright("big_mallet", "r", [0, 0, 0], turn);
+    if (held > 0.3) {
+        if (held < 1) {
+            const placed = standing.lerp(palm, partOf(held, [0.85, 1]));
+            placed.z = Math.max(placed.z, support + 0.006 - way.z * BIG_MALLET.handle);
+            pose.standProp("big_mallet", placed.toArray(), turn);
+        } else pose.holdUpright("big_mallet", "r", [0, 0, 0], turn);
+    }
     fightEyes(pose, t, held * (1 - partOf(t, act.gone)));
     if (walking) strideLegs(pose, walking);
     if (pose.posture === "stand") pose.revolve(SIDES.l * MALLET_SWING.turn * held + pose.walkWay * 90 * walking);
@@ -3128,30 +3499,73 @@ function halo(pose, stance, t) {
     eyesAs(pose, "serene", shown);
 }
 
-// The big cross held up to ask forgiveness (acts.js repent), in the figure's units, standing upright a little to the right of the face, its top above the head: both hands on its upright, the right one at `low` before
-// the chest and the left one `apart` above it, rising from `pocket`, down by the knees, to `front`, where the cross stands up before the
-// figure; trembling `tremble` while it is held up
-export const CRUCIFIX_HOLD = {pocket: [-0.5, -0.9, 0.5], front: [-0.5, -1.0, 1.8], apart: 0.55, tremble: 0.025};
+// The small confession token travels from the waist to clasped hands against the chest.
+export const CRUCIFIX_HOLD = {pocket: [-0.4, -0.4, 1.45], front: [-0.04, -0.59, 2.02], apart: 0.08, tremble: 0.006};
 
-// stands, kneels down onto both knees, brings a big cross up before it and holds it up in both hands, as if asking forgiveness, trembling a
-// little, then lowers it and gets up (acts.js repent); the head turns to the sin's mark with the look at what it admires
+// The body settles onto its knees while the shoes roll from their soles onto their tops.
+export const REMORSE = {drop: 0.654, back: 0.12, ankleBack: 0.376, sole: 0.33, instep: 0.18, toe: 0.44, lean: 18, bow: 30, shoulders: 0.055};
+
+function remorseLegs(pose, lowered) {
+    if (!lowered) return;
+    for (const side of Object.keys(SIDES)) {
+        const folded = rise(lowered, 0.35, 1);
+        const angle = Math.PI * folded;
+        const ankle = pose.rig.heads.get(`foot_${side}`).clone();
+        ankle.y += REMORSE.ankleBack * folded;
+        ankle.z = Math.max(REMORSE.sole * Math.cos(angle), -REMORSE.instep * Math.cos(angle)) + REMORSE.toe * Math.sin(angle);
+        const bend = pose.rig.heads.get(`shin_${side}`).clone().sub(pose.rig.heads.get(`thigh_${side}`));
+        if (side === "r") bend.x = -bend.x;
+        pose.step(side, ankle, bend.lerp(new THREE.Vector3(0, -1, 0), lowered));
+        pose.face(`foot_${side}`, {x: 180 * folded});
+    }
+}
+
+function remorseHand(pose, side, folded, at) {
+    const hand = `hand_${side}`;
+    const shoulder = pose.head(`upper_arm_${side}`, pose.standing(`upper_arm_${side}`));
+    const elbow = pose.head(`forearm_${side}`, pose.matrix(`forearm_${side}`)).sub(shoulder);
+    if (side === "r") elbow.x = -elbow.x;
+    const resting = pose.head(hand, pose.matrix(hand));
+    const restingWay = pose.rig.along.get(hand).clone().transformDirection(pose.matrix(hand));
+    const inward = new THREE.Vector3(-SIDES[side], 0, 0.12).normalize();
+    const closed = mix(1, 0.72, folded);
+    const wrist = at.clone().addScaledVector(inward, -HAND.grip * closed);
+    const target = resting.lerp(wrist, folded);
+    target.z += 0.08 * Math.sin(Math.PI * folded);
+    pose.reach(side, pose.withinReach(side, target, 0.997), elbow.lerp(new THREE.Vector3(1, -0.35, -0.6), folded));
+    pose.aim(hand, restingWay.lerp(inward, folded).normalize());
+    pose.clench(side, closed);
+}
+
+// A breath catches, the knees take the weight, and the bowed head follows the shoulders; the small token stays within the clasp.
 function repent(pose, stance, t) {
     const act = ACTS.repent;
-    const kneel = partOf(t, act.kneel) * (1 - partOf(t, act.rise));
-    const out = partOf(t, act.out) * (1 - partOf(t, act.down));
-    const up = partOf(t, act.up) * (1 - partOf(t, act.down));
-    const shake = CRUCIFIX_HOLD.tremble * Math.sin(2 * Math.PI * 9 * t) * swell(t, act.hold[0], act.hold[1]);
-    breathe(pose, t);
-    pose.lift("root", {z: -TUMBLE.drop * kneel});
-    if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
-    trunk(pose, {lean: 4 * kneel, nod: 6 * (kneel - up)});
+    const u = onceTime(t, act.frames);
+    const kneel = partOf(u, act.kneel) * (1 - partOf(u, act.rise));
+    const folded = partOf(u, act.out) * (1 - rise(u, act.down[0], 1));
+    const bow = rise(u, act.stand[1] * 0.5, act.up[1]) * (1 - rise(u, act.rise[0], 1));
+    const held = swell(u, act.hold[0], act.hold[1]);
+    const breath = 0.6 * Math.sin(2 * Math.PI * u * 1.4) * swell(u, 0, 1) * (1 - 0.85 * held);
+    const shake = CRUCIFIX_HOLD.tremble * Math.sin(2 * Math.PI * 5 * u) * held;
+    pose.lift("root", {y: REMORSE.back * kneel, z: -REMORSE.drop * kneel});
+    if (pose.posture === "stand") remorseLegs(pose, kneel);
+    trunk(pose, {lean: REMORSE.lean * kneel + breath, nod: REMORSE.bow * bow - breath * 0.5, tilt: 2 * held});
+    for (const side of Object.keys(SIDES)) pose.lift(`shoulder_${side}`, {z: -REMORSE.shoulders * bow});
     pose.putAway(...IN_HAND);
-    armsAtRest(pose, stance, Object.keys(SIDES));
-    const held = new THREE.Vector3(...CRUCIFIX_HOLD.pocket).lerp(new THREE.Vector3(...CRUCIFIX_HOLD.front), out).add(new THREE.Vector3(0, 0, shake));
-    handTo(pose, "r", Math.max(out, 0.001), pose.withinReach("r", held, 0.97), new THREE.Vector3(-0.6, -0.5, -0.6));
-    handTo(pose, "l", Math.max(out, 0.001), pose.withinReach("l", held.clone().add(new THREE.Vector3(0.1, 0, CRUCIFIX_HOLD.apart * up)), 0.97), new THREE.Vector3(0.6, -0.5, -0.6));
-    if (out > 0.2) pose.holdUpright("crucifix", "r", [0, 0, 0], {});
-    eyesAs(pose, "worried", Math.max(kneel, up));
+    armsAtRest(pose, stance);
+    const chest = new THREE.Vector3(...CRUCIFIX_HOLD.front).applyMatrix4(pose.matrix("chest"));
+    chest.z += shake;
+    for (const side of folded ? Object.keys(SIDES) : []) {
+        const at = chest.clone().add(new THREE.Vector3(side === "l" ? CRUCIFIX_HOLD.apart : 0, side === "l" ? -0.025 : 0, side === "l" ? 0.025 : 0));
+        remorseHand(pose, side, folded, at);
+    }
+    const shown = partOf(u, act.up) * (1 - partOf(u, act.down));
+    if (shown > 0) {
+        pose.holdUpright("crucifix", "r", [0, 0, 0], {x: -8 * folded});
+        pose.props.get("crucifix").size = shown;
+    }
+    eyesAs(pose, "worried", Math.max(kneel, bow));
+    pose.glanceEyes(-0.2 * bow, 0);
 }
 
 // where the hands hold the pogo stick's handles, across, forward (toward the viewer is less) and up in the figure's units, and where the
@@ -3166,7 +3580,8 @@ function pogo(pose, stance, t) {
     const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, [act.draw[1] * 0.5, act.draw[1]]));
     const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.release));
     const hop = pogoHop(pogoBounces(), (t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]));
-    const give = t > act.bounces[0] && t < act.bounces[1] ? 1 - Math.sin(Math.PI * hop.s) : 0;
+    const give = t < act.bounces[0] ? partOf(t, [act.bounces[0] - 0.04, act.bounces[0]]) : t <= act.bounces[1] ? Math.cos(Math.PI * hop.s) ** 2 : 1 - partOf(t, [act.spring[0], act.spring[0] + 0.06]);
+    crouch(pose, 0.22 * give * held);
     breathe(pose, t);
     trunk(pose, {lean: 6 * held, nod: -6 * held});
     pose.putAway(...IN_HAND);
@@ -3178,7 +3593,6 @@ function pogo(pose, stance, t) {
         if (side === "r" && reach > held) handTo(pose, side, reach, new THREE.Vector3(sign * bx, by, bz), new THREE.Vector3(1, 0.5, -0.5));
         else handTo(pose, side, held, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.2, -0.4));
     }
-    fold(pose, 0.35 * give * held);
     eyesAs(pose, "amused", held);
 }
 
@@ -3193,10 +3607,11 @@ const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, 
 // swingAt), and rises off it at the end (acts.js offSwing)
 function rope_swing(pose, stance, t) {
     const pump = swingAt(t);
+    const breath = heldPhases(ACTS.rope_swing, t).held ?? 0;
     pose.kneesTogether();
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
-    breathe(pose, t);
+    breathe(pose, breath);
     trunk(pose, {lean: -5 * pump, nod: -4});
     pose.putAway(...IN_HAND);
     const [x, y, z] = ROPE_GRIP;
@@ -3271,11 +3686,11 @@ function rummage(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {nod: RUMMAGE.nod * into, tilt: RUMMAGE.wiggle * digging * into});
     pose.bendAbove("spine", {x: (RUMMAGE.lean + RUMMAGE.wiggle * digging) * into});
-    armsAtRest(pose, stance, into ? ["l", "r"] : []);
+    armsAtRest(pose, stance);
     const [x, y, z] = RUMMAGE.hands;
     for (const [hand, way] of into ? [["l", 1], ["r", -1]] : []) {
         const dug = pose.carried(new THREE.Vector3(SIDES[hand] * x, y, z + way * RUMMAGE.dig * digging));
-        handTo(pose, hand, into, pose.withinReach(hand, dug, 0.97), new THREE.Vector3(...RUMMAGE.elbow));
+        armToward(pose, hand, into, pose.withinReach(hand, dug, 0.97), undefined, RUMMAGE.elbow);
     }
     RUMMAGED.forEach((name, index) => {
         const flung = flungAt(index, t, pose.throws ?? undefined);
@@ -3302,9 +3717,14 @@ function type_ponder(pose, stance, t) {
 function wipe_brow(pose, stance, t) {
     const {u, ready} = gestureTime(t, ACTING.greetingFrames);
     const across = swell(u, 0.3, 0.75);
+    const side = freeSide(stance);
+    const sign = SIDES[side];
     breathe(pose, 0);
     trunk(pose, {lean: -4 * ready, nod: -10 * ready});
-    actHand(pose, stance, ready, between3([0.7, -0.62, 2.34], [0.3, -0.84, 2.38], across), {x: -40});
+    armsAtRest(pose, stance, ready ? [side] : []);
+    pose.lift(`shoulder_${side}`, {y: -0.32 * ready, z: 0.4 * ready});
+    faceContactHand(pose, side, ready, between3([0.6, -0.93, 3.35], [0.15, -0.93, 3.35], across), {y: -sign * 110}, new THREE.Vector3(sign * HAND.grip, 0.148, 0));
+    if (ready) emptyHand(pose);
     pose.shutEyes(1 - 0.6 * across);
 }
 
@@ -3325,8 +3745,8 @@ function wave_up(pose, stance, t) {
 // legs after. Standing, the clip has the legs to itself, and so does a clip that poses its own `legs`, as the push walks on bent knees.
 export const LEGS = {
     sit: {under: seat, over: seatedLegs},
-    lounge: {under: seat, over: loungedLegs},
-    composed: {under: seat, over: composedLegs},
+    lounge: {under: loungedSeat, over: loungedLegs},
+    composed: {under: composedSeat, over: composedLegs},
     walk: {under: strideUnder, over: strideLegs},
 };
 
@@ -3405,7 +3825,7 @@ export const CLIPS = [
     {name: "bug_shot", head: HEAD.holds, frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: MOVE, pose: bug_shot},
     {name: "bug_smash", head: HEAD.holds, frames: ACTS.bug_smash.frames, fps: ACTS.bug_smash.fps, loops: false, postures: MOVE, pose: bug_smash},
     {name: "halo", head: HEAD.gestures, frames: ACTS.halo.frames, fps: ACTS.halo.fps, loops: false, postures: MOVE, pose: halo},
-    {name: "repent", head: HEAD.gestures, frames: ACTS.repent.frames, fps: ACTS.repent.fps, loops: false, postures: MOVE, rises: true, pose: repent},
+    {name: "repent", head: HEAD.holds, frames: ACTS.repent.frames, fps: ACTS.repent.fps, loops: false, postures: MOVE, rises: true, pose: repent},
     {name: "pogo", head: HEAD.holds, frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", head: HEAD.gestures, frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", head: HEAD.holds, frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
@@ -4349,9 +4769,8 @@ export function haloOf(prop) {
     prop.userData.shape = ({size}) => ring.scale.setScalar(size ?? 1);
 }
 
-// The big cross held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
-// `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in both hands
-export const CRUCIFIX = {long: 4.4, across: 2.4, bar: 0.32, at: 0.1, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
+// A small brass token within the clasp, below the face so the body carries the confession.
+export const CRUCIFIX = {long: 0.62, across: 0.32, bar: 0.075, at: 0.14, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
 
 export function crucifixOf(prop) {
     const root = poseSpace(prop);
@@ -4576,7 +4995,7 @@ export const TELEPHONE = {
     base: {width: 1.2, narrow: 0.18, depth: 0.85, height: 0.88, brow: [0.08, 0.8], round: 0.16, dome: 0.06},
     dial: {plate: 0.42, face: 0.045, marks: 0.37, radius: 0.31, holes: 10, hole: 0.05, ring: 0.22, first: 60, spread: 290, label: 0.11},
     cradle: {at: -0.14, apart: 0.3, post: 0.055, height: 0.13},
-    handset: {length: 1.4, grip: 0.085, drop: 0.15, end: [0.2, 0.15], rest: 0.06},
+    handset: {length: 1.4, grip: 0.085, drop: 0.15, end: [0.2, 0.15], rest: 0.06, grille: 1.52},
     cord: 0.022, coils: 14, coil: 0.05,
     poof: {puffs: 11, puff: 0.24, from: 0.5, to: 0.95},
     colours: {body: 0xa8322d, face: 0xf1e6cf, wheel: 0x2b2e38, hole: 0xf4f2ed, mark: 0x2b2e38, label: 0xf4f2ed, grille: 0x2b2e38, smoke: 0xe6e3ee},
@@ -4678,7 +5097,7 @@ export function telephoneOf(set, handset, cord, poof) {
         held.add(piece);
         const bulb = shadedPart(piece, `${name}_piece`, new THREE.SphereGeometry(end[0], 24, 16), colours.body, [0, -end[1] * 0.45, 0]);
         bulb.scale.set(1, end[1] / end[0], 1);
-        shadedPart(piece, `${name}_grille`, new THREE.CylinderGeometry(end[0] * 0.62, end[0] * 0.62, 0.025, 20), colours.grille, [0, -end[1] * 0.92, 0]);
+        shadedPart(piece, `${name}_grille`, new THREE.CylinderGeometry(end[0] * 0.62, end[0] * 0.62, 0.025, 20), colours.grille, [0, -end[1] * TELEPHONE.handset.grille, 0]);
     }
     set.userData.shape = ({squash, dial: turned}) => {
         body.scale.set(1 + squash / 2, 1 - squash, 1 + squash / 2);
@@ -5101,7 +5520,6 @@ export const signColour = (screen) => {
 
 // the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
 const VISOR_MESH = "face_screen";
-
 const EYES_GONE = 0.05;
 // the visor as it is unlit: its eyes shown and its band dark
 const DARK_SCREEN = {eyes: 1, across: 0, open: 0, flash: 0, glow: 0};
@@ -5113,19 +5531,20 @@ export function drawnPose(rig, stance, clip, frame, facing, {posture = "stand", 
     Object.assign(pose, {phoneWay, ticker, sky, throws, leanWay, walkWay, screen, at, target, facing});
     if (!clip.legs) LEGS[posture]?.under(pose);
     clip.pose(pose, stance, frame / clip.frames);
-    if (tilt) trunk(pose, {tilt});
+    const headFree = 1 - pose.headContact;
+    if (tilt && headFree) trunk(pose, {tilt: tilt * headFree});
     if (!clip.legs) LEGS[posture]?.over(pose);
     // whatever its eyes show, a look a moment puts in them, its visor aglow or a sign on it, startled held, or a picture its act puts on
     // the visor, it turns its face to the viewer so it is seen, a look at something giving way to it; never lounging, as it is only ever
     // drawn side-on, nor in an act that keeps its head alone
-    const shows = turnsToViewer(posture) && clip.head !== HEAD.alone ? Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0, grabbed ? 1 : 0, pose.eyesShown()) : 0;
-    const looked = at && shows ? {...at, amount: (at.amount ?? 1) * (1 - shows)} : at;
+    const shows = turnsToViewer(posture) && clip.head !== HEAD.alone ? Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0, grabbed ? 1 : 0, pose.eyesShown()) * headFree : 0;
+    const looked = at && headFree ? {...at, amount: (at.amount ?? 1) * (1 - shows) * headFree} : null;
     const turned = facing + (looked && turnsToViewer(posture) ? bodyTurnFor(posture, lookToward(pose, looked, facing), looked.most) : 0);
     if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
     // the eyes go out as a lit visor comes on, closing to a line
     if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
     // seated sideways with nothing to look at, it turns toward the viewer by itself, as it does while its eyes show something
-    const seated = turnsToViewer(posture) && !holdsHead(clip) ? seatedTurn(posture, at) : 0;
+    const seated = turnsToViewer(posture) && !holdsHead(clip) ? seatedTurn(posture, at) * headFree : 0;
     const toward = !pose.gaze ? Math.max(shows, seated) : shows;
     const round = toward ? turnToViewer(pose, turned, toward) : 0;
     if (eyes) lookAs(pose, eyes);
@@ -5182,8 +5601,8 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
-// things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `walkWay` the
-// way it walks to meet the mallet's bug (bug_smash), `at` is where
+    // things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `walkWay` the
+    // way it walks to meet the mallet's bug (bug_smash), `at` is where
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), `phoneWay` the side of the page a seated call's telephone stands on
     // (seatedCall), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.

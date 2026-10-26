@@ -583,7 +583,7 @@ export const BAR = "[data-figure-bar]";
 // the bar's end, where the bar is heading, so it looks along the bar and never straight down on it, standing back `back` pixels from the
 // bar's end, about the figure's own width, so it looks down along the bar at a gentle angle; and it looks at the leading edge kept at
 // least `along` of its picture to one side of where it stands, toward the bar's end
-export const WATCH = {back: 112, along: 0.4};
+export const WATCH = {back: 144, along: 0.4};
 
 // the spot the figure watches the running bar from (WATCH), on top of the docked bars; null with no bar running there
 export function watchSpot(figure) {

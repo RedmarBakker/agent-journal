@@ -22,33 +22,27 @@ const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), ca
 // a few poses for each blow, enough to see each come down and lift back
 const STEPS_A_BLOW = 16;
 
-test("the hammering is one blow a loop, so it can stop after any blow, each coming down quick and lifting back slower", () => {
+test("the hammering holds a readable preparation, strikes once, rebounds above contact and lifts back slowly", () => {
     const clip = CLIPS.find((each) => each.name === "work");
     expect([WORK.blows, clip.frames]).toEqual([1, WORK.blowFrames]);
     expect([clip.loops, Boolean(clip.interruptible), Boolean(clip.leaves)]).toEqual([true, false, false]);
     for (let frame = 1; frame < clip.frames; frame++) expect(canSwitch(clip, frame, frame - 1), `${frame}`).toBe(false);
     expect(canSwitch(clip, clip.frames, clip.frames - 1)).toBe(true);
-    const steps = WORK.blows * STEPS_A_BLOW;
-    const heights = [];
-    for (let step = 0; step <= steps; step++) {
+    const heightAt = (u) => {
         const pose = new Posing(RIG, "sit", 0);
-        clip.pose(pose, STANCE, step / steps);
+        clip.pose(pose, STANCE, u);
         expect(pose.props.get("work_hammer")?.bone).toBe("hand_r");
-        heights.push(new THREE.Vector3(-1, 0, 0).transformDirection(pose.matrix("upper_arm_r")).z);
-    }
-    expect(heights[0]).toBeCloseTo(heights[steps], 6);
-    for (let blow = 0; blow < WORK.blows; blow++) {
-        const one = heights.slice(blow * STEPS_A_BLOW, (blow + 1) * STEPS_A_BLOW + 1);
-        // one way down and one way up, the arm held still between them where the hammer rests on the box
-        const moves = one.slice(1).map((height, index) => Math.sign(Math.round((height - one[index]) * 1e9))).filter(Boolean);
-        expect(moves.slice(1).filter((way, index) => way !== moves[index]).length, `${blow}`).toBe(1);
-        const lowest = Math.min(...one);
-        const held = one.map((height, index) => [height, index]).filter(([height]) => height - lowest < 1e-9).map(([, index]) => index / STEPS_A_BLOW);
-        // it reaches the strike before the blow's own moment and holds there through it, coming down quicker than it lifts
-        expect(held[0], `${blow}`).toBeCloseTo(WORK.lands * Math.sqrt(1 - WORK.strike), 1);
-        expect(held.at(-1), `${blow}`).toBeGreaterThanOrEqual(WORK.lands - 1 / STEPS_A_BLOW);
-        expect(held[0], `${blow}`).toBeLessThan(1 - held[0]);
-    }
+        return new THREE.Vector3(-1, 0, 0).transformDirection(pose.matrix("upper_arm_r")).z;
+    };
+    const contact = heightAt(WORK.lands);
+    expect(heightAt(0)).toBeCloseTo(heightAt(1), 9);
+    expect(heightAt(WORK.prepare)).toBeGreaterThan(heightAt(0));
+    expect(heightAt(WORK.lands - 0.02)).toBeGreaterThan(contact);
+    expect(heightAt((WORK.lands + WORK.contact) / 2)).toBeCloseTo(contact, 9);
+    expect(heightAt((WORK.contact + WORK.rebound) / 2)).toBeGreaterThan(contact);
+    expect(heightAt(WORK.rebound)).toBeCloseTo(contact, 9);
+    expect(heightAt(0.8)).toBeGreaterThan(heightAt(0.6));
+    expect(1 - WORK.rebound).toBeGreaterThan(WORK.lands - WORK.prepare);
 });
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -119,7 +113,7 @@ function hammerHead(pose, moves) {
     return [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => at.clone().add(new THREE.Vector3((x * width) / 2, (-z * depth) / 2, reach + (y * height) / 2).applyMatrix4(turned)))));
 }
 
-test("every blow stops dead on the box's top: the hammer's head comes to rest on its surface, never into it, over the box, from a little further back than at first", () => {
+test("every blow contacts the box's top: the hammer's head comes to rest on its surface, never into it, over the box, from a little further back than at first", () => {
     const work = CLIPS.find((each) => each.name === "work");
     // the box's top in the figure's units over its feet, at the chat's 112-pixel picture of 5.4 units
     const top = (PARCEL.height * 5.4) / 112;

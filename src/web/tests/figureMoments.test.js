@@ -58,7 +58,8 @@ test("the bug shot's rifle is drawn in 3D the right way up, held in both hands a
     }
     // a kick at each burst, and the rifle drawn back along its line with it
     const kicks = Array.from({length: 400}, (_, step) => burstKick(act.shots[0] + ((act.shots[1] - act.shots[0]) * step) / 400));
-    expect(kicks.filter((kick, index) => index > 0 && kick > 0.95 && kicks[index - 1] < kick).length).toBe(act.count);
+    const peaks = kicks.filter((kick, index) => index > 0 && index < kicks.length - 1 && kick > 0.95 && kick > kicks[index - 1] && kick >= kicks[index + 1]);
+    expect(peaks.length).toBe(act.count);
     expect(rifleLine(1).grip.x).toBeLessThan(rifleLine(0).grip.x);
 });
 

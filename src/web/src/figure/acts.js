@@ -92,15 +92,13 @@ export const ACTS = {
     // which lies flat and fades over `gone`, and lowers the mallet over `lower`
     bug_smash: {
         frames: 96, fps: 12, side: 1, emerge: [0, 0.09], climb: [0.09, 0.16], walk: [0.16, 0.38], raise: [0.46, 0.58], swing: [0.66, 0.72], blow: 0.72, gone: [0.84, 0.95],
-        lower: [0.88, 0.99], away: 0.42,
+        lower: [0.88, 0.95], away: 0.42,
     },
     // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
     // with its hands folded and a serene, holy look
     halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},
-    // a sin found: the figure, standing up first from wherever it was, holds `stand` and turns to the sin's mark, drops down onto both knees
-    // over `kneel`, brings a big cross up before it over `out`, takes it in both hands and holds it up over `up` and keeps it up, trembling
-    // a little, until `hold` ends, lowers it over `down` and gets up over `rise`
-    repent: {frames: 84, fps: 12, stand: [0, 0.12], kneel: [0.12, 0.28], out: [0.26, 0.4], up: [0.38, 0.48], hold: [0.48, 0.8], down: [0.8, 0.88], rise: [0.86, 1]},
+    // A confession: the hands come to the chest during the descent, the head bows after the shoulders, and the figure rises slowly.
+    repent: {frames: 84, fps: 12, stand: [0, 0.12], kneel: [0.12, 0.34], out: [0.18, 0.4], up: [0.34, 0.48], hold: [0.48, 0.74], down: [0.74, 0.86], rise: [0.76, 1]},
     // a disco dance under a disco ball: the classic move, one arm pointing up and the other down, switching sides `beats` times, the hips
     // swaying and the knees bouncing, the visor flashing through the colours; the ball `ball` of the picture across, turning, hung `clear`
     // of it over the hat, on a string at least `tie` of it long from the bottom of a bubble no further than `far` of the figure's height
@@ -349,7 +347,7 @@ export function backAt(plan, raw, size) {
     for (const leg of plan) {
         if (raw <= leg.begin) return {x: leg.from, steps: walked / stride, way: 0};
         if (raw < leg.end) {
-            const x = leg.from + ((leg.to - leg.from) * (raw - leg.begin)) / (leg.end - leg.begin);
+            const x = leg.from + (leg.to - leg.from) * partOf(raw, [leg.begin, leg.end]);
             return {x, steps: (walked + Math.abs(x - leg.from)) / stride, way: Math.sign(leg.to - leg.from)};
         }
         walked += Math.abs(leg.to - leg.from);
