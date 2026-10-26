@@ -88,17 +88,13 @@ def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Set
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
 
 
-def agent_command(event: ToolStarting) -> str:
-    return event.call.command if event.call.command and not event.subagent else ""
-
-
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    program = PipedTestRun.piped_filter(agent_command(event), {alias.name: alias for alias in event.data.part(ShellPart).aliases})
+    program = PipedTestRun.piped_filter(event.call.command, {alias.name: alias for alias in event.data.part(ShellPart).aliases})
     return state.refuse(ShellNudges.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
 
 
 def piped_journal_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    cut = PipedJournalCommand.piped(agent_command(event), event.data.part(ShellPart).uncut_verbs)
+    cut = PipedJournalCommand.piped(event.call.command, event.data.part(ShellPart).uncut_verbs)
     return state.refuse(ShellNudges.PIPED_JOURNAL_COMMAND.create(command=cut[0], filter=cut[1])) if cut else state.none()
 
 

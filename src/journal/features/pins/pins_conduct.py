@@ -26,7 +26,7 @@ class PinsConduct(Conduct):
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         pins = event.data.part(PinsPart)
-        return self.none() if event.subagent else self.none(*suggestions(event.output_text, pins), *unmade_pin_claims(event.call.journal_text("message"), pins, event.time))
+        return self.none(*suggestions(event.output_text, pins), *unmade_pin_claims(event.call.journal_text("message"), pins, event.time))
 
 
 def unmade_pin_claims(text: str, pins: PinsData, time: float) -> list[Nudge]:

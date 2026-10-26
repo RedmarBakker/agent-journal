@@ -32,7 +32,7 @@ class MemoryConduct(Conduct):
         return self.none(MemoryNudges.CHECK_STALE_MEMORY.create(stale_after=settings.value(MemoryOptions.STALENESS_LIMIT), stale=", ".join(stale)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.subagent or not event.call.writes or not event.data.part(MemoryPart).threshold_due:
+        if not event.call.writes or not event.data.part(MemoryPart).threshold_due:
             return self.none()
         return self.refuse(MemoryNudges.DECISION_EDIT_BLOCK.create())
 

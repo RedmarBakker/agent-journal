@@ -248,7 +248,7 @@ def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
 
 
 def text_wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    return state.none() if event.subagent else state.none(*text_wait_lines(WrittenWait.worded(event.call), settings))
+    return state.none(*text_wait_lines(WrittenWait.worded(event.call), settings))
 
 
 def text_wait_lines(text: str, settings: Settings) -> tuple[Nudge, ...]:
@@ -325,7 +325,7 @@ def worktree_edits(workers: WorkersData, edited_paths: tuple[str, ...]):
 
 
 def limit_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if not isinstance(event.call.operation, SubagentDispatch) or event.subagent:
+    if not isinstance(event.call.operation, SubagentDispatch):
         return state.none()
     maximum, active = settings.integer(WorkersOptions.SUBAGENT_LIMIT), event.data.part(WorkersPart).active_subagents
     return state.refuse(WorkersNudges.SUBAGENT_OVERFLOW.create(running=active)) if maximum and active >= maximum else state.none()
@@ -339,7 +339,7 @@ def release_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
 
 
 def worktrees_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent or not event.call.writes:
+    if not event.call.writes:
         return state.none()
     owner = worktree_edits(event.data.part(WorkersPart), event.call.edited_paths)
     return state.refuse(WorkersNudges.WORKER_FILE.create(n=owner.worker_id, name=owner.worker_name)) if owner else state.none()
@@ -392,7 +392,7 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
 
 
 def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent or not settings.value(FitnessOptions.WARNINGS):
+    if not settings.value(FitnessOptions.WARNINGS):
         return state.none()
     block = MeasureLines.block_lines(event.data, settings, event.time)
     if block and event.call.writes and not event.call.is_journal:
@@ -412,8 +412,6 @@ HANDOVERS = {"journal worker dispatch": ("dispatch a worker", WorkersOptions.BUI
 
 def capability_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     mode = settings.value(WorkersOptions.MODE)
-    if event.subagent:
-        return state.none()
     if isinstance(event.call.operation, SubagentDispatch):
         allowed = {"builder": WorkersOptions.BUILDER_SUBAGENTS_ALLOWED, "solo": WorkersOptions.SOLO_SUBAGENTS_ALLOWED}.get(mode)
         return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act="send subagents")) if allowed is not None and not settings.value(allowed) else state.none()

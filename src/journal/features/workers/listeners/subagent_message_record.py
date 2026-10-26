@@ -16,7 +16,7 @@ class SubagentMessageRecord(AgentListener[ToolStarting]):
 
     def handle(self, event: ToolStarting) -> None:
         operation = event.call.operation
-        if event.subagent or not isinstance(operation, AgentMessage):
+        if not isinstance(operation, AgentMessage):
             return
         for subagent in self.subagents.session_subagent(event.session, operation.receiver):
             self.chat.instruction(subagent, operation.text, VoiceKey.hooked("instruction", event.hook_key), Actor.agent(event.session))

@@ -24,8 +24,6 @@ class SkillsConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         data = event.data.part(SkillsPart)
-        if event.subagent:
-            return self.none()
         if event.call.is_journal:
             unread = data.command_debts(journal_nouns(event))
             return self.refuse(read_first(unread)[0]) if unread else self.none()

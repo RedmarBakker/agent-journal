@@ -24,7 +24,7 @@ class SequencesConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         runs = event.data.part(SequencesPart)
-        if event.subagent or not runs.has_run() or runs.pause_reason or is_step_command(runs, event.call.parts):
+        if not runs.has_run() or runs.pause_reason or is_step_command(runs, event.call.parts):
             return self.none()
         if self.is_waiting() and runs.is_typable and not runs.question_open:
             return self.none().typing(step_line(runs))

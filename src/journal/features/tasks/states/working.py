@@ -67,8 +67,6 @@ class Working(BaseState):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         active = replace(self, active_at=event.time)
-        if event.subagent:
-            return self.swap(active)
         if not event.call.writes:
             return self.log_request(active, event.time, settings)
         if Timeout.edits(settings.integer(TasksOptions.LOG_LIMIT)).is_elapsed(self.edits):

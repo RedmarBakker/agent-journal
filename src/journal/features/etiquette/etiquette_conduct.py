@@ -31,13 +31,13 @@ class EtiquetteConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         span = Timeout.edits(settings.integer(EtiquetteOptions.PLAIN_CODE_INTERVAL))
-        if event.subagent or span.amount <= 0 or not CodeFiles.has_code(event.call.edited_paths) or not span.started(0).is_period_start(event.data.part(EtiquettePart).code_edits):
+        if span.amount <= 0 or not CodeFiles.has_code(event.call.edited_paths) or not span.started(0).is_period_start(event.data.part(EtiquettePart).code_edits):
             return self.none()
         return self.none(EtiquetteNudges.PLAIN_CODE.create())
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         all_items = settings.integer(EtiquetteOptions.REMINDER_INTERVAL)
-        if event.subagent or all_items <= 0 or event.data.part(EtiquettePart).reminder_gap < all_items:
+        if all_items <= 0 or event.data.part(EtiquettePart).reminder_gap < all_items:
             return self.none()
         return self.none(EtiquetteNudges.JOURNAL_LINE_RULE.create())
 

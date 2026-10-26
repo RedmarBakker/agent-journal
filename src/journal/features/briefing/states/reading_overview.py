@@ -20,7 +20,7 @@ class ReadingOverview(BaseState):
     title = "Reading the overview"
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.subagent or event.call.command.strip().startswith(OVERVIEW_COMMAND) or is_skill_read(event, event.data.part(SkillsPart).debt_cards()):
+        if event.call.command.strip().startswith(OVERVIEW_COMMAND) or is_skill_read(event, event.data.part(SkillsPart).debt_cards()):
             return self.none()
         return self.refuse(BriefingNudges.OVERVIEW_FIRST.create())
 

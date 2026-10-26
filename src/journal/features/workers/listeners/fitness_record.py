@@ -12,7 +12,7 @@ class FitnessRecord(AgentListener[ToolFinished]):
         self.agents, self.points = agents, points
 
     def handle(self, event: ToolFinished) -> None:
-        rows = [] if event.subagent else self.agents.session_rows(event.session)
+        rows = self.agents.session_rows(event.session)
         if not rows or rows[0].role != AgentRole.MAIN:
             return
         self.points.recorded(rows[0], event.time)

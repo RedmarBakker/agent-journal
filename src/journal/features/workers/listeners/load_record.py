@@ -11,8 +11,6 @@ class LoadRecord(AgentListener[ToolFinished]):
         self.agents, self.meter = agents, meter
 
     def handle(self, event: ToolFinished) -> None:
-        if event.subagent:
-            return
         main = self.agents.main_row(event.session)
         if main is not None:
             self.meter.measure(main, event.time)

@@ -53,7 +53,7 @@ class ExternalWait(Wait):
         return [ref for ref in self.end_refs.split(",") if ref]
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.subagent or event.call.is_journal:
+        if event.call.is_journal:
             return self.none()
         return self.pop(*self.lifted_lines(event.data))
 

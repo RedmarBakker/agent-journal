@@ -56,7 +56,7 @@ class TasksConduct(Conduct):
 
 def priorities_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     unset = event.data.part(TasksPart).unprioritised
-    if event.subagent or len(unset) < settings.integer(TasksOptions.PRIORITY_REMIND_TASKS):
+    if len(unset) < settings.integer(TasksOptions.PRIORITY_REMIND_TASKS):
         return state.none()
     return state.none(TasksNudges.PRIORITIES_REMINDER.create(count=len(unset), tasks=", ".join(str(task) for task in unset)))
 
@@ -73,7 +73,7 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
 
 def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     tasks = event.data.part(TasksPart)
-    if event.subagent or not event.call.is_journal_noun("await") or not settings.value(TasksOptions.AUTO) or tasks.next_open is None:
+    if not event.call.is_journal_noun("await") or not settings.value(TasksOptions.AUTO) or tasks.next_open is None:
         return state.none()
     wait_line = event.call.journal_text("await")
     estimate = WaitEstimate.create([f"{CommandOutput.table()}:{n}" for n in WAITED_OUTPUT.findall(wait_line)], tasks.wait_progress, event.time)

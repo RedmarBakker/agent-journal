@@ -11,8 +11,6 @@ class ThinkingStop(AgentListener[ToolStarting]):
         self.agents = agents
 
     def handle(self, event: ToolStarting) -> None:
-        if event.subagent:
-            return
         agent = self.agents.session_agent(event.session)
         if agent.is_thinking():
             self.agents.save(agent.thinking_ended(event.time), Actor.system())

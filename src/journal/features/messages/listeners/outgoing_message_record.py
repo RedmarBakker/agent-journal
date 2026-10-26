@@ -18,7 +18,7 @@ class OutgoingMessageRecord(AgentListener[ToolFinished]):
 
     def handle(self, event: ToolFinished) -> None:
         message = event.call.operation
-        if not isinstance(message, AgentMessage) or event.subagent or not message.text.strip():
+        if not isinstance(message, AgentMessage) or not message.text.strip():
             return
         receiver, text, key = message.receiver, message.text.strip(), VoiceKey.hooked("sent", event.hook_key)
         answer = SubagentEntries.answered(event.response or event.output)

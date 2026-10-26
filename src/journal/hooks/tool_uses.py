@@ -30,7 +30,7 @@ class ToolUses:
         return self.tool_counted(event, rows[0])
 
     def tool_counted(self, event: AgentEvent, agent: Agent) -> AgentEvent:
-        if not isinstance(event, ToolStarting) or event.subagent:
+        if not isinstance(event, ToolStarting):
             return event.counted(agent.tool_uses)
         call = event.call.recorded()
         if event.call.is_journal:

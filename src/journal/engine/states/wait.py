@@ -21,4 +21,4 @@ class Wait(BaseState):
         return self.pop() if event.is_users else self.none()
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return self.none() if event.subagent or event.call.is_journal else self.pop()
+        return self.none() if event.call.is_journal else self.pop()

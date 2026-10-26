@@ -22,7 +22,7 @@ class Panicking(BaseState):
         return (EngineNudges.STOP_LOOP.create(),)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return self.none() if event.subagent else self.forward()
+        return self.forward()
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         return self.forward()

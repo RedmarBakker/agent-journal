@@ -17,7 +17,7 @@ class WaitRecord(AgentListener[ToolFinished]):
         self.agents, self.wait_measure, self.settings = agents, wait_measure, settings
 
     def handle(self, event: ToolFinished) -> None:
-        if event.subagent or self.settings.option(WorkersOptions.MODE) != "orchestrator" or not any(part.journal_noun in WAIT_NOUNS for part in event.call.parts):
+        if self.settings.option(WorkersOptions.MODE) != "orchestrator" or not any(part.journal_noun in WAIT_NOUNS for part in event.call.parts):
             return
         main = self.agents.main_row(event.session)
         if main is not None:

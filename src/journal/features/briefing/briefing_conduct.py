@@ -26,7 +26,7 @@ class BriefingConduct(Conduct):
         return self.none(*lines, BriefingNudges.OVERVIEW_REQUEST.create())
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.subagent or not event.call.writes or event.data.part(BriefingPart).is_overview_read:
+        if not event.call.writes or event.data.part(BriefingPart).is_overview_read:
             return self.none()
         return self.refuse(BriefingNudges.OVERVIEW_REQUEST.create())
 

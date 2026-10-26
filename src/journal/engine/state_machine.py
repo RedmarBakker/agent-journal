@@ -90,7 +90,7 @@ class StateMachine:
         stack = self.states.floor(stored_stack, settings, agent.role)
         mode_change = self.mode_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
-        if isinstance(event, ToolStarting) and not event.subagent:
+        if isinstance(event, ToolStarting):
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
         transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
         machine_answer = self.answer_moves(stack, transition, agent.role, settings, event.data)

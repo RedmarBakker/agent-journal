@@ -1055,10 +1055,10 @@ def test_the_nudge_registry_hands_back_an_id_lists_every_nudge_and_the_nudger_re
 
 
 def test_the_engines_own_states_wait_compacting_and_ended_answer_hand_built_events():
-    settings, owned, subagents = SettingsValue({}), ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))), ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {})), subagent="a1")
+    settings, owned = SettingsValue({}), ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {})))
     assert Wait().respond(PromptSubmitted(prompt="go on"), settings).popped
     assert not Wait().respond(PromptSubmitted(prompt="[journal] a line"), settings).popped
-    assert Wait().respond(owned, settings).popped and not Wait().respond(subagents, settings).popped
+    assert Wait().respond(owned, settings).popped
     assert Wait().wait_description() == ("", "")
     assert all(CompactingState().respond(event, settings).handed_down for event in (owned, PromptSubmitted(prompt="go on"), Stop(), SessionStarted())), "any sign of the agent ends a compaction, so a cancelled one never holds it"
     assert all(Ended().respond(event, settings).popped for event in (SessionStarted(), PromptSubmitted(prompt="hi"), owned))
@@ -1173,7 +1173,6 @@ def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data(
     finished = Ready().respond(ToolFinished(call=ToolCall(tool="Bash", input={}, operation=Claude().operation("Bash", {})), output="opened https://a.test/pr/1").with_data(data), settings, (VoicesConduct, EtiquetteConduct, PinsConduct, MigrationConduct))
     assert [n.key for n in finished.nudges] == ["etiquette.a_line_is_an_instruction", "pins.pin_the_link"]
     silent = FeatureData({**data.parts, "etiquette": EtiquetteData(reminder_gap=3, code_edits=0)})
-    assert Ready().respond(ToolFinished(call=ToolCall(tool="Bash", input={}, operation=Claude().operation("Bash", {})), output="nothing", subagent="s1").with_data(data), settings, (VoicesConduct, EtiquetteConduct, PinsConduct, MigrationConduct)).nudges == ()
     assert Ready().respond(ToolFinished(call=ToolCall(tool="Bash", input={}, operation=Claude().operation("Bash", {})), output="nothing").with_data(silent), settings, (VoicesConduct, EtiquetteConduct, PinsConduct, MigrationConduct)).nudges == ()
 
 
