@@ -25,6 +25,7 @@ SEED = int(os.environ.get("SIM_SEED", "7"))
 RUNS = int(os.environ.get("SIM_RUNS", "1"))
 MINUTES = int(os.environ.get("SIM_MINUTES", "0"))
 RUN_SECONDS = 120
+HELD_OUT = {"seed 108": (SEED + 101, {}), "seed 209": (SEED + 202, {}), "fewer messages and longer jobs": (SEED, {"user_messages_hourly": 10, "worker_seconds": 600})}
 
 
 def fresh(folder: Path, monkeypatch) -> Simulator:
@@ -186,11 +187,11 @@ def test_the_lines_said_together_in_every_scenario_are_listed_for_the_contradict
     assert isinstance(pairs, dict)
 
 
-def recorded(folder: Path, monkeypatch, scenario: Scenario) -> tuple[ScenarioRun, list]:
+def recorded(folder: Path, monkeypatch, scenario: Scenario, seed: int = SEED) -> tuple[ScenarioRun, list]:
     simulator = fresh(folder / scenario.name.replace(" ", "_"), monkeypatch)
     try:
         with simulator.app.container.get(Scope).environment(MAIN):
-            run = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or scenario.minutes), SEED, POLICIES[scenario.policy]())
+            run = ScenarioRun(simulator, replace(scenario, minutes=MINUTES or scenario.minutes), seed, POLICIES[scenario.policy]())
             return run, run.played()
     finally:
         simulator.app.runtime().stop()
@@ -229,4 +230,28 @@ def test_in_each_mode_the_known_good_policy_scores_above_the_known_bad_one_over_
             print(f"\n{name}: {row}")
     for good, bad in KNOWN_PAIRS:
         assert (rows[good.name]["score"] or 0) > (rows[bad.name]["score"] or 0), f"{good.name} scores above {bad.name}: {rows[good.name]} against {rows[bad.name]}"
+
+
+@pytest.mark.parametrize("held_out", list(HELD_OUT))
+@pytest.mark.parametrize("pair", range(3))
+def test_a_profile_ranks_the_known_good_policy_above_the_known_bad_one_on_runs_never_used_to_tune_it(tmp_path, monkeypatch, capsys, pair, held_out):
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    from tests.simulation.rescoring import Rescoring
+    from tests.simulation.scenarios import KNOWN_PAIRS
+    seed, changes = HELD_OUT[held_out]
+    good, bad = (replace(scenario, **changes) for scenario in KNOWN_PAIRS[pair])
+    profiles = [profile for profile in (*WorkersProfiles.ALL, WorkersProfiles.ORCHESTRATOR_REVIEWER_PROFILE) if profile.mode == good.mode]
+    runs = [recorded(tmp_path, monkeypatch, scenario, seed) for scenario in (good, bad)]
+    began = time.monotonic()
+    rows = [[Rescoring(run.samples, trace).row(profile) for run, trace in runs] for profile in profiles]
+    seconds = time.monotonic() - began
+    samples = sum(len(run.samples) for run, _ in runs) * len(profiles)
+    verdicts = [(profile, good_row["score"], bad_row["score"]) for profile, (good_row, bad_row) in zip(profiles, rows)]
+    with capsys.disabled():
+        for profile, good_score, bad_score in verdicts:
+            margin = (good_score or 0) - (bad_score or 0)
+            print(f"\n{good.mode} profile of {len(profile.measures)} measures, {held_out}: {good.name} {good_score} against {bad.name} {bad_score}, margin {margin:+.1f}: {'accepted' if margin > 0 else 'refused'}")
+        print(f"scored {samples} samples in {seconds:.2f} seconds")
+    assert seconds < 5, "scoring the held-out runs again takes seconds, so the runs need no cache"
+    assert all((good_score or 0) > (bad_score or 0) for _, good_score, bad_score in verdicts), verdicts
 

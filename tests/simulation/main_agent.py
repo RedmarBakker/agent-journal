@@ -57,22 +57,40 @@ class MainAgent:
     def dispatch_action(self, world: World) -> Observation:
         if not world.open_tasks:
             return self.read_action(world)
-        task, number = world.open_tasks.pop(0), world.next_worker
-        seen = self.command(["worker", "dispatch", f"Worker {number}", "--task", str(task), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"])
+        if world.idle_workers:
+            return self.queue_action(world)
+        task = world.open_tasks.pop(0)
+        seen = self.command(["worker", "dispatch", f"Worker {world.next_worker}", "--task", str(task), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"])
         if seen.answer[0] == 0:
             world.next_worker += 1
-            world.workers_out[number] = self.simulator.source.seconds() + self.worker_seconds
-            self.simulator.run(["clock-in"], Caller.worker("main", number, f"w{number}", "claude"))
+            self.sent_out(world, int(re.search(r"worker (\d+)", str(seen.answer[1])).group(1)))
         else:
             world.open_tasks.insert(0, task)
         return seen
+
+    def queue_action(self, world: World) -> Observation:
+        number, task = world.idle_workers.pop(0), world.open_tasks.pop(0)
+        seen = self.command(["worker", "queue", str(number), str(task)])
+        if seen.answer[0] == 0:
+            self.sent_out(world, number)
+        else:
+            world.open_tasks.insert(0, task)
+            world.idle_workers.insert(0, number)
+        return seen
+
+    def sent_out(self, world: World, number: int) -> None:
+        world.workers_out[number] = self.simulator.source.seconds() + self.worker_seconds
+        self.simulator.run(["clock-in"], Caller.worker("main", number, f"w{number}", "claude"))
 
     def merge_action(self, world: World) -> Observation:
         if not world.workers_done:
             return self.read_action(world)
         number = world.workers_done.pop(0)
         self.command(["worker", "check", str(number), "1"])
-        return self.command(["worker", "merge", str(number)])
+        merged = self.command(["worker", "merge", str(number)])
+        if merged.answer[0] == 0:
+            world.idle_workers.append(number)
+        return merged
 
     def stop_action(self, world: World) -> Observation:
         return self.simulator.hook("Stop")
