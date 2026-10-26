@@ -34,9 +34,8 @@ class Requirements:
 
     def discharge_missing(self) -> None:
         names = {skill.name for skill in self.files.catalogue()}
-        for agent in self.agents.unended():
-            if set(agent.skills_due) - names:
-                self.agents.touched(agent, Actor.system(), lambda time: {"skills_due": tuple(name for name in time.skills_due if name in names)})
+        for agent in self.agents.skill_debtors():
+            self.agents.touched(agent, Actor.system(), lambda time: {"skills_due": tuple(name for name in time.skills_due if name in names)})
 
     def obligations(self, agent: Agent, skills: list[Skill]) -> list[Skill]:
         loaded = agent.skills_loaded
