@@ -43,18 +43,12 @@
     },
     {
       "name": "the merge that lands it",
-      "answer": {
-        "hookSpecificOutput": {
-          "hookEventName": "PostToolUse",
-          "additionalContext": "commit 13c7b64e closed task 1"
-        }
-      },
+      "answer": {},
       "typed": [],
-      "nudges": [
-        "tasks.closed_by_commit"
-      ],
+      "nudges": [],
       "stack": [
-        "idle"
+        "idle",
+        "working"
       ]
     }
   ]

@@ -25,7 +25,7 @@
       "name": "a stop eleven minutes on",
       "answer": {
         "decision": "block",
-        "reason": "task 1, last logged 10 min ago: log where it stands first. journal task log 1 \"<where it stands>\""
+        "reason": "task 1, last logged 11 min ago: log where it stands first. journal task log 1 \"<where it stands>\""
       },
       "typed": [],
       "nudges": [
@@ -41,7 +41,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "task 1 is in hand, last logged 10 min ago: carry on"
+          "additionalContext": "task 1 is in hand, last logged 11 min ago: carry on"
         }
       },
       "typed": [

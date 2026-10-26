@@ -119,9 +119,16 @@
     },
     {
       "name": "the agent's own tool use lifts the wait",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "your wait on the deploy was lifted; check 1 is still running and you are informed when it passes; journal check remove 1 if you no longer want to hear about it"
+        }
+      },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "tasks.wait_lifted"
+      ],
       "stack": [
         "idle",
         "working"
