@@ -51,13 +51,13 @@ export function leadingPlan(plans) {
 }
 
 export function cardPlan(plans, chosen = 0) {
-    const waiting = plans.filter((plan) => !PLAN_RUNNING.includes(statusOf(plan)));
+    const waiting = plans.filter((plan) => !PLAN_RUNNING.includes(statusOf(plan)) && !plan.is_dismissed);
     return openPlans(waiting).find((plan) => plan.id === chosen) || leadingPlan(waiting);
 }
 
 // the other plans the plan card can show instead of the one it shows: those not yet approved
 export function cardChoices(plans, shown) {
-    return openPlans(plans).filter((plan) => plan.id !== shown.id && PLANNED.includes(statusOf(plan)));
+    return openPlans(plans).filter((plan) => plan.id !== shown.id && PLANNED.includes(statusOf(plan)) && !plan.is_dismissed);
 }
 
 const MAX_BARS = 3;

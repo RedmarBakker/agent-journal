@@ -8,6 +8,8 @@ export const approvePlan = (plan) => patched(plan, becomes("approved"), () => ac
 
 export const pausePlan = (plan) => patched(plan, becomes("paused"), () => act(plan, "pause"));
 
+export const dismissPlan = (plan) => patched(plan, (row) => (row.is_dismissed = true), () => act(plan, "dismiss"));
+
 export function startPlan(plan) {
     const takeOver = (row) => {
         rows("plans")

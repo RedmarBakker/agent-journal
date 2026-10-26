@@ -49,6 +49,7 @@ function open(p) {
                 </span>
             </button>
         </template>
+        <span class="planstrip-more"><slot /></span>
         <template v-if="shown && plan()">
             <MenuPanel :anchor="anchor" @click.stop @close="shown = 0">
                 <div class="planstrip-card" @mouseenter="keep" @mouseleave="leave">
@@ -65,6 +66,18 @@ function open(p) {
 </template>
 
 <style scoped>
+.planstrip-more {
+    margin-left: auto;
+}
+
+.planstrip-more :deep(.planmore) {
+    width: auto;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
 .planstrip {
     display: flex;
     align-items: center;

@@ -35,6 +35,7 @@ class Plan(Scoped):
     priorities: str = ""
     priorities_at: float = 0.0
     priorities_phase: int = 0
+    is_dismissed: bool = False
 
     def waiting_reason(self) -> str:
         return self.block_reason
@@ -89,6 +90,12 @@ class Plan(Scoped):
 
     def is_blocked(self) -> bool:
         return self.state == PlanState.BLOCKED
+
+    def card_dismissed(self) -> "Plan":
+        return self.with_(is_dismissed=True)
+
+    def card_restored(self) -> "Plan":
+        return self.with_(is_dismissed=False)
 
     def finished(self, time: float) -> "Plan":
         return self.moved(PlanState.FINISHED).with_event(PlanFinished(environment_id=self.environment_id, time=time, plan_id=self.row_id))
