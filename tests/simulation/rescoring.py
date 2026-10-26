@@ -17,10 +17,17 @@ class Rescoring:
             "profile": profile.mode,
             "score": round(mean(scores), 1) if scores else None,
             "measured": len(scores),
+            "mode": self.samples[-1].counts.mode if self.samples else "",
+            "mode_uses": self.samples[-1].counts.mode_uses if self.samples else 0,
+            "actions": self.actions(),
             "load": round(mean(sample.rho for sample in self.samples), 2) if self.samples else 0.0,
             "nudges_hourly": round(sum(len(entry.nudges) for entry in self.trace) / hours, 1),
             "refusals_hourly": round(sum(1 for entry in self.trace if entry.refused) / hours, 1),
         }
+
+    def actions(self) -> int:
+        last = self.samples[-1].counts if self.samples else None
+        return last.file_edits + last.handovers + last.subagent_dispatches + last.research_count if last else 0
 
     def table(self, profiles) -> list[dict]:
         return [self.row(profile) for profile in profiles]

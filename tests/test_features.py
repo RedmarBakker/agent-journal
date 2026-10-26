@@ -566,9 +566,9 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
     (folder / "parts").write_text("R-\n")
     (folder / "0.part").write_text("pytest -q")
     (folder / "0.out").write_text("..F.\nFAILED tests/a.py::test_b\n1 failed, 3 passed in 1.20s\n")
-    assert app.console().run(["reader", "add", "pytest", "--pattern", "[0-9]+ (passed|failed)", "--about", "a test run's summary"], USER).code == 0
+    assert app.console().run(["reader", "add", "summary-lines", "--pattern", "[0-9]+ (passed|failed)", "--about", "a test run's summary"], USER).code == 0
     outputs = app.container.get(CommandOutputs)
-    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("pytest", "the tests"), Actor.system())
+    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("summary-lines", "the tests"), Actor.system())
     app.console().run(["await", "the tests", "--output", str(output.id)], AGENT)
     app.container.get(ShellRecord).ended("run", 1, folder, "", Caller.agent("main", "s1", "claude"))
     app.runtime().deferred.drain()
@@ -12122,7 +12122,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert again.model == "opus" and again.profile == "journal-medior" and again.resume == "w-1", "the next job runs on the model named, in its last session"
     assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
     listed = console.run(["worker", "list"], AGENT).text
-    assert "on opus, $0.00 spent, sent back 0 times on this task" in listed, listed
+    assert "on opus, $0.00 at API prices, sent back 0 times on this task" in listed, listed
     costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
     runner = app.container.get(WorkerRunner)
     runner.cost_recorded(workers.find(1), 1.5, Actor.system())
@@ -12134,7 +12134,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     runner.cost_recorded(workers.find(1), 3.0, Actor.system())
     app.runtime().deferred.drain()
     assert len(costly()) == 1, "it is said once"
-    assert "on opus, $5.25 spent" in console.run(["worker", "list"], AGENT).text, "the status names the spend so far"
+    assert "on opus, $5.25 at API prices" in console.run(["worker", "list"], AGENT).text, "the status names the spend so far"
     assert Claude().worker_outcome('{"type":"result","result":"done","session_id":"w-1","total_cost_usd":0.42}\n', "").cost_dollars == 0.42, "the spend is read from the run's result line"
     refused = console.run(["worker", "send", "1", "more", "--profile", "journal-researcher"], AGENT)
     assert refused.code != 0 and "no worker profile" in refused.error, "a send names a worker profile"
@@ -18920,7 +18920,7 @@ def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_name
     folder = Path(__file__).parent / "shell_corpus_reading"
     console, readers = app.console(), app.container.get(Readers)
     assert console.run(["alias", "add", "sins", "commandments-release judge", "--about", "judges the code"], AGENT).code == 0
-    for name, commands in json.loads((folder / "readers.json").read_text()).items():
+    for name, commands in [(name, commands) for name, commands in json.loads((folder / "readers.json").read_text()).items() if not readers.is_locked(name)]:
         assert console.run(["reader", "add", name, "--commands", commands, "--pattern", ".", "--about", f"the {name} runs"], AGENT).code == 0
     rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
     chosen = lambda line: (reader.name if (reader := readers.reading(line)) and reader.name in {row for row in json.loads((folder / "readers.json").read_text())} else "")

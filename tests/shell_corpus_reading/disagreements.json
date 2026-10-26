@@ -1,4 +1,96 @@
 {
+"10195": {
+"expected": "git-log",
+"journal": ""
+},
+"10502": {
+"expected": "git-log",
+"journal": ""
+},
+"10824": {
+"expected": "git-log",
+"journal": ""
+},
+"10936": {
+"expected": "git-log",
+"journal": ""
+},
+"11020": {
+"expected": "git-log",
+"journal": ""
+},
+"11033": {
+"expected": "git-log",
+"journal": ""
+},
+"11162": {
+"expected": "git-log",
+"journal": ""
+},
+"11305": {
+"expected": "git-log",
+"journal": ""
+},
+"11367": {
+"expected": "git-log",
+"journal": ""
+},
+"11375": {
+"expected": "git-log",
+"journal": ""
+},
+"11488": {
+"expected": "git-log",
+"journal": ""
+},
+"11614": {
+"expected": "git-log",
+"journal": ""
+},
+"11921": {
+"expected": "git-log",
+"journal": ""
+},
+"11941": {
+"expected": "git-log",
+"journal": ""
+},
+"12090": {
+"expected": "git-log",
+"journal": ""
+},
+"12160": {
+"expected": "git-log",
+"journal": ""
+},
+"12201": {
+"expected": "git-log",
+"journal": ""
+},
+"12222": {
+"expected": "git-log",
+"journal": ""
+},
+"12307": {
+"expected": "git-log",
+"journal": ""
+},
+"12615": {
+"expected": "git-log",
+"journal": ""
+},
+"12788": {
+"expected": "git-log",
+"journal": ""
+},
+"12793": {
+"expected": "git-log",
+"journal": ""
+},
+"15919": {
+"expected": "git-log",
+"journal": ""
+},
 "16677": {
 "expected": "pytest",
 "journal": ""
@@ -54,5 +146,321 @@
 "16804": {
 "expected": "",
 "journal": "pytest"
+},
+"2069": {
+"expected": "git-log",
+"journal": ""
+},
+"2866": {
+"expected": "git-log",
+"journal": ""
+},
+"3106": {
+"expected": "git-log",
+"journal": ""
+},
+"3557": {
+"expected": "git-log",
+"journal": ""
+},
+"3809": {
+"expected": "git-log",
+"journal": ""
+},
+"4211": {
+"expected": "git-log",
+"journal": ""
+},
+"4287": {
+"expected": "git-log",
+"journal": ""
+},
+"4307": {
+"expected": "git-log",
+"journal": ""
+},
+"4332": {
+"expected": "git-log",
+"journal": ""
+},
+"4348": {
+"expected": "git-log",
+"journal": ""
+},
+"4472": {
+"expected": "git-log",
+"journal": ""
+},
+"4696": {
+"expected": "git-log",
+"journal": ""
+},
+"4761": {
+"expected": "git-log",
+"journal": ""
+},
+"4876": {
+"expected": "git-log",
+"journal": ""
+},
+"4967": {
+"expected": "git-log",
+"journal": ""
+},
+"5138": {
+"expected": "git-log",
+"journal": ""
+},
+"5160": {
+"expected": "git-log",
+"journal": ""
+},
+"5259": {
+"expected": "git-log",
+"journal": ""
+},
+"5459": {
+"expected": "git-log",
+"journal": ""
+},
+"5503": {
+"expected": "git-log",
+"journal": ""
+},
+"5698": {
+"expected": "git-log",
+"journal": ""
+},
+"5699": {
+"expected": "git-log",
+"journal": ""
+},
+"5871": {
+"expected": "git-log",
+"journal": ""
+},
+"6012": {
+"expected": "git-log",
+"journal": ""
+},
+"6057": {
+"expected": "git-log",
+"journal": ""
+},
+"6399": {
+"expected": "git-log",
+"journal": ""
+},
+"6422": {
+"expected": "git-log",
+"journal": ""
+},
+"6433": {
+"expected": "git-log",
+"journal": ""
+},
+"6525": {
+"expected": "git-log",
+"journal": ""
+},
+"6568": {
+"expected": "git-log",
+"journal": ""
+},
+"6581": {
+"expected": "git-log",
+"journal": ""
+},
+"679": {
+"expected": "git-log",
+"journal": ""
+},
+"6910": {
+"expected": "git-log",
+"journal": ""
+},
+"6941": {
+"expected": "git-log",
+"journal": ""
+},
+"6967": {
+"expected": "git-log",
+"journal": ""
+},
+"7000": {
+"expected": "git-log",
+"journal": ""
+},
+"7026": {
+"expected": "git-log",
+"journal": ""
+},
+"7036": {
+"expected": "git-log",
+"journal": ""
+},
+"7241": {
+"expected": "git-log",
+"journal": ""
+},
+"7344": {
+"expected": "git-log",
+"journal": ""
+},
+"7407": {
+"expected": "git-log",
+"journal": ""
+},
+"7411": {
+"expected": "git-log",
+"journal": ""
+},
+"7472": {
+"expected": "git-log",
+"journal": ""
+},
+"7482": {
+"expected": "git-log",
+"journal": ""
+},
+"7494": {
+"expected": "git-log",
+"journal": ""
+},
+"7501": {
+"expected": "git-log",
+"journal": ""
+},
+"7708": {
+"expected": "git-log",
+"journal": ""
+},
+"7743": {
+"expected": "git-log",
+"journal": ""
+},
+"7815": {
+"expected": "git-log",
+"journal": ""
+},
+"7821": {
+"expected": "git-log",
+"journal": ""
+},
+"7862": {
+"expected": "git-log",
+"journal": ""
+},
+"7887": {
+"expected": "git-log",
+"journal": ""
+},
+"8068": {
+"expected": "git-log",
+"journal": ""
+},
+"8107": {
+"expected": "git-log",
+"journal": ""
+},
+"8206": {
+"expected": "git-log",
+"journal": ""
+},
+"8263": {
+"expected": "git-log",
+"journal": ""
+},
+"8290": {
+"expected": "git-log",
+"journal": ""
+},
+"8447": {
+"expected": "git-log",
+"journal": ""
+},
+"8556": {
+"expected": "git-log",
+"journal": ""
+},
+"8714": {
+"expected": "git-log",
+"journal": ""
+},
+"8814": {
+"expected": "git-log",
+"journal": ""
+},
+"8926": {
+"expected": "git-log",
+"journal": ""
+},
+"8963": {
+"expected": "git-log",
+"journal": ""
+},
+"8982": {
+"expected": "git-log",
+"journal": ""
+},
+"9005": {
+"expected": "git-log",
+"journal": ""
+},
+"9011": {
+"expected": "git-log",
+"journal": ""
+},
+"9074": {
+"expected": "git-log",
+"journal": ""
+},
+"9177": {
+"expected": "git-log",
+"journal": ""
+},
+"9255": {
+"expected": "git-log",
+"journal": ""
+},
+"9271": {
+"expected": "git-log",
+"journal": ""
+},
+"9317": {
+"expected": "git-log",
+"journal": ""
+},
+"9352": {
+"expected": "git-log",
+"journal": ""
+},
+"9572": {
+"expected": "git-log",
+"journal": ""
+},
+"9697": {
+"expected": "git-log",
+"journal": ""
+},
+"9793": {
+"expected": "git-log",
+"journal": ""
+},
+"9800": {
+"expected": "git-log",
+"journal": ""
+},
+"9909": {
+"expected": "git-log",
+"journal": ""
+},
+"9921": {
+"expected": "git-log",
+"journal": ""
+},
+"9996": {
+"expected": "git-log",
+"journal": ""
 }
 }

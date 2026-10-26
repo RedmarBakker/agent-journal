@@ -15,19 +15,26 @@ class MainAgent:
 
     def __init__(self, simulator: Simulator, policy, chance: random.Random, worker_seconds: int) -> None:
         self.simulator, self.policy, self.chance, self.worker_seconds = simulator, policy, chance, worker_seconds
-        self.current_task, self.writes = 0, 0
+        self.current_task, self.writes, self.calls = 0, 0, 0
 
     def act(self, world: World) -> tuple[str, Observation]:
         action = self.policy.action(world, self.chance)
         return action, getattr(self, f"{action}_action")(world)
 
+    def tool(self, name: str, given: dict, answer: dict) -> Observation:
+        self.calls += 1
+        call = f"sim-{self.calls}"
+        held = self.simulator.hook("PreToolUse", tool_name=name, tool_input=given, tool_use_id=call)
+        return held if held.is_refused() else self.simulator.hook("PostToolUse", tool_name=name, tool_input=given, tool_response=answer, tool_use_id=call)
+
     def command(self, argv: list[str]) -> Observation:
         call = {"command": "journal " + " ".join(shlex.quote(part) for part in argv), "description": "Run a journal command"}
-        held = self.simulator.hook("PreToolUse", tool_name="Bash", tool_input=call)
+        self.calls += 1
+        held = self.simulator.hook("PreToolUse", tool_name="Bash", tool_input=call, tool_use_id=f"sim-{self.calls}")
         if held.is_refused():
             return held
         seen = self.simulator.run(argv, AGENT)
-        self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False})
+        self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=f"sim-{self.calls}")
         return seen
 
     def write_action(self, world: World) -> Observation:
@@ -41,13 +48,10 @@ class MainAgent:
             task, self.current_task, self.writes = self.current_task, 0, 0
             return self.command(["task", "complete", str(task), "--how", "written"])
         edit = {"file_path": f"src/part_{self.current_task}.py", "content": f"PART = {self.writes}\n"}
-        self.simulator.hook("PreToolUse", tool_name="Write", tool_input=edit)
-        return self.simulator.hook("PostToolUse", tool_name="Write", tool_input=edit, tool_response={"type": "create"})
+        return self.tool("Write", edit, {"type": "create"})
 
     def read_action(self, world: World) -> Observation:
-        sight = {"file_path": "README.md"}
-        self.simulator.hook("PreToolUse", tool_name="Read", tool_input=sight)
-        return self.simulator.hook("PostToolUse", tool_name="Read", tool_input=sight, tool_response={"type": "text"})
+        return self.tool("Read", {"file_path": "README.md"}, {"type": "text"})
 
     def dispatch_action(self, world: World) -> Observation:
         if not world.open_tasks:
