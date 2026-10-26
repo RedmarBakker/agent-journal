@@ -7996,7 +7996,8 @@ def test_a_subagent_in_a_worktree_of_its_own_never_moves_the_main_conversation(a
     assert status == 200 and "error" not in answer, "the subagent's write in its own worktree is not refused for the checkout it is in"
     hook(app, "SubagentStop", agent_id="a1b2")
     assert app.container.get(SessionAgents).top("s1").name == previous, "the main agent's state stands"
-    assert [item.session for item in app.container.get(Agents).all_agents()] == ["s1"] and app.container.get(Agents).all_agents()[0].environment_id == 1, "no second agent and no other environment: the main conversation stays where it was"
+    rows = app.container.get(Agents).all_agents()
+    assert [(row.session, row.role.value, row.environment_id) for row in rows] == [("s1", "main", 1), ("s1:a1b2", "subagent", 1)] and rows[1].state == "ended", "no second main agent and no other environment: the subagent had its own row, ended with it, and the main conversation stays where it was"
 
 
 def test_a_workers_worktree_is_cut_from_the_working_tip_and_a_failed_cut_refuses_the_dispatch(app: App):
@@ -9993,6 +9994,20 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     hook(app, "PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
     app.container.get(ListenerQueue).drain()
     assert echo_heard(app, "silent") == ["file_edited"] and echo_heard(app, "asks") == ["file_edited", "file_edited"], "the main agent's edit reaches both, as before"
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.features.plugins.support.plugin_relay import PluginRelay
+    from journal.models.agent import Agent
+    from journal.repositories.agents import Agents
+    from journal.repositories.plugins import Plugins
+    from journal.support.agent_role import AgentRole
+    plugins, relay = app.container.get(Plugins), app.container.get(PluginRelay)
+    reaching = lambda role: [plugin.name for plugin in plugins.helper_hearers("file_edited", None, role)]
+    assert reaching(AgentRole.WORKER) == ["asks"] and reaching(AgentRole.REVIEWER) == reaching(AgentRole.VERIFIER) == reaching(AgentRole.SUBAGENT) == [], "a manifest that reaches workers reaches no reviewer, verifier or researcher"
+    with app.container.get(Scope).environment(1):
+        app.container.get(Agents).save(Agent(environment_id=1, session="rv", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
+        app.container.get(Agents).save(Agent(environment_id=1, session="s1:a1", provider="claude", state="researching", role=AgentRole.SUBAGENT), Actor.system())
+    read = ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))
+    assert relay.helper_role(ToolStarting(call=read).placed("rv", 1, "claude", None, 1.0)) == AgentRole.REVIEWER and relay.helper_role(ToolStarting(call=read).placed("s1:a1", 1, "claude", None, 1.0)) == AgentRole.SUBAGENT, "a reviewer's and a subagent's events are known as theirs, never the main agent's"
 
 
 def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugin_holds_the_edit_or_only_hears_it(app: App):
@@ -10026,6 +10041,7 @@ def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugi
 
 def test_a_manifest_says_who_an_event_reaches_only_for_an_event_it_hears_and_only_workers_or_subagents(app: App):
     from journal.features.plugins.support.manifest_reader import ManifestReader
+    from journal.support.agent_role import AgentRole
     from journal.support.rejection import Rejection
     reader = app.container.get(ManifestReader)
     folder = app.config.root / "reach"
@@ -10038,7 +10054,7 @@ def test_a_manifest_says_who_an_event_reaches_only_for_an_event_it_hears_and_onl
             with pytest.raises(Rejection):
                 reader.read(folder)
         else:
-            assert reader.read(folder).reaches_workers("file_edited")
+            assert reader.read(folder).reaches_role("file_edited", AgentRole.WORKER)
 
 
 def test_every_hook_of_every_tool_arrives_is_recorded_and_answered_even_with_a_message_crossed_in_the_transcript(app: App, tmp_path, monkeypatch):

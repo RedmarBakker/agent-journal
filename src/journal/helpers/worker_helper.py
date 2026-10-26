@@ -4,7 +4,7 @@ from journal.features.tasks.feature import Tasks
 from journal.features.workers.feature import Workers
 from journal.features.memory.commands.fact_command import FactCommand
 from journal.features.memory.commands.rule_command import RuleCommand
-from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
+from journal.features.plugins.feature import PluginsFeature
 from journal.features.reports.commands.report_command import ReportCommand
 from journal.features.search.commands.search_command import SearchCommand
 from journal.features.shell.commands.output_command import OutputCommand
@@ -26,7 +26,7 @@ class WorkerHelper(Helper):
     """A worker: writes on one task in a worktree of its own, put to work in WorkingTask when it clocks in; the workers, tasks and edits features are on for it whole, and the plugins hear it."""
 
     role = AgentRole.WORKER
-    features = (Workers, Tasks, EditsFeature)
+    features = (Workers, Tasks, EditsFeature, PluginsFeature)
     commands = (
         (WaitCommand, "begin"),
         (WaitCommand, "clear"),
@@ -60,4 +60,3 @@ class WorkerHelper(Helper):
         (WorkerCommand, "report"),
         (WorkerCommand, "send"),
     )
-    listeners = (PluginAgentRelay,)

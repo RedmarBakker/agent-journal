@@ -39,7 +39,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         hearers = self.relay.listeners(event, event.environment_id)
         ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
         waiting = self.relay.waiting_lines(event.session) if Protocol.published_name(event) in LINE_EVENT_KEYS else []
-        if Protocol.published_name(event) in LINE_EVENT_KEYS and self.relay.plugins.enabled() and not self.relay.is_worker(event):
+        if Protocol.published_name(event) in LINE_EVENT_KEYS and self.relay.plugins.enabled() and not self.relay.helper_role(event).is_helper():
             waiting += [line for plugin in self.relay.plugins.enabled() for line in self.queue.lines(plugin, event)]
         decision = Decision.allowed_with("\n".join(waiting)) if waiting else Decision()
         decision = self.request(hearers, event, ceiling_ms, decision)

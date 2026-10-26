@@ -6,6 +6,8 @@ What each release of agent-journal version 4 brought, newest first.
 
 - The hooks and shell commands that went around a journal that did not answer are named once in the chat, in one red mark that counts each kind and lists each with its time and command, at the journal's next answer; what it named is cleared from runtime/bypass.log.
 - Colleagues' environments are no longer shown unless their chat is shared.
+- Every helper rests on an empty state until the journal gives it its job, and one file per helper decides what reaches it: a worker, a reviewer, a verifier and a Claude Code subagent each hear only the features, listeners and command verbs their file names, and a plugin reaches a helper only when its manifest names that helper's role (workers, reviewers, verifiers, subagents).
+- A Claude Code subagent has its own row in the journal: the hook script now also sends a subagent's PostToolUse, so its tool uses are answered and recorded as its own, never the main agent's. The hook script ships with this release, so projects pick it up with the upgrade.
 
 ## 4.60.0
 

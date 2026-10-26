@@ -1,3 +1,4 @@
+from journal.support.agent_role import AgentRole
 from dataclasses import fields, dataclass, field
 
 from journal.models.support.card_kind import CardKind
@@ -51,8 +52,8 @@ class PluginManifest:
     def alias_names(self) -> set[str]:
         return {alias.name for alias in self.aliases}
 
-    def reaches_workers(self, key: str) -> bool:
-        return "workers" in self.reaches.get(key, ())
+    def reaches_role(self, key: str, role: AgentRole) -> bool:
+        return role.reach_name in self.reaches.get(key, ())
 
     def has_window(self, key: str) -> bool:
         return any(window.event == key for window in self.blocks)

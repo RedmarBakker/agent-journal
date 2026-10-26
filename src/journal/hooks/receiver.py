@@ -18,6 +18,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.support.hook import Hook
 from journal.hooks.support.transcript_turns import TranscriptTurns
 from journal.hooks.support.checker_hooks import CheckerHooks
+from journal.hooks.support.researcher_hooks import ResearcherHooks
 from journal.helpers.helper_listeners import HelperListeners
 from journal.hooks.support.worker_hooks import WorkerHooks
 from journal.hooks.translation import Translation
@@ -42,17 +43,18 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, time_source: TimeSource) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
         self.transcript, self.slow = transcript, slow
-        self.worker_hooks, self.checker_hooks, self.helper_listeners = worker_hooks, checker_hooks, helper_listeners
+        self.worker_hooks, self.checker_hooks, self.helper_listeners, self.researchers = worker_hooks, checker_hooks, helper_listeners, researchers
 
     def receive(self, raw_hook: Hook) -> Decision:
         self.slow.begin(self.time_source.seconds())
-        hook = self.worker_hooks.attributed(raw_hook)
+        researcher = raw_hook.is_researcher()
+        hook = raw_hook.researcher_hook() if researcher else self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
             hook_entries = self.entries.keyed(hook.key())
@@ -60,6 +62,9 @@ class Receiver:
                 return self.replayed(hook_entries[0])
             if not self.is_accepted(hook, environment):
                 return self.unbound(hook, environment)
+            if researcher:
+                self.researchers.bind(hook, environment)
+                return self.sent_recorded(hook, environment)
             self.worker_hooks.bind(hook, environment)
             self.checker_hooks.bind(hook, environment)
             if hook.is_sent():
@@ -75,7 +80,16 @@ class Receiver:
             decision = self._blocking(event, self._split(self.bus.listeners(type(event)))[0])
             self.entries.save(entry.with_merged("data", self.recorded_outcome(hook, decision)), Actor.agent(hook.session))
             self._defer(event)
+            self.subagent_moved(hook, environment)
         return decision
+
+    def subagent_moved(self, hook: Hook, environment: Environment) -> None:
+        if hook.kind == HookKind.SUBAGENT_START:
+            self.researchers.started(hook, environment)
+        if hook.kind == HookKind.SUBAGENT_STOP:
+            self.researchers.ended(hook, environment)
+        if hook.kind == HookKind.SESSION_END:
+            self.researchers.main_ended(hook, environment)
 
     def is_accepted(self, hook: Hook, environment: Environment) -> bool:
         if hook.is_sent():

@@ -1,3 +1,4 @@
+from journal.support.researcher_session import ResearcherSession
 from datetime import datetime
 
 from journal.db.query import Query
@@ -55,6 +56,9 @@ class Agents(ScopedRepository[Agent]):
 
     def main_scoped(self, environment_id: int) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id, role=AgentRole.MAIN).order("id"))
+
+    def researchers(self, session: str) -> list[Agent]:
+        return self.selected_globally(self.unended_query().filter(role=AgentRole.SUBAGENT).filter_prefix("session", ResearcherSession.joined(session, "")))
 
     def unended(self) -> list[Agent]:
         return self.selected_globally(self.unended_query().order("id"))

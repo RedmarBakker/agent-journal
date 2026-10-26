@@ -46,8 +46,9 @@ class PluginRelay:
     def listeners(self, event: Event, environment_id: int) -> list[Plugin]:
         name, actor = Protocol.published_name(event), getattr(event, "actor", None)
         hearers = self.plugins.hearers(name, actor)
-        if hearers and self.is_worker(event):
-            hearers = self.plugins.worker_hearers(name, actor)
+        role = self.helper_role(event)
+        if hearers and role.is_helper():
+            hearers = self.plugins.helper_hearers(name, actor, role)
         if hearers and self.steps.is_nested_deep():
             self.logged(environment_id, CUT, Actor.system(), {"event": Protocol.published_name(event), "by": getattr(event, "actor", Actor.system()).stamp, "plugins": [p.name for p in hearers]})
             return []
@@ -118,11 +119,11 @@ class PluginRelay:
     def logged(self, environment_id: int, kind: str, actor: Actor, data: dict) -> None:
         self.entries.save(Entry(environment_id=environment_id, kind=kind, actor=actor, data=data), actor)
 
-    def is_worker(self, event: Event) -> bool:
+    def helper_role(self, event: Event) -> AgentRole:
         if not isinstance(event, AgentEvent):
-            return False
+            return AgentRole.MAIN
         agents = self.agents.matching(session=event.session)
-        return bool(agents) and agents[0].role == AgentRole.WORKER
+        return agents[0].role if agents else AgentRole.MAIN
 
     def agent_state(self, event: Event) -> str:
         if not isinstance(event, AgentEvent):

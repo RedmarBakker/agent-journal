@@ -1,4 +1,4 @@
-from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
+from journal.features.plugins.feature import PluginsFeature
 from journal.features.verification.commands.verdict_command import VerdictCommand
 from journal.features.verification.feature import Verification
 from journal.features.verification.states.verifying import Verifying
@@ -11,9 +11,8 @@ class VerifierHelper(Helper):
 
     role = AgentRole.VERIFIER
     first_state = Verifying
-    features = (Verification,)
+    features = (Verification, PluginsFeature)
     commands = (
         (VerdictCommand, "give"),
         (VerdictCommand, "model"),
     )
-    listeners = (PluginAgentRelay,)

@@ -22,7 +22,7 @@ cat > "$sent"
 started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
 # the id of this firing, the same on a resend, so the journal records a hook it already took once
 firing="$$-$started"
-if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
+if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\|PostToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
 # Every hook that goes to the server first writes its time, whether or not the server takes it: the server's health compares it with
 # the last hook it took, and the supervisor warns an agent whose terminal moves while this file stands still.
 mkdir -p "$root/.journal/runtime/hooks" && date +%s > "$root/.journal/runtime/hooks/$(journal_environment).fired"

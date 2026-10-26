@@ -189,7 +189,7 @@ def post_command(app, argv: list[str], headers: dict | None = None, session: str
 
 def test_a_claude_subagents_command_is_told_by_the_hook_that_announced_it(app: App):
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "sub1", "tool_name": "Bash", "tool_input": {"command": "journal task create x"}})
-    assert status == 200 and body == {} and app.container.get(Entries).scoped() == [], "announced, never recorded as the agent's"
+    assert status == 200 and body == {} and all(entry.data.get("session_id") == "s1:sub1" for entry in app.container.get(Entries).scoped()), "announced, and recorded as the subagent's own, never the main agent's"
     assert post_command(app, ["task", "create", "x"], {"X-Journal-Env": "main"}, "s2")["code"] == 0, "another session's command is not the subagent's"
     refused = post_command(app, ["task", "create", "x"], {"X-Journal-Env": "main"}, "s1")
     assert refused["code"] == 1 and "a subagent may not run journal task create" in refused["error"]
@@ -275,15 +275,6 @@ def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_
     posted = post_command(app, ["task", "create", "x"], {"X-Journal-Thread": "thread-2"}, body=shell)
     assert "a subagent may not run journal task create" in posted["error"], posted
     assert post_command(app, ["task", "list"], {"X-Journal-Thread": "thread-1"}, body=shell)["code"] == 0
-
-
-def test_a_subagents_write_hook_makes_no_entry_and_moves_no_state(app: App):
-    from journal.repositories.agents import Agents
-    post_hook(app, {"hook_event_name": "SessionStart", "session_id": "s1", "source": "startup"})
-    entries, states = len(app.container.get(Entries).scoped()), [item.state for item in app.container.get(Agents).scoped()]
-    status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "sub1", "tool_name": "Write", "tool_input": {"file_path": "a.py"}})
-    assert status == 200 and body == {}
-    assert len(app.container.get(Entries).scoped()) == entries and [item.state for item in app.container.get(Agents).scoped()] == states
 
 
 def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App):

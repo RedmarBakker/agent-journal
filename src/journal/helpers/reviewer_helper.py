@@ -1,7 +1,7 @@
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.memory.commands.fact_command import FactCommand
 from journal.features.memory.commands.rule_command import RuleCommand
-from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
+from journal.features.plugins.feature import PluginsFeature
 from journal.features.reports.commands.report_command import ReportCommand
 from journal.features.reviewing.commands.review_command import ReviewCommand
 from journal.features.reviewing.feature import ReviewingFeature
@@ -18,7 +18,7 @@ class ReviewerHelper(Helper):
 
     role = AgentRole.REVIEWER
     first_state = Reviewing
-    features = (ReviewingFeature,)
+    features = (ReviewingFeature, PluginsFeature)
     commands = (
         (DocCommand, "show"),
         (FactCommand, "list"),
@@ -31,4 +31,3 @@ class ReviewerHelper(Helper):
         (SearchCommand, "find"),
         (TaskCommand, "show"),
     )
-    listeners = (PluginAgentRelay,)

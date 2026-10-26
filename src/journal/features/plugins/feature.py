@@ -1,3 +1,4 @@
+from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.mark_kind import MarkKind
 from journal.support.mark_kinds import JOURNAL
@@ -28,6 +29,7 @@ from journal.features.plugins.plugins_part import PluginsPart
 
 class PluginsFeature(Feature[PluginsData]):
     name = PluginsPart.name
+    helper_listeners = {role: (PluginAgentRelay,) for role in AgentRole.helpers()}
     card_families = (CardFamily("plugins", "Plugins", "plug", JOURNAL, CardColouring.OUTCOME),)
     card_kinds = (MarkKind(CardKind.PLUGINS, "Plugin notes", "plugins"),)
     title = "Plugins"

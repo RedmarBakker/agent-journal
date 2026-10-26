@@ -14,6 +14,10 @@ class AgentRole(StrEnum):
     def is_helper(self) -> bool:
         return self in AgentRole.helpers()
 
+    @property
+    def reach_name(self) -> str:
+        return f"{self.value}s"
+
     @staticmethod
     def helpers() -> tuple["AgentRole", ...]:
         return (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER, AgentRole.SUBAGENT)

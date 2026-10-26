@@ -2855,7 +2855,7 @@ HELPER_CONDUCTS = {
     "verifier": ["DemandConduct", "SafetyConduct"],
     "subagent": ["DemandConduct", "SafetyConduct"],
 }
-HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Void"}
+HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Researching"}
 HELPER_VERBS = {
     "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "fact list", "fact read", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
     "reviewer": ["doc show", "fact list", "fact read", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
@@ -2866,7 +2866,7 @@ HELPER_LISTENERS = {
     "worker": ["HookAnswer", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
     "reviewer": ["HookAnswer", "PluginAgentRelay", "ReviewerTestFailed", "ReviewerTestPassed"],
     "verifier": ["HookAnswer", "PluginAgentRelay"],
-    "subagent": ["HookAnswer"],
+    "subagent": ["HookAnswer", "PluginAgentRelay", "SubagentTurnRecord"],
 }
 
 
@@ -3193,6 +3193,64 @@ def test_a_row_event_reaches_a_helper_only_when_its_feature_is_on_the_helpers_fi
     assert sessions(PlanStarted(environment_id=1, plan_id=1, task_id=0)) == {"s1"}, "a plan's start reaches no helper, whose file turns no plans on"
     assert "rw" in sessions(WorkerReady(environment_id=1, worker=mention)), "a worker hears the workers feature's events"
     assert "rr" in sessions(WorkerReviewed(environment_id=1, worker=mention, task=1, reviewer=1, reviewer_session="rr", report="")) and "rr" not in sessions(WorkerReady(environment_id=1, worker=mention)), "a reviewer hears its review and not a worker's clock-in"
+
+
+HELPER_SWEEP_EVENTS = ("a write", "a stop with a task open", "a message of the user's", "a plan started", "a task edited")
+
+
+@pytest.mark.parametrize("role_name", ["worker", "reviewer", "verifier", "subagent"])
+def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name: str):
+    """The events that nudge or hold the main agent, sent to one helper role: every line it gets comes from the engine or a feature its file turns on, its floor stays Void, and the main agent's count does not move."""
+    from journal.engine.nudger import NUDGE
+    from journal.events.agent.prompt_submitted import PromptSubmitted
+    from journal.events.agent.stop import Stop
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.events.rows.plan_started import PlanStarted
+    from journal.events.rows.task_edited import TaskEdited
+    from journal.features.registry import Registry
+    from journal.providers.claude import Claude
+    from journal.support.agent_role import AgentRole
+    role = AgentRole(role_name)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the main work", "--start"], AGENT)
+    registry, machine, agents, entries = app.container.get(Registry), app.container.get(StateMachine), app.container.get(Agents), app.container.get(Entries)
+    helper = registry.helper(role)
+    with app.container.get(Scope).environment(1):
+        agents.save(Agent(environment_id=1, session="sweep", provider="claude", state=helper.first_state.name, role=role), Actor.system())
+    main_uses = agents.session_agent("s1").tool_uses
+    write = Claude().call("Write", {"file_path": str(app.config.root / "a.py"), "content": "x"}, frozenset())
+    events = (ToolStarting(call=write), Stop(), PromptSubmitted(prompt="please look at the parser"))
+    with app.container.get(Scope).environment(1):
+        for event in events:
+            machine.reply(agents.session_agent("sweep"), event.placed("sweep", 1, "claude", None, 1.0))
+        machine.row_replies(PlanStarted(environment_id=1, plan_id=1, task_id=0))
+        machine.row_replies(TaskEdited(environment_id=1, task_id=1, changes=("brief",)))
+        said = [entry.data["key"] for entry in entries.kind_entries(NUDGE) if entry.data.get("session") == "sweep"]
+    allowed = {"engine", *helper.feature_names()}
+    assert all(key.split(".")[0] in allowed for key in said), f"{role_name} heard {HELPER_SWEEP_EVENTS} and was told lines of features its file does not turn on: {said}"
+    assert app.container.get(StatesCatalogue).stack(agents.session_agent("sweep")).states[0].name == "void", "its floor stays Void"
+    assert agents.session_agent("s1").tool_uses == main_uses, "and the main agent's count does not move"
+
+
+def test_a_subagents_tool_use_lands_on_its_own_row_researching_and_its_end_pops_it(app: App):
+    from journal.support.agent_role import AgentRole
+    agents, catalogue = app.container.get(Agents), app.container.get(StatesCatalogue)
+    stack = lambda session: [state.name for state in catalogue.stack(agents.session_agent(session)).states]
+    hook(app, "SessionStart")
+    main_before = stack("s1")
+    hook(app, "SubagentStart", agent_id="sub1", agent_type="Explore")
+    assert agents.session_agent("s1:sub1").role == AgentRole.SUBAGENT and stack("s1:sub1") == ["void", "researching"], "a subagent's start makes its own row, researching over Void"
+    status, body = hook(app, "PreToolUse", agent_id="sub1", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+    assert status == 200 and "[journal]" not in json.dumps(body), "its tool use is answered on its own row, with no main line"
+    with app.container.get(Scope).environment(1):
+        assert any(entry.data.get("session_id") == "s1:sub1" for entry in app.container.get(Entries).kind_entries("ToolStarting")), "and recorded as its own"
+    assert stack("s1") == main_before, "the main agent's stack does not move"
+    hook(app, "SubagentStop", agent_id="sub1", last_assistant_message="found it")
+    assert stack("s1:sub1") == ["void", "ended"], "its end pops Researching back to Void and ends its row"
+    hook(app, "SubagentStart", agent_id="sub2", agent_type="Explore")
+    hook(app, "SessionEnd", reason="exit")
+    assert stack("s1:sub2")[-1] == "ended" and not [row for row in agents.unended() if row.role == AgentRole.SUBAGENT], "a subagent left running ends with its main session, so no researcher row is left to hear row events"
 
 
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):

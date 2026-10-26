@@ -2,9 +2,11 @@ import json
 import re
 from pathlib import Path
 
+from journal.features.plugins.plugins_part import PluginsPart
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.registry import Registry
 from journal.models.support.plugin_manifest import PUBLISHED, PluginManifest
+from journal.support.agent_role import AgentRole
 from journal.support.release import Release
 from journal.support.rejection import Rejection
 from journal.version import VERSION
@@ -20,7 +22,7 @@ ROW_EVENT = re.compile(r"^(?P<table>[a-z_]+)\.(created|updated|deleted)$")
 PRIVATE_TABLES = ("secrets", "mcp_servers", "users")
 KEYS = {f for f in PluginManifest.__dataclass_fields__} - set(PUBLISHED.values()) - {"ignored"} | set(PUBLISHED)
 PATHS = ("program", "settings", "skills")
-REACHES = ("workers", "subagents")
+REACH_ROLES = {role.reach_name: role for role in AgentRole.helpers()}
 
 
 class ManifestReader:
@@ -39,6 +41,7 @@ class ManifestReader:
         self.name_check(manifest)
         self.protocol_check(manifest)
         self.event_check(manifest)
+        self.reach_check(manifest)
         self.folder_check(folder, manifest)
         self.skills_free(folder, manifest)
         return manifest
@@ -92,8 +95,8 @@ class ManifestReader:
         for event, kinds in manifest.reaches.items():
             if event not in manifest.events:
                 raise Rejection(f"{manifest.name} says who {event} reaches but does not hear it")
-            if not set(kinds) <= set(REACHES):
-                raise Rejection(f"{manifest.name} says {event} reaches {', '.join(kinds)}; it may reach {', '.join(REACHES)}")
+            if not set(kinds) <= set(REACH_ROLES):
+                raise Rejection(f"{manifest.name} lets {event} reach {', '.join(kinds)}; it may reach only {', '.join(REACH_ROLES)}")
         for window in manifest.blocks:
             if window.event not in manifest.events:
                 raise Rejection(f"{manifest.name} holds {window.event} but does not hear it")
@@ -101,6 +104,12 @@ class ManifestReader:
                 raise Rejection(f"{manifest.name} holds {window.event}, which no plugin may hold; it may hold {', '.join(HOLDABLE)}")
             if window.window_ms < 0:
                 raise Rejection(f"{manifest.name} holds {window.event} within {window.window_ms} ms: a window is 0 or more milliseconds")
+
+    def reach_check(self, manifest: PluginManifest) -> None:
+        for event, names in manifest.reaches.items():
+            closed = [name for name in names if PluginsPart.name not in self.registry.helper_features(REACH_ROLES[name])]
+            if closed:
+                raise Rejection(f"{manifest.name} lets {event} reach {', '.join(closed)}, but the helper files of those roles leave the plugins out")
 
     @staticmethod
     def folder_check(folder: Path, manifest: PluginManifest) -> None:

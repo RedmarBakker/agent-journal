@@ -29,8 +29,8 @@ class HookController:
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, ""))
         hook = self.sender_stamped(stamped, request)
         if hook.subagent and hook.kind == HookKind.PRE_TOOL_USE:
-            return self.announce(hook)
-        if hook.kind == HookKind.PRE_TOOL_USE:
+            self.announce(hook)
+        elif hook.kind == HookKind.PRE_TOOL_USE:
             self.announced.withdraw(hook.environment, hook.session, self.shell_parts(hook))
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
@@ -48,10 +48,9 @@ class HookController:
     def is_copy_shown(self) -> bool:
         return bool(self.settings.option(FaultsOptions.HOOK_LINE_COPY))
 
-    def announce(self, hook: Hook) -> Response:
+    def announce(self, hook: Hook) -> None:
         if parts := self.shell_parts(hook):
             self.announced.note(hook.environment, hook.session, parts)
-        return Response.json({})
 
     def shell_parts(self, hook: Hook) -> tuple[str, ...]:
         return tuple(part.text for part in self.calls.build(hook).parts)

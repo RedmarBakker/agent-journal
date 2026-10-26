@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field, replace
 
 from journal.support.hook_kind import HookKind
+from journal.support.researcher_session import ResearcherSession
+
+RESEARCHER_KINDS = (HookKind.PRE_TOOL_USE, HookKind.POST_TOOL_USE, HookKind.POST_TOOL_USE_FAILURE)
+SUBAGENT_KEYS = ("agent_id", "subagent_id")
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,17 @@ class Hook:
 
     def is_sent(self) -> bool:
         return self.worker is not None or self.verifier is not None or self.reviewer is not None
+
+    def is_researcher(self) -> bool:
+        return bool(self.subagent) and self.kind in RESEARCHER_KINDS
+
+    @property
+    def researcher_session(self) -> str:
+        return ResearcherSession.joined(self.session, self.subagent)
+
+    def researcher_hook(self) -> "Hook":
+        body = {key: value for key, value in self.body.items() if key not in SUBAGENT_KEYS}
+        return replace(self, session=self.researcher_session, body={**body, "session_id": self.researcher_session})
 
     def stamped(self, started_ms: int) -> "Hook":
         return replace(self, started_ms=started_ms)
@@ -123,7 +138,7 @@ class Hook:
 
     @property
     def subagent(self) -> str:
-        return self.body.get("agent_id", "") or self.body.get("subagent_id", "")
+        return next((str(self.body[key]) for key in SUBAGENT_KEYS if self.body.get(key)), "")
 
     @property
     def subagent_report(self) -> str:

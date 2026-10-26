@@ -77,6 +77,9 @@ class Registry:
     def receives_row_event(self, feature_name: str, role: AgentRole) -> bool:
         return not role.is_helper() or feature_name == ENGINE or feature_name in self.helper(role).feature_names()
 
+    def helper_features(self, role: AgentRole) -> frozenset[str]:
+        return self.helper(role).feature_names()
+
     def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool:
         return not role.is_helper() or self.helper(role).runs(command, verb)
 
