@@ -5432,6 +5432,24 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
     with pytest.raises(Rejection, match="skill lint-rules has the name of a skill of plugin lint"):
         reader.read(made({"skills": "skills"}, ("run.py", "skills/lint-rules/SKILL.md")))
 
+def test_a_plugins_last_fault_is_listed_with_its_time_and_one_kept_without_a_time_is_not(app: App, tmp_path):
+    from datetime import datetime, timezone
+    from journal.features.plugins.support.plugin_faults import PluginFaults
+    from journal.models.plugin import Plugin
+    from journal.repositories.plugins import Plugins
+    from journal.support.time_source import TimeSource
+    hook(app, "SessionStart")
+    plugins = app.container.get(Plugins)
+    plugins.save(Plugin(name="lint", source=str(tmp_path), linked=True, manifest=PluginManifest(name="lint"), last_fault="an old fault"), Actor.user(1))
+    assert "last fault" not in app.console().run(["plugin", "list"], USER).text, "a fault kept from before its time was kept is not shown, since it reads as current"
+    app.container.get(TimeSource).pin(datetime(2026, 10, 26, 9, 12, tzinfo=timezone.utc).timestamp())
+    faults = app.container.get(PluginFaults)
+    faults.failed(plugins.lookup("lint"), MAIN, "tool_starting", "[Errno 1] Operation not permitted")
+    faults.answered(plugins.lookup("lint"), MAIN)
+    listed = app.console().run(["plugin", "list"], USER).text
+    assert "last fault at 2026-10-26 09:12: [Errno 1] Operation not permitted" in listed, listed
+
+
 def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_again_when_its_fault_changes_or_a_day_has_passed(app: App, monkeypatch, tmp_path):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked

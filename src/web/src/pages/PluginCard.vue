@@ -58,8 +58,8 @@ function pick(event) {
         <template v-if="plugin.state === 'failing'">
             <p class="fault">Failing since {{ span(now - plugin.failingSince) }} ago, so events go through without it: {{ plugin.lastFault }}</p>
         </template>
-        <template v-else-if="plugin.lastFault">
-            <p class="fault quiet">Last fault: {{ plugin.lastFault }}</p>
+        <template v-else-if="plugin.lastFault && plugin.lastFaultAt">
+            <p class="fault quiet">Last fault {{ span(now - plugin.lastFaultAt) }} ago: {{ plugin.lastFault }}</p>
         </template>
 
         <template v-if="plugin.waitsFor">

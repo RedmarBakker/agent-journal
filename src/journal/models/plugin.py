@@ -25,5 +25,6 @@ class Plugin(Model):
     waiting: str = ""
     wait_target: str = ""
     last_fault: str = ""
+    last_fault_at: datetime | None = None
     fault_streak: int = 0
     failed_at: datetime | None = None

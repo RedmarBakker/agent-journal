@@ -45,7 +45,7 @@ class PluginCommand(Command):
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for p in self.plugins.all():
-            print(f"{p.name:<20} {'on' if p.enabled else 'off':<4} {p.manifest.version}" + (f"  last fault: {p.last_fault}" if p.last_fault else "") + (f"  waits for journal {p.wait_target}" if p.wait_target else "") + (f"  ignored manifest keys: {', '.join(p.manifest.ignored)}" if p.manifest.ignored else ""))
+            print(f"{p.name:<20} {'on' if p.enabled else 'off':<4} {p.manifest.version}" + (f"  last fault at {p.last_fault_at:%Y-%m-%d %H:%M}: {p.last_fault}" if p.last_fault_at else "") + (f"  waits for journal {p.wait_target}" if p.wait_target else "") + (f"  ignored manifest keys: {', '.join(p.manifest.ignored)}" if p.manifest.ignored else ""))
         return 0
 
     def install(self, args: Namespace, caller: Caller) -> int:

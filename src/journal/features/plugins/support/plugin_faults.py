@@ -25,7 +25,7 @@ class PluginFaults:
         self.entries.save(Entry(environment_id=environment_id, kind=FAULT, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "event": event, "fault": text}), Actor.system())
         row = self.plugins.lookup(plugin.name)
         failing = row.fault_streak + 1 >= FAILURE_COUNT and row.failed_at is None
-        self.plugins.save(row.with_(last_fault=text, fault_streak=row.fault_streak + 1, failed_at=self.time_source.moment() if failing else row.failed_at), Actor.system())
+        self.plugins.save(row.with_(last_fault=text, last_fault_at=self.time_source.moment(), fault_streak=row.fault_streak + 1, failed_at=self.time_source.moment() if failing else row.failed_at), Actor.system())
         if failing:
             self.announcer.announce(PluginFailing(environment_id=environment_id, plugin=plugin.name, fault=text, failures=FAILURE_COUNT))
 

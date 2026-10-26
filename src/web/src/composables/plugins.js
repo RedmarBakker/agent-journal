@@ -22,6 +22,7 @@ export const pluginFrom = (p) => ({
     state: p.status,
     holds: (p.manifest.holds || []).map((h) => (typeof h === "string" ? h : h.window_ms ? `${h.event} within ${h.window_ms} ms` : h.event)),
     lastFault: p.last_fault || "",
+    lastFaultAt: seconds(p.last_fault_at),
     waitsFor: p.wait_target || "",
     ignored: p.manifest.ignored || [],
     failingSince: seconds(p.failed_at),
