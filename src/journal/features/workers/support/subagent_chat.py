@@ -2,7 +2,7 @@ from pathlib import Path
 
 from journal.config import Config
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.subagent import Subagent
@@ -22,7 +22,7 @@ class SubagentChat:
         self.config, self.messages, self.subagents, self.agents, self.workers, self.providers, self.branch = config, messages, subagents, agents, workers, providers, branch
 
     def instruction(self, subagent: Subagent, text: str, key: str, actor: Actor) -> Message:
-        return self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.USER, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT, idempotency=key), actor)
+        return self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.USER, text=text, session=subagent.session, thread=MessageThread.SUBAGENT, idempotency=key), actor)
 
     def read(self, subagent: Subagent) -> Subagent:
         if not subagent.session:
@@ -38,7 +38,7 @@ class SubagentChat:
         return self.subagents.save(subagent.with_(transcript_bytes=blocks.time), Actor.agent(subagent.dispatcher))
 
     def turn(self, subagent: Subagent, text: str, key: str) -> None:
-        self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.AGENT, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT, idempotency=key), Actor.agent(subagent.dispatcher))
+        self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.AGENT, text=text, session=subagent.session, thread=MessageThread.SUBAGENT, idempotency=key), Actor.agent(subagent.dispatcher))
 
     def place(self, subagent: Subagent) -> Path:
         workers = self.workers.session_worker(subagent.dispatcher)

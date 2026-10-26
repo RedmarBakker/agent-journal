@@ -58,6 +58,7 @@ from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
+from journal.support.message_thread import MessageThread
 from journal.features.briefing.briefing_options import BriefingOptions
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.workers.fitness_options import FitnessOptions
@@ -850,7 +851,7 @@ def test_a_codex_workers_turns_are_read_from_its_rollout_into_its_chat(app: App,
     with app.container.get(Scope).environment(1):
         worker = app.container.get(Workers).save(Worker(environment_id=1, name="Ada Lovelace", brief="write storage.py", provider="codex", resume=session), Actor.system())
         app.container.get(WorkerChat).read(worker)
-        chat = [m.text for m in app.container.get(Messages).all() if m.agent_role == AgentRole.WORKER and m.session == session]
+        chat = [m.text for m in app.container.get(Messages).all() if m.thread == MessageThread.WORKER and m.session == session]
     assert chat == ["Storage is written."]
 
 
@@ -2461,9 +2462,9 @@ def test_a_workers_words_never_answer_the_users_message_nor_count_as_the_main_ag
     app.console().run(["message", "read", "1"], AGENT)
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(1):
-        messages.save(Message(environment_id=1, author="agent", text="Done.", reply_target=1, session="w1", agent_role=AgentRole.WORKER), Actor.agent("w1"))
+        messages.save(Message(environment_id=1, author="agent", text="Done.", reply_target=1, session="w1", thread=MessageThread.WORKER), Actor.agent("w1"))
         messages.save(Message(environment_id=1, author="agent", text="The footer is fixed.", reply_target=1), Actor.worker(1))
-        messages.save(Message(environment_id=1, author="user", text="and the header?", agent_role=AgentRole.WORKER), Actor.user(1))
+        messages.save(Message(environment_id=1, author="user", text="and the header?", thread=MessageThread.WORKER), Actor.user(1))
         assert [m.id for m in messages.unanswered()] == [1], "neither the worker's turn nor its report answers the user"
         assert [m.text for m in messages.unread()] == [], "a message in a worker's chat is not the main agent's to read"
         assert messages.latest_voice() is None, "nothing here was the main agent's own words"
@@ -2472,7 +2473,7 @@ def test_a_workers_words_never_answer_the_users_message_nor_count_as_the_main_ag
     assert app.console().run(["message", "send", "Good; now the header.", "--reply-to", str(worker_turn.id)], AGENT).code == 0
     with app.container.get(Scope).environment(1):
         reply = [m for m in messages.all() if m.text == "Good; now the header."][0]
-        assert (reply.agent_role, reply.session, reply.reply_target) == (AgentRole.WORKER, "w1", worker_turn.id) and reply not in messages.recent(30), "the main agent's reply to a worker's message shows in that worker's chat, not the main one"
+        assert (reply.thread, reply.session, reply.reply_target) == (AgentRole.WORKER, "w1", worker_turn.id) and reply not in messages.recent(30), "the main agent's reply to a worker's message shows in that worker's chat, not the main one"
 
 
 def test_search_finds_the_main_chats_message_among_a_workers_many_and_names_the_worker_of_its_hits(app: App):
@@ -2489,7 +2490,7 @@ def test_search_finds_the_main_chats_message_among_a_workers_many_and_names_the_
         worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
         main = messages.save(Message(environment_id=1, author="user", text="the gearbox rattles"), Actor.user(1))
         for i in range(50):
-            messages.save(Message(environment_id=1, author="agent", text=f"gearbox step {i}", session="w1", agent_role=AgentRole.WORKER), Actor.agent("w1"))
+            messages.save(Message(environment_id=1, author="agent", text=f"gearbox step {i}", session="w1", thread=MessageThread.WORKER), Actor.agent("w1"))
         hits = app.container.get(Search).kind_hits(["gearbox"], ["message"])
     assert f"message {main.id}" in [hit.ref for hit in hits], "the main chat's message is found"
     assert any(hit.ref.endswith(f"in the chat of worker {worker.id}, Mr. Babbage") for hit in hits), "a worker's hit names its worker"
@@ -9019,7 +9020,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     assert UnlinkedRowNumbers.numbers("All 1215 pass, and 3 fail") == [], "a count of tests that pass or fail is a count, never a row"
     with app.container.get(Scope).environment(MAIN):
         from journal.support.voice_key import VoiceKey
-        said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
+        said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
         bare = said(f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s")
     app.runtime().deferred.drain()
     line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
@@ -9039,7 +9040,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     app.runtime().deferred.drain()
     assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]), "a number with its kind before it is told nothing"
     with app.container.get(Scope).environment(MAIN):
-        messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=f"Now checking {lexer} again", data={"kind": Message.THOUGHT}), Actor.agent("s1"))
+        messages.save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=f"Now checking {lexer} again", data={"kind": Message.THOUGHT}), Actor.agent("s1"))
     app.runtime().deferred.drain()
     assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})[1]), "a thought is a summary of the agent's words, never asked to be linked"
 
@@ -11331,7 +11332,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
         urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/workers/1/message", data=json.dumps({"text": "and the tests"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         assert arrived(received, 4)[-1]["message"]["content"].startswith('<cross-session-message from-name="the user"') and "and the tests" in received[-1]["message"]["content"], "the user's message in the worker's chat goes to the worker's own session"
         app.runtime().deferred.drain()
-        chat = [m for m in messages.all() if m.agent_role == AgentRole.WORKER and m.session == "w-1" and m.text in ("the lexer too", "and the tests")]
+        chat = [m for m in messages.all() if m.thread == MessageThread.WORKER and m.session == "w-1" and m.text in ("the lexer too", "and the tests")]
         assert [(m.text, m.creator.kind.value) for m in chat] == [("the lexer too", "agent"), ("and the tests", "user")] and len(messages.unread()) == unread, "both are messages of the worker's chat, each by its sender, and neither reaches the main agent's inbox"
         from journal.models.reaction import Reaction
         main = messages.recent(1)[-1]
@@ -17710,8 +17711,8 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
     agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
     worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w-1"), Actor.system())
     messages = app.container.get(Messages)
-    messages.save(Message(environment_id=1, author="agent", text="Reading the lexer.", session="w-1", agent_role=AgentRole.WORKER), Actor.agent("w-1"))
-    messages.save(Message(environment_id=1, author="user", text="mind the tests", session="w-1", agent_role=AgentRole.WORKER), Actor.user(1))
+    messages.save(Message(environment_id=1, author="agent", text="Reading the lexer.", session="w-1", thread=MessageThread.WORKER), Actor.agent("w-1"))
+    messages.save(Message(environment_id=1, author="user", text="mind the tests", session="w-1", thread=MessageThread.WORKER), Actor.user(1))
     patch = [{"oldStart": 3, "newStart": 3, "lines": [" a", "-b", "+c", " d"]}]
 
     def as_worker(kind: str, **body):
@@ -17775,7 +17776,7 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
             messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, session="worker-s", text="Searched for x", data={"kind": "card"}), Actor.system())
         mark = app.container.get(MomentCards).show(MAIN, "worker-s", 'Searched for "base"', "search", shows=CardKind.CREATED)
         main_chat = messages.selected(messages.main_chat())
-    assert mark.agent_role == AgentRole.WORKER, "a mark in a worker's session lands in the worker's own chat"
+    assert mark.thread == MessageThread.WORKER, "a mark in a worker's session lands in the worker's own chat"
     assert all(message.id != mark.id for message in main_chat), "and never in the main chat"
 
 

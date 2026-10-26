@@ -1,6 +1,6 @@
 from journal.events.rows.worker_mention import WorkerMention
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.worker import Worker
@@ -19,12 +19,12 @@ class WorkerChat:
         self.messages, self.workers, self.providers, self.branch, self.agents = messages, workers, providers, branch, agents
 
     def instruction(self, worker: Worker, text: str, key: str, actor: Actor) -> Message:
-        return self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=AgentRole.WORKER, idempotency=key), actor)
+        return self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, thread=MessageThread.WORKER, idempotency=key), actor)
 
     def sent(self, worker: WorkerMention, text: str, key: str, actor: Actor) -> Message:
         roles = self.agents.session_roles(worker.dispatcher) if worker.dispatcher else []
         message = Message.outgoing(worker.title(), text, worker.dispatcher, worker.ref()).with_(idempotency=key)
-        return self.messages.recorded(message.with_(agent_role=roles[0]) if roles else message, actor)
+        return self.messages.recorded(message.with_(thread=MessageThread.agent_thread(roles[0])) if roles else message, actor)
 
     def read(self, worker: Worker) -> Worker:
         if not worker.conversation() or self.is_agent_session(worker):
@@ -38,5 +38,5 @@ class WorkerChat:
         return any(not role.is_helper() for role in self.agents.session_roles(worker.conversation()))
 
     def turn(self, worker: Worker, text: str, key: str) -> None:
-        self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=AgentRole.WORKER, idempotency=key), Actor.agent(worker.conversation()))
+        self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), thread=MessageThread.WORKER, idempotency=key), Actor.agent(worker.conversation()))
 

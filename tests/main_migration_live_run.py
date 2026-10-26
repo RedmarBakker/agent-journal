@@ -37,7 +37,7 @@ def test_a_database_made_on_main_opens_on_this_version(tmp_path):
         with app.container.get(Scope).environment(1):
             assert [t.title for t in app.container.get(Tasks).all()] == ["written on main"]
             said = [m for m in app.container.get(Messages).all() if m.text == "said on main"]
-            assert len(said) == 1 and said[0].agent_role.value == "main" and said[0] in app.container.get(Messages).recent(10), "main's message is in the main chat"
+            assert len(said) == 1 and said[0].thread.value == "main" and said[0] in app.container.get(Messages).recent(10), "main's message is in the main chat"
         json.dumps({"ok": True})
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(checkout)], capture_output=True, timeout=60)

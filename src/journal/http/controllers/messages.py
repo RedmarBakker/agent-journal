@@ -19,7 +19,7 @@ from journal.sync.hosts import Hosts
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.http.support.comment_target import REPLIED, CommentTarget
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -99,7 +99,7 @@ class MessageController(Controller[Message]):
         return Response.json([self.shown(message) for message in self.repository.side_thread()])
 
     def side_post(self, request: Request) -> Response:
-        message = Message(author=Author.USER, agent_role=AgentRole.PEOPLE, text=request.body.get("text", ""))
+        message = Message(author=Author.USER, thread=MessageThread.PEOPLE, text=request.body.get("text", ""))
         return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
 
     def read(self, request: Request) -> Response:

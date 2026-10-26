@@ -8,6 +8,7 @@ from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
@@ -37,7 +38,7 @@ class MomentCards:
     # a card in the chat of a session whose agent may not have hooked in yet, such as a reviewer's, which names its role itself
     def show_role_card(self, role: AgentRole, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
-        card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=role, text=label, data=data)
+        card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, thread=MessageThread.agent_thread(role), text=label, data=data)
         cutoff_at = self.time_source.moment() - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))
         foldable = self.messages.fold_target(card, cutoff_at) if shows.folds() else []
         return self.messages.save(foldable[0].folded(label, detail) if foldable else card, actor)

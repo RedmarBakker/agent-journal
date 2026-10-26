@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
 TERMINAL_LINE = "typed"
@@ -31,7 +31,7 @@ class Message(Scoped):
 
     author: Author = Author.USER
     session: str | None = None
-    agent_role: AgentRole = AgentRole.MAIN
+    thread: MessageThread = MessageThread.MAIN
     text: str = ""
     reply_target: int | None = None
     read_at: datetime | None = None
@@ -76,12 +76,12 @@ class Message(Scoped):
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":
-        if target.agent_role == AgentRole.MAIN:
+        if target.thread == MessageThread.MAIN:
             return cls(author=Author.AGENT, text=text, reply_target=target.id)
-        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, agent_role=target.agent_role)
+        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread)
 
     def authored(self, session: str | None) -> "Message":
-        return self.with_(session=session) if self.is_new and self.session is None and self.agent_role == AgentRole.MAIN else self
+        return self.with_(session=session) if self.is_new and self.session is None and self.thread == MessageThread.MAIN else self
 
     def host_fields(self) -> dict:
         return {"text": self.text, "reply_target": self.reply_target, "idempotency": self.idempotency}
@@ -96,7 +96,7 @@ class Message(Scoped):
         return self.with_merged("data", {self.VIEWED: 1})
 
     def is_unsaved_user_message(self) -> bool:
-        return self.is_new and self.author == Author.USER and self.agent_role == AgentRole.MAIN
+        return self.is_new and self.author == Author.USER and self.thread == MessageThread.MAIN
 
     def commented(self, name: str, user: int) -> "Message":
         comment = self.without_events().with_(author=Author.COLLEAGUE).with_merged("data", {self.COLLEAGUE_NAME: name, self.COLLEAGUE_USER: user, self.VIEWED: 0})
@@ -148,7 +148,7 @@ class Message(Scoped):
 
     @property
     def is_main_unread(self) -> bool:
-        return self.author == Author.USER and self.read_at is None and self.agent_role == AgentRole.MAIN
+        return self.author == Author.USER and self.read_at is None and self.thread == MessageThread.MAIN
 
     @property
     def is_user_facing(self) -> bool:

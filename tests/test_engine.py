@@ -58,6 +58,7 @@ from journal.repositories.entries import Entries
 from journal.http.agents.agent_activity import AgentActivity
 from journal.engine.support.stack_history import StackHistory
 from journal.repositories.scope import Scope
+from journal.support.message_thread import MessageThread
 from journal.support.actor import Actor
 from journal.repositories.setting_rows import SettingRows
 from dataclasses import dataclass, replace
@@ -1964,7 +1965,7 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
     data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": "journal clock-in"}}).encode()
     urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"}), timeout=5).read()
     app.runtime().deferred.drain()
-    chat = lambda: [(m.author, m.text) for m in messages.all() if m.agent_role == AgentRole.WORKER and m.session == "w1"]
+    chat = lambda: [(m.author, m.text) for m in messages.all() if m.thread == MessageThread.WORKER and m.session == "w1"]
     with scope.environment(1):
         assert chat() == [("user", "b"), ("agent", "[!reply:1] the parser reads"), ("agent", '[!todo="a stray task"] names next')], "the job, then each block the worker wrote, as its own messages"
         assert [m.id for m in messages.unanswered()] == [1] and not app.container.get(Tasks).all(), "its tags are text: they answer nothing and file nothing"
@@ -2005,7 +2006,7 @@ def test_a_subagents_prompt_the_message_sent_to_it_and_its_turns_are_messages_of
     app.runtime().deferred.drain()
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(1):
-        chat = [(m.author, m.text) for m in messages.all() if m.agent_role == AgentRole.SUBAGENT and m.session == "a9"]
+        chat = [(m.author, m.text) for m in messages.all() if m.thread == MessageThread.SUBAGENT and m.session == "a9"]
         assert chat == [("user", "map the hooks read the hooks"), ("agent", "the hooks are in hooks/"), ("user", "and the receiver?"), ("agent", "the receiver is hooks/receiver.py")]
         assert not [m for m in messages.selected(messages.main_chat()) if m.session == "a9"], "none of it is in the main chat"
 

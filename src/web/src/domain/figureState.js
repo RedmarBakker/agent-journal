@@ -178,7 +178,7 @@ const SAYINGS = {report: "reported"};
 
 // the messages of the agent's session, or of none, as the system's cards and a worker's reports are; never those of a worker's or a
 // subagent's own session, which move their own card in the chat and not this agent's figure
-export const isMain = (message) => (message.agent_role || "main") === "main";
+export const isMain = (message) => (message.thread || "main") === "main";
 const ofSession = (agent, message) => isMain(message) && [undefined, null, "", agent.session].includes(message.session);
 
 // The beats for what the agent has said in the chat since `seenAt` (seconds), oldest first, each turned to its message

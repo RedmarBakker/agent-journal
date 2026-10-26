@@ -23,6 +23,7 @@ from journal.support.caller import Caller
 from tests.main_journal import main_journal
 from tests.user_settings import user_set
 from journal.features.tasks.tasks_options import TasksOptions
+from journal.support.message_thread import MessageThread
 
 
 @pytest.fixture(scope="module")
@@ -377,10 +378,10 @@ def test_the_main_chat_and_a_workers_chat_each_page_their_own_rows(app: App, ser
     with app.container.get(Scope).environment(1):
         before = call(server, "GET", "/journal/messages")[1]["rows"]
         for i in range(600):
-            messages.save(Message(environment_id=1, author="agent", text=f"step {i}", session="w1", agent_role=AgentRole.WORKER), Actor.agent("w1"))
+            messages.save(Message(environment_id=1, author="agent", text=f"step {i}", session="w1", thread=MessageThread.WORKER), Actor.agent("w1"))
         main = messages.save(Message(environment_id=1, author="user", text="how goes it?"), Actor.user(1))
     page = call(server, "GET", "/journal/messages")[1]["rows"]
-    assert page[-1]["id"] == main.id and all(r["agent_role"] == "main" for r in page) and len(page) == len(before) + 1, "the main chat's page holds its own rows alone"
+    assert page[-1]["id"] == main.id and all(r["thread"] == "main" for r in page) and len(page) == len(before) + 1, "the main chat's page holds its own rows alone"
     polled = call(server, "GET", f"/journal/messages?since={time.time() - 60}")[1]["rows"]
     assert [r["id"] for r in polled][-1] == main.id, "its poll is not crowded out by the worker's rows"
     worker, earliest = [], 0

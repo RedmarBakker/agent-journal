@@ -4,7 +4,7 @@ from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.db.query import Query
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.message import TERMINAL_LINE, Message
 from journal.models.support.ref import Ref
@@ -53,31 +53,31 @@ class Messages(ScopedRepository[Message]):
         if message.author == Author.SYSTEM and not message.data.get("kind"):
             raise Rejection("a system message has its kind, so the chat knows what it shows")
         roles = self.agents.session_roles(message.session) if message.session else []
-        if roles and message.agent_role not in roles:
-            raise Rejection(f"a message of session {message.session} belongs to its agent's own chat, the {roles[0]} one, not the {message.agent_role} one")
+        if roles and message.thread != MessageThread.agent_thread(roles[0]):
+            raise Rejection(f"a message of session {message.session} belongs to its agent's own chat, the {roles[0]} one, not the {message.thread} one")
 
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
 
     def side_thread(self) -> list[Message]:
-        return self.newest(self.query().filter(agent_role=AgentRole.PEOPLE))
+        return self.newest(self.query().filter(thread=MessageThread.PEOPLE))
 
     def fold_target(self, card: Message, cutoff_at: datetime) -> list[Message]:
         newest = self.selected_globally(self.main_chat().filter(environment_id=card.environment_id).order_descending("id").limit(1))
         return [message for message in newest if message.takes_fold(card, cutoff_at)]
 
     def main_chat(self) -> Query:
-        return self.query().filter(agent_role=AgentRole.MAIN)
+        return self.query().filter(thread=MessageThread.MAIN)
 
     def agent_chat(self, session: str) -> Query:
-        return self.query().filter(session=session).filter_unlisted("agent_role", (AgentRole.MAIN,))
+        return self.query().filter(session=session).filter_unlisted("thread", (MessageThread.MAIN,))
 
     def main_voice(self) -> Query:
         return self.main_chat().filter(author=Author.AGENT).filter_present("session")
 
     def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[Message]:
         chat = self.search_rows(self.main_chat(), terms, limit)
-        return [*chat, *self.search_rows(self.query().filter_unlisted("agent_role", (AgentRole.MAIN,)), terms, limit - len(chat))] if len(chat) < limit else chat
+        return [*chat, *self.search_rows(self.query().filter_unlisted("thread", (MessageThread.MAIN,)), terms, limit - len(chat))] if len(chat) < limit else chat
 
     def unread(self) -> list[Message]:
         return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))

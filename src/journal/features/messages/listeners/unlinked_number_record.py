@@ -3,7 +3,7 @@ from functools import partial
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.messages.support.unlinked_row_numbers import ROW_TABLES, UnlinkedRowNumbers
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
@@ -22,7 +22,7 @@ class UnlinkedNumberRecord(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         message = event.model
-        if not isinstance(message, Message) or message.author != Author.AGENT or message.agent_role != AgentRole.MAIN or not message.session or message.is_thought:
+        if not isinstance(message, Message) or message.author != Author.AGENT or message.thread != MessageThread.MAIN or not message.session or message.is_thought:
             return
         self.deferred.add(partial(self.recorded, message))
 

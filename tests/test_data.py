@@ -459,11 +459,23 @@ def test_the_worker_reuse_counts_migration_reads_each_reuse_from_the_reports_bef
     assert counts == [("w1", 2), ("w2", 2), ("w3", 0)], "three reports and back is two sends; two reports and out again is two; out on its first job is none"
 
 
+def test_the_message_thread_migration_renames_the_column_and_a_side_thread_message_reads_back_by_its_thread(connection):
+    """Migration 65: a database whose messages keep their chat in agent_role keeps every row, the people's side thread among them, under thread."""
+    from journal.db.migrations.message_thread_column import MessageThreadColumn
+    connection.execute("ALTER TABLE messages RENAME COLUMN thread TO agent_role")
+    for role in ("main", "people", "worker"):
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, agent_role, created_at, creator) VALUES (1, 'user', ?, '{}', ?, '2026-10-26', 'user:1')", (f"in {role}", role))
+    MessageThreadColumn().apply(connection)
+    rows = [(row["text"], row["thread"]) for row in connection.all("SELECT text, thread FROM messages ORDER BY id")]
+    assert rows == [("in main", "main"), ("in people", "people"), ("in worker", "worker")]
+
+
 def test_the_message_agents_migration_moves_the_session_into_its_column_and_puts_every_message_in_the_main_chat(connection):
     """Migration 34: a peer message's session leaves its data for the session column, an agent's own message takes its writer's session, a user's has none, and all of them are the main agent's."""
     from journal.db.migrations.message_agents import MessageAgents
     for creator, data in (("system", {"kind": "peer", "session": "s1", "peer": "other"}), ("agent:s2", {}), ("user:1", {}), ("system", {"session": ""})):
         connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at, creator) VALUES (1, 'agent', 'x', ?, '2026-10-22', ?)", (json.dumps(data), creator))
+    connection.execute("ALTER TABLE messages RENAME COLUMN thread TO agent_role")
     connection.execute("UPDATE messages SET session = NULL, agent_role = NULL")
     MessageAgents().apply(connection)
     rows = [(row["session"], row["agent_role"], json.loads(row["data"])) for row in connection.all("SELECT session, agent_role, data FROM messages ORDER BY id")]

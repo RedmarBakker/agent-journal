@@ -217,4 +217,4 @@ function grouped(turns) {
 }
 
 // The main chat: the user's and the main agent's own rows; a worker's and a subagent's messages live in their own chats.
-export const mainChat = (messages) => messages.filter((m) => m.agent_role === "main");
+export const mainChat = (messages) => messages.filter((m) => m.thread === "main");

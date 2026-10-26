@@ -3,7 +3,7 @@ from journal.chat.card_category import CardCategory
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.models.author import Author
 from journal.models.message import Message
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 
@@ -40,7 +40,7 @@ class ProcessCards:
             ended = {FINAL: True} if open_card and not contents.active else {}
             return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data={**self.docked_data(older[0], data), **ended}), contents.actor)
         roles = self.agents.session_roles(contents.session) if contents.session else []
-        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)
+        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, thread=MessageThread.agent_thread(roles[0]) if roles else MessageThread.MAIN, text=contents.label, data=data), contents.actor)
 
     def is_shown(self, contents: ProcessCardContents) -> bool:
         return bool(self.messages.keyed(contents.key, contents.actor))

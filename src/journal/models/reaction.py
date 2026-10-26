@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.events.rows.reaction_added import ReactionAdded
-from journal.support.agent_role import AgentRole
+from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.scoped import Scoped
@@ -15,6 +15,6 @@ class Reaction(Scoped):
     author: Author = Author.USER
 
     def reacted_message(self, message: Message) -> "Reaction":
-        if message.agent_role != AgentRole.MAIN:
+        if message.thread != MessageThread.MAIN:
             return self
         return self.with_event(ReactionAdded(environment_id=self.environment_id, emoji=self.emoji, message_id=message.row_id, user_origin=self.author == Author.USER))
