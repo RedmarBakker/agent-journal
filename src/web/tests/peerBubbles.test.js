@@ -43,7 +43,9 @@ async function drawn(turn) {
     const shown = {
         mine: host.querySelector(".thread-turn").classList.contains("mine"),
         head: host.querySelector(".growing-card-title").textContent,
-        time: host.querySelector(".growing-card-time")?.textContent,
+        inside: host.querySelector(".growing-card").querySelector(".growing-card-time, .thread-meta"),
+        below: host.querySelectorAll(".thread-meta").length,
+        outside: !host.querySelector(".growing-card-wrap").contains(host.querySelector(".thread-meta") || document.createElement("i")),
         collapsed: !collapsed,
         expanded: card.classList.contains("open") && host.querySelector(".growing-card-text").textContent === turn.text,
         bubble: host.querySelector(".thread-bubble").style.display !== "none",
@@ -88,14 +90,16 @@ test("what the agent receives from another agent sits on the agents' side, left,
     expect(main.head).toContain("Message from the main agent");
 });
 
-test("a message to or from another agent is a one-line card with its time, never a bubble, and grows to its whole text on a click", async () => {
+test("a message to or from another agent is a one-line card with no time inside it and its time below, outside it, never a bubble, and grows to its whole text on a click", async () => {
     const [received, sent] = threadTurns(messages, []).turns;
     for (const shown of [await drawn(received), await drawn(sent)]) {
         expect(shown.collapsed).toBe(true);
         expect(shown.expanded).toBe(true);
         expect(shown.bubble).toBe(false);
-        expect(shown.time).toBeTruthy();
-        expect(shown.header).toBe(false);
+        expect(shown.inside).toBeNull();
+        expect(shown.below).toBe(1);
+        expect(shown.outside).toBe(true);
+        expect(shown.header).toBe(true);
     }
 });
 

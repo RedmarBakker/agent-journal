@@ -9,7 +9,6 @@ const props = defineProps({
     messageId: {type: Number, required: true},
     taskId: {type: Number, default: 0},
     text: {type: String, default: ""},
-    time: {type: Number, default: 0},
 });
 
 const who = computed(() => (props.workerId ? `Report from worker ${props.workerId}, ${props.worker}` : `Report from ${props.worker}`));
@@ -18,5 +17,5 @@ const openWorker = () => (props.workerId ? peek("workers", props.workerId) : pee
 </script>
 
 <template>
-    <GrowingCard :title="title" :text="text" action="Open the worker" :time="time" @act="openWorker" />
+    <GrowingCard :title="title" :text="text" action="Open the worker" @act="openWorker" />
 </template>

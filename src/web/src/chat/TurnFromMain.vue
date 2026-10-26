@@ -3,7 +3,7 @@ import {computed} from "vue";
 import GrowingCard from "./GrowingCard.vue";
 
 // a message the agent sent another agent, one that failed to send with the reason, or one another agent sent it: a one-line card naming who, growing to the whole message on a click; only a failed send is red
-const props = defineProps({data: {type: Object, default: () => ({})}, text: {type: String, default: ""}, time: {type: Number, default: 0}});
+const props = defineProps({data: {type: Object, default: () => ({})}, text: {type: String, default: ""}});
 const failed = computed(() => Boolean(props.data.sent_to && props.data.failure));
 const title = computed(() => {
     if (failed.value) return `Message not sent to ${props.data.sent_to}: ${props.data.failure}`;
@@ -12,5 +12,5 @@ const title = computed(() => {
 </script>
 
 <template>
-    <GrowingCard :title="title" :text="text" :bad="failed" :icon="data.sent_to ? 'send' : 'reply'" :time="time" />
+    <GrowingCard :title="title" :text="text" :bad="failed" :icon="data.sent_to ? 'send' : 'reply'" />
 </template>

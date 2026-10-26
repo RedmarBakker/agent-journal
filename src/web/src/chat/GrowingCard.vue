@@ -1,7 +1,6 @@
 <script setup>
 import {ref} from "vue";
 import Icon from "../kit/Icon.vue";
-import {clock} from "../format/time.js";
 
 // a one-line card in the chat that grows in place to its whole text on a click and folds on a second: a worker's report, a message to or from a subagent
 defineProps({
@@ -10,7 +9,6 @@ defineProps({
     icon: {type: String, default: "agents"},
     bad: Boolean,
     action: {type: String, default: ""},
-    time: {type: Number, default: 0},
 });
 const emit = defineEmits(["act"]);
 const opened = ref(false);
@@ -21,9 +19,6 @@ const opened = ref(false);
         <button type="button" class="growing-card" :aria-expanded="opened" @click="opened = !opened">
             <Icon :name="icon" :size="14" />
             <span class="growing-card-title">{{ title }}</span>
-            <template v-if="time">
-                <span class="growing-card-time">{{ clock(time) }}</span>
-            </template>
         </button>
         <div class="growing-card-more">
             <div class="growing-card-body">
@@ -70,12 +65,6 @@ const opened = ref(false);
 
 .growing-card-title {
     font-weight: 500;
-}
-
-.growing-card-time {
-    margin-left: auto;
-    color: var(--text-3);
-    font-size: 11px;
 }
 
 .growing-card-more {
