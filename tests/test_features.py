@@ -359,7 +359,7 @@ def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_
     assert checks.numbered([1]) == [] and checks.find(2).wait_target, "a passed wait's check is deleted once its task opens, and the one still waited on stays"
 
 
-def test_a_waits_own_checks_are_listed_apart_counted_out_and_deleted_once_the_wait_ends(app: App, monkeypatch):
+def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_is_lifted_and_deleted_once_what_it_waited_on_ends(app: App, monkeypatch):
     from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
     from journal.http.controllers.checks import CheckController
     from journal.http.listing import Listing
@@ -380,10 +380,11 @@ def test_a_waits_own_checks_are_listed_apart_counted_out_and_deleted_once_the_wa
     assert [line.split()[-1] for line in console.run(["check", "list"], AGENT).text.splitlines()] == ["lint"], "journal check list names the project's own check alone"
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 2], "the wait lifted, its own check is deleted; the blocked task's stays"
+    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 2, 3], "the wait lifted, its own check keeps running, and the blocked task's stays"
     console.run(["task", "unblock", "1"], AGENT)
     app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1], "the task open again, its block's check is deleted"
+    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 3], "the task open again, its block's check is deleted"
+    checks.delete(checks.numbered([3])[0], Actor.system())
     console.run(["task", "block", "1", "--until", "false"], AGENT)
     blocking = [check.id for check in checks.wait_rows()]
     checks.save(Check(title="the wait for an earlier deploy ends when this passes", command="false", wait_target=True), Actor.system())
@@ -17215,8 +17216,8 @@ def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alia
 
 
 def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a_worker_holds(app: App, monkeypatch):
+    from journal.features.tasks.support.task_deliveries import TaskDeliveries
     from journal.models.worker import Worker
-    from journal.repositories.plans import Plans
     from journal.repositories.workers import Workers
 
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
@@ -17230,14 +17231,14 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
         console.run(["plan", "add", "1", title], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    assert [task.id for task in app.container.get(Plans).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
+    assert [task.id for task in app.container.get(TaskDeliveries).current().offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
         tasks = app.container.get(Tasks)
         tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
-    assert 4 not in [task.id for task in app.container.get(Plans).offers()], "a task a worker holds is never offered"
+    assert 4 not in [task.id for task in app.container.get(TaskDeliveries).current().offers()], "a task a worker holds is never offered"
 
 
 def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
@@ -17828,7 +17829,7 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
 
 
 def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
-    from journal.repositories.plans import Plans
+    from journal.features.tasks.support.task_deliveries import TaskDeliveries
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         app.console().run(["task", "create", "the docs"], USER)
@@ -17839,7 +17840,7 @@ def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_t
         outage = next(t for t in tasks.scoped() if t.title == "the outage")
         listed = app.console().run(["task", "list"], USER).text.splitlines()
         assert [line.split("  ")[-1] if "[" in line else "" for line in listed[:4]] == ["[critical]", "[120]", "", "[low]"], listed
-        assert app.container.get(Plans).offers()[0].id == outage.id, "the next task is the most urgent one"
+        assert app.container.get(TaskDeliveries).current().offers()[0].id == outage.id, "the next task is the most urgent one"
         refused = app.console().run(["task", "edit", str(outage.id), "--priority", "soon"], USER)
         assert "no such priority: soon" in refused.error
         app.console().run(["task", "edit", str(outage.id), "--priority", "normal"], USER)

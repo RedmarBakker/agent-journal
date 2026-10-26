@@ -33,7 +33,7 @@ const task = {
         {point: 3, text: "tried by hand", state: "short", shortfall: "Prove it with a test."},
     ],
 };
-const worker = (state) => ({id: 3, name: "Lady Lovelace", state, brief: "Write the parser.", created_at: "2026-10-23T08:00:00Z", updated_at: "2026-10-23T08:30:00Z", task});
+const worker = (state) => ({id: 3, name: "Lady Lovelace", state, brief: "Write the parser.", created_at: "2026-10-23T08:00:00Z", updated_at: "2026-10-23T08:30:00Z", task, worked: [{id: 6, title: "the grammar", state: "merged"}, {id: 7, title: "the parser", state: "in hand"}]});
 
 function mount(component, props, provides = {}) {
     const host = document.createElement("div");
@@ -142,12 +142,12 @@ test("a transcript reads as who said what, each with the steps it took in words 
     ]);
 });
 
-test("the worker page shows its points, its readable transcript and its to-dos side by side, with no empty pane", async () => {
+test("the worker page shows its points, its readable transcript and its tasks side by side, with no empty pane", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
     const host = mount(WorkerPage, {resource: worker("clocked in")}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await new Promise((resolve) => setTimeout(resolve, 20));
     await flush();
-    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "To-dos"]);
+    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "Tasks"]);
     expect(host.textContent).toContain("1 of 4 checked");
     expect(host.textContent).toContain("1 of 2 done");
     expect(host.querySelector(".tx").textContent).toContain("Show 3 steps");
@@ -181,7 +181,7 @@ test("the facts are one plain line ending in Brief and Report, each opening its 
     expect([...document.body.querySelectorAll(".inspector-pop .move")].map((move) => move.textContent.trim()).some((line) => line.includes("Dispatched"))).toBe(true);
 });
 
-test("each message folds its steps under a Show N steps link, and the to-do list shows what is left with the done behind a link", async () => {
+test("each message folds its steps under a Show N steps link", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
     const host = mount(WorkerPage, {resource: worker("clocked in")}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -191,9 +191,6 @@ test("each message folds its steps under a Show N steps link, and the to-do list
     fold.click();
     await flush();
     expect(host.querySelector(".tx .steps").textContent).toContain("pytest -k parser");
-    const todos = [...host.querySelectorAll(".todo")].map((todo) => todo.textContent.trim());
-    expect(todos).toEqual(["run it"]);
-    expect(host.textContent).toContain("Show the 1 done");
 });
 
 test("the worker inspector's columns are a pane grid whose dividers resize them, the sizes kept for the viewer", async () => {
@@ -205,25 +202,25 @@ test("the worker inspector's columns are a pane grid whose dividers resize them,
     expect(JSON.parse(sessionStorage.getItem("journal.worker-layout")).tree.r).toBe(0.3);
 });
 
-test("the worker page names the task it works on above its name and the tasks queued for it at the top of its to-do list, in order", async () => {
+test("the worker page names the task it works on above its name and the tasks queued for it at the foot of its Tasks list, in order", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
     const queue = [{id: 8, title: "the docs"}, {id: 9, title: "the help page"}];
     const host = mount(WorkerPage, {resource: {...worker("clocked in"), queue}}, {scope: {env: "", api, rows: () => [{id: 7, title: "the parser"}], holding: async () => {}}});
     await flush();
     expect(host.querySelector(".stamp").textContent).toContain("Task 7: the parser");
     expect(host.querySelector("[data-worker-tasks]")).toBe(null);
-    const queued = host.querySelector(".todos [data-worker-queue]");
+    const queued = host.querySelector(".tasks [data-worker-queue]");
     expect([...queued.querySelectorAll(".queued-task")].map((link) => link.textContent.trim())).toEqual(["Task 8: the docs", "Task 9: the help page"]);
 });
 
-test("a worker's queued tasks count as to-dos not yet done in the To-dos count, and stay listed under Queued next", async () => {
+test("a worker's queued tasks count as tasks not yet done in the Tasks count, and stay listed under Queued next", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
-    const todos = [true, true, false, false].map((complete, n) => ({text: `item ${n}`, complete}));
+    const worked = ["merged", "done", "started", "in hand"].map((state, n) => ({id: 10 + n, title: `worked ${n}`, state}));
     const queue = Array.from({length: 11}, (_, n) => ({id: 20 + n, title: `queued ${n}`}));
-    const host = mount(WorkerPage, {resource: {...worker("clocked in"), task: {...task, todos}, queue}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    const host = mount(WorkerPage, {resource: {...worker("clocked in"), worked, queue}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
     expect(host.textContent).toContain("2 of 15 done");
-    expect(host.querySelectorAll(".todos [data-worker-queue] .queued-task").length).toBe(11);
+    expect(host.querySelectorAll(".tasks [data-worker-queue] .queued-task").length).toBe(11);
 });
 
 test("a worker with three queued tasks shows its report choice and its place in the queue in the worker list and the inspector", async () => {

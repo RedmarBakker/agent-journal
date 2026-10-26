@@ -17,10 +17,10 @@ test("an agent that awaits something shows waiting again once its command has en
     const heard = 1000;
     const idle = {status: "idle", awaiting: "worker 3", heard_at: heard};
     expect(stateOf(idle, heard + 100)).toBe("waiting");
-    const running = {...idle, status: "busy", tool_running: true};
-    expect(stateOf(running, heard + 100)).toBe("busy");
-    const ended = {...idle, status: "busy", tool_running: false};
-    expect(stateOf(ended, heard + WAITING_AGAIN_AFTER - 1)).toBe("busy");
+    const running = {...idle, status: "working", tool_running: true};
+    expect(stateOf(running, heard + 100)).toBe("working");
+    const ended = {...idle, status: "working", tool_running: false};
+    expect(stateOf(ended, heard + WAITING_AGAIN_AFTER - 1)).toBe("working");
     expect(stateOf(ended, heard + WAITING_AGAIN_AFTER)).toBe("waiting");
-    expect(stateOf({...ended, awaiting: ""}, heard + 100)).toBe("busy");
+    expect(stateOf({...ended, awaiting: ""}, heard + 100)).toBe("working");
 });

@@ -943,6 +943,13 @@ options:
   --until SCRIPT   a shell script run every <span>; the wait ends once it
                    passes, such as ! kill -0 <pid> for a process
 
+$ agent: journal await clear --help
+exit 0
+usage: journal await clear [-h]
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal sequence create 'Ship a release' --steps 'bump the version | tag it | publish it'
 exit 0
 sequence 6: Ship a release, 3 steps
@@ -1751,7 +1758,9 @@ tasks.task_points_changed  [tasks]  task {{n}} changed: point {{points}} of its 
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason}}. `journal task start {{n}}` takes it up
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  {{count}} open tasks you made sit at the default priority: {{tasks}}. your next write waits. `journal task edit <n> --priority <level>` on them, or `journal task priorities confirm`
+tasks.wait_check_passed  [tasks]  {{what}} is done: {{lines}}
 tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left. wait it out: `journal await` ends when it does
+tasks.wait_lifted  [tasks]  your wait on {{what}} was lifted; check {{n}} is still running and you are informed when it passes; journal check remove {{n}} if you no longer want to hear about it
 tasks.wait_over  [tasks]  wait over: {{outcome}}
 tasks.work_left_holds_the_stop  [tasks]  tasks are left: {{tasks}}. take one or resume a paused one; journal stuck "<why>" when every task left is truly blocked
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. {{log}} "<what was decided or done>" before any other write

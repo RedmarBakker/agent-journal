@@ -19,7 +19,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
-from journal.features.tasks.support.tasks_data import TasksData
+from journal.events.feature_data import FeatureData
 from journal.models.check import Check
 
 NEXT_TASK_DELAY = Timeout.minutes(1)
@@ -55,11 +55,12 @@ class ExternalWait(Wait):
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if event.subagent or event.call.is_journal:
             return self.none()
-        return self.pop(*self.lifted_lines(event.data.part(TasksPart).polled_checks))
+        return self.pop(*self.lifted_lines(event.data))
 
-    def lifted_lines(self, polled: tuple[int, ...]) -> tuple[Nudge, ...]:
+    def lifted_lines(self, data: FeatureData) -> tuple[Nudge, ...]:
         prefix = f"{Check.table()}:"
         numbers = [int(ref.removeprefix(prefix)) for ref in self.targets() if ref.startswith(prefix)]
+        polled = data.part(TasksPart).polled_checks if numbers else ()
         return tuple(TasksNudges.WAIT_LIFTED.create(what=self.focus, n=number) for number in numbers if number in polled)
 
     def on_wait_cleared(self, event: WaitCleared, settings: Settings) -> Transition:
@@ -76,18 +77,18 @@ class ExternalWait(Wait):
             return self.none()
         return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
 
-    def estimated(self, remaining: float, tasks: TasksData, settings: Settings) -> Transition:
-        next_open = tasks.next_open
+    def estimated(self, remaining: float, data: FeatureData, settings: Settings) -> Transition:
+        next_open = data.part(TasksPart).next_open
         seconds = round(remaining)
         if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or next_open is None:
             return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
-        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=next_open.id), *self.lifted_lines(tasks.polled_checks))
+        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=next_open.id), *self.lifted_lines(data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
         next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
-            return self.estimated(remaining, tasks, settings)
+            return self.estimated(remaining, event.data, settings)
         if settings.value(TasksOptions.AUTO) and not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
             return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
         if self.check_reminder.is_elapsed(event.time):
