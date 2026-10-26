@@ -148,12 +148,12 @@ export function swingSpot(floor, figure, floors = readFloors()) {
 
 // The point across, from `from` to `to`, nearest the middle of the bubble `floor`'s bottom edge, where a rope swing tied to it with its seat
 // at `y` hangs free over the overhang: no other bubble below it from that edge down to the foot of the figure's picture on the seat, within
-// half the seat's width, as wide and as low as the swing comes at the front, toward the camera; null when there is none
+// half the seat's width, with room for the pumping legs about its arc; null when there is none
 function hangsFree(floor, figure, floors, y, [from, to]) {
     if (from > to) return null;
-    const {seat, depth} = ACTS.rope_swing;
-    const bottom = floor.bottom + (boxAt({x: 0, y, posture: "sit"}, figure).bottom - floor.bottom) * (1 + depth);
-    const reach = ((seat * figure.size) / 2) * (1 + depth);
+    const {seat, clearance} = ACTS.rope_swing;
+    const bottom = floor.bottom + (boxAt({x: 0, y, posture: "sit"}, figure).bottom - floor.bottom) * (1 + clearance);
+    const reach = ((seat * figure.size) / 2) * (1 + clearance);
     const below = floors.floors.filter((each) => each.kind === "bubble" && each.bottom > floor.bottom && each.top < bottom);
     const taken = below.map((each) => [each.left - reach, each.right + reach]);
     const middle = (floor.left + floor.right) / 2;

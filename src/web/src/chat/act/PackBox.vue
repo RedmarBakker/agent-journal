@@ -10,7 +10,7 @@ const props = defineProps({
     floor: {type: Number, required: true},
 });
 
-// the ways the puff's clouds go out from the box, and the bits that fly off it
+// the ways the puff's clouds go out from the box, and the bits that fly off it on arcs, spinning about their own centres
 const PUFFS = [-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4].map((way, index) => ({name: `cloud${index}`, way}));
 const BITS = [1, 2, 3, 4].map((place) => ({name: `bit${place}`, place}));
 
@@ -39,7 +39,7 @@ const box = computed(() => {
                 <circle :cx="Math.sin(cloud.way) * 30 * box.puff" :cy="-Math.cos(cloud.way) * 16 * box.puff" :r="8 + 8 * box.puff" fill="#e9e7e1" stroke="#a9adb8" stroke-width="0.8" />
             </template>
             <template v-for="bit in BITS" :key="bit.name">
-                <rect :x="(bit.place - 2.5) * 22 * box.puff" :y="-20 * box.puff + 30 * box.puff * box.puff" width="7" height="4" fill="#c89b63" :transform="`rotate(${bit.place * 70 * box.puff})`" />
+                <rect x="-3.5" y="-2" width="7" height="4" fill="#c89b63" :transform="`translate(${(bit.place - 2.5) * 22 * box.puff} ${-20 * box.puff + 30 * box.puff * box.puff}) rotate(${bit.place * 70 * box.puff})`" data-act-box-bit />
             </template>
         </g>
     </template>

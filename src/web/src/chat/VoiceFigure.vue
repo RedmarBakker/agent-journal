@@ -65,6 +65,7 @@ import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, actDrawn, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, throwsFor, wallBugs} from "../figure/acts.js";
+import {slushSurfaces} from "../figure/splatter.js";
 import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter, admiringLook} from "../figure/admire.js";
@@ -103,7 +104,6 @@ import {
     tripTo,
     turnStep,
     leavesSeat,
-    swingView,
 } from "../figure/places.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
@@ -111,7 +111,7 @@ import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
 import {strideAtDistance} from "../figure/gait.js";
-import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, attachmentRead, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
+import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, attachmentRead, composerLook, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, lookInFigure, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -336,7 +336,8 @@ function current() {
     const first = headBeat(beats.value, sequenceNow());
     // seated, it keeps its seat for its stay: an act that would stand it up waits (perches.js playsSeated)
     const sits = (name) => playsSeated(clipNamed(name), body.place.posture, perched, now.value);
-    const beat = first && sits(first.clip) && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto, holds: first.holds, stretch: stretchOf(first)};
+    const shotFacing = first?.bugs?.[0]?.wall === "left" ? 270 : first?.bugs?.[0]?.wall === "right" ? 90 : 180;
+    const beat = first && sits(first.clip) && {clip: first.clip, facing: first.clip === "bug_shot" ? shotFacing : facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto || first.approaching, holds: first.holds, stretch: stretchOf(first)};
     const scene = {
         mode: modeOf(body),
         leaving: body.leaving,
@@ -401,6 +402,7 @@ function step() {
     // an act played once that has played to its end is over before what comes next is chosen, so its beat is never left to play again
     if (playing.shown && actOver(playing.shown, frameOf(playing.shown))) return endAct(playing.shown);
     const wanted = current();
+    if (wanted.clip.name === "bug_shot" && approachShot()) return;
     if (playing.shown?.clip.outro && wanted.clip.name !== playing.shown.clip.name && playing.closing === null) {
         playing.closing = closeAt(playing.shown.clip, frameOf(playing.shown));
     }
@@ -496,6 +498,22 @@ function smashOn(shown) {
 // The bug shot's backing away (acts.js backPlan, backAt): planned on the floor the figure stands on as the shot begins, for the bugs it
 // brought; each frame the figure steps back along that floor, away from the bug too steep to shoot and facing it; null with none
 const backing = ref(null);
+
+// Before drawing the rifle, reach its first firing place with the ordinary trip and walk. The queued beat waits through that trip,
+// just like any act played at a destination; the clip's clock starts only on arrival, so a long approach cannot consume its draw.
+function approachShot() {
+    const beat = headBeat(beats.value, sequenceNow());
+    if (beat?.clip !== "bug_shot" || beat.approaching || !beat.bugs?.length) return false;
+    if (body.trip || body.airborne || body.arriving || body.landing || !body.footing || playing.shown?.once) return false;
+    if (!playedOut() && !mayCut(playing.shown)) return false;
+    const floor = floorNamed(latestFloors().floors, body.footing.id);
+    if (!floor) return false;
+    const [first] = backPlan(beat.bugs, worldBox(), {x: body.place.x, y: body.at.y + headAt.value.y * SIZE, left: floor.left, right: floor.right}, SIZE);
+    beat.approaching = true;
+    if (Math.abs(first.to - body.place.x) < 5) return false;
+    moveTo({...body.place, x: first.to, posture: "stand"}, {straight: true});
+    return true;
+}
 
 function backOn(shown) {
     const bugs = shown.clip.name === "bug_shot" ? beats.value[0]?.bugs : null;
@@ -1645,8 +1663,7 @@ function lookingAt(shown) {
     glancing = walk.glancing;
     lookBlend = headBlend(walk.look, shown.clip);
     gaze = gazeAfter(gaze, walk.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
-    if (!gaze.amount || !gaze.point) return null;
-    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: gaze.amount, behind: Boolean(gaze.point.behind), faces: Boolean(gaze.point.faces), mood: gaze.point.mood ?? ""};
+    return lookInFigure(gaze, body.at, SIZE);
 }
 
 // the middle of the figure's head on the page, about which its look turns
@@ -1853,22 +1870,33 @@ const markStyle = computed(() => ({
 // the act on screen, with how far through it the figure is, which the page draws what it holds for (figure/acts.js), or null
 // The bug shot on screen, its bugs on the walls and the point its rifle aims at (acts.js bugShotScene), or null
 const shooting = ref(null);
+let shootingBugs = null;
+const shootingBursts = new Map();
 
 // the point in its picture the figure's rifle aims at while it shoots the bugs on the walls, as shares of the picture, or null; the bugs
 // kept for the page to draw, in the picture's pixels
 function aimAt(shown) {
     const bugs = shown.clip.name === "bug_shot" ? beats.value[0]?.bugs : null;
-    shooting.value = bugs?.length ? bugShotScene(bugs, worldBox(), rawFrameOf(shown)) : null;
+    if (bugs !== shootingBugs) {
+        shootingBugs = bugs;
+        shootingBursts.clear();
+    }
+    shooting.value = bugs?.length ? bugShotScene(bugs, worldBox(), rawFrameOf(shown), {surfaces: slushSurfaces(), bursts: shootingBursts}) : null;
     if (!shooting.value) return null;
     const {target} = shooting.value;
-    return {x: (target.x - body.at.x) / SIZE, y: (target.y - body.at.y) / SIZE};
+    return {x: (target.x - body.at.x) / SIZE, y: (target.y - body.at.y) / SIZE, back: target.back};
 }
 
 // the bugs on the walls as the act's drawing takes them, in the figure's picture's pixels
 const wallBugsDrawn = computed(() => (shooting.value?.bugs ?? []).map((bug) => ({...bug, x: bug.x - body.at.x, y: bug.y - body.at.y})));
 
 // the slush a shot bug burst into and the splashes it left, and the bugs whose slush flies at the screen, in the figure's picture's pixels
-const slushDrawn = computed(() => (shooting.value?.slush ?? []).map((each) => ({...each, x: each.x - body.at.x, y: each.y - body.at.y})));
+const slushDrawn = computed(() => (shooting.value?.slush ?? []).map((each) => ({
+    ...each,
+    x: each.x - body.at.x,
+    y: each.y - body.at.y,
+    ...(each.clip ? {clip: {left: each.clip.left - body.at.x, right: each.clip.right - body.at.x, top: each.clip.top - body.at.y, bottom: each.clip.bottom - body.at.y}} : {}),
+})));
 const cameraDrawn = computed(() => (shooting.value?.camera ?? []).map((each) => ({...each, from: {x: each.from.x - body.at.x, y: each.from.y - body.at.y}})));
 
 const acting = computed(() => actDrawn(drawnClip.value, drawnFrame.value));
@@ -1893,8 +1921,6 @@ function callTicker() {
 
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
-// the picture on the rope swing, swinging toward the camera and away (places.js swingView), or null off it
-const onSwing = computed(() => acting.value?.name === "rope_swing" && swingView(acting.value.u, below.value));
 
 // the soft glow about the lit visor, centred on the eyes it lights over (figure/visor.js VISOR.halo)
 const haloStyle = computed(() => ({
@@ -1930,7 +1956,6 @@ const actorStyle = computed(() => ({
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
     ...(body.airborne?.held && {rotate: `${body.airborne.hang}rad`, transformOrigin: `${body.airborne.grip.x * 100}% ${body.airborne.grip.y * 100}%`}),
     ...(body.airborne?.thrown && {rotate: `${body.airborne.spin}deg`, transformOrigin: "50% 55%"}),
-    ...(onSwing.value && {scale: `${onSwing.value.scale}`, transformOrigin: `${onSwing.value.origin.x * 100}% ${onSwing.value.origin.y * 100}%`}),
 }));
 
 // the figure and all it holds are drawn inside the chat alone, cut off at its walls, as when it climbs out over the top

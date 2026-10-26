@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 
-const {CLIPS, Posing, burstKick} = await import("../src/figure/figure.js");
+const {CLIPS, Posing, rifleTarget, burstKick} = await import("../src/figure/figure.js");
 const {ACTS, WALL_BUGS, bugShotFrame, bugShotScene, wallBugAt, wallBugs} = await import("../src/figure/acts.js");
 const {FRAMED} = await import("../src/figure/frame.js");
 const {actOver} = await import("../src/domain/figureState.js");
@@ -83,7 +83,7 @@ test("the figure aims at each bug in turn and shoots it where it sits, one by on
             const turned = new THREE.Matrix4().extractRotation(moves.get(rifle.frame)).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...["x", "y", "z"].map((axis) => THREE.MathUtils.degToRad(rifle.turn[axis] || 0)), "ZYX")));
             const barrel = new THREE.Vector3(1, 0, 0).applyMatrix4(turned);
             const grip = rifle.at.clone().applyMatrix4(moves.get(rifle.bone));
-            const point = new THREE.Vector3((share.x - 0.5) * FRAMED.height, -1.2, FRAMED.middle + (0.5 - share.y) * FRAMED.height);
+            const point = rifleTarget(share);
             const off = THREE.MathUtils.radToDeg(barrel.angleTo(point.clone().sub(grip).normalize()));
             expect(off, `${voice} at bug ${bug} on the ${bugs[bug].wall}`).toBeLessThan(8);
         }

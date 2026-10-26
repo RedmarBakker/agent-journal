@@ -34,7 +34,8 @@ test("the chase brakes and turns continuously at its farthest point, returning a
     for (const voice of voices) {
         for (const u of [0, 0.4, 0.5, 0.6, 1]) continuousAt("squire_chase", u, voice);
         const places = Array.from({length: 101}, (_, i) => posed("squire_chase", i / 100, voice).at("root"));
-        expect(places[50].x, `${voice} still chases the bug`).toBeGreaterThan(1);
+        expect(places[50].x, `${voice} takes a short local stride while the page carries its canvas along the chase`).toBeGreaterThan(0.2);
+        expect(places[50].x, `${voice} leaves room inside the canvas for the leading quill`).toBeLessThan(0.3);
         for (const [i, at] of places.entries()) {
             expect(Math.abs(at.y), `${voice} stays on the outward and return path`).toBeLessThan(1e-8);
             expect(at.x, `${voice} never teleports across home`).toBeGreaterThanOrEqual(-1e-8);

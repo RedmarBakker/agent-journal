@@ -1,11 +1,12 @@
 <script setup>
-import {computed} from "vue";
+import {computed, useId} from "vue";
 import {ACTS, cameraDrops} from "../../figure/acts.js";
 
 // The bugs of a fixed test run crawling on the chat window's walls, drawn in 3D (`bug`, its pictures one for each step of its stride,
 // figure.js Stage.drawBug), each `bugs` one where it is on its wall in the picture's pixels, its feet to the wall (acts.js bugShotScene):
 // shot, it is gone and leaves nothing where it sat: it burst into slush (acts.js slushAt), `slush` the particles still flying, each a green
-// blob, and the splashes of those landed, each a small green splash on the floor or an edge of the window, fading; and `camera`, the
+// blob, and the splashes of those landed, each a small green splash on a chat box, the floor or an edge of the window, fading and running
+// down its face. A box's `clip` keeps its splashes on the visible part of that box as it scrolls. And `camera`, the
 // shot bugs whose slush flies at the screen, each with the seconds since its shot and where it burst, whose drops fly out at the screen,
 // growing as they come, land on it as on a camera's lens and run down as they fade (acts.js cameraDrops). `u` of the way through the bug
 // shot, for the bugs' stride; the picture's `middle` across, and the picture `size` pixels square.
@@ -22,6 +23,7 @@ const props = defineProps({
 const act = ACTS.bug_shot;
 const GREEN = "#9bd34a";
 const DARK_GREEN = "#5f8f24";
+const clipId = useId();
 
 // each bug still crawling as it is drawn, named by its place in the shot, its picture for the step of its stride it is at
 const drawn = computed(() => {
@@ -40,9 +42,20 @@ const drops = computed(() => props.camera.flatMap((each, shot) => cameraDrops(ea
             <image :href="each.href" :x="picture.x" :y="picture.y" :width="picture.width" :height="picture.height" data-act-bug />
         </g>
     </template>
-    <template v-for="each in splashes" :key="each.name">
+    <defs>
+        <template v-for="each in splashes" :key="each.name">
+            <clipPath v-if="each.clip" :id="`${clipId}-${each.name}`">
+                <rect :x="each.clip.left" :y="each.clip.top" :width="each.clip.right - each.clip.left" :height="each.clip.bottom - each.clip.top" />
+            </clipPath>
+        </template>
+    </defs>
+    <g v-for="each in splashes" :key="each.name" :clip-path="each.clip ? `url(#${clipId}-${each.name})` : null" :data-act-surface="each.on === 'surface' ? '' : null">
+        <template v-if="each.run > 0">
+            <rect :x="each.x - each.r * 0.22" :y="each.y" :width="each.r * 0.44" :height="each.run" :rx="each.r * 0.2" :fill="GREEN" stroke="none" :opacity="each.opacity * 0.75" data-act-run />
+            <circle :cx="each.x" :cy="each.y + each.run" :r="each.r * 0.4" :fill="GREEN" :stroke="DARK_GREEN" stroke-width="0.5" :opacity="each.opacity * 0.9" />
+        </template>
         <ellipse :cx="each.x" :cy="each.y" :rx="each.r * (each.on === 'floor' || each.on === 'top' ? 1.4 : 0.7)" :ry="each.r * (each.on === 'floor' || each.on === 'top' ? 0.7 : 1.4)" :fill="GREEN" :stroke="DARK_GREEN" stroke-width="0.5" :opacity="each.opacity * 0.9" data-act-splash />
-    </template>
+    </g>
     <template v-for="each in flying" :key="each.name">
         <circle :cx="each.x" :cy="each.y" :r="each.r" :fill="GREEN" :stroke="DARK_GREEN" stroke-width="0.5" data-act-slush />
     </template>

@@ -247,9 +247,10 @@ export function boxRisen(risen, rank, count) {
     return k * k;
 }
 
-// how far a box drawn `k` of the way up the beam sways across it, in pixels, its own sway set by `id`, dying away as it nears the UFO
+// how far a box drawn `k` of the way up the beam sways across it, in pixels, its own sway set by `id`: growing smoothly out of rest over
+// the first fifth of its lift, then dying away as it nears the UFO, never jumping sideways as the beam first takes its weight
 export const BEAM_SWAY = 4;
-export const boxSway = (k, id) => (k > 0 ? Math.sin(k * 12 + id * 1.7) * BEAM_SWAY * (1 - k) : 0);
+export const boxSway = (k, id) => (k > 0 ? Math.sin(k * 12 + id * 1.7) * BEAM_SWAY * ease(clamp(k / 0.2)) * (1 - k) : 0);
 
 // The crane: grabbers sent out on its rail along the chat window's top, each taking one box away. Every grabber is the same reel, a trolley
 // that zips along the rail from one side and lets its cable down; only its grabbing end differs: the claw, a suction cup like a plunger's

@@ -183,7 +183,6 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip watch ×2 when moment=held:watch, plays out",
         "clip wave_up ×1 when moment=held:watch, plays out",
         "clip pack_box ×3 when moment=held:compacting, plays out",
-        "clip press ×2 when moment=held:compacting, plays out",
         "clip vacuum ×2 when moment=held:compacting, plays out",
         "clip compacting ×1 when moment=held:compacting, plays out",
         "pick writing ×12 when moment=spell state=writing",

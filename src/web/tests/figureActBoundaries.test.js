@@ -28,11 +28,13 @@ function continuous(name, voice, u) {
     }
 }
 
-test("the rifle's supporting wrist turns continuously while the hand comes up and lowers", () => {
+test("the rifle's head and supporting wrist turn continuously through aiming, raising and lowering", () => {
     const {draw, drops} = ACTS.bug_shot;
     for (const voice of Object.keys(stances)) {
+        continuous("bug_shot", voice, (draw[0] + draw[1]) / 2);
         continuous("bug_shot", voice, (draw[0] + 3 * draw[1]) / 4);
         continuous("bug_shot", voice, drops[0] + 0.125);
+        continuous("bug_shot", voice, drops[0] + 0.2);
     }
 });
 
@@ -62,6 +64,22 @@ test("pogo compression meets every bounce and extends through liftoff without a 
         joins.push(bounces[0] + (bounces[1] - bounces[0]) * elapsed / total);
     }
     for (const voice of Object.keys(stances)) for (const u of joins) continuous("pogo", voice, u);
+});
+
+test("the pogo draw carries the hand from behind the back to the handle without switching poses mid-reach", () => {
+    for (const voice of Object.keys(stances)) {
+        let before = posed("pogo", voice, 0);
+        for (let step = 1; step <= 450; step++) {
+            const after = posed("pogo", voice, ACTS.pogo.draw[1] * step / 450);
+            for (const bone of ["upper_arm_r", "forearm_r", "hand_r"]) {
+                const a = RIG.heads.get(bone).clone().applyMatrix4(before.moves.get(bone));
+                const b = RIG.heads.get(bone).clone().applyMatrix4(after.moves.get(bone));
+                expect(a.distanceTo(b), `${voice} ${bone} at draw sample ${step}`).toBeLessThan(0.02);
+                expect(jointAngles(RIG, before.moves, after.moves).get(bone), `${voice} ${bone} turns with the reach`).toBeLessThan(0.02);
+            }
+            before = after;
+        }
+    }
 });
 
 test("pogo knees carry the hips while the feet remain on the stick's pegs", () => {

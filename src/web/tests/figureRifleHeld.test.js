@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 
-const {CLIPS, LOOK_DEPTH, Posing, RIFLE_HOLD, RIFLE_PARTS, burstKick, rifleAim} = await import("../src/figure/figure.js");
+const {CLIPS, rifleTarget, Posing, RIFLE_HOLD, RIFLE_PARTS, burstKick, rifleAim} = await import("../src/figure/figure.js");
 const {ACTS} = await import("../src/figure/acts.js");
 const {FRAMED} = await import("../src/figure/frame.js");
 
@@ -34,7 +34,7 @@ function held(u, target, voice) {
     const turned = new THREE.Matrix4().extractRotation(moves.get(rifle.frame)).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(radians(rifle.turn.x || 0), radians(rifle.turn.y || 0), radians(rifle.turn.z || 0), "ZYX")));
     const local = (point) => point.clone().sub(origin).applyMatrix4(turned.clone().transpose());
     const gripOf = (side) => pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
-    const point = new THREE.Vector3((target.x - 0.5) * FRAMED.height, LOOK_DEPTH, FRAMED.middle + (0.5 - target.y) * FRAMED.height);
+    const point = rifleTarget(target);
     return {rifle, origin, turned, local, gripOf, point, way: rifleAim(target, 0).way};
 }
 

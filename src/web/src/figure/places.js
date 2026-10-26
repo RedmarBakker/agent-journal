@@ -1,5 +1,5 @@
 import {GRAVITY} from "../domain/falls.js";
-import {ACTS, swingAt} from "./acts.js";
+import {ACTS} from "./acts.js";
 import {flips} from "./reactions.js";
 import {PARCEL, PILED, PUSH} from "./parcels.js";
 
@@ -76,14 +76,6 @@ export function turnStep(from, to) {
     if (from.facing === to.facing || (!SEATED.has(from.posture) && !SEATED.has(to.posture))) return to;
     return {posture: "stand", facing: SEATED.has(from.posture) ? from.facing : to.facing};
 }
-
-// The rope swing as the page draws it `u` of the way through its act, for a figure whose picture has `below` of it under its feet: the whole
-// picture, ropes and figure, scaled about the knots the ropes hang from, `origin` as shares of the picture across and down, larger and so
-// lower at the front of each swing, toward the camera, and smaller and higher at the back, its middle never moving to either side
-export const swingView = (u, below) => ({
-    scale: 1 + ACTS.rope_swing.depth * swingAt(u),
-    origin: {x: 0.5, y: 1 - below - POSTURES.sit.drop - ACTS.rope_swing.rope},
-});
 
 // how long the figure takes to change from one clip, posture or facing to the next, easing out of the pose before it, in seconds
 export const CHANGE_SECONDS = 0.25;
@@ -595,13 +587,11 @@ export function watchSpot(figure) {
 }
 
 // What the figure looks at while it watches the bar whose leading edge is `edge`, standing at `feet`, page points, its picture `figure`:
-// the edge, kept to one side of it toward the bar's end (WATCH along) so the look runs along the bar; and `behind`, when it stands in
-// front of the mark, `mark` its box on the page, its feet below the mark, as on the compose box under a dock covering it: then it turns
-// its head to the mark on the page behind it, its back to the viewer, as one looking at a screen; on top of the mark it looks down at it
-// facing the viewer
+// the edge, kept to one side of it toward the bar's end (WATCH along) so the look runs along the bar. The bar is on the screen behind
+// the figure even when it stands on the mark: it looks back and down over its shoulder instead of at a point in front of the page.
 export function watchLook(edge, feet, mark, figure) {
     const near = Math.abs(edge.x - feet.x) < WATCH.along * figure.size;
-    return {x: near ? feet.x + WATCH.along * figure.size : edge.x, y: edge.y, behind: feet.y > mark.bottom + 1};
+    return {x: near ? feet.x + WATCH.along * figure.size : edge.x, y: edge.y, behind: true};
 }
 
 // How the progress bar on `element` stands, as the bars docked over the compose box: the bar itself, how far its fill has run, 0 to 1,

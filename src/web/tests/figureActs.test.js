@@ -196,8 +196,8 @@ test("it floats back down on a parachute, never faster than the parachute lets i
     expect(clipFor({mode: "airborne", place: {posture: "stand"}, chute: false}, () => true).clip).toBe("fall");
 });
 
-test("while the context compacts the figure is packed into a box that shrinks, squashed under a press, or vacuums up words, picked each time", () => {
-    expect(of("held:compacting").map((each) => each.name)).toEqual(["pack_box", "press", "vacuum", "compacting"]);
+test("while the context compacts the figure packs a box, vacuums words or squares papers, never using the head press", () => {
+    expect(of("held:compacting").map((each) => each.name)).toEqual(["pack_box", "vacuum", "compacting"]);
     const box = ACTS.pack_box;
     const frames = box.intro + box.hold + box.outro;
     const at = (frame) => frame / frames;
@@ -209,12 +209,6 @@ test("while the context compacts the figure is packed into a box that shrinks, s
     const clip = clipNamed("pack_box");
     expect([clip.intro, clip.outro, clip.leaves, clip.loops]).toEqual([box.intro, box.outro, box.hold, true]);
     expect(heldPhases(box, at(box.intro + box.hold + box.outro * box.pops + 1)).out).toBeGreaterThan(box.pops);
-    // squashed flat under the press, and back to its height once it lifts
-    const press = ACTS.press;
-    const pressed = (frame) => squeezeOf("press", frame / (press.intro + press.hold + press.outro));
-    expect(pressed(press.intro + 1).y).toBeCloseTo(1 - press.flat, 5);
-    expect(pressed(press.intro + 1).x).toBeGreaterThan(1);
-    expect(pressed(press.intro + press.hold + press.outro).y).toBeCloseTo(1, 5);
     expect(squeezeOf("vacuum", 0.5)).toBe(null);
 });
 

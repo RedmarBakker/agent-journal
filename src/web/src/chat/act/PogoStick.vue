@@ -21,7 +21,7 @@ const stick = computed(() => {
     return {
         shown: partOf(props.u, [draw[1] * 0.6, draw[1]]),
         foot: props.floor,
-        top: -height * 0.82,
+        top: -props.size * ACTS.pogo.handles,
         bottom: height * 0.18,
         bar: props.size * 0.16,
         peg: props.size * 0.13,

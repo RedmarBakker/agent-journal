@@ -1,5 +1,6 @@
 import {fallStep} from "../domain/falls.js";
 import {stretchedFrame} from "./timeline.js";
+import {hitSurface} from "./splatter.js";
 
 // The journal moments and the searches the figure acts out with things the page draws beside it (chat/FigureAct.vue): for each act its
 // length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip
@@ -61,18 +62,19 @@ export const ACTS = {
     // a rope swing tied under a bubble, drawn whole from the act's first frame: its two ropes `rope` of the figure's height long from the
     // middle of the bubble's bottom edge, `ties` of it apart, just outside the figure's arms, down to a seat `seat` of it wide, a little wider
     // than its body, whose top is `under` of it below the line the figure sits on, where its thighs' underside rests. Its frames are an
-    // intro, the figure sitting down onto the seat; a held stretch looped while it swings, `swings` swings back and forth toward the camera
-    // and away, never to either side, coming `depth` of its size nearer at the front of each swing and as far back at the back, the legs
-    // pumping with them; and an outro, the figure rising off it. The knots stand at least `room` of the figure's height in from either side
-    // of the chat.
-    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.53, seat: 0.59, under: 0.025, depth: 0.12, room: 0.85},
+    // intro, the figure sitting down onto the seat as it starts to swing; a held stretch looped for `swings` pendulum cycles toward the
+    // camera and away, `angle` degrees either side of the bottom, around the fixed knots, its legs pumping; and an outro, settling as the
+    // figure rises off it. The ropes stay straight and keep their length, the seat rising at both ends of the arc. The knots stand at
+    // least `room` of the figure's height in from the chat's sides, with `clearance` extra room kept around the hanging figure.
+    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.53, seat: 0.59, under: 0.025, angle: 20, clearance: 0.12, room: 0.85},
     // a pogo stick up onto a bubble's top: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times on the spot
     // over `bounces`, each higher than the last up to `bounce` of its height, and springs up over `spring` to the top of its throw, `over`
     // of its height past the bubble's edge; there it lets the stick go over `release`, the stick falling away over `drop`, and it falls
-    // onto the bubble on its own feet; every hop and the fall are timed by one gravity (pogoHop); the stick `stick` of its height long,
-    // its handles where the hands hold it
-    pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.62], count: 3, bounce: 0.45, spring: [0.62, 0.82], over: 0.3, release: [0.82, 0.86], drop: [0.82, 1], stick: 0.62},
-    // a fixed run's bugs: two to five of them crawl along the chat window's walls (WALL_BUGS); the figure pulls a rifle from behind its back
+    // onto the bubble on its own feet; every hop and the fall are timed by one gravity (pogoHop); the lower shaft keeps its existing
+    // `stick`-based length, with the handles `handles` of the picture's height above the feet, shared by the stick and the hands
+    pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.62], count: 3, bounce: 0.45, spring: [0.62, 0.82], over: 0.3, release: [0.82, 0.86], drop: [0.82, 1], stick: 0.62, handles: 0.2455},
+    // a fixed run's bugs: two to five of them crawl along the chat window's walls (WALL_BUGS); the figure first walks to its firing spot,
+    // turns its whole body toward each wall (back toward the screen for a top-wall bug), and pulls a rifle from behind its back
     // over `draw` and shoulders it, then shoots them one by one, each in its own `turn` of the act played over again for every bug
     // (bugShotFrame): it swings its aim onto the bug over `aim`, shoots `count` bursts over `shots`, each kicking the rifle and the shoulder
     // back, and the bug splatters on its wall at `splat`; after the last, drops of its splatter fly out at the screen over `fly`, growing
@@ -96,7 +98,7 @@ export const ACTS = {
     },
     // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
     // with its hands folded and a serene, holy look
-    halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},
+    halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.01},
     // A confession: the hands come to the chest during the descent, the head bows after the shoulders, and the figure rises slowly.
     repent: {frames: 84, fps: 12, stand: [0, 0.12], kneel: [0.12, 0.34], out: [0.18, 0.4], up: [0.34, 0.48], hold: [0.48, 0.74], down: [0.74, 0.86], rise: [0.76, 1]},
     // a disco dance under a disco ball: the classic move, one arm pointing up and the other down, switching sides `beats` times, the hips
@@ -294,17 +296,25 @@ export function bugShotFrame(raw, count) {
 // The bug shot `raw` frames in, its bugs `bugs` (wallBugs) in the chat window `world`: each bug where it is on its wall (wallBugAt), still
 // where it was shot once it is, and whether it is; the frame of the clip (bugShotFrame); and the page point the rifle aims at, swung from
 // the bug before onto the bug of this turn over the turn's `aim`; the slush each shot bug burst into and the splashes it has left
-// (slushAt), and the shot bugs whose slush is flying at the camera, each with the seconds since its shot and where it burst (cameraDrops)
-export function bugShotScene(bugs, world, raw) {
+// (slushAt), and the shot bugs whose slush is flying at the camera, each with the seconds since its shot and where it burst (cameraDrops).
+// Live `surfaces` are the chat's visible boxes; `bursts`, kept for this run, checks their current faces during flight and keeps each
+// actual landing on the same box as the chat scrolls.
+export function bugShotScene(bugs, world, raw, {surfaces = [], bursts = null} = {}) {
     const act = ACTS.bug_shot;
     const {frame, bug, shot} = bugShotFrame(raw, bugs.length);
     const placed = bugs.map((each, index) => ({...wallBugAt(each, world, Math.min(raw / act.fps, bugShotTimes(index).shot)), shot: index < shot}));
     const swing = partOf(frame / act.frames, act.aim);
     const [from, to] = [placed[Math.max(bug - 1, 0)], placed[bug]];
-    const shots = bugs.map((each, index) => ({bug: each, seconds: raw / act.fps - bugShotTimes(index).shot, spot: wallBugAt(each, world, bugShotTimes(index).shot)})).filter((each) => each.seconds >= 0);
-    const slush = shots.flatMap((each) => slushAt(slushOf(each.bug, world, each.spot), each.seconds));
+    const shots = bugs.map((each, index) => ({bug: each, index, seconds: raw / act.fps - bugShotTimes(index).shot, spot: wallBugAt(each, world, bugShotTimes(index).shot)})).filter((each) => each.seconds >= 0);
+    const slush = shots.flatMap((each) => {
+        const particles = bursts?.get(each.index) ?? slushOf(each.bug, world, each.spot, bursts ? [] : surfaces);
+        bursts?.set(each.index, particles);
+        if (bursts) landSlush(particles, each.seconds, surfaces);
+        return slushAt(particles, each.seconds, surfaces);
+    });
     const camera = shots.filter((each) => sprayesCamera(each.bug)).map((each) => ({seconds: each.seconds, from: each.spot}));
-    return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing}, slush, camera};
+    const back = Number(bugs[Math.max(bug - 1, 0)].wall === "top") * (1 - swing) + Number(bugs[bug].wall === "top") * swing;
+    return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing, back}, slush, camera};
 }
 
 // When the turn of bug number `index` of the bug shot has its beats, in the shot's raw frames, but the second its bug is shot: the frame
@@ -357,8 +367,8 @@ export function backAt(plan, raw, size) {
 
 // A shot bug leaves nothing at its place: it bursts into slush, SLUSH.count particles thrown out from where it was hit, away from its wall
 // within SLUSH.spread degrees of straight out, at SLUSH.speed pixels a second, then falling under SLUSH.gravity; each flies until it meets
-// the floor or an edge of the chat window and leaves a small splash there, which holds SLUSH.hold seconds and fades over SLUSH.fade. Now
-// and then (sprayesCamera) a bug's slush flies at the screen too (cameraDrops).
+// a chat box, the floor or an edge of the chat window and leaves a small splash there, which holds SLUSH.hold seconds and fades over
+// SLUSH.fade. On a box or a side wall it runs down while it fades. Now and then (sprayesCamera) it flies at the screen too (cameraDrops).
 export const SLUSH = {count: 14, speed: [70, 210], spread: 75, gravity: 620, radius: [2, 4.5], hold: 1, fade: 1.5, camera: 0.35, step: 1 / 60, longest: 5};
 
 const INWARD = {left: [1, 0], right: [-1, 0], top: [0, 1]};
@@ -372,40 +382,78 @@ function seeded(seed) {
 // whether the slush of `bug` flies at the camera as well as about the walls: a share SLUSH.camera of bugs, decided by where the bug crawls
 export const sprayesCamera = (bug) => (bug.along * 97) % 1 < SLUSH.camera;
 
-// where a particle thrown from `p` ({x, y, vx, vy}) meets the window `world`: the seconds it flies, the place, and what it lands on
-function landing(p, world) {
-    for (let t = SLUSH.step; t <= SLUSH.longest; t += SLUSH.step) {
-        const [x, y] = [p.x + p.vx * t, p.y + p.vy * t + 0.5 * SLUSH.gravity * t * t];
-        if (y >= world.bottom) return {t, x: Math.min(Math.max(x, world.left), world.right), y: world.bottom, on: "floor"};
-        if (x <= world.left) return {t, x: world.left, y, on: "left"};
-        if (x >= world.right) return {t, x: world.right, y, on: "right"};
-        if (y <= world.top) return {t, x, y: world.top, on: "top"};
+const flownTo = (p, t) => ({x: p.from.x + p.vx * t, y: p.from.y + p.vy * t + 0.5 * SLUSH.gravity * t * t});
+
+// Where a drop first meets a chat box or the window. The walls' times are exact; the short curved segments between them are swept
+// across the boxes, so a fast drop cannot pass through a thin card between two frames.
+function landing(p, world, surfaces) {
+    const floorTime = (-p.vy + Math.sqrt(p.vy * p.vy + 2 * SLUSH.gravity * (world.bottom - p.from.y))) / SLUSH.gravity;
+    const edges = [{t: floorTime, on: "floor"}];
+    if (p.vx < 0) edges.push({t: (world.left - p.from.x) / p.vx, on: "left"});
+    if (p.vx > 0) edges.push({t: (world.right - p.from.x) / p.vx, on: "right"});
+    const high = p.vy * p.vy + 2 * SLUSH.gravity * (world.top - p.from.y);
+    if (p.vy < 0 && high >= 0) edges.push({t: (-p.vy - Math.sqrt(high)) / SLUSH.gravity, on: "top"});
+    const edge = edges.filter((each) => each.t >= 0).sort((a, b) => a.t - b.t)[0];
+    let before = p.from;
+    for (let start = 0; start < edge.t; start += SLUSH.step) {
+        const end = Math.min(start + SLUSH.step, edge.t);
+        const after = flownTo(p, end);
+        const hit = hitSurface(before, after, surfaces);
+        if (hit) return {...hit, t: start + (end - start) * hit.share};
+        before = after;
     }
-    return {t: SLUSH.longest, x: p.x + p.vx * SLUSH.longest, y: world.bottom, on: "floor"};
+    const point = flownTo(p, edge.t);
+    return {...edge, x: Math.min(Math.max(point.x, world.left), world.right), y: Math.min(Math.max(point.y, world.top), world.bottom)};
 }
 
 // The slush of the wall bug `bug` (wallBugs) shot at `from` ({x, y}) in the chat window `world`: each particle {x, y, vx, vy, r} thrown out
-// from there, with where it lands, {t, x, y, on}
-export function slushOf(bug, world, from) {
+// from there (kept separately as `from`, never overwritten by the landing), with where it lands, {t, x, y, on}
+export function slushOf(bug, world, from, surfaces = []) {
     const random = seeded(bug.along + 1);
     const [nx, ny] = INWARD[bug.wall];
     const straight = Math.atan2(ny, nx);
     return Array.from({length: SLUSH.count}, () => {
         const angle = straight + (random() - 0.5) * 2 * ((SLUSH.spread * Math.PI) / 180);
         const speed = SLUSH.speed[0] + random() * (SLUSH.speed[1] - SLUSH.speed[0]);
-        const particle = {x: from.x, y: from.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: SLUSH.radius[0] + random() * (SLUSH.radius[1] - SLUSH.radius[0])};
-        return {...particle, ...landing(particle, world)};
+        const particle = {from: {x: from.x, y: from.y}, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: SLUSH.radius[0] + random() * (SLUSH.radius[1] - SLUSH.radius[0])};
+        return {...particle, ...landing(particle, world, surfaces)};
     });
 }
 
+// In a live burst only freeze contacts that have happened. A bubble may scroll out of a drop's way, or into it, while it flies; sweeping
+// just the flight since the last draw against the current faces avoids snapping it to a landing planned before the box moved.
+function landSlush(particles, seconds, surfaces) {
+    for (const p of particles) {
+        if (p.settled) continue;
+        const until = Math.min(seconds, p.t);
+        for (let start = p.checked ?? 0; start < until; start += SLUSH.step) {
+            const end = Math.min(start + SLUSH.step, until);
+            const hit = hitSurface(flownTo(p, start), flownTo(p, end), surfaces);
+            if (!hit) continue;
+            Object.assign(p, hit, {t: start + (end - start) * hit.share});
+            break;
+        }
+        p.checked = seconds;
+        p.settled = seconds >= p.t;
+    }
+}
+
 // The particles `seconds` after the shot (slushOf): each still flying as {x, y, r, flying: true}, or, once it has landed, its splash as
-// {x, y, r, flying: false, on, opacity}: it grows over its first tenth of a second, holds, then fades away
-export function slushAt(particles, seconds) {
+// {x, y, r, flying: false, on, opacity}: it grows over its first tenth of a second, holds, then fades away. A stain on a box follows that
+// same element, clipped to its visible face, and runs down it; one whose box has left the page is no longer drawn.
+export function slushAt(particles, seconds, surfaces = []) {
+    if (seconds < 0) return [];
     return particles.flatMap((p) => {
-        if (seconds < p.t) return [{x: p.x + p.vx * seconds, y: p.y + p.vy * seconds + 0.5 * SLUSH.gravity * seconds * seconds, r: p.r, flying: true}];
+        if (seconds < p.t) return [{...flownTo(p, seconds), r: p.r, flying: true}];
         const age = seconds - p.t;
         const opacity = 1 - Math.min(Math.max((age - SLUSH.hold) / SLUSH.fade, 0), 1);
-        return opacity > 0 ? [{x: p.x, y: p.y, r: p.r * (1 + 1.2 * Math.min(age / 0.1, 1)), flying: false, on: p.on, opacity}] : [];
+        if (opacity <= 0) return [];
+        const surface = p.on === "surface" ? surfaces.find((each) => each.id === p.surface) : null;
+        if (p.on === "surface" && !surface) return [];
+        const x = surface ? surface.left + p.dx : p.x;
+        const y = surface ? surface.top + p.dy : p.y;
+        const run = surface ? Math.min(age * age * 12, 48, Math.max(0, surface.bottom - y)) : ["left", "right"].includes(p.on) ? Math.min(age * age * 8, 32) : 0;
+        return [{x, y, r: p.r * (1 + 1.2 * Math.min(age / 0.1, 1)), flying: false, on: p.on, opacity, run, ...(surface ? {clip: surface.clip ?? surface} : {})}];
     });
 }
 
@@ -495,10 +543,13 @@ export function offSwing(u) {
     return 1 - partOf(into, [0, 1]) * (1 - partOf(out, [0, 1]));
 }
 
-// where the rope swing is in its swing at `u` of its frames, -1 at the back of a swing, away from the camera, to 1 at the front, toward it:
-// still while the figure sits down onto it or rises off it
+// The rope swing's angle as a share of its full arc at `u`, -1 away from the camera to 1 toward it. Its held loop is the small-angle
+// pendulum's sine: fastest at the bottom and still at each end. The same phase runs through the intro and outro with an eased envelope,
+// so sitting down and rising off never start or stop the swing's velocity in one frame, and held loops join at the same speed.
 export function swingAt(u) {
-    const {held} = heldPhases(ACTS.rope_swing, u);
-    return held === null ? 0 : Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
+    const act = ACTS.rope_swing;
+    const {into, out} = heldPhases(act, u);
+    const phase = (u * (act.intro + act.hold + act.outro) - act.intro) / act.hold;
+    return partOf(into, [0, 1]) * (1 - partOf(out, [0, 1])) * Math.sin(2 * Math.PI * act.swings * phase);
 }
 

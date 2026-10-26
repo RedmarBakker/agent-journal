@@ -55,8 +55,20 @@ export function composerLook(typedAt, now) {
     return pause <= COMPOSER_FULL_SECONDS ? "typing" : "typing_pause";
 }
 
-// the looks the figure may take up this frame playing `clip`, of `looks`: all of them, but none for an act that keeps its head alone
-export const looksFor = (clip, looks) => (clip.head === HEAD.alone ? [] : looks);
+// The messages, pictures, composer and run marks belong to the screen behind the figure. Props, the pointer and idle glances stay in
+// the room in front of it. Apply the depth here so every look at a screen element uses the same side of the figure.
+export const SCREEN_LOOKS = new Set(["attachment", "said", "run", "confession", "reading", "message", "typing", "typing_pause", "picture", "bar"]);
+
+// the looks the figure may take up this frame playing `clip`: none for an act that keeps its head alone; otherwise each screen target
+// explicitly behind the figure, keeping its mood and any limit on the body's turn
+export const looksFor = (clip, looks) => clip.head === HEAD.alone ? [] : looks.map((look) => SCREEN_LOOKS.has(look.kind) ? {...look, point: {...look.point, behind: true}} : look);
+
+// The eased page look in the figure's picture, whose top left is `at` and whose height is `size`. Keep the target's turn limit and
+// other metadata when changing its coordinates, so a limited look stays limited after the figure moves.
+export function lookInFigure(gaze, at, size) {
+    if (!gaze.amount || !gaze.point) return null;
+    return {...gaze.point, x: (gaze.point.x - at.x) / size, y: (gaze.point.y - at.y) / size, amount: gaze.amount, behind: Boolean(gaze.point.behind), faces: Boolean(gaze.point.faces), mood: gaze.point.mood ?? ""};
+}
 
 // whether `clip` keeps its head as its act poses it, never turned to the viewer for a look
 export const holdsHead = (clip) => clip.head >= HEAD.holds;

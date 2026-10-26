@@ -161,6 +161,7 @@ export class Posing {
         this.facing = 0;
         this.target = null;
         this.headContact = 0;
+        this.suspension = null;
     }
 
     standing(name) {
@@ -432,9 +433,11 @@ export class Posing {
         items.forEach((item) => this.stowed.add(item));
     }
 
-    // every bone's move, the whole figure turned `facing` degrees toward the viewer's right as rig.Posing.revolve turns it
+    // Every bone's move, carried by its suspension after its limbs are posed, then turned `facing` degrees toward the viewer's right.
+    // Props use these same moves, so a swing's rider, seat and ropes pivot together about their fixed knots.
     moves(facing) {
         const turn = new THREE.Matrix4().makeRotationZ(radians(facing));
+        if (this.suspension) turn.multiply(this.suspension);
         const moves = new Map();
         for (const name of this.rig.order) {
             const parent = this.rig.parents.get(name);
@@ -1332,7 +1335,8 @@ export const SEARCHING = {sweep: 14, lean: 10, nod: 16, turn: 70};
 // where the glass's lens is held as the figure looks from `eyes` at `spot`: `reach` along its sight, so it is before its eyes
 export const lensBefore = (eyes, spot, reach) => eyes.clone().add(spot.clone().sub(eyes).setLength(reach));
 
-const CHASE_REACH = 1.4;
+// The page moves the whole canvas along the floor; only a small stride stays inside it, leaving room for the leading quill.
+const CHASE_REACH = 0.25;
 const TAP_LIFT = 0.13;
 
 // where the glance is across one slow search cycle: one way, a pause, the other way, a pause, back to centre, a longer rest
@@ -1821,13 +1825,14 @@ function writing(pose, stance, t) {
     eyesAs(pose, "reading", ready);
 }
 
+// Squares a stack of papers, the sorting hand easing up from and back down to contact on each pass.
 function compacting(pose, stance, t) {
     const {ready, phase} = heldTime(t);
     breathe(pose, 0);
     trunk(pose, {nod: ACTING.nod * ready});
     armsAtRest(pose, stance);
     propHand(pose, "l", ready, ACTING.wrist);
-    propHand(pose, "r", ready, [ACTING.wrist[0] + ACTING.writeStroke * waveOf(phase, ACTING.sways), ACTING.wrist[1], ACTING.wrist[2] + ACTING.writeHeight * Math.max(waveOf(phase, ACTING.sways), 0)]);
+    propHand(pose, "r", ready, [ACTING.wrist[0] + ACTING.writeStroke * waveOf(phase, ACTING.sways), ACTING.wrist[1], ACTING.wrist[2] + ACTING.writeHeight * Math.max(waveOf(phase, ACTING.sways), 0) ** 2]);
     if (ready) pose.putAway(...IN_HAND);
     if (ready >= 1) {
         pose.holdProp("papers", "l", [0, -ACTING.wrist[0], ACTING.supportLift], {z: 90});
@@ -2174,7 +2179,8 @@ function land(pose, stance, t) {
     fold(pose, 0.32 * dip);
 }
 
-// The squire brakes at the bug, turns on the spot, then returns along the same path with the quill leading.
+// The squire brakes at the bug, turns on the spot, then returns along the same path with the quill leading. The page carries the
+// canvas along the chase; the local travel stays small enough to keep the quill and outstretched hand inside it.
 function squire_chase(pose, stance, t) {
     const u = onceTime(t, 24);
     const reach = CHASE_REACH * (u < 0.5 ? rise(u, 0, 0.5) : 1 - rise(u, 0.5, 1));
@@ -2255,7 +2261,7 @@ function pointed(pose, stance, t) {
 // and ending at rest. The hand that gestures is the free one; what the other carries stays in it.
 export const REACTING = {
     frames: 36, fps: 12,
-    hatOn: 1.101, hatWrist: [1.05, -0.2, 2.85], hatRaised: [0.95, -0.5, 2.85], hatTip: 25, hatFingers: 0.25, hatBow: 22, hatNod: 14,
+    hatOn: 1.101, hatWrist: [1.05, -0.2, 2.6], hatRaised: [0.95, -0.5, 2.6], hatTip: 18, hatFingers: 0.25, hatBow: 22, hatNod: 14,
     monocleWrist: [0.55, -0.8, 2.62], monocleWorn: [0.354, -0.95, 0.66], monoclePeer: 8, monocleTilt: 9,
     toastWrist: [0.78, -0.72, 2.55], toastClink: 0.12, sipWrist: [0.42, -0.78, 2.38], sipTip: 20,
     shakaWrist: [1.22, -0.25, 2.72], shakaWaggle: 28, shakaWaggles: 3,
@@ -2286,7 +2292,7 @@ function handUp(pose, side, k, target, turn = {}) {
 // straight up, at rest
 const UP = new THREE.Vector3(0, 0, 1);
 
-// the butler raises his hand beside his top hat, the hat comes off into it by the brim, he lifts it and bows a little, and puts it back on
+// The butler takes his top hat by the brim and tips it as he bows, keeping its tall crown inside the picture, then puts it back on.
 function hat_tip(pose, stance, t) {
     const {u, ready} = reacting(t);
     const side = freeSide(stance);
@@ -3015,8 +3021,9 @@ const glanceAt = (way, up) => (pose, stance, t) => {
 export const LANDING = {frames: 6, fps: 20};
 
 // Landing wrong from a launch: it trips, falls onto its knees at a fall's speed with a little bounce, shakes its head, gets up and gives a little hop, arms up, as if nothing
-// happened; the hips drop `drop` to kneel, the shins laid back along the floor
-export const TUMBLE = {frames: 48, fps: 12, trip: [0, 0.14], down: [0.05, 0.11], bounce: [0.11, 0.18], shake: [0.3, 0.58], shakes: 3, up: [0.62, 0.8], hop: [0.8, 0.96], drop: 0.74};
+// happened; the hips drop `drop` to kneel, the shins laid back along the floor. The largest shoes' `feet` extents keep their soles,
+// insteps and toes above the floor while they roll over, with the leg solver preserving their connection to the knees.
+export const TUMBLE = {frames: 48, fps: 12, trip: [0, 0.14], down: [0.05, 0.11], bounce: [0.11, 0.18], shake: [0.3, 0.58], shakes: 3, up: [0.62, 0.8], hop: [0.8, 0.96], drop: 0.74, feet: {sole: 0.33, instep: 0.184, toe: 0.8}};
 
 function tumble(pose, stance, t) {
     const u = onceTime(t, TUMBLE.frames);
@@ -3025,7 +3032,7 @@ function tumble(pose, stance, t) {
     const shake = waveOf(span(u, ...TUMBLE.shake), TUMBLE.shakes) * swell(u, ...TUMBLE.shake);
     const hop = swell(u, ...TUMBLE.hop);
     pose.lift("root", {z: -TUMBLE.drop * kneel + 0.1 * swell(u, ...TUMBLE.bounce) + 0.16 * hop});
-    if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
+    if (pose.posture === "stand") remorseLegs(pose, kneel, TUMBLE.feet);
     trunk(pose, {lean: 12 * kneel + 10 * flail * (1 - kneel), nod: 12 * kneel, turn: 26 * shake});
     flung(pose, stance, 0, 100 * flail * (1 - kneel) + 60 * hop, 8 * flail);
     pose.putAway(...IN_HAND);
@@ -3159,12 +3166,17 @@ function disco(pose, stance, t) {
     eyesAs(pose, "amused", into);
 }
 
-// The rifle shouldered for the bug shot, in the figure's units across (toward its left, where the bug is), forward (toward the viewer is
-// less) and up: the right hand on its grip at `grip`, the barrel pointing out to the left and `down` degrees toward the floor, the left
-// hand forward on the handguard `fore` along it, the right hand reaching `behind` the back for it first; each burst kicks the rifle `kick`
-// back along its line and `climb` degrees up, the shoulder `shoulder` degrees back; the figure turns `turn` degrees toward the bug, its
-// cheek down to the sights by `cheek` degrees of nod and head turn; a bug more than `steep` degrees up is shot with the rifle held as ever
+// The rifle is drawn from behind the right shoulder, then seated against it, with the other palm under the fore-end. The feet turn
+// toward the wall and the chest takes a small shooting stance; the head follows the barrel from its cheek against the stock.
 export const RIFLE = {grip: [-0.1, -0.62, 2.0], down: 12, fore: 0.9, behind: [-0.45, 0.45, 1.45], kick: 0.13, climb: 7, shoulder: 7, turn: 22, cheek: 14, steep: 60};
+
+// The chat is behind the figure (+Y). Side walls are almost in its plane; a top-wall target is on the screen behind its shoulders.
+export const RIFLE_DEPTH = {wall: 0.8, screen: 3.2};
+export const rifleTarget = (target) => new THREE.Vector3(
+    (target.x - 0.5) * FRAMED_HEIGHT,
+    mix(RIFLE_DEPTH.wall, RIFLE_DEPTH.screen, target.back ?? partOf(-target.y, [0, 0.8])),
+    FRAMED_MIDDLE + (0.5 - target.y) * FRAMED_HEIGHT
+);
 
 // The rifle's line as it is held, kicked `kick` of the way back, aimed `aim` degrees down (RIFLE down unless it aims at a bug), out to the
 // figure's left, `way` 1, or held the other way round, out to its right, `way` -1: where the grip is, the way the barrel points, and its
@@ -3184,25 +3196,13 @@ export const burstKick = (t) => {
     return phase < 0.08 ? ease(phase / 0.08) : 1 - ease(span(phase, 0.08, 0.5));
 };
 
-// The way the rifle aims at the bug it shoots, the page point `target` (as shares of the picture, pose.target) in the figure's units, the
-// body turned `facing` degrees: held out to the side the bug is on (`way`, 1 the figure's left, as rifleLine), so the figure keeps its front
-// to the viewer; how many degrees the body turns round so the barrel points at it across the floor, and how many the barrel points down
-// at it from the grip; the barrel straight out to the figure's left, a little down, with no target
+// The whole body faces the target, rather than passing a sideways rifle between hands. Angles stay on the back half of the room
+// (90 to 270 degrees), so an aim crossing behind the head turns continuously through the back instead of flipping at 180 degrees.
 export function rifleAim(target, facing) {
-    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1, handed: 1, point: null};
-    const point = new THREE.Vector3((target.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - target.y) * FRAMED_HEIGHT).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing));
+    const point = rifleTarget(target ?? {x: 2.2, y: 0.35});
+    const yaw = (THREE.MathUtils.radToDeg(Math.atan2(point.x, -point.y)) + 360) % 360;
     const down = THREE.MathUtils.radToDeg(Math.atan2(-(point.z - RIFLE.grip[2]), Math.hypot(point.x, point.y)));
-    // aimed steeply up it holds the rifle as ever, the barrel rising before it, and turns the less the steeper it aims
-    const way = point.x >= 0 || down < -RIFLE.steep ? 1 : -1;
-    const exchange = partOf(point.x, [-3, 3]);
-    const upright = 1 - partOf(down, [-RIFLE.steep - 5, -RIFLE.steep + 5]);
-    const handed = 2 * mix(exchange, 1, upright) - 1;
-    const right = THREE.MathUtils.radToDeg(Math.atan2(point.y, point.x)) * Math.cos(radians(down));
-    const left = -THREE.MathUtils.radToDeg(Math.atan2(-point.y, -point.x)) * Math.cos(radians(down));
-    const turn = mix(left, right, (handed + 1) / 2);
-    const grip = rifleLine(0, RIFLE.down, handed).grip.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
-    const toward = point.clone().sub(grip);
-    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way, handed, point};
+    return {turn: yaw - facing, down, way: 1, handed: 1, point: point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing))};
 }
 
 // The rifle's own axes as held, its barrel along `along`, in the pose's own axes: its top up while it is held level, and turned away from
@@ -3233,13 +3233,6 @@ function barrelWay(grip, point, turn, planned) {
 
 // the way up from the rifle, its barrel along `along` (rifleAxes)
 const rifleUp = (along) => new THREE.Vector3().setFromMatrixColumn(rifleAxes(along), 2);
-
-// how much lower the rifle is held aimed `down` degrees, steeply up held lower and nearer the middle (RIFLE_HOLD low), so the other hand
-// reaches under it
-const lowered = (down) => {
-    const steep = Math.max(-down, 0) / 90;
-    return new THREE.Vector3(0, 0, -RIFLE_HOLD.low * steep);
-};
 
 // Reconstruct the arm's rotations along their actual aiming arcs, keeping quaternion signs continuous as the target crosses the body.
 function rifleArmRotation(pose, side) {
@@ -3283,60 +3276,27 @@ function cradle(pose, side, k, grip, along) {
     return rotation;
 }
 
-// The gripping hand draws the rifle around the body's side and closes on it.
-function rifleGrip(pose, side, way, line, ready, drawn, aim, down) {
-    const [x, y, z] = RIFLE.behind;
-    const wrist = new THREE.Vector3(way * x, y, z).lerp(line.grip.clone().add(lowered(down)), drawn);
-    wrist.x -= way * 0.55 * Math.sin(Math.PI * drawn);
-    const elbow = new THREE.Vector3(-way, 0.5, -0.5).lerp(new THREE.Vector3(-way, -0.2, -0.6), drawn);
-    handTo(pose, side, ready, pose.withinReach(side, wrist, 0.97), elbow);
-    pose.clench(side, mix(1, 0.66, aim));
-}
-
-// Read a palm without losing the hand's closed shape.
-function riflePalm(pose, side, rotation = rifleArmRotation(pose, side)) {
-    const hand = `hand_${side}`;
-    const scale = new THREE.Vector3();
-    pose.matrix(hand).decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
-    return {point: pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(hand)), rotation, scale};
-}
-
-// The palms exchange roles around the receiver while one continuously aimed rifle remains between them.
-function rifleExchange(pose, onto, kick, ready, drawn, aim) {
-    const weight = (onto.handed + 1) / 2;
-    const grips = {};
-    const supports = {};
-    for (const [side, way] of [["r", 1], ["l", -1]]) {
-        rifleGrip(pose, side, way, rifleLine(kick, onto.down, way), ready, drawn, aim, onto.down);
-        grips[side] = riflePalm(pose, side);
-    }
-    const held = grips.l.point.clone().lerp(grips.r.point, weight);
-    const along = barrelWay(held, onto.point, onto.turn * aim, rifleLine(kick, onto.down, onto.handed).along);
-    for (const side of Object.keys(SIDES)) {
-        pose.final.delete(`hand_${side}`);
-        const rotation = cradle(pose, side, aim, held, along);
-        supports[side] = riflePalm(pose, side, rotation);
-    }
-    const across = new THREE.Vector3(0, 1, 0).applyMatrix4(rifleAxes(along));
-    for (const side of Object.keys(SIDES)) {
-        const share = side === "l" ? weight : 1 - weight;
-        const grip = grips[side];
-        const support = supports[side];
-        const rotation = rifleWristRotation(grip.rotation, support.rotation, share);
-        const scale = grip.scale.clone().lerp(support.scale, share);
-        const shape = new THREE.Matrix4().compose(new THREE.Vector3(), rotation, scale);
-        const point = grip.point.clone().lerp(held, aim).lerp(support.point, share).addScaledVector(across, SIDES[side] * 0.12 * Math.sin(Math.PI * weight) * aim);
-        const hand = `hand_${side}`;
-        const offset = pose.grip(side, [0, 0, 0]).sub(pose.rig.heads.get(hand)).applyMatrix4(shape);
-        const wrist = pose.withinReach(side, point.sub(offset), 0.999999 - 0.03 * ready * Math.sin(Math.PI * share) ** 2);
-        const gripBend = new THREE.Vector3(SIDES[side], mix(0.5, -0.2, drawn), mix(-0.5, -0.6, drawn));
-        const supportBend = new THREE.Vector3(SIDES[side] * 0.6, -0.6, -0.6);
-        const bend = HANGING_ELBOW.clone().lerp(gripBend, ready).lerp(HANGING_ELBOW.clone().lerp(supportBend, aim), share);
-        bend.y += Math.sin(Math.PI * share) * ready;
-        pose.reach(side, wrist, bend);
-        pose.setMove(hand, translation(wrist).multiply(shape).multiply(translation(pose.rig.heads.get(hand).clone().negate())));
-    }
-    return {held, along};
+// The right palm closes around the grip; the stock stays seated in the shoulder and the left palm finds the reachable fore-end.
+// Both arm paths use the same handTo/cradle solvers as the draw, so turning the whole figure never swaps the rifle between hands.
+function rifleShouldered(pose, onto, kick, ready, drawn, aim) {
+    const shoulder = pose.head("upper_arm_r", pose.standing("upper_arm_r")).add(new THREE.Vector3(0.22, -0.03, 0.05));
+    const planned = new THREE.Vector3(0, -Math.cos(radians(onto.down)), -Math.sin(radians(onto.down)));
+    const along = barrelWay(shoulder, onto.point, onto.turn * aim, planned);
+    const stock = -(RIFLE_PARTS.stock[0][0] - RIFLE_PARTS.stock[1][0] / 2) * RIFLE_PARTS.scale;
+    const grip = shoulder.clone().addScaledVector(along, stock - RIFLE.kick * kick);
+    const rotation = new THREE.Quaternion().setFromRotationMatrix(rifleAxes(along).multiply(euler(0, -90, 0)));
+    const scale = new THREE.Vector3(0.66, 1, 1);
+    const shape = new THREE.Matrix4().compose(new THREE.Vector3(), rotation, scale);
+    const offset = pose.grip("r", [0, 0, 0]).sub(pose.rig.heads.get("hand_r")).applyMatrix4(shape);
+    const wrist = new THREE.Vector3(...RIFLE.behind).lerp(grip.clone().sub(offset), drawn);
+    wrist.x -= 0.3 * Math.sin(Math.PI * drawn);
+    handTo(pose, "r", ready, pose.withinReach("r", wrist, 0.999999), new THREE.Vector3(1, 0.3, -0.8));
+    pose.clench("r", mix(1, 0.66, aim));
+    wristToward(pose, "r", aim, rotation);
+    const held = pose.grip("r", [0, 0, 0]).applyMatrix4(pose.matrix("hand_r"));
+    const aimed = barrelWay(held, onto.point, onto.turn * aim, along);
+    cradle(pose, "l", aim, held, aimed);
+    return {held, along: aimed};
 }
 
 // Match a combat stride to page distance while the torso remains turned toward its target.
@@ -3373,12 +3333,21 @@ function bug_shot(pose, stance, t) {
     else crouch(pose, 0.025 * aim);
     breathe(pose, t, 1 - 0.65 * aim);
     pose.turn("chest", {z: -onto.handed * RIFLE.shoulder * shoulder});
-    trunk(pose, {lean: 2 * aim - 2 * shoulder, nod: RIFLE.cheek * aim - 4 * shoulder, turn: onto.handed * RIFLE.cheek * aim, tilt: -onto.handed * RIFLE.cheek * 0.4 * aim});
+    trunk(pose, {lean: 4 * aim - 2 * shoulder, twist: -25 * aim, nod: (onto.down + RIFLE.cheek) * aim - 4 * shoulder, turn: 25 * aim, tilt: -12 * aim});
+    pose.headContact = aim;
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
     const drawn = partOf(t, [middle, act.draw[1]]);
     const ready = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
-    const {held, along} = rifleExchange(pose, onto, kick, ready, drawn, aim);
+    const {held, along} = rifleShouldered(pose, onto, kick, ready, drawn, aim);
+    if (aim) {
+        const point = onto.point.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-onto.turn * aim));
+        const look = lookAngle(pose, point);
+        const own = pose.matrix("head").clone();
+        pose.face("head", {x: THREE.MathUtils.radToDeg(look.pitch), y: -6, z: THREE.MathUtils.radToDeg(look.yaw)});
+        pose.final.set("head", between(own, pose.matrix("head"), aim));
+        pose.gaze = {target: point.toArray(), forward: READ_GAZE.forward};
+    }
     if (aim > 0.05 || reach > 0.3) {
         pose.holdUpright("rifle", grip, [0, 0, 0], rifleTurn(along));
         const rifle = pose.props.get("rifle");
@@ -3483,15 +3452,16 @@ function bug_smash(pose, stance, t) {
 
 // The halo of a repented sin, over the head (acts.js halo): `above` the head's pivot, as wide as `radius`, its ring `ring` thick, tipped
 // `tip` degrees toward the viewer so it shows as a ring; the hands folded before the chest at `hands`, across, forward and up
-export const HALO_RING = {above: 2.42, radius: 0.42, ring: 0.07, tip: 28, hands: [0.1, -0.62, 2.05]};
+export const HALO_RING = {above: 2.42, radius: 0.42, ring: 0.05, tip: 14, hands: [0.1, -0.62, 2.05]};
 
-// a halo over the head, the hands folded, the eyes serene and holy, floating up a little and down as it breathes (acts.js halo)
+// A halo above the head and any hat, the hands folded and eyes serene; a small hover and gentle head tip leave the ring clear of the
+// tall crown and the top of the picture (acts.js halo).
 function halo(pose, stance, t) {
     const act = ACTS.halo;
     const shown = partOf(t, act.grows) * (1 - partOf(t, act.fades));
     breathe(pose, t);
     pose.lift("root", {z: act.float * shown * (1 + Math.sin(2 * Math.PI * t))});
-    trunk(pose, {nod: -8 * shown, tilt: 4 * shown});
+    trunk(pose, {nod: -2 * shown});
     pose.putAway(...IN_HAND);
     handsTo(pose, {...stance, free: new Set(Object.keys(SIDES))}, shown, HALO_RING.hands);
     pose.wearProp("halo", [0, 0, HALO_RING.above]);
@@ -3505,14 +3475,14 @@ export const CRUCIFIX_HOLD = {pocket: [-0.4, -0.4, 1.45], front: [-0.04, -0.59, 
 // The body settles onto its knees while the shoes roll from their soles onto their tops.
 export const REMORSE = {drop: 0.654, back: 0.12, ankleBack: 0.376, sole: 0.33, instep: 0.18, toe: 0.44, lean: 18, bow: 30, shoulders: 0.055};
 
-function remorseLegs(pose, lowered) {
+function remorseLegs(pose, lowered, feet = REMORSE) {
     if (!lowered) return;
     for (const side of Object.keys(SIDES)) {
         const folded = rise(lowered, 0.35, 1);
         const angle = Math.PI * folded;
         const ankle = pose.rig.heads.get(`foot_${side}`).clone();
         ankle.y += REMORSE.ankleBack * folded;
-        ankle.z = Math.max(REMORSE.sole * Math.cos(angle), -REMORSE.instep * Math.cos(angle)) + REMORSE.toe * Math.sin(angle);
+        ankle.z = Math.max(feet.sole * Math.cos(angle), -feet.instep * Math.cos(angle)) + feet.toe * Math.sin(angle);
         const bend = pose.rig.heads.get(`shin_${side}`).clone().sub(pose.rig.heads.get(`thigh_${side}`));
         if (side === "r") bend.x = -bend.x;
         pose.step(side, ankle, bend.lerp(new THREE.Vector3(0, -1, 0), lowered));
@@ -3570,14 +3540,16 @@ function repent(pose, stance, t) {
 
 // where the hands hold the pogo stick's handles, across, forward (toward the viewer is less) and up in the figure's units, and where the
 // hand reaching behind its back for the stick goes
-const POGO_GRIP = [0.42, -0.55, 1.55];
+const POGO_GRIP = [0.42, -0.55, ACTS.pogo.handles * FRAMED_HEIGHT + HAND.grip * 0.66];
 const POGO_BEHIND = [0.45, 0.45, 1.45];
 
-// up a high place on a pogo stick (acts.js pogo): reaches behind its back and brings the stick round, holds both handles and bounces,
+// up a high place on a pogo stick (acts.js pogo): reaches behind its back and carries the stick round its side in one continuous arc,
+// holds both handles and bounces,
 // the knees giving at the foot of each bounce, springs up and lets the stick go at the top of the throw
 function pogo(pose, stance, t) {
     const act = ACTS.pogo;
-    const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, [act.draw[1] * 0.5, act.draw[1]]));
+    const drawn = partOf(t, [act.draw[1] * 0.5, act.draw[1]]);
+    const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, act.release));
     const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.release));
     const hop = pogoHop(pogoBounces(), (t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]));
     const give = t < act.bounces[0] ? partOf(t, [act.bounces[0] - 0.04, act.bounces[0]]) : t <= act.bounces[1] ? Math.cos(Math.PI * hop.s) ** 2 : 1 - partOf(t, [act.spring[0], act.spring[0] + 0.06]);
@@ -3590,8 +3562,13 @@ function pogo(pose, stance, t) {
     const [bx, by, bz] = POGO_BEHIND;
     for (const side of Object.keys(SIDES)) {
         const sign = SIDES[side];
-        if (side === "r" && reach > held) handTo(pose, side, reach, new THREE.Vector3(sign * bx, by, bz), new THREE.Vector3(1, 0.5, -0.5));
-        else handTo(pose, side, held, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.2, -0.4));
+        if (side === "r") {
+            const wrist = new THREE.Vector3(sign * bx, by, bz).lerp(new THREE.Vector3(sign * x, y, z), drawn);
+            wrist.x -= 0.2 * Math.sin(Math.PI * drawn);
+            handTo(pose, side, reach, wrist, new THREE.Vector3(1, 0.5, -0.5).lerp(new THREE.Vector3(1, -0.2, -0.4), drawn));
+        } else handTo(pose, side, held, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.2, -0.4));
+        pose.clench(side, mix(1, 0.66, held));
+        wristToward(pose, side, held, {y: sign * 90});
     }
     eyesAs(pose, "amused", held);
 }
@@ -3599,12 +3576,12 @@ function pogo(pose, stance, t) {
 // where each hand holds its rope of the swing, beside the head, in the figure's units across, forward and up: inside the ropes' half span
 // (acts.js rope_swing ties, as a share of the 5.4 units the picture frames) by the sleeve's `arm`, so the ropes run outside the arms; and
 // how far above the seat the figure is, `above`, as it sits down onto it and rises off it
-export const SWING_HOLD = {arm: 0.29, up: 2.6, forward: -0.1, above: 0.35};
+export const SWING_HOLD = {arm: 0.29, up: 2.6, forward: -0.1, above: 0.12};
 const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, SWING_HOLD.forward, SWING_HOLD.up];
 
-// sits down onto the rope swing's seat (ropeSwingOf), drawn whole where it hangs all the act long while the body lifted onto it moves,
-// holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
-// swingAt), and rises off it at the end (acts.js offSwing)
+// Sits down onto the rope swing's seat, holds both ropes beside its head, and leans back and pumps its legs with each swing. The final
+// pose and its whole prop turn together about the two knots, preserving their length and the hands' and hips' contact; the seat rises
+// at both ends of the arc. The head stays upright as the body leans, with room above the tall hat even while boarding and rising off.
 function rope_swing(pose, stance, t) {
     const pump = swingAt(t);
     const breath = heldPhases(ACTS.rope_swing, t).held ?? 0;
@@ -3612,7 +3589,7 @@ function rope_swing(pose, stance, t) {
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
     breathe(pose, breath);
-    trunk(pose, {lean: -5 * pump, nod: -4});
+    trunk(pose, {lean: -5 * pump, nod: -4 * (1 - pump * pump) + (ACTS.rope_swing.angle + 5) * pump});
     pose.putAway(...IN_HAND);
     const [x, y, z] = ROPE_GRIP;
     armsAtRest(pose, stance, Object.keys(SIDES));
@@ -3622,6 +3599,8 @@ function rope_swing(pose, stance, t) {
     }
     pose.swing(1.2 * pump);
     eyesAs(pose, "amused");
+    const knots = new THREE.Vector3(0, (SWING.front + SWING.back) / 2, (POSTURES.sit.drop + ACTS.rope_swing.rope) * FRAMED_HEIGHT);
+    pose.suspension = aboutPoint(knots, euler(-ACTS.rope_swing.angle * pump, 0, 0));
 }
 
 // where each hand grips the parachute's lines, in the figure's units across, forward and up: up and out above the shoulders, the arms
@@ -3701,13 +3680,14 @@ function rummage(pose, stance, t) {
 
 // The figure types on and stops to think now and then at the laptop, thinking as it does anywhere: its head tilted up and aside, its
 // finger at its cheek and its eyes glancing up, under the thought cloud (acts.js type_ponder), the other hand tapping slowly at the keys
+// with a soft lift and return, never changing velocity abruptly at contact or at the loop's seam
 function type_ponder(pose, stance, t) {
     const side = freeSide(stance);
     const sign = SIDES[side];
     const [x, y, z] = TYPING_HANDS;
     breathe(pose, t);
     trunk(pose, {lean: 2, nod: PONDERING.nod / 2 + 2 * waveOf(t), tilt: -sign * PONDERING.tilt * 0.7});
-    handsTo(pose, stance, 1, [x, y, z + 0.03 * Math.max(waveOf(t, 2), 0)]);
+    handsTo(pose, stance, 1, [x, y, z + 0.03 * Math.max(waveOf(t, 2), 0) ** 2]);
     fingerAtCheek(pose, side, 1);
     pose.holdLaptop();
     pose.glanceEyes(PONDERING.glance[0], -sign * PONDERING.glance[1]);
@@ -3836,7 +3816,7 @@ export const CLIPS = [
     {name: "stretch", head: HEAD.gestures, frames: 24, fps: 8, loops: false, postures: GESTURE, pose: stretch},
     {name: "squire_chase", head: HEAD.gestures, frames: 24, fps: 12, loops: false, postures: MOVE, pose: squire_chase},
     {name: "pointed", head: HEAD.gestures, frames: 20, fps: 10, loops: false, postures: MOVE, pose: pointed},
-    {name: "hat_tip", head: HEAD.gestures, frames: REACTING.frames, fps: REACTING.fps, loops: false, holds: true, postures: GESTURE, voices: ["butler"], pose: hat_tip},
+    {name: "hat_tip", head: HEAD.gestures, frames: REACTING.frames, fps: REACTING.fps, loops: false, holds: true, postures: ["stand", "sit"], voices: ["butler"], pose: hat_tip},
     {name: "monocle", head: HEAD.holds, frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: monocle},
     {name: "toast", head: HEAD.gestures, frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: toast},
     {name: "shaka", head: HEAD.gestures, frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: shaka},
@@ -3867,7 +3847,7 @@ export const CLIPS = [
     {name: "pocket_watch", head: HEAD.holds, frames: 48, fps: 10, loops: true, postures: ON_A_LAP, pose: pocket_watch},
     {name: "doze", head: HEAD.holds, frames: 48, fps: 8, loops: true, leaves: 24, postures: ON_A_LAP, pose: doze},
     {name: "hop_up", head: HEAD.free, frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
-    {name: "rope_swing", head: HEAD.gestures, frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
+    {name: "rope_swing", head: HEAD.gestures, frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ["sit"], pose: rope_swing},
     {name: "chute", head: HEAD.holds, frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", head: HEAD.holds, frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
     {name: "rummage", head: HEAD.holds, frames: ACTS.rummage.frames, fps: ACTS.rummage.fps, loops: true, postures: MOVE, pose: rummage},
@@ -4706,11 +4686,11 @@ export const BINOCULARS = {
 // the muzzle while a burst fires; every length `scale` times as given, so it reads at the figure's size
 export const RIFLE_PARTS = {
     scale: 1.4,
-    stock: [[-0.42, 0, 0.0], [0.5, 0.09, 0.16]],
+    stock: [[-0.23, 0, 0.0], [0.34, 0.09, 0.16]],
     receiver: [[0.1, 0, 0.04], [0.46, 0.1, 0.14]],
     grip: [[-0.03, 0, -0.1], [0.08, 0.08, 0.2]],
     magazine: [[0.2, 0, -0.15], [0.1, 0.07, 0.26]],
-    handguard: [[0.55, 0, 0.04], [0.42, 0.1, 0.11]],
+    handguard: [[0.38, 0, 0.04], [0.42, 0.1, 0.11]],
     sight: [[0.24, 0, 0.14], [0.06, 0.04, 0.06]],
     front: [[1.17, 0, 0.11], [0.03, 0.03, 0.07]],
     barrel: {from: 0.76, to: 1.24, radius: 0.03, up: 0.06},
@@ -4719,9 +4699,8 @@ export const RIFLE_PARTS = {
 
 // How the rifle is held: the barrel's line `barrel` above the grip (its barrel up), and the other hand's palm under the handguard,
 // `fore` along the barrel from the grip, at the handguard's middle, or as near as `nearest`, its end toward the grip, and `under` below the
-// grip's height, its fingers along the barrel, the palm turned up by `roll`; aimed straight up, the rifle held `low` lower, so that hand
-// reaches under it
-export const RIFLE_HOLD = {barrel: RIFLE_PARTS.barrel.up * RIFLE_PARTS.scale, fore: 0.55 * RIFLE_PARTS.scale, nearest: 0.38 * RIFLE_PARTS.scale, under: 0.17, roll: 90, low: 0.5};
+// grip's height, its fingers along the barrel, the palm turned up by `roll`; the short stock and rearward fore-end fit the unchanged arms
+export const RIFLE_HOLD = {barrel: RIFLE_PARTS.barrel.up * RIFLE_PARTS.scale, fore: 0.38 * RIFLE_PARTS.scale, nearest: 0.17 * RIFLE_PARTS.scale, under: 0.17, roll: 90};
 
 // a space inside the prop `root` laid out in the pose's own axes, up along z and toward the viewer along -y, as a prop's parts are given;
 // a prop's root is placed in the glb's (heldPropOf)
@@ -5630,22 +5609,31 @@ export class Stage {
         context.filter = "none";
     }
 
-    // The screen laid over the body supersampled and never softened: the scene drawn four times as wide with every part but the screen
-    // writing no colour, though still hiding what lies behind it, so only the screen's own pixels where it shows are drawn, halved twice
-    // and laid on the picture; the screen's own outline, which pokes through its curved middle, is left to the body
+    // The screen laid over the body supersampled and never softened. First fill depth with the whole scene, then draw only the screen's
+    // visible pixels against that depth. A colourless occluder drawn after the screen cannot erase colour already written, so these must
+    // be separate passes. The screen's own outline, which pokes through its curved middle, is left to the body.
     drawScreen(figure, canvas) {
         const size = canvas.width * SUPERSAMPLE;
         if (this.screenRenderer.domElement.width !== size) this.screenRenderer.setSize(size, size, false);
-        const muted = new Set();
+        const colours = new Map();
         figure.scene.traverse((node) => {
-            for (const material of [node.material ?? []].flat()) if (material.colorWrite && !figure.screens.includes(material)) muted.add(material);
+            for (const material of [node.material ?? []].flat()) colours.set(material, material.colorWrite);
         });
-        for (const material of muted) material.colorWrite = false;
         const outlined = figure.visorHulls.map((hull) => hull.visible);
-        for (const hull of figure.visorHulls) hull.visible = false;
-        this.screenRenderer.render(figure.scene, this.camera);
-        figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
-        for (const material of muted) material.colorWrite = true;
+        const autoClear = this.screenRenderer.autoClear;
+        try {
+            for (const material of colours.keys()) material.colorWrite = false;
+            for (const hull of figure.visorHulls) hull.visible = false;
+            this.screenRenderer.autoClear = false;
+            this.screenRenderer.clear(true, true, true);
+            this.screenRenderer.render(figure.scene, this.camera);
+            for (const material of figure.screens) material.colorWrite = colours.get(material) ?? true;
+            this.screenRenderer.render(figure.scene, this.camera);
+        } finally {
+            this.screenRenderer.autoClear = autoClear;
+            figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
+            for (const [material, colorWrite] of colours) material.colorWrite = colorWrite;
+        }
         this.screenCanvas ??= document.createElement("canvas");
         this.screenCanvas.width = canvas.width;
         this.screenCanvas.height = canvas.height;

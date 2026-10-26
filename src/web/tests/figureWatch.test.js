@@ -49,7 +49,7 @@ test("watching a docked bar run, and anticipating its end, the figure stands on 
     expect(watchSpot(FIGURE)).toBe(null);
 });
 
-test("it looks along the bar at its leading edge, never straight down, its head turned to the mark from in front of it and down at it facing the viewer from on top", () => {
+test("it looks along the bar at its leading edge, never straight down, its head turned back to the screen from both in front of the mark and on top", () => {
     const mark = {left: 300, right: 700, top: 540, bottom: 600};
     const feet = {x: 618, y: 540};
     // wherever the leading edge is, the look is at least WATCH along of the picture off to one side of where it stands
@@ -60,8 +60,8 @@ test("it looks along the bar at its leading edge, never straight down, its head 
     }
     // an edge well to one side is looked at where it is
     expect(watchLook({x: 400, y: 563}, feet, mark, FIGURE).x).toBe(400);
-    // on top of the mark it looks down at it facing the viewer; below it, in front of it, it turns to it on the page behind
-    expect(watchLook({x: 400, y: 563}, feet, mark, FIGURE).behind).toBe(false);
+    // the bar stays on the screen behind it whether its feet are on top of the mark or below it
+    expect(watchLook({x: 400, y: 563}, feet, mark, FIGURE).behind).toBe(true);
     expect(watchLook({x: 400, y: 563}, {x: 618, y: 640}, mark, FIGURE).behind).toBe(true);
     // the head: a look in front turns the head alone, a look behind turns the body round after it, its back to the viewer
     const turn = (behind) => {

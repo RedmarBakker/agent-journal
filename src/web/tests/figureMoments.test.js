@@ -45,15 +45,17 @@ test("the bug shot's rifle is drawn in 3D the right way up, held in both hands a
             const rifle = pose.props.get("rifle");
             const label = `${voice} ${u.toFixed(2)}`;
             expect(rifle, label).toMatchObject({bone: "hand_r", frame: "root"});
-            // the left hand forward on the rifle's line, the stock back toward the right shoulder
-            const line = rifleLine(burstKick(u));
-            const grip = at("hand_r");
-            const fore = at("hand_l").sub(grip);
-            const off = fore.clone().sub(line.along.clone().multiplyScalar(fore.dot(line.along))).length();
-            expect(fore.dot(line.along), label).toBeGreaterThan(0.3);
-            expect(off, label).toBeLessThan(0.45);
-            expect(grip.x, label).toBeLessThan(at("hand_l").x);
-            expect(at("upper_arm_r").x, label).toBeLessThan(grip.x);
+            // Measure the actual held rifle, which turns with the whole body rather than staying across the camera plane.
+            const moves = pose.moves(0);
+            const rotation = new THREE.Matrix4().extractRotation(moves.get(rifle.frame)).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...["x", "y", "z"].map((axis) => THREE.MathUtils.degToRad(rifle.turn[axis] || 0)), "ZYX")));
+            const along = new THREE.Vector3(1, 0, 0).transformDirection(rotation);
+            const grip = pose.grip("r", [0, 0, 0]).applyMatrix4(moves.get("hand_r"));
+            const fore = pose.grip("l", [0, 0, 0]).applyMatrix4(moves.get("hand_l")).sub(grip);
+            const off = fore.clone().addScaledVector(along, -fore.dot(along)).length();
+            expect(fore.dot(along), label).toBeGreaterThan(0.2);
+            expect(off, label).toBeLessThan(0.3);
+            const butt = (RIFLE_PARTS.stock[0][0] - RIFLE_PARTS.stock[1][0] / 2) * RIFLE_PARTS.scale;
+            expect(grip.clone().addScaledVector(along, butt).distanceTo(at("upper_arm_r")), `${label} shouldered`).toBeLessThan(0.35);
         }
     }
     // a kick at each burst, and the rifle drawn back along its line with it

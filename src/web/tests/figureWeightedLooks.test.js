@@ -2,9 +2,9 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
-import {COMPOSER_FULL_SECONDS, COMPOSER_SECONDS, HEAD, LINGER_SECONDS, LOOKS, SWITCH_SECONDS, composerLook, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
-import {gazeAfter} from "../src/figure/reactions.js";
+import {CLIPS, Posing, drawnPose, lookToward} from "../src/figure/figure.js";
+import {COMPOSER_FULL_SECONDS, COMPOSER_SECONDS, HEAD, LINGER_SECONDS, LOOKS, SCREEN_LOOKS, SWITCH_SECONDS, composerLook, headBlend, holdsHead, leadingLook, lookInFigure, looksFor} from "../src/figure/looks.js";
+import {LOOK_EASE_MS, gazeAfter} from "../src/figure/reactions.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
 const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
@@ -16,6 +16,72 @@ const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 const look = (kind, x = 900, y = 200, key = kind) => ({key, kind, point: {x, y}});
 // a message's bubble up to the figure's right, as a share of its picture
 const MESSAGE_AT = {x: 1.2, y: 0.05};
+
+test("every screen look targets the page behind the figure while props and the pointer keep their own depth", () => {
+    const offered = Object.keys(LOOKS).map((kind) => look(kind, 0.5, 0.3));
+    const routed = looksFor(clipNamed("idle"), offered);
+    for (const target of routed) {
+        expect(Boolean(target.point.behind), target.kind).toBe(SCREEN_LOOKS.has(target.kind));
+        expect(offered.find((each) => each.key === target.key).point).not.toHaveProperty("behind");
+    }
+    const limited = {key: "confession", kind: "confession", point: {x: 0.7, y: 0.3, most: 45, faces: true, mood: "admiring"}};
+    expect(looksFor(clipNamed("idle"), [limited])[0].point).toEqual({...limited.point, behind: true});
+    for (const voice of Object.keys(stances)) {
+        const at = routed.find((each) => each.kind === "said").point;
+        const {pose, turned} = drawnPose(RIG, stanceOf(voice), clipNamed("idle"), 0, 0, {at: {...at, amount: 1}});
+        const direction = new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(turned).get("head"));
+        expect(direction.y, `${voice} looks toward the screen`).toBeGreaterThan(0.9);
+        expect(Math.abs(turned), `${voice} follows the head with its body`).toBeGreaterThan(90);
+    }
+});
+
+test("converting a live screen look into the figure's picture preserves its limit on the body's turn", () => {
+    const origin = {x: 320, y: 480};
+    const size = 112;
+    const center = {x: origin.x + size / 2, y: origin.y + size * 0.3};
+    for (const x of [-2, 0.5, 3]) {
+        const offered = {key: "confession", kind: "confession", point: {x: origin.x + x * size, y: origin.y + 0.3 * size, most: 45, faces: true, mood: "admiring"}};
+        const target = looksFor(clipNamed("idle"), [offered])[0].point;
+        const gaze = gazeAfter({point: null, toward: null, amount: 0, at: 1000}, target, center, 1500);
+        const at = lookInFigure(gaze, origin, size);
+        expect(at).toMatchObject({most: 45, faces: true, behind: true, mood: "admiring", amount: 1});
+        expect(at.x).toBeCloseTo(x, 10);
+        expect(at.y).toBeCloseTo(0.3, 10);
+        for (const voice of Object.keys(stances)) {
+            const drawn = (point) => drawnPose(RIG, stanceOf(voice), clipNamed("idle"), 0, 0, {at: point}).turned;
+            expect(Math.abs(drawn(at)), `${voice}: the live target keeps its three-quarter limit`).toBeLessThanOrEqual(45);
+            expect(Math.abs(drawn({...at, most: undefined})), `${voice}: losing the limit would turn it farther`).toBeGreaterThan(60);
+        }
+        const shifted = lookInFigure(gaze, {x: origin.x + size, y: origin.y - size}, size);
+        expect(shifted.x).toBeCloseTo(x - 1, 10);
+        expect(shifted.y).toBeCloseTo(1.3, 10);
+        expect(shifted.most).toBe(45);
+        expect(lookInFigure({...gaze, amount: 0}, origin, size)).toBeNull();
+    }
+});
+
+test("switching between a prop and text at the same page pixels eases away before changing depth", () => {
+    const center = {x: 500, y: 300};
+    const step = 1000 / 60;
+    for (const behind of [false, true]) {
+        const point = {x: 500, y: 270, behind};
+        let gaze = {point, toward: null, amount: 1, at: 1000};
+        let switched = false;
+        for (let frame = 1; frame <= 75; frame++) {
+            const before = gaze;
+            gaze = gazeAfter(gaze, {...point, behind: !behind}, center, 1000 + frame * step);
+            expect(Math.abs(gaze.amount - before.amount)).toBeLessThanOrEqual(step / LOOK_EASE_MS + 1e-9);
+            if (gaze.point.behind !== before.point.behind) {
+                expect(before.amount).toBe(0);
+                expect(gaze.amount).toBeLessThanOrEqual(step / LOOK_EASE_MS + 1e-9);
+                switched = true;
+            }
+        }
+        expect(switched).toBe(true);
+        expect(gaze.point.behind).toBe(!behind);
+        expect(gaze.amount).toBe(1);
+    }
+});
 
 // how many degrees the head turns from the act's own pose at `u` of `name` when it looks at `at` `amount` of the way
 function headTurn(name, amount, voice = "butler") {

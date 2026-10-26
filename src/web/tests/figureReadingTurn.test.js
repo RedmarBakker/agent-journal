@@ -29,7 +29,8 @@ const shown = (readingFacing, state = "idle", place = {posture: "stand", face: 0
 test("reading a bubble to its left or right the figure turns its whole body toward it, and back once it has read it", () => {
     expect(readingFacing(RIGHT, X, SIZE)).toBe(READING.turn);
     expect(readingFacing(LEFT, X, SIZE)).toBe(-READING.turn);
-    expect(readingFacing(OVER, X, SIZE), "a bubble over its head is read facing ahead").toBe(0);
+    expect(readingFacing(OVER, X, SIZE), "a bubble over its head is on the screen behind it").toBe(180);
+    expect(READING.turn).toBeGreaterThan(90);
     // standing at rest, waiting on the user, or doing what it does while the agent works, it faces the bubble it reads
     for (const state of ["idle", "waiting", "testing"]) {
         expect(shown(readingFacing(RIGHT, X, SIZE), state).facing, `${state} right`).toBe(READING.turn);
@@ -45,7 +46,7 @@ test("reading a bubble to its left or right the figure turns its whole body towa
 
 test("turned to the bubble, its head follows the lines without turning the body further, and the glass held up to it stays on the line to the text", () => {
     // where the look is on the bubble as it reads, as a share of the figure's picture, the picture's middle at X and its top at page y 290, the bubble at its head
-    const share = (point) => ({x: (point.x - (X - SIZE / 2)) / SIZE, y: (point.y - 290) / SIZE});
+    const share = (point) => ({...point, x: (point.x - (X - SIZE / 2)) / SIZE, y: (point.y - 290) / SIZE});
     for (const [box, facing] of [[RIGHT, READING.turn], [LEFT, -READING.turn]]) {
         for (let t = 0; t < READING.sweep * 3; t += 0.2) {
             const pose = new Posing(RIG, "stand", 0);

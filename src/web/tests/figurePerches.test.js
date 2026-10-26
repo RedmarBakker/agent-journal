@@ -381,7 +381,7 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
 });
 
 test("the swing hangs only where a bubble's edge overhangs no bubble below it, so it swings free, never under one with a bubble below", () => {
-    const {seat, depth, rope} = ACTS.rope_swing;
+    const {seat, clearance, rope} = ACTS.rope_swing;
     // the chat's last bubble has nothing below it: the swing hangs from the middle of its edge
     const above = bubble({left: 300, right: 900, top: 200, bottom: 260});
     const last = bubble({left: 300, right: 900, top: 272, bottom: 340});
@@ -390,18 +390,18 @@ test("the swing hangs only where a bubble's edge overhangs no bubble below it, s
     expect(swingSpot(above, FIGURE, floorsOf(above, last))).toBe(null);
     expect(swingFloors(floorsOf(above, last), FIGURE).map((floor) => floor.id)).toEqual([last.id]);
     // one whose edge overhangs a narrower bubble below hangs it on the overhang, as near the middle as clears that bubble by the seat's
-    // half width as wide as it comes at the front of its swing
+    // half width plus the room kept around its arc
     const wide = bubble({left: 260, right: 900, top: 200, bottom: 260});
     const reply = bubble({left: 560, right: 1000, top: 272, bottom: 340});
     const spot = swingSpot(wide, FIGURE, floorsOf(wide, reply));
     const box = boxAt(spot, FIGURE);
-    const reach = ((seat * FIGURE.size) / 2) * (1 + depth);
+    const reach = ((seat * FIGURE.size) / 2) * (1 + clearance);
     expect(spot.x).toBeCloseTo(reply.left - reach, 6);
     expect(spot.x).toBeLessThan((wide.left + wide.right) / 2);
     // a bubble below beside the swing's reach leaves it at the middle, as a bubble below further than the figure hangs
     const beside = bubble({left: 700, right: 1000, top: 272, bottom: 340});
     expect(swingSpot(wide, FIGURE, floorsOf(wide, beside)).x).toBe((wide.left + wide.right) / 2);
-    const front = wide.bottom + (box.bottom - wide.bottom) * (1 + depth);
+    const front = wide.bottom + (box.bottom - wide.bottom) * (1 + clearance);
     const far = bubble({left: 260, right: 900, top: front + 1, bottom: front + 60});
     expect(swingSpot(wide, FIGURE, floorsOf(wide, far)).x).toBe((wide.left + wide.right) / 2);
 });

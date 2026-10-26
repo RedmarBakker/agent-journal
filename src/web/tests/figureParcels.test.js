@@ -509,3 +509,15 @@ test("the UFO draws the boxes up one by one, the top box first, each faster as i
     expect(Math.abs(boxSway(0.3, 1))).toBeLessThanOrEqual(BEAM_SWAY);
     expect(boxSway(1, 1)).toBe(0);
 });
+
+test("a box eases into its own sway when the beam takes its weight, without a sideways snap at liftoff", async () => {
+    const {boxSway} = await import("../src/figure/parcels.js");
+    for (let id = 1; id <= 20; id++) {
+        expect(boxSway(0, id)).toBe(0);
+        expect(Math.abs(boxSway(1e-7, id)), `box ${id} leaves its resting place continuously`).toBeLessThan(1e-8);
+        const positions = Array.from({length: 121}, (_, frame) => boxSway(frame / 120, id));
+        for (let frame = 1; frame < positions.length; frame++) {
+            expect(Math.abs(positions[frame] - positions[frame - 1]), `box ${id}, frame ${frame}`).toBeLessThan(0.5);
+        }
+    }
+});

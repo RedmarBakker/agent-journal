@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, LOOK_DEPTH, RIFLE, RIFLE_HOLD, RIFLE_PARTS, drawnPose} from "../src/figure/figure.js";
+import {CLIPS, LOOK_DEPTH, rifleTarget, RIFLE, RIFLE_HOLD, RIFLE_PARTS, drawnPose} from "../src/figure/figure.js";
 import {jointAngles} from "../src/figure/blend.js";
 import {FRAMED} from "../src/figure/frame.js";
 
@@ -30,13 +30,13 @@ function noJump(voice, u, target, axis, facing = 0) {
         const b = RIG.heads.get(bone).clone().applyMatrix4(after.moves.get(bone));
         expect(a.distanceTo(b), `${voice} ${bone} stays joined`).toBeLessThan(0.0001);
     }
-    expect(before.origin.distanceTo(after.origin), `${voice} rifle handoff`).toBeLessThan(0.0001);
+    expect(before.origin.distanceTo(after.origin), `${voice} rifle turn`).toBeLessThan(0.0001);
     const a = new THREE.Quaternion().setFromRotationMatrix(before.rotation);
     const b = new THREE.Quaternion().setFromRotationMatrix(after.rotation);
     expect(a.angleTo(b), `${voice} barrel turn`).toBeLessThan(0.0001);
 }
 
-test("the rifle exchanges hands continuously through the centre and steep upward aim thresholds", () => {
+test("the shouldered rifle turns continuously through the centre and steep upward targets", () => {
     const across = [-3, 0, 3].map((x) => ({target: {x: 0.5 + x / FRAMED.height, y: 0.275}, axis: "x"}));
     const upward = [-5, -1, -0.1].flatMap((x) => [-65, -60, -55].map((down) => ({
         target: {x: 0.5 + x / FRAMED.height, y: 0.5 - (RIFLE.grip[2] + Math.tan(THREE.MathUtils.degToRad(-down)) * Math.hypot(x, LOOK_DEPTH) - FRAMED.middle) / FRAMED.height},
@@ -53,7 +53,7 @@ test("the rifle exchanges hands continuously through the centre and steep upward
     }
 });
 
-test("a dense target sweep has no interior wrist or elbow rotation flips during the exchange", () => {
+test("a dense target sweep has no wrist or elbow rotation flips while changing aim", () => {
     for (const voice of Object.keys(stances)) {
         for (const u of [0.165, 0.36, 0.765]) {
             let before;
@@ -89,11 +89,11 @@ test("both palms stay beside the receiver and handguard while the barrel remains
                 }
                 const barrel = new THREE.Vector3(1, 0, 0).applyMatrix4(shot.rotation);
                 const from = shot.origin.clone().add(new THREE.Vector3(0, 0, RIFLE_HOLD.barrel).applyMatrix4(shot.rotation));
-                const point = new THREE.Vector3((target.x - 0.5) * FRAMED.height, LOOK_DEPTH, FRAMED.middle + (0.5 - target.y) * FRAMED.height);
+                const point = rifleTarget(target);
                 const toward = point.sub(from);
                 expect(toward.dot(barrel), `${voice} points toward target`).toBeGreaterThan(0);
                 const off = toward.sub(barrel.multiplyScalar(toward.dot(barrel))).length();
-                expect(off / FRAMED.height * 224, `${voice} aimed during exchange`).toBeLessThan(3);
+                expect(off / FRAMED.height * 224, `${voice} aimed during turn`).toBeLessThan(3);
             }
         }
     }

@@ -20,14 +20,14 @@ export function variantOf(clip, random, has, scene = {}) {
 
 // The figure reading along a message's bubble: for `seconds`, line by line down at most `lines` of them `line` pixels apart, its look
 // sweeping each from `inset` pixels in from the bubble's left to as far in from its right over `sweep` seconds, and back to the next
-export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14, turn: 60, ahead: 0.25};
+export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14, turn: 135, ahead: 0.25};
 
 // The way a figure standing with the middle of its picture at page `x` faces to read the bubble `box`: its whole body turned READING turn
-// degrees toward it, 1 to its right and -1 to its left, so its head then only follows the lines; facing the viewer for a bubble less than
-// READING ahead of the picture's `size` to either side
+// degrees toward the screen behind it, 1 to its right and -1 to its left, so its head then only follows the lines; facing the screen
+// squarely for a bubble less than READING ahead of the picture's `size` to either side
 export function readingFacing(box, x, size) {
     const off = (box.left + box.right) / 2 - x;
-    return Math.abs(off) < READING.ahead * size ? 0 : Math.sign(off) * READING.turn;
+    return Math.abs(off) < READING.ahead * size ? 180 : Math.sign(off) * READING.turn;
 }
 
 // Where the figure looks `t` seconds into reading the bubble `box` (its left, right, top and bottom on the page), with the eyes' reading
@@ -37,7 +37,7 @@ export function readingAt(box, t) {
     const lines = Math.max(1, Math.min(READING.lines, Math.floor((box.bottom - box.top - 2 * READING.inset) / READING.line) + 1));
     const line = Math.floor(t / READING.sweep) % lines;
     const k = (t % READING.sweep) / READING.sweep;
-    return {x: box.left + READING.inset + (box.right - box.left - 2 * READING.inset) * k, y: box.top + READING.inset + line * READING.line, mood: "reading"};
+    return {x: box.left + READING.inset + (box.right - box.left - 2 * READING.inset) * k, y: box.top + READING.inset + line * READING.line, mood: "reading", behind: true};
 }
 
 // how long the eyes keep a look, counted only while they are shown
@@ -318,11 +318,15 @@ export const LOOK_EASE_MS = 500;
 export function gazeAfter(gaze, point, center, now, head = null, blend = 1) {
     const elapsedMs = now - (gaze.at || now);
     const step = elapsedMs / LOOK_EASE_MS;
-    const goal = point ? blend : 0;
+    // A screen target and a prop can occupy the same page pixels on opposite sides of the figure. Let the old look ease away before
+    // taking up the other depth, so changing `behind` never flips a fully turned head in one frame.
+    const changesDepth = point && gaze.point && Boolean(point.behind) !== Boolean(gaze.point.behind);
+    const leaving = changesDepth && gaze.amount > 0;
+    const goal = point && !leaving ? blend : 0;
     const amount = gaze.amount < goal ? Math.min(gaze.amount + step, goal) : Math.max(gaze.amount - step, goal);
     const largest = (LOOK_TURN_SPEED * elapsedMs) / 1000;
     const from = gaze.toward ? {...gaze.point, x: center.x + gaze.toward.x, y: center.y + gaze.toward.y} : gaze.point;
-    const turned = point && from ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;
+    const turned = leaving ? from : point && from && !changesDepth ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;
     const looked = turned ?? from;
     return {point: looked ?? null, toward: looked ? {x: looked.x - center.x, y: looked.y - center.y} : null, amount, at: now};
 }
