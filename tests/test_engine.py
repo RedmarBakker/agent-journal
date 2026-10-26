@@ -635,6 +635,33 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert agents.session_agent("w1").stack == stack and agents.session_agent("s1").stack[-1]["state"] == "following_plan", "a row event for the environment reaches the main agent alone"
 
 
+def test_a_worker_clocking_out_leaves_another_workers_stack_alone(app: App):
+    from journal.models.agent_role import AgentRole
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    hook(app, "SessionStart")
+    scope, workers, tasks, agents = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents)
+    with scope.environment(1):
+        first = workers.save(Worker(environment_id=1, name="Mr. A", brief="a", session="wa", token_hash=AgentToken.hashed("ta")), Actor.system())
+        second = workers.save(Worker(environment_id=1, name="Mr. B", brief="b", session="wb", token_hash=AgentToken.hashed("tb")), Actor.system())
+        for worker, title in ((first, "the parser"), (second, "the lexer")):
+            tasks.handover(tasks.save(Task(environment_id=1, title=title, brief=f"{title} reads"), Actor.system()), Ref.build(worker), Actor.system())
+            agents.save(Agent(environment_id=1, session=worker.session, provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+    with scope.environment(1):
+        workers.save(workers.find(first.id).ready(1.0), Actor.worker(first.id))
+        workers.save(workers.find(second.id).ready(1.0), Actor.worker(second.id))
+    assert agents.session_agent("wa").stack[-1]["state"] == agents.session_agent("wb").stack[-1]["state"] == "working", "each worker clocked in works on its own task"
+    second_stack = agents.session_agent("wb").stack
+    with scope.environment(1):
+        workers.save(workers.find(first.id).delivered(2.0), Actor.worker(first.id))
+    assert agents.session_agent("wa").stack[-1]["state"] != "working", "the worker that clocked out leaves its work"
+    assert agents.session_agent("wb").stack == second_stack, "the other worker's stack is left as it was"
+
+
 def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what_it_dispatched(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.models.agent import Agent

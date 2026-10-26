@@ -55,10 +55,14 @@ class ClockConduct(Conduct):
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
         holdings = event.data.part(TasksPart).agent_tasks
-        return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings else self.none()
+        return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings and is_hearers(event) else self.none()
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
-        return self.pop()
+        return self.pop() if is_hearers(event) else self.none()
 
     def on_worker_review_requested(self, event: WorkerReviewRequested, settings: Settings) -> Transition:
-        return self.pop()
+        return self.pop() if is_hearers(event) else self.none()
+
+
+def is_hearers(event: WorkerReady | WorkerDelivered | WorkerReviewRequested) -> bool:
+    return event.worker.id in {worker.id for worker in event.data.part(WorkersPart).session_workers}
