@@ -49,6 +49,11 @@ test("the toggle folds three started plans into one strip of icon, number and pr
     expect(card.textContent).toContain("Walls");
     expect(card.textContent).toContain("Phase 1 of 2 · Phase one of Walls");
     expect(card.textContent).toContain("1 of 4 tasks done");
+    groups[1].dispatchEvent(new window.MouseEvent("mouseleave"));
+    card.dispatchEvent(new window.MouseEvent("mouseenter"));
+    await new Promise((settled) => setTimeout(settled, 250));
+    await nextTick();
+    expect(window.document.querySelector(".planstrip-card")).not.toBe(null);
     card.querySelector(".planstrip-card-open").click();
     expect(peeked.at(-1)).toBe("plans/2");
     host.querySelector(".statusbar-strip").click();

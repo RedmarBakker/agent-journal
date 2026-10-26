@@ -28,6 +28,10 @@ function leave() {
     closing = setTimeout(() => (shown.value = 0), CLOSE_AFTER_MS);
 }
 
+function keep() {
+    clearTimeout(closing);
+}
+
 function open(p) {
     shown.value = 0;
     peek("plans", p.id);
@@ -47,7 +51,7 @@ function open(p) {
         </template>
         <template v-if="shown && plan()">
             <MenuPanel :anchor="anchor" @click.stop @close="shown = 0">
-                <div class="planstrip-card" @mouseenter="clearTimeout(closing)" @mouseleave="leave">
+                <div class="planstrip-card" @mouseenter="keep" @mouseleave="leave">
                     <p class="planstrip-card-title">{{ plan().title }}</p>
                     <template v-if="phaseOf(plan())">
                         <p class="planstrip-card-line">Phase {{ plan().current_phase || 1 }} of {{ phaseCount(plan()) }} · {{ phaseOf(plan()) }}</p>
