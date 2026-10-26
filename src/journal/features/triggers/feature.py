@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import JOURNAL
+from journal.support.card_type_catalogue import JOURNAL
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.triggers.commands.trigger_command import TriggerCommand
@@ -18,7 +18,7 @@ from journal.features.triggers.triggers_nudges import TriggersNudges
 class Triggers(Feature[TriggersData]):
     name = TriggersPart.name
     card_families = (CardFamily("triggers", "Triggers", "bolt", JOURNAL),)
-    card_kinds = (CardTypeEntry(CardType.TRIGGERS, "Triggers", "triggers"),)
+    card_types = (CardTypeEntry(CardType.TRIGGERS, "Triggers", "triggers"),)
     title = "Triggers"
     help = "Words you choose, and what the journal does when one comes up."
     commands = (TriggerCommand,)

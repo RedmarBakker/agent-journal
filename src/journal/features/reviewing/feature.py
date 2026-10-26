@@ -1,7 +1,7 @@
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import AGENT
+from journal.support.card_type_catalogue import AGENT
 from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
@@ -27,7 +27,7 @@ class ReviewingFeature(Feature[ReviewingData]):
 
     name = ReviewingPart.name
     card_families = (CardFamily("reviews", "Reviews", "verifier", AGENT, CardColouring.OUTCOME),)
-    card_kinds = (CardTypeEntry(CardType.REVIEWERS, "Reviews of a worker's work", "reviews"),)
+    card_types = (CardTypeEntry(CardType.REVIEWERS, "Reviews of a worker's work", "reviews"),)
     title = "Reviewing workers' work"
     fixed = True
     help = "In orchestrator mode with the reviewer on, each worker that clocks out joins a review queue, in order, and the next free reviewer takes it; a reviewer's report on each point comes to the agent, which sends the work back or merges it. journal reviewer add starts another reviewer."

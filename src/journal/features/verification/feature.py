@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import JOURNAL
+from journal.support.card_type_catalogue import JOURNAL
 from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
@@ -21,7 +21,7 @@ class Verification(Feature):
 
     name = "verification"
     card_families = (CardFamily("verifiers", "Verifiers", "verifier", JOURNAL, CardColouring.OUTCOME),)
-    card_kinds = (CardTypeEntry(CardType.VERIFIERS, "Dismissals a verifier checked", "verifiers"),)
+    card_types = (CardTypeEntry(CardType.VERIFIERS, "Dismissals a verifier checked", "verifiers"),)
     title = "Verifying dismissals"
     fixed = True
     help = "When the agent dismisses a reader report rather than fixing the reader, the journal sends a verifier that judges the dismissal on the evidence; on a no, the agent's writes wait until the reader is written anew."

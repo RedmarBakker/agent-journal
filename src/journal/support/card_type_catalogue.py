@@ -8,7 +8,7 @@ from journal.support.card_type_entry import CardTypeEntry
 AGENT, REMINDERS, WORK, JOURNAL = "agent", "reminders", "work", "journal"
 
 
-class MarkKinds:
+class CardTypeCatalogue:
     """The groups chat marks are listed in, and the families and kinds of marks no feature owns: the agent's thoughts, the journal's own faults and visitors' comments; every feature declares its own families and kinds, collected at boot."""
 
     GROUPS = (
@@ -22,7 +22,7 @@ class MarkKinds:
         CardFamily("faults", "The journal's own faults", "warn", JOURNAL),
         CardFamily("visitors", "Visitors", "chat", JOURNAL),
     )
-    KINDS = (
+    TYPES = (
         CardTypeEntry("thoughts", "Summaries of the agent's words", "thoughts", turns=("thought",)),
         CardTypeEntry(CardType.FAULTS, "The journal's own faults", "faults"),
         CardTypeEntry("visitors", "Visitor comments", "visitors", turns=("visitor",)),
@@ -31,8 +31,8 @@ class MarkKinds:
     @staticmethod
     def served(families: list[CardFamily], kinds: list[CardTypeEntry]) -> dict:
         family_index = {family.key: family for family in families}
-        return {"groups": [asdict(group) for group in MarkKinds.GROUPS], "families": [{**asdict(family), "colouring": str(family.colouring)} for family in families],
-                "kinds": [MarkKinds.served_kind(kind, family_index[kind.family]) for kind in kinds]}
+        return {"groups": [asdict(group) for group in CardTypeCatalogue.GROUPS], "families": [{**asdict(family), "colouring": str(family.colouring)} for family in families],
+                "kinds": [CardTypeCatalogue.served_kind(kind, family_index[kind.family]) for kind in kinds]}
 
     @staticmethod
     def served_kind(kind: CardTypeEntry, family: CardFamily) -> dict:

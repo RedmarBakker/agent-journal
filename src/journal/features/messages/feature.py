@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import WORK
+from journal.support.card_type_catalogue import WORK
 from journal.support.card_type import CardType
 from journal.events.rows.message_arrived import MessageArrived
 from journal.features.feature import Feature
@@ -34,7 +34,7 @@ from journal.features.messages.listeners.unlinked_number_record import UnlinkedN
 class Messages(Feature[MessagesData]):
     name = MessagesPart.name
     card_families = (CardFamily("filed", "Tasks created from your messages", "inbox", WORK),)
-    card_kinds = (CardTypeEntry(CardType.FILED, "Filed from your messages", "filed", turns=("receipt",)),)
+    card_types = (CardTypeEntry(CardType.FILED, "Filed from your messages", "filed", turns=("receipt",)),)
     title = "Messages"
     help = "A new message is named to the agent by its number, at once and again at start, at a prompt and at a stop; it reads it with the CLI and answers it first."
     commands = (MessageCommand,)

@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import MarkKinds
+from journal.support.card_type_catalogue import CardTypeCatalogue
 from journal.engine.support.modes import Modes
 from journal.support.agent_role import AgentRole
 from journal.engine.base_state import BaseState
@@ -137,10 +137,10 @@ class Registry:
         return tuple(f"{command.noun} {verb}" for command in commands for verb in sorted(command.uncut_verbs))
 
     def card_families(self) -> list[CardFamily]:
-        return [*MarkKinds.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
+        return [*CardTypeCatalogue.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
 
-    def card_kinds(self) -> list[CardTypeEntry]:
-        return [*MarkKinds.KINDS, *(kind for feature in self.features for kind in feature.card_kinds)]
+    def card_types(self) -> list[CardTypeEntry]:
+        return [*CardTypeCatalogue.TYPES, *(kind for feature in self.features for kind in feature.card_types)]
 
     def skills(self) -> list[Skill]:
         return [feature.skill for feature in self.features if feature.skill]

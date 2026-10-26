@@ -45,7 +45,7 @@ class Feature[D](DataSource[D]):
     assigners: ClassVar[tuple[type, ...]] = ()
     skill: ClassVar[Skill | None] = None
     card_families: ClassVar[tuple[CardFamily, ...]] = ()
-    card_kinds: ClassVar[tuple[CardTypeEntry, ...]] = ()
+    card_types: ClassVar[tuple[CardTypeEntry, ...]] = ()
     services: ClassVar[tuple[Service, ...]] = ()
     default: ClassVar[bool] = True
     modes: ClassVar[Modes | None] = None

@@ -10524,7 +10524,7 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and offers the worker's task with its proofs"
     assert {card.data["shows"] for card in cards} == {"worker_tests"}, "a worker's test run is a kind of mark of its own, which the chat hides until the user shows it"
     from journal.features.workers.feature import Workers as WorkersFeature
-    assert next(kind for kind in WorkersFeature.card_kinds if kind.key == "worker_tests").shown is False
+    assert next(kind for kind in WorkersFeature.card_types if kind.key == "worker_tests").shown is False
 
 
 def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_stands(app: App, monkeypatch):
@@ -20896,7 +20896,7 @@ def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_an
 
 def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_manifest_as_the_viewers_tests_read_it(app):
     from journal.support.card_type import CardType
-    from journal.support.mark_kinds import MarkKinds
+    from journal.support.card_type_catalogue import CardTypeCatalogue
     served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
     groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {kind["key"]: kind for kind in served["kinds"]}
     assert set(CardType) <= set(kinds) and all(kind["family"] in families for kind in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
@@ -20909,7 +20909,7 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"
     if os.environ.get("MARKS_FREEZE") == "1":
         fixture.write_text(json.dumps(served, indent=1) + "\n")
-    assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
+    assert served == CardTypeCatalogue.served(registry.card_families(), registry.card_types()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
 
 
 

@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import AGENT, REMINDERS
+from journal.support.card_type_catalogue import AGENT, REMINDERS
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
 from journal.features.memory.listeners.start_memory import StartMemory
@@ -27,7 +27,7 @@ from journal.features.memory.memory_options import MemoryOptions
 class Memory(Feature[MemoryData]):
     name = MemoryPart.name
     card_families = (CardFamily("context", "Context", "gauge", AGENT), CardFamily("rules", "Rules", "rules", REMINDERS), CardFamily("facts", "Facts", "pins", REMINDERS), CardFamily("reminders", "Reminders", "reminders", REMINDERS),)
-    card_kinds = (CardTypeEntry(CardType.COMPACTIONS, "Conversation compacted", "context"), CardTypeEntry(CardType.RULES, "Rules", "rules"), CardTypeEntry(CardType.FACTS, "Facts", "facts"), CardTypeEntry(CardType.REMINDERS, "Reminders", "reminders"), CardTypeEntry("acknowledgements", "Acknowledged reminders", "reminders", main=False, messages=("acknowledgement",)),)
+    card_types = (CardTypeEntry(CardType.COMPACTIONS, "Conversation compacted", "context"), CardTypeEntry(CardType.RULES, "Rules", "rules"), CardTypeEntry(CardType.FACTS, "Facts", "facts"), CardTypeEntry(CardType.REMINDERS, "Reminders", "reminders"), CardTypeEntry("acknowledgements", "Acknowledged reminders", "reminders", main=False, messages=("acknowledgement",)),)
     title = "Memory"
     help = "At 25, 50 and 80 percent of the context window, writes wait until the agent records a fact, a rule or nothing."
     conduct = (MemoryConduct,)

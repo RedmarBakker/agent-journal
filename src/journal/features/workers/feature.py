@@ -1,7 +1,7 @@
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import AGENT
+from journal.support.card_type_catalogue import AGENT
 from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.events.rows.worker_delivered import WorkerDelivered
@@ -88,7 +88,7 @@ class Workers(Feature[WorkersData]):
     name = WorkersPart.name
     helper_listeners = {AgentRole.WORKER: (WorkerTurnRecord, SubagentMessageRecord, SubagentTurnRecord)}
     card_families = (CardFamily("helpers", "Workers and subagents", "agents", AGENT, CardColouring.OUTCOME), CardFamily("fitness", "Fitness", "activity", AGENT), CardFamily("worker_steps", "Workers' own steps", "agents", AGENT, CardColouring.OUTCOME),)
-    card_kinds = (CardTypeEntry("agents", "Agents talking to each other", "helpers", covers=(CardType.SUBAGENTS, CardType.WORKERS)), CardTypeEntry(CardType.SUBAGENTS, "Subagents", "helpers"), CardTypeEntry(CardType.WORKERS, "Workers", "helpers", messages=("report",)), CardTypeEntry(CardType.FITNESS, "Drops in the fitness", "fitness"), CardTypeEntry(CardType.WORKER_STEPS, "Workers' moves: next job, queue given back, restart, rebase", "worker_steps"), CardTypeEntry(CardType.WORKER_TESTS, "Workers' test runs", "worker_steps"),)
+    card_types = (CardTypeEntry("agents", "Agents talking to each other", "helpers", covers=(CardType.SUBAGENTS, CardType.WORKERS)), CardTypeEntry(CardType.SUBAGENTS, "Subagents", "helpers"), CardTypeEntry(CardType.WORKERS, "Workers", "helpers", messages=("report",)), CardTypeEntry(CardType.FITNESS, "Drops in the fitness", "fitness"), CardTypeEntry(CardType.WORKER_STEPS, "Workers' moves: next job, queue given back, restart, rebase", "worker_steps"), CardTypeEntry(CardType.WORKER_TESTS, "Workers' test runs", "worker_steps"),)
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports. How workers test is one of three: the agent that merges runs the tests, a worker runs the tests it wrote, or a worker tests within a budget through journal tests turn, the agent reading the machine's load and the turns with journal tests load and setting the budget with journal tests budget; its own suite is never queued."
     assigners = (OrchestratorTaskAssigner,)

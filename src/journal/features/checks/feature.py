@@ -1,6 +1,6 @@
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
-from journal.support.mark_kinds import WORK
+from journal.support.card_type_catalogue import WORK
 from journal.support.card_type import CardType
 from journal.support.card_colouring import CardColouring
 from journal.events.rows.check_failed import CheckFailed
@@ -19,7 +19,7 @@ from journal.features.checks.checks_options import ChecksOptions
 class Checks(Feature):
     name = "checks"
     card_families = (CardFamily("checks", "Checks", "check", WORK, CardColouring.OUTCOME),)
-    card_kinds = (CardTypeEntry(CardType.CHECKS, "Checks passing and failing", "checks"),)
+    card_types = (CardTypeEntry(CardType.CHECKS, "Checks passing and failing", "checks"),)
     title = "Checks"
     help = "Scripts that pass or fail, run by hand or on a schedule; a failure is told to the agent."
     commands = (CheckCommand,)
