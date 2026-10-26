@@ -27,7 +27,7 @@ from journal.features.memory.memory_options import MemoryOptions
 class Memory(Feature[MemoryData]):
     name = MemoryPart.name
     card_families = (CardFamily("context", "Context", "gauge", AGENT), CardFamily("rules", "Rules", "rules", REMINDERS), CardFamily("facts", "Facts", "pins", REMINDERS), CardFamily("reminders", "Reminders", "reminders", REMINDERS),)
-    card_kinds = (MarkKind(CardKind.COMPACTIONS, "Conversation compacted", "context"), MarkKind(CardKind.RULES, "Rules", "rules"), MarkKind(CardKind.FACTS, "Facts", "facts"), MarkKind(CardKind.REMINDERS, "Reminders", "reminders"), MarkKind("acknowledgements", "Acknowledged reminders", "reminders", main=False, shown=False, messages=("acknowledgement",)),)
+    card_kinds = (MarkKind(CardKind.COMPACTIONS, "Conversation compacted", "context"), MarkKind(CardKind.RULES, "Rules", "rules"), MarkKind(CardKind.FACTS, "Facts", "facts"), MarkKind(CardKind.REMINDERS, "Reminders", "reminders"), MarkKind("acknowledgements", "Acknowledged reminders", "reminders", main=False, messages=("acknowledgement",)),)
     title = "Memory"
     help = "At 25, 50 and 80 percent of the context window, writes wait until the agent records a fact, a rule or nothing."
     conduct = (MemoryConduct,)

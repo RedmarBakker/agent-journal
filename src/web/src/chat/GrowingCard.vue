@@ -2,6 +2,7 @@
 import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import MarkIcon from "../kit/MarkIcon.vue";
+import {useMarkMotion} from "../composables/markMotion.js";
 
 // a one-line card in the chat that grows in place to its whole text on a click and folds on a second: a worker's report, a message to or from a subagent;
 // an incoming one, a message another agent sent, has its icon at the far right and its title against it
@@ -16,6 +17,9 @@ const props = defineProps({
 });
 const emit = defineEmits(["act"]);
 const opened = ref(false);
+// it opens as a mark does: its text out, its new size, its text in, its top where it was (composables/markMotion.js)
+const wrap = ref(null);
+const {folded, phase} = useMarkMotion(wrap, () => !opened.value);
 // the avatar: the first letter of the other agent's name, as Lady Lovelace's L
 const initial = computed(() => (props.person.trim().split(/\s+/).pop() || "").charAt(0).toUpperCase());
 // the message in its paragraphs, split where a blank line stands
@@ -23,7 +27,7 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
 </script>
 
 <template>
-    <div :class="['growing-card-wrap', {open: opened, bad, incoming}]">
+    <div ref="wrap" :class="['growing-card-wrap', phase, {open: !folded, bad, incoming}]">
         <button type="button" class="growing-card" :aria-expanded="opened" @click="opened = !opened">
             <span class="growing-card-avatar">
                 <template v-if="bad">
@@ -142,9 +146,6 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     margin-left: auto;
 }
 
-.growing-card-wrap:not(.open) .growing-card-body {
-    width: 0;
-}
 
 .growing-card-wrap.incoming .growing-card {
     flex-direction: row-reverse;
@@ -152,18 +153,32 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     text-align: right;
 }
 
-.growing-card-more {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transition:
-        grid-template-rows var(--move),
-        opacity var(--fade);
+.growing-card-wrap:not(.open) .growing-card-more {
+    display: none;
 }
 
-.growing-card-wrap.open .growing-card-more {
-    grid-template-rows: 1fr;
-    opacity: 1;
+.growing-card-more {
+    transition: opacity 0.16s ease;
+}
+
+.growing-card-wrap.leaving .growing-card-more {
+    opacity: 0;
+    transition-duration: 0.12s;
+}
+
+.growing-card-wrap.resizing .growing-card-more {
+    visibility: hidden;
+    opacity: 0;
+}
+
+.growing-card-wrap.entering .growing-card-more {
+    animation: arrive 0.16s ease;
+}
+
+@keyframes arrive {
+    from {
+        opacity: 0;
+    }
 }
 
 .growing-card-body {

@@ -34,7 +34,7 @@ from journal.features.sequences.sequences_part import SequencesPart
 class Sequences(Feature[SequencesData]):
     name = SequencesPart.name
     card_families = (CardFamily("sequences", "Sequences", "list", JOURNAL),)
-    card_kinds = (MarkKind(CardKind.SEQUENCES, "Sequences starting and finishing", "sequences"), MarkKind(CardKind.SEQUENCE_STEPS, "Every step of a sequence", "sequences", main=False, shown=False),)
+    card_kinds = (MarkKind(CardKind.SEQUENCES, "Sequences starting and finishing", "sequences"), MarkKind(CardKind.SEQUENCE_STEPS, "Every step of a sequence", "sequences", main=False),)
     title = "Sequences"
     help = "Steps the agent follows one at a time."
     commands = (SequenceCommand,)

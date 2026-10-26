@@ -5,14 +5,16 @@ import {store} from "../src/state/store.js";
 
 const marks = JSON.parse(readFileSync("tests/fixtures/markKinds.json", "utf8"));
 
-test("the chat hides what the registry starts hidden, acknowledgements, a sequence's steps, sync conflict notes, verifiers and the workers' own steps and test runs, and shows a sequence starting and finishing", () => {
+test("the chat shows every kind of mark until the user hides one, and a pane still holding the former default list shows them all too", async () => {
+    const {hiddenOf} = await import("../src/domain/chatVisibility.js");
     store.spec = {...store.spec, marks};
     const shown = visibleIn(defaultHidden());
-    expect(defaultHidden().sort()).toEqual(["acknowledgements", "conflicts", "sequence_steps", "verifiers", "worker_steps", "worker_tests"]);
-    expect(shown({type: "card", data: {icon: "warn", shows: "conflicts"}})).toBe(false);
-    expect(shown({type: "card", data: {icon: "list", shows: "sequence_steps"}})).toBe(false);
-    expect(shown({type: "card", data: {icon: "verifier", shows: "verifiers"}})).toBe(false);
-    expect(shown({type: "card", data: {icon: "list", shows: "sequences"}})).toBe(true);
+    expect(defaultHidden()).toEqual([]);
+    expect(hiddenOf(undefined)).toEqual([]);
+    expect(hiddenOf(["verifiers", "worker_tests", "acknowledgements", "conflicts", "sequence_steps", "worker_steps"])).toEqual([]);
+    expect(hiddenOf(["commits"])).toEqual(["commits"]);
+    expect(shown({type: "card", data: {icon: "list", shows: "sequence_steps"}})).toBe(true);
+    expect(shown({type: "card", data: {icon: "verifier", shows: "verifiers"}})).toBe(true);
     expect(shown({type: "card", data: {icon: "branch", shows: "commits"}})).toBe(true);
     expect(visibleIn(["sequences", "sequence_steps"])({type: "card", data: {icon: "list", shows: "sequences"}})).toBe(false);
     expect(visibleIn([])({type: "card", data: {icon: "list", shows: "sequence_steps"}})).toBe(true);

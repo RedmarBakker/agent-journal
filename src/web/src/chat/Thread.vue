@@ -34,7 +34,7 @@ import {useScope} from "../composables/scope.js";
 import DumpWindow from "./DumpWindow.vue";
 import TerminalWindow from "./TerminalWindow.vue";
 import OutputDialog from "./OutputDialog.vue";
-import {useRevealPressed} from "../composables/revealPressed.js";
+import {usePressedTurn} from "../composables/pressedTurn.js";
 import ChatDock from "./ChatDock.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
@@ -190,9 +190,9 @@ function toBottom(smooth = false) {
 }
 
 // the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after, nor
-// while a bubble the reader pressed opens, so a chat mark opened at the foot is shown whole rather than pushed away by a snap to the foot
+// while a bubble the reader pressed opens, so it opens in place and the chat stays exactly where the reader has it
 function followDown(smooth = false) {
-    if (Date.now() - scrolledAt < BY_HAND || pressedTurn.isRevealing()) return;
+    if (Date.now() - scrolledAt < BY_HAND || pressedTurn.isOpening()) return;
     toBottom(smooth);
 }
 
@@ -232,7 +232,7 @@ function scrolled() {
 
 let grew = null;
 let added = null;
-const pressedTurn = useRevealPressed(scroller);
+const pressedTurn = usePressedTurn();
 
 function pressed(event) {
     scrolledByHand();
@@ -240,10 +240,7 @@ function pressed(event) {
 }
 
 onMounted(() => {
-    grew = new ResizeObserver(() => {
-        settled();
-        pressedTurn.reveal();
-    });
+    grew = new ResizeObserver(() => settled());
     const watchRows = () => {
         for (const el of scroller.value?.children || []) grew.observe(el);
     };

@@ -20903,7 +20903,7 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     assert all(kind["icon"] == families[kind["family"]]["icon"] for kind in kinds.values()), "a kind's icon is its family's, never its own"
     assert families["tasks"]["icon"] == "task" and families["tasks"]["colouring"] == "none" and families["commands"]["colouring"] == "outcome", "a task's cards are events with the task icon; a command's are processes coloured by their outcome"
     assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardKind.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
-    assert not kinds[CardKind.VERIFIERS]["shown"] and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "verifier marks start hidden; a sequence's steps are a detail of its start and finish"
+    assert all(kind["shown"] for kind in kinds.values()) and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
     from journal.features.registry import Registry
     registry = app.container.get(Registry)
     fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"

@@ -21,7 +21,7 @@ from journal.features.team.team_nudges import TeamNudges
 class TeamFeature(Feature[TeamData]):
     name = TeamPart.name
     card_families = (CardFamily("team", "Team", "warn", WORK),)
-    card_kinds = (MarkKind(CardKind.CONFLICTS, "Your edits a colleague's newer edit replaced", "team", main=False, shown=False),)
+    card_kinds = (MarkKind(CardKind.CONFLICTS, "Your edits a colleague's newer edit replaced", "team", main=False),)
     title = "Team"
     help = "A journal shared with a team through its server: joining it, inviting people, the team's devices and how the sync stands."
     commands = (TeamCommand, SessionCommand)

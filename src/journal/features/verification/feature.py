@@ -21,7 +21,7 @@ class Verification(Feature):
 
     name = "verification"
     card_families = (CardFamily("verifiers", "Verifiers", "verifier", JOURNAL, CardColouring.OUTCOME),)
-    card_kinds = (MarkKind(CardKind.VERIFIERS, "Dismissals a verifier checked", "verifiers", shown=False),)
+    card_kinds = (MarkKind(CardKind.VERIFIERS, "Dismissals a verifier checked", "verifiers"),)
     title = "Verifying dismissals"
     fixed = True
     help = "When the agent dismisses a reader report rather than fixing the reader, the journal sends a verifier that judges the dismissal on the evidence; on a no, the agent's writes wait until the reader is written anew."

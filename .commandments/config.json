@@ -8,7 +8,8 @@
         "languages": [
             "php",
             "csharp",
-            "typescript"
+            "typescript",
+            "go"
         ]
     },
     "detectors": [
@@ -83,13 +84,6 @@
     ],
     "parallel": 2,
     "configure": {
-        "frontend/ComponentBudgetDetector": [
-            {
-                "elements": [
-                    50
-                ]
-            }
-        ],
         "python/NamespaceDependencyDetector": [
             {
                 "layer": [
@@ -302,6 +296,13 @@
                     [
                         "providers"
                     ]
+                ]
+            }
+        ],
+        "vue/ComponentBudgetDetector": [
+            {
+                "elements": [
+                    50
                 ]
             }
         ]

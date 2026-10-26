@@ -2,7 +2,7 @@
 import {createdAt} from "../domain/row.js";
 import {store} from "../state/store.js";
 import {saveViewerSetting, viewerSetting} from "../composables/settings.js";
-import {defaultHidden} from "../domain/chatVisibility.js";
+import {hiddenOf} from "../domain/chatVisibility.js";
 import {narrow} from "../platform/view.js";
 import {computed, onMounted, onUnmounted, provide, ref, watch} from "vue";
 import {open} from "../domain/records.js";
@@ -435,7 +435,7 @@ watch(
                                     :level="levelOf(pane)"
                                     :flush="!!pane.flush"
                                     :feed="pane.feed || null"
-                                    :hidden="pane.hide || defaultHidden()"
+                                    :hidden="hiddenOf(pane.hide)"
                                     @feed="(feed) => replace(tuned(layout, id, {feed}))"
                                 />
                             </template>
@@ -480,7 +480,7 @@ watch(
                     :levels="menuPane && menuPane.active === 'terminal' ? levelChoices(menuPane) : []"
                     :chat="!!menuPane && menuPane.active === 'chat'"
                     :agents="!!menuPane && menuPane.active === 'agents'"
-                    :hidden="(menuPane && menuPane.hide) || defaultHidden()"
+                    :hidden="hiddenOf(menuPane && menuPane.hide)"
                     :flushable="!!(menuPane && menuPane.active && views[menuPane.active].canFlush)"
                     :flush="!!(menuPane && menuPane.flush)"
                     :others="menuOthers"

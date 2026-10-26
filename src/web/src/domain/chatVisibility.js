@@ -22,6 +22,13 @@ export const cardLook = (card, label = "") => {
 // the marks the chat hides until the user shows them
 export const defaultHidden = () => keysOf(kinds().filter((kind) => !kind.shown));
 
+// the marks the chat hid by default before every mark showed, which a pane still holding exactly that list never chose itself
+const FORMER_DEFAULT_HIDDEN = ["acknowledgements", "verifiers", "conflicts", "sequence_steps", "worker_steps", "worker_tests"];
+const isFormerDefault = (hidden) => hidden.length === FORMER_DEFAULT_HIDDEN.length && FORMER_DEFAULT_HIDDEN.every((key) => hidden.includes(key));
+
+// the marks a pane hides: the ones the user chose, or the default for a pane that never chose or still holds the former default
+export const hiddenOf = (saved) => (!saved || isFormerDefault(saved) ? defaultHidden() : saved);
+
 // every chat mark kind, which the Only chat preset hides all at once, leaving the user's and the agent's words, the docks and the pins
 export const allMarks = () => keysOf(kinds());
 
