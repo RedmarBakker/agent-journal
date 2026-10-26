@@ -267,6 +267,7 @@ class Plans(ScopedRepository[Plan]):
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
         time = self.time_source.moment()
+        postponed = self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)
         for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
             self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
-        return self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)
+        return postponed
