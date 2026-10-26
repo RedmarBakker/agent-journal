@@ -3874,6 +3874,8 @@ def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved
     app.console().run(["environment", "overview"], AGENT)
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "the goal"], AGENT)
+    console.run(["sequence", "follow"], AGENT)
+    console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
     console.run(["plan", "phase", "1", "Lay the floor"], AGENT)
     console.run(["plan", "add", "1", "pour the slab"], AGENT)
     console.run(["plan", "todos", "1", "1", "1"], AGENT)
@@ -20333,6 +20335,9 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
     assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
     settings.set("workers.orchestrator_plan_approval", "can approve all plans", Actor.user(1))
     assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with all plans it approves its own too"
+    for _ in range(4):
+        console.run(["sequence", "follow"], AGENT)
+        console.run(["sequence", "abandon", "--why", "not what this test is about", "--sure"], AGENT)
     tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
     status, body = tag()
     assert status == 409 and "waits for the user: Orchestrator may release is off" in body["error"], "with May release off the orchestrator's release waits for the user"
