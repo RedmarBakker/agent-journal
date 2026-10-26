@@ -10,12 +10,12 @@ QUIET_SECONDS = 20
 
 
 class SilentRuns:
-    """The agent's background runs that have printed no new line for QUIET_SECONDS or more, measured from their files' last write, or from the start of a run that has printed nothing."""
+    """The agent's background runs that have printed nothing at all for QUIET_SECONDS or more since they began: a buffered command, never a run that is only slow between its lines."""
 
     def __init__(self, outputs: CommandOutputs, time_source: TimeSource) -> None:
         self.outputs, self.time_source = outputs, time_source
 
     def running(self, session: str) -> tuple[SilentRun, ...]:
         now = self.time_source.seconds()
-        quiet = [(output, now - (OutputFiles(Path(output.folder)).last_write_seconds() or output.creation_time.timestamp())) for output in self.outputs.background(session)]
-        return tuple(SilentRun(output.row_id, output.command, int(seconds)) for output, seconds in quiet if seconds >= QUIET_SECONDS)
+        unprinted = [output for output in self.outputs.background(session) if OutputFiles(Path(output.folder)).size() == 0]
+        return tuple(SilentRun(output.row_id, output.command, int(now - output.creation_time.timestamp())) for output in unprinted if now - output.creation_time.timestamp() >= QUIET_SECONDS)

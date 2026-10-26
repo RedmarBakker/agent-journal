@@ -287,13 +287,14 @@ $ agent: journal message amend-links --help
 exit 0
 usage: journal message amend-links [-h]
                                    n
-                                   {doc,message,plan,question,report,task,worker} [{doc,message,plan,question,report,task,worker} ...]
+                                   {doc,message,plan,question,report,task,worker,none} [{doc,message,plan,question,report,task,worker,none} ...]
 
 positional arguments:
   n                     the message
-  {doc,message,plan,question,report,task,worker}
+  {doc,message,plan,question,report,task,worker,none}
                         task, plan, worker, report, doc, question or message,
-                        one for each number in order, or one for all
+                        one for each number in order, or one for all; none for
+                        a number that names no row, which stays as written
 
 options:
   -h, --help            show this help message and exit

@@ -76,9 +76,6 @@ class OutputFiles:
                 break
         return rows[-n:]
 
-    def last_write_seconds(self) -> float:
-        return max((path.stat().st_mtime for path in self.parts()), default=0.0)
-
     def parts(self) -> list[Path]:
         return [path for i in self.recorded() for name in (f"{i}.out", f"{i}.err") if (path := self.folder / name).is_file()]
 

@@ -606,8 +606,8 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_post
         console.run(["plan", "add", "1", "first"], user)
         console.run(["plan", "add", "1", "second"], user)
         assert call(server, "POST", "/journal/plans/1/start", {})[0] == 409, "an unapproved plan is refused before any row is written"
-        console.run(["plan", "approve", "1"], user)
         call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1", "cwd": str(tmp_path)})
+        console.run(["plan", "approve", "1"], user)
         started = call(server, "POST", "/journal/plans/1/start", {})[1]
         assert started["state"] == "started" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "started", "the viewer's start takes the first task in hand, as the command does"
         assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle", "following_plan", "naming_test_commands"], "a fresh journal names no test commands, so the plan's task waits for them over the plan"
