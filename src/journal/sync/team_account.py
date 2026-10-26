@@ -4,6 +4,7 @@ import os
 import ssl
 import re
 import socket
+import threading
 from pathlib import Path
 
 from journal.config import Config
@@ -97,7 +98,7 @@ class TeamAccount:
         held = self.path()
         path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else held
         path.parent.mkdir(exist_ok=True)
-        draft = path.with_suffix(".draft")
+        draft = path.with_name(f"{path.stem}.{os.getpid()}-{threading.get_ident()}.draft")
         draft.write_text(json.dumps(contents))
         os.chmod(draft, 0o600)
         draft.replace(path)

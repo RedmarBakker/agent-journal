@@ -1557,3 +1557,27 @@ def test_the_delegated_flag_migration_gives_every_delegated_task_the_state_it_re
     DelegatedFlag().apply(connection)
     rows = {row["id"]: (row["state"], row["delegated"]) for row in connection.all("SELECT id, state, delegated FROM tasks")}
     assert rows == {1: ("started", 1), 2: ("open", 1), 3: ("open", 0), 4: ("open", 1)}, "held in hand is started, queued or finished and not merged is open, all flagged, and the rest not flagged"
+
+
+def test_two_writers_of_one_team_account_never_race_on_one_draft(tmp_path):
+    import threading
+    from journal.sync.team_account import TeamAccount
+    config = Config(tmp_path)
+    config.home.mkdir(parents=True, exist_ok=True)
+    account = TeamAccount(config)
+    failures = []
+
+    def write(n: int) -> None:
+        try:
+            for i in range(200):
+                account.write({"team_key": "1c7515639941a0de24bcf599be24a3ab", "account_id": n, "round": i})
+        except OSError as error:
+            failures.append(error)
+
+    writers = [threading.Thread(target=write, args=(n,)) for n in (1, 2, 3)]
+    for writer in writers:
+        writer.start()
+    for writer in writers:
+        writer.join(timeout=60)
+    assert failures == [], f"each write has a draft of its own, so none is replaced away under another (the FileNotFoundError on the .draft seen in the team tests under load): {failures[:1]}"
+    assert not list((config.home / "teams").glob("*.draft")), "and no draft is left behind"
