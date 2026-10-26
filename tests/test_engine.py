@@ -2805,3 +2805,35 @@ def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_a
     assert builder(0.9, 1).score >= builder(0.9, 0).score - 3, "at a high load one handover is not punished"
     assert builder(0.3, 12).score < builder(0.3, 1).score, "several handovers at a low load are"
     assert builder(1.1, 1).score < builder(0.3, 1).score, "writing on while the load climbs is"
+
+
+HELPER_CONDUCTS = {
+    "worker": ["ClockConduct", "DemandConduct", "SafetyConduct", "TaskEditConduct"],
+    "verifier": ["DemandConduct", "SafetyConduct"],
+    "reviewer": ["DemandConduct", "SafetyConduct"],
+}
+HELPER_FLOORS = {"verifier": "Verifying", "reviewer": "Reviewing"}
+HELPER_LISTENERS = ["HookAnswer", "PluginAgentRelay", "RecordEdit", "ReviewerTestFailed", "ReviewerTestPassed", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"]
+HELPER_VERBS = {
+    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "fact list", "fact read", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
+    "verifier": ["verdict give", "verdict model"],
+    "reviewer": ["doc show", "fact list", "fact read", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
+    "subagent": ["doc show", "fact list", "fact read", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
+}
+
+
+def test_what_reaches_each_helper_today_is_recorded_before_the_helper_files_take_it_over(app: App):
+    """The sets each helper role gets as the code stands before plan 1035: the helper files are written from them, and each later change to a set is made here on purpose, named as kept or dropped."""
+    from journal.features.registry import Registry
+    from journal.models.agent_role import AgentRole
+    from journal.support.caller_kind import CallerKind
+    registry = app.container.get(Registry)
+    conducts = {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in (AgentRole.WORKER, AgentRole.VERIFIER, AgentRole.REVIEWER)}
+    assert conducts == HELPER_CONDUCTS, conducts
+    assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS, "a worker's floor is the engine's Duty; a verifier and a reviewer rest on their own states"
+    listeners = sorted({listener.__name__ for feature in registry.features for listener in feature.listeners if getattr(listener, "is_worker_listener", False)} | {"HookAnswer"})
+    assert listeners == HELPER_LISTENERS, listeners
+    commands = [*registry.standard_commands, *(command for feature in registry.features for command in feature.commands)]
+    verbs = {kind.value: sorted(f"{command.noun} {verb}" for command in commands for verb, kinds in command.callers.items() if kind in kinds) for kind in (CallerKind.WORKER, CallerKind.VERIFIER, CallerKind.REVIEWER, CallerKind.SUBAGENT)}
+    assert verbs == HELPER_VERBS, verbs
+
