@@ -41,7 +41,8 @@ class WorkerTaskChanges(Listener[RowEvent]):
             self.workers.save(self.workers.find(holder.id).released(event.time), Actor.system())
 
     def dropped(self, event: TaskClosed) -> None:
-        holder = self.tasks.holder(self.tasks.find(event.task_id))
+        task = self.tasks.find(event.task_id)
+        holder = self.tasks.holder(task) if task.delegated else None
         if holder is None or holder.type != "workers":
             return
         self.released(event)

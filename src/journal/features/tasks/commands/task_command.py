@@ -19,6 +19,7 @@ from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.models.worker import Worker
 from journal.support.task_priority import NORMAL, TaskPriority
 from journal.models.task_log import TaskLog
 from journal.repositories.links import Links
@@ -183,10 +184,11 @@ class TaskCommand(Command):
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
-        holdings = self.tasks.task_worker_holdings({args.n})
-        if args.n in holdings and not args.force:
-            raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s task in hand, mid-task: journal task pause {args.n} \"{args.why}\" --force takes it off the worker, which keeps its commits and goes on with its queue")
-        task = self.tasks.save(self.tasks.find(args.n).paused(args.why, self._time()), caller.actor)
+        task = self.tasks.find(args.n)
+        holder = self.tasks.holder(task) if task.delegated and not args.force else None
+        if holder is not None and holder.type == Worker.table():
+            raise Rejection(f"task {args.n} is worker {holder.id}'s task in hand, mid-task: journal task pause {args.n} \"{args.why}\" --force takes it off the worker, which keeps its commits and goes on with its queue")
+        task = self.tasks.save(task.paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
         print(f"{self.labels.name('task', task)} paused{waits}")
