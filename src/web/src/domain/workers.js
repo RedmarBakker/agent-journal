@@ -64,6 +64,27 @@ const reuses = (row) => (row.moves && row.moves.steps.length ? row.moves.steps.f
 const TIMES = {1: "once", 2: "twice"};
 export const workerReusesLine = (row) => (reuses(row) ? `Reused ${TIMES[reuses(row)] || `${reuses(row)} times`}${row.earlier_task ? `, on task ${row.earlier_task}` : ""}` : "");
 
+// What a worker is doing now, in plain words, from its row and the agent of its session: a merge taking its work in, its
+// tests running, the step its agent is on, waiting for a machine or the usage limit, clocked out for the check, or idle with
+// the tasks queued for it.
+const queuedWords = (row) => {
+    const queued = (row.queue || []).length;
+    return queued ? `Idle, ${queued} ${queued === 1 ? "task" : "tasks"} queued` : "Idle, waiting for a job";
+};
+
+export function workerActivity(row, agent = null) {
+    const state = workerState(row);
+    if (state === "finished") return workerEnding(row);
+    if (row.merging) return "Its work is being merged";
+    if (state === "ready") return "Clocked out, waiting for its work to be checked";
+    if (state === "reported") return queuedWords(row);
+    if (state === "unfinished") return WORKER_WORDS.unfinished;
+    if (row.state === "waiting for the usage limit") return "Waiting for the usage limit";
+    if (row.pool_request && !row.device) return "Waiting for a machine to take it";
+    if ((row.runs || []).includes("testing")) return "Running its tests";
+    return agent && agent.tool_running && agent.doing ? `Working: ${agent.doing}` : "Working on its task";
+}
+
 export const workerTag = (row) => ({state: workerState(row), word: WORKER_WORDS[workerState(row)]});
 
 export const FINISHED_STATES = new Set(["finished"]);

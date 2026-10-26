@@ -43,6 +43,12 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def backgrounded(self, session: str | None) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True).order("id"))
 
+    def prefix_runs(self, prefix: str) -> list[CommandOutput]:
+        return self.selected(self.query().filter(ended=False).filter_prefix("command", prefix).order("id"))
+
+    def session_runs(self, sessions: list[str]) -> list[CommandOutput]:
+        return self.selected(self.query().filter(ended=False).filter_listed("session", sessions).order("id")) if sessions else []
+
     def unended_outputs(self, numbers: list[int]) -> list[CommandOutput]:
         return [output for output in (self.find(number) for number in numbers) if not output.ended]
 

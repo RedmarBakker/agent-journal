@@ -17,7 +17,7 @@ import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, tasksDone} from "../domain/workerTurn.js";
-import {REPORT_CHOICES, reportChoiceKey, stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
+import {REPORT_CHOICES, reportChoiceKey, stateAt, workerActions, workerActivity, workerIcon, workerLine, workerMoves, workerName, workerQueueLine, workerReport, workerReportsWhen, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {go, peek} from "../route.js";
@@ -36,9 +36,15 @@ watch(
 );
 
 const finished = computed(() => workerState(props.resource) === "finished");
+const agent = computed(() => rows("agents").find((row) => row.id === props.resource.agent) || null);
+watch(
+    () => props.resource.agent,
+    (id) => id && holding("agents", [id]),
+    {immediate: true}
+);
 const state = computed(() => ({
     icon: workerIcon(props.resource),
-    word: finished.value ? workerEnding(props.resource) : WORKER_WORDS[workerState(props.resource)],
+    word: workerActivity(props.resource, agent.value),
     since: `since ${ago(stateAt(props.resource)) || "just now"}`,
 }));
 const worktree = (row) => (row.worktree ? (row.branch ? `Own worktree, branch ${row.branch}` : "Own worktree") : "The project's checkout");

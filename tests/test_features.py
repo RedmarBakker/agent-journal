@@ -10604,6 +10604,18 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
     assert shown["finished"] == [], "and the tasks it finished on its queue, none yet, for its place in it"
     assert shown["worked"] == [{"id": 1, "title": shown["worked"][0]["title"], "state": "in hand"}], "and every task it held, for its Tasks section"
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    for chain, line, caller in (("t", "python3 -m pytest -q tests/test_notes.py", Caller.worker("main", 1, "w-1", "claude")), ("m", "journal worker merge 1", AGENT)):
+        (app.config.root / chain).mkdir()
+        app.container.get(OutputLog).start(chain, line, app.config.root / chain, caller)
+    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    [shown] = page["rows"]
+    assert shown["runs"] == ["testing"] and shown["merging"] is True, f"the worker's answer names its runs going on and a merge taking its work in, for what its inspector says it is doing now (task 3664): {shown['runs']}, {shown['merging']}"
+    with app.container.get(Scope).environment(MAIN):
+        outputs = app.container.get(CommandOutputs)
+        for output in outputs.prefix_runs("python3") + outputs.prefix_runs("journal worker merge"):
+            outputs.save(output.ended_with(0, 1.0), Actor.system())
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)

@@ -3,6 +3,7 @@ from journal.features.workers.support.merge_steps import MergeSteps
 from journal.db.query import Query
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_reports import WorkerReports
+from journal.features.workers.support.worker_runs import WorkerRuns
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
 from journal.http.support.request import Request
@@ -27,7 +28,8 @@ class WorkerController(Controller[Worker]):
 
     repository: Workers
 
-    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos, agents: Agents) -> None:
+    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos, agents: Agents, runs: WorkerRuns) -> None:
+        self.runs = runs
         self.repository, self.reports, self.actions, self.tasks, self.proofs, self.todos, self.agents = workers, reports, actions, tasks, proofs, todos, agents
 
     def check(self, request: Request) -> Response:
@@ -84,8 +86,9 @@ class WorkerController(Controller[Worker]):
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks, queues, finished, worked = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows), self.tasks.worked_tasks(rows)
+        labels, merging = self.runs.labels(rows), self.runs.merging(rows)
         return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []), "worked": [WorkedTask.read(task, finished.get(w.row_id, [])) for task in worked.get(w.row_id, [])],
-                 "holds": self.all_task_ids(w.row_id, views, queues), "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
+                 "holds": self.all_task_ids(w.row_id, views, queues), "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id], "runs": labels.get(w.session, []), "merging": w.row_id in merging} for w in rows]
 
     @staticmethod
     def all_task_ids(row_id: int, views: dict[int, WorkerTaskView], queues: dict) -> list[int]:
