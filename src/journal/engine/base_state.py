@@ -89,6 +89,9 @@ class BaseState:
     def is_waiting(self) -> bool:
         return False
 
+    def is_mode_bound(self) -> bool:
+        return False
+
     def blocks_tools(self) -> bool:
         return False
 

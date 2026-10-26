@@ -28,6 +28,9 @@ class Orchestrating(PlansReady):
     def mode_lines(self) -> tuple[Nudge, ...]:
             return (WorkersNudges.ORCHESTRATOR_MODE.create(),)
 
+    def choice_state(self) -> BaseState | None:
+        return None
+
     def plan_state(self, **fields) -> BaseState:
         return OrchestratingPlan(**fields)
 

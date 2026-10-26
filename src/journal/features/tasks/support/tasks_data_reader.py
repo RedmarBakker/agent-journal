@@ -62,6 +62,10 @@ class TasksDataReader:
             "polled_checks": lambda: tuple(check.row_id for check in self.checks.unresolved_waits()),
             "passed_waits": lambda: tuple(PassedWait.read(check) for check in self.checks.passed_waits(self.wait_checks.waited())),
             "wait_progress": lambda: self.progress.running(agent.session),
+            "choosable": lambda: tuple(t.row_id for t in self.assigner.choosable_work(agent)),
+            "choosable_summary": lambda: ", ".join(f"task {task.id} ({task.title}), paused because: {task.pause_reason}" for task in self.assigner.choosable_work(agent)),
+            "free_open": lambda: self.assigner.free_task() is not None,
+            "paused_declined": lambda: agent.paused_declined,
             "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

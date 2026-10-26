@@ -7050,7 +7050,7 @@ def test_one_task_is_started_whatever_starts_it_a_paused_plan_pauses_its_task_an
     console.run(["task", "complete", "2", "--how", "h"], AGENT)
     app.runtime().deferred.drain()
     assert app.container.get(Plans).find(1).state == "done", "the plan whose last task closes is done"
-    assert any("task 3 is paused" in line for line in keystrokes), "with nothing in hand, a close names a paused task"
+    assert tasks.find(3).state == "started", "with nothing else open, the close takes the paused task up: there is nothing to choose"
 
 
 def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_not(app: App):
@@ -9010,7 +9010,7 @@ def test_a_task_closed_by_a_commit_names_a_paused_task_at_once(app: App, monkeyp
     notified = reply["hookSpecificOutput"]["additionalContext"]
     app.runtime().deferred.drain()
     carried = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert "closed task 2" in notified and "task 1 is paused" in carried and "the footer comes first" in carried, f"the close names the paused task at once, on the next tool use, not a quarter of an hour later: {notified} {carried}"
+    assert "closed task 2" in notified and "task 1 is started next" in notified, f"with nothing else open the close takes the paused task up at once, there being nothing to choose: {notified} {carried}"
 
 
 def test_the_database_gives_deleted_rows_space_back_by_itself(app: App):

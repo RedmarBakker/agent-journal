@@ -104,6 +104,7 @@ class AgentActivity:
             "thinking_at": agent.thinking_at if agent.state != ENDED else 0.0,
             "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.kind == "TurnDisplayed"), ""),
             "stuck": agent.data.get("why", "") if agent.state == "stuck" else "",
+            "state_title": self.states.title(agent.state),
             "sequence": self.sequence(agent),
             "stack": self.stack(agent),
             "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],

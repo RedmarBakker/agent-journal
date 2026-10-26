@@ -7,6 +7,7 @@ from journal.events.rows.row_event import RowEvent
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.states.choosing_paused_work import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
 from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.support.ref import Ref
@@ -57,18 +58,26 @@ class DefaultTaskAssigner:
 
     def unheld_task(self, agent: Agent) -> Task | None:
         free = self.free_task()
-        choosable = self.tasks.choosable_paused_tasks(Ref.build(agent)) if self.is_auto() else []
-        if not choosable:
+        choosable = self.choosable_work(agent)
+        if not choosable or agent.paused_declined:
             return free
-        if free is None:
-            return choosable[0]
-        return free if free.priority > choosable[0].priority else None
+        if free is None or free.priority > choosable[0].priority:
+            return free or choosable[0]
+        return choosable[0] if self.choice_refusal_count(agent) >= CHOICE_REFUSALS else None
+
+    def choosable_work(self, agent: Agent) -> list[Task]:
+        return self.tasks.choosable_paused_tasks(Ref.build(agent)) if self.is_auto() else []
+
+    @staticmethod
+    def choice_refusal_count(agent: Agent) -> int:
+        top = agent.stack[-1] if agent.stack else {}
+        return int((top.get("data") or {}).get("refusals", 0)) if top.get("state") == CHOOSING_PAUSED_WORK else 0
 
     def free_task(self) -> Task | None:
         return self.tasks.next_open_task() if self.is_auto() else None
 
     def offered(self, agent: Agent) -> OpenTask | None:
-        task = self.paused_task(agent) or self.free_task()
+        task = self.paused_task(agent) or self.unheld_task(agent) or next(iter(self.choosable_work(agent)), None)
         return OpenTask(task.row_id, task.title, task.brief, 0, task.state.value) if task is not None else None
 
     def is_auto(self) -> bool:

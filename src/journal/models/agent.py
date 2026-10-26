@@ -18,6 +18,7 @@ from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.session_retired import SessionRetired
 from journal.events.rows.launch_takeover import LaunchTakeover
 from journal.events.rows.overview_read import OverviewRead
+from journal.events.rows.paused_work_declined import PausedWorkDeclined
 from journal.events.rows.context_decided import ContextDecided
 from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.places_scaled import PlacesScaled
@@ -50,6 +51,7 @@ class Agent(Scoped):
     skills_loaded: dict = field(default_factory=dict)
     context_threshold: int = 0
     is_overview_read: bool = True
+    paused_declined: bool = False
     threshold_due: int = 0
     skills_due: tuple[str, ...] = ()
     tool_uses: int = 0
@@ -124,6 +126,12 @@ class Agent(Scoped):
 
     def upgraded(self, previous: str, version: str, time: float) -> "Agent":
         return self.with_event(LaunchTakeover(environment_id=self.environment_id, time=time, agent_session=self.session, previous=previous, version=version))
+
+    def paused_work_declined(self, time: float) -> "Agent":
+        return self.with_(paused_declined=True).with_event(PausedWorkDeclined(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def paused_decline_cleared(self) -> "Agent":
+        return self.with_(paused_declined=False)
 
     def overview_read(self, time: float) -> "Agent":
         return self.with_(is_overview_read=True).with_event(OverviewRead(environment_id=self.environment_id, time=time))

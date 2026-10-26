@@ -1455,6 +1455,24 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     assert answers[0].refusal.rendered().startswith("paused tasks: task 2") and answers[1].refusal is None, "a round names the paused tasks once; a blocked task is never a reason to go on, and after the round the stop goes through"
     worked = answers[1].target.respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=200.0).with_data(left), auto)
     assert worked.target.stop_round == 0 and stop(left).refusal.rendered().startswith("paused tasks"), "work starts the round over"
+    from journal.events.rows.paused_work_declined import PausedWorkDeclined
+    from journal.events.rows.task_started import TaskStarted
+    from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
+    from journal.features.workers.states.orchestrating import Orchestrating
+    choosing = replace(paused, choosable=(2,), choosable_summary="task 2 (the parser), paused because: a review first", free_open=True, agent_tasks=(2, 4))
+    pushed = stop(of(choosing))
+    assert pushed.pushed == ChoosingPausedWork() and pushed.refusal.rendered().startswith("paused work to take up: task 2 (the parser)"), "a stop with paused work beside an open task pushes the choice with its one line"
+    assert stop(of(replace(choosing, paused_declined=True))).pushed is None and stop(of(replace(choosing, free_open=False))).pushed is None, "a declined choice, or no open task to weigh against, pushes no choice"
+    assert stop(of(replace(choosing, choosable=())), manual).pushed is None and Orchestrating().choice_state() is None, "off auto mode the reader names no choosable work, and on the orchestrator's floor there is no choice"
+    choice = ChoosingPausedWork()
+    first = choice.respond(Stop().with_data(of(choosing)), auto)
+    assert first.refusal.rendered().startswith("paused work to take up") and first.target.refusals == 1, "the choice refuses a stop with its list and counts it"
+    assert choice.respond(Stop(prior_refusal=True).with_data(of(choosing)), auto).refusal is None and ChoosingPausedWork(refusals=2).respond(Stop().with_data(of(choosing)), auto).refusal is None, "a stop after a refusal, or after its refusals, goes through"
+    assert choice.respond(Stop().with_data(of(replace(choosing, choosable=()))), auto).popped, "with nothing left to choose it pops"
+    assert choice.respond(PausedWorkDeclined(environment_id=1, agent_session="s1").reaching("s1").with_data(of(choosing)), auto).popped, "a decline pops it"
+    resumed = choice.respond(TaskStarted(environment_id=1, task_id=2, title="the parser", plan_id=0).with_data(of(choosing)), auto)
+    assert resumed.popped and resumed.handed_down, "the agent's own task started goes down to the floor, which pushes it"
+    assert not choice.respond(TaskStarted(environment_id=1, task_id=7, title="a worker's", plan_id=0).with_data(of(choosing)), auto).has_move(), "another agent's task started leaves the choice on top"
     idle = PlansReady(silenced_at=0.0)
     active = idle.respond(ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})), time=50.0).with_data(of(nothing)), auto)
     assert active.target == PlansReady(silenced_at=50.0, pause_reported=False)

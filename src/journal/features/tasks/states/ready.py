@@ -18,6 +18,7 @@ from journal.events.rows.task_started import TaskStarted
 from journal.engine.nudge import Nudge
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
 from journal.features.tasks.states.working import Working
 
 PAUSED_REMINDER_DELAY_SECONDS = 60.0
@@ -27,7 +28,7 @@ IDLE_CHECK_DELAY_SECONDS = 30 * 60.0
 
 @dataclass(frozen=True)
 class Ready(BaseState):
-    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by a paused task and by a blocked task whose check cannot run; an open task is the assigner's to start before the stack answers. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
+    """Nothing in hand: the bottom of the stack, never popped. A stop with paused work the agent may choose beside an open task, in auto mode, pushes the choice of paused work; otherwise a stop here is held by a paused task and by a blocked task whose check cannot run; an open task is the assigner's to start before the stack answers. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
 
     name = "idle"
     assigner = DefaultTaskAssigner
@@ -45,6 +46,9 @@ class Ready(BaseState):
 
     def working_state(self, **fields) -> BaseState:
         return Working(**fields)
+
+    def choice_state(self) -> BaseState | None:
+        return ChoosingPausedWork()
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.swap(self.active(event.time))
@@ -66,6 +70,10 @@ class Ready(BaseState):
         return self.swap(active if event.call.is_journal else replace(active, stop_round=0))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        tasks = event.data.part(TasksPart)
+        choice = self.choice_state()
+        if choice is not None and tasks.choosable and tasks.free_open and not tasks.paused_declined and not event.prior_refusal:
+            return Transition.merged(self, [self.push(choice), self.refuse(ChoosingPausedWork.choice_line(tasks))])
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])

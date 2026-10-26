@@ -26,6 +26,7 @@ from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
+from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
@@ -44,8 +45,8 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope) -> None:
-        self.assigners, self.sessions, self.scope = assigners, sessions, scope
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents) -> None:
+        self.assigners, self.sessions, self.scope, self.agents = assigners, sessions, scope, agents
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
@@ -106,6 +107,7 @@ class TaskCommand(Command):
         priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
+        self.verb(verbs, "skip-paused", "set your paused work aside until your next close and go on with the next open task").set_defaults(verb="skip_paused")
         self.verb(verbs, "next", "the next tasks to hand out, as the task assigner in force chooses them: for the orchestrator the next tasks to give workers, plan by plan in turn; it starts none").add_argument("--quantity", type=int, default=1, help="how many tasks to name, the assigner choosing each in turn")
 
     def create(self, args: Namespace, caller: Caller) -> int:
@@ -278,6 +280,12 @@ state: {task.state}
         phase = next((p for p in phases if p.phase.id in phase_ids), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
+    def skip_paused(self, args: Namespace, caller: Caller) -> int:
+        agent = self.sessions.agent(caller.agent_session, self.scope.id)
+        self.agents.rewritten(agent, caller.actor, lambda current: current.paused_work_declined(self.time_source.seconds()))
+        print("paused work set aside until your next close: your next stop takes up the next open task, or start one now with journal task start <n>")
+        return 0
+
     def next(self, args: Namespace, caller: Caller) -> int:
         agent = self.sessions.agent(caller.agent_session, self.scope.id)
         request = NextTasksRequest(session=agent.session, environment_id=self.scope.id, provider=agent.provider, time=self.time_source.moment().timestamp())
@@ -310,6 +318,11 @@ state: {task.state}
         next_task = self.next_tasks.holder_task(closed)
         if next_task:
             print(next_task.line())
+            return
+        holder = self.tasks.holder(closed)
+        choosable = self.tasks.choosable_paused_tasks(holder) if holder is not None and not self.plans.started_plans(closed) else []
+        if choosable:
+            print(f"paused work to take up, asked at your next stop: {', '.join(f'task {task.id} ({task.title})' for task in choosable)}")
 
     def _time(self) -> datetime:
         return self.time_source.moment()

@@ -50,6 +50,10 @@ task 1 resumed
 brief: The footer names the shop
 logged: the footer has its links
 
+$ agent: journal task skip-paused
+exit 0
+paused work set aside until your next close: your next stop takes up the next open task, or start one now with journal task start <n>
+
 $ agent: journal task block 2 'waits on the tax rates'
 exit 0
 task 2 blocked, waiting on: waits on the tax rates
@@ -1797,6 +1801,7 @@ tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why}}. `journal 
 tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks}}. resume one that can go on with `journal task resume <n>`
 tasks.paused_wait_ended  [tasks]  what paused task {{n}} waited on came: {{reason}}. `journal task resume {{n}}`
+tasks.paused_work_to_choose  [tasks]  paused work to take up: {{tasks}}{{blocked}}. take one up with `journal task resume <n>`, or go on with the next open task with `journal task skip-paused`
 tasks.stop_polling  [tasks]  you ran the same check {{times}} times in a row: {{command}}. wait for it instead of polling
 tasks.task_changed  [tasks]  task {{n}} changed. read it again with `journal task show {{n}}`
 tasks.task_in_hand_repeated  [tasks]  {{name}} in hand, {{edits}} edits
@@ -1891,7 +1896,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-275 nudges
+276 nudges
 
 $ agent: journal worker list
 exit 0

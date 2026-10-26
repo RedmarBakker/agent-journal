@@ -26,7 +26,7 @@ WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms()))
@@ -49,7 +49,7 @@ class TasksConduct(Conduct):
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
-        if event.outcome != "completed" or tasks.current_task or not tasks.paused or event.data.part(TaskSuccession):
+        if event.outcome != "completed" or tasks.current_task or not tasks.paused or tasks.choosable or event.data.part(TaskSuccession):
             return self.none()
         return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
 

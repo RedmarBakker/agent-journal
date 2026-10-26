@@ -77,3 +77,10 @@ test("the fitness badge opens the measures of the mode and a timeline of the las
     app.unmount();
     host.remove();
 });
+
+test("an idle agent in a state pushed over its floor, such as choosing its paused work, is named by that state's title", async () => {
+    const {lineOf} = await import("../src/domain/agentState.js");
+    const agent = {table: "agents", id: 1, session: "s1", role: "main", status: "idle", state: "choosing_paused_work", state_title: "Choosing paused work", stack: [{state: "idle"}, {state: "choosing_paused_work"}], heard_at: new Date().toISOString()};
+    expect(lineOf(agent, null, true)).toBe("choosing paused work");
+    expect(lineOf({...agent, state: "idle", state_title: "Idle", stack: [{state: "idle"}]}, null, true)).toBe("ready for the next task");
+});

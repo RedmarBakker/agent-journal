@@ -94,12 +94,16 @@ export function wordOf(state) {
     return WORDS[state] || "Idle";
 }
 
+// The title of a state pushed over the agent's floor, such as Choosing paused work, which the bar names while the agent is idle in it.
+export const pushedTitle = (agent) => ((agent.stack || []).length > 1 && agent.state_title ? agent.state_title.toLowerCase() : "");
+
 export function lineOf(agent, task, auto = false, workers = []) {
     const state = stateOf(agent);
     if (state === "stopped") return "no agent is on this environment";
     if (state === "compacting") return "compacting the conversation, then it carries on";
     if (state === "waiting") return waitingOn(agent, workers)?.label || "something it has not named";
     if (task) return named(task);
+    if (state === "idle" && pushedTitle(agent)) return pushedTitle(agent);
     if (state === "idle") return phrase(auto ? "auto" : "idle");
     return ["working", "busy"].includes(state) ? busyWording(agent) : phrase("bearings");
 }

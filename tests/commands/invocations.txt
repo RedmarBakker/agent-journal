@@ -11,6 +11,7 @@ agent task list
 agent task next --quantity 2
 agent task pause 1 "the cart comes first"
 agent task resume 1
+agent task skip-paused
 agent task block 2 "waits on the tax rates"
 agent task unblock 2
 agent task dock 1

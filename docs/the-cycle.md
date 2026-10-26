@@ -63,8 +63,12 @@ table of every state and every line and who says it.
                      │  working on a task ──► "task N is in hand: carry on"  (409) │
                      │  idle, auto on, tasks open ──► "tasks are open: task N next:│
                      │        <title>; sure you want to stop?"              (409)  │
-                     │  idle, paused tasks ──► "paused tasks, still open: …" (409, │
-                     │        once; the second stop passes)                        │
+                     │  idle, auto on, paused work beside an open task ──► the     │
+                     │        choice of paused work is pushed: "paused work to     │
+                     │        take up: …"  (409, twice at most, then the first     │
+                     │        paused task is taken up for the agent)               │
+                     │  idle, other paused tasks ──► "paused tasks, still open: …" │
+                     │        (409, once; the second stop passes)                  │
                      │  paused and the journal awaits the agent (a skill, the      │
                      │        environment read, a context-mark decision) ──► "you  │
                      │        stopped while the journal awaits <what>"     (409,   │

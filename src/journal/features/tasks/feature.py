@@ -16,6 +16,9 @@ from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.features.tasks.task_edit_conduct import TaskEditConduct
 from journal.support.agent_role import AgentRole
 from journal.support.skill import Skill
+from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
+from journal.features.tasks.listeners.paused_decline_clearing import PausedDeclineClearing
+from journal.features.tasks.listeners.user_words_decline import UserWordsDecline
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.states.ready import Ready
@@ -42,18 +45,18 @@ class Tasks(Feature[TasksData]):
     card_kinds = (MarkKind(CardKind.TASK_MOVES, "Tasks started and completed", "tasks"), MarkKind(CardKind.TASK_PAUSES, "Tasks paused and blocked", "tasks"), MarkKind(CardKind.IMPASSE, "Agent stuck", "impasse"), MarkKind(CardKind.REQUESTS, "Requests filed for you", "requests"),)
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
-    states = (Ready, Working, Impasse, ExternalWait)
+    states = (Ready, Working, Impasse, ExternalWait, ChoosingPausedWork)
     assigners = (DefaultTaskAssigner,)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     demands = (TasksDemands.PRIORITIES,)
     options = (TasksOptions.AUTO, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (LeftWaitChecks,)
-    listeners = (ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
+    listeners = (PausedDeclineClearing, UserWordsDecline, ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, DeletePassedWaitCheck, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
     conduct = (TasksConduct, TaskEditConduct)
     helper_conduct = {AgentRole.WORKER: (TaskEditConduct,)}
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
+    nudges = (TasksNudges.PAUSED_CHOICE, TasksNudges.WAIT_STOP, TasksNudges.WAIT_LIFTED, TasksNudges.WAIT_CHECK_PASSED, TasksNudges.WAIT_REFUSAL, TasksNudges.WAIT_SWITCH_REFUSAL, TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK_STARTED, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
@@ -96,9 +99,12 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: at a stop, or when your task closes, with no task
-  in hand the journal starts the next one for you: your own paused task first, then the next task of your plan or of an approved plan, then the first
-  open task by priority; only the user stops you. A stop with paused tasks names them in auto mode: paused is still open. With
-  auto mode off the journal starts no task for you.
+  in hand the journal starts the next one for you: your own paused task whose wait ended first, then the next task of your plan or
+  of an approved plan, then the first open task by priority; only the user stops you. A task you paused by choice is never
+  resumed for you: while it waits beside an open task, the stop asks you which to take up, `journal task resume <n>` for the
+  paused one or `journal task skip-paused` to go on with the open one until your next close; an open task more urgent than
+  every paused one is started at once, and with no open task the first paused one is. With auto mode off the journal starts
+  no task for you.
 - Work you put off in words is work lost: file it as a task instead.
 - Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'), commands=('task',))
