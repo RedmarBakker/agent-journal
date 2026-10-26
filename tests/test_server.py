@@ -1162,7 +1162,7 @@ def test_the_reuse_rules_are_said_in_the_workers_skill_law_four_the_notes_and_th
     assert all(words in skill for words in ("journal worker notify <n>", "reported, or was stopped", "--fresh", "workers.idle_kept", "--why", "journal worker peers", "journal subagent retire <n>")), "the skill says notify, send, the dispatch refusals, the reuse question, peers and subagent retire"
     assert 'journal worker send <n> "<job>"' in LawText.BLOCK and "worker say" not in LawText.BLOCK and "journal worker send" in notes and "worker\nsay" not in notes
     workers = next(f for f in call(server, "GET", "/journal/manifest")[1]["features"] if f["name"] == "workers")
-    assert {s["name"]: s["title"] for s in workers["options"]}["idle_kept"] == "Workers kept for reuse per profile", "the Settings page shows the cap in plain words"
+    assert {s["name"]: s["title"] for s in workers["options"]}["idle_kept"] == "Workers for reuse per profile", "the Settings page shows the cap in plain words"
 
 
 def test_the_phone_page_installs_from_the_tunnels_listener_as_an_app(sharing):

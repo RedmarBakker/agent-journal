@@ -1879,7 +1879,7 @@ def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_o
     for n in range(6):
         assert low not in edit(f"a{n}.md") + edit(f"b{n}.md") + handover(), "a builder writing most of its work scores near its ideal and hears nothing"
     lines = "".join(handover() for _ in range(16))
-    assert low in lines and "your own file edits among your edits and handovers is" in lines and "take the next task yourself" in lines, "a builder handing out most of its work is told its score and the measure furthest off, with what to do"
+    assert low in lines and "your own file edits among your edits and the handovers made while your load was under its line is" in lines and "take the next task yourself" in lines, "a builder handing out most of its work is told its score and the measure furthest off, with what to do"
     from journal.http.agents.agent_activity import AgentActivity
     from journal.repositories.agents import Agents
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
@@ -1969,7 +1969,7 @@ def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_
     ideal = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1))
     assert (ideal.score, ideal.gaps) == (100, ()), "a builder inside every range scores 100"
     drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
-    assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
+    assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and the handovers made while your load was under its line", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
     assert not WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
@@ -2005,7 +2005,7 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     assert WorkersProfiles.ORCHESTRATOR.scored(unprepared).score < 100 and WorkersProfiles.reviewed_mode_profile("orchestrator").scored(unprepared).score == 100, "with the reviewer on, merges with no proof read or test run of its own cost the orchestrator nothing"
     assert WorkersProfiles.reviewed_mode_profile("builder") is WorkersProfiles.BUILDER, "the other modes are measured as they were"
     data = type("Workers", (), {"tool_uses": unprepared, "fitness_level": 100})()
-    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, FitnessOptions.LEVEL_STEP.key: 5, ReviewingOptions.REVIEWER.key: False}
+    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, FitnessOptions.LEVEL_STEP.key: 5, FitnessOptions.WARNINGS.key: True, ReviewingOptions.REVIEWER.key: False}
     assert fitness_lines("orchestrator", data, Settings(values)), "with the reviewer off a low score is told as today"
     assert not fitness_lines("orchestrator", data, Settings({**values, ReviewingOptions.REVIEWER.key: True})), "and with it on the merge measure no longer lowers it"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
@@ -2041,7 +2041,7 @@ def test_every_fitness_score_is_kept_with_its_time_and_gaps_as_a_timeline_point_
     points = [FitnessPoint.parsed(entry.data) for entry in app.container.get(Entries).all_matching(kind=FitnessPoint.KIND)]
     moves = [point.moved for point in points]
     assert moves[0] == "not scored yet: too few tool uses in this mode" and "first score in this mode" in moves, moves
-    assert any(move.startswith("your own file edits among your edits and handovers: ") and move.endswith("% of the ideal") for move in moves), "a point names the measure that moved the score"
+    assert any(move.startswith("your own file edits among your edits and the handovers made while your load was under its line: ") and move.endswith("% of the ideal") for move in moves), "a point names the measure that moved the score"
     shape = lambda point: (point.score, point.is_measured, point.gaps, point.parts)
     assert all(points[n].scored_at <= points[n + 1].scored_at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
@@ -5717,7 +5717,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
     tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset())).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -11730,7 +11730,7 @@ def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_on
     said = lambda profile, brief="tidy src/parser.py": hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal worker dispatch 'Ada' '{brief}' --profile {profile} --fresh"})
     status, body = said("journal-medior", "speed up the lexer.py")
     text = json.dumps(body)
-    assert status != 200 and "2 of the 3 journal-medior workers kept are idle" in text, "the profile's cap is reached while two of its workers wait, and --fresh is no way past it"
+    assert status != 200 and "2 of the 3 journal-medior workers are idle" in text, "the profile's cap is reached while two of its workers wait, and --fresh is no way past it"
     assert text.index("worker 3, Mr. Knows") < text.index("worker 2, Mr. Idle") and "journal worker send 3" in text and "Mr. Out" not in text.split("idle:")[1], "the idle ones are named with their send lines, the one that knows the files first"
     assert said("journal-senior")[0] == 200, "another profile has places of its own"
     assert said("journal-plan-reviewer")[0] == 200, "a reviewer always starts fresh"
@@ -11993,7 +11993,7 @@ def test_the_orchestrator_fitness_scores_waits_with_on_or_until_well_waits_in_wo
     use, score = measured()
     assert use.missing == ("4:2",) and score == 0.0, f"a task naming another open task it does not wait on counts against: {use}, {score}"
     told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]
-    assert told == ["task 4 names task 2, still open, and does not wait on it. journal task block 4 --on task:2"], told
+    assert told == ["task 4 lists task 2, still open, and does not wait on it. journal task block 4 --on task:2"], told
     measured()
     assert len([entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]) == 1, "a missing wait is named once"
 
@@ -12141,7 +12141,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert costly() == [], "under the setting's dollars nothing is said"
     runner.cost_recorded(workers.find(1), 0.75, Actor.system())
     app.runtime().deferred.drain()
-    assert costly() == ['worker 1 has spent $2.25 on opus for work its profile says is of a settled shape. a cheaper model may do it: journal worker send 1 --model <model> "<job>"'], costly()
+    assert costly() == ['worker 1 has spent $2.25 on opus for work its profile describes as of a settled shape. a cheaper model may do it: journal worker send 1 --model <model> "<job>"'], costly()
     runner.cost_recorded(workers.find(1), 3.0, Actor.system())
     app.runtime().deferred.drain()
     assert len(costly()) == 1, "it is said once"
