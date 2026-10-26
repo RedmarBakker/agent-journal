@@ -1249,7 +1249,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersOptions.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.FITNESS_THRESHOLD.key: 70, "workers.fitness_warnings": True, "tasks.auto": False, "reviewing.reviewer": False})
+    settings = SettingsValue({MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersOptions.SUBAGENT_LIMIT.key: 2, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, "workers.fitness_warnings": True, "tasks.auto": False, "reviewing.reviewer": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
@@ -2039,28 +2039,6 @@ def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_la
     assert late.target.respond(at(Stop(), 700.0), settings).refusal.name == "log_first_at_stop", "a stop past the span asks for the log first"
 
 
-def test_work_waiting_to_be_checked_is_named_every_so_many_tool_uses_while_the_agent_works_on(tmp_path):
-    from dataclasses import replace
-
-    from journal.events.feature_data import FeatureData
-    from journal.features.workers.support.ready_work import ReadyWork
-    from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import waiting_work_check
-    from journal.features.tasks.states.ready import Ready
-
-    settings = SettingsValue({"workers.check_reminder_uses": 5})
-    waiting = WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=tmp_path, worktrees=(), ready_work=(ReadyWork(worker=57, name="Mr. Muybridge", task=2589),))
-    merged = replace(waiting, ready_work=())
-    read = ToolStarting(call=ToolCall.decoded("Read", {"file_path": "a.py"}, Claude().operation("Read", {"file_path": "a.py"}), ()))
-
-    def said(data, use):
-        return [n.rendered() for n in waiting_work_check(Ready(), replace(read, tool_use=use).with_data(FeatureData({"workers": data})), settings).nudges]
-
-    assert [said(waiting, use) for use in (1, 4)] == [[], []], "between the reminders nothing is said"
-    assert said(waiting, 5) == ["worker 57 waits: task 2589"], "at the set tool use the waiting work is named"
-    assert said(waiting, 10) and said(merged, 10) == [], "again at the next, and not once it is merged"
-
-
 def test_claude_codes_switch_model_menu_is_recognised_in_a_narrow_terminal_and_a_model_picker_is_not():
     import textwrap
     from journal.providers.support.menu import Menu
@@ -2448,45 +2426,6 @@ def test_a_workers_moves_are_the_items_its_queue_counts_and_an_idle_place_is_non
     assert reader.worker_items(Worker(id=8, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0), ("sent a job", 80.0))))) == [], "an idle place is no item of the queue; its minutes are read apart"
 
 
-def test_the_load_is_told_at_each_mark_from_its_start_once_and_drained_past_one_every_so_many_tool_uses():
-    from pathlib import Path
-    from journal.features.workers.support.load_levels import LoadLevels
-    from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import crowd_check
-    from journal.features.workers.workers_options import WorkersOptions
-    from journal.models.support.agent_load import AgentLoad
-    assert [LoadLevels.standing(rho, 0.8, 0.05) for rho in (0.79, 0.8, 0.83, 0.85, 0.99, 1.02)] == [0.0, 0.8, 0.8, 0.85, 0.95, 1.0]
-    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8, WorkersOptions.WORKLOAD_NOTICE_STEP.key: 0.05, WorkersOptions.WORKLOAD_DRAIN_TOOL_USES.key: 25})
-    def told(rho, previous=0.0, use=1, refs=("workers:12", "messages:553", "workers:15")):
-        load = AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0)
-        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).counted(use).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load, workload_level=previous)}))
-        return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
-    assert told(0.79) == [], "under the first mark nothing is said"
-    assert told(0.8) == ["your load is 0.8, past 0.8: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"]
-    assert told(0.83, 0.8) == [], "the mark it stands on was told"
-    assert told(0.85, 0.8)[0].startswith("your load is 0.85, past 0.85: "), "the next mark is told"
-    assert told(0.82, 0.85) == [] and told(0.85, 0.8) != [], "a fall lets the marks above be told again"
-    assert told(1.02, 0.95, use=3)[0].startswith("your load is 1.02, more arrives than you clear: worker 12, message 553, worker 15 wait, worker 12 the oldest. drain it: dispatch workers")
-    assert told(1.02, 1.0, use=3) == [] and told(1.02, 1.0, use=25) != [], "past one it repeats every 25 tool uses"
-    assert told(0.98, 0.95, use=25) == [], "back under 1.0 no drain line comes"
-    assert told(0.9, 0.0, refs=()) == [], "with nothing waiting there is nothing to clear, so nothing is said"
-
-
-def test_the_builder_is_told_at_the_same_marks_and_the_solo_agent_is_told_nothing():
-    from pathlib import Path
-    from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import crowd_check
-    from journal.features.workers.workers_options import WorkersOptions
-    from journal.models.support.agent_load import AgentLoad
-    def told(mode, rho):
-        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.WORKLOAD_FIRST_NOTICE.key: 0.8, WorkersOptions.WORKLOAD_NOTICE_STEP.key: 0.05, WorkersOptions.WORKLOAD_DRAIN_TOOL_USES.key: 25})
-        load = AgentLoad(rho=rho, waiting_refs=("workers:12",), waiting_items=1, measured_at=1.0)
-        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
-        return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
-    assert told("builder", 0.6) == [] and told("builder", 0.8) != []
-    assert told("solo", 0.95) == [], "the solo agent's load is counted and never spoken of"
-
-
 def test_tasks_added_to_a_plan_leave_the_load_where_it_was(app: App):
     from journal.models.link import Link
     from journal.models.support.ref import Ref
@@ -2542,14 +2481,6 @@ def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held
     assert heard("w2") == [], "only the orchestrator hears its places change"
     closed = Agent(id=1, environment_id=1, session="s1", work_queue=low).place_closed(2, now).events[-1]
     assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
-
-
-def test_a_compaction_keeps_the_newest_fifty_tool_uses_in_the_fitness_window():
-    agent = Agent(environment_id=1, session="s1", tool_uses=320, handover_uses=(250, 300, 319), file_edit_uses=(310,))
-    compacted = agent.compacted()
-    assert compacted.tool_uses == 0 and compacted.windowed(compacted.handover_uses) == (-20, -1) and compacted.windowed(compacted.file_edit_uses) == (-10,), "the same uses stay in the window after the count starts again"
-    stale = Agent(environment_id=1, session="s1", tool_uses=166, handover_uses=(150, 290, 321))
-    assert stale.windowed(stale.handover_uses) == (150,), "a use numbered above the count is from before a compaction and left out"
 
 
 def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after_the_interval_and_an_unblocking_task_queued_behind_others_is_named_at_once():
@@ -2765,16 +2696,6 @@ def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_writt
     finally:
         source.unpin()
     assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"
-
-
-def test_the_orchestrators_old_fitness_reads_its_load_level_and_the_builders_old_load_measure_is_gone_on_purpose():
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    from journal.models.support.agent_load import AgentLoad
-    def orchestrator(rho):
-        return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", mode_uses=100, window_uses=100, handovers=20, load=AgentLoad(rho=rho, measured_at=1.0)))
-    assert orchestrator(0.3).score > orchestrator(0.95).score + 5, "an orchestrator at a low load scores well, at a high load poorly"
-    assert WorkersProfiles.mode_profile("builder") is None, "the builder is judged by its measures alone"
 
 
 HELPER_CONDUCTS = {
@@ -3015,7 +2936,7 @@ def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_
     failing = MeasureStates("orchestrator", 0.0, (MeasureState("high_queue_minutes", 14.0, is_measured=True, is_failing=True, changed_at=400.0, measured_at=1000.0),))
     workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=1000.0), measures=failing, band=PressureBand.HIGH)
     event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": workers}))
-    lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: True})).nudges
+    lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})).nudges
     assert [line.rendered() for line in lines] == ["the worker queue has stood high for 14 minutes. clear worker 12 first, the oldest waiting"], [line.rendered() for line in lines]
     assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: False})).nudges == (), "with the warnings off no measure line is said"
     hook(app, "SessionStart")
@@ -3101,7 +3022,7 @@ def test_each_builder_measure_line_speaks_where_its_measure_fails_in_its_bands_a
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     from journal.models.worker import Worker
-    settings = SettingsValue({FitnessOptions.WARNINGS.key: True})
+    settings = SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})
     def said(failing: str, value: float, band: PressureBand, current_task: int = 7, refs=("messages:4", "workers:12"), delivered=(Worker(environment_id=1, id=5),), command: str = "ls") -> list[str]:
         measures = MeasureStates("builder", 0.0, (MeasureState(failing, value, is_measured=True, is_failing=True, measured_at=1000.0),))
         workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=refs, waiting_items=len(refs), measured_at=1000.0), measures=measures, band=band, delivered_workers=delivered)
@@ -3161,7 +3082,7 @@ def test_each_orchestrator_measure_line_speaks_where_its_measure_fails_in_its_ba
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     from journal.models.worker import Worker
-    settings = SettingsValue({FitnessOptions.WARNINGS.key: True, WorkersOptions.WORKER_LIMIT.key: 3})
+    settings = SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True, WorkersOptions.WORKER_LIMIT.key: 3})
     task = OpenTask(id=9, title="Fix the cart", brief="", plan_id=0)
     def said(failing: tuple[str, ...], value: float, band: PressureBand, refs=("messages:4", "workers:12"), idle=(), out=(Worker(environment_id=1, id=6),), next_open=task, open_count: int = 3, command: str = "ls") -> list[str]:
         measures = MeasureStates("orchestrator", 0.0, tuple(MeasureState(key, value, is_measured=True, is_failing=True, measured_at=1000.0) for key in failing))
@@ -3193,6 +3114,91 @@ def test_the_orchestrator_share_columns_are_dropped_from_a_database_that_holds_t
     OrchestratorShareColumnsDrop().apply(connection)
     columns = {row["name"] for row in connection.all("PRAGMA table_info(agents)")}
     assert not columns & set(DROPPED_COLUMNS) and connection.all("SELECT session FROM agents")[0]["session"] == "s1", "the columns go, the row stays, and a second run finds nothing to drop"
+
+
+def test_every_mode_is_scored_on_how_long_its_oldest_message_waits_and_solo_on_that_alone():
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_series import LoadSeries
+    from journal.features.workers.support.measure_source import MeasureSource
+    from journal.features.workers.support.mode_measures import COMPLETION_RATE, MESSAGE_WAIT, ModeMeasures
+    from journal.models.agent import Agent
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    queue = LoadSeries(30, 10, 0.8, 0.5).measured([LoadItem(ref="messages:553", arrived_at=9280.0, weight=3.0)], [], 10000.0)
+    assert MeasureSource(Agent(environment_id=1, session="s1", message_queue=queue), 10000.0, None, None, None).message_wait_minutes() == 12.0, "a message unanswered for twelve minutes"
+    state = ModeMeasures.stepped(MESSAGE_WAIT, MeasureState("message_wait"), 12.0, 10000.0)
+    scored = ModeMeasures.scored(MeasureStates("solo", 0.0, (state, MeasureState("completion_rate", 4.0, is_measured=True, measured_at=10000.0))), (MESSAGE_WAIT, COMPLETION_RATE), 1800.0)
+    assert state.is_failing and scored.score == 72 and dict(scored.parts) == {"message_wait": 72}, "twelve minutes is off its five, scored on the minutes kind, and the tasks closed are shown only"
+
+
+def test_the_tool_use_columns_are_dropped_from_a_database_that_holds_them(connection):
+    from journal.db.migrations.tool_use_columns_drop import DROPPED_COLUMNS, ToolUseColumnsDrop
+    for column in DROPPED_COLUMNS:
+        connection.execute(f"ALTER TABLE agents ADD COLUMN {column} TEXT")
+    connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator, handover_uses) VALUES (1, 's1', 'main', 'idle', '{}', '[]', '2026-10-26', 'system', '[3]')")
+    connection.execute("INSERT INTO entries (environment_id, kind, actor, data, created_at, creator) VALUES (1, 'workload_level', 'system', '{}', '2026-10-26', 'system')")
+    ToolUseColumnsDrop().apply(connection)
+    ToolUseColumnsDrop().apply(connection)
+    columns = {row["name"] for row in connection.all("PRAGMA table_info(agents)")}
+    assert not columns & set(DROPPED_COLUMNS) and connection.all("SELECT session FROM agents")[0]["session"] == "s1", "the columns go and the row stays"
+    assert not connection.all("SELECT id FROM entries WHERE kind = 'workload_level'"), "and the load level entries go"
+
+
+def test_the_settings_rows_of_removed_options_are_deleted_and_the_settings_read_cleanly_before_and_after(app: App):
+    from journal.db.connection import Connection
+    from journal.db.migrations.removed_settings_drop import REMOVED_KEYS, RemovedSettingsDrop
+    connection = app.container.get(Connection)
+    for key in REMOVED_KEYS[:3]:
+        connection.execute("INSERT INTO settings (environment_id, key, value, created_at, creator) VALUES (0, ?, '5', '2026-10-26', 'system')", (key,))
+    assert app.console().run(["settings", "list"], AGENT).code == 0, "the settings read with stale rows in place"
+    RemovedSettingsDrop().apply(connection)
+    assert not connection.all("SELECT key FROM settings WHERE key = ?", (REMOVED_KEYS[0],)), "the stale rows are gone"
+    listed = app.console().run(["settings", "list"], AGENT)
+    assert listed.code == 0 and REMOVED_KEYS[0] not in listed.text, "and the list names none of them"
+
+
+def test_a_change_of_mode_starts_the_measures_fresh_so_no_line_of_the_old_mode_is_said_and_old_merges_are_not_counted(app: App):
+    from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.mode_measures import ModeMeasures
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import measure_check
+    from journal.models.agent import Agent
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.pressure_band import PressureBand
+    failing = MeasureStates("builder", 0.0, (MeasureState("own_code_share", 0.2, is_measured=True, is_failing=True, measured_at=9000.0),))
+    agent = Agent(environment_id=1, session="s1", committed_lines=((9000.0, 10),), merged_lines=((9100.0, 60), (9200.0, 60)), measures=failing, band=PressureBand.HIGH)
+    with app.container.get(Scope).environment(1):
+        fresh = app.container.get(ModeMeasures).worked(agent, "orchestrator", 10000.0)
+        later = app.container.get(ModeMeasures).worked(agent.measures_worked(fresh), "orchestrator", 10600.0)
+    assert fresh.mode == "orchestrator" and fresh.started_at == 10000.0 and not fresh.failing_keys(), "the new mode's measures start fresh, none failing"
+    assert not later.state("delegation").is_measured, "the merges taken in before the switch are not counted for the new mode"
+    workers = WorkersData((), (), 0, (), Path("/w"), (), measures=fresh, band=PressureBand.NORMAL)
+    tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
+    event = ToolStarting(call=shell("ls")).with_data(FeatureData({"workers": workers, "tasks": tasks}))
+    assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: True})).nudges == (), "no line of the old mode is said after the switch"
+
+
+def test_a_worker_queue_failing_past_its_block_minutes_blocks_writes_until_the_oldest_is_cleared_and_never_its_own_remedy():
+    from journal.features.workers.fitness_options import FitnessOptions
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import measure_check
+    from journal.models.support.agent_load import AgentLoad
+    from journal.models.support.measure_state import MeasureState
+    from journal.models.support.measure_states import MeasureStates
+    from journal.models.support.pressure_band import PressureBand
+    on = SettingsValue({FitnessOptions.WARNINGS.key: True, FitnessOptions.WRITE_BLOCK_MINUTES.key: 15})
+    edit = Claude().call("Edit", {"file_path": "/w/a.py", "old_string": "x", "new_string": "y"}, frozenset())
+    def answer(call, failing: bool = True, time: float = 1000.0, settings=on):
+        state = MeasureState("high_queue_minutes", 20.0, is_measured=True, is_failing=failing, changed_at=0.0, measured_at=time)
+        workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=time), measures=MeasureStates("orchestrator", 0.0, (state,)), band=PressureBand.HIGH)
+        return measure_check(Ready(), ToolStarting(call=call, time=time).with_data(FeatureData({"workers": workers})), settings)
+    assert answer(edit).refusal.rendered() == "the worker queue has stood high for 20 minutes. clear worker 12 first, the oldest waiting", "past fifteen minutes failing, a write waits with the line as its remedy"
+    assert answer(edit, time=600.0).refusal is None, "within the block minutes the line is said, the write goes through"
+    assert answer(shell("journal worker merge 12")).refusal is None and answer(shell("cat src/a.py")).refusal is None, "the merge it names and every read go through"
+    assert answer(edit, failing=False).refusal is None, "once the queue is clear the next write goes through"
+    assert answer(edit, settings=SettingsValue({FitnessOptions.WARNINGS.key: False})).refusal is None, "with the fitness warnings off nothing is blocked"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):

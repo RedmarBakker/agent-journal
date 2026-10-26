@@ -1260,6 +1260,7 @@ plans.test_commands = 'pytest, journal suite'
 sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
+workers.write_block_minutes = 15
 workers.builder_active_workers = 2
 workers.score_warmup_minutes = 30
 workers.orchestrator_high_entry = 0.8
@@ -1275,7 +1276,6 @@ workers.empty_queue_minutes = 5
 workers.series_hours = 3
 workers.commit_line_cap = 400
 workers.idle_hours = 4
-workers.fitness_level_step = 5
 workers.fitness_warnings = True  (the user sets it)
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
@@ -1285,14 +1285,10 @@ workers.orchestrator_approves_plans = False  (the user sets it)
 workers.orchestrator_plan_approval = 'can approve only its own plans'  (the user sets it)
 workers.orchestrator_releases = False  (the user sets it)
 workers.plan_stall_minutes = 60
-workers.fitness_threshold = 70
 workers.load_window_minutes = 30
 workers.load_half_life_minutes = 10
 workers.load_warn = 0.7
 workers.builder_load_ceiling = 0.5
-workers.load_told_from = 0.8
-workers.load_told_step = 0.05
-workers.load_drain_tool_uses = 25
 workers.reviewers_most = 2
 workers.verifiers_most = 2
 workers.builder_may_dispatch = True  (the user sets it)
@@ -1308,30 +1304,17 @@ workers.place_floor = ''  (the user sets it)
 workers.place_ceiling = ''  (the user sets it)
 workers.weight_user_message = 3
 workers.weight_repeat_send_back = 1.5
-workers.weight_idle_place = 0.5
 workers.recovery_full_score_minutes = 10
 workers.recovery_zero_score_minutes = 60
-workers.interruption_window_minutes = 60
-workers.interruptions_full_score_per_hour = 2
-workers.interruptions_zero_score_per_hour = 8
-workers.plenty_open_tasks = 3
-workers.quick_report_minutes = 3
-workers.quick_report_drop_points = 20
-workers.tiny_job_drop_points = 30
-workers.drop_recovery_minutes = 30
 workers.small_task_points = 2
 workers.large_task_points = 5
 workers.long_queue_tasks = 4
-workers.report_misfit_drop_points = 10
-workers.queue_window_minutes = 60
-workers.queue_drain_hours = 2
 workers.held_still_minutes = 60
 workers.held_share = 0.4
 workers.unordered_plan_tasks = 10
 workers.priorities_minutes = 45
 workers.model_fit_sample = 5
 workers.costly_shaped_work_dollars = 2.0
-workers.solo_dispatches = 3
 workers.timeout_minutes = 60
 workers.mode = 'builder'  (the user sets it)
 workers.testing = 'Hand the tests over'
@@ -1343,7 +1326,6 @@ workers.failing_runs = 3
 workers.test_command = ''
 workers.test_command_proof = ''
 workers.test_run_lines = True
-workers.check_reminder_uses = 25
 workers.most_out = 3
 workers.most_subagents = 5
 workers.idle_kept = 8
@@ -1826,14 +1808,11 @@ workers.builder_clear_oldest  [workers]  the worker queue has stood high for {{m
 workers.builder_take_in_first  [workers]  {{count}} workers have been active at once this hour, on average. merge worker {{n}} next, then hand out the next task
 workers.builder_write_next  [workers]  your own share of the code this hour is {{share}}. write task {{n}} yourself
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
-workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
 workers.clock_in_first  [workers]  your writes wait until you clock in. journal task show <n>, then journal clock-in
 workers.clocked_out_work_waits  [workers]  {{workers}} clocked out and their work waits for you. check each point with journal worker check <n> <point>, or send one back with --short "<what is missing>", and merge what is checked with journal worker merge <n>
 workers.could_it_be_reused  [workers]  can worker {{n}} be reused?. if so, `journal worker send {{n}} "<job>"`; if not, repeat the command with --why "<why>"
 workers.delegate_the_task  [workers]  {{name}} is in hand and you orchestrate; {{logged}}. hand it to a worker with journal worker dispatch "<Name>" --task <n>, and review its report
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
-workers.load_drain  [workers]  your load is {{rho}}, more arrives than you clear: {{queue}} wait, {{first}} the oldest. drain it: dispatch workers, or hand the work out better
-workers.load_rising  [workers]  your load is {{rho}}, past {{level}}: {{queue}} wait; clear {{first}} first, the oldest
 workers.make_the_wait_a_block  [workers]  you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else
 workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done
@@ -1855,7 +1834,6 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_order_without_dependencies  [workers]  plan {{plan}} has {{open}} open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
-workers.quick_report_dropped_the_fitness  [workers]  worker {{n}} reported within a minute of its job's start while {{open}} tasks were open, which cost your fitness {{points}} points at once: queue it several tasks with journal worker queue {{n}} <task> <task>... --report queue, so it reports once for all of them
 workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?. answer with journal plan priorities '<the order and why>'
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
@@ -1865,7 +1843,6 @@ workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers alre
 {{workers}}. send the job to one of them, or add --fresh to the dispatch
 workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on files this job lists:
 {{subagents}}. send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`
-workers.solo_researches_itself  [workers]  you are solo: you sent more subagents than you read and searched yourself. read and research this yourself; a subagent is for the rare job too wide to do in your own turns
 workers.started_plans  [workers]  started plans: {{plans}}
 workers.suite_failed_after_merges  [workers]  the whole suite failed in output {{run}} after the merges of {{workers}}. read what failed, then send the work back to the worker whose change broke it: journal worker send {{n}} "the whole suite fails since your merge: <what failed>; fix it and clock out again"
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
@@ -1873,13 +1850,10 @@ workers.task_names_another_without_a_wait  [workers]  task {{task}} lists task {
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
 workers.the_journal_runs_the_tests  [workers]  the journal runs your tests here, so you do not run {{command}}. name them when you clock out: journal clock-out "<report>" --tests "<the arguments the test command takes>"
-workers.tiny_job_dropped_the_fitness  [workers]  worker {{n}} reported {{seconds}} seconds after its job's start with no other task open, which cost your fitness {{points}} points at once: do a job this small yourself, and hand a worker only work worth its start
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue. put it first: journal worker queue {{n}} {{task}} --first
 workers.wait_for_running_workers  [workers]  {{workers}} are still out and no work waits to be checked. wait for them with journal worker wait {{numbers}}
-workers.work_mode_fitness_fell  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses, fallen past a mark: {{gaps}}. bring the measures named back into their range
-workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
 workers.worker_costly_on_shaped_work  [workers]  worker {{n}} has spent ${{dollars}} on {{model}} for work its profile describes as of a settled shape. a cheaper model may do it: journal worker send {{n}} --model <model> "<job>"
 workers.worker_has_no_work_left  [workers]  worker {{n}} has no work left. queue it tasks with journal worker queue {{n}} <task> <task>, or retire it
@@ -1895,7 +1869,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-292 nudges
+284 nudges
 
 $ agent: journal worker list
 exit 0

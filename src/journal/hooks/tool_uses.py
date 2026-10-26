@@ -9,7 +9,6 @@ from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.code_files import CodeFiles
 from journal.support.recorded_call import RecordedCall
-from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.features.workers.workers_options import WorkersOptions
 
 
@@ -34,23 +33,14 @@ class ToolUses:
         if not isinstance(event, ToolStarting) or event.subagent:
             return event.counted(agent.tool_uses)
         call = event.call.recorded()
-        reviewed = self.reviewed(agent.with_handover(event.time) if ToolUseCounts.is_handover(call) else agent, event)
         if event.call.is_journal:
-            return event.counted(self.agents.save(reviewed, Actor.system()).tool_uses)
-        agent = self.agents.save(self.used(reviewed, call, event.time), Actor.system())
+            return event.counted(agent.tool_uses)
+        agent = self.agents.save(self.used(agent, call, event.time), Actor.system())
         return event.counted(agent.tool_uses).shape_counted(self.entries.shape_count(event.session, call.shape) + 1 if call.shape else 0)
-
-    def reviewed(self, agent: Agent, event: ToolStarting) -> Agent:
-        call = event.call.recorded()
-        return agent.briefed() if ToolUseCounts.is_handover(call) and ToolUseCounts.is_complete_brief(call) else agent
 
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
         agent = agent.in_mode(mode).tool_used()
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
-        agent = agent.file_edited() if call.edited_paths else agent
         agent = agent.lines_edited(call.operation.changed_lines()[0], time, time - self.settings.decimal(WorkersOptions.SERIES_HOURS) * 3600) if CodeFiles.has_code(call.edited_paths) else agent
-        agent = agent.task_filed() if ToolUseCounts.is_task_addition(call) else agent
-        agent = agent.task_completed() if ToolUseCounts.is_task_completion(call) else agent
-        agent = agent.subagent_dispatched() if ToolUseCounts.is_subagent_dispatch(call) else agent
-        return agent.researched() if ToolUseCounts.is_research(call) else agent
+        return agent

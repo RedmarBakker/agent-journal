@@ -11,8 +11,6 @@ SPOKEN_ACTIONS = {
     "orchestrator_fill_place": "dispatch",
     "orchestrator_queue_more": "dispatch",
     "solo_answer": "answer",
-    "load_rising": "merge",
-    "load_critical": "merge",
     "orchestrator_dispatched_under_load": "merge",
 }
 REPLY_FEATURE = "messages"

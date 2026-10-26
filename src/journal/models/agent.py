@@ -16,17 +16,11 @@ from journal.models.support.agent_load import AgentLoad
 from journal.models.support.time_series import SHA_COUNT, TimeSeries
 from journal.models.support.measure_states import MeasureStates
 from journal.models.support.pressure_band import PressureBand
-from journal.events.rows.quick_report_dropped import QuickReportDropped
-from journal.events.rows.tiny_job_dropped import TinyJobDropped
-from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
 from journal.events.rows.waits_missing import WaitsMissing
 from journal.models.scoped import Scoped
 
 
-# how many of its newest tool uses an agent's subagent dispatches, research, handovers and file edits are counted over
-WORK_WINDOW_USES = 50
-WINDOWED_USES = ("subagent_dispatch_uses", "research_uses", "handover_uses", "file_edit_uses", "briefed_uses", "task_filed_uses", "task_completed_uses")
 # how many of the newest merged jobs it handed out an agent's model fit is counted over
 MODEL_FITS_KEPT = 10
 
@@ -51,22 +45,12 @@ class Agent(Scoped):
     sequence_runs: tuple = ()
     tool_uses: int = 0
     code_edits: int = 0
-    consecutive_handovers: int = 0
-    last_handover_at: float = 0.0
-    subagent_dispatch_uses: tuple[int, ...] = ()
-    research_uses: tuple[int, ...] = ()
-    handover_uses: tuple[int, ...] = ()
-    file_edit_uses: tuple[int, ...] = ()
     edited_lines: tuple[tuple[float, int], ...] = ()
     merged_lines: tuple[tuple[float, int], ...] = ()
     committed_lines: tuple[tuple[float, int], ...] = ()
     first_reports: tuple[tuple[float, int], ...] = ()
     counted_shas: tuple[str, ...] = ()
-    task_filed_uses: tuple[int, ...] = ()
-    task_completed_uses: tuple[int, ...] = ()
-    briefed_uses: tuple[int, ...] = ()
     mode: str = ""
-    mode_started_use: int = 0
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
@@ -76,12 +60,10 @@ class Agent(Scoped):
     band_changed_at: float = 0.0
     measures: MeasureStates = MeasureStates()
     mode_loads: dict = field(default_factory=dict)
-    fitness_level: int = 100
     unlinked_message: int = 0
     unlinked_numbers: tuple[str, ...] = ()
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
-    report_use: ReportUse = ReportUse()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -122,10 +104,7 @@ class Agent(Scoped):
         return self.with_(tool_uses=self.tool_uses + 1)
 
     def code_edited(self) -> "Agent":
-        return self.with_(code_edits=self.code_edits + 1, consecutive_handovers=0)
-
-    def with_handover(self, time: float) -> "Agent":
-        return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time, handover_uses=self.windowed((*self.handover_uses, self.tool_uses)))
+        return self.with_(code_edits=self.code_edits + 1)
 
     def lines_edited(self, lines: int, time: float, cutoff: float) -> "Agent":
         return self.with_(edited_lines=TimeSeries.add(self.edited_lines, (time, lines), cutoff)) if lines else self
@@ -166,34 +145,13 @@ class Agent(Scoped):
     def first_report_count(self, moment: float, seconds: float) -> int:
         return TimeSeries.count(self.first_reports, moment, seconds)
 
-    def handover_lines(self) -> int:
-        return sum(lines for time, lines in self.edited_lines if time > self.last_handover_at)
-
-    def task_filed(self) -> "Agent":
-        return self.with_(task_filed_uses=self.windowed((*self.task_filed_uses, self.tool_uses)))
-
-    def task_completed(self) -> "Agent":
-        return self.with_(task_completed_uses=self.windowed((*self.task_completed_uses, self.tool_uses)))
-
-    def file_edited(self) -> "Agent":
-        return self.with_(file_edit_uses=self.windowed((*self.file_edit_uses, self.tool_uses)))
-
-    def subagent_dispatched(self) -> "Agent":
-        return self.with_(subagent_dispatch_uses=self.windowed((*self.subagent_dispatch_uses, self.tool_uses)))
-
-    def researched(self) -> "Agent":
-        return self.with_(research_uses=self.windowed((*self.research_uses, self.tool_uses)))
-
     def in_mode(self, mode: str) -> "Agent":
         if self.mode == mode:
             return self
         loads = dict(self.mode_loads)
         if self.mode:
             loads[self.mode] = asdict(self.work_queue)
-        return self.with_(mode=mode, mode_started_use=self.tool_uses, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
-
-    def briefed(self) -> "Agent":
-        return self.with_(briefed_uses=self.windowed((*self.briefed_uses, self.tool_uses)))
+        return self.with_(mode=mode, work_queue=AgentLoad.parsed(loads[mode]) if mode in loads else AgentLoad(), mode_loads=loads)
 
     def model_fit_kept(self, worker: int, fit: str) -> "Agent":
         kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
@@ -203,12 +161,6 @@ class Agent(Scoped):
         found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
         measured = self.with_(wait_use=use)
         return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
-
-    def quick_report_dropped(self, use: ReportUse, time: float, worker: int, open_tasks: int) -> "Agent":
-        return self.with_(report_use=use).with_event(QuickReportDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, open_tasks=open_tasks, points=use.drop_points))
-
-    def tiny_job_dropped(self, use: ReportUse, time: float, worker: int, seconds: int) -> "Agent":
-        return self.with_(report_use=use).with_event(TinyJobDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, seconds=seconds, points=use.drop_points))
 
     def band_moved(self, band: PressureBand, time: float) -> "Agent":
         return self if band == self.band else self.with_(band=band, band_changed_at=time)
@@ -228,12 +180,8 @@ class Agent(Scoped):
     def place_closed(self, places: int, time: float) -> "Agent":
         return self.with_(work_queue=self.work_queue.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.work_queue.rho, minutes=self.work_queue.under_minutes, opened=False))
 
-    def windowed(self, uses: tuple[int, ...]) -> tuple[int, ...]:
-        return tuple(use for use in uses if self.tool_uses - WORK_WINDOW_USES < use <= self.tool_uses)
-
     def compacted(self) -> "Agent":
-        shifted = {name: tuple(use - self.tool_uses for use in getattr(self, name)) for name in WINDOWED_USES}
-        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0, **shifted)
+        return self.with_(tool_uses=0, inbox_position=0)
 
     def message_arrived(self) -> "Agent":
         return self.with_(inbox_position=self.tool_uses)

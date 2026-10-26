@@ -21,8 +21,9 @@ ACTIVE_WORKERS = MeasureSpec("active_workers", MeasureRange(2.0, 2.0), MeasureSo
 SHOWN = MeasureRange(float("inf"), float("inf"))
 BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4), HIGH_QUEUE)
 COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0)
+MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3)
 MODE_SPECS = {
-    "solo": (MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3),),
+    "solo": (MESSAGE_WAIT, COMPLETION_RATE),
 }
 ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3),
                       MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0),
@@ -39,13 +40,14 @@ class ModeMeasures:
 
     def specs(self, mode: str) -> tuple[MeasureSpec, ...]:
         line_minutes = self.settings.decimal(WorkersOptions.PLACE_OPENING_MINUTES) + LINE_DELAY_MINUTES
-        orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, COMPLETION_RATE)
+        orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, MESSAGE_WAIT, COMPLETION_RATE)
         worker_limit = self.settings.decimal(FitnessOptions.BUILDER_ACTIVE_WORKERS)
-        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), COMPLETION_RATE)
+        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), MESSAGE_WAIT, COMPLETION_RATE)
         return {**MODE_SPECS, "builder": builder, "orchestrator": orchestrator}.get(mode, ())
 
     def worked(self, agent: Agent, mode: str, time: float) -> MeasureStates:
-        source, previous = MeasureSource(agent, time, self.free_places, self.active_workers, self.tasks), agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)
+        previous = agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)
+        source = MeasureSource(agent, time, self.free_places, self.active_workers, self.tasks, previous.started_at)
         return replace(previous, states=tuple(self.stepped(spec, previous.state(spec.key), spec.reader(source), time) for spec in self.specs(mode)))
 
     @staticmethod

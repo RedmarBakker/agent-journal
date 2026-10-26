@@ -29,22 +29,18 @@ class FitnessPoint:
 
     @classmethod
     def of(cls, score: FitnessScore, scored_at: float, moved: str) -> "FitnessPoint":
-        return cls(scored_at, score.mode, score.score, score.is_measured, score.lines, score.parts, moved, score.drop_points, score.version)
+        return cls(scored_at, score.mode, score.score, score.is_measured, (), score.parts, moved, 0, score.version)
 
     @classmethod
     def parsed(cls, data: dict) -> "FitnessPoint":
         return cls(float(data["at"]), data["mode"], int(data["score"]), bool(data["is_measured"]), tuple(data["gaps"]), tuple((label, int(percent)) for label, percent in data["parts"]), data["moved"], int(data.get("drop_points", 0)), int(data.get("version", 1)))
 
     def is_same(self, score: FitnessScore) -> bool:
-        return (self.mode, self.score, self.is_measured, self.drop_points, self.version) == (score.mode, score.score, score.is_measured, score.drop_points, score.version)
+        return (self.mode, self.score, self.is_measured, self.version) == (score.mode, score.score, score.is_measured, score.version)
 
     def following(self, score: FitnessScore, scored_at: float) -> "FitnessPoint":
         if score.mode != self.mode or score.version != self.version or not score.is_measured or not self.is_measured:
             return FitnessPoint.first(score, scored_at)
-        if score.drop_points > self.drop_points:
-            return FitnessPoint.of(score, scored_at, f"{score.drop_cause}, which cost {score.drop_points} points")
-        if score.drop_points < self.drop_points and dict(score.parts) == dict(self.parts):
-            return FitnessPoint.of(score, scored_at, f"a quick report's drop recovering: {score.drop_points} points still off")
         return FitnessPoint.of(score, scored_at, self.change(dict(score.parts)))
 
     def change(self, after: dict[str, int]) -> str:

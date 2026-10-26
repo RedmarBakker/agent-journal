@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from journal.features.shell.support.readers import Readers
-from journal.features.workers.support.tool_use_counts import TEST_COMMANDS
+from journal.features.workers.support.whole_suite import TEST_COMMANDS
 from journal.support.chain import Chain
 
 # the label a reader of test runs carries

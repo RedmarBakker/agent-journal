@@ -1,5 +1,5 @@
 from journal.features.workers.support.merge_check import MergeCheck
-from journal.features.workers.support.tool_use_counts import TEST_COMMANDS
+from journal.features.workers.support.whole_suite import TEST_COMMANDS
 from journal.features.workers.support.whole_suite import WholeSuite
 from journal.models.command_output import CommandOutput
 from journal.repositories.command_outputs import CommandOutputs

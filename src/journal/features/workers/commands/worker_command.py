@@ -45,7 +45,6 @@ from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
-from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
 from journal.support.time_source import TimeSource
 
@@ -342,7 +341,7 @@ class WorkerCommand(Command):
             print(f"closed with it, from its queue: {', '.join(f'task {task.id}' for task in outcome.finished)}")
         if outcome.next_task:
             print(outcome.next_task)
-        if self.settings.option(WorkersOptions.MODE) == WorkersProfiles.ORCHESTRATOR.mode:
+        if self.settings.option(WorkersOptions.MODE) == "orchestrator":
             print(f"run the whole suite now: it has not passed since the merges of {self.checks.check().workers_line()}")
         return 0
 
@@ -356,7 +355,7 @@ class WorkerCommand(Command):
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))
-        advice = self.fitting.advice(self.workers.find(worker.id), self.time_source.seconds())
+        advice = self.fitting.advice(self.workers.find(worker.id))
         if advice:
             print(advice)
         return 0

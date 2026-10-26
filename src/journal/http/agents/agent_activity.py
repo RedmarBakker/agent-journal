@@ -120,7 +120,7 @@ class AgentActivity:
 
     def fitness(self, agent: Agent) -> dict:
         fitness = self.scoring.scored(agent)
-        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines), "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
+        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     def timeline(self, session: str) -> list[dict]:
         start_at = self.time_source.seconds() - TIMELINE_HOURS * 3600

@@ -13,7 +13,7 @@ MODE_LEVELS = {
 
 
 class BandRules:
-    """The band each mode with workers moves by, built from the settings: the orchestrator's and the builder's levels, the least minutes in a band and the minutes an empty queue takes to leave high; solo has no band, and a mode's first band, after the upgrade or a change from solo, is normal."""
+    """The band each mode with workers moves by, built from the settings: the orchestrator's and the builder's levels, the least minutes in a band and the minutes an empty queue takes to leave high; solo has no band, and a mode's first band, after the upgrade or any change of mode, is normal."""
 
     def __init__(self, settings: SettingRows) -> None:
         self.settings = settings
@@ -21,7 +21,7 @@ class BandRules:
     def band(self, agent: Agent, mode: str, work_queue: AgentLoad, work_items: list[LoadItem], time: float) -> PressureBand:
         if mode not in MODE_LEVELS:
             return PressureBand.NONE
-        if agent.band == PressureBand.NONE:
+        if agent.band == PressureBand.NONE or agent.measures.mode != mode:
             return PressureBand.NORMAL
         high_entry, high_exit, low_entry, low_exit = (self.settings.decimal(option) for option in MODE_LEVELS[mode])
         rule = BandRule(high_entry, high_exit, low_entry, low_exit, self.settings.decimal(FitnessOptions.BAND_MINUTES) * 60, self.settings.decimal(FitnessOptions.EMPTY_QUEUE_MINUTES) * 60)

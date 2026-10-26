@@ -78,7 +78,7 @@ const modeOptions = computed(() =>
         tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
     }))
 );
-// the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
+// the score below which the fitness is shown as low
 const LOW_FITNESS = 75;
 const DANGER_FITNESS = 25;
 const fitnessTip = computed(
@@ -366,7 +366,7 @@ async function runBar(p) {
             </template>
             <template v-if="fitnessOpen && fitness">
                 <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
-                    <FitnessTimeline :score="fitness.score" :lines="fitness.lines" :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
+                    <FitnessTimeline :score="fitness.score" :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
                 </MenuPanel>
             </template>
             <template v-if="verifiersOpen">

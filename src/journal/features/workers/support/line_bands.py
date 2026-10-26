@@ -19,7 +19,6 @@ class LineBands:
         LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key, (LOW, NORMAL), INCREASE),
         LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_REPORT_LINE.key, (LOW, NORMAL, HIGH), NEUTRAL),
         LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_DISPATCH_LINE.key, (HIGH,), DECREASE),
-        LineBand("solo", "workers.solo_answer", (PressureBand.NONE,), NEUTRAL),
     )
 
     @classmethod

@@ -13,7 +13,6 @@ from journal.features.reports.reports_nudges import ReportsNudges
 from journal.features.reports.reports_options import ReportsOptions
 from journal.features.reports.reports_part import ReportsPart
 from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.workers_profiles import WorkersProfiles
 
 # the span between two lines naming the same row never acted on, in minutes, chosen anew each time
 REPEAT_LEAST_MINUTES = 20
@@ -40,7 +39,7 @@ class ReportsConduct(Conduct):
 
 def unacted_lines(data: FeatureData, now: float, settings: Settings) -> tuple[Nudge, ...]:
     minutes = settings.integer(ReportsOptions.UNACTED_MINUTES)
-    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode or minutes <= 0:
+    if settings.value(WorkersOptions.MODE) != "orchestrator" or minutes <= 0:
         return ()
     return tuple(replace(ReportsNudges.UNACTED.create(kind=row.kind, n=row.row_id), repeat=Timeout.minutes(repeat_minutes(row.row_id, now))) for row in data.part(ReportsPart).unacted if now - row.written_at >= minutes * 60)
 

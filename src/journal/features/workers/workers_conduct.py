@@ -16,8 +16,6 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_keeps_clashing import WorkerKeepsClashing
-from journal.events.rows.quick_report_dropped import QuickReportDropped
-from journal.events.rows.tiny_job_dropped import TinyJobDropped
 from journal.events.rows.worker_limited import WorkerLimited
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
@@ -44,12 +42,8 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.plans.plans_part import PlansPart
 from journal.features.plans.support.plan_status import PlanStatus
 from journal.features.tasks.tasks_part import TasksPart
-from journal.features.workers.workers_alignments import WorkersAlignments
-from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.support.fitness_levels import FitnessLevels
 from journal.features.workers.support.measure_lines import MeasureLines
-from journal.features.workers.support.load_levels import LoadLevels
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
@@ -59,7 +53,6 @@ INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 # the most of a worker's name a failed test run's line carries, so the line stays under 120 characters
 TEST_LINE_NAME = 60
 # the waiting items a load line names before it counts the rest
-CROWD_LINE_ITEMS = 4
 # what a line says of a worker whose run hit the time limit
 RUN_LIMIT_CAUSE = ": run limit"
 # the most of an earlier reason a send-back line quotes
@@ -72,7 +65,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, a worker that stopped at the usage limit is named with the time it goes on by itself, and in orchestrator mode a stop is refused while work this agent sent out waits clocked out, naming each worker, but for one it awaits, the worker itself or a run in its worktree, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line; with the fitness warnings on, each failing measure's one line, as often as its nudge repeats; and in orchestrator mode a merged worker's model that did not fit its work, too strong or too weak, is named in one short line."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, crowd_check, measure_check, capability_check, text_wait_check)
+        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, measure_check, capability_check, text_wait_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -81,7 +74,7 @@ class WorkersConduct(Conduct):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
         silent = [silence_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
-        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent, *priorities_lines(event, settings), *unmoved_task_lines(event, settings), *unordered_lines(event, settings))
+        return self.none(*report_mentions(event.data), *silent, *priorities_lines(event, settings), *unmoved_task_lines(event, settings), *unordered_lines(event, settings))
 
     def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
         return self.none(*text_wait_lines(event.content, settings)) if event.final else self.none()
@@ -95,16 +88,6 @@ class WorkersConduct(Conduct):
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
-
-    def on_quick_report_dropped(self, event: QuickReportDropped, settings: Settings) -> Transition:
-        if event.agent_session != event.session or not settings.value(FitnessOptions.WARNINGS):
-            return self.none()
-        return self.none(WorkersNudges.QUICK_REPORT.create(n=event.worker, open=event.open_tasks, points=event.points))
-
-    def on_tiny_job_dropped(self, event: TinyJobDropped, settings: Settings) -> Transition:
-        if event.agent_session != event.session or not settings.value(FitnessOptions.WARNINGS):
-            return self.none()
-        return self.none(WorkersNudges.TINY_JOB.create(n=event.worker, seconds=event.seconds, points=event.points))
 
     def on_worker_limited(self, event: WorkerLimited, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
@@ -203,11 +186,11 @@ def silence_line(worker, last: str, time: float) -> Nudge:
 
 
 def stop_lines(event: Stop, settings: Settings) -> tuple[Nudge, ...]:
-    return (*report_mentions(event.data), *check_reminders(event.data, event.time), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
+    return (*report_mentions(event.data), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
 
 
 def crew_stop(state: BaseState, event: Stop, settings: Settings) -> Transition:
-    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
         return state.none()
     workers = event.data.part(WorkersPart)
     wait_refs = set(state.targets()) if isinstance(state, ExternalWait) else set()
@@ -229,7 +212,7 @@ def worker_list(workers: list[Worker]) -> str:
 
 
 def plan_lines(data: FeatureData, moment: float, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
     started = data.part(PlansPart).started_plans
     if not started:
@@ -238,7 +221,7 @@ def plan_lines(data: FeatureData, moment: float, settings: Settings) -> tuple[Nu
 
 
 def suite_lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
     check = data.part(WorkersPart).merge_check
     return (WorkersNudges.SUITE_BROKEN.create(run=check.failed_run, workers=check.workers_line(), n=check.merged[-1].id),) if check.failed_run else ()
@@ -301,12 +284,6 @@ def report_mentions(data: FeatureData) -> list[Nudge]:
     return [WorkersNudges.UNREAD_WORKER_REPORTS.create(reports_waiting=summary)] if summary else []
 
 
-def check_reminders(data: FeatureData, time: float) -> list[Nudge]:
-    reminder = WorkersNudges.CHECK_REMINDER
-    ready = data.part(WorkersPart).ready_work
-    return [reminder.create(n=work.worker, name=work.name, task=work.task) for work in ready if work.is_waiting(time, reminder.repeat.amount)]
-
-
 def worker_lines(event: ToolStarting, *verbs: str) -> list[WorkerLine]:
     return [line for part in event.call.parts if (line := WorkerLine.parsed(part.text)) and line.verb in verbs]
 
@@ -355,7 +332,7 @@ def limit_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
 
 
 def release_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode or settings.value(WorkersOptions.ORCHESTRATOR_RELEASES):
+    if settings.value(WorkersOptions.MODE) != "orchestrator" or settings.value(WorkersOptions.ORCHESTRATOR_RELEASES):
         return state.none()
     releases = ReleaseLines.found(tuple(part.text for part in event.call.parts))
     return state.refuse(WorkersNudges.RELEASE_REFUSED.create(line=releases[0])) if releases else state.none()
@@ -414,36 +391,12 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
     return state.none()
 
 
-def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    span = Timeout.tool_uses(settings.integer(WorkersOptions.CHECK_REMINDER_USES))
-    if event.subagent or not span.amount or not span.started(0).is_period_start(event.tool_use):
-        return state.none()
-    ready = event.data.part(WorkersPart).ready_work
-    return state.none(*(WorkersNudges.CHECK_REMINDER.create(n=work.worker, name=work.name, task=work.task) for work in ready))
-
-
-def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent:
-        return state.none()
-    mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
-    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
-
-
-def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
-    profile = WorkersProfiles.mode_profile(mode)
-    fitness = profile.scored(workers.tool_uses) if profile and settings.value(FitnessOptions.WARNINGS) else None
-    if fitness is None or not fitness.is_measured:
-        return ()
-    gaps = " ".join(f"{gap.text()}." for gap in fitness.gaps)
-    step, threshold = settings.integer(FitnessOptions.LEVEL_STEP), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
-    if step > 0 and fitness.gaps and FitnessLevels.is_fall(fitness.score, workers.fitness_level, step):
-        return (WorkersNudges.FITNESS_DROP.create(mode=mode, score=fitness.score, gaps=gaps),)
-    return (WorkersNudges.FITNESS_LOW.create(mode=mode, score=fitness.score, gaps=gaps),) if 0 < threshold and fitness.score < threshold else ()
-
-
 def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     if event.subagent or not settings.value(FitnessOptions.WARNINGS):
         return state.none()
+    block = MeasureLines.block_lines(event.data, settings, event.time)
+    if block and event.call.writes and not event.call.is_journal:
+        return state.refuse(block[0])
     handover = any(part.text.startswith(command) for part in event.call.parts for command in HANDOVERS)
     dispatch = any(part.text.startswith(DISPATCH_COMMAND) for part in event.call.parts)
     return state.none(*MeasureLines.lines(event.data, settings), *(MeasureLines.handover_lines(event.data) if handover else ()), *(MeasureLines.dispatch_lines(event.data) if dispatch else ()))
@@ -471,22 +424,3 @@ def capability_check(state: BaseState, event: ToolStarting, settings: Settings) 
             if part.text.startswith(command) and not settings.value(option):
                 return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act=act))
     return state.none()
-
-
-DRAINING = 1.0
-
-
-def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    crowd = event.data.part(WorkersPart).workload
-    mode = settings.value(WorkersOptions.MODE)
-    if not crowd.is_measured() or not crowd.waiting_refs or event.subagent or mode not in ("orchestrator", "builder"):
-        return state.none()
-    values = {"rho": crowd.rho, "queue": crowd.waiting_text(CROWD_LINE_ITEMS), "first": crowd.oldest()}
-    start, step = settings.decimal(WorkersOptions.WORKLOAD_FIRST_NOTICE), settings.decimal(WorkersOptions.WORKLOAD_NOTICE_STEP)
-    level = LoadLevels.standing(crowd.rho, start, step)
-    rising = level > event.data.part(WorkersPart).workload_level
-    if crowd.rho >= DRAINING:
-        span = Timeout.tool_uses(settings.integer(WorkersOptions.WORKLOAD_DRAIN_TOOL_USES))
-        repeating = bool(span.amount) and span.started(0).is_period_start(event.tool_use)
-        return state.none(WorkersNudges.WORKLOAD_DRAIN.create(**values)) if rising or repeating else state.none()
-    return state.none(WorkersNudges.WORKLOAD_RISING.create(**values, level=level)) if rising else state.none()

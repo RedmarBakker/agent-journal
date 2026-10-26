@@ -4,6 +4,7 @@ from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.events.feature_data import FeatureData
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.line_bands import LineBands
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import WorkersOptions
@@ -15,7 +16,7 @@ LEAST_OPEN_TASKS = 2
 
 
 class MeasureLines:
-    """The one line of each failing measure of the agent's mode that has one and speaks in the agent's band, made from the measure's state, the reading of the workers and the tasks and the settings, each line once however many of its measures fail; none where the line has no single action to name; the lines a dispatch or a queue hears, and those a dispatch alone hears; and the measure a sent line belongs to."""
+    """The one line of each failing measure of the agent's mode that has one and speaks in the agent's band, made from the measure's state, the reading of the workers and the tasks and the settings, each line once however many of its measures fail; none where the line has no single action to name; the line that holds the agent's writes once the worker queue has stood high past the hold minutes, the lines a dispatch or a queue hears, and those a dispatch alone hears; and the measure a sent line belongs to."""
 
     @staticmethod
     def lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
@@ -24,6 +25,15 @@ class MeasureLines:
         candidates = (line for state in workers.measures.states if state.is_failing and (mode, state.key) in makers for line in makers[mode, state.key](state, data, settings))
         lines = {line.key: line for line in candidates if LineBands.is_allowed(mode, line.key, workers.band)}
         return tuple(lines.values())
+
+    @staticmethod
+    def block_lines(data: FeatureData, settings: Settings, time: float) -> tuple[Nudge, ...]:
+        workers = data.part(WorkersPart)
+        state = workers.measures.state("high_queue_minutes")
+        if not state.is_failing or time - state.changed_at < settings.decimal(FitnessOptions.WRITE_BLOCK_MINUTES) * 60:
+            return ()
+        maker = MeasureLines.makers().get((workers.measures.mode, state.key))
+        return maker(state, data, settings) if maker else ()
 
     @staticmethod
     def handover_lines(data: FeatureData) -> tuple[Nudge, ...]:

@@ -15,7 +15,6 @@ const PAD = 6;
 
 const props = defineProps({
     score: {type: Number, required: true},
-    lines: {type: Array, default: () => []},
     points: {type: Array, default: () => []},
     hours: {type: Number, required: true},
     low: {type: Number, required: true},
@@ -57,14 +56,6 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
             <Btn kind="icon" class="fitness-timeline-settings" aria-label="Open the fitness settings" @click="openSettings"><Icon name="settings" /></Btn>
             <CloseButton @click="emit('close')" />
         </header>
-        <ul class="fitness-timeline-lines">
-            <template v-if="lines.length">
-                <li v-for="line in lines" :key="line">{{ line }}</li>
-            </template>
-            <template v-else>
-                <li>The agent works as this mode's ideal does.</li>
-            </template>
-        </ul>
         <div class="fitness-timeline-warnings">
             <Switch :on="warnings" word="Send fitness warnings to the agent" title="Off, the score is still measured and shown, and no line about it reaches the agent" beside @change="setWarnings" />
         </div>
@@ -143,18 +134,6 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
     font-weight: 600;
 }
 
-.fitness-timeline-lines {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    gap: 4px;
-    margin: 0;
-    padding: 8px 8px 0;
-    color: var(--text-2);
-    font-size: 12px;
-    line-height: 1.4;
-    list-style: none;
-}
 
 .fitness-timeline-label {
     flex: none;

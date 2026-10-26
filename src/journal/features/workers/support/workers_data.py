@@ -6,7 +6,6 @@ from journal.models.support.pressure_band import PressureBand
 from pathlib import Path
 
 from journal.features.workers.support.merge_check import MergeCheck
-from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.features.workers.support.worker_worktree import WorkerWorktree
 from journal.models.subagent import Subagent
 from journal.features.workers.support.ready_work import ReadyWork
@@ -30,10 +29,7 @@ class WorkersData:
     ready_work: tuple[ReadyWork, ...] = ()
     delivered_workers: tuple[Worker, ...] = ()
     delivered_runs: tuple[tuple[int, int], ...] = ()
-    tool_uses: ToolUseCounts = ToolUseCounts()
     workload: AgentLoad = AgentLoad()
-    fitness_level: int = 100
-    workload_level: float = 0.0
     merge_check: MergeCheck = MergeCheck()
     last_calls: dict[int, str] = field(default_factory=dict)
     resumable: tuple[int, ...] = ()

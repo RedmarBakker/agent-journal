@@ -3,9 +3,6 @@ from journal.support.timeout import Timeout
 
 
 class WorkersNudges:
-    FITNESS_LOW = Nudge("workers", "work_mode_fitness_is_low", "your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}", "bring the measures named back into their range", repeat=Timeout.tool_uses(50))
-    FITNESS_DROP = Nudge("workers", "work_mode_fitness_fell", "your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses, fallen past a mark: {{gaps}}", "bring the measures named back into their range", repeat=Timeout.tool_uses(5))
-    SOLO_ALIGNMENT = Nudge("workers", "solo_researches_itself", "you are solo: you sent more subagents than you read and searched yourself", "read and research this yourself; a subagent is for the rare job too wide to do in your own turns", repeat=Timeout.tool_uses(50))
     EDIT_LOCK = Nudge("workers", "worktree_being_rebased", "the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done", "wait a moment, then write again", repeat=Timeout.seconds(0))
     WORKER_GIT_REFUSAL = Nudge("workers", "worker_runs_no_git", "you never run git: the journal commits your work and rebases it onto the project's branch when you clock out, and goes on with a rebase once you have fixed the files that clash", "change the files, then journal clock-out", repeat=Timeout.seconds(0))
     READINESS = Nudge("workers", "clock_in_first", "your writes wait until you clock in", "journal task show <n>, then journal clock-in", repeat=Timeout.seconds(0))
@@ -17,7 +14,6 @@ class WorkersNudges:
     USER_CLOSURE = Nudge("workers", "task_closed_by_user", "the user closed your task {{task}}", "stop now", repeat=Timeout.seconds(0))
     OPEN_TODOS = Nudge("workers", "open_todos", "your to-do list has {{count}} open items: {{items}}", "finish them, or say why with journal clock-out", repeat=Timeout.seconds(0))
     WORK_READY = Nudge("workers", "work_ready", "worker {{n}} ready: task {{task}}", repeat=Timeout.seconds(0))
-    CHECK_REMINDER = Nudge("workers", "check_reminder", "worker {{n}} waits: task {{task}}", repeat=Timeout.seconds(180))
     BRANCH_KEEPS_CLASHING = Nudge("workers", "branch_keeps_clashing", "worker {{n}}'s branch went back to rebase {{clashes}} times in a row, as merges landed under it; it clashes in {{clashing}}", "merge the other workers' work in an order that lets it catch up, or hold their merges until it is ready", repeat=Timeout.seconds(0))
     RUN_UNFINISHED = Nudge("workers", "run_unfinished", "worker {{n}} ended without clocking out{{cause}}", repeat=Timeout.seconds(0))
     WORKER_REPORTED = Nudge("workers", "worker_reported", "worker {{n}} reported", repeat=Timeout.seconds(0))
@@ -26,8 +22,6 @@ class WorkersNudges:
     SUITE_BROKEN = Nudge("workers", "suite_failed_after_merges", "the whole suite failed in output {{run}} after the merges of {{workers}}", "read what failed, then send the work back to the worker whose change broke it: journal worker send {{n}} \"the whole suite fails since your merge: <what failed>; fix it and clock out again\"", repeat=Timeout.minutes(525600))
     DELIVERED_WAITING = Nudge("workers", "clocked_out_work_waits", "{{workers}} clocked out and their work waits for you", "check each point with journal worker check <n> <point>, or send one back with --short \"<what is missing>\", and merge what is checked with journal worker merge <n>", repeat=Timeout.seconds(0))
     ACTIVE_WORKERS = Nudge("workers", "wait_for_running_workers", "{{workers}} are still out and no work waits to be checked", "wait for them with journal worker wait {{numbers}}", repeat=Timeout.seconds(0))
-    QUICK_REPORT = Nudge("workers", "quick_report_dropped_the_fitness", "worker {{n}} reported within a minute of its job's start while {{open}} tasks were open, which cost your fitness {{points}} points at once: queue it several tasks with journal worker queue {{n}} <task> <task>... --report queue, so it reports once for all of them", repeat=Timeout.minutes(10))
-    TINY_JOB = Nudge("workers", "tiny_job_dropped_the_fitness", "worker {{n}} reported {{seconds}} seconds after its job's start with no other task open, which cost your fitness {{points}} points at once: do a job this small yourself, and hand a worker only work worth its start", repeat=Timeout.minutes(10))
     WORKER_LIMITED = Nudge("workers", "worker_waits_for_the_usage_limit", "worker {{n}} stopped at the usage limit and goes on by itself at {{at}}", repeat=Timeout.seconds(0))
     ORCHESTRATE = Nudge("workers", "orchestrate", "{{count}} tasks are open; next: {{tasks}}", "dispatch a worker on each you can, journal worker dispatch \"<Name>\" --task <n>; block a task that waits and go on with the rest", repeat=Timeout.seconds(0))
     TASK_DELEGATION = Nudge("workers", "delegate_the_task", "{{name}} is in hand and you orchestrate; {{logged}}", "hand it to a worker with journal worker dispatch \"<Name>\" --task <n>, and review its report", repeat=Timeout.seconds(0))
@@ -45,8 +39,6 @@ class WorkersNudges:
     ORCHESTRATOR_HANDOUT_LINE = Nudge("workers", "orchestrator_hand_out", "too little of the work is handed out", "{{handout}}", repeat=Timeout.minutes(10))
     ORCHESTRATOR_REPORT_LINE = Nudge("workers", "orchestrator_queue_more", "your workers report once for every {{tasks}} tasks merged", "queue worker {{n}} its next tasks with --report queue", repeat=Timeout.minutes(60))
     ORCHESTRATOR_DISPATCH_LINE = Nudge("workers", "orchestrator_dispatched_under_load", "this dispatch comes while the worker queue stands high and worker {{n}} waits", "check and merge worker {{n}} next", repeat=Timeout.seconds(0))
-    WORKLOAD_RISING = Nudge("workers", "load_rising", "your load is {{rho}}, past {{level}}: {{queue}} wait; clear {{first}} first, the oldest")
-    WORKLOAD_DRAIN = Nudge("workers", "load_drain", "your load is {{rho}}, more arrives than you clear: {{queue}} wait, {{first}} the oldest", "drain it: dispatch workers, or hand the work out better")
     MODE_REFUSAL = Nudge("workers", "mode_may_not", "in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu", repeat=Timeout.seconds(0))
     PLACE_OPENED = Nudge("workers", "place_opened", "your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once", repeat=Timeout.seconds(0))
     PLACE_CLOSED = Nudge("workers", "place_closed", "your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once", repeat=Timeout.seconds(0))

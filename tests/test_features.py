@@ -1794,30 +1794,6 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work as the builder" in use("e.py")
 
 
-def test_the_solo_agent_says_its_alignment_line_when_it_drifts_and_the_builders_and_orchestrators_are_gone_on_purpose(app: App):
-    """The solo agent sending subagents past its own reads hears its mode's line once; the builder and the orchestrator are told by their measures, never by an alignment line."""
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    settings = app.container.get(SettingRows)
-    said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
-    shell = lambda command: said("PreToolUse", tool_name="Bash", tool_input={"command": command})
-    handover = lambda: shell("journal worker send 1 'the next job'")
-    assert "times in a row with no code of your own between" not in handover() + handover(), "the builder is told by its measures, never by handovers in a row"
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    assert "you are the orchestrator" not in shell("echo checked") + handover(), "nor the orchestrator by its own lines of code"
-
-    settings.set("workers.mode", "solo", Actor.user(1))
-    settings.set("workers.solo_dispatches", 2, Actor.user(1))
-
-    def dispatch() -> str:
-        before = said("PreToolUse", tool_name="Agent", tool_input={"model": "haiku", "subagent_type": "journal-researcher", "description": "find the footer", "prompt": "find it"})
-        app.runtime().deferred.drain()
-        return before
-
-    assert "you are solo" not in dispatch()
-    assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
-
-
 def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one_that_stalls(app: App):
     from journal.db.connection import Connection
     from journal.models.plan_state import PlanState
@@ -1860,44 +1836,12 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
 
 
-def orchestrator_scored(app: App, setup=None, uses: int = 50):
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    from journal.repositories.agents import Agents
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
-    if setup:
-        setup()
-    for n in range(uses):
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"o{n}.md")})
-    return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts.counted(app.container.get(Agents).current()))
-
-
 def clocked_out(app: App, at: float):
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     workers = app.container.get(Workers)
     saved = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="b"), Actor.system())
     return workers.save(saved.delivered(at), Actor.system())
-
-
-def test_a_brief_that_names_no_done_when_and_no_files_is_not_counted_as_complete():
-    from types import SimpleNamespace
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    bare = SimpleNamespace(command="journal worker send 1 'fix the footer'")
-    full = SimpleNamespace(command="journal worker send 1 'fix the footer in src/footer.vue; done when the test passes'")
-    assert not ToolUseCounts.is_complete_brief(bare) and ToolUseCounts.is_complete_brief(full)
-
-
-def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_drifted_on_the_solo_profile_since_the_builders_is_gone():
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import WorkersProfiles
-    ideal = WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=12, research_count=10))
-    assert (ideal.score, ideal.gaps) == (100, ()), "a solo agent inside every range scores 100"
-    drifted = WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
-    assert drifted.score < 40 and {gap.label for gap in drifted.gaps} == {"your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"}, "one far off scores low and names the measures off their range"
-    assert not WorkersProfiles.SOLO_PROFILE.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
 def test_with_the_reviewer_on_the_orchestrators_answer_time_runs_from_the_review_and_merge_preparation_is_no_longer_measured_on_purpose(app: App):
@@ -4171,10 +4115,8 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     settings.set(WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default, Actor.user(1))
 
 
-def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_general_verifier_and_a_mismatch_is_named_and_scored(app: App, monkeypatch):
+def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_general_verifier_and_a_mismatch_is_named_and_kept_unscored_on_purpose(app: App, monkeypatch):
     from journal.features.verification.support.verifier_runner import VerifierRunner
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.workers_profiles import MODEL_FIT_SHARE, WorkersProfiles
     from journal.models.edit import Edit
     from journal.models.link import Link
     from journal.models.support.ref import Ref
@@ -4221,8 +4163,6 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     assert "ran on claude-haiku-5-5 for work" not in heard, "a fit is never named"
     agent = app.container.get(Agents).session_agent("s1")
     assert len(agent.model_fits) == 6 and sum(entry.endswith(":right") for entry in agent.model_fits) == 2, agent.model_fits
-    counts = ToolUseCounts.counted(agent)
-    assert MODEL_FIT_SHARE in WorkersProfiles.ORCHESTRATOR.measures and MODEL_FIT_SHARE.percent(counts) == 33 and MODEL_FIT_SHARE.closeness(counts) < 1.0, "the model fit part of the fitness counts the mismatches against"
     with app.container.get(Scope).environment(MAIN):
         sampled = next(w for w in workers.global_matching(name="large-opus"))
         judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), kind="verifies")]
@@ -11966,51 +11906,6 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
         team.close(server)
 
 
-def test_the_orchestrator_fitness_scores_waits_with_on_or_until_well_waits_in_words_against_and_names_a_task_that_names_another_without_waiting_on_it(app: App):
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.features.workers.support.wait_reading import WaitReading
-    from journal.features.workers.workers_profiles import WAIT_SHARE
-    from journal.models.support.wait_use import WaitUse
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import NUDGE, Entries
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    for title in ("the schema", "the parser", "the lexer", "the docs"):
-        console.run(["plan", "add", "1", title, "--brief", "b"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    settings.set("workers.mode", "orchestrator", Actor.user(1))
-    agents, reading = app.container.get(Agents), app.container.get(WaitReading)
-
-    def measured() -> tuple[WaitUse, float | None]:
-        agent = agents.session_rows("s1")[0]
-        saved = agents.save(agent.waits_measured(reading.measured(), timing.time()), Actor.system())
-        app.runtime().deferred.drain()
-        return saved.wait_use, WAIT_SHARE.closeness(ToolUseCounts.counted(agents.find(saved.row_id)))
-
-    assert console.run(["task", "block", "3", "the parser first", "--on", "task:2"], AGENT).code == 0
-    assert console.run(["task", "block", "4", "the release is tagged", "--until", "test -f /tmp/never-there-3225"], AGENT).code == 0
-    use, score = measured()
-    assert (use.with_wait, use.worded, use.missing) == (2, 0, ()) and score == 1.0, f"every wait with --on or --until scores whole: {use}, {score}"
-    for n in (3, 4):
-        assert console.run(["task", "unblock", str(n)], AGENT).code == 0
-    assert console.run(["task", "block", "3", "the schema has to settle"], AGENT).code == 0
-    assert console.run(["task", "block", "4", "the user decides the colour"], AGENT).code == 0
-    use, score = measured()
-    assert (use.with_wait, use.worded, use.outside) == (0, 1, 1) and score == 0.0, f"a reason in words scores against, one that names the user is neutral: {use}, {score}"
-    for n in (3, 4):
-        assert console.run(["task", "unblock", str(n)], AGENT).code == 0
-    edited = console.run(["task", "edit", "4", "--brief", "write it once task 2 is merged"], AGENT)
-    assert edited.code == 0, edited.error
-    use, score = measured()
-    assert use.missing == ("4:2",) and score == 0.0, f"a task naming another open task it does not wait on counts against: {use}, {score}"
-    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]
-    assert told == ["task 4 lists task 2, still open, and does not wait on it. journal task block 4 --on task:2"], told
-    measured()
-    assert len([entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]) == 1, "a missing wait is named once"
-
-
 def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_still_nor_at_the_stop(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
@@ -12890,95 +12785,6 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["completed", "completed", "completed"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
 
-def test_worker_reports_while_plenty_is_open_lower_the_fitness_and_a_quick_one_drops_it_at_once_then_recovers(app: App):
-    from journal.features.workers.support.interruption_measure import InterruptionMeasure
-    from journal.features.workers.support.tool_use_counts import ToolUseCounts
-    from journal.models.support.report_use import ReportUse
-    measure = InterruptionMeasure("reports", 3, "queue")
-    rates = (2.0, 8.0)
-    counts = lambda use: ToolUseCounts(report_use=use)
-    assert measure.closeness(counts(ReportUse())) is None, "no report at all leaves the measure unmeasured"
-    calm = ReportUse().recorded(0, 5).recorded(1800, 5).measured(3600, 60, 3, rates, 30)
-    assert calm.hourly_reports == 2 and measure.closeness(counts(calm)) == 1.0, "two reports an hour while plenty was open are within the full score"
-    busy = ReportUse()
-    for minute in range(0, 60, 10):
-        busy = busy.recorded(minute * 60, 5)
-    busy = busy.recorded(3500, 1).measured(3600, 60, 3, rates, 30)
-    assert busy.hourly_reports == 6 and measure.closeness(counts(busy)) == (8 - 6) / 6, "six reports an hour while plenty was open fall toward no score, and a report with little open is not counted"
-    quick = ReportUse().recorded(1000, 5).dropped(1000, 20, "worker 1 reported after 40 seconds with 5 tasks open")
-    assert quick.measured(1000, 60, 3, rates, 30).unrecovered_points == 20, "a quick report's drop is whole at once"
-    assert quick.measured(1000 + 15 * 60, 60, 3, rates, 30).unrecovered_points == 10 and quick.measured(1000 + 30 * 60, 60, 3, rates, 30).unrecovered_points == 0, "and wears off straight to nothing over its recovery minutes"
-    from journal.features.workers.support.fitness_point import FitnessPoint
-    from journal.features.workers.support.fitness_score import FitnessScore
-    before = FitnessPoint.of(FitnessScore("builder", 100), 0, "first score in this mode")
-    dropped = before.following(FitnessScore("builder", 80, drop_points=20, drop_cause="worker 1 reported after 40 seconds with 5 tasks open"), 1000)
-    assert dropped.moved == "worker 1 reported after 40 seconds with 5 tasks open, which cost 20 points", "the timeline names the drop's cause"
-    recovering = dropped.following(FitnessScore("builder", 81, drop_points=19, drop_cause="worker 1 reported after 40 seconds with 5 tasks open"), 1090)
-    assert recovering.moved == "a quick report's drop recovering: 19 points still off"
-    assert recovering.is_same(FitnessScore("builder", 81, drop_points=19)), "and the recovery writes a point only when the score moves by a point"
-
-
-def test_a_clock_out_is_kept_on_the_dispatchers_row_with_the_open_work_and_a_quick_one_with_plenty_open_drops_the_fitness(app: App, monkeypatch):
-    from journal.repositories.agents import Agents
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    console.run(["plan", "create", "the release", "--brief", "the release"], USER)
-    for n in range(4):
-        console.run(["plan", "add", "1", f"step {n}", "--brief", f"step {n}: done when it is in"], USER)
-    with app.container.get(Scope).environment(MAIN):
-        from journal.repositories.plans import Plans
-        plans = app.container.get(Plans)
-        plans.approve(plans.find(1), Actor.user(1))
-        assert plans.open_work_count() == 4, "the open tasks of an approved plan are the work open for workers"
-    committed(worktree, "notes1.md", "note 1\n")
-    assert proved_and_out(app, caller, "notes1.md:1").code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
-        assert [pair[1] for pair in use.reports] == [4] and use.drop_points == 20, "the report is kept with the open work, and one within a minute of its job's start with plenty open drops the fitness at once"
-        from journal.repositories.entries import NUDGE, Entries
-        lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.quick_report_dropped_the_fitness"]
-    assert len(lines) == 1 and "worker 1 reported within a minute of its job's start while 4 tasks were open" in lines[0] and "journal worker queue 1" in lines[0], "and the dispatcher is told there and then to queue it several tasks"
-    with app.container.get(Scope).environment(MAIN):
-        from journal.features.workers.support.fitness_point import FitnessPoint
-        assert use.unrecovered_points == 20 and app.container.get(Entries).session_kind_newest(AGENT.session, FitnessPoint.KIND, 1), "the fitness is measured and its point kept at the report itself, with no tool use of the dispatcher after it"
-
-
-def test_the_interruption_measure_counts_only_reports_filed_while_plenty_was_open_and_waits_for_enough_of_them(app: App):
-    from journal.models.support.report_use import ReportUse
-    rates = (2.0, 8.0)
-    assert not ReportUse().recorded(100, 0).recorded(200, 0).recorded(300, 0).measured(400, 60, 3, rates, 30).is_measured, "with no tasks open at any report the measure is not counted"
-    assert not ReportUse().recorded(100, 5).measured(400, 60, 3, rates, 30).is_measured, "one report filed while plenty was open is too few to count"
-    edge = ReportUse().recorded(0, 5).recorded(200, 5).measured(3700, 60, 3, rates, 30)
-    assert edge.hourly_reports == 1, "a report older than the window falls out of it at its edge"
-    many = ReportUse()
-    for n in range(4):
-        many = many.recorded(1000, 5)
-    assert many.measured(1000, 60, 3, rates, 30).hourly_reports == 4, "workers reporting at once each count"
-
-
-def test_a_quick_report_line_is_said_once_in_its_cooldown_and_a_stuck_workers_clock_out_is_no_interruption(app: App, monkeypatch):
-    from journal.features.workers.workers_nudges import WorkersNudges
-    from journal.repositories.agents import Agents
-    assert WorkersNudges.QUICK_REPORT.repeat.amount == 600, "the quick report line is not said again for ten minutes, so a burst of quick reports gives one line"
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    console.run(["plan", "create", "the release", "--brief", "the release"], USER)
-    for n in range(4):
-        console.run(["plan", "add", "1", f"step {n}", "--brief", f"step {n}: done when it is in"], USER)
-    with app.container.get(Scope).environment(MAIN):
-        from journal.repositories.plans import Plans
-        app.container.get(Plans).approve(app.container.get(Plans).find(1), Actor.user(1))
-    console.run(["proof", "1", "--not-done", "the readme cannot be changed here"], caller)
-    assert console.run(["clock-out", "stuck: the readme cannot be changed here"], caller).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
-        assert not use.reports and not use.drop_points, "a worker that clocks out stuck did not choose to interrupt, so its report costs nothing"
-
-
 def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(app: App):
     from journal.features.workers.support.report_fit import ReportFit
     from journal.features.workers.support.task_sizes import TaskSizes
@@ -12993,9 +12799,7 @@ def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(ap
     assert fit.better(ReportChoice(1), small[:1]) is None and fit.better(ReportChoice(0), small) is None, "a choice that fits is left alone"
 
 
-def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_the_fitness_once(app: App, monkeypatch):
-    from journal.models.support.report_use import ReportUse
-    from journal.repositories.agents import Agents
+def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_the_fitness_drop_is_gone_on_purpose(app: App, monkeypatch):
     repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
     worktree_worker(app, monkeypatch, "1. the readme")
     console = app.console()
@@ -13003,15 +12807,6 @@ def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_th
         console.run(["task", "create", f"job {n}", "--brief", f"1. job {n} done when it is in"], AGENT)
     queued = console.run(["worker", "queue", "1", "2", "3", "--report", "each"], AGENT)
     assert queued.code == 0 and "--report queue fits better" in queued.text, queued.text
-    with app.container.get(Scope).environment(MAIN):
-        agents = app.container.get(Agents)
-        use = agents.session_rows(AGENT.session)[0].report_use
-        assert use.drop_points == 10 and "where queue fits" in use.drop_cause, "the misfit costs a drop with its cause"
-        agents.save(agents.session_rows(AGENT.session)[0].with_(report_use=ReportUse(drop_at=1.0, drop_points=20, unrecovered_points=20, drop_cause="a quick report")), Actor.system())
-    console.run(["task", "create", "job 4", "--brief", "1. job 4"], AGENT)
-    console.run(["worker", "queue", "1", "4"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Agents).session_rows(AGENT.session)[0].report_use.drop_cause == "a quick report", "while another cause's drop recovers, the misfit adds none: one cause, one drop"
 
 
 def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_last_move(app: App):
@@ -13019,39 +12814,6 @@ def test_a_queue_reported_at_its_end_is_timed_from_its_dispatch_not_from_its_las
     from journal.models.worker import Worker
     worker = Worker(name="w", brief="b", moves=WorkerMoves((("dispatched", 100.0), ("clocked in", 110.0), ("moved on to task 2", 900.0), ("moved on to task 3", 1500.0))))
     assert worker.job_start_time() == 100.0, "a move inside the queue is the same job going on, so a report at the queue's end is never a quick or tiny one for its last task alone"
-
-
-def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_how_quick_it_was(app: App, monkeypatch):
-    from journal.features.workers.listeners.report_use_record import ReportUseRecord
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import NUDGE, Entries
-    record = app.container.get(ReportUseRecord)
-    assert record.quick_points(30) == 20 and record.quick_points(120) == 15 and record.quick_points(180) == 10, "whole within the first minute, falling straight to half at three minutes"
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    committed(worktree, "notes1.md", "note 1\n")
-    assert proved_and_out(app, caller, "notes1.md:1").code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
-        lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.tiny_job_dropped_the_fitness"]
-    assert use.drop_points == 30 and "a job to do yourself" in use.drop_cause, "a job over within a minute with nothing else open costs the larger drop"
-    assert len(lines) == 1 and "do a job this small yourself" in lines[0], lines
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(MAIN):
-        cards = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "fitness"]
-    assert [m.text for m in cards] == ["Fitness fell 30 points to 70"] and "a job to do yourself" in cards[0].data["detail"], "the drop is written once as a card, by the listener on the event"
-    assert cards[0].data["outcome"] == "warned", "a score of 70 is orange, under 75 and not under 25"
-    from journal.features.workers.support.fitness_band import FitnessBand
-    assert (FitnessBand.outcome(17), FitnessBand.outcome(74), FitnessBand.outcome(75)) == ("failed", "warned", "passed"), "red under 25, orange under 75, green from 75"
-    from journal.events.bus import Bus
-    from journal.events.rows.tiny_job_dropped import TinyJobDropped
-    app.container.get(SettingRows).set("workers.fitness_warnings", False, Actor.user(1))
-    app.container.get(Bus).dispatch(TinyJobDropped(environment_id=MAIN, time=timing.time(), agent_session=AGENT.session, worker=1, seconds=20, points=30))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        later = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.tiny_job_dropped_the_fitness"]
-    assert len(later) == 1, "with the fitness warnings switched off, no line about the fitness reaches the agent"
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
@@ -16180,7 +15942,7 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     assert not named, f"a worker is named by its number alone, never also by its name: {named}"
     titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
     assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
-    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
+    short = {"workers.work_ready": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
              "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
     values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
     for key, limit in short.items():
@@ -20518,35 +20280,6 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
         fixture.write_text(json.dumps(served, indent=1) + "\n")
     assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
 
-
-
-def test_the_fitness_level_told_is_kept_through_state_changes_and_a_measure_moving_under_one_score_adds_no_point(app: App):
-    from journal.features.workers.support.fitness_point import FitnessPoint
-    from journal.features.workers.support.fitness_score import FitnessScore
-    from journal.repositories.agents import Agents
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    agents = app.container.get(Agents)
-    with app.container.get(Scope).environment(MAIN):
-        agents.save(agents.session_rows("s1")[0].with_(fitness_level=50), Actor.system())
-    app.console().run(["task", "create", "the parser", "--start"], AGENT)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        assert agents.session_rows("s1")[0].fitness_level == 50, "the level told is a field of the agent's own, so a state pushed or swapped over the work never writes it over"
-    point = FitnessPoint.first(FitnessScore(mode="builder", score=50, is_measured=True, parts=(("own code share", 100),)), 1.0)
-    assert point.is_same(FitnessScore(mode="builder", score=50, is_measured=True, parts=(("own code share", 0),))), "a measure that moves under an unchanged score adds no point to the timeline"
-
-
-def test_a_fitness_that_falls_past_a_mark_is_told_once_and_a_rise_lets_the_marks_above_be_told_again():
-    from journal.features.workers.support.fitness_levels import FitnessLevels
-
-    told, said = 100, []
-    for score in (100, 96, 95, 91, 80, 90, 84):
-        said.append(FitnessLevels.is_fall(score, told, 5))
-        told = FitnessLevels.standing(score, 5)
-    assert said == [False, False, True, False, True, False, True], "100 to 96 nothing, 96 to 95 one, 95 to 91 nothing, 91 to 80 one, 80 to 90 nothing, 90 to 84 one"
-    assert FitnessLevels.is_fall(80, 100, 5) and not FitnessLevels.is_fall(94, 90, 5), "a fall past several marks is one fall"
 
 
 def test_a_rebase_order_reaches_a_worker_on_a_task_at_its_next_clock_out(app: App, monkeypatch):

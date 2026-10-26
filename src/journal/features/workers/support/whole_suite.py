@@ -1,5 +1,5 @@
-from journal.features.workers.support.tool_use_counts import TEST_COMMANDS
-
+# the commands that run a project's tests
+TEST_COMMANDS = ("journal suite", "scripts/suite.py", "pytest", "python3 -m pytest", "npm test", "npx vitest", "go test", "phpunit", "cargo test")
 # words that run a part of the suite, by name or by what failed last
 SELECTING_WORDS = ("-k", "-m", "--deselect", "--lf", "--last-failed")
 

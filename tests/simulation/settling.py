@@ -14,7 +14,7 @@ LOAD_LEVEL = 0.8
 LOAD_WINDOW_MINUTES, LOAD_HALF_LIFE_MINUTES = 30, 10
 SETTLE_MARGIN_MINUTES = 20
 BURST_GAP_MINUTES = 5
-MEASURE_FEATURES = ("workers.load_", "workers.fitness", "workers.work_mode_fitness", "workers.builder_", "workers.orchestrator_", "workers.solo_")
+MEASURE_FEATURES = ("workers.builder_", "workers.orchestrator_", "workers.solo_")
 NOTICE_KEYS = ("messages.",)
 
 
