@@ -5491,9 +5491,6 @@ def test_a_plugins_last_fault_is_listed_with_its_time_and_one_kept_without_a_tim
 
 
 def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_again_when_its_fault_changes_or_a_day_has_passed(app: App, monkeypatch, tmp_path):
-    from journal.engine.clock import Clock
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
     from journal.models.plugin import Plugin
     from journal.repositories.plugins import Plugins
     keystrokes = []
@@ -5506,13 +5503,10 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     manifest.write_text('{"name": "lint"}')
     plugins = app.container.get(Plugins)
     plugins.save(Plugin(name="lint", source=str(folder), linked=True, manifest=PluginManifest(name="lint")), Actor.user(1))
-    now = timing.time()
-
-    from journal.support.time_source import TimeSource
+    drive_the_clock(app, monkeypatch)
 
     def tick(after: float) -> list[str]:
-        monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", now + after)
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=now + after, silence_seconds=10.0))
+        tick_at(app, after, 10.0)
         app.runtime().deferred.drain()
         return [line for line in keystrokes if "plugin lint" in line]
 
