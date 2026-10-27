@@ -13,6 +13,7 @@ from journal.app import App
 from journal.features.shell.support.count_forms import CountForms
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.reader_judge import ReaderJudge
 from journal.features.shell.support.shell_data_reader import ShellDataReader
@@ -149,10 +150,10 @@ def test_a_test_run_watched_through_a_reader_with_no_progress_still_owes_a_reade
     assert not app.container.get(ShellDataReader).is_read_well(SUITE)
 
 
-def test_the_release_chain_is_read_as_its_work_and_owes_no_git_checkout_reader():
+def test_the_release_chain_is_read_as_its_work_and_owes_no_git_checkout_reader(app: App):
     line = "git checkout -q main && git merge --ff-only development && git push origin main && git tag v4.63.2 && git push origin v4.63.2 && gh release create v4.63.2 --notes done && git checkout -q development && git log --oneline -1 main"
-    assert Chain.choosing_parts(line)[0] == "git merge --ff-only development"
-    assert CommandShape.command_name(line) == "git merge"
+    assert app.container.get(Readers).choosing_parts(line)[0] == "git merge --ff-only development"
+    assert app.container.get(CommandShape).command_name(line) == "git merge"
 
 
 def test_a_reader_for_git_checkout_is_tried_on_the_git_checkout_part_alone(app: App, tmp_path: Path):

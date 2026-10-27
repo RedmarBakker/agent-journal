@@ -40,14 +40,14 @@ class BarRow:
         return entry.kind in TOOLS and not entry.recorded_call().command
 
     @classmethod
-    def build(cls, entry: Entry) -> "BarRow":
-        return cls.part_row(entry) if entry.kind in PARTS else cls.tool_row(entry)
+    def build(cls, entry: Entry, text: CommandText) -> "BarRow":
+        return cls.part_row(entry, text) if entry.kind in PARTS else cls.tool_row(entry)
 
     @classmethod
-    def part_row(cls, entry: Entry) -> "BarRow":
+    def part_row(cls, entry: Entry, text: CommandText) -> "BarRow":
         changed = entry.data.get("changed", [])
         files = tuple((c["path"], c["added"], c["removed"]) for c in changed)
-        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], CommandText.shown(entry.data["part"]), entry.data["time"], entry.kind == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
+        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], text.shown(entry.data["part"]), entry.data["time"], entry.kind == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
 
     @classmethod
     def tool_row(cls, entry: Entry) -> "BarRow":

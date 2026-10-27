@@ -1,9 +1,6 @@
 import re
 from dataclasses import dataclass
 
-from journal.models.alias import Alias
-from journal.support.chain import Chain
-from journal.support.command_shape import CommandShape
 
 COMMANDS_PREFIX = "commands: "
 JOURNAL = "journal"
@@ -11,7 +8,7 @@ JOURNAL = "journal"
 
 @dataclass(frozen=True)
 class ReaderCommands:
-    """The commands a reader reads the output of, such as pytest or dotnet test: a shell line runs one when the shape of one of its parts, its program and subcommands, names it, never a value passed or text a part contains."""
+    """The commands a reader reads the output of, such as pytest or dotnet test: a part runs one when its shape, its program and subcommands, names it, never a value passed or text a part contains."""
 
     programs: tuple[str, ...] = ()
 
@@ -25,14 +22,5 @@ class ReaderCommands:
     def journal_commands(self) -> list[str]:
         return [" ".join(program.split()[1:2]) for program in self.programs if program.split()[:1] == [JOURNAL]]
 
-    def is_read(self, line: str) -> bool:
-        return bool(self.read_part(line))
-
-    def read_part(self, line: str) -> str:
-        return next((part.text for part in Chain.parts(line) if self.reads(part.text)), "")
-
-    def reads(self, part: str) -> bool:
-        return any(re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", CommandShape.build(part)) for program in self.programs)
-
-    def read_aliases(self, aliases: list[Alias]) -> list[Alias]:
-        return [alias for alias in aliases if self.reads(alias.expanded(""))]
+    def reads(self, shape: str) -> bool:
+        return any(re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", shape) for program in self.programs)

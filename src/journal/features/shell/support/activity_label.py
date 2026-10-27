@@ -4,6 +4,7 @@ from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import TOKEN_PATTERN, CommandShape
 from journal.support.part import Part
+from journal.support.command_shape import CommandShape
 
 
 # the activities long enough to be watched through a reader as they run
@@ -33,8 +34,8 @@ TESTING = "testing"
 class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it, read from the label its classification carries: git commit is committing, pytest and php artisan test are testing; a wrapper is seen through, a loop is named for its body, a script by its runner."""
 
-    def __init__(self, classifier: CommandClassifier) -> None:
-        self.classifier = classifier
+    def __init__(self, classifier: CommandClassifier, shapes: CommandShape) -> None:
+        self.classifier, self.shapes = classifier, shapes
 
     def test_runs(self, parts: tuple[str, ...]) -> list[str]:
         return [part for part in parts if self.build(part) == TESTING]
@@ -53,10 +54,10 @@ class ActivityLabel:
         label = self.build(part)
         if label != IDLE:
             return label
-        return self.build(CommandShape.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
+        return self.build(self.shapes.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
 
     def build(self, part: str) -> str:
-        shaped = CommandShape.inner(CommandShape.working(part))
+        shaped = self.shapes.inner(self.shapes.working(part))
         if (inner := self.classifier.unwrapped(shaped)) != shaped:
             script = self.unshelled(inner)
             return self.build(script) if script else self.classifier.row_classification(shaped).label or f"running {shaped.split()[0].rsplit('/', 1)[-1]}"

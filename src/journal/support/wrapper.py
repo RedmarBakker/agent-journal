@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Wrapper:
-    """A command that runs the command after it, as timeout or uv run do: the subcommands it needs, a word or two each, the flags that take a value, before its subcommand or after it, the values it takes before the command, whether it takes NAME=value assignments, the word that ends its own options, the flags that make it look a command up instead of running it, as command -v does, the text its first value must hold when that value is code, as perl -e 'alarm 60; exec @ARGV' is, and whether all it does is limit the time of the command it runs."""
+    """A command that runs the command after it, as timeout or uv run do: the subcommands it needs, a word or two each, the flags that take a value, before its subcommand or after it, the values it takes before the command, whether it takes NAME=value assignments, the word that ends its own options, the flags that make it look a command up instead of running it, as command -v does, the text its first value must hold when that value is code, as perl -e 'alarm 60; exec @ARGV' is, whether all it does is limit the time of the command it runs, whether a run's shape is named past it, as timeout 60 pytest is pytest, whether a run is named for the script file it runs, as nohup ./run.sh is nohup run.sh, and whether a project's script may stand before it, as scripts/dev env go test is go test."""
 
     subcommands: tuple[str, ...] = ()
     value_flags: frozenset[str] = frozenset()
@@ -13,6 +13,9 @@ class Wrapper:
     code_contains: str = ""
     lookup_flags: frozenset[str] = frozenset()
     limits_time: bool = False
+    shape_skipped: bool = False
+    runs_script_file: bool = False
+    follows_scripts: bool = False
 
     @classmethod
     def parsed(cls, rows: dict, name: str) -> "Wrapper":
@@ -21,7 +24,8 @@ class Wrapper:
             data = rows[data["same_as"]]
         return cls(subcommands=tuple(data.get("subcommands", ())), value_flags=frozenset(data.get("value_flags", ())), leading_values=data.get("leading_values", 0),
                    assignments=bool(data.get("assignments")), options_end=data.get("until", ""), code_contains=data.get("code_contains", ""),
-                   lookup_flags=frozenset(data.get("lookup_flags", ())), limits_time=bool(data.get("limits_time")))
+                   lookup_flags=frozenset(data.get("lookup_flags", ())), limits_time=bool(data.get("limits_time")), shape_skipped=bool(data.get("dropped_from_shape")),
+                   runs_script_file=bool(data.get("runs_script_file")), follows_scripts=bool(data.get("may_follow_a_script")))
 
     def wrapped(self, tokens: list[str]) -> list[str]:
         if tokens[1:2] and tokens[1] in self.lookup_flags:
@@ -46,3 +50,9 @@ class Wrapper:
         while tokens and self.is_wrapper_flag(tokens[0]):
             tokens = tokens[2:] if tokens[0] in self.value_flags else tokens[1:]
         return tokens
+
+    def is_launcher(self) -> bool:
+        return not self.subcommands and not self.shape_skipped and not self.lookup_flags
+
+    def subcommand_words(self) -> frozenset[str]:
+        return frozenset(subcommand for subcommand in self.subcommands if " " not in subcommand and not subcommand.startswith("-")) if not self.options_end and not self.leading_values else frozenset()

@@ -30,8 +30,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, delegation: OrchestratorTaskAssigner, plans: Plans) -> None:
-        self.delegation, self.plans = delegation, plans
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes, delegation: OrchestratorTaskAssigner, plans: Plans, text: CommandText) -> None:
+        self.delegation, self.plans, self.text = delegation, plans, text
         self.checks, self.scope, self.stages, self.entries, self.resumes = checks, scope, stages, entries, resumes
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
@@ -40,7 +40,7 @@ class WorkersDataReader:
         call = started[0].recorded_call() if started else None
         if call is None:
             return "no tool call yet"
-        return CommandText.shortened(call.command or " ".join(filter(None, (call.work, *(call.edited_paths or call.read_paths)[:1]))) or "a tool", LAST_CALL_CHARACTERS)
+        return self.text.shortened(call.command or " ".join(filter(None, (call.work, *(call.edited_paths or call.read_paths)[:1]))) or "a tool", LAST_CALL_CHARACTERS)
 
     def is_unchecked(self, task_id: int) -> bool:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(self.tasks.find(task_id)), key=lambda proof: proof.row_id)}

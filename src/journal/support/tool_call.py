@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from journal.support.alias_call import AliasCall
 from pathlib import Path
 
-from journal.support.command_shape import CommandShape
 from journal.support.command_part import CommandPart
 from journal.support.operation import Operation
 from journal.support.recorded_call import RecordedCall
@@ -14,7 +13,7 @@ SEARCH_WORK, READ_WORK, RUN_WORK = "searching", "reading", "running"
 
 @dataclass(frozen=True)
 class ToolCall:
-    """The one reading of a tool call, made where the hook is translated and included on both tool events: the tool and its input as received, the operation its provider decoded, and what the operation does: the shell line and its parts, whether the call writes and which files it writes or reads, the skill it loads, and each part's classification with the table version it was read by."""
+    """The one reading of a tool call, made where the hook is translated and included on both tool events: the tool and its input as received, the operation its provider decoded, and what the operation does: the shell line and its parts, whether the call writes and which files it writes or reads, the skill it loads, each part's classification with the table version it was read by, and the line's shape and bare command name, which a run is known by."""
 
     tool: str
     input: dict
@@ -29,14 +28,16 @@ class ToolCall:
     skill_loaded: str = ""
     work: str = ""
     table_version: int = 0
+    shape: str = ""
+    name: str = ""
 
     @classmethod
-    def decoded(cls, tool: str, input: dict, operation: Operation, parts: tuple[CommandPart, ...], table_version: int = 0) -> "ToolCall":
+    def decoded(cls, tool: str, input: dict, operation: Operation, parts: tuple[CommandPart, ...], table_version: int = 0, shape: str = "", name: str = "") -> "ToolCall":
         command = operation.line()
         writes = any(part.writes for part in parts)
         return cls(tool=tool, input=input, operation=operation, command=command, parts=parts, is_journal=bool(parts) and all(part.is_journal for part in parts), writes=operation.writes() or writes,
                    edited_paths=(*operation.target_paths(), *(path for part in parts if part.writes for path in part.files)), read_paths=(*operation.read_paths(), *(path for part in parts if not writes for path in part.files)),
-                   file_lines=operation.file_lines(), skill_loaded=operation.loaded_skill(), work=cls.work_word(parts) if command else "", table_version=table_version)
+                   file_lines=operation.file_lines(), skill_loaded=operation.loaded_skill(), work=cls.work_word(parts) if command else "", table_version=table_version, shape=shape, name=name)
 
     @staticmethod
     def work_word(parts: tuple[CommandPart, ...]) -> str:
@@ -62,7 +63,7 @@ class ToolCall:
         return " ".join(str(value) for value in self.input.values())
 
     def recorded(self) -> RecordedCall:
-        return RecordedCall(command=self.command, parts=self.parts, writes=self.writes, edited_paths=self.edited_paths, read_paths=self.read_paths, work=self.work, shape=CommandShape.chain_shape(tuple(part.text for part in self.parts) or (self.command,)), operation=self.operation,
+        return RecordedCall(command=self.command, parts=self.parts, writes=self.writes, edited_paths=self.edited_paths, read_paths=self.read_paths, work=self.work, shape=self.shape, operation=self.operation,
                             table_version=self.table_version)
 
     def as_data(self) -> dict:

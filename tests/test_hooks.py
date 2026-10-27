@@ -417,10 +417,11 @@ def dispatch_entries(provider: str, kept, bodies: list[dict] | None = None) -> l
     """The entries a provider's captured hooks would leave, as SubagentEntries pairs them: each body with its event's kind and its call's reading."""
     from journal.support.classification_table import ClassificationTable
     from journal.support.command_classifier import CommandClassifier
+    from journal.support.command_shape import CommandShape
     from datetime import datetime, timezone
     from journal.models.entry import Entry
     from journal.providers.providers import Providers
-    program, classifier = Providers().lookup(provider), CommandClassifier(ClassificationTable())
+    program, classifier = Providers().lookup(provider), CommandClassifier(ClassificationTable(), CommandShape(ClassificationTable()))
     entries = []
     for n, body in enumerate(body for body in (bodies or captured(provider)) if kept(body)):
         call = {"call": program.call(body["tool_name"], body["tool_input"], frozenset(), classifier).as_data()} if "tool_name" in body else {}

@@ -18,7 +18,7 @@ from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
-from journal.support.command_shape import CommandShape, LAUNCHERS, SETUP_COMMANDS
+from journal.support.command_shape import CommandShape, SETUP_COMMANDS
 from journal.events.announcer import Announcer
 from journal.providers.claude import Claude
 from journal.providers.support.worker_outcome import WorkerOutcome
@@ -93,7 +93,8 @@ from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
 # the command table read once for the tests that decode a tool call by hand
-CLASSIFIER = CommandClassifier(ClassificationTable())
+SHAPES = CommandShape(ClassificationTable())
+CLASSIFIER = CommandClassifier(ClassificationTable(), SHAPES)
 MAIN = 1
 """The id of main, the environment a fresh journal makes at boot: what a test reads directly, it reads there."""
 
@@ -1442,10 +1443,10 @@ def test_a_check_left_marked_running_by_a_journal_that_stopped_runs_again(app: A
 
 def test_a_launcher_handed_inline_code_names_the_run_by_the_launcher():
     from journal.support.command_shape import CommandShape
-    assert CommandShape.command_name('node --input-type=module -e " import x from y"') == "node"
-    assert CommandShape.command_name('python3 -c "print(1)"') == "python3"
-    assert CommandShape.command_name("python3 -m pytest -q") == "pytest", "a module is still the run's name"
-    assert CommandShape.command_name("perl -e 'alarm 120; exec @ARGV' node src/web/tests/chatScroll.browser.mjs") == "chatScroll.browser.mjs", "a timeout wrapper is still read through"
+    assert SHAPES.command_name('node --input-type=module -e " import x from y"') == "node"
+    assert SHAPES.command_name('python3 -c "print(1)"') == "python3"
+    assert SHAPES.command_name("python3 -m pytest -q") == "pytest", "a module is still the run's name"
+    assert SHAPES.command_name("perl -e 'alarm 120; exec @ARGV' node src/web/tests/chatScroll.browser.mjs") == "chatScroll.browser.mjs", "a timeout wrapper is still read through"
 
 
 def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: App):
@@ -6267,7 +6268,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
     tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -9942,14 +9943,14 @@ def test_a_command_is_known_by_its_shape_and_five_runs_of_one_long_run_bring_a_r
     from journal.support.command_shape import CommandShape
     from journal.support.part import Part
     assert [Part(line).cut() for line in ('python3 -m pytest -q | grep -E "^FAILED|passed" | head -30', "pytest -q | tail -1", 'echo "a|b" | grep x', "tail -f log | grep x", "pytest -q")] == ['| grep -E "^FAILED|passed" | head -30', "| tail -1", "| grep x", "", ""], "a trailing chain of filters comes off whole, quotes respected, so the run streams to its card and the cut is applied after"
-    assert [CommandShape.build(line) for line in ("pytest -k chat", "pytest tests/a.py -q", "python3 -m pytest -q", "npm run test", "git commit -m 'x'", ".journal/bin/judge --changes")] == ["pytest", "pytest", "python3 -m pytest", "npm run test", "git commit", ".journal/bin/judge"]
+    assert [SHAPES.build(line) for line in ("pytest -k chat", "pytest tests/a.py -q", "python3 -m pytest -q", "npm run test", "git commit -m 'x'", ".journal/bin/judge --changes")] == ["pytest", "pytest", "python3 -m pytest", "npm run test", "git commit", ".journal/bin/judge"]
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"make build TARGET=part{i}"})[1]) for i in range(5)]
     assert ["no reader reads make build yet" in line for line in told] == [False, False, False, False, True], "the fifth run of make build, whatever its values, is told to make a reader"
     from journal.support.chain import Chain
     in_container = "S=/private/tmp/scratch\ncd /work && docker exec app-1221afce4624-backend-1 php artisan test --filter Bookings"
-    assert CommandShape.chain_shape(tuple(part.text for part in Chain.parts(in_container))) == "php artisan test", "a line's shape is its first working part, past a variable set and a cd, and inside the container"
+    assert SHAPES.chain_shape(tuple(part.text for part in Chain.parts(in_container))) == "php artisan test", "a line's shape is its first working part, past a variable set and a cd, and inside the container"
     told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": in_container.replace("Bookings", f"Case{i}")})[1]) for i in range(5)]
     assert "you ran php artisan test" in told[2] and "--reader phpunit" in told[2], "so the third such run is asked to become an alias read by the reader the tests already have, never one for cd"
 
@@ -9957,8 +9958,8 @@ def test_a_command_is_known_by_its_shape_and_five_runs_of_one_long_run_bring_a_r
 def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_short():
     from journal.support.command_text import SHOWN_CHARACTERS, CommandText
     heredoc = "COMMANDMENTS_PLAIN_PROGRESS=1 cat > src/a.js <<'EOF'\nimport {x} from 'y';\nEOF"
-    assert CommandText.shown(heredoc) == "cat > src/a.js <<'EOF'", "a heredoc shows its command, not its text, and no variable set before it"
-    shown = CommandText.shown("pytest " + "tests/a.py " * 40)
+    assert CommandText(SHAPES).shown(heredoc) == "cat > src/a.js <<'EOF'", "a heredoc shows its command, not its text, and no variable set before it"
+    shown = CommandText(SHAPES).shown("pytest " + "tests/a.py " * 40)
     assert len(shown) == SHOWN_CHARACTERS and shown.endswith("…"), "a long command is cut to the set length"
 
 def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_command_is_named_by_what_it_wraps(app: App):
@@ -9969,10 +9970,10 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
     from journal.repositories.command_outputs import CommandOutputs
     assert labels.build("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "testing" and labels.build("timeout 60 npm test") == "testing"
     from journal.support.command_shape import CommandShape
-    assert CommandShape.build("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest", "variables set before a command are looked through, as the time-limit wrappers are"
-    assert CommandShape.build("A=1 B='two words' pytest -q") == CommandShape.build("pytest -k chat") == "pytest", "two commands that differ only in the variables set before them are one shape"
+    assert SHAPES.build("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest", "variables set before a command are looked through, as the time-limit wrappers are"
+    assert SHAPES.build("A=1 B='two words' pytest -q") == SHAPES.build("pytest -k chat") == "pytest", "two commands that differ only in the variables set before them are one shape"
 
-    assert CommandShape.build("docker compose exec -T server php artisan test --compact") == "php artisan test" and CommandShape.build("docker exec -it -u root app pytest -q") == "pytest", "a run inside a container is known by the command it runs there"
+    assert SHAPES.build("docker compose exec -T server php artisan test --compact") == "php artisan test" and SHAPES.build("docker exec -it -u root app pytest -q") == "pytest", "a run inside a container is known by the command it runs there"
     from journal.features.shell.support.output_files import OutputFiles
     styled = app.config.root / "styled"
     styled.mkdir()
@@ -10396,6 +10397,84 @@ def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_w
     assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
     old = RecordedCall.parsed({"command": "rm x", "parts": [{"text": "rm x", "is_journal": False, "writes": True, "files": ["x"], "reads_output": False, "read_shape": "rm x"}], "writes": True, "written_paths": ["x"]})
     assert old.writes and old.parts[0].writes and old.parts[0].files == ("x",) and old.parts[0].classification == Classification() and old.table_version == 0, "an entry stored before the classifier reads back with its own write flag and files"
+
+
+def test_every_shape_of_the_command_corpus_is_the_one_stored_before_the_table_held_the_wrappers_and_a_stored_shape_still_counts(app: App):
+    """Task 3782: the runners, launchers, time limits and redirects CommandShape held are rows of the command table now, and the shapes it builds are the ones entries stored before: shapes_before.json holds every corpus line's shape as the old lists built it, a change is frozen in shape_disagreements.json (CORPUS_FREEZE=1 writes it anew after review), and a ToolStarting entry stored before counts beside a new run of the same command."""
+    from journal.models.entry import Entry
+    from journal.support.chain import Chain
+    from journal.repositories.entries import Entries
+    folder = Path(__file__).parent / "shell_corpus_reading"
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    before = json.loads((folder / "shapes_before.json").read_text())
+    found = {str(n): {"before": old, "now": now} for n, (row, old) in enumerate(zip(rows, before), 1) if (now := SHAPES.chain_shape(tuple(part.text for part in Chain.parts(row["line"])) or (row["line"],))) != old}
+    frozen = folder / "shape_disagreements.json"
+    if os.environ.get("CORPUS_FREEZE"):
+        frozen.write_text(json.dumps(found, indent=0, sort_keys=True) + "\n")
+    known = json.loads(frozen.read_text())
+    changed = {n: found.get(n, "agrees now") for n in found.keys() | known.keys() if found.get(n) != known.get(n)}
+    assert not changed, f"{len(changed)} corpus shapes changed from those stored before, the first: {list(changed.items())[:3]}"
+    assert len(known) <= 2, "the table carries the old lists: the stored shapes stay comparable, so the suggester's counts never reset"
+    hook(app, "SessionStart")
+    entries = app.container.get(Entries)
+    with app.container.get(Scope).environment(MAIN):
+        for line, shape in (("timeout 300 python3 -m pytest -q", "python3 -m pytest"), ("nohup ./run.sh > log 2>&1 &", "nohup run.sh"), ("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' npm test", "npm test")):
+            entries.save(Entry(environment_id=MAIN, kind="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": line, "writes": False, "shape": shape}}), Actor.system())
+            hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
+            assert entries.shape_count("s1", shape) == 2, f"{line}: the entry stored before and the new run are one shape, counted together"
+
+
+def test_the_mark_rules_read_the_corpus_as_before_and_the_boot_seed_keeps_every_mark_the_old_rules_kept(app: App, tmp_path):
+    """Task 3782: whether a line is git, a pause or a quick read, the readings the boot seed StrayCommandMarkCleanup deletes a mark by, are frozen for the corpus as the old rules read them in mark_readings_before.json, a change frozen in mark_disagreements.json; and stored marks of runs the old rules kept, a wrapped test run, a build, a project's own script, a pause before work, stay through the seed."""
+    from datetime import timedelta
+    from journal.features.shell.seeds.stray_command_mark_cleanup import StrayCommandMarkCleanup
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
+    from journal.features.shell.support.git_commands import GitCommands
+    from journal.models.author import Author
+    from journal.models.command_output import CommandOutput
+    from journal.models.message import Message
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    folder = Path(__file__).parent / "shell_corpus_reading"
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    before = {name: set(numbers) for name, numbers in json.loads((folder / "mark_readings_before.json").read_text()).items()}
+    labels, policy, git = app.container.get(ActivityLabel), app.container.get(CommandMarkPolicy), app.container.get(GitCommands)
+    readings = {"git": git.is_git_line, "pause": policy.is_pause, "quick_read": labels.is_reading}
+    found = {f"{name}:{n}": n in before[name] for name, read in readings.items() for n, row in enumerate(rows, 1) if read(row["line"]) != (n in before[name])}
+    frozen = folder / "mark_disagreements.json"
+    if os.environ.get("CORPUS_FREEZE"):
+        frozen.write_text(json.dumps(found, indent=0, sort_keys=True) + "\n")
+    known = json.loads(frozen.read_text())
+    changed = {key: rows[int(key.split(":")[1]) - 1]["line"][:100] for key in found.keys() ^ known.keys()}
+    assert not changed, f"{len(changed)} mark readings changed from the frozen ones, the first: {list(changed.items())[:3]}"
+    assert not any(key.startswith(("git:", "pause:")) for key in known) and all(not old for old in known.values()), "git and pauses read as before; only a read the table now reads through, as \\ls, command ls or a sed of a log, is newly a quick read"
+    outputs, messages = app.container.get(CommandOutputs), app.container.get(Messages)
+    with app.container.get(Scope).environment(MAIN):
+        kept = []
+        for number, line in enumerate(("timeout 300 npm test", "sudo make install", "./scripts/build.sh", "sleep 5 && make release", "npx vitest run", "env CI=1 python3 -m pytest -q"), 1):
+            output = outputs.save(CommandOutput(chain=line, command=line, folder=str(tmp_path / f"run-{number}"), ended=True, status=0, moved=True), Actor.system())
+            output = outputs.save(output.with_(created_at=output.creation_time - timedelta(seconds=40)), Actor.system())
+            kept.append(messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="A run", data={"kind": "card", "shows": "commands", "output": output.id, "card_type": "process"}), Actor.system()))
+        app.container.get(StrayCommandMarkCleanup).run()
+        assert all(messages.matching(id=card.id) for card in kept), "every mark of a run the old rules kept stays through the boot seed"
+        assert not policy.takes_no_reader("./scripts/build.sh") and not labels.is_reading("./scripts/build.sh"), "a program the table does not know is a run under the mark rules"
+
+
+def test_a_stored_call_keeps_its_parts_fields_and_its_doing_labels_stay_as_history(app: App):
+    """Task 3782: CommandPart keeps writes, files, reads_output and read_shape as stored fields beside the classification, writes and files filled from it and the output read's two from the line; a part stored before reads back with them, and a part's doing label stored by the shell record stays as it was written, whatever the table now names the command."""
+    from journal.http.agents.bar_row import BarRow
+    from journal.models.entry import Entry
+    from journal.support.command_part import CommandPart
+    from journal.support.command_text import CommandText
+    stored = CommandPart.parsed({"text": "journal output read 7 | tail", "is_journal": True, "writes": False, "files": [], "reads_output": True, "read_shape": "journal output read <output> | tail"})
+    assert (stored.writes, stored.files, stored.reads_output, stored.read_shape, stored.classification.kind, stored.shape) == (False, (), True, "journal output read <output> | tail", "unknown", ""), "a part stored before reads back with its own fields"
+    fresh = Claude().call("Bash", {"command": "rm build/x.txt"}, frozenset(), CLASSIFIER).parts[0]
+    assert fresh.writes == fresh.classification.is_write and fresh.files == ("build/x.txt",) and fresh.shape == "rm" and not fresh.reads_output, "a new part's writes and files are its classification's, beside it"
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.shell_record import PART_START
+    entry = Entry(environment_id=MAIN, kind=PART_START, data={"chain": "c1", "part": "sudo apt-get install -y curl", "doing": "running sudo", "time": 1.0})
+    assert BarRow.build(entry, CommandText(SHAPES)).verb == "running sudo" and app.container.get(ActivityLabel).build("sudo apt-get install -y curl") == "installing", "the label stored then is shown as history, though the table now names the run installing"
 
 
 def test_the_classifier_reads_through_groups_loops_test_scripts_and_wrappers_and_names_the_files_a_command_writes_or_prints(app: App):
@@ -13351,13 +13430,13 @@ BARE_COMMANDS = {
 
 def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variables_and_arguments_seen_through():
     for line, bare in BARE_COMMANDS.items():
-        assert CommandShape.command_name(line) == bare, line
+        assert SHAPES.command_name(line) == bare, line
     parts = [part for row in map(json.loads, (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()) for part in row["parts"]]
     assert len(parts) > 10000
     for part in parts:
-        bare = CommandShape.command_name(part)
+        bare = SHAPES.command_name(part)
         first = bare.split()[0] if bare else ""
-        assert not first.startswith("(") and "=" not in first and (first not in LAUNCHERS or bare == first), (part, bare)
+        assert not first.startswith("(") and "=" not in first and (first not in SHAPES.launchers or bare == first), (part, bare)
         assert first not in SETUP_COMMANDS or not ("&&" in part or ";" in part) or "<<" in part, ("a chain is known by the command past its setup", part, bare)
 
 
@@ -14038,6 +14117,7 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     labels = app.container.get(ActivityLabel)
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import MIXED_TITLE, ReaderJudge
+    from journal.features.shell.support.readers import Readers
     assert labels.line_label("npm --prefix src/web exec -- vitest run tests/a.test.js") == "testing" and labels.line_label("npm exec -- vitest run") == "testing", "npm exec runs the program after it"
     assert labels.line_label("npm --prefix src/web run build") == "building", "and npm --prefix <folder> run build is still a build"
 
@@ -14052,7 +14132,7 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     reader = Reader("viewer-build", "the viewer", label="Building the viewer")
     same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
     mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
-    judge = lambda runs, aliases={}: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None, SimpleNamespace(index=lambda: aliases), None, None)
+    judge = lambda runs, aliases={}: ReaderJudge(app.container.get(Readers), None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None, SimpleNamespace(index=lambda: aliases), None, None, SHAPES)
     assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
     found = judge(mixed).mixed_title(reader, mixed[0])
     assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
@@ -17695,9 +17775,9 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge
     reader, judge = Reader("pytest", "the tests", pattern=".", commands=ReaderCommands(("pytest",))), app.container.get(ReaderJudge)
-    assert judge.is_shown_run(reader.commands.read_part("python3 -m pytest -p no:warnings tests/test_x.py 2>&1")), "a plain run, its errors joined to its output, is shown"
-    assert not judge.is_shown_run(reader.commands.read_part("S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py")), "a run whose output goes to a file shows nothing on the card"
-    assert not judge.is_shown_run(reader.commands.read_part("command -v uv\npython3 -m pytest --version")), "asking the tool its version is no run of it"
+    assert judge.is_shown_run(judge.readers.read_part(reader, "python3 -m pytest -p no:warnings tests/test_x.py 2>&1")), "a plain run, its errors joined to its output, is shown"
+    assert not judge.is_shown_run(judge.readers.read_part(reader, "S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py")), "a run whose output goes to a file shows nothing on the card"
+    assert not judge.is_shown_run(judge.readers.read_part(reader, "command -v uv\npython3 -m pytest --version")), "asking the tool its version is no run of it"
     from journal.features.shell.support.card_line import CardLine
     assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
     assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"
@@ -19190,7 +19270,7 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
         "a run that counts tests": (shell + "101 100 go test -v ./pkg\n102 101 /tmp/pkg.test -test.v\n", Progress(40, 400), "go test -v ./pkg", 1),
         "children that are no tests": (shell + "101 100 sleep 30\n102 100 node server.js\n", Progress(1, 3), "sleep 30", 0),
     }
-    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None, None, None, None)
+    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None, None, None, None, SHAPES)
     for number, (name, (listing, progress, inner, count)) in enumerate(cases.items(), 1):
         processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100), app.container.get(CommandClassifier))
         assert processes.test_count(number) == count and processes.inner_command(number) == inner, name
@@ -19583,7 +19663,7 @@ def test_a_refused_claude_shell_command_is_swapped_for_one_that_prints_the_reaso
 
 def test_a_commands_mark_names_the_command_without_its_folder_change_brackets_variables_or_time_limit():
     from journal.support.command_text import CommandText
-    assert [CommandText.shown(line) for line in ("(cd src/web && npx vitest run tests/)", "cd app && make build", "FOO=1 timeout 60 pytest -q", "pytest -q tests/a.py", "cd a; export X=1; npm test && ls")] == ["npx vitest run tests/", "make build", "pytest -q", "pytest -q tests/a.py", "npm test && ls"]
+    assert [CommandText(SHAPES).shown(line) for line in ("(cd src/web && npx vitest run tests/)", "cd app && make build", "FOO=1 timeout 60 pytest -q", "pytest -q tests/a.py", "cd a; export X=1; npm test && ls")] == ["npx vitest run tests/", "make build", "pytest -q", "pytest -q tests/a.py", "npm test && ls"]
 
 
 def test_the_edit_the_reminder_gives_links_the_message_on_its_own(app: App):
@@ -19768,10 +19848,10 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     labels = app.container.get(ActivityLabel)
     from journal.support.chain import Chain
     from journal.support.command_shape import CommandShape
-    shape = lambda line: CommandShape.chain_shape(tuple(part.text for part in Chain.parts(line)))
+    shape = lambda line: SHAPES.chain_shape(tuple(part.text for part in Chain.parts(line)))
     sweep = 'D=/tmp/sweep; mkdir -p $D; while IFS= read -r word; do found=$(git log --all -S"$word"); done < words.txt'
     assert shape(sweep).startswith("git log"), shape(sweep)
-    assert CommandShape.command_name("do found=$(git log --all -S foo)").startswith("git log") and CommandShape.command_name("done < words.txt") == ""
+    assert SHAPES.command_name("do found=$(git log --all -S foo)").startswith("git log") and SHAPES.command_name("done < words.txt") == ""
     assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
     assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
     assert labels.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in labels.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
@@ -21677,7 +21757,7 @@ def test_a_long_run_whose_progress_showed_only_in_its_last_lines_is_flagged_and_
     output = SimpleNamespace(row_id=5, command="pytest -q", creation_time=began)
     reader = Reader("tests", "the tests", progress_pattern=r"\[ *([0-9]+)%\]", label="Running tests")
     lines = ["collected 3 items", "1 passed, 2 failed [100%]"]
-    judge = lambda stalls: ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None)
+    judge = lambda stalls: ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None, SHAPES)
     late = judge(ProgressStalls()).late_progress(reader, output, lines, began + timedelta(seconds=40))
     assert len(late) == 1 and PROGRESS_LATE in late[0][0] and "scripts/suite.py" in late[0][1], "a figure printed only at the end of a 40 second run is flagged with the counting advice"
     counted = ProgressStalls()
@@ -21814,7 +21894,7 @@ def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progr
     output = lambda command: SimpleNamespace(row_id=6, command=command, creation_time=began)
     reader = Reader("builds", "the build", label="Building the viewer")
     from journal.features.shell.support.activity_label import ActivityLabel
-    judge = ReaderJudge(None, None, ProgressStalls(), None, None, None, None, None, None, app.container.get(ActivityLabel), None)
+    judge = ReaderJudge(None, None, ProgressStalls(), None, None, None, None, None, None, app.container.get(ActivityLabel), None, SHAPES)
     found = judge.unshown_build(reader, output("vite build"), ["transforming...", "built in 38s"], began + timedelta(seconds=40))
     assert len(found) == 1 and BUILD_UNSHOWN in found[0][0] and "--logLevel info" in found[0][1], "a 40 second vite build with no figure gets the finding with the vite advice"
     assert judge.unshown_build(reader, output("vite build"), ["transforming..."], began + timedelta(seconds=10)) == [], "a short build raises nothing"
@@ -21862,7 +21942,7 @@ def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says
     labels = app.container.get(ActivityLabel)
     from journal.features.shell.support.reader_judge import ReaderJudge
     from journal.models.alias import Alias
-    judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}), None, None)
+    judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}), None, None, SHAPES)
     output = lambda command: SimpleNamespace(id=9, command=command, environment_id=1, session="s1", watch_reader="")
     assert judge.one_word_title_report(output("journal push-development"), "Pushing") is None, "a git push, by its alias, may have no reader of its own, so its title is never reported"
     assert judge.one_word_title_report(output("git commit -m x"), "Committing") is None
@@ -22314,7 +22394,7 @@ def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_r
     from types import SimpleNamespace
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge
-    judge = ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: []), None, None, SimpleNamespace(index=lambda: {}), None, None)
+    judge = ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: []), None, None, SimpleNamespace(index=lambda: {}), None, None, SHAPES)
     percent = Reader("tests", "a go test run", progress_pattern=r"=== RUN\s+\S+\s+(\d+)")
     cases = [f"=== RUN   TestCase {n}" for n in (99, 119, 121)]
     found = judge.false_progress(percent, cases)

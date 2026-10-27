@@ -36,15 +36,15 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines, labels: ActivityLabel) -> None:
-        self.auto_dock, self.git_titles, self.aliases, self.labels = auto_dock, git_titles, aliases, labels
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines, labels: ActivityLabel, git: GitCommands, text: CommandText) -> None:
+        self.auto_dock, self.git_titles, self.aliases, self.labels, self.git, self.text = auto_dock, git_titles, aliases, labels, git, text
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
         if self.mark_policy.forbids_mark(output):
             return None
         view = self.views.view(output)
-        part = CommandText.shown(self.shown_part(output))
+        part = self.text.shown(self.shown_part(output))
         data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output), FINAL: output.ended}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardType.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
@@ -79,7 +79,7 @@ class OutputProcessCard(ProcessCard):
 
     def title(self, output: CommandOutput, part: str) -> str:
         reader = self.readers.found(output.watch_reader)
-        if GitCommands.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
+        if self.git.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or self.labels.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""

@@ -53,8 +53,8 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel) -> None:
-        self.time_source, self.labels = time_source, labels
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText) -> None:
+        self.time_source, self.labels, self.text = time_source, labels, text
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
         self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
 
@@ -165,12 +165,12 @@ class AgentActivity:
     def activity(self, state, hooks) -> str:
         last = hooks[-1] if hooks else None
         if last and last.kind in (PART_START, PART_END):
-            return CommandText.shown(last.data["part"])
+            return self.text.shown(last.data["part"])
         if last and last.kind == "ToolStarting":
             return self.tool_activity(last.recorded_call())
         part = self.unended_part(hooks)
         if part is not None:
-            return CommandText.shown(part.data["part"])
+            return self.text.shown(part.data["part"])
         return self.described(state) or ("at work" if hooks else "")
 
     def part_start(self, entries) -> float | None:

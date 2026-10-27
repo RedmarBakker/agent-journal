@@ -8,6 +8,7 @@ from journal.features.updates.support.update_card import UpdateCard
 from journal.hooks.hook_arrivals import HookArrivals
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.bar_row import PARTS, TOOLS, BarRow
+from journal.support.command_text import CommandText
 from journal.http.agents.current_work import CurrentWork
 from journal.http.journal.environment_data import EnvironmentData
 from journal.http.journal.task_block import TaskBlock
@@ -37,8 +38,8 @@ class JournalController:
     """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now. Health fails when the journal cannot reach its database, as when it has run out of descriptors, so its supervisor starts it again."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
-                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals) -> None:
-        self.numbers, self.owners, self.lifecycle, self.arrivals = numbers, owners, lifecycle, arrivals
+                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals, text: CommandText) -> None:
+        self.numbers, self.owners, self.lifecycle, self.arrivals, self.text = numbers, owners, lifecycle, arrivals, text
         self.config, self.boot, self.environments, self.agents, self.activity, self.current = config, manifest, environments, agents, activity, current
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
@@ -91,7 +92,7 @@ class JournalController:
             return Response.json([])
         recent = BarRow.shown(self.entries.session_activity(agent.session, PARTS, TOOLS, ACTIVITY_ENTRY_ROWS))
         queue, open_ = [], {}
-        for row in (BarRow.build(entry).relative(str(self.config.root)) for entry in recent):
+        for row in (BarRow.build(entry, self.text).relative(str(self.config.root)) for entry in recent):
             if not row.ended:
                 open_[row.key] = row.item()
                 queue.append(open_[row.key])

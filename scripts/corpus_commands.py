@@ -112,8 +112,9 @@ def main(private_words: list[str], out: Path) -> None:
         by_project[project] += found
     unique = {anonymised(command, private_words) for found in by_project.values() for command in found} - {""}
     groups: dict[str, list[str]] = {}
+    shapes = CommandShape(ClassificationTable())
     for command in unique:
-        groups.setdefault(CommandShape.command_name(command) or command.split()[0], []).append(json.dumps(command, ensure_ascii=False))
+        groups.setdefault(shapes.command_name(command) or command.split()[0], []).append(json.dumps(command, ensure_ascii=False))
     out.write_text("\n\n".join("\n".join(sorted(lines)) for _, lines in sorted(groups.items())) + "\n")
     out.with_name(PROJECT_COUNTS).write_text(json.dumps(project_counts(by_project, ClassificationTable()), indent=1, sort_keys=True) + "\n")
     print(f"{len(unique)} unique commands in {len(groups)} groups from {len(folders)} project folders and {sum(len(found) for _, found in codex)} Codex commands written to {out}")

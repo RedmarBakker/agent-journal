@@ -356,7 +356,7 @@ def stripped(words: list[str]) -> list[str]:
 # a command's program, found past what only starts it as CommandShape does and past the flags the command table says take a value
 # before its subcommand, and the words after it: uv run pytest -q is pytest, [-q]; git -C repo log is git, [log]
 def program_run(words: list[str]) -> tuple[str, list[str]]:
-    start = CommandShape.program_index(words)
+    start = command_shape().program_index(words)
     led = Part.leads(words[start if start < len(words) else 0:]) or words
     name = led[0].rsplit("/", 1)[-1]
     return (name if PROGRAM_NAME.fullmatch(name) else f"({kind(name)})"), past_value_flags(name, led[1:])
@@ -372,6 +372,11 @@ def past_value_flags(name: str, words: list[str]) -> list[str]:
 @lru_cache(maxsize=None)
 def command_table() -> ClassificationTable:
     return ClassificationTable()
+
+
+@lru_cache(maxsize=None)
+def command_shape() -> CommandShape:
+    return CommandShape(command_table())
 
 
 # a line read in full: its pieces, each part with its runs and its redirects, and the splitter's faults on it

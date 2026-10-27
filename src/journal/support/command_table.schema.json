@@ -12,9 +12,10 @@
         "effects": {"type": "array", "items": {"type": "string"}},
         "redirects": {
             "type": "object",
-            "required": ["writes", "except", "effects"],
+            "required": ["writes", "reads", "except", "effects"],
             "properties": {
                 "writes": {"type": "array", "items": {"type": "string"}},
+                "reads": {"type": "array", "items": {"type": "string"}},
                 "except": {"type": "array", "items": {"type": "string"}},
                 "effects": {"type": "array", "items": {"type": "string"}}
             }
@@ -92,7 +93,10 @@
                 "until": {"type": "string"},
                 "code_contains": {"type": "string"},
                 "lookup_flags": {"type": "array", "items": {"type": "string"}},
-                "limits_time": {"type": "boolean"}
+                "limits_time": {"type": "boolean"},
+                "dropped_from_shape": {"type": "boolean"},
+                "runs_script_file": {"type": "boolean"},
+                "may_follow_a_script": {"type": "boolean"}
             },
             "additionalProperties": false
         }

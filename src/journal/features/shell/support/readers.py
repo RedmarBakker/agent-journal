@@ -4,6 +4,7 @@ from journal.config import Config
 from journal.models.alias import Alias
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
+from journal.support.command_shape import CommandShape
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, JOURNAL, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
@@ -24,11 +25,15 @@ JOURNAL_COMMAND_READERS = ("worker-merge",)
 # the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
 SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge")
 
+# commands that only wait or print, which choose a line's reader only when no other part does work
+IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
+
 
 class Readers:
     """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships; none reads a journal command's own output, an alias's run of a program aside."""
 
-    def __init__(self, config: Config, aliases: Aliases) -> None:
+    def __init__(self, config: Config, aliases: Aliases, shapes: CommandShape) -> None:
+        self.shapes = shapes
         self.config, self.aliases = config, aliases
         self.loaded: tuple[tuple, list[Reader]] = ((), [])
 
@@ -64,7 +69,7 @@ class Readers:
 
     def reading_output(self, name: str, output: CommandOutput) -> Reader:
         reader = self.lookup(name)
-        if reader.commands.programs and not any(reader.commands.is_read(line) for line in self.run_lines(output)):
+        if reader.commands.programs and not any(self.read_part(reader, line) for line in self.run_lines(output)):
             raise Rejection(f"the reader {name} reads {reader.commands.text()}, and output {output.id} is {output.headline()}: check the output's number with journal output list")
         return reader
 
@@ -80,9 +85,24 @@ class Readers:
 
     def reading(self, line: str) -> Reader | None:
         readers = self.all()
-        line_readers = next((matched for part in Chain.choosing_parts(line) if (matched := [reader for reader in readers if reader.commands.reads(part)])), [])
+        line_readers = next((matched for part in self.choosing_parts(line) if (matched := [reader for reader in readers if self.reads(reader, part)])), [])
         default_names = self.default_names()
         return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
+
+    def choosing_parts(self, line: str) -> list[str]:
+        commands = [segment for part in Chain.parts(line) if part.recorded for segment in Chain.commands(part.text)]
+        with_programs = [(segment, shape) for segment in commands if (shape := self.shapes.build(segment))]
+        working = [text for text, program in with_programs if not CommandShape.is_setup(program) and program.split()[0] not in IDLE_COMMANDS]
+        return working or [text for text, _ in with_programs]
+
+    def reads(self, reader: Reader, part: str) -> bool:
+        return reader.commands.reads(self.shapes.build(part))
+
+    def read_parts(self, reader: Reader, files: OutputFiles) -> list[int]:
+        return [i for i, text in files.recorded_texts() if self.reads(reader, text)]
+
+    def read_part(self, reader: Reader, line: str) -> str:
+        return next((part.text for part in Chain.parts(line) if self.reads(reader, part.text)), "")
 
     def is_locked(self, name: str) -> bool:
         return name in SHIPPED_READERS or bool(self.owner(name))
@@ -131,10 +151,11 @@ class Readers:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
 
     def plugin_aliases_read(self, reader: Reader) -> list[Alias]:
-        return reader.commands.read_aliases(self.aliases.plugin_aliases())
+        plugin_aliases = self.aliases.plugin_aliases()
+        return [alias for alias in plugin_aliases if self.reads(reader, alias.expanded(""))]
 
     def alias_readers(self, alias: Alias) -> list[Reader]:
-        return [reader for reader in self.all() if not self.is_locked(reader.name) and reader.commands.reads(alias.expanded(""))]
+        return [reader for reader in self.all() if not self.is_locked(reader.name) and self.reads(reader, alias.expanded(""))]
 
     def refuse_plugin_alias_reader(self, reader: Reader) -> None:
         aliases = self.plugin_aliases_read(reader)

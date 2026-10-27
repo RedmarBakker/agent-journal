@@ -19,8 +19,6 @@ COMPOUND = {"if", "elif", "else", "then", "for", "while", "until", "do", "case",
 HEREDOC_WORD = re.compile(r"(?<!<)<<-?\s*\\?(['\"]?)([A-Za-z_][\w.-]*)\1(?!<)")
 # a comment at a line's end, outside quotes: git commit -m x # && git push runs only the commit
 COMMENT = re.compile(r"\s+#[^'\"]*$")
-# commands that only wait or print, which choose a line's reader only when no other part does work
-IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
 # a loop that repeats, not a branch: while, until or for
 REPEATING = re.compile(r"^\s*(?:while|until|for)\s")
 # the programs a poll may run beside journal commands: the shell's own words, waits, tests, prints and filters
@@ -40,13 +38,6 @@ class Chain:
             chained = [inner for s, p, _ in chained for inner in cls.build(s, p)]
         following = [s for s, _, _ in chained[1:]] + [""]
         return [Part(p, recorded=r, unconditional=s != "&&", guarded=f == "&&") for (s, p, r), f in zip(chained, following)]
-
-    @classmethod
-    def choosing_parts(cls, line: str) -> list[str]:
-        commands = [segment for part in cls.parts(line) if part.recorded for segment in cls.commands(part.text)]
-        with_programs = [(segment, shape) for segment in commands if (shape := CommandShape.build(segment))]
-        working = [text for text, program in with_programs if not CommandShape.is_setup(program) and program.split()[0] not in IDLE_COMMANDS]
-        return working or [text for text, _ in with_programs]
 
     # the commands of a part a reader may read, one by one: its alternatives after ||, the commands of a pipe, and the first line of a
     # heredoc's command, its comment lines passed over; a loop or a group stays whole, as its shape names what it runs

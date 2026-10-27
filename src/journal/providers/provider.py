@@ -330,7 +330,9 @@ class Provider(ABC):
 
     def call(self, tool: str, input: dict, aliases: frozenset[str], classifier: CommandClassifier) -> ToolCall:
         operation = self.operation(tool, input)
-        return ToolCall.decoded(tool, input, operation, tuple(self.parts(operation.line(), aliases, classifier)), classifier.version)
+        parts = tuple(self.parts(operation.line(), aliases, classifier))
+        line = operation.line()
+        return ToolCall.decoded(tool, input, operation, parts, classifier.version, classifier.chain_shape(tuple(part.text for part in parts) or (line,)), classifier.command_name(line) if line else "")
 
     @staticmethod
     def parts(command: str, aliases: frozenset[str], classifier: CommandClassifier) -> list[CommandPart]:

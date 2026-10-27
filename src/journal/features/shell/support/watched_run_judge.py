@@ -24,7 +24,8 @@ WATCHED_RUN_FINDINGS = (UNFILTERED, STOPPED_PICKING, PROGRESS_MISSING)
 class WatchedRunJudge:
     """Judges a watched run's reader against what the run prints while it goes on, not only when the reader was added: a card that shows nearly every line, a reader that fitted the start of the run and picks nothing of what it prints now, and a run that prints a count of a total its reader does not show each raise a report at once; and a dismissed report of the same finding for the same command is opened again, since the run shows the dismissal was wrong."""
 
-    def __init__(self, readers: Readers, reports: ReaderReports, judge: ReaderJudge, settings: SettingRows) -> None:
+    def __init__(self, readers: Readers, reports: ReaderReports, judge: ReaderJudge, settings: SettingRows, shapes: CommandShape) -> None:
+        self.shapes = shapes
         self.readers, self.reports, self.judge, self.settings = readers, reports, judge, settings
 
     def judged(self, output: CommandOutput, time: datetime) -> None:
@@ -32,7 +33,7 @@ class WatchedRunJudge:
         files = OutputFiles(Path(output.folder))
         if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored():
             return
-        shortfalls = [shortfall for shortfall in self.findings(reader, ReaderJudge.read_lines(reader, files)) if not self.reports.open_with_output_finding(output.row_id, shortfall[0])]
+        shortfalls = [shortfall for shortfall in self.findings(reader, self.judge.read_lines(reader, files)) if not self.reports.open_with_output_finding(output.row_id, shortfall[0])]
         if not shortfalls:
             return
         self.reports.save(ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.row_id, command=output.command, session=output.session, findings=tuple(finding for finding, _ in shortfalls), fixes=tuple(fix for _, fix in shortfalls)), Actor.system())
@@ -62,8 +63,8 @@ class WatchedRunJudge:
         return [(f"while the run went on {PROGRESS_MISSING}, though it printed {ReaderJudge.quoted(CountForms.progress_lines(lines)[-3:])}", ReaderJudge.progress_fix("", lines))]
 
     def contradicted(self, command: str, findings: set[str], time: datetime) -> None:
-        name = CommandShape.command_name(command)
+        name = self.shapes.command_name(command)
         for report in self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS))):
             kinds = {kind for kind in WATCHED_RUN_FINDINGS if any(kind in finding for finding in report.findings)}
-            if CommandShape.command_name(report.command) == name and any(kind in finding for kind in kinds for finding in findings):
+            if self.shapes.command_name(report.command) == name and any(kind in finding for kind in kinds for finding in findings):
                 self.reports.save(report.contradicted(f"a later run of {name} showed the same while it ran, so the dismissal \"{report.dismissal}\" was wrong", time), Actor.system())

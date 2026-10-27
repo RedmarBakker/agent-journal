@@ -12,7 +12,8 @@ from journal.support.card_type import CardType
 class StrayCommandMarkCleanup(Seed):
     """At boot, every command mark whose run was not a real background process goes, so a deploy clears the marks older rules wrote: a git or GitHub line, failed or not, a run never moved to the background, a quick read, and a command that never ran past five seconds; a mark whose run is no longer kept goes when its line was git."""
 
-    def __init__(self, messages: Messages, outputs: CommandOutputs, mark_policy: CommandMarkPolicy, environments: Environments, scope: Scope) -> None:
+    def __init__(self, messages: Messages, outputs: CommandOutputs, mark_policy: CommandMarkPolicy, environments: Environments, scope: Scope, git: GitCommands) -> None:
+        self.git = git
         self.messages, self.outputs, self.mark_policy, self.environments, self.scope = messages, outputs, mark_policy, environments, scope
 
     def run(self) -> None:
@@ -23,5 +24,5 @@ class StrayCommandMarkCleanup(Seed):
     def cleared(self) -> None:
         for card in self.messages.newest_shown(CardType.COMMANDS):
             outputs = self.outputs.matching(id=card.data.get("output", 0))
-            if self.mark_policy.is_stray_mark(outputs[0]) if outputs else GitCommands.is_git_line(card.data.get("line", "")):
+            if self.mark_policy.is_stray_mark(outputs[0]) if outputs else self.git.is_git_line(card.data.get("line", "")):
                 self.messages.delete(card, Actor.system())

@@ -54,8 +54,8 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel) -> None:
-        self.time_source, self.classifier, self.lines, self.labels = time_source, classifier, lines, labels
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
+        self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
         self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
@@ -113,7 +113,7 @@ class ShellRunner:
         limit = self.limits.build(request.line, caller.environment, caller.session)
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
-        immediate = bool(background) or self.limits.is_background(request.line) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
+        immediate = bool(background) or self.limits.is_background(request.line) or (reader is not None and self.is_long_run(self.readers.read_part(reader, request.line), limit))
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -125,7 +125,7 @@ class ShellRunner:
                 return
             if limit > 0 and (immediate or time.monotonic() - began >= limit):
                 folder.moved()
-                part = reader.commands.read_part(request.line) if reader is not None else background or folder.part_text(shown)
+                part = self.readers.read_part(reader, request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
                 alias = self.aliases.running(part)
                 notes = self.send_notes(caller, environment, [*display.notes, ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)), *self.watch_lines(number, part, alias, reader, caller)])
@@ -143,7 +143,7 @@ class ShellRunner:
                 return False
             reader = self.readers.reading(request.line)
             limit = self.limits.build(request.line, caller.environment, caller.session)
-            return self.limits.is_background(request.line) or bool(self.aliases.background_part(request.line)) or (reader is not None and limit > 0 and self.is_long_run(reader.commands.read_part(request.line), limit))
+            return self.limits.is_background(request.line) or bool(self.aliases.background_part(request.line)) or (reader is not None and limit > 0 and self.is_long_run(self.readers.read_part(reader, request.line), limit))
 
     # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
     # any other runs in the foreground until it passes the limit
@@ -168,7 +168,7 @@ class ShellRunner:
             self.readers.removed(reader.name)
 
     def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | None, caller: Caller) -> list[Nudge]:
-        if GitCommands.is_git_line(part):
+        if self.git.is_git_line(part):
             return []
         if alias is not None:
             return [*self.watched(number, alias, caller), *self.alias_wrapper_lines(alias)]
@@ -177,7 +177,7 @@ class ShellRunner:
             return [*self.reader_watched(number, part, reader, caller), *wrapper]
         guessed = self.guess.guessed(self.outputs.find(number), part)
         if guessed is not None:
-            return [ShellNudges.READER_GUESSED.create(reader=guessed.name, about=guessed.subject, command=CommandShape.command_name(part)), *self.reader_watched(number, part, guessed, caller), *wrapper]
+            return [ShellNudges.READER_GUESSED.create(reader=guessed.name, about=guessed.subject, command=self.shapes.command_name(part)), *self.reader_watched(number, part, guessed, caller), *wrapper]
         return [*self.suggestions.lines(number, part), *wrapper]
 
     def alias_wrapper_lines(self, alias: Alias) -> list[Nudge]:
@@ -189,7 +189,7 @@ class ShellRunner:
 
     def line_wrapper_lines(self, part: str) -> list[Nudge]:
         unwrapped = self.classifier.time_unlimited(part)
-        shape = CommandShape.build(unwrapped)
+        shape = self.shapes.build(unwrapped)
         if unwrapped == part or shape in self.wrappers_told:
             return []
         self.wrappers_told.add(shape)
@@ -197,7 +197,7 @@ class ShellRunner:
 
     def reader_watched(self, number: int, part: str, reader: Reader, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor)
-        shape = CommandShape.build(part)
+        shape = self.shapes.build(part)
         watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name)]
         varied = self.entries.shape_commands(caller.session, shape) if caller.session and not reader.topic_pattern else set()
         return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name)] if len(varied) >= VARIED_RUNS else watched

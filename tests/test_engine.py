@@ -80,6 +80,7 @@ from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
 from journal.support.classification_table import ClassificationTable
 from journal.support.command_classifier import CommandClassifier
+from journal.support.command_shape import CommandShape
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.support.time_source import TimeSource
 from journal.events.agent.session_started import SessionStarted
@@ -124,7 +125,8 @@ from journal.features.questions.questions_nudges import QuestionsNudges
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
 # the command table read once for the tests that decode a tool call by hand
-CLASSIFIER = CommandClassifier(ClassificationTable())
+SHAPES = CommandShape(ClassificationTable())
+CLASSIFIER = CommandClassifier(ClassificationTable(), SHAPES)
 
 
 @pytest.fixture(scope="module")
@@ -2636,11 +2638,11 @@ def test_a_watched_progress_that_stands_still_past_twenty_seconds_is_noted_and_o
 def test_every_git_or_github_command_and_every_search_is_given_no_reader_and_a_test_run_is():
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
-    policy = CommandMarkPolicy(None, ActivityLabel(CLASSIFIER))
     from journal.features.shell.support.git_commands import GitCommands
+    policy = CommandMarkPolicy(None, ActivityLabel(CLASSIFIER, SHAPES), SHAPES, GitCommands(SHAPES))
     assert all(GitCommands.is_git(command) for command in ("git commit", "git push", "git rebase", "gh run watch", "gh")), "every git and GitHub command"
     assert not any(GitCommands.is_git(command) for command in ("github-sync", "pytest", "ghostscript")), "and nothing else"
-    assert GitCommands.is_git_line("git add -A && git commit -m x && git push") and not GitCommands.is_git_line("pytest -q && git push"), "a line is git when every part is"
+    assert GitCommands(SHAPES).is_git_line("git add -A && git commit -m x && git push") and not GitCommands(SHAPES).is_git_line("pytest -q && git push"), "a line is git when every part is"
     assert all(policy.takes_no_reader(command) for command in ("grep", "rg", "find", "git push", "gh pr view")), "a search and a git or GitHub command get no reader"
     assert not any(policy.takes_no_reader(command) for command in ("pytest", "npm run build", "python3 scripts/suite.py")), "a test run and a build do"
 
@@ -2707,7 +2709,7 @@ def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
     from journal.support.merger import Merger
     from journal.support.classification_table import ClassificationTable
     from journal.support.command_classifier import CommandClassifier
-    classify = CommandClassifier(ClassificationTable()).classify
+    classify = CLASSIFIER.classify
     merger, spans, lock = Merger(), [], threading.Lock()
     def merge(name: str) -> None:
         with merger.turn():
@@ -3665,12 +3667,12 @@ def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that
     for step, fraction in enumerate((63 / 252, 126 / 252, 189 / 252, 200 / 252, 220 / 252, 240 / 252)):
         stalls.seen(4, fraction, step * 5.0)
     stalls.seen(4, 240 / 252, 25.0 + 39.0)
-    judge = ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None)
+    judge = ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None, SHAPES)
     assert judge.stalled_progress(SimpleNamespace(row_id=4)) == [], "a phpunit run that printed its count every 63 tests and sat 39 seconds over slow tests once is no finding"
     lonely = ProgressStalls()
     lonely.seen(5, 0.1, 0.0)
     lonely.seen(5, 0.1, 40.0)
-    assert ReaderJudge(None, None, lonely, None, None, None, None, None, None, None, None).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
+    assert ReaderJudge(None, None, lonely, None, None, None, None, None, None, None, None, SHAPES).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
 
 
 def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers_steadily_and_ended_past_the_grace(app: App):

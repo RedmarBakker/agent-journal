@@ -17,13 +17,14 @@ FAILURE_PATTERN = re.compile(r"\b(?:FAILED|FAIL|ERROR|Traceback)\b|\bfailed\b|\b
 class ReaderGuess:
     """The reader a command moved to the background gets when no reader reads it: a reader of the same program that picks lines from the run's output so far, else one written by code from that output, its progress line, its summary line and its failure lines; kept as a reader of the project, tried on the output before it is offered."""
 
-    def __init__(self, readers: Readers, judge: ReaderJudge) -> None:
+    def __init__(self, readers: Readers, judge: ReaderJudge, shapes: CommandShape) -> None:
+        self.shapes = shapes
         self.readers, self.judge = readers, judge
 
     def guessed(self, output: CommandOutput, part: str) -> Reader | None:
         files = OutputFiles(Path(output.folder))
         lines = files.lines() if files.is_stored() else []
-        name = CommandShape.command_name(part)
+        name = self.shapes.command_name(part)
         if not lines or not name:
             return None
         reader = self.similar(name, lines) or self.built(name, lines)

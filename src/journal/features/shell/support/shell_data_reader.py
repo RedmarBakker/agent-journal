@@ -32,8 +32,8 @@ RECENT_MOVES = 10
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, labels: ActivityLabel, probes: ReaderProbes) -> None:
-        self.labels, self.probes = labels, probes
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, labels: ActivityLabel, probes: ReaderProbes, shapes: CommandShape) -> None:
+        self.labels, self.probes, self.shapes = labels, probes, shapes
         self.reports, self.registry, self.silent = reports, registry, silent
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
@@ -65,7 +65,7 @@ class ShellDataReader:
         moves = self.outputs.recent_moves(agent.session, RECENT_MOVES)
         lines = [output.command for output in moves if self.labels.line_label(output.command) in LONG_RUNS and (not output.watch_reader or self.labels.line_label(output.command) == TESTING)]
         unread = [line for line in lines if not Chain.is_journal_line(line) and not self.is_read_well(line.replace("\n", " && "))]
-        return tuple(dict.fromkeys(command for line in unread if (command := CommandShape.command_name(line.replace("\n", " && ")))))
+        return tuple(dict.fromkeys(command for line in unread if (command := self.shapes.command_name(line.replace("\n", " && ")))))
 
     # a test run is read well only by a reader that shows its progress, its failures and its summary, or by one the journal ships
     def is_read_well(self, command: str) -> bool:

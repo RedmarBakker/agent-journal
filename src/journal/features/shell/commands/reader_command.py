@@ -35,8 +35,8 @@ class ReaderCommand(Command):
 
     noun = "reader"
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory, probes: ReaderProbes, mark_policy: CommandMarkPolicy) -> None:
-        self.probes, self.mark_policy = probes, mark_policy
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory, probes: ReaderProbes, mark_policy: CommandMarkPolicy, shapes: CommandShape) -> None:
+        self.probes, self.mark_policy, self.shapes = probes, mark_policy, shapes
         self.backfill, self.scope, self.history = backfill, scope, history
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
 
@@ -130,7 +130,7 @@ class ReaderCommand(Command):
             raise Rejection(f"reader report {target_report.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {target_report.reader} ...: {'; '.join(findings)}")
         repeated_report = self.judge.unjudged_dismissal(target_report, datetime.fromtimestamp(self.clock.time(), timezone.utc))
         if repeated_report is not None:
-            raise Rejection(f"reader report {target_report.id} is refused a dismissal: report {repeated_report.id} found the same for {CommandShape.command_name(repeated_report.command)} and was dismissed, and its verifier has not judged that dismissal sound, so the cause is still there: fix it, in the reader with journal reader add {target_report.reader} ..., in the command, or in the reader chosen for it")
+            raise Rejection(f"reader report {target_report.id} is refused a dismissal: report {repeated_report.id} found the same for {self.shapes.command_name(repeated_report.command)} and was dismissed, and its verifier has not judged that dismissal sound, so the cause is still there: fix it, in the reader with journal reader add {target_report.reader} ..., in the command, or in the reader chosen for it")
         report = self.reports.save(target_report.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
         return 0

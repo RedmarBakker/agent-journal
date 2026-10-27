@@ -1,14 +1,10 @@
 import itertools
 import re
 
-RUNNERS = {"python", "python3", "node", "bash", "sh", "zsh", "env", "time", "nohup"}
-# programs that only start the one that does the work, which a run is known by: npx vitest is vitest, uv run pytest is pytest
-LAUNCHERS = RUNNERS | {"npx", "pnpx", "bunx", "exec", "nice", "caffeinate"}
-# a redirection of a command's input or output, which is no part of the command a run is known by
-REDIRECT_PATTERN = re.compile(r"\s\d*(?:>>?|<)&?\s*\S+")
+from journal.support.classification_table import ClassificationTable
+
 # a shell handed its script with -c, which a run is known by: bash -c "make test" is make test
 SCRIPT_PATTERN = re.compile(r"^\s*\S*\b(?:ba|z)?sh\s+-c\s+['\"]?(.*?)['\"]?\s*$")
-LAUNCHER_SUBCOMMANDS = {"uv": "run", "poetry": "run", "pipenv": "run", "bundle": "exec"}
 TOKEN_PATTERN = re.compile(r"[^\s|<>&;]+")
 WORD_PATTERN = re.compile(r"[A-Za-z][\w.-]*")
 MODULE_FLAG = "-m"
@@ -21,7 +17,8 @@ PACKAGE_MANAGERS = {"npm", "pnpm", "yarn", "bun"}
 VALUED_MANAGER_FLAGS = {"--prefix", "-C", "--dir", "--filter", "-F", "-w", "--workspace", "--cwd"}
 SCRIPT_FILE = re.compile(r"\.(py|js|mjs|cjs|ts|sh|bash|zsh|rb|pl)$")
 SHAPE_TOKEN_COUNT = 3
-WRAPPER_PATTERN = re.compile(r"^\s*(?:perl -e '[^']*exec @ARGV[^']*'|g?timeout \d+[smh]?|(?:/usr/bin/)?time(?:\s+-p)?|\S+/[\w.-]+(?=\s+env\s)|lockf(?:\s+-[a-z](?:\s+\d+)?)*\s+\S+|flock(?:\s+-\S+)*\s+\S+|env(?:\s+(?:-u\s+\S+|-i|[A-Za-z_]\w*=\S*))+|nice(?:\s+-n\s*-?\d+)?)\s+")
+# a word of a shell line as it stands, its quotes kept, so what a wrapper leaves is cut from the line as it was written
+SHELL_WORD = re.compile(r"""(?:'[^']*'|"(?:\\.|[^"\\])*"|[^\s'"])+""")
 # a case's header before the commands of its first branch: case $x in a) make is make
 CASE_PATTERN = re.compile(r"^\s*case\s.*?\sin\s+[^)]*\)\s*")
 # commands a loop runs beside its work that do none, passed over when naming it: for t in a b; do printf $t; phpunit $t; done is phpunit
@@ -51,7 +48,13 @@ SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true
 
 
 class CommandShape:
-    """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export."""
+    """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export. The command table names the runners a script is known by, the wrappers a shape is named past and the redirects it drops."""
+
+    def __init__(self, table: ClassificationTable) -> None:
+        self.table = table
+        self.runners = frozenset({*(name for name, row in table.programs.items() if row.runs_script_file), *(name for name, wrapper in table.wrappers.items() if wrapper.runs_script_file)})
+        self.launchers = self.runners | {name for name, wrapper in table.wrappers.items() if wrapper.is_launcher()}
+        self.launcher_subcommands = {name: subcommands for name, wrapper in table.wrappers.items() if (subcommands := wrapper.subcommand_words())}
 
     @staticmethod
     def is_setup(command: str) -> bool:
@@ -64,63 +67,58 @@ class CommandShape:
             return text.removeprefix("(").removesuffix(")").strip()
         return text.removeprefix("{").strip().removesuffix("}").strip().removesuffix(";").strip() if text.startswith("{") else text
 
-    @classmethod
-    def working(cls, part: str) -> str:
+    def working(self, part: str) -> str:
         if not GROUP_PATTERN.match(part) or part.strip().startswith("(("):
             return part
-        commands = [bare for command in cls.commands(cls.unwrapped(part)) if (bare := cls.unbracketed(command))]
+        commands = [bare for command in self.commands(self.unwrapped(part)) if (bare := self.unbracketed(command))]
         return next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else part)
 
-    @classmethod
-    def shown(cls, part: str) -> str:
-        return cls.inner(SETUP_PREFIX.sub("", cls.unwrapped(part))).strip()
+    def shown(self, part: str) -> str:
+        return self.inner(SETUP_PREFIX.sub("", self.unwrapped(part))).strip()
 
-    @staticmethod
-    def inner(part: str) -> str:
+    def inner(self, part: str) -> str:
         unlooped = CONTROL_PATTERN.sub("", part, count=1)
         if HEADER_PATTERN.match(unlooped):
             return ""
         captured = CAPTURE_PATTERN.match(unlooped)
         command = CommandShape.past_setup(captured.group(1)) if captured else unlooped
-        return GIT_OPTION_PATTERN.sub(r"\1", CONTAINER_PATTERN.sub("", CommandShape.unwrapped_all(VARIABLE_PATTERN.sub("", command, count=1)), count=1), count=1)
+        return GIT_OPTION_PATTERN.sub(r"\1", CONTAINER_PATTERN.sub("", self.unwrapped_all(VARIABLE_PATTERN.sub("", command, count=1)), count=1), count=1)
 
-    # every wrapper in front taken off, as env -u X lockf -k file pytest is pytest
-    @staticmethod
-    def unwrapped_all(command: str) -> str:
-        bare = WRAPPER_PATTERN.sub("", command, count=1)
-        return bare if bare == command else CommandShape.unwrapped_all(bare)
+    def unwrapped_all(self, command: str) -> str:
+        spans = list(SHELL_WORD.finditer(command))
+        tokens = [span.group().strip("'\"") for span in spans]
+        remaining = self.table.shape_unwrapped(tokens)
+        return command[spans[len(tokens) - len(remaining)].start():] if remaining and len(remaining) < len(tokens) else command
 
     @staticmethod
     def past_setup(chain: str) -> str:
         commands = [command.strip() for command in CHAIN_SEPARATOR.split(chain) if command.strip()]
         return next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else chain)
 
-    @classmethod
-    def chain_shape(cls, parts: tuple[str, ...]) -> str:
-        shapes = [shape for shape in (cls.build(part) for part in parts) if shape]
+    def chain_shape(self, parts: tuple[str, ...]) -> str:
+        shapes = [shape for shape in (self.build(part) for part in parts) if shape]
         return next((shape for shape in shapes if not CommandShape.is_setup(shape)), shapes[0] if shapes else "")
 
-    @classmethod
-    def command_name(cls, part: str) -> str:
+    def command_name(self, part: str) -> str:
         if LOOP_PATTERN.match(part):
-            looped = CONTROL_PATTERN.sub("", cls.looped(part), count=1)
-            return cls.command_name(looped) if looped and not LOOP_PATTERN.match(looped) else ""
+            looped = CONTROL_PATTERN.sub("", self.looped(part), count=1)
+            return self.command_name(looped) if looped and not LOOP_PATTERN.match(looped) else ""
         if part.strip().startswith("(("):
             return ""
         if GROUP_PATTERN.match(part):
-            commands = [command.strip("(){}; ") for command in cls.commands(cls.unwrapped(part)) if command.strip("(){}; ")]
-            return cls.command_name(next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else ""))
-        text = REDIRECT_PATTERN.sub("", cls.inner(SETUP_PREFIX.sub("", part.strip())).split("<<", 1)[0])
+            commands = [command.strip("(){}; ") for command in self.commands(self.unwrapped(part)) if command.strip("(){}; ")]
+            return self.command_name(next((command for command in commands if not CommandShape.is_setup(command)), commands[0] if commands else ""))
+        text = self.table.redirection.sub("", self.inner(SETUP_PREFIX.sub("", part.strip())).split("<<", 1)[0])
         script = SCRIPT_PATTERN.match(text)
         if script:
-            return cls.command_name(script.group(1))
+            return self.command_name(script.group(1))
         tokens = TOKEN_PATTERN.findall(text)
-        start = cls.program_index(tokens)
+        start = self.program_index(tokens)
         if start >= len(tokens) or "=" in tokens[start].split("/", 1)[0]:
             return ""
         if tokens[start].startswith("("):
-            return cls.command_name(text[text.find(tokens[start]):])
-        return cls.build(" ".join([tokens[start].rsplit("/", 1)[-1], *tokens[start + 1:]]))
+            return self.command_name(text[text.find(tokens[start]):])
+        return self.build(" ".join([tokens[start].rsplit("/", 1)[-1], *tokens[start + 1:]]))
 
     @staticmethod
     def commands(text: str) -> list[str]:
@@ -141,16 +139,15 @@ class CommandShape:
             return ""
         return character if not open_quote and character in "'\"" else open_quote
 
-    @staticmethod
-    def program_index(tokens: list[str]) -> int:
+    def program_index(self, tokens: list[str]) -> int:
         index = 0
         while index < len(tokens):
             name = tokens[index].rsplit("/", 1)[-1]
-            if name in LAUNCHERS and CommandShape.is_inline_code(tokens[index + 1:]):
+            if name in self.launchers and CommandShape.is_inline_code(tokens[index + 1:]):
                 return index
-            if name in LAUNCHERS and index + 1 < len(tokens):
+            if name in self.launchers and index + 1 < len(tokens):
                 index += 2 if tokens[index + 1] == MODULE_FLAG else 1
-            elif LAUNCHER_SUBCOMMANDS.get(name) == (tokens[index + 1] if index + 1 < len(tokens) else ""):
+            elif index + 1 < len(tokens) and tokens[index + 1] in self.launcher_subcommands.get(name, ()):
                 index += 2
             elif index > 0 and (tokens[index].startswith("-") or VARIABLE_PATTERN.match(tokens[index] + " ")):
                 index += 1
@@ -163,22 +160,21 @@ class CommandShape:
         flags = itertools.takewhile(lambda argument: argument.startswith("-"), arguments)
         return any(flag in INLINE_CODE_FLAGS for flag in flags)
 
-    @classmethod
-    def looped(cls, part: str) -> str:
-        commands = [cls.unbracketed(CASE_PATTERN.sub("", CONTROL_PATTERN.sub("", command, count=1), count=1)) for command in cls.commands(part)]
-        working = [command for command in commands if (shape := cls.plain_shape(command)) and not CommandShape.is_setup(shape)]
-        return next((command for command in working if cls.plain_shape(command).split()[0] not in LOOP_IDLE), working[0] if working else "")
+    def looped(self, part: str) -> str:
+        commands = [self.unbracketed(CASE_PATTERN.sub("", CONTROL_PATTERN.sub("", command, count=1), count=1)) for command in self.commands(part)]
+        working = [command for command in commands if (shape := self.plain_shape(command)) and not CommandShape.is_setup(shape)]
+        return next((command for command in working if self.plain_shape(command).split()[0] not in LOOP_IDLE), working[0] if working else "")
 
-    @classmethod
-    def programs(cls, part: str) -> set[str]:
-        return {tokens[0].rsplit("/", 1)[-1] for command in cls.commands(part) if not HEADER_PATTERN.match(command) and (tokens := CONTROL_PATTERN.sub("", command, count=1).split())}
+    @staticmethod
+    def programs(part: str) -> set[str]:
+        return {tokens[0].rsplit("/", 1)[-1] for command in CommandShape.commands(part) if not HEADER_PATTERN.match(command) and (tokens := CONTROL_PATTERN.sub("", command, count=1).split())}
 
     # a loop whose every command is a sleep or the shell's own words and tests, so all it does is wait
-    @classmethod
-    def is_waiting_loop(cls, part: str) -> bool:
+    @staticmethod
+    def is_waiting_loop(part: str) -> bool:
         if not LOOP_PATTERN.match(part) or part.strip().startswith(("case", "select")):
             return False
-        programs = {tokens[1] if tokens[0] in {"do", "then", "else"} and len(tokens) > 1 else tokens[0] for command in cls.commands(part) if (tokens := command.split())}
+        programs = {tokens[1] if tokens[0] in {"do", "then", "else"} and len(tokens) > 1 else tokens[0] for command in CommandShape.commands(part) if (tokens := command.split())}
         return "sleep" in programs and programs <= IDLE_KEYWORDS
 
     @staticmethod
@@ -188,13 +184,12 @@ class CommandShape:
             bare = bare[:-1].strip()
         return bare
 
-    @classmethod
-    def build(cls, part: str) -> str:
-        if POLL_PATTERN.match(part) or cls.is_waiting_loop(part):
+    def build(self, part: str) -> str:
+        if POLL_PATTERN.match(part) or CommandShape.is_waiting_loop(part):
             return "sleep"
         if LOOP_PATTERN.match(part):
-            return cls.plain_shape(cls.looped(part))
-        return cls.plain_shape(cls.working(part))
+            return self.plain_shape(self.looped(part))
+        return self.plain_shape(self.working(part))
 
     # npm [--prefix <folder>] exec [--] vitest run is vitest run: the program it starts, which a run is known by
     @staticmethod
@@ -211,24 +206,23 @@ class CommandShape:
             index += 1
         return tokens[index:]
 
-    @classmethod
-    def plain_shape(cls, part: str) -> str:
-        script = SCRIPT_PATTERN.match(cls.inner(part))
+    def plain_shape(self, part: str) -> str:
+        script = SCRIPT_PATTERN.match(self.inner(part))
         if script:
-            return cls.build(script.group(1))
-        tokens = TOKEN_PATTERN.findall(cls.inner(part).split("<<", 1)[0])
+            return self.build(script.group(1))
+        tokens = TOKEN_PATTERN.findall(self.inner(part).split("<<", 1)[0])
         if not tokens:
             return ""
-        exec_command = cls.npm_exec(tokens)
+        exec_command = self.npm_exec(tokens)
         if exec_command:
-            return cls.plain_shape(" ".join(exec_command))
-        if len(tokens) > 1 and tokens[0].rsplit("/", 1)[-1] in RUNNERS and SCRIPT_FILE.search(tokens[1]):
+            return self.plain_shape(" ".join(exec_command))
+        if len(tokens) > 1 and tokens[0].rsplit("/", 1)[-1] in self.runners and SCRIPT_FILE.search(tokens[1]):
             return f"{tokens[0]} {tokens[1].rsplit('/', 1)[-1]}"
         shape_parts = [tokens[0]]
         for token in tokens[1:SHAPE_TOKEN_COUNT + 2]:
             if len(shape_parts) == SHAPE_TOKEN_COUNT:
                 break
-            is_module = token == MODULE_FLAG and shape_parts[-1].rsplit("/", 1)[-1] in RUNNERS
+            is_module = token == MODULE_FLAG and shape_parts[-1].rsplit("/", 1)[-1] in self.runners
             # a package manager's flag before its subcommand is passed over, as pnpm -r build is pnpm build
             if token.startswith("-") and "=" not in token and len(shape_parts) == 1 and shape_parts[0].rsplit("/", 1)[-1] in PACKAGE_MANAGERS:
                 continue

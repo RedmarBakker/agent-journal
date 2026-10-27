@@ -14,7 +14,9 @@ class GitCommands:
     def is_git(command: str) -> bool:
         return bool(GIT_COMMAND.match(command.strip()))
 
-    @classmethod
-    def is_git_line(cls, line: str) -> bool:
+    def __init__(self, shapes: CommandShape) -> None:
+        self.shapes = shapes
+
+    def is_git_line(self, line: str) -> bool:
         parts = [part.text for part in Chain.parts(line)]
-        return bool(parts) and all(cls.is_git(CommandShape.command_name(part)) for part in parts)
+        return bool(parts) and all(self.is_git(self.shapes.command_name(part)) for part in parts)

@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 
 from journal.support.alias_call import AliasCall
 from journal.support.chain import Chain
-from journal.support.command_shape import CommandShape
 from journal.models.model import Model
 from journal.support.part import Part
 
@@ -35,9 +34,6 @@ class Alias(Model):
 
     def terminal_line(self, argv: list[str]) -> str:
         return self.command(" ".join(shlex.quote(word) for word in argv))
-
-    def matches(self, part: str) -> bool:
-        return self.starts(part) or " " in CommandShape.build(part) and CommandShape.build(part) == CommandShape.build(self.line)
 
     def starts(self, part: str) -> bool:
         head, tokens = Part(self.line.split(ARGS)[0]).tokens(), Part(part).tokens()

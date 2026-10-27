@@ -12,9 +12,6 @@ from journal.support.table_row import TableRow
 # a group of commands in braces, run as one
 GROUP = re.compile(r"^\s*\{.*\}\s*$", re.S)
 SUBSTITUTIONS = re.compile(r"\$\(([^()]*)\)|`([^`]*)`|<\(([^()]*)\)")
-REDIRECT = re.compile(r"(&>>|&>|>>|>\||>)\s*(&?[^\s;&|]+)")
-# a redirect with the descriptor it moves, which is no word the command is given
-REDIRECTION = re.compile(r"(\d*)" + REDIRECT.pattern)
 # the descriptors of a command's standard output: none written, or 1
 OUTPUT_DESCRIPTORS = ("", "1")
 EXEC_FLAGS = frozenset({"-exec", "-execdir", "-ok"})
@@ -34,13 +31,22 @@ QUOTED_PATH = re.compile(r"['\"]([^'\"\s]*/[^'\"\s]*)['\"]")
 class CommandClassifier:
     """What a single shell command is and does, read from the shipped command table: each command of its pipe or its || by its program's row with its subcommands and the modifiers of the options it carries, its wrappers taken off, its redirects and inner commands added; each line is classified once."""
 
-    def __init__(self, table: ClassificationTable) -> None:
-        self.table = table
+    def __init__(self, table: ClassificationTable, shapes: CommandShape) -> None:
+        self.table, self.shapes = table, shapes
         self.known: dict[str, Classification] = {}
 
     @property
     def version(self) -> int:
         return self.table.version
+
+    def shape(self, text: str) -> str:
+        return self.shapes.build(text)
+
+    def command_name(self, line: str) -> str:
+        return self.shapes.command_name(line)
+
+    def chain_shape(self, texts: tuple[str, ...]) -> str:
+        return self.shapes.chain_shape(texts)
 
     def classify_line(self, line: str) -> Classification:
         return Classification.union(self.classify(part.text) for part in Chain.parts(line))
@@ -53,7 +59,7 @@ class CommandClassifier:
     def classify_command(self, text: str) -> Classification:
         if Part(text).is_subshell() or GROUP.match(text):
             return self.classify_line(text.strip()[1:-1])
-        looped = [command for command in (CommandShape.inner(command) for command in CommandShape.commands(text)) if command] if LOOP_PATTERN.match(text) else [text]
+        looped = [command for command in (self.shapes.inner(command) for command in CommandShape.commands(text)) if command] if LOOP_PATTERN.match(text) else [text]
         if looped != [text]:
             return self.redirected(Classification.union(self.classify(command) for command in looped), text)
         return Classification.union([self.program_classification(text), *self.inner(text)])
@@ -95,7 +101,7 @@ class CommandClassifier:
         return " ".join(tokens[tokens.index("-c") + 1:]).strip("'\"") if "-c" in tokens else ""
 
     def redirects_output(self, text: str) -> bool:
-        return any(descriptor in OUTPUT_DESCRIPTORS for descriptor, operator, target in REDIRECTION.findall(Part(text).blanked()))
+        return any(descriptor in OUTPUT_DESCRIPTORS and operator in self.table.redirect_operators for descriptor, operator, target in self.table.redirection.findall(Part(text).blanked()))
 
     def redirected_label(self, word: str) -> str:
         row = self.table.programs.get(word.rsplit("/", 1)[-1])
@@ -145,7 +151,7 @@ class CommandClassifier:
         return [word for piped in Part(text).commands() for word in self.arguments(piped)]
 
     def arguments(self, text: str) -> list[str]:
-        tokens = self.tokens(REDIRECTION.sub(" ", Part(text.split("\n", 1)[0]).blanked()))
+        tokens = self.tokens(self.table.redirection.sub(" ", Part(text.split("\n", 1)[0]).blanked()))
         row = self.row(tokens)
         return [word for word in self.walked(row, tokens[1:])[1] if word and not word.startswith(("<", "|"))] if row is not None else []
 
@@ -179,7 +185,7 @@ class CommandClassifier:
         return classification.with_effect(WRITES_FILES) if self.redirect_targets(text) else classification
 
     def redirect_targets(self, text: str) -> list[str]:
-        return [target.strip("'") for operator, target in REDIRECT.findall(Part(text).blanked()) if self.table.redirect_writes(operator, target)]
+        return [target.strip("'") for descriptor, operator, target in self.table.redirection.findall(Part(text).blanked()) if self.table.redirect_writes(operator, target)]
 
     @staticmethod
     def interpreted(classification: Classification, row: TableRow, text: str) -> Classification:

@@ -35,7 +35,7 @@ class TestRunFolder:
         return [inner for text in texts for inner in (self.parts(text[1:-1]) if text.startswith("(") and text.endswith(")") else [text])]
 
     def is_test(self, part: str) -> bool:
-        return self.is_known_test(part) or any(reader.commands.reads(part) for reader in self.readers.all() if reader.label == TEST_LABEL)
+        return self.is_known_test(part) or any(self.readers.reads(reader, part) for reader in self.readers.all() if reader.label == TEST_LABEL)
 
     def is_whole_run(self, line: str) -> bool:
         return any(all(word.startswith("-") for word in arguments) for part in self.parts(line) for arguments in self.known_arguments(part))

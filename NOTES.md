@@ -1766,7 +1766,13 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   subcommands, an end word, lookup flags, a code check and `limits_time`. `ActivityLabel` is a container class reading
   its labels through the classifier; `CommandLines` holds a line's read, code-read and code-write readings, the disk step
   after the table. States read `part.classification` (test runs, test or build, reads) from the event.
-- Open: `CommandShape` still holds RUNNERS, LAUNCHERS, LAUNCHER_SUBCOMMANDS, WRAPPER_PATTERN and REDIRECT_PATTERN. It is
-  the stored-shape function, read statically by a model (Alias), a value (ReaderCommands) and conduct; moving it onto the
-  table needs each part's shape carried on the event and the stored shapes kept or migrated. `GitCommands` still names
-  git and gh by the shape.
+- Task 3782: `CommandShape` is a container class over the table: its runners (`runs_script_file`), launchers, launcher
+  subcommands, the wrappers a shape skips (`dropped_from_shape`, `may_follow_a_script`) and the redirects (`redirects.reads`
+  beside `writes`, one pattern the table compiles) are the table's. Each part carries its shape and the call its shape and
+  bare name, so conduct reads them from the event; Readers matches a reader's commands, AliasLines an alias, by those shapes.
+  The stored shapes stay as they were: `shapes_before.json` freezes every corpus line's old shape, one line changed
+  (`env -C dir journal …` is now named for the journal command), frozen in `shape_disagreements.json`. No migration.
+- CommandPart keeps writes, files, reads_output and read_shape as stored fields beside the classification: writes and
+  files are filled from it, the output read's two from the line. Stored doing labels stay as history. The mark rules read
+  the corpus as before (`mark_readings_before.json`); only seven reads the table now reads through (`\ls`, `command ls`,
+  a sed of a log) are newly quick reads, so a mark of one of those may go at boot.

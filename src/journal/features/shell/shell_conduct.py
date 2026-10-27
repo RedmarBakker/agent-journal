@@ -16,8 +16,9 @@ from journal.features.shell.support.piped_journal_command import PipedJournalCom
 from journal.features.shell.support.piped_test_run import PipedTestRun
 from journal.models.alias import Alias
 from journal.support.alias_call import AliasCall
+from journal.support.tool_call import ToolCall
+from journal.features.shell.support.reader import Reader
 from journal.support.chain import Chain
-from journal.support.command_shape import CommandShape
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
@@ -101,10 +102,14 @@ def project_path_check(state: BaseState, event: ToolStarting, settings: Settings
 def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
     shape = event.call.recorded().shape
-    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or not any(part.classification.is_long_run for part in event.call.parts) or any(r.commands.is_read(event.call.command) for r in shell.readers):
+    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or not any(part.classification.is_long_run for part in event.call.parts) or any(is_read(r, event.call) for r in shell.readers):
         return state.none()
     tip = ShellNudges.NEW_READER_SUGGESTION.create(command=shape)
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
+
+
+def is_read(reader: Reader, call: ToolCall) -> bool:
+    return any(reader.commands.reads(part.shape) for part in call.parts)
 
 
 def alias_refusals(text: str, aliases: tuple[Alias, ...]) -> list[Nudge]:
@@ -135,9 +140,9 @@ def piped_journal_check(state: BaseState, event: ToolStarting, settings: Setting
 def counting_reader_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     if not event.call.test_runs() or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
         return state.none()
-    if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(ShellPart).readers):
+    if any(r.is_counting() and is_read(r, event.call) for r in event.data.part(ShellPart).readers):
         return state.none()
-    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=CommandShape.command_name(event.call.command)))
+    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=event.call.name))
 
 
 def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -146,9 +151,9 @@ def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     if refusals:
         return state.refuse(refusals[0])
     command, shape = event.call.command, event.call.recorded().shape
-    if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or event.call.is_read() or " " not in shape:
+    if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or bool(event.call.parts) and Chain.is_journal(event.call.parts[0].text) or event.call.is_read() or " " not in shape:
         return state.none()
-    reader = next((r.name for r in shell.readers if r.commands.is_read(command)), "<the reader that reads its output>")
+    reader = next((r.name for r in shell.readers if is_read(r, event.call)), "<the reader that reads its output>")
     tip = ShellNudges.ALIAS_SUGGESTION.create(shape=shape, reader=f" --reader {reader}")
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
 

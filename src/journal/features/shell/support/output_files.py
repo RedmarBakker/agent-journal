@@ -44,6 +44,12 @@ class OutputFiles:
     def lines(self) -> list[str]:
         return [STYLE_CODES.sub("", line) for path in self.parts() for line in path.read_text(errors="replace").splitlines()]
 
+    def recorded_texts(self) -> list[tuple[int, str]]:
+        return [(i, self.part_text(i)) for i in self.recorded()]
+
+    def part_lines(self, parts: list[int]) -> list[str]:
+        return [STYLE_CODES.sub("", line) for i in parts for line in self.output_text(i).splitlines()] if parts else self.lines()
+
     def line_count(self) -> int:
         return sum(self.counted(path) for path in self.parts())
 

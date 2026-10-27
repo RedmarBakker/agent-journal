@@ -43,6 +43,9 @@
   ],
   "effects": [
    "writes_files"
+  ],
+  "reads": [
+   "<"
   ]
  },
  "interpreted": {
@@ -131,7 +134,10 @@
     "--chdir",
     "-S"
    ],
-   "assignments": true
+   "assignments": true,
+   "dropped_from_shape": true,
+   "runs_script_file": true,
+   "may_follow_a_script": true
   },
   "exec": {},
   "flock": {
@@ -139,7 +145,8 @@
     "-w",
     "-E"
    ],
-   "leading_values": 1
+   "leading_values": 1,
+   "dropped_from_shape": true
   },
   "gtimeout": {
    "same_as": "timeout"
@@ -160,12 +167,14 @@
    "value_flags": [
     "-t"
    ],
-   "leading_values": 1
+   "leading_values": 1,
+   "dropped_from_shape": true
   },
   "nice": {
    "value_flags": [
     "-n"
-   ]
+   ],
+   "dropped_from_shape": true
   },
   "nix": {
    "subcommands": [
@@ -174,7 +183,9 @@
    ],
    "until": "-c"
   },
-  "nohup": {},
+  "nohup": {
+   "runs_script_file": true
+  },
   "npm": {
    "subcommands": [
     "exec"
@@ -200,7 +211,8 @@
    ],
    "leading_values": 1,
    "code_contains": "exec @ARGV",
-   "limits_time": true
+   "limits_time": true,
+   "dropped_from_shape": true
   },
   "pipenv": {
    "subcommands": [
@@ -253,7 +265,9 @@
    "value_flags": [
     "-f",
     "-o"
-   ]
+   ],
+   "dropped_from_shape": true,
+   "runs_script_file": true
   },
   "timeout": {
    "value_flags": [
@@ -263,7 +277,8 @@
     "--kill-after"
    ],
    "leading_values": 1,
-   "limits_time": true
+   "limits_time": true,
+   "dropped_from_shape": true
   },
   "uv": {
    "value_flags": [

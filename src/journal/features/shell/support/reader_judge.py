@@ -7,7 +7,7 @@ from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.git_commands import GitCommands
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
-from journal.features.shell.support.output_files import STYLE_CODES, OutputFiles
+from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
@@ -66,13 +66,13 @@ HELP_FLAGS = ("--version", "--help", "-h", "-V")
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; a run that printed nothing for a long stretch is the command's fault, buffering, and is said so in place of the reader's progress findings; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases, labels: ActivityLabel, classifier: CommandClassifier) -> None:
-        self.labels, self.classifier = labels, classifier
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases, labels: ActivityLabel, classifier: CommandClassifier, shapes: CommandShape) -> None:
+        self.labels, self.classifier, self.shapes = labels, classifier, shapes
         self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
         self.history, self.processes, self.silences, self.aliases = history, processes, silences, aliases
 
     def stored_runs(self, reader: Reader) -> list[CommandOutput]:
-        return self.history.latest_accepted(NEWEST_RUNS, lambda run: self.is_shown_run(reader.commands.read_part(run.command)) and OutputFiles(Path(run.folder)).is_stored())
+        return self.history.latest_accepted(NEWEST_RUNS, lambda run: self.is_shown_run(self.readers.read_part(reader, run.command)) and OutputFiles(Path(run.folder)).is_stored())
 
     def is_shown_run(self, part: str) -> bool:
         return bool(part) and not self.classifier.redirects_output(part) and not any(flag in part.split() for flag in HELP_FLAGS)
@@ -80,7 +80,7 @@ class ReaderJudge:
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.found(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not self.is_shown_run(reader.commands.read_part(output.command)):
+        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not self.is_shown_run(self.readers.read_part(reader, output.command)):
             return None
         lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
@@ -91,7 +91,7 @@ class ReaderJudge:
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
 
     def one_word_title_report(self, output: CommandOutput, title: str) -> ReaderReport | None:
-        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE) or GitCommands.is_git(CommandShape.command_name(Alias.resolved(output.command, self.aliases.index()))):
+        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE) or GitCommands.is_git(self.shapes.command_name(Alias.resolved(output.command, self.aliases.index()))):
             return None
         reader = output.watch_reader
         return ReaderReport(environment_id=output.environment_id, reader=reader, output=output.id, command=output.command, session=output.session, findings=(f'{SINGLE_WORD_TITLE}: "{title}"',), fixes=("give the reader a label that says what runs, such as 'Running the rename tool', and a --topic that names it: journal reader add " + (reader or "<name>") + " --label ... --topic ...",))
@@ -100,17 +100,17 @@ class ReaderJudge:
         limit = self.settings.integer(ShellOptions.DISMISSAL_LIMIT)
         if not limit:
             return set()
-        name = CommandShape.command_name(command)
+        name = self.shapes.command_name(command)
         reports = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
-        counts = Counter(kind for report in reports if CommandShape.command_name(report.command) == name for kind in self.kinds(report))
+        counts = Counter(kind for report in reports if self.shapes.command_name(report.command) == name for kind in self.kinds(report))
         return {kind for kind, count in counts.items() if count >= limit}
 
     # a dismissal of a finding already dismissed for the same command, and not yet judged sound, waits: the same report coming back
     # means its cause is still there
     def unjudged_dismissal(self, report: ReaderReport, time: datetime) -> ReaderReport | None:
-        name, kinds = CommandShape.command_name(report.command), self.kinds(report)
+        name, kinds = self.shapes.command_name(report.command), self.kinds(report)
         dismissed = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
-        return next((dismissed_report for dismissed_report in dismissed if dismissed_report.id != report.id and dismissed_report.judged_at is None and CommandShape.command_name(dismissed_report.command) == name and kinds & self.kinds(dismissed_report)), None)
+        return next((dismissed_report for dismissed_report in dismissed if dismissed_report.id != report.id and dismissed_report.judged_at is None and self.shapes.command_name(dismissed_report.command) == name and kinds & self.kinds(dismissed_report)), None)
 
     @staticmethod
     def kinds(report: ReaderReport) -> set[str]:
@@ -133,7 +133,7 @@ class ReaderJudge:
         seconds = (ended_at - output.creation_time).total_seconds()
         if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known() or not self.has_progress(lines):
             return []
-        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
+        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(self.shapes.command_name(output.command), lines))]
 
     def progress_findings(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         if self.is_silent_run(output):
@@ -148,13 +148,13 @@ class ReaderJudge:
         seconds = (ended_at - output.creation_time).total_seconds()
         if seconds < PROGRESS_SECONDS or not reader.progress(lines).is_known() or self.stalls.has_seen(output.row_id):
             return []
-        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_LATE}, never while it ran", f"make the run print its count as it goes, N of M as each step finishes, such as scripts/suite.py does for a scoped run: {self.progress_fix(output.command, lines)}")]
+        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_LATE}, never while it ran", f"make the run print its count as it goes, N of M as each step finishes, such as scripts/suite.py does for a scoped run: {self.progress_fix(self.shapes.command_name(output.command), lines)}")]
 
     def unshown_build(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()
         if self.labels.line_label(output.command) != "building" or seconds < PROGRESS_SECONDS or self.stalls.has_seen(output.row_id) or reader.progress(lines).is_known() or self.has_progress(lines):
             return []
-        return [(f"the build ran {seconds:.0f} seconds and {BUILD_UNSHOWN}", f"fix the reader or the command, the journal does not change the reader itself: {StreamingForm.advice(output.command)}")]
+        return [(f"the build ran {seconds:.0f} seconds and {BUILD_UNSHOWN}", f"fix the reader or the command, the journal does not change the reader itself: {StreamingForm.advice(self.shapes.command_name(output.command))}")]
 
     def stalled_progress(self, output: CommandOutput) -> list[tuple[str, str]]:
         seconds = self.stalls.longest_seconds(output.row_id)
@@ -168,7 +168,7 @@ class ReaderJudge:
             return []
         inner = self.processes.inner_command(output.row_id) or output.command
         count = self.processes.test_count(output.row_id)
-        return [(f"{SUITES_COUNTED}: it shows {steps} steps, and {count} test processes ran beneath {inner}, each running many tests", f"split the output so each test, or each package, prints on its own line with a count against the total: {StreamingForm.advice(inner)}")]
+        return [(f"{SUITES_COUNTED}: it shows {steps} steps, and {count} test processes ran beneath {inner}, each running many tests", f"split the output so each test, or each package, prints on its own line with a count against the total: {StreamingForm.advice(self.shapes.command_name(inner))}")]
 
     @staticmethod
     def has_progress(lines: list[str]) -> bool:
@@ -198,7 +198,7 @@ class ReaderJudge:
 
     def mixed_title(self, reader: Reader, output: CommandOutput) -> list[tuple[str, str]]:
         runs = self.history.reader_ended(reader.name, MIXED_RUNS)
-        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(self.read_command(reader, run)))})
+        programs = sorted({name.split()[0] for run in runs if (name := self.shapes.command_name(self.read_command(reader, run)))})
         kinds = sorted({kind for run in runs if (kind := self.work_kind(run))})
         if len(programs) < 2 and len(kinds) < 2:
             return []
@@ -208,7 +208,7 @@ class ReaderJudge:
     # the command of the part of a run's chain the reader reads, so a chain that runs git before the install is named for the install
     def read_command(self, reader: Reader, run: CommandOutput) -> str:
         files = OutputFiles(Path(run.folder))
-        read = [files.part_text(i) for i in files.recorded() if reader.commands.reads(files.part_text(i))] if files.is_stored() else []
+        read = [files.part_text(i) for i in files.recorded() if self.readers.reads(reader, files.part_text(i))] if files.is_stored() else []
         return read[0] if read else Alias.resolved(run.command, self.aliases.index())
 
     @staticmethod
@@ -219,13 +219,8 @@ class ReaderJudge:
             return "test totals"
         return "a build line" if any(BUILD_LINE.search(line) for line in lines) else ""
 
-    # the lines of the parts of a chain the reader reads; the whole output when it names no command a part runs
-    @staticmethod
-    def read_lines(reader: Reader, files: OutputFiles) -> list[str]:
-        read = [i for i in files.recorded() if reader.commands.reads(files.part_text(i))]
-        if not read:
-            return files.lines()
-        return [STYLE_CODES.sub("", line) for i in read for line in files.output_text(i).splitlines()]
+    def read_lines(self, reader: Reader, files: OutputFiles) -> list[str]:
+        return files.part_lines(self.readers.read_parts(reader, files))
 
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
@@ -276,7 +271,7 @@ class ReaderJudge:
         fixes = []
         progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:
-            fixes.append(self.progress_fix(output.command, lines))
+            fixes.append(self.progress_fix(self.shapes.command_name(output.command), lines))
         if any(TOTAL_MISSING in finding for finding in report.findings) and CountForms.lacks_total(lines):
             fixes.append(f"{TOTAL_MISSING}: make it print its total as well, so the reader can work out how far it has come")
         if any(PROGRESS_STALLED in finding for finding in report.findings) and self.stalls.longest_seconds(output.row_id) > STALL_SECONDS:
@@ -288,10 +283,10 @@ class ReaderJudge:
         return fixes
 
     @staticmethod
-    def progress_fix(command: str, lines: list[str]) -> str:
+    def progress_fix(name: str, lines: list[str]) -> str:
         if any(PERCENT_PATTERN.search(line) for line in lines):
             return "the run prints a percentage: give the reader --progress '\\[\\s*(\\d+)%\\]'"
         form = CountForms.form(lines)
         if form is not None:
             return form.advice
-        return StreamingForm.advice(command)
+        return StreamingForm.advice(name)
