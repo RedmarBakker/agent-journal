@@ -94,12 +94,12 @@ class DepartureCommand(Command):
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
 
-    def plugin_check(self, type_name: type[WorkerMerging], worker: Worker, task: Task, held_line: str) -> None:
+    def plugin_check(self, event_class: type[WorkerMerging], worker: Worker, task: Task, refusal_heading: str) -> None:
         if not worker.worktree or worker.pool_request:
             return
-        refusals = self.events.worker_merging(self.branch.merging_event(type_name, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
+        refusals = self.events.worker_merging(self.branch.merging_event(event_class, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
-            raise Rejection(held_line + "\n" + "\n".join(refusals))
+            raise Rejection(refusal_heading + "\n" + "\n".join(refusals))
 
     def is_journal_testing(self, worker: Worker) -> bool:
         return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING

@@ -17,12 +17,12 @@ class Links(Repository[Link]):
     def link_rows(self, model: Model) -> list[Link]:
         return self.selected(self.touching(model).order("id"))
 
-    def of_kind(self, type_name: str) -> list[Link]:
+    def type_links(self, type_name: str) -> list[Link]:
         return self.selected(self.query().filter(link_type=type_name).order("id"))
 
     def unlisted_kind_links(self, type_name: str) -> list[Link]:
         with self.connection.unlisted():
-            return self.of_kind(type_name)
+            return self.type_links(type_name)
 
     def targets(self, model: Model, type_name: str) -> list[Ref]:
         return [link.target for link in self.selected(self.query().filter(source=Ref.build(model), link_type=type_name).order("id"))]
@@ -54,6 +54,9 @@ class Links(Repository[Link]):
 
     def typed_targets(self, model: Model, type_name: str, table: str) -> list[Ref]:
         return [link.target for link in self.selected(self.query().filter(source=Ref.build(model), link_type=type_name).filter_prefix("target", f"{table}:").order("id"))]
+
+    def typed_source_links(self, model: Model, type_name: str, table: str) -> list[Link]:
+        return self.selected(self.query().filter(target=Ref.build(model), link_type=type_name).filter_prefix("source", f"{table}:").order("id"))
 
     def typed_sources(self, model: Model, type_name: str, table: str) -> list[Ref]:
         return [ref for ref in self.sources(model, type_name) if ref.type == table]

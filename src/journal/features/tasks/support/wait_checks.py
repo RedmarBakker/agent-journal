@@ -22,5 +22,5 @@ class WaitChecks:
                 self.checks.delete(check, actor)
 
     def waited(self) -> set[int]:
-        linked = {link.target.id for link in self.links.of_kind(WAIT_LINK) if link.target.type == Check.table()}
+        linked = {link.target.id for link in self.links.type_links(WAIT_LINK) if link.target.type == Check.table()}
         return linked | {number for agent in self.agents.unended() for number in WaitTargets.awaited_checks(agent.stack)}

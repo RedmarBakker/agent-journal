@@ -86,8 +86,8 @@ class Tasks(ScopedRepository[Task]):
 
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
         others = Query.build(Agent).filter_unequal("state", "ended").filter_unequal("id", holder.id)
-        held_elsewhere = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(others.filter_named(self.links.query(), "source"))
-        return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(held_elsewhere).filter_absent(self.wait_links()))
+        claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(others.filter_named(self.links.query(), "source"))
+        return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(claimed_links).filter_absent(self.wait_links()))
 
     def wait_links(self) -> Query:
         return self.links.query().filter(link_type=WAIT_LINK).filter_ref("source", self.query())

@@ -19,11 +19,11 @@ class RequestController:
         self.tasks, self.links, self.users, self.environments, self.holders = tasks, links, users, environments, holders
 
     def index(self, request: Request) -> Response:
-        ids = sorted({*(ref.id for ref in self.links.sources(User(id=int(request.actor.id)), REQUESTER_LINK)), *(link.source.id for link in self.links.of_kind(TEAM_REQUEST))})
+        ids = sorted({*(ref.id for ref in self.links.sources(User(id=int(request.actor.id)), REQUESTER_LINK)), *(link.source.id for link in self.links.type_links(TEAM_REQUEST))})
         return Response.json({"rows": [ModelFields.build(task) for task in reversed(self.tasks.tasks_numbered(ids))]})
 
     def filed(self, request: Request) -> Response:
-        ids = sorted({link.source.id for type_name in (REQUESTER_LINK, TEAM_REQUEST) for link in self.links.of_kind(type_name)})
+        ids = sorted({link.source.id for type_name in (REQUESTER_LINK, TEAM_REQUEST) for link in self.links.type_links(type_name)})
         mine = self.tasks.creator_tasks(ids, request.actor)
         drivers = self.tasks.row_holders(mine)
         return Response.json({"rows": [self.standing(task, drivers) for task in reversed(mine)]})

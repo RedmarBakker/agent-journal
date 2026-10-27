@@ -48,7 +48,7 @@ class SequenceTrigger:
 
     def checked(self) -> "SequenceTrigger":
         if self.trigger_type == SequenceTriggerType.ROW and not MOMENT.match(self.moment):
-            raise Rejection(f"a row trigger names a table and a moment, such as plan.created; {self.moment!r} is not one")
+            raise Rejection(f"a row trigger is written as a table and a moment, such as plan.created; {self.moment!r} is not one")
         if self.trigger_type in (SequenceTriggerType.PHRASE, SequenceTriggerType.FILE_TEXT) and not self.text.strip():
             raise Rejection(f"a {self.trigger_type} trigger needs a text to look for")
         if self.trigger_type in (SequenceTriggerType.FILE, SequenceTriggerType.FILE_TEXT) and not self.pattern.strip():

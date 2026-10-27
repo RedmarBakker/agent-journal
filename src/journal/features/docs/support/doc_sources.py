@@ -5,7 +5,7 @@ from journal.repositories.docs import Docs
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 
-COPIED_FROM = Link.COPIED_FROM
+COPY_SOURCE = Link.COPY_SOURCE
 ATTACHED = Link.ATTACHED_TO
 
 
@@ -16,11 +16,11 @@ class DocSources:
         self.docs, self.links, self.scope = docs, links, scope
 
     def copied(self, copy: Doc) -> str:
-        return "; ".join(self.phrase("copied from", link.target) for link in self.links.all_matching(source=Ref.build(copy), link_type=COPIED_FROM))
+        return "; ".join(self.phrase("copied from", link.target) for link in self.links.all_matching(source=Ref.build(copy), link_type=COPY_SOURCE))
 
     def attached(self) -> list[str]:
-        here = Ref("environments", self.scope.id)
-        return [self.phrase("attached here:", link.source) for link in self.links.all_matching(target=here, link_type=ATTACHED)]
+        environment = Ref("environments", self.scope.id)
+        return [self.phrase("attached here:", link.source) for link in self.links.all_matching(target=environment, link_type=ATTACHED)]
 
     def phrase(self, what: str, source: Ref) -> str:
         found = self.docs.numbered([source.id])

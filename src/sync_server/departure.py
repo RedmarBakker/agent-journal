@@ -6,7 +6,6 @@ from sync_server.file_store import FileStore
 from sync_server.leases import Leases
 from sync_server.logged_change import UPDATED, WITHDRAWN, LoggedChange
 from sync_server.server_clock import ServerClock
-from sync_server.row_type import RowType
 
 OWNER = "owner"
 DRIVER_FIELDS = ("driver", "driver_agent")
@@ -36,8 +35,8 @@ class Departure:
 
     @staticmethod
     def shared_rows(rows: list[CopiedRow], account_id: int) -> list[tuple[str, int]]:
-        owned = {int(str(row.fields.get("target")).rpartition(":")[2]) for row in rows if row.row_table == "links" and RowType.of(row.fields, "link_type") == OWNER and row.fields.get("source") == f"users:{account_id}" and str(row.fields.get("target", "")).startswith("environments:")}
-        shared = {row.row for row in rows if row.row_table == "environments" and row.row in owned and RowType.of(row.fields, "environment_type", "local") == "local" and row.fields.get("team_key")}
+        owned = {int(row.field_text("target").rpartition(":")[2]) for row in rows if row.row_table == "links" and row.row_type("link_type") == OWNER and row.field_text("source") == f"users:{account_id}" and row.field_text("target").startswith("environments:")}
+        shared = {row.row for row in rows if row.row_table == "environments" and row.row in owned and row.row_type("environment_type", "local") == "local" and row.field_text("team_key")}
         contents = [(row.row_table, row.row) for row in rows if row.row_table != "environments" and row.fields.get("environment_id") in shared]
         refs = {f"environments:{number}" for number in shared} | {f"{table}:{number}" for table, number in contents}
         links = [("links", row.row) for row in rows if row.row_table == "links" and (row.fields.get("source") in refs or row.fields.get("target") in refs)]

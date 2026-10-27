@@ -7,7 +7,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
-from journal.features.docs.support.doc_sources import ATTACHED, COPIED_FROM, DocSources
+from journal.features.docs.support.doc_sources import ATTACHED, COPY_SOURCE, DocSources
 from journal.features.docs.support.hub_move import HubMove
 from journal.models.doc import Doc
 from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS
@@ -137,7 +137,7 @@ class DocCommand(Command):
 
     def copy_of(self, doc: Doc, caller: Caller) -> Doc:
         copy = self.docs.save(doc.local_copy(), caller.actor)
-        self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), link_type=COPIED_FROM), caller.actor)
+        self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), link_type=COPY_SOURCE), caller.actor)
         return copy
 
     def attach(self, args: Namespace, caller: Caller) -> int:

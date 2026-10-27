@@ -17,8 +17,8 @@ class Bypass:
 
     @classmethod
     def parse(cls, line: str) -> "Bypass":
-        at, type_name, subject = line.split(" ", 2)
-        return cls(float(at), type_name, subject)
+        seconds, type_name, subject = line.split(" ", 2)
+        return cls(float(seconds), type_name, subject)
 
     def described(self) -> str:
         when = datetime.fromtimestamp(self.at).strftime("%H:%M:%S")

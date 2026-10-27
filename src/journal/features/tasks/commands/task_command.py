@@ -131,7 +131,7 @@ class TaskCommand(Command):
     def link_creation(self, message: int, task: Task, caller: Caller) -> None:
         if not message or Ref.build(task) in self.links.targets(self.messages.find(message), Messages.SUBJECT_LINK):
             return
-        for guessed in [link for link in self.links.link_rows(task) if link.link_type == Messages.SUBJECT_LINK and link.target == Ref.build(task) and link.source.type == Message.table()]:
+        for guessed in self.links.typed_source_links(task, Messages.SUBJECT_LINK, Message.table()):
             self.links.delete(guessed, caller.actor)
         self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
