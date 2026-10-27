@@ -23,7 +23,7 @@ class Option:
     provider: str = ""
     setter: str = AGENT
     scope: OptionScope = OptionScope.TEAM
-    behind: "Option | None" = None
+    main_switch: "Option | None" = None
 
     def integer(self, value: object) -> int:
         if not isinstance(value, (int, float, str)):
