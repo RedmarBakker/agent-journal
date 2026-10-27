@@ -65,7 +65,7 @@ task 2 open again
 $ agent: journal task dock 1
 exit 0
 Task 1: Write the footer docked above the chat
-created: message 6
+created: message 11
 
 $ agent: journal task undock 1
 exit 0
@@ -238,40 +238,50 @@ options:
 
 $ user: journal message send 'Please look at the footer'
 exit 0
-message 9 sent
+message 14 sent
 
 $ agent: journal message list
 exit 0
-*   1  system Started task 1: Write the footer
-*   2  system Paused task 1: Write the footer
-*   3  system Resumed task 1: Write the footer
-*   4  system Blocked task 2: Fix the cart total
-*   5  system Unblocked task 2: Fix the cart total
-*   6  system Task 1: Write the footer
-*   7  system Completed task 1: Write the footer
-*   8  system Started task 2: Fix the cart total
-*   9  user  Please look at the footer
+*   1  system Created task 1: Write the footer
+*   2  system Started task 1: Write the footer
+*   3  system Created task 2: Fix the cart total
+*   4  system Edited task 2: Fix the cart total
+*   5  system Edited task 2: Fix the cart total rounding
+*   6  system Edited task 2: Fix the cart total
+*   7  system Paused task 1: Write the footer
+*   8  system Resumed task 1: Write the footer
+*   9  system Blocked task 2: Fix the cart total
+*  10  system Unblocked task 2: Fix the cart total
+*  11  system Task 1: Write the footer
+*  12  system Completed task 1: Write the footer
+*  13  system Started task 2: Fix the cart total
+*  14  user  Please look at the footer
 
 $ agent: journal message unread
 exit 0
-message 9 from the user: Please look at the footer
+message 14 from the user: Please look at the footer
 
 $ agent: journal message read 1
 exit 0
-message 1 from the system: Started task 1: Write the footer
+message 1 from the system: Created task 1: Write the footer
   mentions tasks:1
 
 $ agent: journal message recent
 exit 0
-   1  system Started task 1: Write the footer
-   2  system Paused task 1: Write the footer
-   3  system Resumed task 1: Write the footer
-   4  system Blocked task 2: Fix the cart total
-   5  system Unblocked task 2: Fix the cart total
-   6  system Task 1: Write the footer
-   7  system Completed task 1: Write the footer
-   8  system Started task 2: Fix the cart total
-   9  user  Please look at the footer
+   1  system Created task 1: Write the footer
+   2  system Started task 1: Write the footer
+   3  system Created task 2: Fix the cart total
+   4  system Edited task 2: Fix the cart total
+   5  system Edited task 2: Fix the cart total rounding
+   6  system Edited task 2: Fix the cart total
+   7  system Paused task 1: Write the footer
+   8  system Resumed task 1: Write the footer
+   9  system Blocked task 2: Fix the cart total
+  10  system Unblocked task 2: Fix the cart total
+  11  system Task 1: Write the footer
+  12  system Completed task 1: Write the footer
+  13  system Started task 2: Fix the cart total
+  14  user  Please look at the footer
 
 $ agent: journal message react 1 '👍'
 exit 0
@@ -319,7 +329,12 @@ options:
 
 $ agent: journal message send 'The footer is done' --reply-to 1
 exit 0
-message 10 sent
+message 15 sent
+
+$ agent: journal message flowchart 'How a release goes out' --edge 'Suite -> Tag' --edge 'Tag -> Release: when the matrix passes'
+exit 0
+flowchart 16 drawn
+created: message 16
 
 $ agent: journal plan create 'The shop'"'"'s checkout' --brief 'A customer can pay'
 exit 0
@@ -413,7 +428,7 @@ plan 1 is shown on the plan card again
 $ agent: journal plan dock 1
 exit 0
 Plan 1: The shop's checkout docked above the chat
-created: message 15
+created: message 23
 
 $ agent: journal plan undock 1
 exit 0
@@ -440,7 +455,7 @@ exit 0
 question 1 asked; waiting for the answer
   1. Stripe
   2. Mollie
-created: message 18
+created: message 26
 
 $ agent: journal question list
 exit 0
@@ -454,12 +469,12 @@ question 1: Which payment provider?  [Stripe / Mollie]
 $ user: journal question answer 1 Mollie
 exit 0
 question 1 answered: Mollie
-created: message 19
+created: message 27
 
 $ agent: journal question dock 1
 exit 0
 Question 1 docked above the chat
-created: message 20
+created: message 28
 
 $ agent: journal question undock 1
 exit 0
@@ -468,7 +483,7 @@ Question 1 undocked
 $ user: journal rule create 'Always round money to cents' --reason 'the bank does'
 exit 0
 rule 1: Always round money to cents
-created: message 21
+created: message 29
 
 $ agent: journal rule list
 exit 0
@@ -481,7 +496,7 @@ rule 1: Always round money to cents
 $ agent: journal rule dock 1
 exit 0
 Rule 1 docked above the chat
-created: message 22
+created: message 30
 
 $ agent: journal rule undock 1
 exit 0
@@ -490,12 +505,12 @@ Rule 1 undocked
 $ user: journal rule strike 1
 exit 0
 rule 1 struck
-created: message 23
+created: message 31
 
 $ agent: journal reminder create 'Run the tests before a commit'
 exit 0
 reminder 1: Run the tests before a commit
-created: message 24
+created: message 32
 
 $ agent: journal reminder list
 exit 0
@@ -508,7 +523,7 @@ reminder 1: Run the tests before a commit
 $ agent: journal reminder dock 1
 exit 0
 Reminder 1 docked above the chat
-created: message 25
+created: message 33
 
 $ agent: journal reminder undock 1
 exit 0
@@ -517,17 +532,17 @@ Reminder 1 undocked
 $ agent: journal reminder strike 1
 exit 0
 reminder 1 struck
-created: message 26
+created: message 34
 
 $ agent: journal memory add 'the suite runs in shards' --weight 7
 exit 0
 memory 1 added, weight 7: the suite runs in shards
-created: message 27
+created: message 35
 
 $ agent: journal memory add 'the port is fixed'
 exit 0
 memory 2 added, weight 5: the port is fixed
-created: message 28
+created: message 36
 
 $ agent: journal memory list
 exit 0
@@ -541,7 +556,7 @@ memory 1 weighs 6, memory 2 weighs 4
 $ agent: journal memory dock 1
 exit 0
 Memory 1 docked above the chat
-created: message 31
+created: message 39
 
 $ agent: journal memory undock 1
 exit 0
@@ -558,7 +573,7 @@ noted; carry on
 $ agent: journal doc create 'The cart' --file <root>/cart.md --abstract 'how the cart adds up'
 exit 0
 doc 1: The cart
-created: message 34, doc revision 1
+created: message 42, doc revision 1
 
 $ agent: journal doc list
 exit 0
@@ -664,7 +679,7 @@ doc 1 signed off: it holds what the project keeps knowing
 $ agent: journal report create 'What the cart test found' --abstract 'The cart adds the tax twice' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
-created: message 35
+created: message 43
 
 $ agent: journal report update 1 --abstract 'The cart adds the tax once now'
 exit 0
@@ -688,7 +703,7 @@ read a section with --section <n or heading>, its bullets with --bullets, search
 $ agent: journal report recap 'the footer is done'
 exit 0
 report 2: the update, docked at the bottom of the chat; done 1, doing 1, also 2
-created: message 36
+created: message 44
 
 $ agent: journal report note 1 'checked again'
 exit 0
@@ -767,7 +782,7 @@ A functional design says what is to be built, never how: anyone, the user or a c
 $ agent: journal template dock 1
 exit 0
 Template 1: Functional design docked above the chat
-created: message 37
+created: message 45
 
 $ agent: journal template undock 1
 exit 0
@@ -822,7 +837,7 @@ check 1: The cart sums its lines
 $ agent: journal check dock 1
 exit 0
 Check 1: The cart sums its lines docked above the chat
-created: message 39
+created: message 47
 
 $ agent: journal check undock 1
 exit 0
@@ -843,7 +858,7 @@ exit 0
 $ agent: journal notice dock 1
 exit 0
 Notice 1: The shop's design docked above the chat
-created: message 40
+created: message 48
 
 $ agent: journal notice undock 1
 exit 0
@@ -1067,7 +1082,7 @@ sequence 2 abandoned
 $ agent: journal sequence dock 2
 exit 0
 Sequence 2: Applying a plan's reviews docked above the chat
-created: message 44
+created: message 52
 
 $ agent: journal sequence undock 2
 exit 0
@@ -1084,7 +1099,7 @@ exit 0
 $ agent: journal trigger dock 1
 exit 0
 Trigger 1 docked above the chat
-created: message 45
+created: message 53
 
 $ agent: journal trigger undock 1
 exit 0
@@ -1098,13 +1113,14 @@ $ agent: journal search footer
 exit 0
 task 1: Write the footer The footer names the shop the footer names the shop
 task log 1: the footer has its links
-message 10: The footer is done
-message 9: Please look at the footer
-message 7: Completed task 1: Write the footer
-message 6: Task 1: Write the footer
-message 3: Resumed task 1: Write the footer
-message 2: Paused task 1: Write the footer
-message 1: Started task 1: Write the footer
+message 15: The footer is done
+message 14: Please look at the footer
+message 12: Completed task 1: Write the footer
+message 11: Task 1: Write the footer
+message 8: Resumed task 1: Write the footer
+message 7: Paused task 1: Write the footer
+message 2: Started task 1: Write the footer
+message 1: Created task 1: Write the footer
 report 2: Update <date> at <clock> the footer is done
 
 $ agent: journal dump create 'Notes from the call'
@@ -1163,7 +1179,7 @@ exit 0
 $ agent: journal dump dock 1
 exit 0
 Dump 1: The call docked above the chat
-created: message 47
+created: message 55
 
 $ agent: journal dump undock 1
 exit 0
@@ -1192,7 +1208,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 48
+created: message 56
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1774,6 +1790,7 @@ shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with 
 shell.journal_poll_refused  [shell]  a shell loop that polls journal commands is refused. wait with journal await "<what you wait for>" --output {{n}}, which ends when the output does
 shell.more_specific_alias_refused  [shell]  journal {{name}} runs what this run of journal {{called}} runs: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with that alias
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
+shell.name_the_run_in_words  [shell]  the card of output {{n}} is titled {{title}}, which shows a flag or a path where a description belongs. say what the run does in words: `--label "<words>"` on the reader or alias that runs it, or `journal output watch {{n}} --title "<words>"`
 shell.output_kept  [shell]  output {{n}}: {{counts}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts}}
 shell.outputs_ended  [shell]  {{outputs}}. `journal output read {{n}} --summary` says how
@@ -1781,6 +1798,7 @@ shell.project_path_refused  [shell]  the command uses the absolute path of this 
 shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines, more than the {{cap}} shown at each end. read it in parts with offset and limit, or grep for the line you need
 shell.reader_report_dismissal_refuted  [shell]  your dismissal was checked against the run's output and found wrong, {{verdicts}}. write the reader anew with `journal reader add`: a refuted report is never dismissed again
 shell.reader_report_raised  [shell]  reader report {{n}}: its reader showed a run poorly. `journal reader report {{n}}` shows how to fix it
+shell.run_counts_without_a_total  [shell]  output {{n}} prints as it runs but shows no count of a total, so its card has no bar. run it so it prints how far it has come of its whole, such as through the project's suite alias, or give its reader a --progress pattern for a count of a total, (\d+)/(\d+), or a percentage
 shell.silent_run_streams  [shell]  output {{n}} has printed nothing for {{seconds}} seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it
 shell.test_run_piped_into_a_filter  [shell]  a test run piped into {{filter}} hides the lines its reader reads, so its mark shows no progress and its output is cut. run it whole with `journal suite <args>`, then read its output by its number with `journal output read N --reader pytest` or `--grep "<words>"`
 shell.unread_output  [shell]  {{outputs}}, and you have not read it yet
@@ -1828,7 +1846,7 @@ tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason}}. `journal tas
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  {{count}} open tasks you made sit at the default priority: {{tasks}}. your next write waits. `journal task edit <n> --priority <level>` on them, or `journal task priorities confirm`
 tasks.wait_check_passed  [tasks]  {{what}} is done: {{lines}}
-tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left. wait it out: `journal await` ends when it does
+tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left. you are already waiting on it: end your turn, and you are told when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what}} was lifted; check {{n}} is still running and you are informed when it passes; journal check remove {{n}} if you no longer want to hear about it
 tasks.wait_over  [tasks]  wait over: {{outcome}}
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. {{log}} "<what was decided or done>" before any other write
@@ -1914,7 +1932,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-281 nudges
+283 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2236,7 +2254,7 @@ options:
 $ agent: journal panic report
 exit 0
 report 3 written: read it with journal report show 3 --all, take out anything private, then journal panic issue 3 files it on jessegall/agent-journal
-created: message 50
+created: message 58
 
 $ agent: journal panic apply --help
 exit 0

@@ -47,6 +47,7 @@ agent message tag --help
 agent message amend-links --help
 agent message edit --help
 agent message send "The footer is done" --reply-to 1
+agent message flowchart "How a release goes out" --edge "Suite -> Tag" --edge "Tag -> Release: when the matrix passes"
 agent plan create "The shop's checkout" --brief "A customer can pay"
 agent plan phase 1 "The cart" --when "the cart adds up"
 agent plan phase 1 "Paying" --when "a card pays" --checkpoint
