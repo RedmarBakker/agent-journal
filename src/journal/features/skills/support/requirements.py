@@ -57,7 +57,7 @@ class Requirements:
         if self.registry.silenced(SkillsNudges.SKILL_READ_REQUEST):
             return []
         self.obligation(agent, skills)
-        return [line for skill in skills if (line := self.nudger.deliver(agent, SkillsNudges.SKILL_READ_REQUEST.create(skill=skill.name, path=self.path(skill))))]
+        return [line for line in [self.nudger.deliver(agent, SkillsNudges.read_request([(skill.name, self.path(skill)) for skill in skills]))] if line] if skills else []
 
     def path(self, skill: Skill) -> str:
         return self.files.relative_path(skill)

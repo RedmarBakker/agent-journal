@@ -1,18 +1,15 @@
-from journal.events.agent.ticked import Ticked
+from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent_listener import AgentListener
-from journal.features.shell.shell_conduct import SILENCE_SECONDS
 from journal.repositories.command_outputs import CommandOutputs
 from journal.support.actor import Actor
 
 
-class OutputNotice(AgentListener[Ticked]):
-    """The commands that ended in the background are marked as reported at the tick when the shell conduct names them, once the agent is idle."""
+class OutputNotice(AgentListener[CommandEnded]):
+    """A command that ended in the background is marked reported, and its watch ended, at the event the shell conduct named it from, so no ending is marked without its line."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs
 
-    def handle(self, event: Ticked) -> None:
-        if event.silence_seconds < SILENCE_SECONDS:
-            return
-        for output in self.outputs.unannounced(event.session):
-            self.outputs.save(output.announced(), Actor.system())
+    def handle(self, event: CommandEnded) -> None:
+        output = self.outputs.find(event.output)
+        self.outputs.save(output.announced().unwatched() if output.is_watched else output.announced(), Actor.system())

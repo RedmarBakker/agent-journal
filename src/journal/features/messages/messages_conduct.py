@@ -9,7 +9,8 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
-from journal.events.agent.tool_finished import ToolFinished
+from journal.events.rows.message_read import MessageRead
+from journal.events.rows.message_rows_faulty import MessageRowsFaulty
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.reaction_added import ReactionAdded
 from journal.events.rows.colleague_commented import ColleagueCommented
@@ -43,10 +44,13 @@ class MessagesConduct(Conduct):
         return self.none(*inbox_line(event.data.part(MessagesPart)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [truncated_read_check(self, event, settings), unlinked_numbers_check(self, event), missing_rows_check(self, event)])
+        return truncated_read_check(self, event, settings)
 
-    def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
-        return self.none(*MessagesNudges.read_messages(event.data.part(MessagesPart).tool_use_reads))
+    def on_message_rows_faulty(self, event: MessageRowsFaulty, settings: Settings) -> Transition:
+        return self.none(*unlinked_line(event), *missing_line(event)) if event.writer_session == event.session else self.none()
+
+    def on_message_read(self, event: MessageRead, settings: Settings) -> Transition:
+        return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id)) if event.is_agents(event.session) else self.none()
 
     def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
         return self.none(MessagesNudges.COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))
@@ -64,15 +68,13 @@ def truncated_read_check(state: BaseState, event: ToolStarting, settings: Settin
     return state.refuse(MessagesNudges.FULL_MESSAGE_READ.create()) if TRUNCATED.search(event.call.command) else state.none()
 
 
-def missing_rows_check(state: BaseState, event: ToolStarting) -> Transition:
-    messages = event.data.part(MessagesPart)
-    return state.none(MessagesNudges.MISSING_ROWS.create(n=messages.missing_message, rows=", ".join(messages.missing_rows))) if messages.missing_rows else state.none()
+def unlinked_line(event: MessageRowsFaulty) -> list[Nudge]:
+    if not event.unlinked:
+        return []
+    numbers = ", ".join(f"{row.split()[1]} ({row.split()[0]})" for row in event.unlinked)
+    kinds = " ".join(row.split()[0] for row in event.unlinked)
+    return [MessagesNudges.UNLINKED_NUMBERS.create(n=event.row_id, numbers=numbers, kinds=kinds)]
 
 
-def unlinked_numbers_check(state: BaseState, event: ToolStarting) -> Transition:
-    messages = event.data.part(MessagesPart)
-    if not messages.unlinked_numbers:
-        return state.none()
-    numbers = ", ".join(f"{row.split()[1]} ({row.split()[0]})" for row in messages.unlinked_numbers)
-    kinds = " ".join(row.split()[0] for row in messages.unlinked_numbers)
-    return state.none(MessagesNudges.UNLINKED_NUMBERS.create(n=messages.unlinked_message, numbers=numbers, kinds=kinds))
+def missing_line(event: MessageRowsFaulty) -> list[Nudge]:
+    return [MessagesNudges.MISSING_ROWS.create(n=event.row_id, rows=", ".join(event.missing))] if event.missing else []

@@ -15,6 +15,7 @@ from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_keeps_clashing import WorkerKeepsClashing
 from journal.events.rows.worker_limited import WorkerLimited
+from journal.events.rows.worker_silent import WorkerSilent
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
@@ -64,9 +65,14 @@ class WorkersConduct(Conduct):
         return self.none(*report_mentions(event.data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        workers = event.data.part(WorkersPart)
-        silent = [silence_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
-        return self.none(*report_mentions(event.data), *silent)
+        return self.none(*report_mentions(event.data))
+
+    def on_worker_silent(self, event: WorkerSilent, settings: Settings) -> Transition:
+        if event.worker.dispatcher != event.session:
+            return self.none()
+        if event.is_split_due:
+            return self.none(WorkersNudges.SPLIT_ADVICE.create(n=event.worker.id, minutes=event.minutes))
+        return self.none(WorkersNudges.SILENT_WORKER.create(n=event.worker.id, minutes=event.minutes, last=event.data.part(WorkersPart).last_calls.get(event.worker.id, "")))
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
@@ -152,10 +158,6 @@ def rejection_line(event: ProofShort) -> Nudge:
     return nudge.create(n=event.worker_id, point=event.point, times=attempts, earlier=prior_reasons, model=event.model)
 
 
-def silence_line(worker, last: str, time: float) -> Nudge:
-    if worker.silence.is_split_due(time):
-        return WorkersNudges.SPLIT_ADVICE.create(n=worker.id, minutes=2 * worker.silence.minutes())
-    return WorkersNudges.SILENT_WORKER.create(n=worker.id, minutes=worker.silence.minutes(), last=last)
 
 
 

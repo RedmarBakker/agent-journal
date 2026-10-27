@@ -131,8 +131,8 @@ class TaskCommand(Command):
     def link_creation(self, message: int, task: Task, caller: Caller) -> None:
         if not message or Ref.build(task) in self.links.targets(self.messages.find(message), Messages.SUBJECT_LINK):
             return
-        if len(self.links.typed_sources(task, Messages.SUBJECT_LINK, Message.table())) > len(self.links.typed_sources(task, Messages.EDIT_LINK, Message.table())):
-            raise Rejection(f"task {task.id} was created from a message already, and its creation is marked once")
+        for guessed in [link for link in self.links.link_rows(task) if link.kind == Messages.SUBJECT_LINK and link.target == Ref.build(task) and link.source.type == Message.table()]:
+            self.links.delete(guessed, caller.actor)
         self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
 
     def link_edit(self, message: int, task: Task, caller: Caller) -> None:

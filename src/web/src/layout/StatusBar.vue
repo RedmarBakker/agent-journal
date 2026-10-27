@@ -29,10 +29,9 @@ import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
 import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkerActivity, useWorkers} from "../composables/workers.js";
-import {useEveryVerifier} from "../composables/verifiers.js";
 import {useEveryReviewer} from "../composables/reviewers.js";
 import AgentDropdown from "../chat/AgentDropdown.vue";
-import {newestFirst, reviewerEntry, verifierEntry} from "../domain/agentEntries.js";
+import {newestFirst, reviewerEntry} from "../domain/agentEntries.js";
 import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
@@ -178,16 +177,6 @@ async function pauseOrResume() {
     }
 }
 
-const verifiersOpen = ref(false);
-const verifiersAnchor = ref(null);
-const {rows: everyVerifier, loaded: everyVerifierLoaded, refresh: refreshEveryVerifier} = useEveryVerifier(verifiersOpen);
-
-function toggleVerifiers(e) {
-    verifiersAnchor.value = e.currentTarget;
-    verifiersOpen.value = !verifiersOpen.value;
-    if (verifiersOpen.value) refreshEveryVerifier();
-}
-
 const reviewersOpen = ref(false);
 const reviewersAnchor = ref(null);
 const {rows: everyReviewer, loaded: everyReviewerLoaded, refresh: refreshEveryReviewer} = useEveryReviewer(reviewersOpen);
@@ -198,9 +187,7 @@ function toggleReviewers(e) {
     if (reviewersOpen.value) refreshEveryReviewer();
 }
 
-const verifierEntries = computed(() => newestFirst(everyVerifier.value.map(verifierEntry)));
 const reviewerEntries = computed(() => newestFirst(everyReviewer.value.map(reviewerEntry)));
-const judging = computed(() => everyVerifier.value.filter((row) => row.state === "verifying").length);
 const reviewing = computed(() => everyReviewer.value.filter((row) => row.state === "reviewing").length);
 
 function toggleWorkers(e) {
@@ -342,15 +329,6 @@ async function runBar(p) {
                 <button
                     type="button"
                     class="statusbar-helpers"
-                    v-tip:verifiers="{title: 'Verifiers', line: 'Agents the journal sends to check whether the agent was right to set a reader report aside. Opens the list.'}"
-                    :aria-expanded="verifiersOpen"
-                    @click.stop="toggleVerifiers"
-                >
-                    <Icon name="verifier" />
-                </button>
-                <button
-                    type="button"
-                    class="statusbar-helpers"
                     v-tip:reviewers="{title: 'Reviewers', line: 'Agents the journal sends to test and check each worker\'s work. Opens the list.'}"
                     :aria-expanded="reviewersOpen"
                     @click.stop="toggleReviewers"
@@ -375,28 +353,6 @@ async function runBar(p) {
             <template v-if="fitnessOpen && fitness">
                 <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
                     <FitnessTimeline :score="fitness.score" :points="fitness.timeline" :measures="fitness.measures || []" :band="fitness.band || 'none'" :band-changed-at="fitness.band_changed_at || 0" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
-                </MenuPanel>
-            </template>
-            <template v-if="verifiersOpen">
-                <MenuPanel
-                    :anchor="verifiersAnchor"
-                    plain
-                    :min-width="300"
-                    :max-width="360"
-                    :height="workersHeight"
-                    :gap="12"
-                    @click.stop
-                    @close="verifiersOpen = false"
-                >
-                    <AgentDropdown
-                        title="Verifiers"
-                        table="verifiers"
-                        :entries="verifierEntries"
-                        :counts="judging ? `${judging} judging` : ''"
-                        none="No verifier has been sent here yet. The journal sends one when the agent dismisses a reader report."
-                        :loading="!everyVerifierLoaded"
-                        @close="verifiersOpen = false"
-                    />
                 </MenuPanel>
             </template>
             <template v-if="reviewersOpen">

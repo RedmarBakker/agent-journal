@@ -10,6 +10,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.support.worktree import Worktree
 from journal.config import Config
+from journal.features.briefing.support.start_lines import StartLines
 from journal.features.shell.support.shell_record import ENDED, MOVED
 from journal.support.environment_row import EnvironmentRow
 from journal.support.agent_role import AgentRole
@@ -48,8 +49,8 @@ class EnvironmentCommand(Command):
     noun = "environment"
     uncut_verbs = frozenset({"overview"})
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, memories: Memories, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource) -> None:
-        self.time_source, self.states = time_source, states
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, memories: Memories, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource, start: StartLines) -> None:
+        self.time_source, self.states, self.start = time_source, states, start
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.memories, self.reminders, self.providers, self.config, self.scope = rules, memories, reminders, providers, config, scope
@@ -123,8 +124,7 @@ class EnvironmentCommand(Command):
         shown = self.memories.shown()
         if not shown:
             return "no memories yet: `journal memory add \"<what to keep in mind>\" --weight <1 to 10>`"
-        weighed = "; ".join(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in shown)
-        return MEMORY_LINE.format(rows=weighed)
+        return MEMORY_LINE.format(rows=self.start.memories_weighed())
 
     def background(self) -> list[str]:
         moved = self.entries.open_moves(MOVED, ENDED)

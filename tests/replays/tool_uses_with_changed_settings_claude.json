@@ -5,7 +5,8 @@
       "name": "message 2 read",
       "answer": null,
       "typed": [
-        "[journal] new message 2"
+        "[journal] new message 2",
+        "[journal] reply with [!reply:2] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -13,7 +14,8 @@
         "briefing.the_laws_apply",
         "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user",
-        "messages.new_message_to_answer"
+        "messages.new_message_to_answer",
+        "messages.answer_the_message_read"
       ],
       "stack": [
         "idle",

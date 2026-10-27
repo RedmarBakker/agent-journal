@@ -341,7 +341,9 @@
       "name": "message 2 read",
       "answer": null,
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "messages.answer_the_message_read"
+      ],
       "stack": [
         "idle",
         "working",
@@ -350,7 +352,12 @@
     },
     {
       "name": "a read while owed",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "reply with [!reply:2] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [

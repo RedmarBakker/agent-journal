@@ -5,7 +5,6 @@ from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_drafts import ReaderDrafts
-from journal.features.shell.support.silent_runs import SilentRuns
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
 from journal.features.registry import Registry
@@ -27,9 +26,9 @@ HISTORY_READS = 26
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, drafts: ReaderDrafts) -> None:
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, drafts: ReaderDrafts) -> None:
         self.drafts = drafts
-        self.reports, self.registry, self.silent = reports, registry, silent
+        self.reports, self.registry = reports, registry
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
 
@@ -44,14 +43,11 @@ class ShellDataReader:
             "output_reads": lambda: self.output_reads(agent),
             "readers": lambda: tuple(self.readers.all()),
             "tipped": lambda: self.tipped(agent),
-            "silent_runs": lambda: self.silent.running(agent.session) if agent.session else (),
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "reader_drafts": lambda: self.drafts.drafts(agent),
             "draft_count": lambda: len(self.entries.keyed_lines(agent.session, (ShellNudges.READER_DRAFT.key,))),
-            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session, self.readers.locked_names())),
-            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.open_revisions())),
-            "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.open_revisions())),
+            "locked_readers": lambda: tuple(self.readers.locked_names()),
             "uncut_verbs": lambda: self.registry.uncut_verbs(),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)

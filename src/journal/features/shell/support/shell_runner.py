@@ -74,6 +74,10 @@ class ShellRunner:
         if self.is_held(request, caller, environment):
             yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
             return
+        if not cap.is_direct() and self.is_carded_test_run(folder, caller):
+            with self.scope.environment(environment):
+                reading = self.readers.reading(request.line)
+                self.outputs.watch(self.outputs.find(folder.number()), reading.name if reading is not None else "", "", caller.actor)
         output_text: queue.Queue = queue.Queue()
         ended: list[int] = []
         faults: list[Exception] = []
@@ -113,6 +117,7 @@ class ShellRunner:
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
         immediate = bool(background) or self.limits.is_background(request.line) or (reader is not None and self.is_long_run(self.readers.read_part(reader, request.line), limit))
+        carded = self.is_carded_test_run(folder, caller)
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -120,6 +125,8 @@ class ShellRunner:
                 yield display.build(shown).encode()
                 shown += 1
             if folder.is_finished():
+                if carded and reader is None:
+                    self.starting_reader_watch(folder, caller)
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
             if limit > 0 and (immediate or time.monotonic() - began >= limit):
@@ -134,6 +141,16 @@ class ShellRunner:
             tick += 1
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
+
+    def is_carded_test_run(self, folder: OutputFiles, caller: Caller) -> bool:
+        return caller.is_main_agent() and folder.number() > 0 and any(self.classifier.classify(text).is_test_run for _, text in folder.recorded_texts())
+
+    def starting_reader_watch(self, folder: OutputFiles, caller: Caller) -> None:
+        output = self.outputs.find(folder.number())
+        part = next(text for _, text in folder.recorded_texts() if self.classifier.classify(text).is_test_run)
+        guessed = self.guess.guessed(output, part)
+        if guessed is not None:
+            self.outputs.touch(output, caller.actor, watch_reader=guessed.name)
 
     def is_held(self, request: ShellRequest, caller: Caller, environment: int) -> bool:
         with self.scope.environment(environment):

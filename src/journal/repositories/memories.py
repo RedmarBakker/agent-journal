@@ -1,3 +1,4 @@
+from datetime import datetime
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
@@ -38,6 +39,10 @@ class Memories(ScopedRepository[Memory]):
 
     def fade_all(self, owner: Ref | None, actor: Actor) -> list[Memory]:
         return [self.save(memory.faded(), actor) for memory in self.selected(self.shown_query(owner))]
+
+    def removed_since(self, owner: Ref | None, since: datetime | None) -> list[Memory]:
+        removed = self.owned_query(owner).filter_present("removed_at")
+        return self.selected((removed if since is None else removed.filter_greater("removed_at", since)).order("id"))
 
     def owned_numbered(self, ids: list[int], owner: Ref | None) -> list[Memory]:
         rows = {row.id: row for row in self.selected(self.owned_query(owner).filter_listed("id", ids))}

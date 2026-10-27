@@ -15,7 +15,6 @@ class MessagesNudges:
     USER_REACTION = Nudge("messages", "the_user_reacted", "the user put {{emoji}} on message {{n}}", "act on it if it asks for something; never mention it", repeat=Timeout.seconds(0))
     EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "your reply was only {{emoji}}, so it was not posted", "react with `journal message react <n> \"{{emoji}}\"` instead", repeat=Timeout.seconds(0))
     MESSAGE_READ = Nudge("messages", "answer_the_message_read", "reply with [!reply:{{n}}] in your turn", "follow it if it steers; create a task, or update one, if it asks for work", repeat=Timeout.seconds(0))
-    MESSAGES_READ = Nudge("messages", "answer_the_messages_read", "reply with {{tags}} in your turn", "follow each that steers; create a task, or update one, for each that asks for work", repeat=Timeout.seconds(0))
     INBOX_COUNTDOWN = Nudge("messages", "writes_held_soon_until_read", "read due, message {{messages}}: {{count}}", repeat=Timeout.seconds(0), chat_answerable=True)
     INBOX_LAST_USE = Nudge("messages", "next_write_held_until_read", "read due, message {{messages}}: 0", "your next write waits for it", repeat=Timeout.seconds(0), chat_answerable=True)
     UNANSWERED_COUNTDOWN = Nudge("messages", "tools_held_soon_until_answered", "reply due, message {{messages}}: {{count}}", repeat=Timeout.seconds(0), chat_answerable=True)
@@ -43,13 +42,6 @@ class MessagesNudges:
         if count <= 3:
             return cls.NEW_MESSAGES.create(ns=", ".join(str(n) for n in unread))
         return cls.UNREAD_MESSAGES.create(count=count)
-
-    @classmethod
-    def read_messages(cls, numbers: tuple[int, ...]) -> list[Nudge]:
-        if len(numbers) <= 1:
-            return [cls.MESSAGE_READ.create(n=n) for n in numbers]
-        tags = [f"[!reply:{n}]" for n in numbers]
-        return [cls.MESSAGES_READ.create(tags=f"{', '.join(tags[:-1])} and {tags[-1]}")]
 
     @classmethod
     def inbox_lines(cls) -> tuple[Nudge, ...]:

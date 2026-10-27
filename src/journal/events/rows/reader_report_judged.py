@@ -12,3 +12,4 @@ class ReaderReportJudged(RowEvent):
     verifier_session: str
     is_sound: bool
     reason: str
+    run_session: str | None = None

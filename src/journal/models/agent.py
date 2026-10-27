@@ -71,8 +71,6 @@ class Agent(Scoped):
     band_changed_at: float = 0.0
     measures: MeasureStates = MeasureStates()
     mode_loads: dict = field(default_factory=dict)
-    unlinked_message: int = 0
-    unlinked_numbers: tuple[str, ...] = ()
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
 

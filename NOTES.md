@@ -1806,3 +1806,20 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   nudge entries across environments, so nothing is told again. The draft carries whether its part was told and its runs
   since; the conduct decides. ReaderGuess runs for the main agent alone, refuses a reader that would read a plugin's alias
   and shows a card in the chat when it saves one.
+
+## Memory after a compaction, and lines said once (plan 1046, 2026-10-27)
+
+- A memory names rows in its text (task 3804, worker 1140). The start block and the overview read its memories from one place,
+  StartLines.memory_line, which adds "check it still holds" with each named row that has closed since: a task or plan done or
+  cancelled, a worker stopped, released or merged, or a row not found (ClosedRows, read from the text, since a deleted row's
+  links are gone with it).
+- After a compaction ReadingOverview refuses with one line naming every skill still to read and the overview, and stops the
+  event's walk, so no second line stands beside it. Outside that state the skills still owed are named in one line too.
+- A forward ends the walk of an event's listeners: the state beneath hears the event, the conduct with it, once. Before this the
+  start after a compaction reached the conduct twice and the overview state's push was dropped.
+- The memories mark of a compaction keeps its round in its data: each memory still shown and each faded out with its weight
+  before and after, and each removed since the agent's last round. The mark opens to it in place; a mark from before rounds
+  were kept says the round was not recorded.
+- Marking a message read raises MessageRead; the messages conduct answers it with the reply line for that message, once.
+  A hook answer says each line once (Decision). A stopped agent's lines wait delivery.batch_seconds from the first one and
+  are typed together on the clock's tick, each once; a working agent's go into its next hook answer as before.

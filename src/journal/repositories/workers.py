@@ -1,3 +1,4 @@
+from journal.support.actor import Actor
 from collections.abc import Callable
 from journal.db.connection import Connection
 from journal.db.query import Query
@@ -25,6 +26,12 @@ class Workers(ScopedRepository[Worker]):
 
     def open_workers(self) -> list[Worker]:
         return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).filter(adopted=False).order("id"))
+
+    def named_silent(self, worker: Worker, time: float, actor: Actor) -> None:
+        with self.connection.transaction():
+            current = self.find(worker.row_id)
+            if current.is_silent(time):
+                self.save(current.silence_named(time), actor)
 
     def running_workers(self) -> list[Worker]:
         return self.selected(self.dispatched_query().order("id"))

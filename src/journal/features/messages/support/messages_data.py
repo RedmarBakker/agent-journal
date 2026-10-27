@@ -13,8 +13,3 @@ class MessagesData:
     peer_questions: tuple[PeerQuestion, ...]
     unread_comments: tuple[int, ...] = ()
     unread_count: int = 0
-    tool_use_reads: tuple[int, ...] = ()
-    unlinked_message: int = 0
-    unlinked_numbers: tuple[str, ...] = ()
-    missing_message: int = 0
-    missing_rows: tuple[str, ...] = ()

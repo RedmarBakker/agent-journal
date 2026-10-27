@@ -32,7 +32,7 @@ class ReaderReport(Scoped):
     judged_at: datetime | None = None
 
     def creation_events(self) -> tuple[ReaderReportRaised, ...]:
-        return (ReaderReportRaised(environment_id=self.environment_id, session=self.session),)
+        return (ReaderReportRaised(environment_id=self.environment_id, run_session=self.session, reader=self.reader),)
 
     def opened(self, time: datetime) -> "ReaderReport":
         return self if self.read_at else self.with_(read_at=time)
@@ -63,7 +63,7 @@ class ReaderReport(Scoped):
         return self.with_(verdict=reason, judged_at=time)
 
     def judgement(self, verifier_session: str, is_sound: bool, reason: str, time: datetime) -> ReaderReportJudged:
-        return ReaderReportJudged(environment_id=self.environment_id, time=time.timestamp(), verifier_session=verifier_session, is_sound=is_sound, reason=reason)
+        return ReaderReportJudged(environment_id=self.environment_id, time=time.timestamp(), verifier_session=verifier_session, is_sound=is_sound, reason=reason, run_session=self.session)
 
     def evidence(self) -> str:
         finding_lines = "\n".join(f"- {finding}" for finding in self.findings)

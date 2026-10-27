@@ -72,10 +72,6 @@ class Messages(ScopedRepository[Message]):
     def main_chat(self) -> Query:
         return self.query().filter(thread=MessageThread.MAIN)
 
-    def missing_rows_message(self, session: str) -> Message | None:
-        rows = self.selected(self.main_voice().filter(session=session).filter_present(f"data->{Message.MISSING_ROWS}").order_descending("id").limit(1))
-        return rows[0] if rows else None
-
     def agent_chat(self, session: str) -> Query:
         return self.query().filter(session=session).filter_unlisted("thread", (MessageThread.MAIN,))
 
@@ -243,7 +239,7 @@ class Messages(ScopedRepository[Message]):
             return message
         if message.is_comment() and actor.is_user():
             return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
-        return message if message.read_at else self.save(message.with_(read_at=self.time_source.moment(), read_position=tool_use), actor)
+        return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use), actor)
 
     def newest_moments(self, kinds: tuple[str, ...], last: int) -> list[Message]:
         moments = [message for kind in kinds for message in self.selected(self.query().filter_json("data->shows", kind).order_descending("id").limit(last))]

@@ -9,4 +9,5 @@ class ReaderReportRaised(RowEvent):
 
     feature_name = "shell"
 
-    session: str | None
+    run_session: str | None
+    reader: str = ""

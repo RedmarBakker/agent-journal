@@ -6,7 +6,6 @@ from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_draft import ReaderDraft
 from journal.models.alias import Alias
 from journal.models.reader_report import ReaderReport
-from journal.features.shell.support.silent_run import SilentRun
 from journal.support.moment import Moment
 
 
@@ -27,9 +26,6 @@ class ShellData:
     aliases: tuple[Alias, ...]
     home: str
     uncut_verbs: tuple[str, ...] = ()
+    locked_readers: tuple[str, ...] = ()
     reader_drafts: tuple[ReaderDraft, ...] = ()
     draft_count: int = 0
-    unread_reports: tuple[int, ...] = ()
-    unfixed_reports: tuple[int, ...] = ()
-    refuted_reports: tuple[ReaderReport, ...] = ()
-    silent_runs: tuple[SilentRun, ...] = ()

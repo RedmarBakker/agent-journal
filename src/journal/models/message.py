@@ -4,6 +4,7 @@ from typing import ClassVar
 
 from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
+from journal.events.rows.message_read import MessageRead
 from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
@@ -74,6 +75,9 @@ class Message(Scoped):
 
     def with_reading_request(self) -> "Message":
         return self.with_merged("data", {"reading_request": True})
+
+    def with_read_time(self, read_at: datetime, tool_use: int) -> "Message":
+        return self.with_(read_at=read_at, read_position=tool_use).with_event(MessageRead(environment_id=self.environment_id, time=read_at.timestamp(), row_id=self.id))
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":

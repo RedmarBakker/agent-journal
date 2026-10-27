@@ -102,6 +102,7 @@ const SYSTEM_TURNS = {
             run: card.run || "",
             step: card.step || 0,
             run_title: card.run_title || "",
+            round: card.round || null,
         },
     }),
     peer: (card) => ({kind: "message", data: {peer: card.peer, sent_to: card.sent_to, failure: card.failure || ""}}),

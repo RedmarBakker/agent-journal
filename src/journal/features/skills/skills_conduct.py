@@ -50,4 +50,8 @@ def is_skill_read(event: ToolStarting, cards: list[SkillCard]) -> bool:
 
 
 def read_first(cards: list[SkillCard]) -> list[Nudge]:
-    return [SkillsNudges.SKILL_READ_REQUEST.create(skill=card.name, path=card.path) for card in cards]
+    return [SkillsNudges.read_request(skill_paths(cards))] if cards else []
+
+
+def skill_paths(cards: list[SkillCard]) -> list[tuple[str, str]]:
+    return [(card.name, card.path) for card in cards]

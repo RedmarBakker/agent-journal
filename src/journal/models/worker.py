@@ -27,6 +27,7 @@ from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.events.rows.worker_merged import WorkerMerged
 from journal.events.rows.worker_released import WorkerReleased
 from journal.events.rows.worker_limited import WorkerLimited
+from journal.events.rows.worker_silent import WorkerSilent
 from journal.events.rows.worker_queue_turn_ended import WorkerQueueTurnEnded
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_notified import WorkerNotified
@@ -215,6 +216,11 @@ class Worker(Helper):
 
     def is_silent(self, time: float) -> bool:
         return self.is_running() and (self.silence.is_elapsed(time) or self.silence.is_split_due(time))
+
+    def silence_named(self, time: float) -> "Worker":
+        split = self.silence.is_split_due(time)
+        minutes = 2 * self.silence.minutes() if split else self.silence.minutes()
+        return self.with_(silence=self.silence.named(time)).with_event(WorkerSilent(environment_id=self.environment_id, time=time, worker=self.mention(), minutes=minutes, is_split_due=split))
 
     def notified(self, text: str, time: float, sender: str) -> "Worker":
         return self.contacted(time).with_event(WorkerNotified(environment_id=self.environment_id, time=time, worker=self.mention(), text=text, sender=sender))

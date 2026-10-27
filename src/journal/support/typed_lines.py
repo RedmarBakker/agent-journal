@@ -6,7 +6,7 @@ from journal.support.typed_line import TypedLine
 
 RECENT_SECONDS = 60.0
 BATCH_SECONDS = 5.0
-BATCH_OPTION = Option("delivery.batch_seconds", "Type lines at most every", "While the agent works, seconds after a line is typed before the next may go; lines that come meanwhile are held and typed together as one line. A stopped agent gets each line at once. 0 types each at once", BATCH_SECONDS, unit="seconds")
+BATCH_OPTION = Option("delivery.batch_seconds", "Type lines at most every", "While the agent works, seconds after a line is typed before the next may go; while it is stopped, seconds the first line waits for others to join it. Lines held meanwhile are typed together as one line, each once. 0 types each at once", BATCH_SECONDS, unit="seconds")
 JOURNAL_PREFIX = "[journal]"
 
 
@@ -61,6 +61,9 @@ class TypedLines:
 
     def queue_start(self, environment_id: int) -> float | None:
         return min((h.line_at for h in self._held if h.environment_id == environment_id), default=None)
+
+    def batch_start(self, environment_id: int) -> float | None:
+        return min((h.line_at for h in self._held if h.environment_id == environment_id and not h.is_remark), default=None)
 
     def pending_lines(self, environment_id: int) -> list[str]:
         lines = [h.line.removeprefix(JOURNAL_PREFIX).strip() for h in self._held if h.environment_id == environment_id]

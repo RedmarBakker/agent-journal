@@ -342,7 +342,8 @@ def test_tool_about_to_run_matches_its_record_on_the_inbox(journal, monkeypatch)
     name_index = {s["name"]: s for s in replay.record()}
     assert "read due, message 2: 3" in str(name_index["read 1"]["answer"]) and "read due, message 2: 1" in str(name_index["read 3"]["answer"]) and "read due, message 2: 0" in str(name_index["read 4"]["answer"]), "each tool use counts down the uses left before the writes wait, then names the hold"
     assert "you have 1 unread messages" in str(name_index["a write at 17"]["answer"]), "and holds the write after five namings"
-    assert name_index["a read while owed"]["answer"] == {} and name_index["a journal command while owed"]["answer"] == {} and name_index["a look at its files"]["answer"] == {} and name_index["a read after the reply"]["answer"] == {}, "a read message has its grace of five uses before a word is asked for"
+    assert "[!reply:2]" in str(name_index["a read while owed"]["answer"]) and "unread" not in str(name_index["a read while owed"]["answer"]), "the read message's reply line comes with the next tool use, and no word is asked for yet"
+    assert name_index["a journal command while owed"]["answer"] == {} and name_index["a look at its files"]["answer"] == {} and name_index["a read after the reply"]["answer"] == {}, "a read message has its grace of five uses before a word is asked for"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 

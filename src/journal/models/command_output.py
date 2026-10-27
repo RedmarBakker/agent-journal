@@ -1,6 +1,7 @@
 from typing import ClassVar
 from dataclasses import dataclass
 
+from journal.events.rows.output_quiet import OutputQuiet
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.scoped import Scoped
 
@@ -33,6 +34,7 @@ class CommandOutput(Scoped):
     watch_reader: str = ""
     watch_title: str = ""
     summary: str | None = None
+    is_quiet_named: bool = False
 
     def run_seconds(self) -> float:
         return (self.update_time - self.creation_time).total_seconds()
@@ -46,6 +48,9 @@ class CommandOutput(Scoped):
 
     def backgrounded(self) -> "CommandOutput":
         return self.with_(moved=True)
+
+    def quiet_named(self, time: float, quiet_seconds: int) -> "CommandOutput":
+        return self.with_(is_quiet_named=True).with_event(OutputQuiet(environment_id=self.environment_id, time=time, run_session=self.session, quiet_seconds=quiet_seconds))
 
     def ended_with(self, status: int, time: float, summary: str | None = None) -> "CommandOutput":
         ended = self.with_(ended=True, status=status, summary=summary)

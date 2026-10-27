@@ -95,16 +95,14 @@
           "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": "after the compaction, run `journal environment overview` first\nbefore your first write, run `journal environment overview`: it lists your memories, the task in hand, the open tasks and the reminders\nread due, message 2: 3"
+            "permissionDecisionReason": "after the compaction, run `journal environment overview` first"
           }
         },
-        "error": "after the compaction, run `journal environment overview` first\nbefore your first write, run `journal environment overview`: it lists your memories, the task in hand, the open tasks and the reminders\nread due, message 2: 3"
+        "error": "after the compaction, run `journal environment overview` first"
       },
       "typed": [],
       "nudges": [
-        "messages.writes_held_soon_until_read",
-        "briefing.overview_before_anything",
-        "briefing.look_before_the_first_write"
+        "briefing.overview_before_anything"
       ],
       "stack": [
         "idle",
@@ -116,7 +114,9 @@
       "name": "looked again",
       "answer": null,
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "messages.answer_the_message_read"
+      ],
       "stack": [
         "idle",
         "working"
@@ -124,7 +124,12 @@
     },
     {
       "name": "a write after the second look",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "reply with [!reply:2] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [

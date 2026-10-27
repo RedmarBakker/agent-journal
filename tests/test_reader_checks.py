@@ -69,7 +69,7 @@ def stored_run(app: App, command: str, lines: list[str], status: int = 0) -> Com
     link = app.container.get(SupervisorLink)
     link.working(MAIN)
     wrapped = f"true && eval {command} < /dev/null && pwd -P >| /dev/null"
-    shown = b"".join(app.container.get(ShellRunner).run(ShellRequest(line=wrapped, cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ)), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    shown = b"".join(app.container.get(ShellRunner).run(ShellRequest(line=wrapped, cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ)), AGENT.subagent_caller(), MAIN)).decode() + link.pending_lines(MAIN)
     number = re.search(r"output (\d+)", shown)
     assert number, shown
     return app.container.get(CommandOutputs).find(int(number.group(1)))

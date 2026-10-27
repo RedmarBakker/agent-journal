@@ -145,6 +145,15 @@ def hook(app, kind: str, **body):
     return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
 
+def batch_waited(app) -> None:
+    """The batch time of a stopped agent's lines passes and the clock's next tick types what was held."""
+    from journal.supervisor_link import SupervisorLink
+    clock = app.container.get(TimeSource)
+    clock.pin(clock.seconds() + 6)
+    app.container.get(SupervisorLink).silence(1, 6)
+    clock.unpin()
+
+
 def write(app):
     return hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
 
@@ -400,6 +409,7 @@ def test_a_typed_line_goes_out_on_one_line(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields))
     app.container.get(SupervisorLink).type(1, "the command finished: cat <<EOF\nx\nEOF")
+    batch_waited(app)
     assert transmitted[-1]["line"] == "[journal] the command finished: cat <<EOF x EOF"
 
 
@@ -1337,17 +1347,18 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert shell_lines(reader) == ["shell.use_the_reader"]
     repeat = Ready().respond(ToolStarting(call=shell("journal output read 9 --grep x")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     assert "shell.draft_a_reader" not in shell_lines(repeat), "a reader is offered at a run's end, never on a read by hand"
+    from journal.events.agent.command_ended import CommandEnded
     tick = Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     by_key = {n.key: n.rendered() for n in tick.nudges}
-    assert by_key["shell.outputs_ended"].startswith("output 3 finished; output 4 failed with code 1") and by_key["shell.check_the_background"].startswith("output 12 still running")
-    assert sorted(by_key) == ["shell.check_the_background", "shell.outputs_ended", "workers.act_on_the_reports"]
+    assert by_key["shell.check_the_background"].startswith("output 12 still running") and sorted(by_key) == ["shell.check_the_background", "workers.act_on_the_reports"], "a tick no longer works out which runs ended"
+    ended_line = lambda output, shell_data: {n.key: n.rendered() for n in Ready().respond(CommandEnded(output=output, status=1).with_data(shell_data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges}
+    assert ended_line(4, data)["shell.outputs_ended"].startswith("output 4 failed with code 1"), "a run's end is named from its own event, once, as it ends"
+    assert ended_line(77, data) == {}, "an end already reported, such as one a wait took, is named by nothing"
     from journal.features.shell.support.reader_draft import ReaderDraft
     offered = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "reader_drafts": (ReaderDraft(4, "make all", "journal reader add make-all-output --commands \"make all\""), ReaderDraft(99, "pytest", "journal reader add x"))})})
-    ended = {n.key: n.rendered() for n in Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(offered), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges}
-    assert "no reader reads make all yet" in ended["shell.draft_a_reader"] and "pytest" not in ended["shell.draft_a_reader"], "at the run's real end, beside the line naming the outputs that ended, one reader is offered for a run among them"
-    early = Ready().respond(Ticked(silence_seconds=1.0, time=200.0).with_data(offered), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
-    assert "shell.draft_a_reader" not in [n.key for n in early.nudges], "never before the ending is said"
-    drafted = lambda drafts, count, values: "shell.draft_a_reader" in [n.key for n in Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "reader_drafts": drafts, "draft_count": count})})), SettingsValue({ShellOptions.READER_SUGGESTIONS.key: 3, ShellOptions.READER_SUGGESTION_RUNS.key: 50, **values}), (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges]
+    ended = ended_line(4, offered)
+    assert "no reader reads make all yet" in ended["shell.draft_a_reader"] and "pytest" not in ended["shell.draft_a_reader"], "at the run's end, beside the line naming it, one reader is offered for it"
+    drafted = lambda drafts, count, values: "shell.draft_a_reader" in [n.key for n in Ready().respond(CommandEnded(output=4, status=1).with_data(FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "reader_drafts": drafts, "draft_count": count})})), SettingsValue({ShellOptions.READER_SUGGESTIONS.key: 3, ShellOptions.READER_SUGGESTION_RUNS.key: 50, **values}), (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges]
     fresh, repeated = (ReaderDraft(4, "make all", "x"),), lambda runs: (ReaderDraft(4, "make all", "x", suggested=True, later_runs=runs),)
     assert drafted(fresh, 2, {ShellOptions.READER_SUGGESTIONS.key: 3}) and not drafted(fresh, 3, {ShellOptions.READER_SUGGESTIONS.key: 3}), "a session gets as many suggestions as the setting allows"
     assert not drafted(fresh, 0, {ShellOptions.READER_SUGGESTIONS.key: 0}), "0 turns the suggestions off"
@@ -1407,7 +1418,8 @@ def test_the_conduct_of_skills_briefing_and_memory_say_the_debts_hold_on_them_an
     prompt = Ready().respond(PromptSubmitted(prompt="draw me a roadmap").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     assert [n.key for n in prompt.nudges if n.feature == "skills"] == [], "the plans skill is read already, by its hash"
     unread = FeatureData({**parts, "skills": SkillsData(skills_due=(), loaded={}, skills=cards)})
-    assert has_nudge([n.rendered() for n in Ready().respond(PromptSubmitted(prompt="draw me a roadmap").with_data(unread), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).nudges][0], SkillsNudges.SKILL_READ_REQUEST, skill="plans")
+    asked = [n.rendered() for n in Ready().respond(PromptSubmitted(prompt="draw me a roadmap").with_data(unread), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).nudges][0]
+    assert has_nudge(asked, SkillsNudges.SKILL_READ_REQUEST) and "the plans skill" in asked
     withheld = Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     assert withheld.refusal is not None and withheld.refusal.key == "skills.read_the_skill_first", "the first hold wins: the skill, then the look, then the mark"
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"}), read_paths=("a.py",))).with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal is not None, "every tool waits while a skill is owed"
@@ -1808,6 +1820,7 @@ def test_a_listener_may_stop_an_events_propagation_and_the_compacting_state_swit
     assert agents.session_agent("s1").tool_uses == 2
     link.resting(1)
     link.type(1, "first")
+    batch_waited(app)
     link.type(1, "held behind the first")
     assert transmitted == ["[journal] first"] and len(link.typed._held) == 1, "a line behind one not yet seen back queues"
     assert hook(app, "PreCompact")[0] == 200
@@ -1822,6 +1835,7 @@ def test_a_listener_may_stop_an_events_propagation_and_the_compacting_state_swit
     link.typed._sent_at[1] = 0.0
     link.typed._waiting.clear()
     link.type(1, "a wait ended")
+    batch_waited(app)
     assert transmitted == ["[journal] first", "[journal] a wait ended"], "and enabled again once the state left"
 
 
@@ -2241,6 +2255,7 @@ def user_message_lines(app: App, transmitted: list) -> list[str]:
     with app.container.get(Scope).environment(1):
         message = app.container.get(Messages).save(Message(author=Author.USER, text="hello?"), Actor.user(1))
     app.container.get(ListenerQueue).drain()
+    batch_waited(app)
     return [line for line in transmitted if f"new message {message.id}" in line]
 
 

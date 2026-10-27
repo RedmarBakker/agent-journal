@@ -7,6 +7,7 @@ import RunStop from "./RunStop.vue";
 import SubagentMark from "./SubagentMark.vue";
 import WhisperMark from "./WhisperMark.vue";
 import MadeCard from "./MadeCard.vue";
+import MemoryRound from "./MemoryRound.vue";
 import SuggestionCard from "./SuggestionCard.vue";
 import TurnGroup from "./TurnGroup.vue";
 import TurnMessage from "./TurnMessage.vue";
@@ -64,7 +65,9 @@ const cardMark = computed(() => ({
 const lines = computed(() => (data.value.lines || []).filter(Boolean));
 
 const pages = useOutputPages((...page) => scope.api.readOutput(data.value.output, ...page));
-const opens = computed(() => !data.value.go && !data.value.row && Boolean(data.value.output || data.value.summary || lines.value.length));
+// a memories mark of a compaction holds the round it faded; one written before rounds were kept says so when opened
+const fading = computed(() => data.value.shows === "memories" && (Boolean(data.value.round) || String(data.value.label || "").startsWith("Memories faded")));
+const opens = computed(() => !data.value.go && !data.value.row && Boolean(data.value.output || data.value.summary || lines.value.length || fading.value));
 
 function toggle() {
     opened.value = !opened.value;
@@ -121,6 +124,9 @@ function markClick(data) {
                                     </template>
                                     <template v-if="data.proof_task">
                                         <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">Open task {{ data.proof_task }} and its proofs</button>
+                                    </template>
+                                    <template v-if="fading && opened">
+                                        <MemoryRound :round="data.round" />
                                     </template>
                                     <template v-if="!data.output && opened">
                                         <ul class="mark-lines">
