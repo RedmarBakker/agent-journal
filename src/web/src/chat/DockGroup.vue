@@ -34,7 +34,7 @@ const foldedRun = (message) => props.folded || Boolean(chosen.value && chosen.va
         <template v-if="open">
             <div class="dock-group-open">
                 <div class="dock-group-head">
-                    <button type="button" class="dock-group-toggle" aria-expanded="true" title="Fold the runs into one row" @click="toggle">
+                    <button type="button" class="dock-group-toggle" aria-expanded="true" title="Fold the runs into one line" @click="toggle">
                         {{ runs.length }} runs
                         <FoldSign open />
                     </button>
