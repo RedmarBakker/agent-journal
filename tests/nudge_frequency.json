@@ -403,9 +403,9 @@
     },
     "messages.new_message_to_answer": {
         "actions": 4374,
-        "most_in_a_run": 61,
+        "most_in_a_run": 60,
         "runs": 11,
-        "sent": 182
+        "sent": 184
     },
     "messages.new_messages_to_answer": {
         "actions": 4374,
@@ -995,6 +995,12 @@
         "runs": 0,
         "sent": 0
     },
+    "tasks.await_needs_its_reason": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "tasks.await_only_what_ends_soon": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -1002,6 +1008,12 @@
         "sent": 0
     },
     "tasks.await_switches_task": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.await_with_its_reason": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -1063,9 +1075,9 @@
     },
     "tasks.log_first_at_stop": {
         "actions": 4374,
-        "most_in_a_run": 76,
+        "most_in_a_run": 75,
         "runs": 4,
-        "sent": 156
+        "sent": 155
     },
     "tasks.log_where_it_stands": {
         "actions": 4374,
@@ -1092,6 +1104,12 @@
         "sent": 0
     },
     "tasks.not_stuck_with_work_left": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.output_polled": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -1213,9 +1231,9 @@
     },
     "tasks.wait_over": {
         "actions": 4374,
-        "most_in_a_run": 2,
-        "runs": 6,
-        "sent": 7
+        "most_in_a_run": 1,
+        "runs": 5,
+        "sent": 5
     },
     "tasks.write_held_until_logged": {
         "actions": 4374,
@@ -1603,7 +1621,7 @@
     },
     "workers.work_ready": {
         "actions": 4374,
-        "most_in_a_run": 35,
+        "most_in_a_run": 34,
         "runs": 9,
         "sent": 103
     },
@@ -1615,9 +1633,9 @@
     },
     "workers.worker_has_no_work_left": {
         "actions": 4374,
-        "most_in_a_run": 20,
+        "most_in_a_run": 24,
         "runs": 8,
-        "sent": 69
+        "sent": 74
     },
     "workers.worker_keeps_failing": {
         "actions": 4374,
@@ -1625,13 +1643,13 @@
         "runs": 0,
         "sent": 0
     },
-    "workers.worker_quiet": {
+    "workers.worker_log_due": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
         "sent": 0
     },
-    "workers.worker_quiet_split": {
+    "workers.worker_quiet": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -1651,9 +1669,9 @@
     },
     "workers.worker_sent_back": {
         "actions": 4374,
-        "most_in_a_run": 5,
+        "most_in_a_run": 3,
         "runs": 1,
-        "sent": 5
+        "sent": 3
     },
     "workers.worker_sent_back_again": {
         "actions": 4374,

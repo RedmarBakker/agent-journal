@@ -1730,6 +1730,25 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
     assert len(named()) == 2, "once signed off the report is named no more"
 
 
+def test_a_subagents_reports_and_plan_are_marked_as_one_run_of_that_subagent_in_its_senders_chat(app: App):
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    scout, other = AGENT.subagent_caller("agent-7"), AGENT.subagent_caller("agent-8")
+    app.console().run(["report", "create", "What the scout found", "--abstract", "Two faults", "--body", "two"], scout)
+    app.console().run(["plan", "create", "Fix the faults", "--brief", "both"], scout)
+    assert app.console().run(["doc", "create", "Scout notes", "--abstract", "What it saw", "--body", "## Notes\nthe notes\n"], scout).code == 0, "a subagent's document is filed and marked, never undone by its card"
+    app.console().run(["report", "create", "What the other found", "--abstract", "None", "--body", "none"], other)
+    app.runtime().deferred.drain()
+    made = [m for m in app.container.get(Messages).all() if m.data.get("kind") == "made"]
+    assert [(m.text, m.data["run"]) for m in made] == [
+        ("Created report 1 by a subagent: What the scout found", "subagent:s1:agent-7"),
+        ("Created plan 1 by a subagent: Fix the faults", "subagent:s1:agent-7"),
+        ("Created document 1 by a subagent: Scout notes", "subagent:s1:agent-7"),
+        ("Created report 2 by a subagent: What the other found", "subagent:s1:agent-8"),
+    ], "each subagent's marks carry one run of their own, so the chat folds them into one group named for it"
+    assert made[0].data["run_title"] == "A subagent" and made[0].data["run_noun"] == "actions" and made[0].session == "s1"
+
+
 def test_a_report_the_agent_writes_is_a_made_message_docked_above_the_chat(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
@@ -12226,13 +12245,13 @@ def test_every_caller_names_its_kind_and_a_subagent_is_told_by_its_agents_sessio
     assert subagent.role == AgentRole.SUBAGENT and subagent.session_role == AgentRole.WORKER, "a subagent of a worker is a subagent first, in its worker's session"
     announced, subagents = app.container.get(AnnouncedCommands), app.container.get(SubagentCommands)
     announced.note("main", "w-1", ("journal task list",))
-    assert not subagents.runs(Caller.agent("main", "s1", "claude"), ["task", "list"], None, None), "a worker's subagent's announcement never claims the main agent's command"
-    assert subagents.runs(Caller.worker("main", 3, "w-1", "claude"), ["task", "list"], None, None), "it claims the command posted from the worker's session"
+    assert subagents.subagent_session(Caller.agent("main", "s1", "claude"), ["task", "list"], None, None) is None, "a worker's subagent's announcement never claims the main agent's command"
+    assert subagents.subagent_session(Caller.worker("main", 3, "w-1", "claude"), ["task", "list"], None, None) == "", "it claims the command posted from the worker's session"
     from journal.models.agent import Agent
     from journal.repositories.agents import Agents
     app.container.get(Agents).save(Agent(session="thread-1", provider="codex"), Actor.system())
-    assert not subagents.runs(Caller.worker("main", 4, "thread-9", "codex"), ["task", "list"], None, "thread-9"), "a Codex worker's own thread is its own, not a subagent's"
-    assert subagents.runs(Caller.shell("main", "codex"), ["task", "list"], None, "thread-9"), "another thread in the main agent's Codex shell is a subagent's"
+    assert subagents.subagent_session(Caller.worker("main", 4, "thread-9", "codex"), ["task", "list"], None, "thread-9") is None, "a Codex worker's own thread is its own, not a subagent's"
+    assert subagents.subagent_session(Caller.shell("main", "codex"), ["task", "list"], None, "thread-9") == "thread-9", "another thread in the main agent's Codex shell is a subagent's"
 
 
 def test_a_subagent_is_a_row_the_census_counts_retire_writes_and_one_from_before_the_rows_is_ended(app: App):

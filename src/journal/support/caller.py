@@ -26,6 +26,7 @@ class Caller:
     verifier_number: int | None = None
     reviewer_number: int | None = None
     subagent: bool = False
+    subagent_session: str = ""
     person: int = LOCAL_USER
 
     @classmethod
@@ -56,8 +57,8 @@ class Caller:
     def reviewer(cls, environment: str, number: int, session: str | None, provider: str) -> "Caller":
         return cls(environment, session, provider, reviewer_number=number)
 
-    def subagent_caller(self) -> "Caller":
-        return replace(self, subagent=True)
+    def subagent_caller(self, subagent_session: str = "") -> "Caller":
+        return replace(self, subagent=True, subagent_session=subagent_session)
 
     @property
     def role(self) -> AgentRole:
@@ -88,7 +89,7 @@ class Caller:
             return Actor.reviewer(self.reviewer_number)
         if self.session is None:
             return Actor.user(self.person)
-        return Actor.subagent(self.session) if self.subagent else Actor.agent(self.session)
+        return Actor.subagent(self.session, self.subagent_session) if self.subagent else Actor.agent(self.session)
 
     @property
     def agent_session(self) -> str:

@@ -10,15 +10,19 @@ CODEX = "codex"
 
 
 class SubagentCommands:
-    """Tells a subagent's journal command from its agent's: the shim says so, a Claude subagent's PreToolUse hook announced it from the agent's session, or a command in the main agent's Codex shell comes from a thread other than the one the session started with; a worker's own thread is its own."""
+    """Tells a subagent's journal command from its agent's, and which subagent's it is when that is known: the shim says so, a Claude subagent's PreToolUse hook announced it from the agent's session, or a command in the main agent's Codex shell comes from a thread other than the one the session started with; a worker's own thread is its own."""
 
     def __init__(self, announced: AnnouncedCommands, agents: Agents, environments: Environments, scope: Scope, names: EnvironmentNames) -> None:
         self.names = names
         self.announced, self.agents, self.environments, self.scope = announced, agents, environments, scope
 
-    def runs(self, caller: Caller, argv: list[str], actor: str | None, thread: str | None) -> bool:
-        main_thread = caller.is_main_agent() and self.other_thread(caller.environment, thread)
-        return actor == SUB_AGENT or self.announced.claim(caller.environment, caller.session, argv) or main_thread
+    def subagent_session(self, caller: Caller, argv: list[str], actor: str | None, thread: str | None) -> str | None:
+        claimed = self.announced.claim(caller.environment, caller.session, argv)
+        if claimed is not None:
+            return claimed
+        if actor == SUB_AGENT:
+            return ""
+        return thread if caller.is_main_agent() and self.other_thread(caller.environment, thread) else None
 
     def other_thread(self, environment: str, thread: str | None) -> bool:
         if not thread:

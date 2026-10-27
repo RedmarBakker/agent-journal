@@ -123,6 +123,16 @@ describe("marks of one family", () => {
     });
 });
 
+describe("one subagent's actions", () => {
+    const made = (id, seconds, n) => card(id, seconds, {kind: "made", shows: "created", row: `reports:${n}`, run: "subagent:s1:agent-7", step: 0, run_title: "Subagent journal-researcher", run_noun: "actions", run_mark: "subagent"}, `Created report ${n} by subagent journal-researcher`);
+
+    test("fold into one group named for the subagent, counting its actions", () => {
+        const got = turns([made(1, 1, 1), made(2, 2, 2), made(3, 3, 3)]);
+        expect(got.map((t) => (t.kind === "group" ? t.title : t.id))).toEqual(["Subagent journal-researcher: 3 actions"]);
+        expect(got[0].data.markIcon).toBe("subagent");
+    });
+});
+
 describe("a sequence run's steps", () => {
     const step = (id, seconds, n) => card(id, seconds, {kind: "card", shows: "sequence_steps", row: "sequences:5", run: "5@2026-10-27T10:00:00", step: n, run_title: "Sequence 5, Review"}, `Sequence 5, Review: moved on to step ${n + 1}`);
     const said = (id, seconds) => message(id, seconds, {text: "go on"});

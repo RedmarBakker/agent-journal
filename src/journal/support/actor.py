@@ -18,8 +18,8 @@ class Actor:
         return cls(ActorType.SYSTEM)
 
     @classmethod
-    def subagent(cls, session: str) -> "Actor":
-        return cls(ActorType.AGENT, f"{session}{SUBAGENT_SEPARATOR}")
+    def subagent(cls, session: str, subagent_session: str) -> "Actor":
+        return cls(ActorType.AGENT, f"{session}{SUBAGENT_SEPARATOR}{subagent_session}")
 
     @classmethod
     def agent(cls, session: str) -> "Actor":

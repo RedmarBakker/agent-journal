@@ -17,4 +17,4 @@ class DocumentCard(Listener[Created]):
         doc = event.model
         if not isinstance(doc, Doc) or event.actor.actor_type != ActorType.AGENT:
             return
-        self.cards.show(self.card.card_contents(self.agents.session_agent(event.actor.id).environment_id, doc, event.actor))
+        self.cards.show(self.card.card_contents(self.agents.session_agent(event.actor.agent_session()).environment_id, doc, event.actor))

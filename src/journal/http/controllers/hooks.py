@@ -51,7 +51,7 @@ class HookController:
 
     def announce(self, hook: Hook) -> None:
         if parts := self.shell_parts(hook):
-            self.announced.note(hook.environment, hook.session, parts)
+            self.announced.note(hook.environment, hook.session, parts, hook.subagent)
 
     def shell_parts(self, hook: Hook) -> tuple[str, ...]:
         return tuple(part.text for part in self.calls.build(hook).parts)
