@@ -9,9 +9,12 @@ import {useWorkers} from "../composables/workers.js";
 import {store} from "../state/store.js";
 import {peek, route} from "../route.js";
 import {ui} from "../state/ui.js";
+import {rows} from "../sync/rows.js";
+import {useNow} from "../composables/now.js";
 
 const {rows: workers} = useWorkers();
-const every = computed(() => orchestraOf(store.summary, workers.value, agent.value, route.value.env));
+const now = useNow();
+const every = computed(() => orchestraOf(store.summary, workers.value, agent.value, route.value.env, rows("agents"), now.value));
 const slots = ref([]);
 watch(every, (now) => (slots.value = slotsFor(slots.value, now)), {immediate: true});
 const entries = computed(() =>

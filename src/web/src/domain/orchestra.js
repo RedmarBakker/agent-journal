@@ -47,8 +47,25 @@ function environmentEntry(standing) {
 
 const WORKER_STATES = {running: "working", reported: "waiting", finished: "stopped"};
 
-function workerEntry(worker, env) {
+const HOUR = 3600;
+const perHour = (done, from, to) => (to > from ? Math.round((done * HOUR * 10) / (to - from)) / 10 : 0);
+
+// what a worker's cell adds: the tasks left in its queue, the tasks it finished, how many it finishes in an hour, and the context its agent has left
+function workerFacts(worker, agents, now) {
+    const done = (worker.finished || []).length;
+    const ended = workerState(worker) === "finished" ? seconds(worker.updated_at) : now;
+    const context = agents.find((agent) => agent.id === worker.agent)?.context;
     return {
+        queued: (worker.queue || []).length,
+        done,
+        pace: perHour(done, seconds(worker.created_at), ended),
+        contextLeft: context === undefined ? null : Math.max(0, 100 - Math.round(Number(context))),
+    };
+}
+
+function workerEntry(worker, env, agents, now) {
+    return {
+        facts: workerFacts(worker, agents, now),
         key: `worker:${worker.id}`,
         env,
         kind: "worker",
@@ -92,10 +109,10 @@ function subagentEntry(sub, agent, env) {
 
 // The agents under the one here: the workers, its subagents and the agents of the other environments; the agent of this
 // environment is the top bar's, never a cell of its own.
-export function orchestraOf(summary, workers, lead, env) {
+export function orchestraOf(summary, workers, lead, env, agents = [], now = Date.now() / 1000) {
     const environments = ((summary && summary.environments) || []).filter((s) => s.agent && s.environment.name !== env).map(environmentEntry);
     const subs = subagentsOf(lead).map((sub) => subagentEntry(sub, lead, env));
-    return [...environments, ...workers.map((w) => workerEntry(w, env)), ...subs];
+    return [...environments, ...workers.map((w) => workerEntry(w, env, agents, now)), ...subs];
 }
 
 const AMBER_AFTER = 300;

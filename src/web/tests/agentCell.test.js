@@ -41,3 +41,18 @@ describe("the title of a worker's cell", () => {
         expect(cells.map((entry) => entry.heading)).toEqual(["Worker 1127, Mrs. Harrison", "Worker 1128"]);
     });
 });
+
+describe("the four facts of a worker's cell", () => {
+    test("it shows its queue, finished count, pace an hour and context left from the worker's rows", () => {
+        store.rows = {};
+        const worker = {id: 5, name: "", brief: "b", state: "clocked in", created_at: 0, updated_at: 7200, agent: 9, queue: [{id: 1, title: "a"}, {id: 2, title: "b"}], finished: [3, 4, 6, 7]};
+        const [cell] = orchestraOf({environments: []}, [worker], {id: 7, session: "s7"}, "main", [{id: 9, context: 35}], 7200);
+        expect(cell.facts).toEqual({queued: 2, done: 4, pace: 2, contextLeft: 65});
+    });
+
+    test("a worker whose agent reports no context has none left to show", () => {
+        const worker = {id: 5, name: "", brief: "b", state: "clocked in", created_at: 0, updated_at: 1, agent: 0};
+        const [cell] = orchestraOf({environments: []}, [worker], {id: 7, session: "s7"}, "main", [], 3600);
+        expect(cell.facts).toEqual({queued: 0, done: 0, pace: 0, contextLeft: null});
+    });
+});

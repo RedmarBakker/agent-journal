@@ -90,6 +90,9 @@ SETS = {
         "tests/figurePerches.test.js",
         "tests/figureParcels.test.js",
     ),
+    "worker_cell": (
+        "tests/agentCell.test.js",
+    ),
     "figure_home_return": (
         "tests/figureHomeReturn.test.js",
     ),
