@@ -44,7 +44,13 @@ class JournalController:
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
     def manifest(self, request: Request) -> Response:
-        return Response.json(self.boot.assembled(next((environment.name for environment in self.environments.all()), "")))
+        return Response.json(self.boot.assembled(self.opening_environment()))
+
+    def opening_environment(self) -> str:
+        active = sorted(self.agents.active_main_agents(), key=lambda agent: agent.update_time)
+        if active:
+            return self.environments.find(active[-1].environment_id).name
+        return next((environment.name for environment in self.environments.all()), "")
 
     def identity(self, request: Request) -> Response:
         return Response.json({"project": self.config.root.name, "color": COLOR, "root": str(self.config.home), "version": VERSION, "pid": os.getpid(), "parent": os.getppid(),

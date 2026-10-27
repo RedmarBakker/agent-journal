@@ -20,15 +20,18 @@ function adoptAsked() {
 
 const exists = (name) => rows("environments").some((e) => e.name === name);
 
+// a tab remembering an environment that is gone, or none, opens on the first one the journal has
+const known = (name) => Boolean(name) && (store.identity?.environments || []).includes(name);
+
 export async function boot() {
     adoptAsked();
-    const messages = route.value.env ? load("messages") : null;
     [store.spec, store.identity] = await Promise.all([api.manifest(), api.identity()]);
     knowPages(isPage);
-    if (!route.value.env) {
+    if (!known(route.value.env)) {
         choose(store.spec.environment);
-        return boot();
+        return store.spec.environment ? boot() : undefined;
     }
+    const messages = load("messages");
     tables.value.filter((t) => t.name !== "nudges").forEach((t) => (store.rows[t.name] = store.rows[t.name] || []));
     recallEntries();
     await messages;

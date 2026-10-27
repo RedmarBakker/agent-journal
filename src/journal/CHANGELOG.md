@@ -4,6 +4,12 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.66.1
+
+- A viewer tab whose remembered environment is gone, or that remembers none, opens on the environment whose agent was active last, or the first, and no longer stays stuck asking for rows of an environment that does not exist.
+- A worker sent a job with no task is refused, naming --task; a watched test run with no total is told once to give one; the update matrix runs in five processes at a release tag and remembers the release pairs that passed.
+- Merged worker work: the undock line inside the docked card, the avatar on returning Home, run titles with flags or paths, task creation and edit marks, the flowchart, worker cell facts, why a worker stopped, and the memory inspector's times.
+
 ## 4.66.0
 
 - After a compaction a memory that names a task or plan now closed, a worker stopped or released, or a row not found says so, so the agent checks it before trusting it; the overview and the start block show it from one place.
