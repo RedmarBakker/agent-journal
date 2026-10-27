@@ -143,7 +143,7 @@ class WorkerActions:
         return task
 
     def unrun(self, n: int, point: int, task_id: int = 0) -> str:
-        worker = self.delivered(n, "proofs to check")
+        worker = self.mergeable(n, "proofs to check")
         return self.failures.unrun(worker, self.open_proof(self.checked_task(worker, task_id), point).text)
 
     def open_proof(self, task: Task, point: int) -> Proof:
