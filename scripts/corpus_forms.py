@@ -47,7 +47,6 @@ HEREDOC_MARK = "<< heredoc"
 SEPARATORS = {";", "\n", "&&", "&"}
 # a newline joins two commands as a ; does, and so does the end of a heredoc's body
 JOINS = {"\n": ";", "": ";"}
-PIPES = ("||", "|&", "|")
 PIPE_STAGES = {"|", "|&"}
 SUBSHELL_OPEN = "("
 SUBSHELL_CLOSE = ")"
@@ -189,14 +188,10 @@ def pipeline(part: str) -> list[tuple[str, str]]:
 
 
 def piped(part: str) -> list[tuple[str, str]]:
-    found, operator, start, passed = [], "", 0, -1
-    for index, character, quote, depth in marks(part):
-        if character != "|" or quote or depth or index <= passed:
-            continue
-        pipe = next(symbol for symbol in PIPES if part.startswith(symbol, index))
-        passed = index + len(pipe) - 1
+    found, operator, start = [], "", 0
+    for index, joint in Part(part).joints(0):
         if part[start:index].strip():
-            found, operator, start = [*found, (operator, part[start:index].strip())], pipe, index + len(pipe)
+            found, operator, start = [*found, (operator, part[start:index].strip())], joint, index + len(joint)
     return [*found, (operator, part[start:].strip())] if part[start:].strip() else found
 
 

@@ -139,9 +139,10 @@ def row(line: str) -> dict:
 def main(corpus: Path) -> None:
     refused_inside_repository(corpus)
     lines = list(dict.fromkeys(form_lines(corpus / "forms", json.loads((corpus / PROJECT_COUNTS).read_text())) + chain_lines(corpus / "chains.jsonl") + compound_lines()))
+    earlier = {json.loads(row_text)["line"] for row_text in FIXTURE.read_text().splitlines()} if FIXTURE.exists() else set()
     FIXTURE.parent.mkdir(exist_ok=True)
     FIXTURE.write_text("".join(json.dumps(row(line), ensure_ascii=False) + "\n" for line in lines))
-    print(f"{len(lines)} lines written to {FIXTURE}, {FIXTURE.stat().st_size} bytes")
+    print(f"{len(lines)} lines written to {FIXTURE}, {FIXTURE.stat().st_size} bytes: {len(set(lines) - earlier)} added, {len(earlier - set(lines))} removed")
 
 
 if __name__ == "__main__":

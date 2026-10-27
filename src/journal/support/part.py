@@ -23,6 +23,8 @@ JOURNAL_OWNED = (".claude/skills", ".agents/skills", ".journal")
 WORKTREES = ".journal/worktrees"
 LOCKS = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "Cargo.lock", "uv.lock", "Pipfile.lock", "composer.lock"}
 HARMLESS = {"echo", "printf", "test", "[", "[[", "true", ":", "pwd", "set"}
+# the operators that join the commands of one part: a pipe, a pipe of both outputs, and an or
+JOINTS = ("||", "|&", "|")
 SEPARATOR = re.compile(r"&&|\|\||;")
 PREFIXES = {"sudo", "env", "nohup", "time", "nice", "command", "exec"}
 
@@ -171,9 +173,12 @@ class Part:
         return [self.text[start + 1:end].lstrip("&").strip() for start, end in zip(cuts, cuts[1:])]
 
     def pipe_positions(self, level: int) -> list[int]:
-        positions, quote, depth = [], "", 0
+        return [position for position, joint in self.joints(level) if joint != "||"]
+
+    def joints(self, level: int) -> list[tuple[int, str]]:
+        found, quote, depth, passed = [], "", 0, -1
         for i, c in enumerate(self.text):
-            if self.text[i - 1:i] == "\\" and quote != "'":
+            if i <= passed or self.text[i - 1:i] == "\\" and quote != "'":
                 continue
             if quote:
                 quote = "" if c == quote else quote
@@ -183,9 +188,10 @@ class Part:
                 depth += 1
             elif c in ")}":
                 depth = max(depth - 1, 0)
-            elif c == "|" and depth == level and self.text[i + 1:i + 2] != "|" and self.text[i - 1:i] != "|":
-                positions.append(i)
-        return positions
+            elif c == "|" and depth == level:
+                joint = next(symbol for symbol in JOINTS if self.text.startswith(symbol, i))
+                found, passed = [*found, (i, joint)], i + len(joint) - 1
+        return found
 
     def cut_command(self) -> str:
         return self.cut().lstrip("| ").strip()

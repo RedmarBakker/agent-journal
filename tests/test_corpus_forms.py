@@ -172,3 +172,25 @@ def test_no_fixture_holds_a_home_folder_an_email_a_real_address_a_key_or_a_priva
         found += [f"{path.name}: a key of {len(key)} characters" for key in sorted(set(KEY.findall(text)))]
         found += [f"{path.name}: private word {index}" for index, word in enumerate(words, 1) if word in lowered]
     assert found == [], found[:20]
+
+
+REGENERATE = "PYTHONPATH=src python3 -m scripts.splitter_fixture .journal/corpus"
+
+
+def test_the_committed_splitter_fixture_holds_every_line_the_generator_makes_without_a_corpus():
+    from scripts.splitter_fixture import FIXTURE, compound_lines, row
+    committed = {json.loads(line)["line"]: json.loads(line)["parts"] for line in FIXTURE.read_text().splitlines()}
+    generated = {line: row(line)["parts"] for line in compound_lines()}
+    assert not [line for line in generated if line not in committed], f"the generator makes lines the fixture lacks: regenerate it with {REGENERATE}"
+    assert not [line for line, parts in generated.items() if committed[line] != parts], f"Chain or Part changed since the fixture was made: regenerate it with {REGENERATE}"
+
+
+def test_a_generated_line_holds_only_generated_values_and_a_program_one_project_ran_is_left_out(tmp_path):
+    from scripts.splitter_fixture import VALUES, filled, form_lines, seeded
+    form = "git log [--oneline] [-n <number>] [<range>] <path>"
+    words = set(filled(form, seeded(form)).split()) - set(form.replace("[", " ").replace("]", " ").split())
+    assert words and words <= {value for pool in VALUES.values() for value in pool}, "every value is drawn from the pools, never from the corpus"
+    (tmp_path / "git.json").write_text(json.dumps({"program": "git", "subcommands": {"log": {"parts": 3, "forms": [{"form": form, "seen": 3}]}}}))
+    assert form_lines(tmp_path, {"git": 1, "git log": 1}) == [], "a program one project ran never ships"
+    assert form_lines(tmp_path, {"git": 3, "git log": 1}) == [], "a subcommand one project ran never ships"
+    assert len(form_lines(tmp_path, {"git": 3, "git log": 3})) == 1

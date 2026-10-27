@@ -3451,9 +3451,45 @@ def test_every_generated_line_is_split_into_its_frozen_parts_kinds_and_stages():
     if os.environ.get("SPLIT_FREEZE") == "1":
         fixture.write_text("".join(json.dumps({"line": row["line"], "parts": parts}, ensure_ascii=False) + "\n" for row, parts in zip(rows, split)))
     wrong = [row["line"] for row, parts in zip(rows, split) if parts != row["parts"]]
-    assert not wrong or os.environ.get("SPLIT_FREEZE") == "1", f"{len(wrong)} of {len(rows)} lines split differently, the first: {wrong[:3]}"
+    assert not wrong or os.environ.get("SPLIT_FREEZE") == "1", f"{len(wrong)} of {len(rows)} lines split differently, the first: {wrong[:3]} (regenerate with PYTHONPATH=src python3 -m scripts.splitter_fixture .journal/corpus, or re-freeze with SPLIT_FREEZE=1 where no corpus is at hand, after reading each changed line)"
     assert len(rows) > 500 and {"R;&", "R&;", "R;;"} <= {kind for row in rows for _, kind, _ in row["parts"]}
     assert sum(path.stat().st_size for path in folder.iterdir()) < SPLITTER_FOLDER_BYTES, "the splitter fixtures stay within their budget"
+
+
+def schema_faults(value, schema: dict, definitions: dict, where: str) -> list[str]:
+    schema = definitions[schema["$ref"].rsplit("/", 1)[-1]] if "$ref" in schema else schema
+    expected = {"object": dict, "array": list, "string": str, "boolean": bool, "integer": int}.get(schema.get("type", ""), object)
+    if not isinstance(value, expected):
+        return [f"{where}: not {schema['type']}"]
+    if isinstance(value, list):
+        return [fault for index, item in enumerate(value) for fault in schema_faults(item, schema.get("items", {}), definitions, f"{where}[{index}]")]
+    if not isinstance(value, dict):
+        return []
+    properties, others = schema.get("properties", {}), schema.get("additionalProperties", {})
+    faults = [f"{where}: {key} missing" for key in schema.get("required", []) if key not in value]
+    faults += [f"{where}: {key} is not allowed" for key in value if key not in properties and others is False]
+    return faults + [fault for key, item in value.items() if key in properties or isinstance(others, dict) for fault in schema_faults(item, properties.get(key, others or {}), definitions, f"{where}.{key}")]
+
+
+def table_rows(rows: dict, where: str):
+    for name, row in rows.items():
+        yield f"{where}.{name}", rows, row
+        for level in ("subcommands", "modifiers"):
+            yield from table_rows(row.get(level, {}), f"{where}.{name}.{level}")
+        yield from table_rows({"base": row["base"]} if "base" in row else {}, f"{where}.{name}")
+
+
+def test_the_command_table_follows_its_schema_and_names_only_its_own_kinds_and_effects():
+    """src/journal/support/command_table.json classifies each program by a base, subcommands and option modifiers (task 3771): it follows command_table.schema.json, every kind and effect is one the table lists, and every same_as names a row beside it."""
+    support = Path(__file__).resolve().parents[1] / "src" / "journal" / "support"
+    table, schema = json.loads((support / "command_table.json").read_text()), json.loads((support / "command_table.schema.json").read_text())
+    assert schema_faults(table, schema, schema["$defs"], "table") == []
+    assert schema_faults({**table, "programs": {"sed": {"bas": {}}}}, schema, schema["$defs"], "table") == ["table.programs.sed: bas is not allowed"], "the check finds a fault"
+    rows = list(table_rows(table["programs"], "programs"))
+    assert not [where for where, _, row in rows if row.get("kind", "unknown") not in table["kinds"]], "every kind is listed"
+    assert not [where for where, _, row in rows if not set(row.get("effects", [])) <= set(table["effects"])], "every effect is listed"
+    assert not [where for where, beside, row in rows if "same_as" in row and row["same_as"] not in beside], "every same_as names a row beside it"
+    assert {"git", "sed", "rm", "curl", "pytest", "journal"} <= set(table["programs"]) and {"timeout", "env", "xargs"} <= set(table["wrappers"])
 
 
 def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
