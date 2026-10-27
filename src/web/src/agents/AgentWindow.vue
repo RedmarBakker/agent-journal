@@ -13,6 +13,7 @@ const emit = defineEmits(["open"]);
 const state = computed(() => agentState(props.entry.card));
 const asks = computed(() => state.value.key !== "working" && props.entry.card.reason);
 const status = computed(() => asks.value || props.entry.doing);
+const facts = computed(() => props.entry.facts);
 const now = useNow();
 const quiet = computed(() => (props.entry.time ? quietOf(props.entry.time, now.value) : null));
 </script>
@@ -62,22 +63,22 @@ const quiet = computed(() => (props.entry.time ? quietOf(props.entry.time, now.v
                     </span>
                 </p>
             </template>
-            <template v-if="entry.facts">
+            <template v-if="facts">
                 <p class="aw-line" data-fact="queued">
                     <span class="aw-key">Queued</span>
-                    <span class="aw-kind">{{ entry.facts.queued }}</span>
+                    <span class="aw-kind">{{ facts.queued }}</span>
                 </p>
                 <p class="aw-line" data-fact="done">
                     <span class="aw-key">Finished</span>
-                    <span class="aw-kind">{{ entry.facts.done }}</span>
+                    <span class="aw-kind">{{ facts.done }}</span>
                 </p>
                 <p class="aw-line" data-fact="pace">
                     <span class="aw-key">Pace</span>
-                    <span class="aw-kind">{{ entry.facts.pace }} an hour</span>
+                    <span class="aw-kind">{{ facts.pace }} an hour</span>
                 </p>
                 <p class="aw-line" data-fact="context">
                     <span class="aw-key">Context left</span>
-                    <span class="aw-kind">{{ entry.facts.contextLeft === null ? "Not reported" : `${entry.facts.contextLeft}%` }}</span>
+                    <span class="aw-kind">{{ facts.contextLeft === null ? "Not reported" : `${facts.contextLeft}%` }}</span>
                 </p>
             </template>
             <template v-if="entry.since">
