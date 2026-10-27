@@ -3,6 +3,7 @@ from pathlib import Path
 from journal.features.shell.support.output_files import OutputFiles
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
+from journal.support.rejection import Rejection
 from journal.support.response import Response
 from journal.repositories.command_outputs import CommandOutputs
 
@@ -27,7 +28,10 @@ class OutputController:
 
     def stop(self, request: Request) -> Response:
         output = self.outputs.find(request.number("id"))
-        OutputFiles(Path(output.folder)).stop(USER_STOP_LINE)
+        files = OutputFiles(Path(output.folder))
+        if not files.is_stored():
+            raise Rejection(f"output {output.id} keeps no files of its run, so there is nothing of it to stop")
+        files.stop(USER_STOP_LINE)
         return Response.json(ModelFields.build(output))
 
     @staticmethod

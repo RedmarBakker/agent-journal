@@ -4,6 +4,7 @@ from journal.db.query import Query
 from journal.engine.clock import Clock
 from journal.http.controllers.controller import Controller
 from journal.http.support.request import Request
+from journal.support.rejection import Rejection
 from journal.support.response import Response
 from journal.models.memory import Memory
 from journal.repositories.memories import Memories
@@ -31,6 +32,8 @@ class MemoryController(Controller[Memory]):
         return Response.json(self.shown(self.repository.save(memory_weight, request.actor)))
 
     def weigh(self, request: Request) -> Response:
+        if not str(request.body.get("weight", "")).isdigit():
+            raise Rejection("the weight is missing: give a whole number from 1 to 10")
         memory = self.repository.find(request.number("id")).reweighed(int(request.body["weight"]))
         return Response.json(self.shown(self.repository.save(memory, request.actor)))
 
