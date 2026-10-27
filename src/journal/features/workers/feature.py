@@ -115,6 +115,11 @@ class Workers(Feature[WorkersData]):
 
 A subagent only reads. A worker writes: code in a worktree of its own, a document, a change.
 
+- Queue first. In builder and orchestrator mode the way to hand out work is several related tasks on one worker that
+  reports once, at the end of its queue: dispatch or send it the first task, then queue it the rest with
+  `journal worker queue <n> <task> [<task>...]`. `--report queue` is the default, so a queue interrupts you once, when it is
+  empty. A dispatch or a send of a single task while other tasks of its plan wait to be handed out is told once to
+  queue them, naming them and the line that does it. This holds whether the fitness measures are on or off.
 - `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --profile journal-senior|journal-medior ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
   name it after a distinguished figure with a twist on their trade. A worker writes: `--changes` names what it changes,
   and a job that only reads, searches, researches or reviews is always a subagent's, never a worker's. How it tests is the setting How workers test: with The journal runs them, the default, it runs none and names its tests when it clocks out, `journal clock-out "<report>" --tests "<arguments>"`; the journal runs the project's test command with them in its worktree, a card in your chat shows the run, and only a passing run lets the clock-out stand, a failing one going straight back to the worker; no worker is sent until you set the command with `journal tests command "<command>" --proof "<the arguments of one test that passes>"`. With Hand the tests over it runs none and its proofs name them for you to run; with Run the tests it wrote, `--tests` names the
@@ -191,10 +196,10 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
   Each is delegated to that worker at once, so it is never offered to you, nor blocked or paused; when its work is merged
   you are given the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
-- When a worker reports is its report choice, `--report each` (the default), `queue` or `every <n>`, on dispatch or
-  queue: with queue or every n it clocks out of each task, which waits for the merge, and goes straight on to the next
-  in its queue in the same session, telling you nothing until it reports. Give a worker several small tasks with
-  `--report queue`, so it interrupts you once; you are told when a choice does not fit the work queued. Check a finished
+- When a worker reports is its report choice, `--report queue` (the default), `each` or `every <n>`, on dispatch or
+  queue; a queue that names none keeps the worker's choice. With queue or every n it clocks out of each task, which waits
+  for the merge, and goes straight on to the next in its queue in the same session, telling you nothing until it
+  reports; you are told when a choice does not fit the work queued. Check a finished
   task's points with `journal worker check <n> <point> --task <task>` (`--short` puts the worker back on it), and one
   merge takes every completed task in, refused while any point is unchecked. First reports per merged task are one of
   the orchestrator's fitness measures.

@@ -12621,6 +12621,48 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     assert unblocking == ["task 5 unblocks you but is number 2 in worker 1's queue. put it first: journal worker queue 1 5 --first"], unblocking
 
 
+def queue_plan(app: App, titles: tuple[str, ...]) -> list[int]:
+    """A started plan of one phase with these tasks, by their numbers."""
+    console = app.console()
+    made = lambda argv: int(console.run(argv, USER).text.split()[1].rstrip(":"))
+    plan = made(["plan", "create", "the parser", "--brief", "the parser is done"])
+    console.run(["plan", "phase", str(plan), "phase 1", "--when", "its tasks are done"], USER)
+    ids = [made(["plan", "add", str(plan), title, "--brief", f"{title} is done"]) for title in titles]
+    for argv, caller in ((["plan", "todos", str(plan), "1", *map(str, ids)], USER), (["plan", "ready", str(plan)], USER), (["plan", "approve", str(plan)], USER), (["plan", "start", str(plan)], AGENT)):
+        out = console.run(argv, caller)
+        assert out.code == 0, out.error
+    return ids
+
+
+def queue_lines_said(app: App, command: str) -> list[str]:
+    from journal.repositories.entries import NUDGE, Entries
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
+    assert status == 200, body
+    app.runtime().deferred.drain()
+    return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
+
+
+def test_a_builder_dispatching_one_task_while_others_of_its_plan_wait_is_told_once_to_queue_them_on_that_worker(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    lexer, grammar, printer = queue_plan(app, ("the lexer", "the grammar", "the printer"))
+    loose = int(re.search(r"task (\d+)", app.console().run(["task", "create", "the docs", "--brief", "b"], AGENT).text)[1])
+    dispatch = lambda task: queue_lines_said(app, f"journal worker dispatch 'Ada' --task {task} --changes 'src/parser.py' --profile journal-medior")
+    assert dispatch(loose) == [], "a task of no started plan has no tasks beside it to queue"
+    assert dispatch(lexer) == [f"task {lexer} goes to a new worker alone while tasks {grammar}, {printer} of its plan wait to be handed out. queue them on it with journal worker queue <its number> {grammar} {printer} --report queue: it takes them in turn and reports once, when its queue is empty"], "the builder, fitness measures off, is told to queue the rest of the plan with one report at the end"
+    assert len(dispatch(grammar)) == 1, "it is told once"
+
+
+def test_an_orchestrator_sending_a_worker_one_task_while_others_of_its_plan_wait_is_told_to_queue_them_with_the_fitness_measures_off(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "workers.fitness_warnings", False)
+    lexer, grammar, printer = queue_plan(app, ("the lexer", "the grammar", "the printer"))
+    said = queue_lines_said(app, f"journal worker send 4 'the grammar next' --task {grammar}")
+    assert said == [f"task {grammar} goes to worker 4 alone while tasks {lexer}, {printer} of its plan wait to be handed out. queue them on it with journal worker queue 4 {lexer} {printer} --report queue: it takes them in turn and reports once, when its queue is empty"], said
+
+
 def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_an_opus_worker_spending_much_on_settled_work_is_named_once(app: App, monkeypatch):
     from journal.features.workers.support.worker_branch import WorkerBranch
     from journal.providers.claude import Claude

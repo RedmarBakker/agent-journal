@@ -49,5 +49,10 @@ class WorkerLine:
         return int(self.arguments[0]) if self.arguments and self.arguments[0].isdigit() else 0
 
     @property
+    def task(self) -> int:
+        value = self.options.get("--task", "")
+        return int(value) if value.isdigit() else 0
+
+    @property
     def reason(self) -> str:
         return self.options.get("--why", "")

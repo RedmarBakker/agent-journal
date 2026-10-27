@@ -39,6 +39,7 @@ class WorkersNudges:
     ORCHESTRATOR_WAIT_LINE = Nudge("workers", "orchestrator_check_worker", "the oldest worker waiting has waited past its range", "check worker {{n}}: it waited {{minutes}} minutes", repeat=Timeout.minutes(10))
     ORCHESTRATOR_HANDOUT_LINE = Nudge("workers", "orchestrator_hand_out", "too little of the work is handed out", "{{handout}}", repeat=Timeout.minutes(10))
     ORCHESTRATOR_REPORT_LINE = Nudge("workers", "orchestrator_queue_more", "your workers report once for every {{tasks}} tasks merged", "queue worker {{n}} its next tasks with --report queue", repeat=Timeout.minutes(60))
+    QUEUE_RELATED = Nudge("workers", "queue_the_related_tasks", "task {{task}} goes to {{worker}} alone while tasks {{listed}} of its plan wait to be handed out", "queue them on it with journal worker queue {{n}} {{tasks}} --report queue: it takes them in turn and reports once, when its queue is empty", repeat=Timeout.minutes(60))
     ORCHESTRATOR_DISPATCH_LINE = Nudge("workers", "orchestrator_dispatched_under_load", "this dispatch comes while the worker queue stands high and worker {{n}} waits", "check and merge worker {{n}} next", repeat=Timeout.seconds(0))
     MODE_REFUSAL = Nudge("workers", "mode_may_not", "in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu", repeat=Timeout.seconds(0))
     PLACE_OPENED = Nudge("workers", "place_opened", "your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once", repeat=Timeout.seconds(0))
