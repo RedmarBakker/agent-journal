@@ -51,7 +51,7 @@ VARIED_RUNS = 3
 RESTART_HOLD = "the journal restarts once the commands running now end, and this one would be cut off by it: run it again once the journal is back, in a minute or two"
 
 class ShellRunner:
-    """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
+    """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own. While a restart waits, a command that goes to the background at once would be cut off by it, so it is not started; a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit, and any other runs in the foreground until it passes the limit; a run whose card shows, or will, keeps its output for the card to open."""
 
     def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
@@ -135,7 +135,6 @@ class ShellRunner:
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
 
-    # while a restart waits, a command that goes to the background at once would be cut off by it, so it is not started
     def is_held(self, request: ShellRequest, caller: Caller, environment: int) -> bool:
         with self.scope.environment(environment):
             if not self.restarts.is_waiting(environment):
@@ -144,8 +143,6 @@ class ShellRunner:
             limit = self.limits.build(request.line, caller.environment, caller.session)
             return self.limits.is_background(request.line) or bool(self.aliases.background_part(request.line)) or (reader is not None and limit > 0 and self.is_long_run(self.readers.read_part(reader, request.line), limit))
 
-    # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
-    # any other runs in the foreground until it passes the limit
     def is_long_run(self, part: str, limit: int) -> bool:
         last = self.outputs.last_run(part)
         return self.labels.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
@@ -203,7 +200,6 @@ class ShellRunner:
         self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor)
         return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "")]
 
-    # a run whose card shows, or will, keeps its output for the card to open
     def is_carded(self, output: CommandOutput) -> bool:
         if not (output.watch_reader or output.is_watched):
             return False

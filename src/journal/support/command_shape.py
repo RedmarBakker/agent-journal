@@ -48,7 +48,7 @@ SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true
 
 
 class CommandShape:
-    """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export. The command table names the runners a script is known by, the wrappers a shape is named past and the redirects it drops."""
+    """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export. The command table names the runners a script is known by, the wrappers a shape is named past and the redirects it drops. npm [--prefix <folder>] exec [--] vitest run is vitest run: the program it starts, which a run is known by."""
 
     def __init__(self, table: ClassificationTable) -> None:
         self.table = table
@@ -190,7 +190,6 @@ class CommandShape:
             return self.plain_shape(self.looped(part))
         return self.plain_shape(self.working(part))
 
-    # npm [--prefix <folder>] exec [--] vitest run is vitest run: the program it starts, which a run is known by
     @staticmethod
     def npm_exec(tokens: list[str]) -> list[str]:
         if tokens[0].rsplit("/", 1)[-1] != "npm":

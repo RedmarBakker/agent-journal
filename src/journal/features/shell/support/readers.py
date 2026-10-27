@@ -30,7 +30,7 @@ IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
 
 
 class Readers:
-    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships; none reads a journal command's own output, an alias's run of a program aside."""
+    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships; none reads a journal command's own output, an alias's run of a program aside. The journal's own write of a reader it ships is stock; a reader written as one kind replaces one of the other kind by its name."""
 
     def __init__(self, config: Config, aliases: Aliases, shapes: CommandShape) -> None:
         self.shapes = shapes
@@ -199,11 +199,9 @@ class Readers:
         self.refuse_locked(reader.name, "replaced")
         self.stored_file(reader, ".sh", reader.script_text(body))
 
-    # the journal's own write of a reader it ships
     def stock(self, reader: Reader) -> None:
         self.stored_file(reader, ".pattern", reader.text())
 
-    # a reader written as one kind replaces one of the other kind by its name
     def stored_file(self, reader: Reader, suffix: str, text: str) -> None:
         if self.reads_journal_output(reader):
             raise Rejection(f"the reader {reader.name} would read a journal command's output, which the journal writes and shows whole itself: a reader reads a program's own output, such as pytest or go test, or an alias's run of one")

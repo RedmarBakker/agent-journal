@@ -64,7 +64,7 @@ HELP_FLAGS = ("--version", "--help", "-h", "-V")
 
 
 class ReaderJudge:
-    """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; a run that printed nothing for a long stretch is the command's fault, buffering, and is said so in place of the reader's progress findings; whatever falls short becomes a report with its evidence and the fix for that tool."""
+    """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; a run that printed nothing for a long stretch is the command's fault, buffering, and is said so in place of the reader's progress findings; whatever falls short becomes a report with its evidence and the fix for that tool. A dismissal of a finding already dismissed for the same command, and not yet judged sound, waits, since the same report coming back means its cause is still there; a run that printed nothing for a stretch was its command's buffering, told to the agent while it ran, so no reader can show it and its progress is not the reader's to answer for; the command read is that of the part of a run's chain the reader reads, so a chain that runs git before the install is named for the install; a count of a total read from figures that are no count, such as the card numbers inside product names, draws a bar that lies."""
 
     def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases, labels: ActivityLabel, classifier: CommandClassifier, shapes: CommandShape) -> None:
         self.labels, self.classifier, self.shapes = labels, classifier, shapes
@@ -105,8 +105,6 @@ class ReaderJudge:
         counts = Counter(kind for report in reports if self.shapes.command_name(report.command) == name for kind in self.kinds(report))
         return {kind for kind, count in counts.items() if count >= limit}
 
-    # a dismissal of a finding already dismissed for the same command, and not yet judged sound, waits: the same report coming back
-    # means its cause is still there
     def unjudged_dismissal(self, report: ReaderReport, time: datetime) -> ReaderReport | None:
         name, kinds = self.shapes.command_name(report.command), self.kinds(report)
         dismissed = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
@@ -140,7 +138,6 @@ class ReaderJudge:
             return []
         return [*self.missing_progress(reader, output, lines, ended_at), *self.late_progress(reader, output, lines, ended_at), *self.unshown_build(reader, output, lines, ended_at), *self.stalled_progress(output)]
 
-    # a run that printed nothing for a stretch was its command's buffering, told to the agent while it ran: no reader can show it, so its progress is not the reader's to answer for
     def is_silent_run(self, output: CommandOutput) -> bool:
         return self.silences.longest_seconds(output.row_id) > STALL_SECONDS
 
@@ -205,7 +202,6 @@ class ReaderJudge:
         kinds_text = f"the programs {', '.join(programs)}" if len(programs) > 1 else f"runs that print {' and '.join(kinds)}"
         return [(f"{MIXED_TITLE}: \"{output.watch_title or reader.label}\" named for {kinds_text}", "narrow the reader's --commands to the one program it reads, and give the other run a reader of its own with a title that says what it does")]
 
-    # the command of the part of a run's chain the reader reads, so a chain that runs git before the install is named for the install
     def read_command(self, reader: Reader, run: CommandOutput) -> str:
         files = OutputFiles(Path(run.folder))
         read = [files.part_text(i) for i in files.recorded() if self.readers.reads(reader, files.part_text(i))] if files.is_stored() else []
@@ -233,7 +229,6 @@ class ReaderJudge:
             misses.append(f"it does not end on a line of its own, though the run printed the summary {self.quoted([summary])}: give it a --finished pattern that picks it")
         return [*misses, *self.false_progress(reader, lines)]
 
-    # a count of a total read from figures that are no count, such as the card numbers inside product names, draws a bar that lies
     def false_progress(self, reader: Reader, lines: list[str]) -> list[str]:
         if reader.script or not reader.is_counting():
             return []

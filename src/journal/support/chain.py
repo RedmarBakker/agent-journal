@@ -29,7 +29,7 @@ SUBSTITUTION = re.compile(r"\$\(([^()]*)\)")
 
 
 class Chain:
-    """A shell line taken apart at its && and ; into the commands it chains, quotes, subshells, groups, loops and pipes respected: a pipe is one pipeline, not a chain."""
+    """A shell line taken apart at its && and ; into the commands it chains, quotes, subshells, groups, loops and pipes respected: a pipe is one pipeline, not a chain. The commands of a part a reader may read are taken one by one: its alternatives after ||, the commands of a pipe, and the first line of a heredoc's command with its comment lines passed over; a loop or a group stays whole, as its shape names what it runs."""
 
     @classmethod
     def parts(cls, line: str) -> list[Part]:
@@ -39,8 +39,6 @@ class Chain:
         following = [s for s, _, _ in chained[1:]] + [""]
         return [Part(p, recorded=r, unconditional=s != "&&", guarded=f == "&&") for (s, p, r), f in zip(chained, following)]
 
-    # the commands of a part a reader may read, one by one: its alternatives after ||, the commands of a pipe, and the first line of a
-    # heredoc's command, its comment lines passed over; a loop or a group stays whole, as its shape names what it runs
     @classmethod
     def commands(cls, text: str) -> list[str]:
         bare = "\n".join(COMMENT.sub("", line) for line in text.splitlines() if not line.strip().startswith("#")).strip()

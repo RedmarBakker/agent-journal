@@ -32,7 +32,7 @@ NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 QUICK_RUNS = 2
 
 class ReaderCommand(Command):
-    """The project's output readers: add one for a shape of output read again and again, list them, and remove one."""
+    """The project's output readers: add one for a shape of output read again and again, list them, and remove one. A reader written again keeps from the one before the options the line left out, each with the value it keeps."""
 
     noun = "reader"
 
@@ -64,7 +64,6 @@ class ReaderCommand(Command):
         dismissal.add_argument("n", type=int)
         dismissal.add_argument("--why", required=True, help="why the report is wrong")
 
-    # the options a reader written again keeps from the one before because the line left them out, each with the value it keeps
     @staticmethod
     def kept_options(prior: Reader, args: Namespace) -> list[str]:
         options = {"progress": prior.progress_pattern, "label": prior.label, "commands": prior.commands.text(), "step": prior.step_pattern, "topic": prior.topic_pattern, "finished": prior.finished_pattern, "failed": prior.failed_pattern, "summary": prior.summary_pattern}

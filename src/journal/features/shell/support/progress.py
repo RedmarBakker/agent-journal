@@ -6,7 +6,7 @@ PERCENT = 100
 
 @dataclass(frozen=True)
 class Progress:
-    """How far a command has progressed by its output: a count of a total, a percentage being a count of a hundred, with the reader's words in front, read only from lines whose match holds a number; with a step pattern, each step printed since the last count adds its share of the row before it, so a run that prints its percentage once a row moves with every step."""
+    """How far a command has progressed by its output: a count of a total, a percentage being a count of a hundred, with the reader's words in front, read only from lines whose match holds a number; with a step pattern, each step printed since the last count adds its share of the row before it, so a run that prints its percentage once a row moves with every step. Before a run prints a count of its own, its progress is its steps so far against the steps its command's last run took, never the whole."""
 
     count: int
     total: int
@@ -50,8 +50,6 @@ class Progress:
         later_steps = sum(len(step_pattern.findall(line)) for line in lines[row_number + 1:])
         return later_steps * (cls.figures(row_match)[0] - previous_count) / row_steps
 
-    # how far a run has come before it prints a count of its own: its steps so far against the steps its command's last run took,
-    # never the whole
     @classmethod
     def estimated(cls, count: int, expected: int, label: str) -> "Progress":
         return cls(min(count, expected - 1), expected, label) if expected > 1 and count else cls.empty()

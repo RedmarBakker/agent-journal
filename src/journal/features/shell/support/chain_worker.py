@@ -36,7 +36,7 @@ ONECMD_RESET = "set +t 2>/dev/null"
 
 
 class ChainWorker:
-    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever arrived before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a new shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone. While the chain runs, a thread of its own writes the heartbeat into its folder every ten seconds the shell lives."""
+    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever arrived before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a new shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone. While the chain runs, a thread of its own writes the heartbeat into its folder every ten seconds the shell lives. A part is read into a variable before the previous part's status is set again, so $? in the part is that status and never the status of the cat that read it; a new file's lines are counted in the folder the shell stood in when it listed it, which the listing names on its first line."""
 
     def __init__(self, record: ShellRecord, merger: Merger, time_source: TimeSource) -> None:
         self.record, self.merger, self.time_source = record, merger, time_source
@@ -112,8 +112,6 @@ class ChainWorker:
         self.write_part(shell, self.script(folder, i, text, edges, direct))
         return self.status_once_ended(shell, folder, i)
 
-    # the part is read into a variable before the previous part's status is set again, so $? in the part is that status and
-    # never the status of the cat that read it
     @staticmethod
     def script(folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> str:
         read = f'__journal_part="$(cat {str(folder.folder / f"{i}.part")!r})"; '
@@ -166,7 +164,6 @@ class ChainWorker:
         for block in iter(lambda: shell.stdout.read1(65536), b""):
             output_text(block)
 
-    # a new file's lines are counted in the folder the shell stood in when it listed it, which the listing names on its first line
     @classmethod
     def changed(cls, previous: str, following: str) -> list[ChangedFile]:
         older = set(previous.splitlines())

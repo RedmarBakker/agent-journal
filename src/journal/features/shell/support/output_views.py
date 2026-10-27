@@ -23,7 +23,7 @@ SILENT_CARD_LINE = "nothing printed yet: the command buffers its output"
 
 
 class OutputViews:
-    """The view of a watched output, read from its files through its reader, and the lines, progress and silence its process card shows."""
+    """The view of a watched output, read from its files through its reader, and the lines, progress and silence its process card shows. The progress is the run's as it prints it, or, running and before it prints a count, its steps so far against the steps the same command line's last run took."""
 
     def __init__(self, readers: Readers, outputs: CommandOutputs, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -53,8 +53,6 @@ class OutputViews:
         figure = " · ".join(part for part in (progress.text() if progress.is_known() else "", tally.text() if tally.is_known() else "") if part)
         return OutputView(output.row_id, tuple(reader.read(lines)[-VIEW_LINES:]), figure, progress.fraction(), ending, is_counting=reader.is_counting())
 
-    # the run's progress as it prints it, or, running and before it prints a count, its steps so far against the steps the same
-    # command line's last run took
     def progress(self, output: CommandOutput, reader: Reader, lines: list[str]) -> Progress:
         count_progress = reader.progress(lines)
         if count_progress.is_known() or output.ended or not reader.is_counting():

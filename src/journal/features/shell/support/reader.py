@@ -26,7 +26,7 @@ STAGE_VARIABLE = "JOURNAL_OUTPUT_STAGE"
 
 @dataclass(frozen=True)
 class Reader:
-    """A named way to read outputs of one shape: the lines it picks, by a pattern, with their numbers, or by a script of the project's handed the output on its input and in JOURNAL_OUTPUT_STAGE whether the command runs, finished or failed; the lines its finished and failed patterns pick once the command ended so; how far the command has come by the last match of a progress pattern, read on the output or on what its script prints; the commands whose output it reads; and what a run is about, picked from its command line by a topic pattern, with the title its card takes when a topic is found ({topic} in it standing for the topic)."""
+    """A named way to read outputs of one shape: the lines it picks, by a pattern, with their numbers, or by a script of the project's handed the output on its input and in JOURNAL_OUTPUT_STAGE whether the command runs, finished or failed; the lines its finished and failed patterns pick once the command ended so; how far the command has come by the last match of a progress pattern, read on the output or on what its script prints; the commands whose output it reads; and what a run is about, picked from its command line by a topic pattern, with the title its card takes when a topic is found ({topic} in it standing for the topic). A script's own #! line stays its first, so the script runs under the interpreter it names, and the reader's notes follow it; the summary of a finished run is what the last line matching the summary pattern holds, its groups joined or the whole match; the lines are picked with their numbers in the output, but a script's lines are its own and carry none; progress and steps are read on the output itself, or on what its script prints of it."""
 
     name: str
     subject: str
@@ -72,7 +72,6 @@ class Reader:
     def text(self) -> str:
         return "\n".join([f"# {self.subject}", self.pattern, *self.settings()]) + "\n"
 
-    # a script's own #! line stays its first, so the script runs under the interpreter it names; the reader's notes follow it
     def script_text(self, body: str) -> str:
         notes = "".join(f"# {line}\n" for line in [self.subject, *self.settings()])
         if not body.startswith("#!"):
@@ -94,7 +93,6 @@ class Reader:
         pattern = {FINISHED: self.finished_pattern, FAILED: self.failed_pattern}.get(stage, "")
         return replace(self, stage=stage, pattern=pattern or self.pattern)
 
-    # the summary of a finished run: what the last line matching the summary pattern holds, its groups joined or the whole match
     def summary(self, lines: list[str]) -> str:
         if not self.summary_pattern:
             return ""
@@ -116,7 +114,6 @@ class Reader:
     def matches(self, command: str) -> bool:
         return bool(self.pattern) and self.pattern in command
 
-    # the lines picked with their numbers in the output; a script's lines are its own, so they carry none
     def read(self, lines: list[str]) -> list[str]:
         return self.script_lines(lines) if self.script else [f"{i}: {line}" for i, line in self.picked_lines(lines)]
 
@@ -138,7 +135,6 @@ class Reader:
             raise Rejection(f"reader {self.name} failed with code {completed.returncode}: {completed.stderr.strip()[-300:]}")
         return completed.stdout.splitlines()
 
-    # the lines its progress and steps are read on: the output itself, or what its script prints of it
     def measured(self, lines: list[str]) -> list[str]:
         return self.script_lines(lines) if self.script else lines
 

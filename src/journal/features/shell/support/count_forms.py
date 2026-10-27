@@ -26,7 +26,7 @@ class CountForm:
 
 
 class CountForms:
-    """The common forms of a count of a total in a run's lines, 12/40, [3/10], Step 3/10, 3 of 10, (3 of 10), item 3 out of 10, and a total printed once followed by a line for each finished item; and a run that prints a counter and no total."""
+    """The common forms of a count of a total in a run's lines, 12/40, [3/10], Step 3/10, 3 of 10, (3 of 10), item 3 out of 10, and a total printed once followed by a line for each finished item; and a run that prints a counter and no total. Figures that count towards a total never pass it, and most of them share it, as a run's progress does; numbers inside names, such as the card numbers 65/131 and 225/182 in a list of products, pass their total or each name a total of its own."""
 
     @classmethod
     def form(cls, lines: list[str]) -> CountForm | None:
@@ -44,8 +44,6 @@ class CountForms:
     def percentages(pattern: str, lines: list[str]) -> list[int]:
         return [int(match) for line in lines for match in re.findall(pattern, line) if isinstance(match, str) and match.isdigit()]
 
-    # figures that count towards a total never pass it, and most of them share it, as a run's progress does; numbers inside
-    # names, such as the card numbers 65/131 and 225/182 in a list of products, pass their total or each name a total of its own
     @staticmethod
     def is_count_series(figures: list[tuple[int, int]]) -> bool:
         if not figures or any(count > total for count, total in figures):
