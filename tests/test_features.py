@@ -13584,7 +13584,7 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
     assert cards and cards[-1].data["row"] == "workers:1" and "checking whether Lady Lovelace's model fit its work" in cards[-1].text, [message.text for message in cards]
 
 
-def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
+def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at_fifteen_with_its_last_tool_call(app: App, monkeypatch):
     from journal.models.entry import Entry
     from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
@@ -13595,19 +13595,25 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing" in line]
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
     app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
-    tick_after(app, 21 * 60)
+    tick_after(app, 11 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and quiet()[0].endswith('worker 1 quiet 20 min; last: journal task log 3260 "BLOCKED: commit…'), "the first line names the worker's last tool call, ended on a whole word"
-    tick_after(app, 41 * 60)
+    assert quiet() == [] and workers.find(1).silence.is_reported, "at ten minutes the worker itself is told to log, not yet the agent that sent it"
+    worker_caller = Caller.worker("main", 1, "w1", "claude")
+    restarted = workers.find(1)
+    workers.save(restarted.with_(token_hash="", silence=restarted.silence.started(0.0)), Actor.system())
+    console.run(["todo", "add", "read the clock"], worker_caller)
+    assert workers.find(1).silence.timeout.start > 0.0 and not workers.find(1).silence.is_reported, "a to-do it writes is progress: its quiet span starts again"
+    workers.save(workers.find(1).with_(silence=restarted.silence), Actor.system())
+    tick_after(app, 16 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 2 and has_nudge(quiet()[1], WorkersNudges.SPLIT_ADVICE, n=1, minutes=40) and workers.find(1).silence.is_split_advised, "at forty minutes it is told once more, with the advice to split"
+    assert len(quiet()) == 1 and has_nudge(quiet()[0], WorkersNudges.SILENT_WORKER, n=1, minutes=15) and "journal task log 3260" in quiet()[0] and workers.find(1).silence.is_split_advised, "at fifteen the agent that sent it is told, with its last tool call and what to do"
     tick_after(app, 60 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 2, "and no more"
+    assert len(quiet()) == 1, "and no more"
 
 
 def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_two_ticks_run_on_two_threads_at_once(app: App, monkeypatch):
@@ -13646,13 +13652,12 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
         for _ in range(20):
             worker = workers.find(1)
             workers.touch(worker, Actor.system(), silence=worker.silence.started(clock.held_at))
-            side_by_side(21)
-            side_by_side(41)
+            side_by_side(11)
+            side_by_side(16)
     finally:
         held.set()
     app.runtime().deferred.drain()
-    assert len([line for line in keystrokes if "quiet 20 min" in line]) == 20, "each quiet span is named once at twenty minutes, with the worker thread held"
-    assert len([line for line in keystrokes if has_nudge(line, WorkersNudges.SPLIT_ADVICE, minutes=40)]) == 20, "and once at forty, however the two ticks fall"
+    assert len([line for line in keystrokes if has_nudge(line, WorkersNudges.SILENT_WORKER, minutes=15)]) == 20, "each quiet span is named to the agent that sent it once, at fifteen minutes, however the two ticks fall"
 
 
 def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_takes_its_turn_so_it_names_no_worker_early(app: App, monkeypatch):
@@ -13667,18 +13672,19 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     console, workers, clock = app.console(), app.container.get(Workers), app.container.get(Clock)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing" in line]
     clock.tick(clock.held_at + 41 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [] and not workers.find(1).silence.is_reported, "a tick runs at the moment it takes its turn, not the one its run began with"
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": {"command": "python3 scripts/suite.py"}}), Actor.system())
-    tick_after(app, 21 * 60)
+    tick_after(app, 11 * 60)
+    tick_after(app, 16 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and quiet()[0].endswith("worker 1 quiet 20 min; last: python3 scripts/suite.py"), "so the worker is named once it is quiet, with its last call"
+    assert len(quiet()) == 1 and "last: python3 scripts/suite.py" in quiet()[0], "so the worker is named once it is quiet, with its last call"
 
 
-def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
+def test_a_worker_that_logs_nothing_for_fifteen_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -13687,13 +13693,16 @@ def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: 
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "quiet 20 min" in line]
-    tick_after(app, 19 * 60)
+    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing for 15 min" in line]
+    tick_after(app, 9 * 60)
     app.runtime().deferred.drain()
-    assert quiet() == [], "nineteen minutes is not yet quiet"
-    tick_after(app, 21 * 60)
+    assert quiet() == [], "nine minutes is not yet quiet"
+    tick_after(app, 11 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and "worker 1 quiet 20 min" in quiet()[0]
+    assert quiet() == [], "at ten the worker is told, not yet the agent that sent it"
+    tick_after(app, 16 * 60)
+    app.runtime().deferred.drain()
+    assert len(quiet()) == 1
     tick_after(app, 25 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and workers.find(1).silence.is_reported, "it is named once for each quiet span"

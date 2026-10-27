@@ -2,10 +2,12 @@ from dataclasses import dataclass, replace
 
 from journal.support.timeout import Timeout
 
+DISPATCHER_SPAN_SHARE = 1.5
+
 
 @dataclass(frozen=True)
 class WorkerSilence:
-    """How long a running worker may go without a word before its dispatcher is reminded, since when it counts, and whether this quiet span has already been reminded."""
+    """How long a running worker may go without a log, a to-do or a proof before it is told to log, and half as long again before its dispatcher is told, since when it counts, and whether this quiet span has already been reminded."""
 
     timeout: Timeout
     is_reported: bool = False
@@ -25,7 +27,10 @@ class WorkerSilence:
         return not self.is_reported and self.timeout.is_elapsed(time)
 
     def is_split_due(self, time: float) -> bool:
-        return self.is_reported and not self.is_split_advised and time - self.timeout.start >= 2 * self.timeout.amount
+        return self.is_reported and not self.is_split_advised and time - self.timeout.start >= DISPATCHER_SPAN_SHARE * self.timeout.amount
+
+    def dispatcher_minutes(self) -> int:
+        return int(DISPATCHER_SPAN_SHARE * self.timeout.amount // 60)
 
     def minutes(self) -> int:
         return int(self.timeout.amount // 60)

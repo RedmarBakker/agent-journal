@@ -1923,8 +1923,8 @@ workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
 workers.worker_costly_on_shaped_work  [workers]  {{model}} cost ${{dollars}} on routine work. use a cheaper model: `journal worker send {{n}} --model <model> "<job>"`
 workers.worker_has_no_work_left  [workers]  worker {{n}} idle: queue it tasks or `journal worker complete {{n}} --why "<why>"`
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
-workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}
-workers.worker_quiet_split  [workers]  worker {{n}} quiet {{minutes}} min; split its job?
+workers.worker_log_due  [workers]  you logged nothing for {{minutes}} min. log where you stand: `journal todo add "<step>"` or `journal proof <point> "<proof>"`
+workers.worker_quiet  [workers]  worker {{n}} logged nothing for {{minutes}} min; last: {{last|cap=24}}. `journal worker notify {{n}} "<text>"` or stop it
 workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_runs_no_git  [workers]  never run git; the journal commits at clock-out. on a clash, fix the files, then `journal clock-out "<report>"`
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}

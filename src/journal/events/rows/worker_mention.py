@@ -3,11 +3,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class WorkerMention:
-    """A worker as its events name it: its number, its name and the session that dispatched it."""
+    """A worker as its events name it: its number, its name, the session that dispatched it and its own session."""
 
     id: int
     name: str
     dispatcher: str | None
+    session: str = ""
 
     def ref(self) -> str:
         return f"workers:{self.id}"

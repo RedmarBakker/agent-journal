@@ -42,7 +42,7 @@ from journal.models.worker_state import WorkerState
 from journal.support.rejection import Rejection
 from journal.support.timeout import Timeout
 
-SILENCE = Timeout.minutes(20)
+SILENCE = Timeout.minutes(10)
 ENDED_UNFINISHED = "ended without clocking out"
 QUEUE_TURN_END = "ended mid-queue"
 # how a run that went past the time limit says it was stopped
@@ -104,7 +104,7 @@ class Worker(Helper):
         return self.resume or self.session or self.recovered_session
 
     def mention(self) -> WorkerMention:
-        return WorkerMention(self.row_id, self.name, self.dispatcher)
+        return WorkerMention(self.row_id, self.name, self.dispatcher, self.session)
 
     def dispatched(self, time: float) -> "Worker":
         return self.contacted(time).moved("dispatched", time).with_(state=WorkerState.DISPATCHED).with_event(self.pending(WorkerDispatched, time))
@@ -229,7 +229,7 @@ class Worker(Helper):
 
     def silence_named(self, time: float) -> "Worker":
         split = self.silence.is_split_due(time)
-        minutes = 2 * self.silence.minutes() if split else self.silence.minutes()
+        minutes = self.silence.dispatcher_minutes() if split else self.silence.minutes()
         return self.with_(silence=self.silence.named(time)).with_event(WorkerSilent(environment_id=self.environment_id, time=time, worker=self.mention(), minutes=minutes, is_split_due=split))
 
     def notified(self, text: str, time: float, sender: str) -> "Worker":
