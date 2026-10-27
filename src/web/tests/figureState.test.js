@@ -84,6 +84,23 @@ test("an idle agent's figure falls asleep only after a long while, timed from th
     expect(stateAt({status: "idle", since: NOW - ASLEEP_AFTER})).toBe("asleep");
 });
 
+test("an agent in a wait that uses a tool every thirty seconds keeps its figure awake and free to play, and asleep only after two quiet minutes", async () => {
+    const {FREE} = await import("../src/figure/reactions.js");
+    const waits = (t, last, running) => stateAt({status: "busy", state: "Wait", awaiting: "worker 3's report", tool: "Bash", running, since: last}, 0, t);
+    const seen = [];
+    for (let t = NOW; t <= NOW + 600; t += 10) seen.push(waits(t, NOW + Math.floor((t - NOW) / 30) * 30, (t - NOW) % 30 === 0));
+    expect(seen.includes("asleep")).toBe(false);
+    expect(seen.every((state) => FREE.has(state))).toBe(true);
+    const last = NOW + 600;
+    expect(ASLEEP_AFTER).toBe(120);
+    expect(waits(last + ASLEEP_AFTER - 1, last, false)).toBe("waiting");
+    expect(waits(last + ASLEEP_AFTER, last, false)).toBe("asleep");
+    expect(clipOf("asleep")).toBe("sleep");
+    expect(stateAt({status: "idle", awaiting: "worker 3's report", since: last}, 0, last + 60), "a turn ended in the wait plays too").toBe("waiting");
+    expect(stateAt({status: "idle", awaiting: "worker 3's report", since: last, part_started_at: NOW - 3600}, 0, last + 60), "an old part never sends it to sleep").toBe("waiting");
+    expect(stateAt({status: "idle", since: last, part_started_at: NOW - 3600}, 0, last + 60), "nor an idle one").toBe("idle");
+});
+
 test("something waiting on the user is the asking state, timed from when it arrived", () => {
     expect(figureStateOf(agent({status: "idle"}), NOW - 30, NOW)).toEqual({state: "asking", since: NOW - 30});
 });

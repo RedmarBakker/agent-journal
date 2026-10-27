@@ -50,8 +50,9 @@ const SHELL_STATES = {testing: "testing", building: "building", searching: "sear
 
 const BAR_STATES = {paused: "paused", stopped: "stopped", compacting: "compacting", waiting: "waiting", running: "waiting"};
 
-// An idle agent's figure falls asleep after this many seconds of nothing.
-export const ASLEEP_AFTER = 600;
+// An idle or waiting agent's figure plays, its idle moves and showpieces, until no tool has been used for this many seconds, and then
+// falls asleep: an agent in a wait runs commands between its looks, so it sleeps only once it has run none for a while.
+export const ASLEEP_AFTER = 120;
 
 // A tool's pose stays this many seconds after it finishes, so a tool that runs for a moment is still seen.
 export const TOOL_LINGERS = 3;
@@ -62,12 +63,15 @@ export const POINTED_AFTER = 180;
 // The held state at `now` (seconds), with when it began; `waitingSince` is when the oldest thing waiting on the user arrived, as its badges
 // count it, or 0 when nothing waits
 export function figureStateOf(agent, waitingSince, now = Date.now() / 1000) {
-    const bar = stateOf(agent);
+    const bar = stateOf(agent, now);
     const since = agent?.part_started_at || seconds(agent?.heard_at) || now;
+    // quiet a long while: no tool in flight and no hook heard since, which every tool use sends
+    const dozing = !agent?.tool_running && now - (seconds(agent?.heard_at) || now) >= ASLEEP_AFTER;
+    if (BAR_STATES[bar] === "waiting") return {state: dozing ? "asleep" : "waiting", since};
     if (BAR_STATES[bar]) return {state: BAR_STATES[bar], since};
     // the pose says what the agent does, so it waits on the user only while it does nothing else; where it stands says what waits
     if (bar === "idle" && (waitingSince || agent?.awaiting)) return {state: "asking", since: waitingSince || since};
-    if (bar === "idle") return {state: now - since >= ASLEEP_AFTER ? "asleep" : "idle", since};
+    if (bar === "idle") return {state: dozing ? "asleep" : "idle", since};
     const tool = agent?.tool;
     const doing = agent.tool_work ? (SHELL_STATES[agent.tool_work] ?? "running") : TOOL_STATES[tool];
     const inFlight = Boolean(tool) && (agent.tool_running || now - since < TOOL_LINGERS) && doing;
