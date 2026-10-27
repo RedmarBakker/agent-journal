@@ -1369,6 +1369,36 @@ def test_a_running_output_is_force_stopped_by_the_route_the_chats_stop_posts_to(
         run.kill()
 
 
+def test_a_run_through_a_plugins_alias_with_no_reader_is_titled_by_the_line_as_typed_and_shows_it_runs(app: App, tmp_path):
+    """A run started through a plugin's alias, with no reader, has a card titled by the alias line as it was typed, the program's path never shown, and running, with its start, while it runs."""
+    from journal.features.aliases.support.alias_lines import AliasLines
+    from journal.features.shell.support.output_files import OutputFiles
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.models.alias import Alias
+    from journal.repositories.aliases import Aliases
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.chain import Chain
+    hook(app, "SessionStart")
+    program = "/opt/plugins/code-commandments/bin/commandments-release"
+    typed = "journal commandments rule try a-rule"
+    caller = Caller.agent("main", "s1", "claude")
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Aliases).save(Alias(name="commandments", line=f"{program} {{args}}", plugin="code-commandments"), Actor.system())
+        expanded = app.container.get(AliasLines).expanded(typed)
+        assert expanded.startswith(program), "the line that runs is the program's own"
+        folder = OutputFiles(tmp_path / "run")
+        folder.split(expanded, Chain.parts(expanded))
+        record = app.container.get(ShellRecord)
+        folder.numbered(record.start(folder.folder.name, "\n".join(Chain.self_parts(typed)), folder.folder, caller))
+        record.moved(folder.folder.name, expanded, folder.folder, caller)
+        output = app.container.get(CommandOutputs).chain_output(folder.folder.name)
+        card = app.container.get(OutputProcessCard).card_contents(output)
+    assert card.label.lower().startswith(typed) and program not in card.label and "/opt/" not in card.label, card.label
+    assert card.data["line"] == typed and program not in json.dumps(card.data), "the path is never shown, in its title or its line"
+    assert card.active and card.data["began_at"] > 0 and not card.data.get("ending") and not card.data.get("figure"), "while it runs it shows that it runs, counted from its start, with no reader"
+
+
 def test_a_check_left_marked_running_by_a_journal_that_stopped_runs_again(app: App):
     from journal.features.checks.support.check_runner import CheckRunner
     from journal.models.check import RUN_LIMIT_SECONDS

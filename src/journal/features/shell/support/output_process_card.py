@@ -6,6 +6,7 @@ from pathlib import Path
 from journal.chat.docking import Docking
 from journal.chat.process_card import ProcessCard
 from journal.chat.auto_dock import AutoDock
+from journal.features.aliases.support.alias_lines import AliasLines
 from journal.chat.process_cards import FINAL
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
@@ -35,15 +36,15 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles) -> None:
-        self.auto_dock, self.git_titles = auto_dock, git_titles
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines) -> None:
+        self.auto_dock, self.git_titles, self.aliases = auto_dock, git_titles, aliases
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
         if self.mark_policy.forbids_mark(output):
             return None
         view = self.views.view(output)
-        part = CommandText.shown(self.watched_part(output))
+        part = CommandText.shown(self.shown_part(output))
         data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output), FINAL: output.ended}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardType.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
@@ -81,10 +82,19 @@ class OutputProcessCard(ProcessCard):
         reader = self.readers.found(output.watch_reader)
         if GitCommands.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
-        heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.chain_label(part, output.command)
+        heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or ActivityLabel.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
         full = reader.topic_label.replace("{topic}", topic) if topic and reader.topic_label and not output.watch_title else (f"{heading}: {topic}" if topic else heading)
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]
+
+    def is_alias_run(self, output: CommandOutput) -> bool:
+        return self.aliases.expanded(output.command) != output.command
+
+    def shown_part(self, output: CommandOutput) -> str:
+        return output.command if self.is_alias_run(output) else self.watched_part(output)
+
+    def alias_heading(self, output: CommandOutput, part: str) -> str:
+        return part if self.is_alias_run(output) else ""
 
     @staticmethod
     def watched_part(output: CommandOutput) -> str:
