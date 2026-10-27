@@ -25,7 +25,7 @@ class Manifest:
     def features(self) -> list[dict]:
         return [{"name": f.name, "title": f.title, "help": f.help, "default": f.default, "fixed": f.fixed,
                  "options": [{"key": o.key, "name": o.name, "title": o.title, "abstract": o.abstract, "option_type": o.option_type, "default": o.default, "unit": o.unit, "choices": list(o.choices),
-                              "provider": o.provider} for o in f.options]}
+                              "provider": o.provider, "main_switch": o.main_switch.key if o.main_switch is not None else ""} for o in f.options]}
                 for f in self.applying()]
 
 

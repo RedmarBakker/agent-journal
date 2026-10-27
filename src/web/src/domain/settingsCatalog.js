@@ -169,8 +169,14 @@ function settingRow(f, setting, settings) {
 
 const settingRows = (f, setting, settings) => [settingRow(f, setting, settings)];
 
+// whether a setting sits behind a switch of its feature that is off, so it would do nothing and is not shown
+function isBehindOffSwitch(f, setting, settings) {
+    const master = setting.main_switch && f.settings.find((each) => each.key === setting.main_switch);
+    return Boolean(master) && !((settings[f.name] || {})[master.name] ?? master.default);
+}
+
 function featureRows(f, settings, extras) {
-    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models");
+    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models" && !isBehindOffSwitch(f, s, settings));
     const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings));
     const own =
         hasTiming(f.trigger) && f.trigger_label

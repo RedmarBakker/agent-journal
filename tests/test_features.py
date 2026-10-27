@@ -3239,7 +3239,6 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
 
 
 def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App, monkeypatch):
-    user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
     from journal.models.support.request_loads import RequestLoads
@@ -3252,7 +3251,7 @@ def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_l
         slow.counted("GET", "/journal/tasks", 2000 if n < 50 else 20, RequestLoads())
     row = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]
     assert "hook_average_ms" not in row() and "request_average_ms" not in row(), "the bar's data carries no reading while developer mode is off"
-    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
+    user_set(app, "faults.developer", True)
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (10, 20), "each average is taken over the last 250 alone, the first 50 left out"
     for n in range(1000):
         slow.counted("GET", "/journal/messages", 4, RequestLoads())

@@ -136,6 +136,25 @@ describe("the Agent tab", () => {
     });
 });
 
+test("a setting that only works while its feature's switch is on is not shown while that switch is off", () => {
+    const option = (name, kind, more = {}) => ({key: `faults.${name}`, name, title: name, abstract: `About ${name}`, option_type: kind, default: false, unit: "", choices: [], provider: "", main_switch: "", ...more});
+    const spec = {
+        features: [
+            {
+                name: "faults",
+                title: "Slow requests",
+                help: "Tools for developing the journal.",
+                fixed: true,
+                options: [option("developer", "switch"), option("terminal_hook_lines", "switch", {main_switch: "faults.developer"})],
+            },
+        ],
+        groups: [{key: "faults", title: "Slow requests", line: "Tools for developing the journal.", section: "Agent", tab: "agent", lead: "faults"}],
+    };
+    const keys = (settings) => groupRows(catalog(spec, settings)[0].groups[0]).map((row) => [row.key, row.kind]);
+    expect(keys({})).toEqual([["faults", "always"], ["faults:developer", "switch"]]);
+    expect(keys({faults: {developer: true}})).toEqual([["faults", "always"], ["faults:developer", "switch"], ["faults:terminal_hook_lines", "switch"]]);
+});
+
 describe("the manifest's features", () => {
     const option = (name, kind, more = {}) => ({key: `workers.${name}`, name, title: name, abstract: `About ${name}`, option_type: kind, default: null, unit: "", choices: [], provider: "", read_by: [], ...more});
     const spec = {
