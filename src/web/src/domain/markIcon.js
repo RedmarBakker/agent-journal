@@ -44,7 +44,11 @@ const KIND_ICONS = {
 };
 
 const MOVES = {
-    task_moves: (card) => (/\bcompleted\b|\bdone\b/i.test(card.label || card.text || "") ? "task_done" : "task_start"),
+    task_moves: (card) => {
+        const words = card.label || card.text || "";
+        if (/^(created|edited) /i.test(words)) return "filed";
+        return /\bcompleted\b|\bdone\b/i.test(words) ? "task_done" : "task_start";
+    },
     task_pauses: (card) => (/\bblocked\b/i.test(card.label || card.text || "") ? "task_block" : "task_pause"),
     checks: (card) => (card.outcome === "failed" ? "check_fail" : "check"),
     worker_tests: (card) => (card.outcome === "failed" ? "check_fail" : "check"),

@@ -271,35 +271,28 @@ test("6. from three docked runs they share one row of chips until one is left; i
     expect(chip).toMatch(/@container \(max-width: 64px\) \{\s*\.run-chip-figure \{\s*display: none;/);
 });
 
-test("7. the line under the user's message keeps up to three tasks as chips, and from four a count that opens the created and the linked under their labels", async () => {
+test("7. the line under the user's message keeps up to three tasks as chips, and from four a count that opens the linked ones in place", async () => {
     const tasks = (verb, ids) => `${verb} ${ids.map((id) => `task ${id}`).join(", ")} from your message`;
-    expect(receiptWords(receiptParts(tasks("Created", [1, 2, 3, 4])))).toBe("4 tasks created from your message");
-    expect(receiptWords(receiptParts(tasks("Linked", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])))).toBe("10 linked tasks");
-    expect(receiptWords(receiptParts(`${tasks("Created", [1, 2, 3])}; ${tasks("Linked", [4, 5, 6, 7, 8, 9, 10])}`))).toBe(
-        "10 tasks from your message: 3 created, 7 linked"
-    );
-    const few = await mounted(TaskLine, {receipt: tasks("Created", [1, 2])});
-    expect([few.querySelector(".task-line-count"), few.querySelector(".task-line-few").textContent.trim()]).toEqual([
-        null,
-        "Created from your message: task 1 task 2",
-    ]);
+    expect(receiptWords(receiptParts(tasks("Linked", [1, 2, 3, 4])))).toBe("4 linked tasks");
+    const few = await mounted(TaskLine, {receipt: tasks("Linked", [1, 2])});
+    expect([few.querySelector(".task-line-count"), few.querySelector(".task-line-few").textContent.trim()]).toEqual([null, "Linked: task 1 task 2"]);
     app.unmount();
-    const three = await mounted(TaskLine, {receipt: tasks("Created", [1, 2, 3])});
+    const three = await mounted(TaskLine, {receipt: tasks("Linked", [1, 2, 3])});
     expect([
         three.querySelector(".task-line").classList.contains("three"),
         three.querySelector(".task-line").classList.contains("many"),
         Boolean(three.querySelector(".task-line-count")),
     ]).toEqual([true, false, true]);
     app.unmount();
-    const many = await mounted(TaskLine, {receipt: `${tasks("Created", [1, 2])}; ${tasks("Linked", [3, 4])}`});
+    const many = await mounted(TaskLine, {receipt: tasks("Linked", [1, 2, 3, 4])});
     expect(many.querySelector(".task-line").classList.contains("many")).toBe(true);
     many.querySelector(".task-line-count").click();
     await flush();
-    const labels = [...many.querySelectorAll(".task-line-label")].map((label) => label.textContent);
-    expect(labels).toEqual(["Created from your message", "Linked: the agent's reply named them"]);
     expect(many.querySelectorAll(".task-line-row").length).toBe(4);
+    expect(many.querySelector(".task-line > .task-line-list"), "the list opens in the line itself, not inside the count").not.toBeNull();
     const css = source("src/chat/TaskLine.vue");
-    expect(css).toMatch(/width: 300px;\s*max-width: calc\(100vw - 24px\);\s*max-height: 260px;/);
+    expect(css).toMatch(/\.task-line-list \{\s*flex-basis: 100%;/);
+    expect(css, "the list is never a dropdown laid over the chat").not.toMatch(/\.task-line-list \{[^}]*position: absolute/);
     expect(css).toMatch(/padding: 0\.05em 0\.35em 0\.05em 0\.45em;/);
 });
 
@@ -358,4 +351,14 @@ test("10. a running command's mark shows its stop beside it while pointed at, an
     await flush();
     expect(act).toHaveBeenCalledWith("outputs", 12, "stop");
     expect(host.querySelector(".mark .status").textContent).toContain("Stopping");
+});
+
+test("9. the creation and the edit of a task are marks shown with the filed icon, as started and completed have theirs", async () => {
+    const {markIcon} = await import("../src/domain/markIcon.js");
+    expect([
+        markIcon("task_moves", {label: "Created task 3: write the notes"}),
+        markIcon("task_moves", {label: "Edited task 3: write the notes"}),
+        markIcon("task_moves", {label: "Started task 3: write the notes"}),
+        markIcon("task_moves", {label: "Completed task 3: write the notes"}),
+    ]).toEqual(["filed", "filed", "task_start", "task_done"]);
 });

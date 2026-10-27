@@ -52,9 +52,6 @@ class Links(Repository[Link]):
         counted = self.grouped_counts(self.query().filter_listed("target", [Ref.build(model) for model in models]).filter(kind=kind), "target")
         return {Ref.parse(ref).id: total for ref, total in counted.items()}
 
-    def targets_except(self, model: Model, kind: str, refs: set[Ref]) -> list[Ref]:
-        return [ref for ref in self.targets(model, kind) if ref not in refs]
-
     def typed_targets(self, model: Model, kind: str, table: str) -> list[Ref]:
         return [link.target for link in self.selected(self.query().filter(source=Ref.build(model), kind=kind).filter_prefix("target", f"{table}:").order("id"))]
 

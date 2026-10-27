@@ -7,14 +7,13 @@ import {useTurnLinks} from "./turnLinks.js";
 import {useOutside} from "../composables/outside.js";
 import {partLabel, receiptCount, receiptLine, receiptParts, receiptWords} from "../domain/receipt.js";
 
-// The quiet line under the user's message naming the tasks created from it or linked to it: up to three as chips, and from four
-// (three on a phone) a count that opens a list of them, the created and the linked under their own labels
+// The quiet line under the user's message naming the tasks linked to it: up to three as chips, and from four
+// (three on a phone) a count that opens a list of them in place
 const props = defineProps({receipt: {type: String, required: true}});
 const CHIPS_UP_TO = 3;
 const {scope, openRef} = useTurnLinks();
 const parts = computed(() => receiptParts(props.receipt));
 const count = computed(() => receiptCount(parts.value));
-const created = computed(() => parts.value.some((part) => part.verb === "created"));
 const listed = computed(() => count.value >= CHIPS_UP_TO);
 const open = ref(false);
 const line = ref(null);
@@ -29,7 +28,7 @@ function go(row) {
 
 <template>
     <div ref="line" :class="['task-line', {many: count > CHIPS_UP_TO, three: count === CHIPS_UP_TO, open}]">
-        <MarkIcon class="task-line-icon" :name="created ? 'filed' : 'linked'" />
+        <MarkIcon class="task-line-icon" name="linked" />
         <template v-if="parts.length">
             <TextDisplay class="task-line-few" :text="receiptLine(parts)" inline />
         </template>
@@ -42,22 +41,22 @@ function go(row) {
                     {{ receiptWords(parts) }}
                     <FoldSign :open="open" />
                 </button>
-                <template v-if="open">
-                    <div class="task-line-list" role="dialog" aria-label="Tasks from your message">
-                        <template v-for="part in parts" :key="part.verb">
-                            <div class="task-line-part">
-                                <p class="task-line-label">{{ partLabel(part) }}</p>
-                                <template v-for="row in part.rows" :key="row.named">
-                                    <button type="button" class="task-line-row" @click="go(row)">
-                                        <span class="row-pill task-line-chip">{{ row.named }}</span>
-                                        <span class="task-line-title">{{ titleOf(row) }}</span>
-                                    </button>
-                                </template>
-                            </div>
+            </span>
+        </template>
+        <template v-if="open">
+            <div class="task-line-list" aria-label="Tasks from your message">
+                <template v-for="part in parts" :key="part.verb">
+                    <div class="task-line-part">
+                        <p class="task-line-label">{{ partLabel(part) }}</p>
+                        <template v-for="row in part.rows" :key="row.named">
+                            <button type="button" class="task-line-row" @click="go(row)">
+                                <span class="row-pill task-line-chip">{{ row.named }}</span>
+                                <span class="task-line-title">{{ titleOf(row) }}</span>
+                            </button>
                         </template>
                     </div>
                 </template>
-            </span>
+            </div>
         </template>
     </div>
 </template>
@@ -148,21 +147,11 @@ function go(row) {
     height: 9px;
 }
 
-/* the list the count opens, under it and to its right */
+/* the list the count opens, in place under the line, pushing the chat down */
 .task-line-list {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: -2px;
-    z-index: 30;
-    width: 300px;
-    max-width: calc(100vw - 24px);
-    max-height: 260px;
-    overflow-y: auto;
-    padding: 8px 6px 6px;
-    border: 1px solid var(--tip-edge);
-    border-radius: 10px;
-    background: var(--tip-bg);
-    box-shadow: var(--tip-shadow);
+    flex-basis: 100%;
+    width: 100%;
+    padding: 4px 0 2px;
     text-align: left;
     white-space: normal;
     animation: list-in 0.16s var(--ease);
@@ -218,10 +207,6 @@ function go(row) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-:global(html.phone .task-line .task-line-list) {
-    width: 280px;
 }
 
 :global(html.phone .task-line .task-line-row) {

@@ -3605,12 +3605,12 @@ def test_reading_a_message_names_its_files_links_and_captions(app: App):
     console.run(["task", "create", "crop it", "--from", "1"], AGENT)
     from journal.repositories.messages import Messages
     filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Created task 1, task 2 from your message"], "what is created from a message is one mark in the chat, naming each row"
+    assert filed == ["Linked task 1, task 2 from your message"], "what is linked to a message is one mark in the chat, naming each row"
     [card] = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
     assert card.data["row"] == "tasks:1", "a click opens the first row it created, not the message"
     console.run(["message", "send", "filed it as task 1, cropping next", "--reply-to", "1"], AGENT)
     filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Created task 1, task 2 from your message"], "a row the agent's reply names stays in the mark: creating is an event"
+    assert filed == ["Linked task 1, task 2 from your message"], "a row the agent's reply names stays in the mark: creating is an event"
     console.run(["message", "send", "and task 2 crops it", "--reply-to", "1", "--confirm"], AGENT)
     assert len([m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]) == 1, "and so does the mark once the replies name every row"
     assert console.run(["message", "tag", "1", "shot one.png", "the footer overlapping the form"], AGENT).code == 0
@@ -21768,7 +21768,7 @@ def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_
     again = console.run(["task", "start", "2"], AGENT)
     assert again.code != 0 and "already in hand" in again.error + again.text, again
     app.runtime().deferred.drain()
-    marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
+    marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves" and not m.text.startswith(("Created", "Edited"))]
     assert marks == ["Started task 1: write the notes", "Completed task 1: write the notes", "Started task 2: tag it"], marks
 
 
@@ -22547,7 +22547,7 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
         assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
         assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
 
-def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark(app: App):
+def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark_and_a_linked_receipt_under_each_message(app: App):
     from journal.repositories.messages import Messages
     console = app.console()
     console.run(["message", "send", "write the notes"], USER)
@@ -22556,8 +22556,11 @@ def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_m
     assert console.run(["task", "edit", "1", "--from", "2"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        filed = sorted(m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed")
-    assert filed == ["Created task 1 from your message", "Edited task 1 from your message"], "the creation is one mark and the edit its own, never a second creation"
+        everything = app.container.get(Messages).all()
+        filed = sorted(m.text for m in everything if m.data.get("shows") == "filed")
+        moves = [m.text for m in everything if m.data.get("shows") == "task_moves"]
+    assert filed == ["Linked task 1 from your message", "Linked task 1 from your message"], "each message the task is tied to carries a linked receipt"
+    assert [text for text in moves if text.startswith(("Created", "Edited"))] == ["Created task 1: write the notes", "Edited task 1: write the notes"], "the creation and the edit are one mark each, on the agent's side"
 
 
 def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cleared_await_removes_its_check(app: App):
