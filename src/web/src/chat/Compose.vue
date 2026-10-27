@@ -10,7 +10,7 @@ import Icon from "../kit/Icon.vue";
 import WaitEdge from "../kit/WaitEdge.vue";
 import {attach, overLimit, refusal} from "./attachments.js";
 import {onPhone, PHONE_SENDS_TEXT} from "../platform/phone.js";
-import TextDisplay from "../kit/TextDisplay.vue";
+import {quoteLine} from "../format/quote.js";
 
 const props = defineProps({
     placeholder: {type: String, default: "Message the agent"},
@@ -275,7 +275,7 @@ async function use(tool) {
         <template v-if="quote">
             <div class="compose-quote">
                 <span class="compose-quote-label">{{ quoteLabel }}</span>
-                <TextDisplay class="compose-quote-text" :text="quote" />
+                <p class="compose-quote-text" :title="quoteLine(quote)">{{ quoteLine(quote) }}</p>
                 <button type="button" class="compose-quote-x" title="Remove the quote" @click="emit('unquote')">×</button>
             </div>
         </template>
@@ -426,18 +426,15 @@ async function use(tool) {
     color: var(--text);
 }
 
+/* the message answered, in one line of plain words, clipped where it runs out of room */
 .compose-quote-text {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    margin: 0;
+    padding-right: 18px;
     overflow: hidden;
     font-size: 12.5px;
     color: var(--text-2);
-    white-space: pre-wrap;
-}
-
-.compose-quote-text :deep(p) {
-    margin: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .compose-box {

@@ -35,6 +35,10 @@ SETS = {
         "tests/chatFootFolding.test.js",
         "tests/threadFeedOptions.test.js",
     ),
+    "reply_bar": (
+        "tests/replyBar.test.js",
+        "tests/composeInput.test.js",
+    ),
 }
 
 
