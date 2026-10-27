@@ -48,9 +48,11 @@ async function mounted(component, props, scope = null) {
 }
 
 const source = (path) => readFileSync(path, "utf8");
-// the cards and the row fold one into the other out and then in, each step waiting a frame where the test page has no transitions
+// the cards and the row fold one into the other out and then in, each step waiting a frame where the test page has no transitions: wait
+// until no fold transition is left on the page, a second at most
 const folds = async () => {
-    await new Promise((done) => setTimeout(done, 80));
+    const moving = () => document.querySelector(".folding, [class*='runs-fold-'], [class*='runs-unfold-']");
+    for (let waited = 0; waited < 1000 && (waited < 40 || moving()); waited += 20) await new Promise((done) => setTimeout(done, 20));
     await flush();
 };
 const now = () => Date.now() / 1000;
