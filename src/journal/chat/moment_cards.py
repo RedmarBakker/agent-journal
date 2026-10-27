@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
 from journal.chat.card_detail import CardDetail
@@ -14,6 +15,7 @@ from journal.repositories.messages import Messages
 from journal.support.actor import Actor
 from journal.support.card_type import CardType
 from journal.support.card_outcome import CardOutcome
+from journal.support.run_place import RunPlace
 from journal.support.time_source import TimeSource
 
 MOMENT = "moment"
@@ -27,8 +29,8 @@ class MomentCards:
         self.time_source = time_source
         self.messages, self.settings, self.agents = messages, settings, agents
 
-    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE, fields: dict | None = None) -> Message:
-        data = {"kind": kind, "outcome": str(outcome), "row": str(row) if row else "", "command": command, **(fields or {})}
+    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE, place: RunPlace | None = None) -> Message:
+        data = {"kind": kind, "outcome": str(outcome), "row": str(row) if row else "", "command": command, **(asdict(place) if place else {})}
         return self.show_fields(environment_id, session, label, data, actor, shows, detail, key)
 
     def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardType, detail: str = "", key: str = "") -> Message:
