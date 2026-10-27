@@ -42,3 +42,7 @@ class TasksData:
     command_lines: tuple[str, ...] = ()
     turn_finished: bool = False
     wake_count: int = 0
+
+    @property
+    def open_work(self) -> OpenTask | None:
+        return self.next_open

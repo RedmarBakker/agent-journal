@@ -80,8 +80,10 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
 
 
 def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    tasks = event.data.part(TasksPart)
-    if not event.call.is_journal_noun("await") or tasks.next_open is None:
+    if not event.call.is_journal_noun("await"):
+        return state.none()
+    tasks, work = event.data.part(TasksPart), event.data.next_work()
+    if work is None:
         return state.none()
     wait_line = event.call.journal_text("await")
     if WAITED_OUTPUT.findall(wait_line):
@@ -94,8 +96,8 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     if await_count(tasks.command_lines[:-1]) >= AWAIT_REFUSAL_COUNT:
         return reasoned_wait(state, wait_line, wait_name, estimate.seconds_text())
     if tasks.current_task:
-        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
-    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
+    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=work.id))
 
 
 def await_count(commands: tuple[str, ...]) -> int:

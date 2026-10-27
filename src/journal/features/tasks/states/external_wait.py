@@ -18,7 +18,6 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
-from journal.features.tasks.support.tasks_data import TasksData
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.events.feature_data import FeatureData
@@ -88,32 +87,34 @@ class ExternalWait(Wait):
             return Transition.merged(self, [self.swap(replace(self, started_task=0, started_title="")), self.refuse(TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=self.started_task, title=self.started_title))])
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
-        if self.is_output_wait() or tasks.next_open is None or estimate.is_short(settings):
+        work = event.data.next_work()
+        if self.is_output_wait() or work is None or estimate.is_short(settings):
             return self.none()
-        return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=work.id))
 
     def estimated(self, remaining: float, data: FeatureData, settings: Settings) -> Transition:
-        next_open = data.part(TasksPart).next_open
+        work = data.next_work()
         seconds = round(remaining)
-        if self.is_output_wait() or remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or next_open is None:
+        if self.is_output_wait() or remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or work is None:
             return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
-        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=next_open.id), *self.lifted_lines(data))
+        return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=work.id), *self.lifted_lines(data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)
-        next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
+        remaining = self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
-        meanwhile = self.meanwhile_lines(tasks)
-        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and meanwhile:
-            return self.swap(replace(self, next_task_reported=True), *meanwhile)
+        work_lines = self.next_work_lines(event.data)
+        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and work_lines:
+            return self.swap(replace(self, next_task_reported=True), *work_lines)
         if self.reminder(tasks.wait_progress, event.time).is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
         return self.none()
 
-    def meanwhile_lines(self, tasks: TasksData) -> tuple[Nudge, ...]:
-        if tasks.next_open is not None:
-            return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=tasks.next_open.id, title=tasks.next_open.title),)
+    def next_work_lines(self, data: FeatureData) -> tuple[Nudge, ...]:
+        tasks, work = data.part(TasksPart), data.next_work()
+        if work is not None:
+            return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=work.id, title=work.title),)
         if tasks.paused:
             return (TasksNudges.WAIT_PAUSED_TASK.create(what=self.focus, n=tasks.paused[0], why=tasks.first_pause_reason),)
         return ()

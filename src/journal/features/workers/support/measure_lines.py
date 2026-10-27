@@ -72,8 +72,8 @@ class MeasureLines:
 
     @staticmethod
     def code_share_line(state: MeasureState, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        tasks = data.part(TasksPart)
-        task = tasks.current_task or (tasks.next_open.id if tasks.next_open else 0)
+        work = data.next_work()
+        task = data.part(TasksPart).current_task or (work.id if work else 0)
         return (WorkersNudges.BUILDER_CODE_SHARE_LINE.create(share=round(state.value, 2), n=task),) if task else ()
 
     @staticmethod
@@ -93,7 +93,7 @@ class MeasureLines:
 
     @staticmethod
     def handout_line(state: MeasureState, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        workers, task = data.part(WorkersPart), data.part(TasksPart).next_open
+        workers, task = data.part(WorkersPart), data.next_work()
         if task is None:
             return ()
         if workers.idle_workers:
