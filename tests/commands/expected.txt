@@ -1006,11 +1006,12 @@ $ agent: journal await begin --help
 exit 0
 usage: journal await begin [-h] [--output N] [--reader READER] [--why WHY]
                            [--until SCRIPT]
-                           what
+                           [what]
 
 positional arguments:
   what             what you wait for, in a few words the user reads in the top
-                   bar: the test run of task 217, Lady Lovelace's report
+                   bar: the test run of task 217, Lady Lovelace's report; with
+                   --output alone, the run's own title
 
 options:
   -h, --help       show this help message and exit
@@ -1305,6 +1306,8 @@ skills.after_compaction = journal | etiquette
 briefing.look_commands = journal plan show current | journal task list | journal message unread | journal worker open | journal question list | journal reader list | journal task show current
 memory.stale_after = 7
 tasks.auto = True  (the user sets it)
+tasks.wake_minutes = 10
+tasks.wake_count = 3
 tasks.wait_out_seconds = 20
 tasks.priority_remind_tasks = 5
 tasks.priority_block_tasks = 10
@@ -1437,6 +1440,7 @@ plugins.hold_window_ms = 2000
 plugins.clock_out_window_seconds = 180
 plugins.holds_in_a_row = 5
 plugins.passed_over_minutes = 3
+faults.sentry_dsn = ''  (the user sets it)
 faults.developer = False
 faults.report = False
 faults.budget.request = 50
@@ -1710,6 +1714,7 @@ memory.stopped_at_mark  [memory]  stop held at {{percent}}% of context: `journal
 memory.write_held_until_decided  [memory]  writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip "<why>"`
 messages.a_colleague_commented  [messages]  colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees
 messages.answer_before_anything_else  [messages]  answer or react to message {{messages|cap=73}} before you go on
+messages.answer_the_comment_read  [messages]  reply with [!reply:{{n}}]; then write what it asks into {{writing}}, as a change, a section or an open question
 messages.answer_the_message_read  [messages]  reply with [!reply:{{n}}]; file a task if it asks for work, a memory if it is something to keep in mind
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
 messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply
@@ -1755,6 +1760,7 @@ plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} runs tests at phase end;
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
+plans.the_user_approved_the_plan_with_a_comment  [plans]  plan {{n}} approved with a comment: read message {{comment}} before you start
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
 plugins.plugin_not_working  [plugins]  plugin {{plugin}} stopped working: {{fault|cap=300}}. fix it, or `journal plugin disable {{plugin}}`
@@ -1855,6 +1861,7 @@ tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
 tasks.wait_over  [tasks]  wait over: {{outcome|cap=100}}
+tasks.woken_with_work_in_hand  [tasks]  your turn ended and nothing has arrived since; the stop check, run again, answers:
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. writes wait for {{log}} "<what was done>"
 team.journal_behind_the_team  [team]  this journal is behind its team: {{line|cap=200}}. its changes wait for an upgrade. tell your user once
 triggers.denied  [triggers]  a trigger denies this: {{title}}
@@ -1935,7 +1942,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-286 nudges
+289 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2757,3 +2764,241 @@ options:
 $ agent: journal supervision health
 exit 0
 {"interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3, "grace_seconds": 60.0}
+
+$ agent: journal task comments 1
+exit 0
+no comments on task 1
+
+$ agent: journal plan comments 1
+exit 0
+no comments on plan 1
+
+$ agent: journal doc comments 1
+exit 0
+no comments on doc 1
+
+$ agent: journal report comments 1
+exit 0
+no comments on report 1
+
+$ agent: journal memory comments 1
+exit 0
+no comments on memory 1
+
+$ agent: journal rule comments 1
+exit 0
+no comments on rule 1
+
+$ agent: journal reminder comments 1
+exit 0
+no comments on reminder 1
+
+$ agent: journal question comments 1
+exit 0
+no comments on question 1
+
+$ agent: journal message comments 1
+exit 0
+no comments on message 1
+
+$ agent: journal sequence comments 1
+exit 0
+no comments on sequence 1
+
+$ agent: journal dump comments 1
+exit 0
+no comments on dump 1
+
+$ user: journal library connect --help
+exit 0
+usage: journal library connect [-h] --email EMAIL [--name NAME]
+                               [--password PASSWORD]
+                               url
+
+positional arguments:
+  url                  the library server's URL, or the invitation URL an
+                       admin shared
+
+options:
+  -h, --help           show this help message and exit
+  --email EMAIL        your email, the account's user name
+  --name NAME          the name the team sees beside what you publish
+  --password PASSWORD  filled in by the journal command's own prompt; never
+                       type it on a command line
+
+$ user: journal library login --help
+exit 0
+usage: journal library login [-h] --email EMAIL [--password PASSWORD]
+
+options:
+  -h, --help           show this help message and exit
+  --email EMAIL
+  --password PASSWORD  filled in by the journal command's own prompt; never
+                       type it on a command line
+
+$ user: journal library status --help
+exit 0
+usage: journal library status [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library disconnect --help
+exit 0
+usage: journal library disconnect [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library invite --help
+exit 0
+usage: journal library invite [-h] email
+
+positional arguments:
+  email
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library devices --help
+exit 0
+usage: journal library devices [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library revoke --help
+exit 0
+usage: journal library revoke [-h] device
+
+positional arguments:
+  device
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library people --help
+exit 0
+usage: journal library people [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library password --help
+exit 0
+usage: journal library password [-h] --old OLD --new NEW
+
+options:
+  -h, --help  show this help message and exit
+  --old OLD
+  --new NEW
+
+$ user: journal library publish --help
+exit 0
+usage: journal library publish [-h] [--note NOTE] [--description DESCRIPTION]
+                               {sequence,template,profile} reference
+
+positional arguments:
+  {sequence,template,profile}
+  reference             the sequence's or template's number, or the profile's
+                        name
+
+options:
+  -h, --help            show this help message and exit
+  --note NOTE           what this version changes, for whoever imports it
+  --description DESCRIPTION
+                        what the item is for; its title when left out
+
+$ user: journal library list --help
+exit 0
+usage: journal library list [-h] [--search SEARCH] [item_type]
+
+positional arguments:
+  item_type        one type of item: sequence, template, profile, reader,
+                   skill, document, file or plan
+
+options:
+  -h, --help       show this help message and exit
+  --search SEARCH  words to find in the item's name or description
+
+$ user: journal library show --help
+exit 0
+usage: journal library show [-h] item_type name
+
+positional arguments:
+  item_type
+  name
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library import --help
+exit 0
+usage: journal library import [-h] [--version VERSION] [--accept]
+                              {sequence,template,profile} name
+
+positional arguments:
+  {sequence,template,profile}
+  name
+
+options:
+  -h, --help            show this help message and exit
+  --version VERSION
+  --accept              write a sequence whose triggers and allowed commands
+                        you have read
+
+$ user: journal library update --help
+exit 0
+usage: journal library update [-h] [--replace]
+                              {sequence,template,profile} name
+
+positional arguments:
+  {sequence,template,profile}
+  name
+
+options:
+  -h, --help            show this help message and exit
+  --replace             take the latest version over your edits
+
+$ user: journal library withdraw --help
+exit 0
+usage: journal library withdraw [-h] item_type name
+
+positional arguments:
+  item_type
+  name
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library delete --help
+exit 0
+usage: journal library delete [-h] item_type name number
+
+positional arguments:
+  item_type
+  name
+  number
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library remove --help
+exit 0
+usage: journal library remove [-h] account
+
+positional arguments:
+  account
+
+options:
+  -h, --help  show this help message and exit
+
+$ user: journal library reset --help
+exit 0
+usage: journal library reset [-h] account
+
+positional arguments:
+  account
+
+options:
+  -h, --help  show this help message and exit
