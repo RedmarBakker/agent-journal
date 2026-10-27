@@ -24,6 +24,8 @@ from tests.main_journal import main_journal
 from tests.user_settings import user_set
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.support.message_thread import MessageThread
+from journal.features.updates.updates_nudges import UpdatesNudges
+from journal.features.updates.listeners.launch_takeover_notice import NOTICE
 
 
 @pytest.fixture(scope="module")
@@ -1624,7 +1626,7 @@ def test_a_server_that_stops_an_older_one_tells_each_launch_it_carried_over_in_o
     inbox.parent.mkdir(parents=True, exist_ok=True)
     guard, stopped = app.container.get(InstanceGuard), []
     guard.stop = stopped.append
-    line = f"the journal now runs version {VERSION}: a newer launch replaced the journal server on 4.0.0 that your launch had"
+    line = UpdatesNudges.LAUNCH_TAKEOVER.create(version=VERSION, previous="4.0.0").rendered()
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as supervisor:
         supervisor.bind(launch)
         inbox.write_text(launch)
@@ -1639,7 +1641,7 @@ def test_a_server_that_stops_an_older_one_tells_each_launch_it_carried_over_in_o
                 return urlopen(HttpRequest(hooks, data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read().decode()
 
             marks = [message.text for message in app.container.get(Messages).global_matching(environment_id=1) if (message.data or {}).get("shows") == "updates"]
-            assert marks == [f"The journal now runs version {VERSION}: a newer launch replaced the journal server on 4.0.0 that this launch had"], "the launch's chat holds one mark saying so"
+            assert marks == [NOTICE.format(version=VERSION, previous="4.0.0")], "the launch's chat holds one mark saying so"
             assert hook().count(line) == 1, "the launch's next hook is answered with the one line"
             assert line not in hook(), "and only once"
         finally:

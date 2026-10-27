@@ -58,5 +58,9 @@ Good:
 assert nudge_reached(app, body["error"], EngineNudges.GUARD_FAILED)
 ```
 
+Where no nudger ran, a unit test of a state or a conduct, the line is built from the nudge itself:
+`has_nudge(line, Nudges.NAME, value=...)` or `Nudges.NAME.create(value=...).rendered()`. An assert's own message is
+not judged.
+
 The rule reads the nudges' words from `nudge_words` in .commandments/custom/lists.json, written from the registry by
 `PYTHONPATH=src python3 -m scripts.nudge_words`.

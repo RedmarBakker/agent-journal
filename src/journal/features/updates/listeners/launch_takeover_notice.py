@@ -8,6 +8,8 @@ from journal.support.actor import Actor
 from journal.support.card_type import CardType
 from journal.supervisor_link import SupervisorLink
 
+NOTICE = "The journal now runs version {version}: a newer launch replaced the journal server on {previous} that this launch had"
+
 
 class LaunchTakeoverNotice(Listener[ServerReplaced]):
     """Each environment whose launch still runs when a newer journal server replaced the one it had is told so: a mark in its chat, and the moment on its agent's row, which the updates conduct says in one line at the agent's next hook."""
@@ -19,7 +21,7 @@ class LaunchTakeoverNotice(Listener[ServerReplaced]):
         for environment in self.supervisor.running(self.environments.all()):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
-            label = f"The journal now runs version {event.version}: a newer launch replaced the journal server on {event.previous} that this launch had"
+            label = NOTICE.format(version=event.version, previous=event.previous)
             self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardType.UPDATES)
             if agent is not None:
                 self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())

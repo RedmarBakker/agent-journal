@@ -20,6 +20,8 @@ from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from tests.in_process import posted
 from tests.user_settings import user_set
+from journal.engine.engine_nudges import EngineNudges
+from tests.nudge_lines import nudge_reached
 
 MAIN = 1
 """The id of main, made by the first hook: what a test reads directly, it reads there."""
@@ -149,7 +151,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     app.container.get(Bus).listen(ToolStarting, Raising())
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
-    assert status == 200 and "a guard failed and let this through: Raising raised RuntimeError: the guard broke" in body["hookSpecificOutput"]["additionalContext"], "the tool runs and the agent is told"
+    assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
     failed = [e for e in app.container.get(Entries).scoped() if e.kind == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
     assert any("A guard failed and let the event through" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"

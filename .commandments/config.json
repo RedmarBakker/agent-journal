@@ -15,6 +15,7 @@
     "detectors": [
         "TestSettingWriteDetector",
         "TestSettingsVariableWriteDetector",
+        "NudgeWordsInTestDetector",
         "PlainViewerTextDetector",
         "PlainServerTextDetector",
         "PlainJournalTextDetector",

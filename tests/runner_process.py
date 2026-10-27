@@ -16,6 +16,8 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.supervisor_link import SupervisorLink
 from tests.main_journal import main_journal
+from tests.nudge_lines import has_nudge
+from journal.features.shell.shell_nudges import ShellNudges
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 
@@ -67,7 +69,7 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
         run = subprocess.run([runner, wrapped(f"cat {numbers}", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=60)
         assert run.stdout.startswith("1\n2\n") and run.stdout.rstrip().endswith("3000") and len(run.stdout.splitlines()) < 3000 and "cut; journal output read" in told(run), "a read outside the project is cut to its two ends"
         run = subprocess.run([runner, wrapped("echo fast && sleep 3 && echo slow", cwd)], env=place, cwd=tmp_path, capture_output=True, text=True, timeout=20)
-        assert "fast" in run.stdout and "moved to the background as output" in told(run) and "sleep 3" not in run.stdout and run.returncode == 0, run.stderr
+        assert "fast" in run.stdout and has_nudge(told(run), ShellNudges.BACKGROUND_MOVE) and "sleep 3" not in run.stdout and run.returncode == 0, run.stderr
         with app.container.get(Scope).environment(1):
             entries = app.container.get(Entries)
             for _ in range(100):

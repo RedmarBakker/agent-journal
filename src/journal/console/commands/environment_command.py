@@ -41,6 +41,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.support.time_source import TimeSource
 
 TAKEOVER_WINDOW = timedelta(hours=12)
+MEMORY_LINE = "your memories, heaviest first: {rows}. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`"
 
 
 class EnvironmentCommand(Command):
@@ -123,7 +124,7 @@ class EnvironmentCommand(Command):
         if not shown:
             return "no memories yet: `journal memory add \"<what to keep in mind>\" --weight <1 to 10>`"
         weighed = "; ".join(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in shown)
-        return f"your memories, heaviest first: {weighed}. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`"
+        return MEMORY_LINE.format(rows=weighed)
 
     def background(self) -> list[str]:
         moved = self.entries.open_moves(MOVED, ENDED)

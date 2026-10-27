@@ -12,6 +12,8 @@ LISTS = Path(__file__).resolve().parents[1] / ".commandments" / "custom" / "list
 # a run of fewer words is common enough to stand in a test's own text
 WORDS = 4
 BLANK = re.compile(r"\{\{\w+\}\}")
+# runs the journal's other text writes too, as a plugin's or a service's log does, which a test of that text holds without checking a nudge
+COMMON = ("times in a row",)
 EDGES = " .,:;"
 
 
@@ -21,7 +23,7 @@ def registered() -> list[Nudge]:
 
 def words(nudges: list[Nudge]) -> list[str]:
     runs = {run.strip(EDGES) for nudge in nudges for text in (nudge.title, nudge.brief) for run in BLANK.split(text)}
-    return sorted(run for run in runs if len(run.split()) >= WORDS)
+    return sorted(run for run in runs if len(run.split()) >= WORDS and run not in COMMON)
 
 
 def written() -> None:

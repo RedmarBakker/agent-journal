@@ -30,6 +30,11 @@ from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, t
 from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER, context
 from tests.main_journal import main_journal
+from journal.features.messages.messages_nudges import MessagesNudges
+from journal.features.questions.questions_nudges import QuestionsNudges
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.workers.workers_nudges import WorkersNudges
+from tests.nudge_lines import nudge_reached
 
 
 @pytest.fixture(params=PROVIDERS)
@@ -245,7 +250,7 @@ def test_worker_reports_matches_its_record(journal, monkeypatch):
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["worker 1 reports"]["typed"] == ["[journal] worker 1 reported"]
     stopped = name_index["worker 2 is stopped"]["typed"]
-    assert stopped[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported") and stopped[1] == "[journal] worker 2 stopped before it reported" and len(stopped) == 2
+    assert nudge_reached(app, stopped[0], TasksNudges.WAIT_END) and "worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, " in stopped[0] and stopped[1] == f"[journal] {WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=2, cause='').rendered()}" and len(stopped) == 2
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "the last worker back popped the wait to the task"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
@@ -254,7 +259,7 @@ def test_question_answered_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"a_question_is_answered_{provider}", app, monkeypatch, a_question_is_answered, provider)
     keystrokes = replay.record()[-1]["typed"]
-    assert keystrokes == ["[journal] question 1 is answered. `journal question show 1`, then act on it"], "the answer is typed, and the work beneath goes on in silence"
+    assert keystrokes == [f"[journal] {QuestionsNudges.QUESTION_ANSWERED.create(n=1).rendered()}"], "the answer is typed, and the work beneath goes on in silence"
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "the wait popped back to the task"
     assert rows == [], "the agent would have seen the same; the line is on record"
 
@@ -327,7 +332,7 @@ def test_changed_settings_keep_their_meaning_in_the_tool_workflow(journal, monke
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["read 1 while owed"]["answer"] == {} and "reply due, message 2: 1" in str(name_index["read 2 while owed"]["answer"]) and "reply due, message 2: 0" in str(name_index["read 3 while owed"]["answer"]), "with the setting changed, the countdown starts later and still ends on the last use"
     assert "error" in name_index["read 4 while owed"]["answer"] and "error" in name_index["read 5 while owed"]["answer"], "and holds after four"
-    assert "in hand, 2 edits" in str(name_index["write 3"]["answer"]) and "3 edits since you logged task 1: say where it stands" in str(name_index["write 4"]["answer"]) and "in hand, 4 edits" in str(name_index["write 5"]["answer"]) and name_index["write 6"]["answer"] == {} and "error" in name_index["write 7"]["answer"], "the task is named every two edits, the log asked at three and held at six"
+    assert "in hand, 2 edits" in str(name_index["write 3"]["answer"]) and nudge_reached(app, str(name_index["write 4"]["answer"]), TasksNudges.LOG_REQUEST, edits=3, name="task 1") and "in hand, 4 edits" in str(name_index["write 5"]["answer"]) and name_index["write 6"]["answer"] == {} and "error" in name_index["write 7"]["answer"], "the task is named every two edits, the log asked at three and held at six"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -345,8 +350,8 @@ def test_tool_about_to_run_matches_its_record_on_the_log_cadence(journal, monkey
     app, provider = journal
     replay, rows = played(f"writes_over_the_log_{provider}", app, monkeypatch, writes_over_the_log, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert "25 edits since you logged task 1" in str(name_index["write 26"]["answer"]) and name_index["write 27"]["answer"] == {}, "the listener asks for a log at the first threshold"
-    assert "50 edits since you logged task 1" in str(name_index["write 51 after the log"]["answer"]) and "error" in name_index["write 51 after the log"]["answer"], "and holds the write when the log is overdue"
+    assert nudge_reached(app, str(name_index["write 26"]["answer"]), TasksNudges.LOG_REQUEST, edits=25, name="task 1") and name_index["write 27"]["answer"] == {}, "the listener asks for a log at the first threshold"
+    assert nudge_reached(app, str(name_index["write 51 after the log"]["answer"]), TasksNudges.LOG_EDIT_BLOCK, edits=50, name="task 1") and "error" in name_index["write 51 after the log"]["answer"], "and holds the write when the log is overdue"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -902,7 +907,7 @@ def test_two_lines_on_one_write_the_first_hold_wins(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"two_lines_on_one_write_{provider}", app, monkeypatch, two_lines_on_one_write, provider, nudges=True)
     blocked = replay.record()[-1]["answer"]["error"]
-    assert "answer or react to message 2 first" in blocked, "the hold over the unanswered message runs first in the order and wins the write"
+    assert nudge_reached(app, blocked, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=2), "the hold over the unanswered message runs first in the order and wins the write"
     assert rows == [], "the agent would have seen the same, in the same order"
 
 

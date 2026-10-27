@@ -22,5 +22,7 @@ def nudge_reached(app, text: str, nudge: Nudge, **values) -> bool:
     """Whether the nudger sent the registered nudge with these values, by its entry, and its line is in the text the agent was sent."""
     app.container.get(NudgeRegistry).lookup(nudge.key)
     wanted = {name: str(value) for name, value in values.items()}
-    sent = [entry.data["line"] for entry in app.container.get(Entries).all() if entry.kind == NUDGE and entry.data.get("key") == nudge.key and wanted.items() <= entry.data.get("values", {}).items()]
+    entries = app.container.get(Entries)
+    keyed = entries.selected_globally(entries.query().filter(kind=NUDGE).filter_json("data->key", nudge.key))
+    sent = [entry.data["line"] for entry in keyed if wanted.items() <= entry.data.get("values", {}).items()]
     return any(line in text for line in sent)
