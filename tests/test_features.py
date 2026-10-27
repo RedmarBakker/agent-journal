@@ -12669,6 +12669,21 @@ def queue_lines_said(app: App, command: str) -> list[str]:
     return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
 
 
+def test_a_subagent_an_old_end_left_resting_on_void_is_put_back_to_researching_when_it_is_resumed(app: App):
+    from journal.models.agent import Agent
+    from journal.repositories.agents import Agents
+    from journal.support.agent_role import AgentRole
+    from journal.support.researcher_session import ResearcherSession
+    hook(app, "SessionStart")
+    researcher = ResearcherSession.joined("s1", "r1")
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Agents).save(Agent(environment_id=MAIN, session=researcher, provider="claude", state="void", data={}, role=AgentRole.SUBAGENT, stack=({"state": "void", "data": {}},)), Actor.system())
+    assert app.container.get(SessionAgents).top(researcher).name == "void", "the row rests on Void, as an end before the fix left it"
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls src"}, agent_id="r1")
+    assert status == 200 and "not at work" not in json.dumps(body), f"the resumed subagent's tool goes through: {body}"
+    assert app.container.get(SessionAgents).top(researcher).name == "researching", "and it is researching again"
+
+
 def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_past_the_limit_is_stopped_with_the_reason(app: App, monkeypatch):
     from journal.features.workers.jobs.worker_memory_watch import MEGABYTE, WorkerMemoryWatch
     from journal.models.worker import Worker

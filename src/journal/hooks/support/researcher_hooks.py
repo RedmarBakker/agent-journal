@@ -1,4 +1,6 @@
+from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.session_agents import SessionAgents
+from journal.events.agent.helper_assignment import HelperAssignment
 from journal.events.agent.session_ended import SessionEnded
 from journal.events.agent.subagent_ended import SubagentEnded
 from journal.helpers.helper_listeners import HelperListeners
@@ -10,16 +12,22 @@ from journal.support.time_source import TimeSource
 
 
 class ResearcherHooks:
-    """A subagent's own row: made at its start in the subagent's role, which puts it to work researching, answering its tool uses as a helper's, and at its end, when it has a row, popped back to Void and ended, as every researcher row of a main session is when that session ends."""
+    """A subagent's own row: made at its start in the subagent's role, which puts it to work researching, and put to work again at its start and each of its hooks when its row rests on Void, as one an old end left there does, answering its tool uses as a helper's, and at its end, when it has a row, popped back to Void and ended, as every researcher row of a main session is when that session ends."""
 
-    def __init__(self, sessions: SessionAgents, agents: Agents, listeners: HelperListeners, time_source: TimeSource) -> None:
-        self.sessions, self.agents, self.listeners, self.time_source = sessions, agents, listeners, time_source
+    def __init__(self, sessions: SessionAgents, agents: Agents, listeners: HelperListeners, states: StatesCatalogue, time_source: TimeSource) -> None:
+        self.sessions, self.agents, self.listeners, self.states, self.time_source = sessions, agents, listeners, states, time_source
 
     def bind(self, hook: Hook, environment: Environment) -> None:
         self.sessions.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
+        self.put_to_work(hook.session, environment, hook.provider)
 
     def started(self, hook: Hook, environment: Environment) -> None:
         self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
+        self.put_to_work(hook.researcher_session, environment, hook.provider)
+
+    def put_to_work(self, session: str, environment: Environment, provider: str) -> None:
+        assignment = HelperAssignment(state=self.states.sent_first(AgentRole.SUBAGENT))
+        self.listeners.dispatch(assignment.placed(session, environment.row_id, provider, None, self.time_source.seconds()))
 
     def ended(self, hook: Hook, environment: Environment) -> None:
         if not self.agents.session_rows(hook.researcher_session):
