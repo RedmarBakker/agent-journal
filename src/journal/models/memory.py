@@ -6,6 +6,7 @@ from journal.events.rows.memory_removed import MemoryRemoved
 from journal.events.rows.memory_weighed import MemoryWeighed
 from journal.models.scoped import Scoped
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 LIGHTEST = 0
 LOWEST_WEIGHT = 1
@@ -13,7 +14,7 @@ HEAVIEST = 10
 
 
 @dataclass(frozen=True)
-class Memory(Scoped):
+class Memory(Scoped, Commentable):
     """What one agent keeps in mind in an environment, the main agent or a helper its owner by a link, with a weight from 0 to 10 that each of its owner's compactions lowers by one; at nought it is no longer shown, and a removed one stays on its row, never shown again; one may end itself when a row it names closes or a moment it names passes."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)

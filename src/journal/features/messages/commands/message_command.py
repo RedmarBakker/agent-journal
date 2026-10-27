@@ -13,9 +13,8 @@ from journal.features.messages.support.message_files import MessageFiles
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
 from journal.repositories.entries import Entries
+from journal.features.messages.support.passage_place import PassagePlace
 from journal.repositories.agents import Agents
-from journal.repositories.docs import Docs
-from journal.repositories.reports import Reports
 from journal.repositories.messages import Messages
 from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
@@ -34,10 +33,9 @@ class MessageCommand(Command):
     noun = "message"
     uncut_verbs = frozenset({"read", "unread"})
 
-    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows, files: MessageFiles, entries: Entries) -> None:
-        self.agents, self.rows, self.files, self.entries = agents, rows, files, entries
+    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, rows: Rows, files: MessageFiles, entries: Entries, passages: PassagePlace) -> None:
+        self.agents, self.rows, self.files, self.entries, self.passages = agents, rows, files, entries, passages
         self.messages, self.reactions, self.links, self.config = messages, reactions, links, config
-        self.docs, self.reports = docs, reports
 
     def arguments(self, verbs) -> None:
         transmit = self.verb(verbs, "send", "leave a message")
@@ -198,25 +196,8 @@ class MessageCommand(Command):
             counterpart = link.target if link.source == Ref.build(message) else link.source
             print(f"  {link.link_type} {counterpart}")
             if link.link_type == Messages.COMMENT_LINK and message.is_passage_comment:
-                print(self.passage_place(counterpart, message.quote))
+                print(self.passages.line(counterpart, message.quote))
 
     def _tool_use(self, caller: Caller) -> int:
         agents = self.agents.global_matching(session=caller.session) if caller.session is not None else [agent for agent in (self.agents.current(),) if agent]
         return agents[0].tool_uses if agents else 0
-
-    def passage_place(self, ref: Ref, quote: str) -> str:
-        texts: dict[str, tuple[str, Docs | Reports]] = {"docs": ("doc", self.docs), "reports": ("report", self.reports)}
-        if ref.type not in texts:
-            return ""
-        noun, repository = texts[ref.type]
-        lines = repository.find(ref.id).body.split("\n")
-        first = quote.split("\n")[0].strip()
-        start = next((i for i, line in enumerate(lines) if line.strip() == first), -1)
-        if start < 0:
-            return f"  the passage is not in {noun} {ref.id} as it stands now"
-        end = start + quote.count("\n")
-        section = sum(1 for line in lines[: start + 1] if line.startswith("## "))
-        heading = next((line[3:] for line in reversed(lines[: start + 1]) if line.startswith("## ")), "")
-        line_numbers = f"lines {start + 1}-{end + 1}" if end > start else f"line {start + 1}"
-        location = f"section {section}, {heading}, {line_numbers}" if section else line_numbers
-        return f"  the passage sits in {noun} {ref.id} at {location}: `journal {noun} show {ref.id} --section {section or 1}` or `--grep`"

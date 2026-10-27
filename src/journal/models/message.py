@@ -8,11 +8,12 @@ from journal.events.rows.message_read import MessageRead
 from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 TERMINAL_LINE = "typed"
 
 
 @dataclass(frozen=True)
-class Message(Scoped):
+class Message(Scoped, Commentable):
     """A bubble of a chat: who wrote it, its words and files, and the session and kind of the agent whose chat it is in."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)

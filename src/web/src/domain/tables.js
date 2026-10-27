@@ -33,7 +33,7 @@ const kind = (title, icon, abstract, more = {}) => ({
 
 export const TABLES = {
     messages: kind("Message", "mail", "What the user left for the agent, or the agent for the user", {in_sidebar: true, listed_under: "environment", takes_comments: true}),
-    questions: kind("Question", "help", "Something the agent asks the user, with choices to pick", {needs_attention: true, labels: {answer: "Answer"}}),
+    questions: kind("Question", "help", "Something the agent asks the user, with choices to pick", {needs_attention: true, takes_comments: true, labels: {answer: "Answer"}}),
     plans: kind("Plan", "flag", "Ordered phases of tasks with a goal, approved by the user before it runs", {
         view: "document",
         in_sidebar: true,

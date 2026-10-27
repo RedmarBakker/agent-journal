@@ -8,6 +8,7 @@ from journal.events.rows.dump_choice import DumpChoice
 from journal.events.rows.dump_sorted import DumpSorted
 from journal.models.support.dump_item import DumpItem
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 
 TEXT = "text"
 
@@ -15,7 +16,7 @@ USER_TEXT = -2
 
 
 @dataclass(frozen=True)
-class Dump(Scoped):
+class Dump(Scoped, Commentable):
     """A set of material the user drops in one place, which the agent sorts by subject and files as rows of their own."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "summary", "outcome")

@@ -1,12 +1,9 @@
 from dataclasses import asdict
 import json
-import ssl
-import urllib.error
-import urllib.request
 
 from journal.db.schema import Schema
 from journal.sync.team_account import TeamAccount
-from journal.sync.team_refusal import TeamRefusal
+from journal.features.library.support.library_link import LibraryLink, REQUEST_SECONDS
 from sync_server.backup_answer import BackupAnswer
 from sync_server.agent_view_list import AgentViewList
 from sync_server.blocks_answer import BlocksAnswer
@@ -27,20 +24,16 @@ from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
 from sync_server.upload_answer import UploadAnswer
 from sync_server.lease import Lease
-from journal.version import VERSION
-from sync_service.team_link import TeamLink
-from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, UNVERSIONED, VERSION_HEADER
 
-REQUEST_SECONDS = 10
 COPY_SECONDS = 120
-ROOT_CERTIFICATE = "/root.crt"
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join stored. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
+    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. Its requests go through the LibraryLink, which holds the transport, until the row sync is removed."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
+        self.transport = LibraryLink(account, schema)
 
     def bound(self, account: TeamAccount) -> "TeamServerLink":
         return TeamServerLink(account, self.schema)
@@ -154,10 +147,7 @@ class TeamServerLink:
         return LoginAnswer(**json.loads(self.sent(address, "/login", json.dumps(request.__dict__).encode(), REQUEST_SECONDS)))
 
     def root_certificate(self, address: str) -> str:
-        unchecked = ssl.create_default_context()
-        unchecked.check_hostname, unchecked.verify_mode = False, ssl.CERT_NONE
-        with urllib.request.urlopen(address + ROOT_CERTIFICATE, timeout=REQUEST_SECONDS, context=unchecked) as answer:
-            return answer.read().decode()
+        return self.transport.root_certificate(address)
 
     def posted(self, path: str, body: dict) -> bytes:
         return self.sent(self.account.address(), path, json.dumps(body).encode(), REQUEST_SECONDS)
@@ -184,23 +174,7 @@ class TeamServerLink:
         return self.sent(self.account.address(), f"/files/{place.address()}", None, COPY_SECONDS)
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float) -> bytes:
-        request = urllib.request.Request(address + path, data=body, headers=self.headers())
-        try:
-            with urllib.request.urlopen(request, timeout=seconds, context=self.trust()) as answer:
-                self.checked(answer.headers)
-                return answer.read()
-        except urllib.error.HTTPError as refused:
-            raise TeamRefusal(TeamLink.refusal_line(refused)) from refused
+        return self.transport.sent(address, path, body, seconds)
 
     def headers(self) -> dict[str, str]:
-        return {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
-
-    @staticmethod
-    def checked(headers) -> None:
-        server_protocol = int(headers.get(PROTOCOL_HEADER, UNVERSIONED))
-        if server_protocol < PROTOCOL:
-            raise TeamRefusal(f"the team server speaks protocol {server_protocol}, older than this journal's {PROTOCOL}: upgrade the team server's image")
-
-    def trust(self) -> ssl.SSLContext:
-        root = self.account.root_path()
-        return ssl.create_default_context(cafile=str(root)) if root.is_file() else ssl.create_default_context()
+        return self.transport.headers()

@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import ClassVar
 
 from journal.models.scoped import Scoped
+from journal.models.support.commentable import Commentable
 
 
 @dataclass(frozen=True)
-class Reminder(Scoped):
+class Reminder(Scoped, Commentable):
     """What to keep doing in an environment, informed at every session start; a timed one stays quiet until its moment, is informed once then, and is struck; one with an interval is sent again every so many minutes or tool uses while it holds, from the moment and tool use it was last sent."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)

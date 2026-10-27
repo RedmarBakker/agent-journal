@@ -3,10 +3,11 @@ from typing import ClassVar
 
 from journal.events.rows.rule_created import RuleCreated
 from journal.models.model import Model
+from journal.models.support.commentable import Commentable
 
 
 @dataclass(frozen=True)
-class Rule(Model):
+class Rule(Model, Commentable):
     """Project-wide: binds every environment."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text", "reason")

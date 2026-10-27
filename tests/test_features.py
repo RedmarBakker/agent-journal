@@ -20389,6 +20389,25 @@ def test_a_comment_on_a_document_read_brings_the_line_to_answer_it_in_the_docume
     assert "file a task if it asks for work" in on_chat, "a plain message keeps the task line"
 
 
+def test_every_commentable_rows_noun_lists_its_comments_with_where_the_passage_sits_and_the_viewer_offers_comments_on_the_same_tables(app: App):
+    import re
+    from journal.http.support.comment_target import COMMENTED
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["doc", "create", "Sequences", "--abstract", "How sequences change", "--body", "## Intro\nwhy\n\n## Checks\na check per sequence\nand its output\n"], AGENT).code == 0
+    posted(app, "/journal/messages", {"text": "> a check per sequence\n\nand per phase too?", "on": "docs:1"}, {"X-Journal-Env": "main"})
+    listed = console.run(["doc", "comments", "1"], AGENT)
+    assert listed.code == 0 and "from the user" in listed.text and "not answered: and per phase too?" in listed.text, listed.text + listed.error
+    assert "  > a check per sequence" in listed.text and "section 2, Checks, line 5" in listed.text, "the passage is found where it stands now: " + listed.text
+    assert console.run(["doc", "comments", "2"], AGENT).code != 0 or "no comments" in console.run(["doc", "comments", "2"], AGENT).text
+    assert console.run(["check", "comments", "1"], AGENT).code != 0, "a row that takes no comments has no comments verb"
+    tables = (Path(__file__).resolve().parents[1] / "src/web/src/domain/tables.js").read_text()
+    parts = re.split(r"\n    (\w+): kind\(", tables.split("export const TABLES = {", 1)[1].split("\n};", 1)[0])
+    offered = {name for name, entry in zip(parts[1::2], parts[2::2]) if "takes_comments: true" in entry}
+    assert offered == set(COMMENTED), "the viewer offers comments on exactly the tables the journal takes them on"
+
+
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     from journal.support.decision import Decision
     answered = Decision.allowed_with("a line\nanother").merged(Decision.allowed_with("a line"))

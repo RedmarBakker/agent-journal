@@ -1,9 +1,11 @@
+from journal.models.all_models import AllModels
+from journal.models.support.commentable import Commentable
 from journal.models.support.ref import Ref
 from journal.repositories.rows import Rows
 from journal.support.rejection import Rejection
 
-# the rows a message may be written under as a comment; one under a chat message is a reply to it
-COMMENTED = ("tasks", "plans", "docs", "reports", "memories", "rules", "reminders", "questions", "messages")
+# the rows a message may be written under as a comment, those of every Commentable model; one under a chat message is a reply to it
+COMMENTED = tuple(model.table() for model in AllModels.MODELS if issubclass(model, Commentable))
 REPLIED = "messages"
 
 

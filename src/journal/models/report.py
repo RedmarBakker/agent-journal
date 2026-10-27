@@ -7,13 +7,14 @@ from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS, Abs
 from journal.models.support.dock_button import DockButton
 from journal.models.support.dock_card import DockCard
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 UPDATE = "update"
 SECTION_NAMES = {"need": ("waits on you", "wait on you"), "done": ("done", "done"), "doing": ("under way", "under way"), "plans": ("plan under way", "plans under way"), "commits": ("commit", "commits"), "also": ("also written", "also written")}
 
 
 @dataclass(frozen=True)
-class Report(Scoped):
+class Report(Scoped, Commentable):
     """What was checked or researched now; an update report is of kind update, its abstract the agent's summary and its items the rows the journal gathered for the time it covers, each with its section, ref, title and note, the moment the user read it, and why it needs no action once it is signed off as such."""
 
     column_renames: ClassVar[dict[str, str]] = {"kind": "report_type"}

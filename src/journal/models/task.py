@@ -17,6 +17,7 @@ from journal.models.scoped import Scoped
 from journal.support.task_priority import NORMAL
 from journal.models.task_state import TaskState
 from journal.support.rejection import Rejection
+from journal.models.support.commentable import Commentable
 
 
 BULLET = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(.+)$", re.MULTILINE)
@@ -26,7 +27,7 @@ POINT_NUMBER = re.compile(r"(?:^|(?<=\s))(\d+)[.)]\s+")
 DECLINED = "declined: "
 
 @dataclass(frozen=True)
-class Task(Scoped):
+class Task(Scoped, Commentable):
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "outcome")
 
     title: str = ""
