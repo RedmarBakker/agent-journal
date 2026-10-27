@@ -292,7 +292,7 @@ def test_one_task_in_hand_pause_resume_and_await(app: App):
     console.run(["task", "create", "third"], AGENT)
     assert console.run(["await", "the deploy to finish", "--until", "false"], AGENT).code == 0
     stopped = hook(app, "Stop")[1]
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and nudge_reached(app, stopped["reason"], TasksNudges.WAIT_STOP, n=3), "a stop while waiting on what it cannot estimate is refused while task 3 is open"
+    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") != "block", "with task 1 in progress a stop while waiting is let through: the agent is never sent to task 3 meanwhile"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "working again lifts the wait"
 
@@ -1821,26 +1821,26 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     from journal.events.agent.ticked import Ticked
     from journal.events.rows.row_resolved import RowResolved
     auto, manual = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.SHORT_WAIT_SECONDS.key: 20}), SettingsValue({TasksOptions.AUTO.key: False, TasksOptions.SHORT_WAIT_SECONDS.key: 20})
-    tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(9, "the next one", "", 0), last_commands=())
-    of = lambda: FeatureData({"tasks": tasks})
+    tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(9, "the next one", "", 0), last_commands=(), open_work=OpenTask(9, "the next one", "", 0))
+    of = lambda: FeatureData({"tasks": replace(tasks, current_task=0)})
     pushed = Working(task_id=7).respond(WaitRequest(focus="the build", end_refs="command_outputs:4,checks:2", time=100.0), auto, (TasksConduct,))
     assert pushed.pushed == ExternalWait.opened("the build", "command_outputs:4,checks:2", 100.0), "journal await pushes the wait on the work"
     assert Working(task_id=7).respond(ImpasseReport(reason="the login", time=1.0), auto, (TasksConduct,)).pushed == Impasse(reason="the login"), "journal stuck pushes Stuck"
     outputs = pushed.pushed
     assert outputs.respond(Stop(time=130.0).with_data(of()), auto).refusal is None, "a wait on the agent's own runs lets the stop through: the agent waits, never idles"
-    assert not outputs.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(FeatureData({"tasks": replace(tasks, wait_progress={"checks:2": WaitProgress(100.0, 0.01)})})), manual).popped, "and holds however long the run has left"
+    assert outputs.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(FeatureData({"tasks": replace(tasks, current_task=0, wait_progress={"checks:2": WaitProgress(100.0, 0.01)})})), manual).popped, "a wait on its own runs with long left and other work is parked like any other, in auto mode or out of it"
     waiting = ExternalWait.opened("the build", "checks:2", 100.0)
     held = waiting.respond(Stop(time=130.0).with_data(of()), auto).refusal
     assert held is not None and has_nudge(held.rendered(), TasksNudges.WAIT_STOP, what="the build", left="for a time the journal cannot estimate yet", n=9), "in auto mode a stop while a task is open is refused during a wait as without one"
-    unhanded = FeatureData({"tasks": replace(tasks, next_open=None)})
+    unhanded = FeatureData({"tasks": replace(tasks, next_open=None, open_work=None)})
     assert waiting.respond(Stop(time=130.0).with_data(unhanded), manual).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "out of auto mode the assigner hands no next task, so a stop is fine, and an early tick is quiet"
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
     assert meanwhile.target == replace(waiting, next_task_reported=True) and has_nudge(meanwhile.nudges[0].rendered(), TasksNudges.WAIT_NEXT_TASK, what="the build", n=9), "in auto mode the next task is named once after a minute"
     assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(unhanded), manual).nudges == (), "out of auto mode the assigner hands no next task, so none is named"
-    paused_only = FeatureData({"tasks": replace(tasks, next_open=None, paused=(3801,), first_pause_reason="waits on question 23")})
+    paused_only = FeatureData({"tasks": replace(tasks, next_open=None, open_work=None, paused=(3801,), first_pause_reason="waits on question 23")})
     resumable = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(paused_only), auto)
     assert has_nudge(resumable.nudges[0].rendered(), TasksNudges.WAIT_PAUSED_TASK, what="the build", n=3801, why="waits on question 23"), "with nothing open, a task the agent paused is named to resume meanwhile (message 71351)"
-    estimated = lambda progress: FeatureData({"tasks": replace(tasks, wait_progress=progress)})
+    estimated = lambda progress: FeatureData({"tasks": replace(tasks, current_task=0, wait_progress=progress)})
     slow = waiting.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(estimated({"checks:2": WaitProgress(100.0, 0.01)})), manual)
     assert slow.popped and has_nudge(slow.nudges[0].rendered(), TasksNudges.WAIT_LONG, what="the build", seconds=99, n=9), "a run at 1% a second is parked, naming the seconds left"
     quick = waiting.respond(Ticked(silence_seconds=1.0, time=109.0).with_data(estimated({"checks:2": WaitProgress(100.0, 0.9)})), manual)
@@ -1853,7 +1853,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     assert WaitProgress(100.0, 0.5, last_seconds=300.0).remaining_seconds(160.0) == 240.0 and WaitProgress(100.0, 0.5, last_seconds=30.0).remaining_seconds(160.0) == 60.0, "the last passing run of the same command gives the estimate while the run is within it, then its progress"
     from journal.events.agent.tool_starting import ToolStarting
     conducted = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.SHORT_WAIT_SECONDS.key: 20, TasksOptions.PRIORITY_REMIND_TASKS.key: 99})
-    awaiting = lambda line, progress: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(estimated(progress)), conducted, (TasksConduct,)).refusal
+    awaiting = lambda line, progress: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(FeatureData({"tasks": replace(tasks, wait_progress=progress)})), conducted, (TasksConduct,)).refusal
     assert awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0)}) is None, "an await on the agent's own run is accepted however long it has left"
     refused = awaiting("journal await 'the merge of worker 3' --until 'test -f merged'", {})
     assert refused is not None and has_nudge(refused.rendered(), TasksNudges.WAIT_SWITCH_REFUSAL, what="the merge of worker 3", left="for a time the journal cannot estimate yet", n=9), "an await on a process that does not end soon is refused while a task is open, and with task 7 in hand the line says to pause it before starting task 9 (seen with task 3642 in hand, told to carry on with task 3658)"
@@ -1865,7 +1865,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     polled = waiting.respond(ToolStarting(call=shell("journal output status 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, command_lines=("journal output status 4", "journal output read 4 --tail 2", "journal output status 4"))})), conducted, (TasksConduct,))
     assert polled.refusal is not None and has_nudge(polled.refusal.rendered(), TasksNudges.OUTPUT_POLL_REFUSAL, n=4), "a third look at one running output in a row is sent to await"
 
-    assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
+    assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None, open_work=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered() == TasksNudges.WAIT_CHECK.create(minutes=5, what="the build").rendered(), "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"

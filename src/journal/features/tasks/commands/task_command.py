@@ -26,6 +26,8 @@ from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
+from journal.repositories.command_outputs import CommandOutputs
+from journal.features.tasks.support.task_test_runs import TaskTestRuns
 from journal.repositories.agents import Agents
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.sync.hub_drives import HubDrives
@@ -45,8 +47,8 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents) -> None:
-        self.assigners, self.sessions, self.scope, self.agents = assigners, sessions, scope, agents
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns) -> None:
+        self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
@@ -93,6 +95,9 @@ class TaskCommand(Command):
         block.add_argument("why", nargs="?", default="")
         Waits.arguments(block, "task")
         self.verb(verbs, "unblock", "what it waited on came: the task is open again").add_argument("n", type=int)
+        testing = self.verb(verbs, "test", "the work is done but a test run must say so: the task waits in testing, out of your hand; the run passing completes it, failing puts it back in progress")
+        testing.add_argument("n", type=int)
+        testing.add_argument("--output", type=int, default=0, help="the run that tests it, by its output number")
         pause = self.verb(verbs, "pause", "set a task aside for something else first, by choice; it stays open and stops being nudged")
         pause.add_argument("n", type=int)
         pause.add_argument("why")
@@ -197,6 +202,16 @@ class TaskCommand(Command):
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
         print(f"{self.labels.name('task', task)} paused{waits}")
+        return 0
+
+    def test(self, args: Namespace, caller: Caller) -> int:
+        task = self.tasks.save(self.tasks.find(args.n).testing(self._time()), caller.actor)
+        if not args.output:
+            print(f"{self.labels.name('task', task)} waits in testing: complete it with `journal task complete {task.id}` once it is tested")
+            return 0
+        output = self.outputs.find(args.output)
+        self.test_runs.attach([task], output, caller.actor)
+        print(f"{self.labels.name('task', task)} waits in testing on output {output.id}: it completes when the run passes, and is in progress again if it fails")
         return 0
 
     def resume(self, args: Namespace, caller: Caller) -> int:

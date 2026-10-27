@@ -74,6 +74,7 @@ class Agent(Scoped):
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     previous_sessions: tuple[str, ...] = ()
+    previous_session_updated_at: float = 0.0
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -121,8 +122,9 @@ class Agent(Scoped):
         return self.with_event(UserResumed(environment_id=self.environment_id, time=time, agent_session=self.session))
 
     def with_session(self, session: str, provider: str) -> "Agent":
-        kept = tuple(entry for entry in self.previous_sessions if entry.partition(":")[2] not in (session, self.session))
-        return self.with_(session=session, provider=provider, previous_sessions=(*kept, f"{self.provider}:{self.session}"))
+        earlier_sessions = tuple(entry for entry in self.previous_sessions if entry.partition(":")[2] not in (session, self.session))
+        updated_at = self.updated_at.timestamp() if self.updated_at else 0.0
+        return self.with_(session=session, provider=provider, previous_sessions=(*earlier_sessions, f"{self.provider}:{self.session}"), previous_session_updated_at=updated_at)
 
     def last_sessions(self) -> dict[str, str]:
         sessions = dict(entry.split(":", 1) for entry in self.previous_sessions)

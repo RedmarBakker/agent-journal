@@ -1308,7 +1308,7 @@ memory.stale_after = 7
 tasks.auto = True  (the user sets it)
 tasks.wake_minutes = 10
 tasks.wake_count = 3
-tasks.wait_out_seconds = 60
+tasks.wait_out_seconds = 120
 tasks.priority_remind_tasks = 5
 tasks.priority_block_tasks = 10
 tasks.first_nudge_after = 25
@@ -1442,15 +1442,15 @@ plugins.holds_in_a_row = 5
 plugins.passed_over_minutes = 3
 faults.sentry_dsn = ''  (the user sets it)
 faults.developer = False
+faults.terminal_hook_lines = False
 faults.report = False
-faults.budget.request = 50
-faults.budget.write = 50
-faults.repeat_minutes = 5
+faults.budget.request = False
+faults.budget.write = False
+faults.repeat_minutes = False
 faults.count_loads = False
 faults.jobs = False
 faults.stall_stacks = False
 faults.stage_times = False
-faults.terminal_hook_lines = False
 client_errors.report = False
 updates.repository = 'https://github.com/jessegall/agent-journal'  (the user sets it)
 updates.branch = ''  (the user sets it)
@@ -1857,6 +1857,7 @@ tasks.task_points_changed  [tasks]  task {{n}}: brief point {{points|cap=15}} re
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take it up with `journal task start {{n}}`
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
+tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, did not pass: {{outcome|cap=60}}. take it up with `journal task resume {{n}}`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
@@ -1942,7 +1943,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-289 nudges
+290 nudges
 
 $ agent: journal worker list
 exit 0

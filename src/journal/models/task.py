@@ -7,6 +7,7 @@ from journal.events.event import Event
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_released import TaskReleased
@@ -95,7 +96,7 @@ class Task(Scoped, Commentable):
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
-        return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
+        return self.with_(state=TaskState.STARTED, started_at=self.started_at or time, pause_reason="", block_reason="", wait_ended_at=0.0).with_event(event)
 
     def prioritised(self, level: int) -> "Task":
         return self.with_(priority=level, priority_set=True)
@@ -129,6 +130,21 @@ class Task(Scoped, Commentable):
 
     def closed(self, task: "Task", time: datetime, manner: str, worker_id: int = 0) -> "Task":
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
+
+    def testing(self, time: datetime) -> "Task":
+        if not self.is_started():
+            raise Rejection(f"task {self.id} is {self.state}: only a started task waits in testing")
+        return self.closed(self.with_(state=TaskState.TESTING), time, "testing")
+
+    def test_passed(self, time: datetime, outcome: str) -> "Task":
+        return self.completed(time, f"tested: {outcome}")
+
+    def test_failed(self, time: datetime, output_id: int, outcome: str) -> "Task":
+        event = TaskTestFailed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, output_id=output_id, outcome=outcome)
+        return self.with_(state=TaskState.PAUSED, pause_reason=f"its test run failed: {outcome}", wait_ended_at=0.0).with_event(event)
+
+    def is_testing(self) -> bool:
+        return self.state == TaskState.TESTING
 
     def blocked(self, reason: str, time: datetime) -> "Task":
         if self.is_started():

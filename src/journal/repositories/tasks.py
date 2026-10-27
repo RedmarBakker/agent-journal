@@ -25,6 +25,8 @@ from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
 
 WAIT_LINK = "waits_on"
+# a task waiting in testing links to the run that tests it
+TEST_LINK = "tested_by"
 CURRENT_TASK_LINK = "in_hand"
 WORKED_LINK = "worked_on"
 QUEUED_LINK = "queued_for"
@@ -144,6 +146,9 @@ class Tasks(ScopedRepository[Task]):
 
     def blocked_tasks(self) -> list[Task]:
         return self.actionable(TaskState.BLOCKED)
+
+    def testing_tasks(self) -> list[Task]:
+        return self.selected(self.query().filter(state=TaskState.TESTING).order("id"))
 
     def paused_tasks(self) -> list[Task]:
         return self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_absent(self.wait_links()))

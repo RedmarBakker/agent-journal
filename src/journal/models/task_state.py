@@ -10,6 +10,7 @@ class TaskState(StrEnum):
     STARTED = "started"
     PAUSED = "paused"
     BLOCKED = "blocked"
+    TESTING = "testing"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 

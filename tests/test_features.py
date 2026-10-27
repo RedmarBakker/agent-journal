@@ -1387,9 +1387,8 @@ def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_st
 
 
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
-    from journal.features.faults.feature import Faults
-    from journal.features.registry import Registry
-    assert app.container.get(Registry).is_enabled(Faults) is False, "the journal's own developer tools are off until a project switches them on"
+    from journal.features.faults.faults_options import FaultsOptions
+    assert app.container.get(SettingRows).option(FaultsOptions.DEVELOPER) is False, "the journal's own developer tools are off until a project turns the developer features on"
 
 
 def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_for_each(app: App):
@@ -3264,7 +3263,6 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
 
 
 def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App, monkeypatch):
-    user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
     from journal.models.support.request_loads import RequestLoads
@@ -3277,7 +3275,7 @@ def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_l
         slow.counted("GET", "/journal/tasks", 2000 if n < 50 else 20, RequestLoads())
     row = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]
     assert "hook_average_ms" not in row() and "request_average_ms" not in row(), "the bar's data carries no reading while developer mode is off"
-    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
+    user_set(app, "faults.developer", True)
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (10, 20), "each average is taken over the last 250 alone, the first 50 left out"
     for n in range(1000):
         slow.counted("GET", "/journal/messages", 4, RequestLoads())
@@ -7442,6 +7440,23 @@ def test_an_await_on_an_output_alone_is_named_by_the_runs_own_title(app: App):
     assert app.console().run(["await", "--until", "false"], AGENT).code != 0, "a wait on a script still says what it waits for"
 
 
+def test_a_wait_sends_the_agent_to_other_work_only_when_no_task_is_in_hand_in_auto_mode_or_out_of_it(app: App):
+    from journal.features.tasks.tasks_nudges import TasksNudges
+    user_set(app, "tasks.auto", False)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    app.console().run(["task", "create", "the header"], USER)
+    app.console().run(["await", "the build", "--until", "false"], AGENT)
+    assert hook(app, "Stop")[1].get("decision") != "block", "with a task in progress the agent is never sent to other work while it waits"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    app.console().run(["task", "test", "1"], AGENT)
+    app.console().run(["await", "the build", "--until", "false"], AGENT)
+    refused = hook(app, "Stop")[1].get("reason", "")
+    assert nudge_reached(app, refused, TasksNudges.WAIT_STOP, what="the build", left="for a time the journal cannot estimate yet", n=2), f"with its task put in testing, out of auto mode too, a long wait names the next open task: {refused}"
+    assert hook(app, "Stop")[1].get("decision") != "block", "the stop is refused once per wait, never twice"
+
+
 def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
@@ -7450,7 +7465,7 @@ def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
     assert row["awaiting"] == "the suite" and row["awaiting_since"], "the bar reads a wait from the agent's row, which changes when its state does"
 
 
-def test_an_agent_waiting_in_auto_mode_is_pointed_to_the_next_task_after_a_quiet_minute(app: App, monkeypatch):
+def test_an_agent_waiting_with_no_task_in_hand_is_pointed_to_the_next_task_after_a_quiet_minute(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     drive_the_clock(app, monkeypatch)
@@ -7459,6 +7474,7 @@ def test_an_agent_waiting_in_auto_mode_is_pointed_to_the_next_task_after_a_quiet
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the footer", "--start"], AGENT)
     console.run(["task", "create", "the header"], AGENT)
+    console.run(["task", "test", "1"], AGENT)
     console.run(["await", "the suite", "--until", "false"], AGENT)
     tick_after(app, 70.0)
     app.runtime().deferred.drain()
@@ -18627,6 +18643,70 @@ def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: Ap
     assert [(entry["command"], entry["docked"], entry["card"]) for entry in listed] == [("sleep 2", False, 0)], "a process running is listed, not docked, before it has a card"
     running.join(timeout=10)
     assert got(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
+
+
+def test_a_task_waiting_in_testing_completes_when_its_run_passes_and_is_paused_for_its_agent_when_its_run_fails(app: App, monkeypatch):
+    import threading
+    from journal.models.task_state import TaskState
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.tasks import Tasks
+
+    def shell(line: str) -> None:
+        raw = f"JOURNAL_ENV=main\0\0{line}\n"
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
+        urlopen(request, timeout=10).read()
+
+    def output_of(line: str) -> int:
+        for _ in range(60):
+            with app.container.get(Scope).environment(1):
+                found = [output.id for output in app.container.get(CommandOutputs).selected(app.container.get(CommandOutputs).query().order("id")) if line in (output.chain, output.command)]
+            if found:
+                return found[-1]
+            timing.sleep(0.05)
+        with app.container.get(Scope).environment(1):
+            seen = [(output.chain, output.command) for output in app.container.get(CommandOutputs).selected(app.container.get(CommandOutputs).query().order("id"))]
+        raise AssertionError(f"no output of {line}: {seen}")
+
+    def task(n: int):
+        with app.container.get(Scope).environment(1):
+            return app.container.get(Tasks).find(n)
+
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    shell("seq 1 300")
+    tested = app.console().run(["task", "test", "1", "--output", str(output_of("seq 1 300"))], AGENT)
+    app.runtime().deferred.drain()
+    assert tested.code == 0 and task(1).state == TaskState.COMPLETED, "a run that already passed completes the task at once"
+    app.console().run(["task", "create", "the header", "--start"], AGENT)
+    parked = app.console().run(["task", "test", "2"], AGENT)
+    assert parked.code == 0 and task(2).state == TaskState.TESTING, "with no run named the task waits in testing"
+    assert "carry on" not in json.dumps(hook(app, "Stop")[1]), "a task waiting in testing is out of the agent's hand"
+    refused = app.console().run(["output", "test", str(output_of("seq 1 300")), "--tasks", "1"], AGENT)
+    assert refused.code != 0 and "not waiting in testing" in refused.error, "a finished task is refused"
+    failing = threading.Thread(target=lambda: shell("sh -c 'seq 1 300; sleep 1; exit 3'"), daemon=True)
+    failing.start()
+    attached = app.console().run(["output", "test", str(output_of("sh -c 'seq 1 300; sleep 1; exit 3'"))], AGENT)
+    failing.join(timeout=10)
+    app.runtime().deferred.drain()
+    assert attached.code == 0 and task(2).state == TaskState.PAUSED and "test run failed" in task(2).pause_reason, "a run that fails pauses the task for its agent"
+    assert any("task 2's test run" in line and "journal task resume 2" in line for line in keystrokes), "the agent, idle, is told which run failed and how to take the task up"
+
+
+def test_a_task_keeps_the_moment_it_was_first_started_through_a_pause_and_a_resume(app: App):
+    from journal.repositories.tasks import Tasks
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    with app.container.get(Scope).environment(1):
+        first = app.container.get(Tasks).find(1).started_at
+    timing.sleep(0.01)
+    app.console().run(["task", "pause", "1", "the header first"], AGENT)
+    app.console().run(["task", "resume", "1"], AGENT)
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(Tasks).find(1).started_at == first, "the first start is kept, so how long a task has been in progress is measured from it"
 
 
 def test_a_silent_command_beats_while_it_runs(app: App):

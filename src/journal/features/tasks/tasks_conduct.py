@@ -14,6 +14,7 @@ from journal.events.agent.stop import Stop
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
@@ -31,7 +32,7 @@ AWAIT_REFUSAL_COUNT = 2
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return wake_check(self, event, settings)
@@ -54,6 +55,11 @@ class TasksConduct(Conduct):
 
     def on_task_wait_ended(self, event: TaskWaitEnded, settings: Settings) -> Transition:
         return self.none(TasksNudges.PAUSE_WAIT_END.create(n=event.task_id, reason=event.reason))
+
+    def on_task_test_failed(self, event: TaskTestFailed, settings: Settings) -> Transition:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks:
+            return self.none()
+        return self.none(TasksNudges.TEST_FAILURE.create(n=event.task_id, output=event.output_id, outcome=event.outcome))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)

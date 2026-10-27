@@ -11,6 +11,9 @@ from journal.features.shell.support.readers import Readers
 from journal.models.command_output import CommandOutput
 from journal.support.rejection import Rejection
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.tasks import Tasks
+from journal.models.task import Task
+from journal.features.tasks.support.task_test_runs import TaskTestRuns
 
 END_LINES = 10
 # the outputs a list shows unless asked for more, each row carrying its stored summary
@@ -18,12 +21,12 @@ LISTED_OUTPUTS = 10
 
 
 class OutputCommand(Command):
-    """The outputs the runner stored, by number: read one in full or in part, show the status of one, list the newest, or watch a running one."""
+    """The outputs the runner stored, by number: read one in full or in part, show the status of one, list the newest, watch a running one, or name it the run that tests the tasks waiting in testing."""
 
     noun = "output"
 
-    def __init__(self, outputs: CommandOutputs, readers: Readers, card: OutputProcessCard) -> None:
-        self.outputs, self.readers, self.card = outputs, readers, card
+    def __init__(self, outputs: CommandOutputs, readers: Readers, card: OutputProcessCard, tasks: Tasks, test_runs: TaskTestRuns) -> None:
+        self.outputs, self.readers, self.card, self.tasks, self.test_runs = outputs, readers, card, tasks, test_runs
 
     def arguments(self, verbs) -> None:
         read = self.verb(verbs, "read", "the part of an output a flag names; one flag is needed, so reading it whole is a choice: --summary for how it ended with its ends, --all for every line")
@@ -44,6 +47,9 @@ class OutputCommand(Command):
         watch.add_argument("--reader", default="", help="the reader whose lines are shown, by its name")
         watch.add_argument("--title", default="", help="what the card in the chat says the run is doing, such as Running tests; never a bare name such as Tests")
         self.verb(verbs, "unwatch", "end the watch on your output")
+        tested = self.verb(verbs, "test", "the run that tests the tasks waiting in testing, every one or those named: when it passes they complete, when it fails they are in progress again")
+        tested.add_argument("n", type=int)
+        tested.add_argument("--tasks", type=int, nargs="+", default=[], help="only these tasks, by number")
         self.verb(verbs, "undock", "take an output's card down from above the chat").add_argument("n", type=int)
 
     def owned(self, n: int, caller: Caller) -> CommandOutput:
@@ -119,6 +125,21 @@ class OutputCommand(Command):
         if not caller.is_worker():
             return self.outputs.page(last)
         return self.outputs.page(last, creator=caller.actor)
+
+    def test(self, args: Namespace, caller: Caller) -> int:
+        output = self.outputs.find(args.n)
+        waiting = [self.testing_task(n) for n in args.tasks] if args.tasks else self.tasks.testing_tasks()
+        if not waiting:
+            raise Rejection("no task waits in testing: put one there first with `journal task test <n>`")
+        self.test_runs.attach(waiting, output, caller.actor)
+        print(f"output {output.id} tests " + ", ".join(f"task {task.id}" for task in waiting) + ": they complete when it passes and are in progress again if it fails")
+        return 0
+
+    def testing_task(self, n: int) -> Task:
+        task = self.tasks.find(n)
+        if not task.is_testing():
+            raise Rejection(f"task {n} is {task.state}, not waiting in testing: put it there first with `journal task test {n}`")
+        return task
 
     def watch(self, args: Namespace, caller: Caller) -> int:
         output = self.owned(args.n, caller)

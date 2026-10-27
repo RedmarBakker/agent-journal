@@ -16,6 +16,9 @@ class WaitEstimate:
         estimates = [progress[ref].remaining_seconds(moment) if ref in progress else None for ref in refs]
         return cls(None if not estimates or None in estimates else max(estimate for estimate in estimates if estimate is not None))
 
+    def is_known(self) -> bool:
+        return self.remaining is not None
+
     def is_short(self, settings: Settings) -> bool:
         return self.remaining is not None and self.remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS)
 
