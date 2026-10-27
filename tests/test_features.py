@@ -5703,6 +5703,8 @@ def test_the_agents_panel_shows_the_run_and_the_user_can_skip_a_step_or_end_it(a
     from journal.repositories.messages import Messages
     cards = [m.text for m in app.container.get(Messages).scoped() if m.author == "system"]
     assert f"Sequence {produced}, release: started" in cards and f"Sequence {produced}, release: moved on to step 2" in cards and f"Sequence {produced}, release: ended at step 2" in cards, "each change is a card in the chat"
+    run_cards = [m.data for m in app.container.get(Messages).scoped() if m.author == "system" and m.text.startswith(f"Sequence {produced}, release:")]
+    assert [card["step"] for card in run_cards] == [0, 1, 2] and len({card["run"] for card in run_cards}) == 1 and run_cards[0]["run_title"] == f"Sequence {produced}, release", "each card of a run names the run and its step, so the viewer gathers them in step order"
     assert api("POST", "agents/1/end-sequence")[0] != 200, "with no run there is nothing to end"
 
 def test_a_workers_report_stays_on_its_row_however_much_is_said_after(app: App):

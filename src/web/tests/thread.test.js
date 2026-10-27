@@ -67,12 +67,12 @@ describe("the journal's cards", () => {
 describe("folding runs", () => {
     const loads = (n) => Array.from({length: n}, (_, i) => card(i + 1, 10 + i, {kind: "skill", detail: `s${i}`}));
 
-    test("three skill loads stay single, four fold into one group", () => {
-        expect(turns(loads(3))).toHaveLength(3);
-        const folded = turns(loads(4));
+    test("two skill loads stay single, three fold into one group", () => {
+        expect(turns(loads(2))).toHaveLength(2);
+        const folded = turns(loads(3));
         expect(folded).toHaveLength(1);
-        expect(folded[0]).toMatchObject({kind: "group", title: "4 skills loaded"});
-        expect(folded[0].turns).toHaveLength(4);
+        expect(folded[0]).toMatchObject({kind: "group", title: "3 skills loaded"});
+        expect(folded[0].turns).toHaveLength(3);
     });
 
     test("a group of the same card counts the settled ones", () => {
@@ -85,6 +85,92 @@ describe("folding runs", () => {
     test("a different turn in the middle ends the run", () => {
         const got = turns([...loads(2), message(9, 11.5, {text: "hm"}), ...loads(4).slice(2).map((m) => ({...m, id: m.id + 20}))]);
         expect(got.map((t) => t.kind)).toEqual(["skill", "skill", "message", "skill", "skill"]);
+    });
+});
+
+describe("marks of one family", () => {
+    const registry = {
+        groups: [],
+        families: [
+            {key: "tasks", title: "Task moves"},
+            {key: "memories", title: "Memory changes"},
+        ],
+        kinds: [
+            {key: "task_moves", family: "tasks", group: "work", turns: [], messages: [], covers: [], shown: true},
+            {key: "memories", family: "memories", group: "reminders", turns: [], messages: [], covers: [], shown: true},
+        ],
+    };
+    const move = (id, seconds, label = `Task ${id} started`) => card(id, seconds, {kind: "card", shows: "task_moves"}, label);
+    const memory = (id, seconds) => card(id, seconds, {kind: "card", shows: "memories"}, `Fact ${id} saved`);
+    const said = (id, seconds) => message(id, seconds, {text: "go on"});
+
+    test("three of one family standing together fold into one group mark naming the family and the count, and one worker's marks fold by the worker", async () => {
+        const {store} = await import("../src/state/store.js");
+        store.spec = {marks: registry};
+        const [group] = turns([move(1, 1, "Task 1 started"), move(2, 2, "Task 2 completed"), move(3, 3, "Task 3 paused")]);
+        expect([group.kind, group.title, group.turns.map((t) => t.id)]).toEqual(["group", "3 task moves", [1, 2, 3]]);
+        const worker = (id, seconds) => card(id, seconds, {kind: "card", worker: "Mr. Eames", shows: "task_moves"}, `step ${id}`);
+        expect(turns([worker(4, 4), worker(5, 5), worker(6, 6)])[0].title).toBe("Mr. Eames: 3 events");
+        store.spec = null;
+    });
+
+    test("a mark arriving after a bubble stays apart, of the same family or another", async () => {
+        const {store} = await import("../src/state/store.js");
+        store.spec = {marks: registry};
+        const got = turns([move(1, 1), move(2, 2), move(3, 3), said(4, 4), memory(5, 5), move(6, 6)]);
+        expect(got.map((t) => (t.kind === "group" ? t.title : t.id))).toEqual(["3 task moves", 4, 5, 6]);
+        store.spec = null;
+    });
+});
+
+describe("a sequence run's steps", () => {
+    const step = (id, seconds, n) => card(id, seconds, {kind: "card", shows: "sequence_steps", row: "sequences:5", run: "5@2026-10-27T10:00:00", step: n, run_title: "Sequence 5, Review"}, `Sequence 5, Review: moved on to step ${n + 1}`);
+    const said = (id, seconds) => message(id, seconds, {text: "go on"});
+
+    test("a step arriving late and out of order joins its run's group near the foot in step order, and the group says it has news", () => {
+        const got = turns([step(1, 1, 0), step(2, 2, 1), said(3, 3), step(4, 4, 3), said(5, 5), step(6, 6, 2)]);
+        expect(got.map((t) => (t.kind === "group" ? t.title : t.id))).toEqual(["Sequence 5, Review: 4 steps", 3, 5]);
+        expect(got[0].turns.map((t) => t.data.step)).toEqual([0, 1, 2, 3]);
+        expect(got[0].data.news).toBe(2);
+    });
+
+    test("a step whose run's marks are past ten bubbles starts a continued group at the foot, naming and opening the earlier one", () => {
+        const bubbles = Array.from({length: 10}, (_, i) => said(10 + i, 10 + i));
+        const got = turns([step(1, 1, 0), step(2, 2, 1), step(3, 3, 2), ...bubbles, step(30, 30, 3)]);
+        const [earlier, last] = [got[0], got.at(-1)];
+        expect([earlier.title, earlier.turns.length]).toEqual(["Sequence 5, Review: 3 steps", 3]);
+        expect([last.kind, last.title, last.turns.map((t) => t.data.step), last.data.continues]).toEqual(["group", "Sequence 5, Review, continued", [3], earlier.key]);
+        expect(got).toHaveLength(12);
+    });
+});
+
+describe("a group mark", () => {
+    test("shows the steps that joined it since it was last opened, and a continued part opens the part it continues", async () => {
+        const {createApp, h, nextTick} = await import("vue");
+        const {store} = await import("../src/state/store.js");
+        const {default: TurnGroup} = await import("../src/chat/TurnGroup.vue");
+        const view = await import("../src/platform/view.js");
+        const step = (id, n) => ({key: `messages:${id}`, kind: "card", id, time: id, data: {label: `step ${n}`, step: n}});
+        const group = {key: "group:messages:30", kind: "group", time: 9, title: "Sequence 5, Review, continued", icon: "list", data: {news: 2, continues: "group:messages:1", markIcon: "sequence"}, turns: [step(30, 3)]};
+        const host = document.body.appendChild(document.createElement("div"));
+        const earlier = document.body.appendChild(document.createElement("div"));
+        earlier.dataset.ref = "group:messages:1";
+        earlier.scrollIntoView = () => {};
+        const app = createApp({render: () => h(TurnGroup, {turn: group})});
+        app.provide("scope", {env: "", api: {}, rows: () => [], loaded: () => true});
+        app.directive("tip", {});
+        app.mount(host);
+        await nextTick();
+        expect(host.querySelector(".mark .news").textContent).toBe("2 new");
+        host.querySelector(".mact").click();
+        expect(store.focus).toBe("group:messages:1");
+        host.querySelector(".mark").click();
+        await nextTick();
+        expect(host.querySelector(".mark .news")).toBeNull();
+        expect(view.focusTurn).toBeTypeOf("function");
+        app.unmount();
+        host.remove();
+        earlier.remove();
     });
 });
 

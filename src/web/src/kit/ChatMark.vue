@@ -91,7 +91,7 @@ const sign = computed(() => {
     return outcome.value === "good" ? "tick" : "";
 });
 const status = computed(() =>
-    Boolean(props.mark.figure || took.value || props.mark.docked || props.mark.stopping || sign.value || props.mark.settled)
+    Boolean(props.mark.figure || took.value || props.mark.docked || props.mark.stopping || sign.value || props.mark.settled || props.mark.news)
 );
 const hover = computed(() => [props.mark.title, props.mark.time ? clock(props.mark.time) : ""].filter(Boolean).join(" · "));
 const tint = computed(() => ({
@@ -165,6 +165,9 @@ const tint = computed(() => ({
                     </template>
                     <template v-if="mark.stopping">
                         <span>Stopping</span>
+                    </template>
+                    <template v-if="mark.news">
+                        <span class="news">{{ mark.news }}</span>
                     </template>
                     <template v-if="sign === 'running'">
                         <span class="spin" aria-label="Still running"></span>
@@ -539,6 +542,11 @@ const tint = computed(() => ({
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* what joined a group mark since it was last opened */
+.news {
+    color: var(--accent-text);
 }
 
 .settled {

@@ -1,5 +1,5 @@
 import {withoutChips} from "../text/words.js";
-import {cardLook, visibleIn} from "./chatVisibility.js";
+import {cardLook, familyOf, visibleIn} from "./chatVisibility.js";
 import {refOf, seconds} from "./row.js";
 import {meta} from "./tables.js";
 
@@ -99,6 +99,9 @@ const SYSTEM_TURNS = {
             row: card.row,
             visitor: card.visitor,
             proof_task: card.proof_task || 0,
+            run: card.run || "",
+            step: card.step || 0,
+            run_title: card.run_title || "",
         },
     }),
     peer: (card) => ({kind: "message", data: {peer: card.peer, sent_to: card.sent_to, failure: card.failure || ""}}),
@@ -182,62 +185,108 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
     return {turns: grouped(turns), keys};
 }
 
-const GROUP_FROM = 4;
+// Marks of one family standing together fold into one group mark from this many
+const GROUP_FROM = 3;
+// a sequence's later step joins its run's marks while they are among this many of the chat's latest bubbles; further back it starts its own
+const JOIN_WITHIN = 10;
+
+const settledWords = (run) => {
+    const settled = run.filter((r) => r.data.settled);
+    return settled.length ? `, ${settled.length} ${settled[0].data.settled}` : "";
+};
+
+// what a card's marks fold by: one worker's own marks, else the family its kind belongs to, else the very same mark repeated
+function cardGroup(t) {
+    const look = {icon: t.data.icon, tone: t.data.tone, color: t.data.color, group: t.data.group, markIcon: t.data.markIcon};
+    if (t.data.worker) return {...look, key: `worker:${t.data.worker}`, label: (n) => `${t.data.worker}: ${n} events`};
+    const family = familyOf(t.data.shows);
+    if (family) return {...look, key: `family:${family.key}`, label: (n, run) => `${n} ${family.title.toLowerCase()}${settledWords(run)}`};
+    return {...look, key: `card:${t.data.icon}:${t.data.label}`, label: (n, run) => `${n} × ${t.data.label}${settledWords(run)}`};
+}
+
 const GROUPS = {
     skill: () => ({key: "skill", icon: "book", markIcon: "skill", group: "agent", label: (n) => `${n} skills loaded`}),
     whisper: () => ({key: "whisper", icon: "rules", markIcon: "rule", group: "reminders", label: (n) => `${n} rules and reminders recalled`}),
     subagent: () => ({key: "subagent", icon: "agents", markIcon: "subagent", group: "agent", label: (n) => `${n} subagent updates`}),
-    card: (t) => ({
-        key: `card:${t.data.icon}:${t.data.label}`,
-        icon: t.data.icon,
-        tone: t.data.tone,
-        color: t.data.color,
-        group: t.data.group,
-        markIcon: t.data.markIcon,
-        label: (n, run) => {
-            const settled = run.filter((r) => r.data.settled);
-            return `${n} × ${t.data.label}${settled.length ? `, ${settled.length} ${settled[0].data.settled}` : ""}`;
-        },
-    }),
+    card: cardGroup,
 };
 const groupOf = (t) => (GROUPS[t.kind] ? GROUPS[t.kind](t) : null);
 
-function folded(run) {
-    const group = groupOf(run[0]);
-    const last = run[run.length - 1];
+function groupTurn(first, run, look, title, more = {}) {
     return {
-        key: `group:${run[0].key}`,
+        key: `group:${first.key}`,
         kind: "group",
         who: "agent",
-        time: last.time,
+        time: Math.max(...run.map((t) => t.time)),
         data: {
-            tone: run.every((t) => t.data.settled) ? "good" : group.tone || "",
-            color: group.color || "",
-            group: group.group || "",
-            markIcon: group.markIcon || "",
+            tone: run.every((t) => t.data.settled) ? "good" : look.tone || "",
+            color: look.color || "",
+            group: look.group || "",
+            markIcon: look.markIcon || "",
+            news: 0,
+            continues: "",
+            ...more,
         },
-        title: group.label(run.length, run),
+        title,
         text: "",
-        icon: group.icon,
+        icon: look.icon,
         turns: run,
     };
 }
 
+const folded = (run) => groupTurn(run[0], run, groupOf(run[0]), groupOf(run[0]).label(run.length, run));
+
+// A sequence run's marks, gathered wherever they arrive: in step order, one group mark from three of them or once it continues an earlier part
+const runOf = (t) => (t.kind === "card" && t.data.run) || "";
+const unitShown = (unit) => Boolean(unit.continues) || unit.turns.length >= GROUP_FROM;
+const unitKey = (unit) => (unitShown(unit) ? `group:${unit.turns[0].key}` : unit.turns[0].key);
+
+function unitTurns(unit) {
+    const inOrder = [...unit.turns].sort((a, b) => a.data.step - b.data.step || a.time - b.time);
+    if (!unitShown(unit)) return inOrder;
+    const first = unit.turns[0];
+    const title = unit.continues ? `${first.data.run_title}, continued` : `${first.data.run_title}: ${inOrder.length} steps`;
+    const look = {icon: first.data.icon, group: first.data.group, markIcon: "sequence"};
+    return [groupTurn(first, inOrder, look, title, {news: unit.news, continues: unit.continues})];
+}
+
+// a step joins its run's marks while they are among the latest bubbles, counted as news if other bubbles came in between; further back
+// it starts a part of its own at the bottom, naming the part it continues
+function gather(out, units, run, turn) {
+    const unit = units.get(run);
+    const at = unit ? out.indexOf(unit.place) : -1;
+    if (unit && out.length - at <= JOIN_WITHIN) {
+        if (at < out.length - 1) unit.news += 1;
+        unit.turns.push(turn);
+        return;
+    }
+    const place = {unit: {turns: [turn], news: 0, continues: unit ? unitKey(unit) : ""}};
+    place.unit.place = place;
+    units.set(run, place.unit);
+    out.push(place);
+}
+
 function grouped(turns) {
     const out = [];
+    const units = new Map();
     let run = [];
     const close = () => {
         out.push(...(run.length >= GROUP_FROM ? [folded(run)] : run));
         run = [];
     };
     for (const turn of turns) {
+        if (runOf(turn)) {
+            close();
+            gather(out, units, runOf(turn), turn);
+            continue;
+        }
         const key = groupOf(turn)?.key;
         if (!key || (run.length && groupOf(run[0]).key !== key)) close();
         if (key) run.push(turn);
         else out.push(turn);
     }
     close();
-    return out;
+    return out.flatMap((item) => (item.unit ? unitTurns(item.unit) : [item]));
 }
 
 // The main chat: the user's and the main agent's own rows; a worker's and a subagent's messages live in their own chats.

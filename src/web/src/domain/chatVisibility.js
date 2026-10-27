@@ -19,6 +19,12 @@ export const cardLook = (card, label = "") => {
     return {icon: kind.icon, tone: OUTCOME_TONES[card.outcome] || "", group: kind.group, markIcon: markIcon(kind.key, {...card, label})};
 };
 
+// the family a card's kind belongs to as its feature declares it, its key and title, or null for a kind the registry does not know
+export function familyOf(shows) {
+    const kind = kinds().find((row) => row.key === shows);
+    return (kind && (registry().families || []).find((family) => family.key === kind.family)) || null;
+}
+
 // the marks the chat hides until the user shows them
 export const defaultHidden = () => keysOf(kinds().filter((kind) => !kind.shown));
 

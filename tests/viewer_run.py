@@ -55,6 +55,14 @@ SETS = {
         "tests/taskWorkerMark.test.js",
         "tests/wholePlans.test.js",
     ),
+    "mark_groups": (
+        "tests/thread.test.js",
+        "tests/agentBrief.test.js",
+        "tests/systemCard.test.js",
+        "tests/markLines.test.js",
+        "tests/chatMarkSecondRound.test.js",
+        "tests/chatMarkDesign.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",
