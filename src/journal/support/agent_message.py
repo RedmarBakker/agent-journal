@@ -7,6 +7,6 @@ from journal.support.operation import Operation
 class AgentMessage(Operation):
     """A message the agent sends another agent or one of its subagents with its program's own tool."""
 
-    kind = "agent message"
+    operation_type = "agent message"
     receiver: str
     text: str

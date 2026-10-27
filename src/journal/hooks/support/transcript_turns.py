@@ -22,7 +22,7 @@ class TranscriptTurns:
         self._read_lock = threading.Lock()
 
     def events(self, hook: Hook, environment: Environment) -> list[AgentEvent]:
-        if hook.kind == HookType.MESSAGE_DISPLAY:
+        if hook.hook_type == HookType.MESSAGE_DISPLAY:
             return []
         with self._read_lock:
             saved = self.providers.lookup(hook.provider).authored_texts(self.config.root, hook.session, self._read.get(hook.session, START_POSITION))

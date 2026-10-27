@@ -19,7 +19,7 @@ class RuleCommand(RecordCommand):
         self.repository = rules
 
     def for_caller(self, row: Rule, caller: Caller) -> Rule:
-        return row.created(caller.actor.kind == ActorType.AGENT)
+        return row.created(caller.actor.actor_type == ActorType.AGENT)
 
     def new(self, args: Namespace) -> Rule:
         return Rule(text=args.text, reason=args.reason, keywords=self.keywords(args))

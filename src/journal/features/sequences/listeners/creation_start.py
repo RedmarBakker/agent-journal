@@ -14,7 +14,7 @@ class CreationStart(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         row = event.model
-        if event.actor.kind != ActorType.AGENT or not isinstance(row, Scoped):
+        if event.actor.actor_type != ActorType.AGENT or not isinstance(row, Scoped):
             return
         moment = f"{type(row).__name__.lower()}.created"
         for sequence in self.sequences.triggered_sequences(moment):

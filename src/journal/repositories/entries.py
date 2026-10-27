@@ -14,7 +14,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 ENTRIES = Query.build(Entry)
 DISPATCHES = ENTRIES.filter_alternatives(
     ENTRIES.filter_listed("kind", ("SubagentStarted", "SubagentEnded", "Stop", "SessionStarted", "SessionEnded", "TurnFailed")),
-    ENTRIES.filter_listed("kind", ("ToolStarting", "ToolFinished", "ToolFailed")).filter_listed("data->call->operation->kind", (SubagentDispatch.kind, AgentMessage.kind)),
+    ENTRIES.filter_listed("kind", ("ToolStarting", "ToolFinished", "ToolFailed")).filter_listed("data->call->operation->kind", (SubagentDispatch.operation_type, AgentMessage.operation_type)),
     ENTRIES.filter(kind="PromptSubmitted").filter_prefix("data->prompt", "<task-notification>"),
 ).inlined()
 NUDGE = "nudge"

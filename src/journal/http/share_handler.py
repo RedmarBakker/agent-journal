@@ -80,7 +80,7 @@ class ShareHandler(PooledHandler):
 
     def send(self, answer: ShareAnswer) -> None:
         self.send_response(answer.status)
-        for name, value in {**HEADERS, "Content-Type": answer.kind, **answer.headers, "Content-Length": str(len(answer.body))}.items():
+        for name, value in {**HEADERS, "Content-Type": answer.content_type, **answer.headers, "Content-Length": str(len(answer.body))}.items():
             self.send_header(name, value)
         self.end_headers()
         if self.command != "HEAD":

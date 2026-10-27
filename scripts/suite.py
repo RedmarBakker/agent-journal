@@ -80,9 +80,15 @@ def progress_shown(shards: list[tuple[subprocess.Popen, Path]]) -> None:
         finished, total = sum(done for done, _ in counts), sum(whole for _, whole in counts)
         percent = 100 * finished // total if total else 0
         if total and (percent != shown or time.monotonic() - last_shown >= HEARTBEAT_SECONDS):
-            print(progress_line(finished, total), flush=True)
+            print(ending_line(shards) if finished >= total and percent == shown else progress_line(finished, total), flush=True)
             shown, last_shown = percent, time.monotonic()
         time.sleep(PROGRESS_SECONDS)
+
+
+# every test has finished and the run waits for shards still ending, named so a card at 100% says what it waits on
+def ending_line(shards: list[tuple[subprocess.Popen, Path]]) -> str:
+    running = [str(index) for index, (process, _) in enumerate(shards) if process.poll() is None]
+    return f"every test finished; waiting for shard {', '.join(running)} to end"
 
 
 def progress_line(finished: int, total: int) -> str:
@@ -123,6 +129,7 @@ def whole_suite() -> int:
             print(line)
         summary = ", ".join(f"{totals[name]} {name}" for name in ("failed", "errors", "passed", "skipped") if totals.get(name))
         print(f"{summary or 'no tests ran'} in {time.monotonic() - began:.2f}s")
+        print("waiting for the test commandments judging tests/", flush=True)
         sinful = commandments_judged(judging)
         return 1 if sinful or totals.get("failed") or totals.get("errors") or not totals.get("passed") or any(process.returncode not in (0, 5) for process, _ in shards) else 0
 

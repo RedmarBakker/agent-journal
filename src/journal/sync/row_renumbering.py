@@ -110,7 +110,7 @@ class RowRenumbering:
     def restamped(db, local: str, person: str) -> None:
         for model in RowRenumbering.stored_models():
             for column in Schema.columns(model):
-                if column.kind is Actor:
+                if column.column_type is Actor:
                     db.execute(f"UPDATE {model.storage()} SET {column.name} = ? WHERE {column.name} = ?", (person, local))
 
     @staticmethod

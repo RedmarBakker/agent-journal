@@ -1814,6 +1814,7 @@ tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open, in progress o
 tasks.park_the_wait  [tasks]  {{what}} has about {{seconds}} seconds left, too long to wait. park it and carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why}}. `journal task resume {{n}}` if it can go on now
+tasks.paused_task_while_waiting  [tasks]  while you wait for {{what}}, no task is open but task {{n}}, which you paused: {{why}}. `journal task resume {{n}}` and work on it meanwhile, or say why it cannot go on; you are informed when the wait ends
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks}}. resume one that can go on with `journal task resume <n>`
 tasks.paused_wait_ended  [tasks]  what paused task {{n}} waited on came: {{reason}}. `journal task resume {{n}}`
 tasks.paused_work_to_choose  [tasks]  paused work to take up: {{tasks}}{{blocked}}. take one up with `journal task resume <n>`, or go on with the next open task with `journal task skip-paused`
@@ -1913,7 +1914,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-280 nudges
+281 nudges
 
 $ agent: journal worker list
 exit 0

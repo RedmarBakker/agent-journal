@@ -25,7 +25,7 @@ class WorkerTaskChanges(Listener[RowEvent]):
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskClosed) and event.outcome in RELEASING:
             self.released(event)
-        if isinstance(event, TaskClosed) and event.outcome == PAUSED and Actor.parse(event.actor).kind in DROPPING_ACTORS:
+        if isinstance(event, TaskClosed) and event.outcome == PAUSED and Actor.parse(event.actor).actor_type in DROPPING_ACTORS:
             self.dropped(event)
         if isinstance(event, TaskClosed) and event.outcome == BLOCKED:
             self.tasks.unqueued_task(self.tasks.find(event.task_id), Actor.system())

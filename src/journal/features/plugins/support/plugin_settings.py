@@ -37,7 +37,7 @@ class PluginSettings:
         return settings
 
     def configure(self, name: str, key: str, value: str, actor: Actor) -> Plugin:
-        if actor.kind != ActorType.USER:
+        if actor.actor_type != ActorType.USER:
             raise Rejection("only the user configures a plugin")
         plugin = self.plugins.lookup(name)
         setting = next((s for s in self.schema(plugin) if s.key == key), None)

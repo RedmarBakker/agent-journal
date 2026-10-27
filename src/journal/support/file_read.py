@@ -9,7 +9,7 @@ from journal.support.operation import Operation
 class FileRead(Operation):
     """A file read by the program's own read tool, all of it or a part."""
 
-    kind = "file read"
+    operation_type = "file read"
     path: str
     partial: bool
 

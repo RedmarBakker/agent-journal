@@ -6,7 +6,7 @@ from typing import ClassVar
 class Operation:
     """What a tool call does, as its provider decoded it from the program's own tool and input: the journal reads the operation, never the tool's name."""
 
-    kind: ClassVar[str]
+    operation_type: ClassVar[str]
 
     def line(self) -> str:
         return ""
@@ -39,7 +39,7 @@ class Operation:
         return ""
 
     def as_data(self) -> dict:
-        return {"kind": self.kind, **asdict(self)}
+        return {"kind": self.operation_type, **asdict(self)}
 
     @classmethod
     def parsed(cls, data: dict) -> "Operation":

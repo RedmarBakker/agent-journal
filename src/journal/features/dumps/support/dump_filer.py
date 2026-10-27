@@ -213,7 +213,7 @@ class DumpFiler:
 
     @staticmethod
     def require_user(actor: Actor, subject: str) -> None:
-        if actor.kind == ActorType.AGENT:
+        if actor.actor_type == ActorType.AGENT:
             raise Rejection(f"only the user {subject}")
 
     def entry(self, text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:

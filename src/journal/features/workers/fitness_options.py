@@ -4,7 +4,7 @@ from journal.support.option import USER, Option
 class FitnessOptions:
     """The options of the fitness the workers feature measures."""
 
-    WARNINGS = Option("workers.fitness_warnings", "Fitness: warnings to the agent", "Whether the agent is sent the lines of the fitness measures and its writes wait on them. Off: the measures are still worked out and shown, no measure makes a write wait, and the mode refusals and the messages feature's lines still reach the agent", False, kind="switch", setter=USER)
+    WARNINGS = Option("workers.fitness_warnings", "Fitness: warnings to the agent", "Whether the agent is sent the lines of the fitness measures and its writes wait on them. Off: the measures are still worked out and shown, no measure makes a write wait, and the mode refusals and the messages feature's lines still reach the agent", False, option_type="switch", setter=USER)
     ORCHESTRATOR_HIGH_ENTRY = Option("workers.orchestrator_high_entry", "Fitness: orchestrator band turns high at", "The worker queue at which the orchestrator's band becomes high", 0.8)
     ORCHESTRATOR_HIGH_EXIT = Option("workers.orchestrator_high_exit", "Fitness: orchestrator band leaves high under", "The worker queue under which the orchestrator's band leaves high", 0.65)
     ORCHESTRATOR_LOW_ENTRY = Option("workers.orchestrator_low_entry", "Fitness: orchestrator band turns low under", "The worker queue under which the orchestrator's band becomes low", 0.5)

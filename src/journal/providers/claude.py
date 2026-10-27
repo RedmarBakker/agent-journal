@@ -260,26 +260,26 @@ class Claude(Provider):
 
     @staticmethod
     def is_background_shell_call(hook: Hook) -> bool:
-        return hook.kind == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
+        return hook.hook_type == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
 
     @staticmethod
     def foreground_run(hook: Hook, decision: Decision) -> Response:
-        answer = {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": {**hook.input, "run_in_background": False}}
+        answer = {"hookEventName": hook.hook_type.value, "permissionDecision": "allow", "updatedInput": {**hook.input, "run_in_background": False}}
         return Response(200, {"hookSpecificOutput": {**answer, "additionalContext": decision.context} if decision.context else answer})
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
-        if hook.kind == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
+        if hook.hook_type == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
             return self.shell_refused(hook, decision)
-        if hook.kind == HookType.PRE_TOOL_USE:
-            return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
-        if hook.kind == HookType.USER_PROMPT:
+        if hook.hook_type == HookType.PRE_TOOL_USE:
+            return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.hook_type.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
+        if hook.hook_type == HookType.USER_PROMPT:
             return Response(409, {"answer": {"decision": "block", "reason": decision.reason}, "error": decision.reason})
         return super().refused(hook, decision)
 
     @staticmethod
     def shell_refused(hook: Hook, decision: Decision) -> Response:
         printing = {**hook.input, "command": RefusalCommand.build(decision.reason)}
-        return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": printing}}, "error": decision.reason})
+        return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.hook_type.value, "permissionDecision": "allow", "updatedInput": printing}}, "error": decision.reason})
 
     def output_session(self, output: str, err: str) -> str:
         return next((row.session for row in ClaudeStreamRow.lines(output) if row.session), "")

@@ -44,7 +44,7 @@ from journal.support.time_source import TimeSource
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
 HISTORY_ENTRIES = 5
 TOOL_KINDS = ("ToolStarting", "ToolFinished")
-OPERATION_VERBS = {FileRead.kind: "reading a file", FileEdit.kind: "editing files", FileWrite.kind: "writing a file", SubagentDispatch.kind: "waiting for a subagent", SkillLoad.kind: "reading a skill", AgentMessage.kind: "messaging an agent", UserQuestion.kind: "asking you"}
+OPERATION_VERBS = {FileRead.operation_type: "reading a file", FileEdit.operation_type: "editing files", FileWrite.operation_type: "writing a file", SubagentDispatch.operation_type: "waiting for a subagent", SkillLoad.operation_type: "reading a skill", AgentMessage.operation_type: "messaging an agent", UserQuestion.operation_type: "asking you"}
 # how far back the fitness timeline reaches, and the most points it reads
 TIMELINE_HOURS = 6
 TIMELINE_POINTS = 200
@@ -188,7 +188,7 @@ class AgentActivity:
             return call.parts[0].text
         if isinstance(call.operation, UndecodedTool):
             return f"using {call.operation.name}"
-        return OPERATION_VERBS.get(call.operation.kind, "working")
+        return OPERATION_VERBS.get(call.operation.operation_type, "working")
 
     def described(self, state) -> str:
         return state.activity_text()

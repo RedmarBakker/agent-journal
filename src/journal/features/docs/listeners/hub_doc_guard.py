@@ -22,7 +22,7 @@ class HubDocGuard(Listener[Saving]):
 
     def handle(self, event: Saving) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or doc.is_new or event.actor.kind == ActorType.SYSTEM:
+        if not isinstance(doc, Doc) or doc.is_new or event.actor.actor_type == ActorType.SYSTEM:
             return
         prior = self.docs.find(doc.row_id)
         if not prior.is_on_hub() or not doc.is_edited_from(prior):
@@ -38,7 +38,7 @@ class HubDocGuard(Listener[Saving]):
             raise Rejection(refusal)
 
     def person(self, actor: Actor) -> int:
-        return int(actor.id) if self.hosting.is_hosted() and actor.kind == ActorType.USER and actor.id.isdigit() else self.account.user_number()
+        return int(actor.id) if self.hosting.is_hosted() and actor.actor_type == ActorType.USER and actor.id.isdigit() else self.account.user_number()
 
     def is_admin(self, person: int) -> bool:
         if person == self.account.user_number():

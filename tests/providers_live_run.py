@@ -186,7 +186,7 @@ def test_a_refused_stop_leads_to_work(live: App, provider: str):
     assert (live.config.root / "continued.txt").read_text().strip() == "amber", "the refusal led to the work the task names"
     with live.container.get(Scope).environment(MAIN):
         done = live.container.get(Tasks).find(task.id)
-    assert done.state == TaskState.COMPLETED and done.updater.kind == "agent", "the agent finished the task itself"
+    assert done.state == TaskState.COMPLETED and done.updater.actor_type == "agent", "the agent finished the task itself"
     assert not entries(live, "Stop")[-1].data.get("refused"), "the next stop was let through"
 
 

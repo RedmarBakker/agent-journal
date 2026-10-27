@@ -31,26 +31,26 @@ VERSION_CONTROL_CHANGE = "changes_version_control"
 class Classification:
     """What a shell command is and does, read from the command table: its kind, its effects, whether the line alone leaves its meaning uncertain, and the activity the table shows it as; a row that names a kind replaces the effects, one that names none adds to them."""
 
-    kind: str = UNKNOWN
+    command_type: str = UNKNOWN
     effects: tuple[str, ...] = ()
     uncertain: bool = False
     label: str = ""
 
     @classmethod
     def parsed(cls, data: dict) -> "Classification":
-        return cls(kind=data.get("kind", UNKNOWN), effects=tuple(data.get("effects", ())), uncertain=bool(data.get("uncertain")), label=data.get("label", ""))
+        return cls(command_type=data.get("command_type", data.get("kind", UNKNOWN)), effects=tuple(data.get("effects", ())), uncertain=bool(data.get("uncertain")), label=data.get("label", ""))
 
     @classmethod
     def union(cls, classifications: Iterable["Classification"]) -> "Classification":
         parts = list(classifications)
         if not parts:
             return cls()
-        kind = min((part.kind for part in parts), key=lambda kind: KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER))
-        return cls(kind=kind, effects=tuple(sorted({effect for part in parts for effect in part.effects})), uncertain=any(part.uncertain for part in parts), label=next((part.label for part in sorted(parts, key=lambda part: part.kind != kind) if part.label), ""))
+        kind = min((part.command_type for part in parts), key=lambda kind: KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER))
+        return cls(command_type=kind, effects=tuple(sorted({effect for part in parts for effect in part.effects})), uncertain=any(part.uncertain for part in parts), label=next((part.label for part in sorted(parts, key=lambda part: part.command_type != kind) if part.label), ""))
 
     def with_row(self, row: TableRow) -> "Classification":
-        effects = row.effects if row.kind else (*self.effects, *row.effects)
-        return replace(self, kind=row.kind or self.kind, effects=tuple(sorted(set(effects))), uncertain=self.uncertain or row.uncertain)
+        effects = row.effects if row.command_type else (*self.effects, *row.effects)
+        return replace(self, command_type=row.command_type or self.command_type, effects=tuple(sorted(set(effects))), uncertain=self.uncertain or row.uncertain)
 
     def with_effect(self, effect: str) -> "Classification":
         return replace(self, effects=tuple(sorted({*self.effects, effect})))
@@ -61,23 +61,23 @@ class Classification:
 
     @property
     def is_read_kind(self) -> bool:
-        return set(self.effects) <= SHOWN_READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
+        return set(self.effects) <= SHOWN_READ_EFFECTS and (self.is_search or self.command_type in READ_KINDS and READS in self.effects)
 
     @property
     def is_test_run(self) -> bool:
-        return self.kind == TEST_RUN
+        return self.command_type == TEST_RUN
 
     @property
     def is_long_run(self) -> bool:
-        return self.kind in (TEST_RUN, BUILD)
+        return self.command_type in (TEST_RUN, BUILD)
 
     @property
     def is_search(self) -> bool:
-        return self.kind == SEARCH
+        return self.command_type == SEARCH
 
     @property
     def is_harmless(self) -> bool:
-        return self.kind == READ and not self.effects
+        return self.command_type == READ and not self.effects
 
     @property
     def changes_version_control(self) -> bool:
@@ -85,8 +85,8 @@ class Classification:
 
     @property
     def is_writing_script(self) -> bool:
-        return self.kind == PROCESS and self.uncertain and WRITES in self.effects
+        return self.command_type == PROCESS and self.uncertain and WRITES in self.effects
 
     @property
     def is_write(self) -> bool:
-        return self.kind != JOURNAL and (bool(FILE_CHANGING_EFFECTS & set(self.effects)) or self.uncertain)
+        return self.command_type != JOURNAL and (bool(FILE_CHANGING_EFFECTS & set(self.effects)) or self.uncertain)

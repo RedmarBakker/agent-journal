@@ -100,7 +100,7 @@ class DocCommand(Command):
 
     def revisions(self, args: Namespace, caller: Caller) -> int:
         for revision in self.doc_revisions.document_revisions(self.docs.find(args.n)):
-            print(f"{revision.number:>3}  {revision.creation_time.astimezone():%Y-%m-%d %H:%M}  {revision.creation_actor.kind.value:<6} {revision.change}")
+            print(f"{revision.number:>3}  {revision.creation_time.astimezone():%Y-%m-%d %H:%M}  {revision.creation_actor.actor_type.value:<6} {revision.change}")
         return 0
 
     def revision(self, args: Namespace, caller: Caller) -> int:

@@ -13,7 +13,7 @@ class Hook:
 
     RESPONSE_CHARACTERS = 4000
 
-    kind: HookType
+    hook_type: HookType
     session: str
     environment: str
     provider: str = "claude"
@@ -45,7 +45,7 @@ class Hook:
         return self.worker is not None or self.verifier is not None or self.reviewer is not None
 
     def is_researcher(self) -> bool:
-        return bool(self.subagent) and self.kind in RESEARCHER_KINDS
+        return bool(self.subagent) and self.hook_type in RESEARCHER_KINDS
 
     @property
     def researcher_session(self) -> str:
@@ -68,7 +68,7 @@ class Hook:
         return replace(self, silence_start=start)
 
     def key(self) -> str:
-        return f"hook:{self.session}:{self.kind.value}:{self.firing}" if self.firing else ""
+        return f"hook:{self.session}:{self.hook_type.value}:{self.firing}" if self.firing else ""
 
     def stored(self) -> dict:
         if "tool_response" not in self.body:

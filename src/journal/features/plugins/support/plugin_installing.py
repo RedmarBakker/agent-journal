@@ -232,7 +232,7 @@ class PluginInstalling:
 
     @staticmethod
     def require_user(actor: Actor, does: str) -> None:
-        if actor.kind != ActorType.USER:
+        if actor.actor_type != ActorType.USER:
             raise Rejection(f"only the user {does} a plugin: journal plugin propose <folder or git address> shows them a card to install it themselves")
 
     def free(self, name: str) -> None:

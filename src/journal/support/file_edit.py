@@ -7,7 +7,7 @@ from journal.support.operation import Operation
 class FileEdit(Operation):
     """A change to files that are there: the paths it writes."""
 
-    kind = "file edit"
+    operation_type = "file edit"
     paths: tuple[str, ...]
     added: int = 0
     removed: int = 0

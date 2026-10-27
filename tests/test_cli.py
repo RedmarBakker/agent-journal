@@ -100,7 +100,7 @@ def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_fro
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
     with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.kind == "agent"
+        assert app.container.get(Reactions).all()[-1].creator.actor_type == "agent"
 
 
 def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks_it():
@@ -132,7 +132,7 @@ def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app:
     app.console().run(["message", "send", "hi"], Caller.user("main"))
     assert app.console().run(["message", "react", "1", "👍"], Providers().caller({"CLAUDECODE": "1"})).code == 0
     with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.kind == "user", "a shell outside the journal is the user's"
+        assert app.container.get(Reactions).all()[-1].creator.actor_type == "user", "a shell outside the journal is the user's"
 
 
 def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):

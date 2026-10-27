@@ -5997,7 +5997,7 @@ def test_the_card_for_a_question_the_user_answered_is_the_users(app: App):
     console.run(["question", "ask", "which colour?", "--options", "red", "blue"], AGENT)
     console.run(["question", "answer", "1", "red"], USER)
     card = [m for m in app.container.get(Messages).scoped() if m.author == "system"][-1]
-    assert card.text == "You answered question 1" and card.creator.kind == ActorType.USER, "the user's act is written as the user's"
+    assert card.text == "You answered question 1" and card.creator.actor_type == ActorType.USER, "the user's act is written as the user's"
     assert card.data["detail"] == "", "the mark says only that it was answered, never the answer"
 
 def test_a_document_is_written_anew_from_a_file(app: App, tmp_path):
@@ -6261,7 +6261,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
     tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls", "shell": "", "flag": ""}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls", "shell": "", "flag": ""}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"command_type": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -10382,7 +10382,7 @@ def test_a_tool_entry_records_the_calls_reading_beside_the_raw_input(app: App):
     assert saved.is_write() and not read.is_write() and read.recorded_call().work == "searching", "the write flag and the work word are read from the record, never from the input again"
     assert app.container.get(Entries).kind_entries("SessionStarted", 1)[0].recorded_call() == RecordedCall(), "an entry that records no call reads as an empty call with no operation"
     from journal.support.classification_table import ClassificationTable
-    assert [(part.classification.kind, part.classification.is_write) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == TABLE.version, "each part's classification and the table's version ride on the recorded call (task 3772)"
+    assert [(part.classification.command_type, part.classification.is_write) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == TABLE.version, "each part's classification and the table's version ride on the recorded call (task 3772)"
 
 
 def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wrappers_redirects_and_inner_commands(app: App):
@@ -10397,12 +10397,12 @@ def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wr
         "find . -name '*.pyc' -exec rm {} \\;": ("edit", ("deletes_files", "reads_files"), False), "echo $(rm x)": ("edit", ("deletes_files",), False),
         "eval 'rm x'": ("edit", ("deletes_files",), False), "black --check src": ("check", ("reads_files",), False), "./scripts/x.sh": ("unknown", (), False),
     }
-    found = {line: (classify(line).kind, classify(line).effects, classify(line).uncertain) for line in expected}
+    found = {line: (classify(line).command_type, classify(line).effects, classify(line).uncertain) for line in expected}
     assert found == expected, [(line, found[line]) for line in expected if found[line] != expected[line]]
     assert classify("sh -c 'rm -rf x'").is_write and classify("ssh host 'rm -rf /tmp/x'").effects == ("deletes_files", "reaches_network"), "a line handed to a shell or a host is read too"
     assert classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").uncertain and "writes_files" in classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").effects, "interpreter code is uncertain, its writes read by content"
     assert not classify("./scripts/x.sh").is_write and classify("git checkout main").is_write and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
-    assert classify("cd x && make test").kind == "test run" and classify("Get-ChildItem -Recurse").kind == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
+    assert classify("cd x && make test").command_type == "test run" and classify("Get-ChildItem -Recurse").command_type == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
     assert app.container.get(CommandClassifier) is app.container.get(CommandClassifier), "the table is read once"
 
 
@@ -10420,7 +10420,7 @@ def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_w
     assert tests.test_runs() == ["python3 -m pytest -q | tail -3"] and not tests.writes and tests.work == "running" and tests.table_version == classifier.version, "a test run is a test run by its classification, never a write"
     assert PipedTestRun.piped_filter(tests.parts, {}) == "tail", "and the guard reads it piped into a filter from the part's classification"
     unknown = call("./scripts/build.sh")
-    assert not unknown.writes and unknown.parts[0].classification.kind == "unknown", "a program the table does not know is no write"
+    assert not unknown.writes and unknown.parts[0].classification.command_type == "unknown", "a program the table does not know is no write"
     assert not policy.takes_no_reader("./scripts/build.sh") and not labels.is_reading("./scripts/build.sh"), "and under the mark rules it is a run like any other, never a quiet read"
     assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
     old = RecordedCall.parsed({"command": "rm x", "parts": [{"text": "rm x", "is_journal": False, "writes": True, "files": ["x"], "reads_output": False, "read_shape": "rm x"}], "writes": True, "written_paths": ["x"]})
@@ -10450,7 +10450,7 @@ def test_an_installed_and_a_fresh_journal_read_the_same_table_and_a_projects_own
     (project / ".journal" / "command_table.json").write_text(json.dumps({"programs": {"deploy-site": {"kind": "build", "effects": ["reads_files", "makes_files", "runs_long"], "label": "deploying"}}}))
     table = ClassificationTable(Config.rooted(project), TableSchema())
     classifier = CommandClassifier(table, CommandShape(table))
-    assert table.faults == [] and classifier.classify("deploy-site --prod").kind == "build" and classifier.classify("deploy-site").label == "deploying" and table.version == json.loads(TABLE.read_text())["version"], "a project's own row is read beside the shipped ones, the version still the shipped table's"
+    assert table.faults == [] and classifier.classify("deploy-site --prod").command_type == "build" and classifier.classify("deploy-site").label == "deploying" and table.version == json.loads(TABLE.read_text())["version"], "a project's own row is read beside the shipped ones, the version still the shipped table's"
     (project / ".journal" / "command_table.json").write_text(json.dumps({"programs": {"deploy-site": {"kind": 3}}}))
     refused = ClassificationTable(Config.rooted(project), TableSchema())
     assert refused.faults == ["table.programs.deploy-site.kind: not string"] and "deploy-site" not in refused.programs, "a project's table off its schema is left out, its faults kept"
@@ -10481,7 +10481,7 @@ def test_the_classifier_costs_microseconds_a_command_reads_the_table_once_and_a_
     assert [line for line in ("timeout 300 python3 -m pytest -q", "cd web && npm run build 2>&1 | tail -3", "REPLAY_FREEZE=1 pytest tests/a.py") if not readers.read_part(stored, line)] == [], "a reader stored under the old rules reads the runs it read"
     assert not readers.read_part(stored, "npm test") and not readers.read_part(stored, "git log"), "and no other"
     powershell = Codex().call("Bash", {"command": ["pwsh", "-c", "Remove-Item a; Set-Content b"]}, frozenset(), classifier)
-    assert [part.text for part in powershell.parts] == ["pwsh -c 'Remove-Item a; Set-Content b'"] and powershell.parts[0].classification.kind == "unknown" and not powershell.writes, "a PowerShell line is carried with its shell, read whole and unknown"
+    assert [part.text for part in powershell.parts] == ["pwsh -c 'Remove-Item a; Set-Content b'"] and powershell.parts[0].classification.command_type == "unknown" and not powershell.writes, "a PowerShell line is carried with its shell, read whole and unknown"
     script = Codex().call("Bash", {"command": ["python3", "-c", "open('a/b', 'w').write('x')"]}, frozenset(), classifier)
     assert script.writes and script.parts[0].classification.is_writing_script, "code handed to python3 is never split as a shell line"
 
@@ -10499,7 +10499,7 @@ def test_generated_commands_are_read_by_every_command_reader_as_their_forms_say(
     began, generator, found = timing.monotonic(), Generator(seed=7), {}
     for n, command in enumerate(generator.commands(GENERATED_COMMANDS)):
         classification = classifier.classify_line(command.text)
-        readings = {"classifier": (classification.kind, classification.effects, classification.uncertain) == (command.expected.kind, command.expected.effects, command.expected.uncertain),
+        readings = {"classifier": (classification.command_type, classification.effects, classification.uncertain) == (command.expected.command_type, command.expected.effects, command.expected.uncertain),
                     "writes": Claude().call("Bash", {"command": command.text}, frozenset(), classifier).writes == command.expected.is_write,
                     "splitter": len([part for part in Chain.parts(command.text) if part.recorded]) == command.parts}
         for form, text in command.forms:
@@ -10589,7 +10589,7 @@ def test_a_stored_call_keeps_its_parts_fields_and_its_doing_labels_stay_as_histo
     from journal.support.command_part import CommandPart
     from journal.support.command_text import CommandText
     stored = CommandPart.parsed({"text": "journal output read 7 | tail", "is_journal": True, "writes": False, "files": [], "reads_output": True, "read_shape": "journal output read <output> | tail"})
-    assert (stored.writes, stored.files, stored.reads_output, stored.read_shape, stored.classification.kind, stored.shape) == (False, (), True, "journal output read <output> | tail", "unknown", ""), "a part stored before reads back with its own fields"
+    assert (stored.writes, stored.files, stored.reads_output, stored.read_shape, stored.classification.command_type, stored.shape) == (False, (), True, "journal output read <output> | tail", "unknown", ""), "a part stored before reads back with its own fields"
     fresh = Claude().call("Bash", {"command": "rm build/x.txt"}, frozenset(), CLASSIFIER).parts[0]
     assert fresh.writes == fresh.classification.is_write and fresh.files == ("build/x.txt",) and fresh.shape == "rm" and not fresh.reads_output, "a new part's writes and files are its classification's, beside it"
     from journal.features.shell.support.activity_label import ActivityLabel
@@ -12350,7 +12350,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
         assert arrived(received, 4)[-1]["message"]["content"].startswith('<cross-session-message from-name="the user"') and "and the tests" in received[-1]["message"]["content"], "the user's message in the worker's chat goes to the worker's own session"
         app.runtime().deferred.drain()
         chat = [m for m in messages.all() if m.thread == MessageThread.WORKER and m.session == "w-1" and m.text in ("the lexer too", "and the tests")]
-        assert [(m.text, m.creator.kind.value) for m in chat] == [("the lexer too", "agent"), ("and the tests", "user")] and len(messages.unread()) == unread, "both are messages of the worker's chat, each by its sender, and neither reaches the main agent's inbox"
+        assert [(m.text, m.creator.actor_type.value) for m in chat] == [("the lexer too", "agent"), ("and the tests", "user")] and len(messages.unread()) == unread, "both are messages of the worker's chat, each by its sender, and neither reaches the main agent's inbox"
         from journal.models.reaction import Reaction
         main = messages.recent(1)[-1]
         assert not Reaction(environment_id=1, emoji="👍").reacted_message(chat[0]).events and Reaction(environment_id=1, emoji="👍").reacted_message(main).events, "a face on a worker's message raises nothing for the main agent; one on the main chat's does"
@@ -21710,7 +21710,7 @@ def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_a
     with app.container.get(Scope).environment(MAIN):
         drafted = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal"), Actor.worker(3))
         others = app.container.get(Plans).save(drafted.ready(0.0), Actor.worker(3)).id
-        assert app.container.get(Plans).find(others).creation_actor.kind == ActorType.WORKER, "the plan is the worker's, saved with its actor"
+        assert app.container.get(Plans).find(others).creation_actor.actor_type == ActorType.WORKER, "the plan is the worker's, saved with its actor"
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
     choose = lambda approval: user_set(app, "workers.orchestrator_plan_approval", approval.value)
     choose(PlanApproval.ALL)

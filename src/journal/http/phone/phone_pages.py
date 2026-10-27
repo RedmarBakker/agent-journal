@@ -176,7 +176,7 @@ class PhonePages:
             return self.json(403, {"error": PHONE_REFUSAL})
         answer = self.router.page(requested)
         if isinstance(answer, FileResponse):
-            return ShareAnswer(answer.status, answer.body, answer.kind, {"Cache-Control": "private, max-age=3600", **APP_HEADERS, **FILE_HEADERS, **answer.headers()})
+            return ShareAnswer(answer.status, answer.body, answer.content_type, {"Cache-Control": "private, max-age=3600", **APP_HEADERS, **FILE_HEADERS, **answer.headers()})
         return ShareAnswer(answer.status, JsonOut.encoded(answer.body), "application/json", {"Cache-Control": "no-store", **APP_HEADERS})
 
     def waiting(self, request: PhoneRequest) -> ShareAnswer:

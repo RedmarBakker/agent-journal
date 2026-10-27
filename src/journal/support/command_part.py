@@ -39,4 +39,4 @@ class CommandPart:
 
     @property
     def is_git(self) -> bool:
-        return self.classification.kind == VERSION_CONTROL
+        return self.classification.command_type == VERSION_CONTROL

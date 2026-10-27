@@ -255,7 +255,7 @@ class Provider(ABC):
         return self.reply(hook, decision, "")
 
     def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
-        kind = hook.kind
+        kind = hook.hook_type
         if kind == HookType.STOP and (not decision.allowed or decision.context):
             return Response(200, {"decision": "block", "reason": "\n".join(part for part in (decision.reason, decision.context) if part)})
         if not decision.allowed:

@@ -17,7 +17,7 @@ class Option:
     title: str
     abstract: str
     default: object
-    kind: str = "number"
+    option_type: str = "number"
     unit: str = ""
     choices: tuple[str, ...] = ()
     provider: str = ""
@@ -41,15 +41,15 @@ class Option:
         return tuple(str(item) for item in value)
 
     def parsed(self, text: str) -> object:
-        if self.kind == "switch":
+        if self.option_type == "switch":
             if text.lower() not in SWITCH_VALUES:
                 raise Rejection(f"{self.key} is on or off: say on or off")
             return SWITCH_VALUES[text.lower()]
-        if self.kind == "choice" and text not in self.choices:
+        if self.option_type == "choice" and text not in self.choices:
             raise Rejection(f"{self.key} is one of {', '.join(self.choices)}")
-        if self.kind == "lines":
+        if self.option_type == "lines":
             return [line for line in text.split("\n") if line.strip()]
-        if self.kind == "number":
+        if self.option_type == "number":
             return self.number(text)
         return text
 

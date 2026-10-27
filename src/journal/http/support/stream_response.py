@@ -6,6 +6,6 @@ from typing import Iterator
 class StreamResponse:
     """A reply written chunk by chunk for as long as the client listens: the event stream."""
 
-    kind: str
+    content_type: str
     blocks: Iterator[bytes]
     status: int = 200

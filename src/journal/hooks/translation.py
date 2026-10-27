@@ -47,7 +47,7 @@ class Translation:
         self.entries, self.clock, self.uses, self.calls = entries, clock, uses, calls
 
     def event(self, hook: Hook, environment: Environment) -> AgentEvent:
-        placed = self.placed(self.EVENTS[hook.kind](hook, self.calls), hook, environment)
+        placed = self.placed(self.EVENTS[hook.hook_type](hook, self.calls), hook, environment)
         return self.turns.fold(self.uses.counted(placed.boot_delayed(hook.boot_wait_seconds).hooked(hook.key())))
 
     def returned(self, hook: Hook, environment: Environment) -> JournalReturned:

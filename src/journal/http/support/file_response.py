@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class FileResponse:
     """A file's bytes with their media type, where a Response would be JSON."""
 
-    kind: str
+    content_type: str
     body: bytes
     status: int = 200
 

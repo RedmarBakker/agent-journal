@@ -18,6 +18,7 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.support.tasks_data import TasksData
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.events.feature_data import FeatureData
@@ -99,11 +100,19 @@ class ExternalWait(Wait):
         next_open, remaining = tasks.next_open, self.remaining_seconds(tasks.wait_progress, event.time)
         if remaining is not None and not self.decided:
             return self.estimated(remaining, event.data, settings)
-        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
-            return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
+        meanwhile = self.meanwhile_lines(tasks)
+        if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and meanwhile:
+            return self.swap(replace(self, next_task_reported=True), *meanwhile)
         if self.reminder(tasks.wait_progress, event.time).is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
         return self.none()
+
+    def meanwhile_lines(self, tasks: TasksData) -> tuple[Nudge, ...]:
+        if tasks.next_open is not None:
+            return (TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=tasks.next_open.id, title=tasks.next_open.title),)
+        if tasks.paused:
+            return (TasksNudges.WAIT_PAUSED_TASK.create(what=self.focus, n=tasks.paused[0], why=tasks.first_pause_reason),)
+        return ()
 
     def reminder(self, progress: Mapping[str, WaitProgress], moment: float) -> Timeout:
         printing = any(progress[ref].output_time >= moment - CHECK_REMINDER.amount for ref in self.targets() if ref in progress)

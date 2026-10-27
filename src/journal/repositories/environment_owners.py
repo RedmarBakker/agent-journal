@@ -35,7 +35,7 @@ class EnvironmentOwners:
         return any(environment.is_shared() for environment in self.environments.matching(id=environment_id))
 
     def is_teammate(self, actor: Actor, environment_id: int) -> bool:
-        return actor.kind == ActorType.USER and (self.is_session(environment_id) or (self.is_shared(environment_id) and self.is_colleague(actor, environment_id)))
+        return actor.actor_type == ActorType.USER and (self.is_session(environment_id) or (self.is_shared(environment_id) and self.is_colleague(actor, environment_id)))
 
     def is_commenter(self, actor: Actor, environment_id: int) -> bool:
         return self.is_colleague(actor, environment_id) and not self.is_shared(environment_id)
@@ -49,7 +49,7 @@ class EnvironmentOwners:
         return names[0] if names and names[0] else f"user {number}"
 
     def is_colleague(self, actor: Actor, environment_id: int) -> bool:
-        if actor.kind != ActorType.USER:
+        if actor.actor_type != ActorType.USER:
             return False
         owner = self.owner_number(environment_id)
         return owner != 0 and actor.stamp != Actor.user(owner).stamp

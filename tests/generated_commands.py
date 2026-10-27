@@ -29,7 +29,7 @@ class Generator:
     def __init__(self, seed: int) -> None:
         fixture = json.loads(FIXTURE.read_text())
         self.table = json.loads(TABLE.read_text())
-        self.forms = [form for form in fixture["forms"] if self.expected(form).kind != "wrapper"]
+        self.forms = [form for form in fixture["forms"] if self.expected(form).command_type != "wrapper"]
         self.chains = fixture["chains"]
         self.rng = random.Random(seed)
 
@@ -46,4 +46,4 @@ class Generator:
 
     def expected(self, form: dict) -> Classification:
         found = classified(self.table, form["program"], form["subcommand"], form["form"])
-        return Classification(kind=found["kind"], effects=tuple(sorted(found["effects"])), uncertain=bool(found["uncertain"]))
+        return Classification(command_type=found["kind"], effects=tuple(sorted(found["effects"])), uncertain=bool(found["uncertain"]))

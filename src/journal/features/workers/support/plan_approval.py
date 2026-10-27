@@ -12,4 +12,4 @@ class PlanApproval(StrEnum):
     ALL = "can approve all plans"
 
     def allows(self, plan: Plan, approver: Actor) -> bool:
-        return self is PlanApproval.ALL or (self is PlanApproval.OWN and plan.creation_actor.kind == approver.kind) or (self is PlanApproval.USER_MADE and plan.creation_actor.is_user())
+        return self is PlanApproval.ALL or (self is PlanApproval.OWN and plan.creation_actor.actor_type == approver.actor_type) or (self is PlanApproval.USER_MADE and plan.creation_actor.is_user())

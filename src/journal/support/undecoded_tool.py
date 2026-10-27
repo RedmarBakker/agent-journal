@@ -7,5 +7,5 @@ from journal.support.operation import Operation
 class UndecodedTool(Operation):
     """A tool the provider decodes into no operation of the journal's: it writes nothing the journal can see."""
 
-    kind = "undecoded tool"
+    operation_type = "undecoded tool"
     name: str

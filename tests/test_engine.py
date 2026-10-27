@@ -490,7 +490,7 @@ def test_settings_is_a_frozen_value_of_the_options_read_by_option():
 
 def test_every_shipped_option_is_declared_with_the_kind_of_its_default(app: App):
     kinds = {"number": (int, float), "switch": (bool,), "text": (str,), "choice": (str,), "lines": (list, tuple)}
-    wrong = [option.key for option in app.container.get(Registry).options() if option.kind in kinds and (not isinstance(option.default, kinds[option.kind]) or option.kind == "number" and isinstance(option.default, bool))]
+    wrong = [option.key for option in app.container.get(Registry).options() if option.option_type in kinds and (not isinstance(option.default, kinds[option.option_type]) or option.option_type == "number" and isinstance(option.default, bool))]
     assert not wrong, f"declared with a kind their default is not, so journal settings set refuses a right value: {wrong}"
 
 
@@ -1699,6 +1699,9 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
     assert meanwhile.target == replace(waiting, next_task_reported=True) and has_nudge(meanwhile.nudges[0].rendered(), TasksNudges.WAIT_NEXT_TASK, what="the build", n=9), "in auto mode the next task is named once after a minute"
     assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(unhanded), manual).nudges == (), "out of auto mode the assigner hands no next task, so none is named"
+    paused_only = FeatureData({"tasks": replace(tasks, next_open=None, paused=(3801,), first_pause_reason="waits on question 23")})
+    resumable = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(paused_only), auto)
+    assert has_nudge(resumable.nudges[0].rendered(), TasksNudges.WAIT_PAUSED_TASK, what="the build", n=3801, why="waits on question 23"), "with nothing open, a task the agent paused is named to resume meanwhile (message 71351)"
     from journal.features.tasks.support.wait_progress import WaitProgress
     estimated = lambda progress: FeatureData({"tasks": replace(tasks, wait_progress=progress)})
     slow = waiting.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 0.01)})), manual)

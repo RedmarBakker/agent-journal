@@ -7,4 +7,4 @@ from journal.support.operation import Operation
 class UserQuestion(Operation):
     """A question the agent puts to the user with its program's own tool, which the viewer never sees."""
 
-    kind = "user question"
+    operation_type = "user question"

@@ -7,5 +7,5 @@ from journal.support.operation import Operation
 class JobCancel(Operation):
     """The agent ending a job it scheduled with its program's own tool, by the job's id."""
 
-    kind = "job cancel"
+    operation_type = "job cancel"
     job_id: str

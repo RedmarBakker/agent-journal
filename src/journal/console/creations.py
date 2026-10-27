@@ -19,7 +19,7 @@ class Creations(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         produced = RUN.get()
-        if produced is not None and event.actor.kind != ActorType.SYSTEM and not isinstance(event.model, RECORD_ROWS):
+        if produced is not None and event.actor.actor_type != ActorType.SYSTEM and not isinstance(event.model, RECORD_ROWS):
             produced.append(event.model)
 
     @staticmethod

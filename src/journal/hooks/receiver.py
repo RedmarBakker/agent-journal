@@ -84,11 +84,11 @@ class Receiver:
         return decision
 
     def subagent_moved(self, hook: Hook, environment: Environment) -> None:
-        if hook.kind == HookType.SUBAGENT_START:
+        if hook.hook_type == HookType.SUBAGENT_START:
             self.researchers.started(hook, environment)
-        if hook.kind == HookType.SUBAGENT_STOP:
+        if hook.hook_type == HookType.SUBAGENT_STOP:
             self.researchers.ended(hook, environment)
-        if hook.kind == HookType.SESSION_END:
+        if hook.hook_type == HookType.SESSION_END:
             self.researchers.main_ended(hook, environment)
 
     def is_accepted(self, hook: Hook, environment: Environment) -> bool:
@@ -117,7 +117,7 @@ class Receiver:
 
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
         self.entries.recorded(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
-        if hook.kind == HookType.SESSION_START:
+        if hook.hook_type == HookType.SESSION_START:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
 
@@ -126,7 +126,7 @@ class Receiver:
         if not hook.started_ms:
             return recorded
         elapsed = int(self.time_source.seconds() * 1000) - hook.started_ms
-        self.slow.measured(HOOK, f"/hooks/{hook.kind.value}", elapsed)
+        self.slow.measured(HOOK, f"/hooks/{hook.hook_type.value}", elapsed)
         boot_wait = {"boot_wait_ms": round(hook.boot_wait_seconds * 1000)} if hook.boot_wait_seconds else {}
         return {**recorded, "hook_ms": elapsed, **boot_wait}
 

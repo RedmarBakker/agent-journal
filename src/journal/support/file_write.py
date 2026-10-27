@@ -7,7 +7,7 @@ from journal.support.operation import Operation
 class FileWrite(Operation):
     """A file written whole, new or over what was there."""
 
-    kind = "file write"
+    operation_type = "file write"
     path: str
     added: int = 0
     removed: int = 0

@@ -89,7 +89,7 @@ class CommandClassifier:
             return Classification()
         rows, arguments = self.walked(row, tokens[1:])
         label = row.bare_label if len(rows) == 1 and not arguments and row.bare_label else next((level.label for level in reversed(rows) if level.label), "")
-        classification = Classification(label=label).with_row(next(level for level in reversed(rows) if level.kind or level is row))
+        classification = Classification(label=label).with_row(next(level for level in reversed(rows) if level.command_type or level is row))
         modifiers = {name: modifier for level in rows for name, modifier in level.modifiers.items()}
         for flag in (token for token in tokens[1:] if token.startswith("-")):
             classification = self.modified(classification, modifiers, flag)
@@ -174,7 +174,7 @@ class CommandClassifier:
     def target_arguments(self, text: str) -> list[str]:
         program = self.row_classification(text)
         if program.is_write:
-            return self.arguments(text) if program.kind in NAMING_KINDS and FILE_CHANGING_EFFECTS & set(program.effects) else []
+            return self.arguments(text) if program.command_type in NAMING_KINDS and FILE_CHANGING_EFFECTS & set(program.effects) else []
         return [*QUOTED_PATH.findall(text), *(word for word in self.arguments(text) if "/" in word)] if self.runs_writing_code(text) else []
 
     def runs_writing_code(self, text: str) -> bool:

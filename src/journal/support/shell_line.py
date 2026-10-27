@@ -8,7 +8,7 @@ from journal.support.operation import Operation
 class ShellLine(Operation):
     """A shell command the agent is about to run, as one line, with the shell and the flag it was handed to when the agent named them, as Codex does with bash -lc; whether it writes and the files it names are read from its parts' classification."""
 
-    kind = "shell line"
+    operation_type = "shell line"
     command: str
     shell: str = ""
     flag: str = ""

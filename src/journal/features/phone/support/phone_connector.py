@@ -27,7 +27,7 @@ class PhoneConnector:
         self.phones, self.codes, self.tunnel = phones, codes, tunnel
 
     def proposal(self, days: int, actor: Actor, time: datetime) -> ConnectionProposal:
-        if actor.kind != ActorType.USER:
+        if actor.actor_type != ActorType.USER:
             raise Rejection("only the user pairs a phone, from the viewer's Connect your phone dialog")
         if days not in DAYS:
             raise Rejection(f"a phone stays paired for {', '.join(map(str, DAYS))} days, not {days}")

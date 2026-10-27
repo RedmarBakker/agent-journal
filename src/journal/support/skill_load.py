@@ -5,7 +5,7 @@ from journal.support.operation import Operation
 
 @dataclass(frozen=True)
 class SkillLoad(Operation):
-    kind = "skill load"
+    operation_type = "skill load"
     skill: str
 
     def loaded_skill(self) -> str:

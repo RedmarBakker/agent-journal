@@ -29,9 +29,9 @@ class HookController:
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, "")).silenced(request.headers.get(SILENCE_HEADER, ""))
         hook = self.sender_stamped(stamped, request)
-        if hook.subagent and hook.kind == HookType.PRE_TOOL_USE:
+        if hook.subagent and hook.hook_type == HookType.PRE_TOOL_USE:
             self.announce(hook)
-        elif hook.kind == HookType.PRE_TOOL_USE:
+        elif hook.hook_type == HookType.PRE_TOOL_USE:
             self.announced.withdraw(hook.environment, hook.session, self.shell_parts(hook))
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)

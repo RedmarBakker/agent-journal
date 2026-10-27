@@ -69,7 +69,7 @@ class Handler(PooledHandler):
 
     def _file(self, file: FileResponse) -> None:
         self.send_response(file.status)
-        self.send_header("Content-Type", file.kind)
+        self.send_header("Content-Type", file.content_type)
         self.send_header("Content-Length", str(len(file.body)))
         self.send_header("Cache-Control", "no-cache")
         for name, value in file.headers().items():
@@ -79,7 +79,7 @@ class Handler(PooledHandler):
 
     def _stream(self, response: StreamResponse) -> None:
         self.send_response(response.status)
-        self.send_header("Content-Type", response.kind)
+        self.send_header("Content-Type", response.content_type)
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()

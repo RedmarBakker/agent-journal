@@ -26,7 +26,7 @@ class StartingReaders:
 
     @staticmethod
     def starting(classification: Classification) -> StartingReader | None:
-        return KINDS.get(classification.kind) or (LONG_PROCESS if classification.kind in LONG_PROCESS_KINDS else None)
+        return KINDS.get(classification.command_type) or (LONG_PROCESS if classification.command_type in LONG_PROCESS_KINDS else None)
 
     def filled(self, classification: Classification, name: str, lines: list[str]) -> Reader | None:
         kind_reader = self.starting(classification)

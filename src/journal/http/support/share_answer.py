@@ -7,5 +7,5 @@ class ShareAnswer:
 
     status: int
     body: bytes = b""
-    kind: str = "text/html; charset=utf-8"
+    content_type: str = "text/html; charset=utf-8"
     headers: dict = field(default_factory=dict)

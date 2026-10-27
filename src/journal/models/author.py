@@ -12,4 +12,4 @@ class Author(StrEnum):
 
     @classmethod
     def build(cls, actor: Actor) -> "Author":
-        return {ActorType.AGENT: cls.AGENT, ActorType.USER: cls.USER, ActorType.PHONE: cls.USER}.get(actor.kind, cls.SYSTEM)
+        return {ActorType.AGENT: cls.AGENT, ActorType.USER: cls.USER, ActorType.PHONE: cls.USER}.get(actor.actor_type, cls.SYSTEM)

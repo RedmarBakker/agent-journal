@@ -16,7 +16,7 @@ class Column:
     PLAIN = (bool, int, float, str, datetime, Actor, Ref)
 
     name: str
-    kind: type
+    column_type: type
     characters: tuple[int, ...] = ()
     item_type: type = object
 
@@ -33,19 +33,19 @@ class Column:
 
     @property
     def sql_type(self) -> str:
-        if self.kind is bool or self.kind is int:
+        if self.column_type is bool or self.column_type is int:
             return "INTEGER"
-        if self.kind is float:
+        if self.column_type is float:
             return "REAL"
         return "TEXT"
 
     @property
     def is_enum(self) -> bool:
-        return isinstance(self.kind, type) and issubclass(self.kind, Enum)
+        return isinstance(self.column_type, type) and issubclass(self.column_type, Enum)
 
     @property
     def is_json(self) -> bool:
-        return self.kind not in self.PLAIN and not self.is_enum
+        return self.column_type not in self.PLAIN and not self.is_enum
 
     def sql(self, value):
         if value is None:
@@ -69,24 +69,24 @@ class Column:
     def parsed(self, value):
         if value is None:
             return None
-        if self.kind is Actor:
+        if self.column_type is Actor:
             return Actor.parse(value)
-        if self.kind is Ref:
+        if self.column_type is Ref:
             return Ref.parse(value)
-        if self.kind is datetime:
+        if self.column_type is datetime:
             return datetime.fromisoformat(value)
         if self.is_enum:
-            return self.kind(value)
-        if self.kind is bool:
+            return self.column_type(value)
+        if self.column_type is bool:
             return bool(value)
-        if self.kind in (int, float, str):
+        if self.column_type in (int, float, str):
             return value
         loaded = json.loads(value)
-        if is_dataclass(self.kind):
-            return self.kind.parsed(loaded)
-        if self.kind is tuple and is_dataclass(self.item_type):
+        if is_dataclass(self.column_type):
+            return self.column_type.parsed(loaded)
+        if self.column_type is tuple and is_dataclass(self.item_type):
             return tuple(self.item_type.parsed(item) for item in loaded)
-        return tuple(loaded) if self.kind is tuple else loaded
+        return tuple(loaded) if self.column_type is tuple else loaded
 
     @staticmethod
     def _plain_type(annotation) -> type:

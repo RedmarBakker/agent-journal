@@ -7,7 +7,7 @@ from journal.support.actor_type import ActorType
 class Actor:
     """Who did something: the system, an agent by its session, a user by their id, a plugin by its name, the user's paired phone by its number, an external agent of another project by its name, a worker by its number, or a verifier or a reviewer the journal sent by its number. Stored as one string, kind:id, on every row and every entry."""
 
-    kind: ActorType
+    actor_type: ActorType
     id: str = ""
 
     @classmethod
@@ -60,17 +60,17 @@ class Actor:
 
     @property
     def lookup(self) -> str:
-        return {ActorType.SYSTEM: "the journal", ActorType.AGENT: "the agent", ActorType.USER: "you", ActorType.PHONE: "you, from your phone", ActorType.EXTERNAL: self.id, ActorType.WORKER: f"worker {self.id}", ActorType.VERIFIER: f"verifier {self.id}", ActorType.REVIEWER: f"reviewer {self.id}"}.get(self.kind, f"plugin {self.id}")
+        return {ActorType.SYSTEM: "the journal", ActorType.AGENT: "the agent", ActorType.USER: "you", ActorType.PHONE: "you, from your phone", ActorType.EXTERNAL: self.id, ActorType.WORKER: f"worker {self.id}", ActorType.VERIFIER: f"verifier {self.id}", ActorType.REVIEWER: f"reviewer {self.id}"}.get(self.actor_type, f"plugin {self.id}")
 
     def is_user(self) -> bool:
-        return self.kind in (ActorType.USER, ActorType.PHONE)
+        return self.actor_type in (ActorType.USER, ActorType.PHONE)
 
     def number(self) -> int:
         return int(self.id)
 
     def agent_session(self) -> str | None:
-        return self.id if self.kind == ActorType.AGENT else None
+        return self.id if self.actor_type == ActorType.AGENT else None
 
     @property
     def stamp(self) -> str:
-        return f"{self.kind.value}:{self.id}" if self.id else self.kind.value
+        return f"{self.actor_type.value}:{self.id}" if self.id else self.actor_type.value

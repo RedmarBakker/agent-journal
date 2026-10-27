@@ -20,4 +20,4 @@ class ProofShort(RowEvent):
     model: str = ""
 
     def is_reviewers(self) -> bool:
-        return bool(self.actor) and Actor.parse(self.actor).kind == ActorType.REVIEWER
+        return bool(self.actor) and Actor.parse(self.actor).actor_type == ActorType.REVIEWER
