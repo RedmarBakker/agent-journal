@@ -27,6 +27,7 @@ import Icon from "../kit/Icon.vue";
 import Toast from "../kit/Toast.vue";
 import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
+import AgentLines from "./AgentLines.vue";
 import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkerActivity, useWorkers} from "../composables/workers.js";
 import {useEveryReviewer} from "../composables/reviewers.js";
@@ -294,6 +295,9 @@ async function runBar(p) {
                     >
                         {{ fitnessShown }}
                     </button>
+                </template>
+                <template v-if="agent?.session">
+                    <AgentLines :session="agent.session" />
                 </template>
                 <template v-if="load">
                     <span :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">{{ load.rho.toFixed(2) }}</span>
