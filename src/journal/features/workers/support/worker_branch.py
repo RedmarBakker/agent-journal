@@ -31,7 +31,7 @@ REBUILD_SUBJECT = "Build the built files again on the project's branch"
 
 
 class WorkerBranch:
-    """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again."""
+    """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again. Untracked files are those the branch adds that lie untracked in the checkout, which git refuses to overwrite, never a clash a rebase could mend; the worktree is moved up to the branch its work merges into, in each repository, by the same rebase a merge makes: after a merge its own commits are in the branch already and drop out, before a job it carries them over what others merged meanwhile; the uncommitted edits the rebase's autostash set aside are put back over it with conflicts, and once the markers are gone they are plain uncommitted edits again and the autostash is dropped; git drops from its list a worktree whose folder is missing, so while a launch's worktree under .claude/worktrees is briefly away nothing is pruned and a worker's clean-up never loses it; the summary says what a worker that ended without clocking out left: commits waiting on its branch unchecked, never taken in by its end."""
 
     def __init__(self, config: Config, deferred: ListenerQueue, account: TeamAccount, environments: Environments, settings: SettingRows) -> None:
         self.config, self.deferred, self.account, self.environments, self.settings = config, deferred, account, environments, settings
@@ -239,7 +239,6 @@ class WorkerBranch:
         lying = self.untracked_files(repository, worker)
         return f"its branch adds {', '.join(lying)}, which lie untracked in {repository.label()}: take them out of its branch (git rm --cached in its worktree, then commit) or move the checkout's copies aside, and merge again" if lying else ""
 
-    # files the branch adds that lie untracked in the checkout, which git refuses to overwrite: never a clash a rebase could mend
     def untracked_files(self, repository: WorkerRepository, worker: Worker) -> list[str]:
         added = self.git("diff", "--name-only", "--diff-filter=A", f"HEAD...{self.tip(repository, worker)}", cwd=repository.checkout).stdout.split()
         return sorted(repository.path(path) for path in self.git("ls-files", "--others", "--exclude-standard", "--", *added, cwd=repository.checkout).stdout.split()) if added else []
@@ -247,8 +246,6 @@ class WorkerBranch:
     def branch_untracked_files(self, worker: Worker) -> list[str]:
         return [path for repository in self.repositories(worker) for path in self.untracked_files(repository, worker)]
 
-    # Moves the worker's worktree up to the branch its work merges into, in each repository, by the same rebase a merge makes: after a
-    # merge its own commits are in the branch already and drop out; before a job it carries them over what others merged meanwhile.
     def rebased_onto_branch(self, worker: Worker) -> str:
         if not worker.worktree or not self.folder(worker).is_dir():
             return ""
@@ -284,8 +281,6 @@ class WorkerBranch:
         self.git("add", "-A", cwd=repository.worktree)
         return self.rebase_conflicts(repository, self.git("-c", "core.editor=true", "rebase", "--continue", cwd=repository.worktree))
 
-    # the worker's uncommitted edits, set aside by the rebase's autostash and put back over it with conflicts: once the markers are gone the
-    # files are plain uncommitted edits again and the autostash the put-back kept is dropped
     def autostash_conflicts(self, repository: WorkerRepository) -> str:
         unresolved = self.unresolved_conflicts(repository)
         if unresolved:
@@ -419,8 +414,6 @@ class WorkerBranch:
             self.worktree_list_pruned(checkout)
             self.git("branch", "-D", branch, cwd=checkout)
 
-    # git drops from its list a worktree whose folder is missing; while a launch's worktree under .claude/worktrees is briefly away,
-    # nothing is pruned, so a worker's clean-up never loses it
     def worktree_list_pruned(self, checkout: Path) -> None:
         listed = [Path(line.removeprefix("worktree ")) for line in self.git("worktree", "list", "--porcelain", cwd=checkout).stdout.splitlines() if line.startswith("worktree ")]
         if any(path.parent.name == "worktrees" and path.parent.parent.name == ".claude" and not path.exists() for path in listed):
@@ -433,7 +426,6 @@ class WorkerBranch:
             shutil.rmtree(folder)
         self.pruned(self.name(worker), [self.config.root / name for name in names] + [self.checkout(worker)])
 
-    # what a worker that ended without clocking out left: its commits, waiting on its branch unchecked, never taken in by its end
     def summary(self, worker: Worker) -> str:
         if not worker.worktree:
             return ""

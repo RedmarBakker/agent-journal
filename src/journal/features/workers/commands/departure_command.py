@@ -32,7 +32,7 @@ TESTING_HELD = "your clock-out was held by a plugin before the journal rebased y
 DELIVERY_HELD = "your tests passed, but a plugin held your work before it reaches the agent that sent you; fix what it found, then clock out again, and the journal runs your tests again"
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later; a pool worker does the same on its teammate's machine, and pushes its branch to origin at every clock-out so the merge sees each finished task."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later; a pool worker does the same on its teammate's machine, and pushes its branch to origin at every clock-out so the merge sees each finished task. A worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked; a blocked task next in the queue stops it too, and a point proved not done stops the queue so the worker reports at once."""
 
     noun = "clock-out"
     default_verb = "record"
@@ -112,7 +112,6 @@ class DepartureCommand(Command):
             raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")
         self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", self.time_source.moment().timestamp()), caller.actor)
 
-    # a worker goes on to its next task while its report is not due, no point of this one is proved not done and the next is not blocked
     def continues_queue(self, worker: Worker, task: Task, waiting: list[Task]) -> bool:
         finished = len(self.tasks.finished_task_ids(Ref(Worker.table(), worker.id)))
         return not (self.is_unfinished(task) or self.is_blocked(waiting) or worker.report_choice.is_report_due(finished, len(waiting)))
@@ -132,12 +131,10 @@ class DepartureCommand(Command):
         if outcome.returncode != 0:
             raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
 
-    # a blocked task next in the queue stops it too: the worker reports instead of taking it
     @staticmethod
     def is_blocked(waiting: list[Task]) -> bool:
         return bool(waiting) and waiting[0].state == TaskState.BLOCKED
 
-    # a point proved not done stops the queue: the worker reports at once instead of going on
     def is_unfinished(self, task: Task) -> bool:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}
         return any(proof.state == ProofState.UNFINISHED for proof in latest.values())

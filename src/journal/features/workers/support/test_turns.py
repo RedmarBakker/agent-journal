@@ -33,7 +33,7 @@ PASSED_COUNT = re.compile(r"\b(\d+) passed\b")
 
 
 class TestTurns:
-    """The test budget: a worker's turn to run tests is a row, started through the shell runner in the worker's own worktree as soon as fewer runs go than the budget allows and it is first of those that wait, else it waits in order; one that would wait when the waiting cap is full is refused. A run past the time limit is stopped and reported to its worker as timed out; a worker that ends takes out its turns, waiting or running; turns waiting at a restart start again in order. Its result is what the project's reader for the command picks, and the turn ends when the run does, or, for a run moved to the background, when its output ends; either way how the run ended is kept on its worker, its failed runs in a row counted and a passed one ending the count."""
+    """The test budget: a worker's turn to run tests is a row, started through the shell runner in the worker's own worktree as soon as fewer runs go than the budget allows and it is first of those that wait, else it waits in order; one that would wait when the waiting cap is full is refused. A run past the time limit is stopped and reported to its worker as timed out; a worker that ends takes out its turns, waiting or running; turns waiting at a restart start again in order. Its result is what the project's reader for the command picks, and the turn ends when the run does, or, for a run moved to the background, when its output ends; either way how the run ended is kept on its worker, its failed runs in a row counted and a passed one ending the count. A run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground."""
 
     __test__ = False
 
@@ -150,7 +150,6 @@ class TestTurns:
         self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
         return text
 
-    # a run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground
     def foreground_output(self, output, started: float):
         deadline = started + self.settings.integer(FOREGROUND_OPTION)
         while output is not None and not output.ended and self.time_source.seconds() < deadline:

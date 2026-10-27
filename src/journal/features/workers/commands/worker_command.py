@@ -67,6 +67,8 @@ LISTED_WORKERS = 30
 
 
 class WorkerCommand(Command):
+    """The report choice named is used, else the queue's end."""
+
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
@@ -192,7 +194,6 @@ class WorkerCommand(Command):
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)
 
-    # the report choice named, else the queue's end
     @staticmethod
     def report_choice(args: Namespace) -> ReportChoice:
         return ReportChoice.argument(args.report) if args.report else ReportChoice()

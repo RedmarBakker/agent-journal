@@ -54,7 +54,7 @@ JOB_MOVE = "sent a job"
 REDO_MOVE = REJECTION_MOVE
 
 class WorkerActions:
-    """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""
+    """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire. A check names the task the worker is on, or one of its queue it finished, which waits for the same merge; every point found short is saved at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out; one unchecked point of any task the merge would close refuses the whole merge, naming the task."""
 
     def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns, settings: SettingRows, merger: Merger, time_source: TimeSource, statuses: MergeStatuses) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
@@ -112,7 +112,6 @@ class WorkerActions:
         self.proofs.save(self.open_proof(task, point).checked(), actor)
         return task
 
-    # the task a check names: the one the worker is on, or one of its queue it finished, which waits for the same merge
     def checked_task(self, worker: Worker, task_id: int) -> Task:
         if not task_id:
             return self.worker_task(worker)
@@ -126,7 +125,6 @@ class WorkerActions:
     def short_check(self, n: int, point: int, shortfall: str, actor: Actor, task_id: int = 0) -> Task:
         return self.short_checks(n, [(point, shortfall)], actor, task_id)
 
-    # every point short at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out
     def short_checks(self, n: int, shortfalls: list[tuple[int, str]], actor: Actor, task_id: int = 0) -> Task:
         worker = self.delivered(n, "proofs to check")
         task = self.checked_task(worker, task_id)
@@ -205,7 +203,6 @@ class WorkerActions:
     def latest_proofs(self, task: Task) -> dict[int, Proof]:
         return {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}
 
-    # one unchecked point of any task the merge would close refuses the whole merge, naming the task
     def unchecked_line(self, worker: Worker) -> str:
         tasks = (*(self.tasks.find(task_id) for task_id in self.tasks.finished_task_ids(Ref.build(worker))), self.worker_task(worker))
         unchecked = [f"task {task.id} point {point}" for task in tasks for point in self.unchecked_points(task)]

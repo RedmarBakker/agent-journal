@@ -19,7 +19,7 @@ REPORTED = "reported"
 
 
 class WorkerReports:
-    """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on, a pool worker's aside, whose work is on another machine."""
+    """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on, a pool worker's aside, whose work is on another machine. The moved task is the one a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move; the queue line says where every task of its queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued; the last report of each of several workers is read with one query for their links and one for the messages."""
 
     def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting, tasks: Tasks, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -35,12 +35,10 @@ class WorkerReports:
         current, time = self.workers.find(worker.row_id), self.time_source.moment().timestamp()
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
-    # the task a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move
     def moved_task(self, worker: Worker) -> int:
         holder = Ref.build(worker)
         return next(iter(self.tasks.holder_task_ids(holder)), 0) if self.tasks.finished_task_ids(holder) else 0
 
-    # where every task of a worker's queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued
     def queue_line(self, worker: Worker) -> str:
         holder = Ref.build(worker)
         parts = (("finished, waiting for the merge", self.tasks.finished_task_ids(holder)), ("cut short", self.tasks.holder_task_ids(holder)), ("still queued", tuple(task.id for task in self.tasks.queue(holder))))
@@ -52,7 +50,6 @@ class WorkerReports:
         self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), kind=REPORTED), actor)
         return message
 
-    # the last report of each of the workers, read with one query for their links and one for the messages
     def lasts(self, workers: list[Worker]) -> dict[int, str]:
         latest = {link.source.id: link.target.id for link in self.links.model_links("source", workers, REPORTED)}
         texts = {message.row_id: message.text for message in self.messages.numbered(latest.values())}
