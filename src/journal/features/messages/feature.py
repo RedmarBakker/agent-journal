@@ -45,7 +45,7 @@ class Messages(Feature[MessagesData]):
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 
-    nudges = (MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.TAG_FAILURE, MessagesNudges.REPLY_TAG_PLACE, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.DUPLICATE_REPLY, MessagesNudges.REPEATED_CLOSING_TEXT, MessagesNudges.MESSAGE_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
+    nudges = (MessagesNudges.UNLINKED_NUMBERS, MessagesNudges.MISSING_ROWS, MessagesNudges.TAG_FAILURE, MessagesNudges.REPLY_TAG_PLACE, MessagesNudges.PEER_QUESTION, MessagesNudges.NEW_MESSAGE, MessagesNudges.TEAMMATE_MESSAGE, MessagesNudges.NEW_MESSAGES, MessagesNudges.UNREAD_MESSAGES, MessagesNudges.COLLEAGUE_COMMENT, MessagesNudges.UNREAD_COMMENTS, MessagesNudges.USER_REACTION, MessagesNudges.EMOJI_REPLY, MessagesNudges.INBOX_EDIT_BLOCK, MessagesNudges.UNANSWERED_MESSAGES, MessagesNudges.UNANSWERED_TOOL_BLOCK, MessagesNudges.FULL_MESSAGE_READ, MessagesNudges.DUPLICATE_REPLY, MessagesNudges.REPEATED_CLOSING_TEXT, MessagesNudges.MESSAGE_READ, MessagesNudges.COMMENT_READ, MessagesNudges.INBOX_COUNTDOWN, MessagesNudges.INBOX_LAST_USE, MessagesNudges.UNANSWERED_COUNTDOWN, MessagesNudges.UNANSWERED_LAST_USE)
 
     skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
 # Messages
@@ -63,7 +63,9 @@ The user sends messages; you answer them before anything else.
   several tags in one turn, each opening its own part: everything after a tag up to the next is that message's reply.
   `[!reply:N,M]` answers both with one part. A tag inside a line is only text.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
-  as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
+  as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message. A comment on
+  a document or report is neither: answer it, and write what it asks into that document or report, as a change, a section
+  or an open question; it becomes work only when the user asks for it.
 - A number that names a row is written with its kind, task 3399 or plan 1032, so the chat links it. A message of
   yours that has one without it is pointed out to you once: fix it with `journal message amend-links <n> <kind>
   [<kind>...]`, the kinds in the order the numbers appear, or one kind for all.

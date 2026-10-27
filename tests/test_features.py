@@ -20366,6 +20366,29 @@ def test_each_message_read_brings_its_reply_line_once_from_its_read_event_and_ne
     assert "[!reply:" not in again, "a message read before brings no line again"
 
 
+def test_a_comment_on_a_document_read_brings_the_line_to_answer_it_in_the_document_and_no_task_line(app: App):
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["doc", "create", "Sequences", "--abstract", "How sequences change", "--body", "## Checks\na check per sequence\n"], AGENT).code == 0
+    posted(app, "/journal/messages", {"text": "and per phase too?", "on": "docs:1"}, {"X-Journal-Env": "main"})
+    console.run(["message", "send", "a plain one"], USER)
+    messages = app.container.get(Messages).all()
+    comment, plain = [m for m in messages if m.text == "and per phase too?"][0], [m for m in messages if m.text == "a plain one"][0]
+
+    def read_in_a_tool_use(number: int) -> str:
+        command = {"tool_name": "Bash", "tool_input": {"command": f"journal message read {number}"}}
+        hook(app, "PreToolUse", **command)
+        console.run(["message", "read", str(number)], AGENT)
+        app.runtime().deferred.drain()
+        return json.dumps(hook(app, "PostToolUse", **command, tool_response={"stdout": ""})[1])
+
+    on_document, on_chat = read_in_a_tool_use(comment.id), read_in_a_tool_use(plain.id)
+    assert "write what it asks into doc 1" in on_document and "file a task" not in on_document, "a comment on a document is answered in the document: " + on_document
+    assert "file a task if it asks for work" in on_chat, "a plain message keeps the task line"
+
+
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     from journal.support.decision import Decision
     answered = Decision.allowed_with("a line\nanother").merged(Decision.allowed_with("a line"))

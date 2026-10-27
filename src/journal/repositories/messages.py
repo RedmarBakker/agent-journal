@@ -33,6 +33,8 @@ class Messages(ScopedRepository[Message]):
     SUBJECT_LINK = "about"
     EDIT_LINK = "edited"
     COMMENT_LINK = "comments_on"
+    # the rows whose comments are answered in the row itself, never filed as work, each with the word the agent's line names it by
+    WRITINGS = {"docs": "doc", "reports": "report"}
     REFERENCE_LINK = "refers_to"
 
     model = Message
@@ -239,7 +241,11 @@ class Messages(ScopedRepository[Message]):
             return message
         if message.is_comment() and actor.is_user():
             return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
-        return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use), actor)
+        return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use, self.commented_writing(message)), actor)
+
+    def commented_writing(self, message: Message) -> str | None:
+        writings = [f"{self.WRITINGS[ref.type]} {ref.id}" for ref in self.links.targets(message, self.COMMENT_LINK) if ref.type in self.WRITINGS]
+        return writings[0] if writings else None
 
     def newest_moments(self, kinds: tuple[str, ...], last: int) -> list[Message]:
         moments = [message for type_name in kinds for message in self.selected(self.query().filter_json("data->shows", type_name).order_descending("id").limit(last))]

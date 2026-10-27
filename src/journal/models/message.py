@@ -80,8 +80,8 @@ class Message(Scoped):
     def with_reading_request(self) -> "Message":
         return self.with_merged("data", {"reading_request": True})
 
-    def with_read_time(self, read_at: datetime, tool_use: int) -> "Message":
-        return self.with_(read_at=read_at, read_position=tool_use).with_event(MessageRead(environment_id=self.environment_id, time=read_at.timestamp(), row_id=self.id))
+    def with_read_time(self, read_at: datetime, tool_use: int, commented_writing: str | None) -> "Message":
+        return self.with_(read_at=read_at, read_position=tool_use).with_event(MessageRead(environment_id=self.environment_id, time=read_at.timestamp(), row_id=self.id, commented_writing=commented_writing))
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":

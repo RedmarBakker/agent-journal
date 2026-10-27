@@ -50,7 +50,11 @@ class MessagesConduct(Conduct):
         return self.none(*unlinked_line(event), *missing_line(event)) if event.writer_session == event.session else self.none()
 
     def on_message_read(self, event: MessageRead, settings: Settings) -> Transition:
-        return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id)) if event.is_agents(event.session) else self.none()
+        if not event.is_agents(event.session):
+            return self.none()
+        if event.commented_writing is None:
+            return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id))
+        return self.none(MessagesNudges.COMMENT_READ.create(n=event.row_id, writing=event.commented_writing))
 
     def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
         return self.none(MessagesNudges.COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))
