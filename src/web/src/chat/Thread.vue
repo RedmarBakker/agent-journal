@@ -36,9 +36,11 @@ import TerminalWindow from "./TerminalWindow.vue";
 import OutputDialog from "./OutputDialog.vue";
 import {usePressedTurn} from "../composables/pressedTurn.js";
 import ChatDock from "./ChatDock.vue";
+import DockGroup from "./DockGroup.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
-import {dockedDump, dockedRows, streamRows} from "../domain/docks.js";
+import {dockedDump, dockedRows, isRun, streamRows} from "../domain/docks.js";
+import {useRunGroup} from "../composables/runGroup.js";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
 import UpdateOverlay from "./UpdateOverlay.vue";
@@ -125,6 +127,10 @@ const planCard = computed(() => cardPlan(rows("plans"), planCardChoice.value));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
 const dockNow = useSharedNow();
 const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));
+// from three runs docked at once they share one compact row, so the cards drawn alone are the rows docked and, while grouped, no run
+const runDocks = computed(() => rowDocks.value.filter(isRun));
+const grouped = useRunGroup(runDocks);
+const aloneDocks = computed(() => (grouped.value ? rowDocks.value.filter((m) => !isRun(m)) : rowDocks.value));
 const dockCount = computed(() => rowDocks.value.length + [dumpDock.value, planCard.value].filter(Boolean).length);
 const helping = computed(() =>
     subagentsOf(owner.value)
@@ -150,20 +156,26 @@ const FAR = 40;
 // a reader who scrolled up and has the pointer over the chat is reading it: nothing scrolls it for them until the pointer has been
 // outside it for a minute, and then a reader still away is taken back to the foot
 const presence = usePointerPresence(() => away.value && toBottom(true));
-const {away, missed, showNewest, follow: atTheFoot, toBottom: glideTo, left: readingUp, arrived} = useFollowing(scroller, FAR, presence.isGone);
+const {
+    away,
+    missed,
+    showNewest,
+    follow: atTheFoot,
+    toBottom: glideTo,
+    left: readingUp,
+    arrived,
+} = useFollowing(scroller, FAR, presence.isGone);
 // away from the foot, messages that arrive are loaded but held off the screen, so nothing below the reader grows and moves the page;
 // back at the foot, every held message appears
 const heldAfter = ref(null);
 watch(away, (isAway) => (heldAfter.value = isAway ? Math.max(0, ...chat.value.map((m) => (typeof m.id === "number" ? m.id : 0))) : null));
-const shownChat = computed(() => (heldAfter.value === null ? chat.value : chat.value.filter((m) => !(typeof m.id === "number" && m.id > heldAfter.value))));
+const shownChat = computed(() =>
+    heldAfter.value === null ? chat.value : chat.value.filter((m) => !(typeof m.id === "number" && m.id > heldAfter.value))
+);
 const held = computed(() => chat.value.length - shownChat.value.length);
 const settledOnce = ref(false);
 const ready = ref(false);
-const unseen = computed(() =>
-    shownChat.value
-        .filter((m) => m.author === "agent" && !m.read_at)
-        .map((m) => m.id)
-);
+const unseen = computed(() => shownChat.value.filter((m) => m.author === "agent" && !m.read_at).map((m) => m.id));
 
 watch([unseen, ready], ([ids, isReady]) => here && isReady && markSeen(ids), {immediate: true});
 const rendering = ref(false);
@@ -176,7 +188,9 @@ let frame = 0;
 
 const revoke = (p) => Object.values(p.previews || {}).forEach(URL.revokeObjectURL);
 const {pending, promise, drop, change, keep, link, keyOf} = usePromised(revoke);
-const thread = computed(() => threadTurns(streamRows(shownChat.value, dockNow.value), pending.value, here && !!store.paging.more.messages, props.hidden));
+const thread = computed(() =>
+    threadTurns(streamRows(shownChat.value, dockNow.value), pending.value, here && !!store.paging.more.messages, props.hidden)
+);
 watch(thread, (made) => made.keys.forEach((placeholder, ref) => link(ref, placeholder)), {immediate: true});
 const turns = computed(() => withDayLines(thread.value.turns));
 const turnsLoaded = computed(() => scope.loaded("messages"));
@@ -340,7 +354,15 @@ function restAtFoot() {
     clearTimeout(restTimer);
     restTimer = setTimeout(() => {
         const s = scroller.value;
-        if (s && away.value && !planOpen.value && presence.isGone() && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
+        if (
+            s &&
+            away.value &&
+            !planOpen.value &&
+            presence.isGone() &&
+            Date.now() - scrolledAt >= RESTED_MS &&
+            s.scrollHeight - s.scrollTop - s.clientHeight <= FAR
+        )
+            atTheFoot();
     }, RESTED_MS);
 }
 
@@ -562,8 +584,11 @@ const {colleague, me} = useColleague();
                     <div :class="['chat-foot', {hidden: feeding || !ready}]" data-figure-chat-foot>
                         <div ref="docks" class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
                             <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
-                                <template v-for="docked in rowDocks" :key="docked.id">
+                                <template v-for="docked in aloneDocks" :key="docked.id">
                                     <ChatDock :message="docked" :folded="short || !planOpen" />
+                                </template>
+                                <template v-if="grouped">
+                                    <DockGroup key="runs" :runs="runDocks" :folded="short || !planOpen" />
                                 </template>
                             </TransitionGroup>
                             <Transition name="dock" :duration="DOCK_MOTION_MS">
@@ -582,11 +607,16 @@ const {colleague, me} = useColleague();
                             </div>
                         </template>
                         <template v-else>
-                            <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
+                            <div
+                                :class="['thread-turn', 'busy', {faded: offFoot}]"
+                                :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`"
+                            >
                                 <div class="thread-meta">
                                     <Dot kind="queued" solid :size="6" />
                                     <template v-if="waitingNow">
-                                        <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
+                                        <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">
+                                            waiting
+                                        </button>
                                     </template>
                                     <template v-else>
                                         <span>idle</span>
@@ -728,8 +758,19 @@ const {colleague, me} = useColleague();
 }
 
 /* marks one after another sit closer together than the messages around them */
-.thread-scroll :deep(.thread-turn:is(.skill, .card, .whisper, .subagent, .group) + .thread-turn:is(.skill, .card, .whisper, .subagent, .group)) {
+.thread-scroll
+    :deep(.thread-turn:is(.skill, .card, .whisper, .subagent, .group) + .thread-turn:is(.skill, .card, .whisper, .subagent, .group)) {
     margin-top: -5px;
+}
+
+/* on a phone, whose marks always show their action, they keep 12 pixels between them for a thumb */
+:global(
+    html.phone
+        .thread-scroll
+        .thread-turn:is(.skill, .card, .whisper, .subagent, .group)
+        + .thread-turn:is(.skill, .card, .whisper, .subagent, .group)
+) {
+    margin-top: 2px;
 }
 
 .thread-scroll {

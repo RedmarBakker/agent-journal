@@ -7,9 +7,17 @@ export function dockedDump(dumps) {
 }
 
 // Whether a message sits docked above the chat at a moment, in seconds: a card that docks itself comes once its run has gone on
-// the while it waits for, and leaves once the time it lingers after its run's end has passed.
+// the while it waits for, and leaves once the time it lingers after its run's end has passed, unless the user is pointing at it.
 export const isDocked = (m, now) =>
-    m.data?.docked === true && !(m.data.dock_at && now < m.data.dock_at) && !(m.data.undock_at && now >= m.data.undock_at);
+    m.data?.docked === true &&
+    !(m.data.dock_at && now < m.data.dock_at) &&
+    !(m.data.undock_at && !m.data.held_at && now >= m.data.undock_at);
+
+// Whether a docked message stands for a run, an output it watches or a check it runs, and not a row docked from its inspector
+export const isRun = (m) => Boolean(m.data.output || m.data.check);
+
+// Whether a docked card closes by itself: one the journal docked, once its run ended, until the user keeps it
+export const isLeaving = (m) => Boolean(m.data.auto_docked && m.data.undock_at);
 
 // Every row docked above the chat, in the order each docked: a system message whose data carries docked and the row's card. The
 // newest sits at the bottom, nearest the composer, pushing the earlier ones up, and none changes place as it updates.
@@ -24,10 +32,27 @@ export function streamRows(messages, now = Date.now() / 1000) {
 }
 
 // The tables whose rows can be docked above the chat from their inspector.
-export const DOCKABLE = new Set(["tasks", "plans", "docs", "reports", "facts", "rules", "reminders", "questions", "sequences", "templates", "workers", "triggers", "checks", "dumps", "notices"]);
+export const DOCKABLE = new Set([
+    "tasks",
+    "plans",
+    "docs",
+    "reports",
+    "facts",
+    "rules",
+    "reminders",
+    "questions",
+    "sequences",
+    "templates",
+    "workers",
+    "triggers",
+    "checks",
+    "dumps",
+    "notices",
+]);
 
 // Whether the row of `table` numbered `id` sits docked above the chat, read from the messages that dock it.
-export const isRowDocked = (messages, table, id, now = Date.now() / 1000) => messages.some((m) => isDocked(m, now) && m.data.row === `${table}:${id}`);
+export const isRowDocked = (messages, table, id, now = Date.now() / 1000) =>
+    messages.some((m) => isDocked(m, now) && m.data.row === `${table}:${id}`);
 
 // The table and number of the row a docked message stands for, from its ref.
 export function dockedRef(message) {

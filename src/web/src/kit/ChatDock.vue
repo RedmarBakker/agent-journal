@@ -14,6 +14,7 @@ defineExpose({card});
 <template>
     <div :class="['chat-dock', {lifted}]">
         <div class="chat-dock-fold">
+            <slot name="edge" />
             <section ref="card" :class="['chat-dock-card', kind]" :aria-label="label">
                 <header class="chat-dock-head">
                     <slot name="head" />
@@ -41,9 +42,15 @@ defineExpose({card});
     width: 100%;
 }
 
+/* the fold holds the card and what lies along its edge; pointing at it pauses a card's closing line (chat/DockLeave.vue) */
 .chat-dock-fold {
+    position: relative;
     min-width: 0;
     min-height: 0;
+}
+
+.chat-dock-fold:hover {
+    --leave-play: paused;
 }
 
 .chat-dock-card {
@@ -124,6 +131,17 @@ defineExpose({card});
 .chat-dock.dock-leave-to .chat-dock-card {
     transform: translateY(14px);
     opacity: 0;
+}
+
+/* a card the journal docked by itself closes when its line has run down: it fades and sinks a little */
+.chat-dock.timed.dock-leave-active .chat-dock-card {
+    transition:
+        transform 0.3s var(--ease),
+        opacity 0.3s ease;
+}
+
+.chat-dock.timed.dock-leave-to .chat-dock-card {
+    transform: translateY(6px);
 }
 
 .chat-dock.lifted .chat-dock-card {

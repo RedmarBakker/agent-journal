@@ -35,6 +35,7 @@
         --asks: #4a50b5;
         --term: #16171a;
         --danger: #bf4f3d;
+        --on-danger: #ffffff;
         --tip-bg: #ffffff;
         --tip-edge: var(--border-2);
         --tip-shadow: 0 6px 20px rgba(20, 22, 30, 0.13);

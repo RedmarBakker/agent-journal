@@ -41,7 +41,13 @@ const SYSTEM_TURNS = {
     }),
     made: (card, label) => ({
         kind: "made",
-        made: {table: card.made_type, id: Number(String(card.row).split(":")[1]), title: card.title || label, status: card.status || "", summary: card.summary || ""},
+        made: {
+            table: card.made_type,
+            id: Number(String(card.row).split(":")[1]),
+            title: card.title || label,
+            status: card.status || "",
+            summary: card.summary || "",
+        },
         data: {},
     }),
     docked: (card) => ({
@@ -82,6 +88,7 @@ const SYSTEM_TURNS = {
             counting: Boolean(card.counting),
             began_at: card.began_at || 0,
             output: card.output || 0,
+            check: card.check || 0,
             line: card.line || "",
             summary: card.summary || "",
             ending: card.ending || "",
@@ -163,7 +170,9 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
     const floor = older && said.length ? Math.min(...said.map((m) => seconds(m.created_at))) : 0;
     messages.forEach((m) => pending.filter((p) => promisedFor(p, m)).forEach((p) => keys.set(refOf(m), p.key)));
     const turns = [
-        ...said.filter((m) => !pending.some((p) => promisedFor(p, m) && !delivered(p, m))).map((m) => withReceipt(spoken(m), receipts.get(m.id))),
+        ...said
+            .filter((m) => !pending.some((p) => promisedFor(p, m) && !delivered(p, m)))
+            .map((m) => withReceipt(spoken(m), receipts.get(m.id))),
         ...messages.filter((m) => fromSystem(m) && !receiptOf(m)).map(systemTurn),
         ...pending.filter((p) => !messages.some((m) => promisedFor(p, m) && delivered(p, m))).map(placeholderTurn),
     ]
@@ -201,7 +210,12 @@ function folded(run) {
         kind: "group",
         who: "agent",
         time: last.time,
-        data: {tone: run.every((t) => t.data.settled) ? "good" : group.tone || "", color: group.color || "", group: group.group || "", markIcon: group.markIcon || ""},
+        data: {
+            tone: run.every((t) => t.data.settled) ? "good" : group.tone || "",
+            color: group.color || "",
+            group: group.group || "",
+            markIcon: group.markIcon || "",
+        },
         title: group.label(run.length, run),
         text: "",
         icon: group.icon,

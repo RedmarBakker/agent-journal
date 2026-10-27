@@ -3,18 +3,22 @@ import {computed, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
 import Btn from "../kit/Btn.vue";
 import CloseButton from "../kit/CloseButton.vue";
+import FoldSign from "../kit/FoldSign.vue";
 import Icon from "../kit/Icon.vue";
 import {store} from "../state/store.js";
 import MarkIcon from "../kit/MarkIcon.vue";
 import OutputLines from "../kit/OutputLines.vue";
+import DockLeave from "./DockLeave.vue";
+import RunStop from "./RunStop.vue";
 import {useScope} from "../composables/scope.js";
-import {keepDocked, undock} from "../actions/docking.js";
+import {holdDock, keepDocked, releaseDock, undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
+import {isLeaving} from "../domain/docks.js";
 import {createdAt} from "../domain/row.js";
 import {watchLines} from "../domain/watchStatus.js";
-import {elapsed} from "../format/time.js";
-import {useSharedNow} from "../composables/now.js";
 import {useOutputPages} from "../composables/outputPages.js";
+import {useRunStop} from "../composables/runStop.js";
+import {useWatchRun} from "../composables/watchRun.js";
 
 const SHOWN_LINES = 6;
 
@@ -22,22 +26,26 @@ const props = defineProps({message: {type: Object, required: true}, folded: Bool
 const scope = useScope();
 const {colleague} = useColleague();
 const card = computed(() => props.message.data);
-// the badge on the dock's icon and its progress bar, in the colour of the state of its run: running, passed (good) or failed (bad)
-const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad: "var(--tone-bad)"};
-// the dock's icon: the terminal while its run goes, a tick once it passed, a cross once it failed
-const STATE_ICONS = {running: "terminal", good: "tick", bad: "cross"};
-// how the run ended, as its card reports it, or as its colour said on a card from before cards reported their outcome
-const ENDED = {passed: "good", failed: "bad"};
-const endedTone = computed(() => ENDED[card.value.outcome] || card.value.tone || "good");
-const runState = computed(() => (card.value.ending ? endedTone.value : "running"));
+const {stoppable, what, phase, title: stoppedTitle, stop} = useRunStop(() => card.value);
+const stopped = computed(() => phase.value === "stopped");
+const {
+    endedTone,
+    state: runState,
+    tone,
+    icon,
+    bar,
+    width,
+    ranFor,
+} = useWatchRun(
+    () => card.value,
+    () => stopped.value
+);
+// the card's title: what runs, Stopping for a moment once the user stops it, and then that they stopped it
+const heading = computed(() => (stopped.value ? stoppedTitle.value : props.message.text));
 const printed = computed(() => watchLines((card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean)));
 const lines = computed(() => printed.value.steps.slice(-SHOWN_LINES));
 // what is happening now is told while the run goes on, one line for the journal and one for each plugin
-const statuses = computed(() => (card.value.ending ? [] : printed.value.statuses));
-const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
-
-const now = useSharedNow();
-const ranFor = computed(() => (card.value.began_at ? elapsed((card.value.ended_at || now.value) - card.value.began_at) : ""));
+const statuses = computed(() => (card.value.ending || phase.value ? [] : printed.value.statuses));
 
 const opened = ref(false);
 const shown = ref(false);
@@ -52,13 +60,20 @@ async function read() {
     if (!colleague.value && card.value.output) await pages.poll();
 }
 
+// a card the journal docked by itself is kept once the user opens or folds it, or presses Keep; while it closes by itself, pointing at
+// it holds it in place
+const leaving = computed(() => isLeaving(props.message));
+const keep = () => card.value.auto_docked && keepDocked(scope, props.message);
+const pointed = () => leaving.value && !card.value.held_at && holdDock(props.message);
+const left = () => card.value.held_at && releaseDock(props.message);
+
 function toggle() {
     opened.value = !opened.value;
     if (opened.value) {
         shown.value = true;
         read();
     }
-    if (card.value.auto_docked) keepDocked(scope, props.message);
+    keep();
 }
 
 watch(
@@ -68,13 +83,30 @@ watch(
 </script>
 
 <template>
-    <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
+    <ChatDock label="Watched output" :folded="folded" kind="watch-dock" @pointerenter="pointed" @pointerleave="left">
+        <template #edge>
+            <Transition name="leave-fade">
+                <DockLeave v-if="leaving" :ends-at="card.undock_at" />
+            </Transition>
+        </template>
         <template #head>
-            <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
-                <MarkIcon :name="STATE_ICONS[runState]" />
+            <span class="watch-dock-state" :data-state="runState" :style="{'--tone': tone}">
+                <MarkIcon :name="icon" />
             </span>
-            <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')" @click="toggle">{{ message.text }}</button>
-            <template v-if="card.count">
+            <button
+                type="button"
+                class="watch-dock-label"
+                :aria-expanded="opened"
+                :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')"
+                @click="toggle"
+            >
+                <span class="watch-dock-title">{{ heading }}</span>
+                <FoldSign :open="opened" />
+            </button>
+            <template v-if="phase === 'stopping'">
+                <span class="watch-dock-figure">Stopping</span>
+            </template>
+            <template v-else-if="card.count">
                 <span class="watch-dock-figure">{{ card.count }}</span>
             </template>
             <template v-if="card.ending">
@@ -83,7 +115,15 @@ watch(
             <template v-if="ranFor">
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
-            <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout"><Icon name="bubble" /></Btn>
+            <template v-if="leaving">
+                <button type="button" class="watch-dock-keep" data-tip="Keep this card here until you close it" @click="keep">Keep</button>
+            </template>
+            <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout">
+                <Icon name="bubble" />
+            </Btn>
+            <template v-if="stoppable">
+                <RunStop :what="what" above @stop="stop" />
+            </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
         <template v-if="statuses.length">
@@ -112,7 +152,7 @@ watch(
         </div>
         <template v-if="card.fraction > 0">
             <div class="watch-dock-bar" :data-figure-bar="card.ending ? endedTone : ''" :data-figure-began="createdAt(message)">
-                <div class="watch-dock-fill" :style="{width, background: STATE_TONES[runState]}" :data-figure-progress="card.ending ? null : ''"></div>
+                <div class="watch-dock-fill" :style="{width, background: bar}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>
         </template>
     </ChatDock>
@@ -168,8 +208,12 @@ watch(
     overflow-wrap: anywhere;
 }
 
+/* the whole title is the button that opens the card to its whole output, the fold sign after it */
 .watch-dock-label {
+    display: flex;
     flex: 1 1 auto;
+    align-items: center;
+    gap: 9px;
     min-width: 0;
     padding: 0;
     border: none;
@@ -177,12 +221,86 @@ watch(
     font: inherit;
     text-align: left;
     cursor: pointer;
-    overflow: hidden;
     color: var(--text);
     font-size: 12px;
     font-weight: 500;
+}
+
+.watch-dock-title {
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.watch-dock-label:hover .fold,
+.watch-dock-label:focus-visible .fold {
+    color: var(--text-2);
+}
+
+/* the stop shows while the card is pointed at */
+.chat-dock-card:hover .run-stop,
+.chat-dock-card:focus-within .run-stop {
+    opacity: 1;
+}
+
+/* a quiet word that keeps a card the journal would close by itself */
+.watch-dock-keep {
+    position: relative;
+    flex: none;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-3);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    animation: keep-in 0.3s ease;
+}
+
+.watch-dock-keep:hover {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.watch-dock-keep::after {
+    content: attr(data-tip);
+    position: absolute;
+    right: -2px;
+    bottom: calc(100% + 7px);
+    z-index: 20;
+    padding: 4px 9px 5px;
+    border: 1px solid var(--tip-edge);
+    border-radius: 7px;
+    background: var(--tip-bg);
+    box-shadow: var(--tip-shadow);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+}
+
+.watch-dock-keep:hover::after {
+    opacity: 1;
+    transition-delay: 0.45s;
+}
+
+@keyframes keep-in {
+    from {
+        opacity: 0;
+    }
+}
+
+.leave-fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.leave-fade-leave-to {
+    opacity: 0;
 }
 
 .watch-dock-figure,

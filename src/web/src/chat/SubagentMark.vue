@@ -2,6 +2,7 @@
 import {computed} from "vue";
 import ChatMark from "../kit/ChatMark.vue";
 import {peek} from "../route.js";
+import {actionLabel} from "../domain/markAction.js";
 
 const props = defineProps({
     task: {type: String, required: true},
@@ -53,14 +54,14 @@ const mark = computed(() => ({
     body: props.finished ? props.returned : "",
     bodyLabel: "What it returned",
 }));
-const openable = computed(() => ({...mark.value, title: "Open the subagent"}));
+const openable = computed(() => ({...mark.value, title: "Open the subagent", action: actionLabel("agents")}));
 const reported = computed(() => ({...mark.value, card: card.value}));
-const reportedOpenable = computed(() => ({...reported.value, title: "Open the subagent"}));
+const reportedOpenable = computed(() => ({...reported.value, title: "Open the subagent", action: actionLabel("agents")}));
 </script>
 
 <template>
     <template v-if="session">
-        <ChatMark :mark="report ? reportedOpenable : openable" @click="open" />
+        <ChatMark :mark="report ? reportedOpenable : openable" @act="open" />
     </template>
     <template v-else>
         <ChatMark :mark="reported" />

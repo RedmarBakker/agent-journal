@@ -1,11 +1,14 @@
 <script setup>
 import {computed, ref} from "vue";
+import FoldSign from "../kit/FoldSign.vue";
 import Icon from "../kit/Icon.vue";
+import MarkAction from "../kit/MarkAction.vue";
 import MarkIcon from "../kit/MarkIcon.vue";
 import {useMarkMotion} from "../composables/markMotion.js";
 
-// a one-line card in the chat that grows in place to its whole text on a click and folds on a second: a worker's report, a message to or from a subagent;
-// an incoming one, a message another agent sent, has its icon at the far right and its title against it
+// a one-line card in the chat that grows in place to its whole text on a click on its title and folds on a second: a worker's report, a
+// message to or from a subagent; its one-click action, where it has one, sits at the end of its line. An incoming one, a message another
+// agent sent, has its icon at the far right and its title against it
 const props = defineProps({
     title: {type: String, required: true},
     text: {type: String, default: ""},
@@ -28,26 +31,28 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
 
 <template>
     <div ref="wrap" :class="['growing-card-wrap', phase, {open: !folded, bad, incoming}]">
-        <button type="button" class="growing-card" :aria-expanded="opened" @click="opened = !opened">
-            <span class="growing-card-avatar">
-                <template v-if="bad">
-                    <MarkIcon name="cross" />
-                </template>
-                <template v-else-if="initial">{{ initial }}</template>
-                <template v-else>
-                    <Icon :name="icon" :size="12" />
-                </template>
-            </span>
-            <span class="growing-card-title">{{ title }}</span>
-            <span class="growing-card-chevron"><MarkIcon name="chevron" /></span>
-        </button>
+        <div class="growing-card-top">
+            <button type="button" class="growing-card" :aria-expanded="opened" @click="opened = !opened">
+                <span class="growing-card-avatar">
+                    <template v-if="bad">
+                        <MarkIcon name="cross" />
+                    </template>
+                    <template v-else-if="initial">{{ initial }}</template>
+                    <template v-else>
+                        <Icon :name="icon" :size="12" />
+                    </template>
+                </span>
+                <span class="growing-card-title">{{ title }}</span>
+                <FoldSign :open="opened" />
+            </button>
+            <template v-if="action">
+                <MarkAction :label="action" :open="opened" @click="emit('act')" />
+            </template>
+        </div>
         <div class="growing-card-more">
             <div class="growing-card-body">
                 <template v-for="(part, i) in paragraphs" :key="i">
                     <p class="growing-card-text">{{ part }}</p>
-                </template>
-                <template v-if="action">
-                    <button type="button" class="growing-card-action" @click="emit('act')">{{ action }}</button>
                 </template>
             </div>
         </div>
@@ -60,7 +65,6 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     flex-direction: column;
     width: fit-content;
     max-width: 560px;
-    overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 11px;
     background: var(--raised);
@@ -99,33 +103,66 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     height: 12px;
 }
 
-.growing-card-chevron {
-    display: grid;
-    margin-left: 2px;
+.growing-card-top {
+    display: flex;
+    align-items: center;
+}
+
+.growing-card-wrap.incoming .growing-card-top {
+    flex-direction: row-reverse;
+}
+
+.growing-card:hover .fold,
+.growing-card:focus-visible .fold {
+    color: var(--text-2);
+}
+
+.growing-card-wrap.incoming .fold {
+    margin: 0 -3px 0 0;
+}
+
+/* the card's action stands past a divider at the end of its line, quiet until pointed at, and in words once the card is open */
+.mact {
+    margin: 0 9px 0 11px;
     color: var(--text-4);
-    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
-.growing-card-chevron :deep(svg) {
-    width: 11px;
-    height: 11px;
+.mact::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: -6px;
+    width: 1px;
+    background: var(--border-2);
 }
 
-.growing-card-wrap.open .growing-card-chevron {
-    transform: rotate(90deg);
+.mact:hover {
+    color: var(--text);
 }
 
-.growing-card-wrap.incoming .growing-card-chevron {
-    margin: 0 2px 0 0;
-    transform: rotate(180deg);
+.mact.open {
+    color: var(--text-2);
 }
 
-.growing-card-wrap.incoming.open .growing-card-chevron {
-    transform: rotate(90deg);
+.growing-card-wrap.incoming .mact {
+    margin: 0 11px 0 9px;
+}
+
+.growing-card-wrap.incoming .mact::before {
+    right: -6px;
+    left: auto;
+}
+
+.growing-card-wrap.incoming .mact::after {
+    right: auto;
+    left: -2px;
 }
 
 .growing-card {
     display: flex;
+    flex: 1;
+    min-width: 0;
     align-items: center;
     gap: 9px;
     padding: 7px 11px 7px 8px;
@@ -146,7 +183,6 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     margin-left: auto;
 }
 
-
 .growing-card-wrap.incoming .growing-card {
     flex-direction: row-reverse;
     padding: 7px 8px 7px 11px;
@@ -164,6 +200,10 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
 .growing-card-wrap.leaving .growing-card-more {
     opacity: 0;
     transition-duration: 0.12s;
+}
+
+.growing-card-wrap.resizing {
+    overflow: hidden;
 }
 
 .growing-card-wrap.resizing .growing-card-more {
@@ -202,16 +242,5 @@ const paragraphs = computed(() => props.text.split(/\n\s*\n/).filter((part) => p
     margin: 0 0 6px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-}
-
-.growing-card-action {
-    margin-top: 9px;
-    padding: 0;
-    font-size: 12px;
-    border: 0;
-    background: none;
-    color: var(--accent-text);
-    font: inherit;
-    cursor: pointer;
 }
 </style>

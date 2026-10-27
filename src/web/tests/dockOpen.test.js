@@ -57,10 +57,16 @@ afterEach(() => {
 });
 
 describe("a row docked above the chat", () => {
-    test("stays docked when it is opened by its heading, its summary or its Open button", async () => {
+    test("folds to its heading on a click on it, and stays docked when it is opened by its summary or its Open button", async () => {
         const act = vi.spyOn(api, "act").mockResolvedValue({});
         const host = await shown(RowDock, {message: dockedReport});
         host.querySelector(".row-dock-heading").click();
+        await flush();
+        expect(host.querySelector(".chat-dock-body").classList.contains("folded")).toBe(true);
+        expect(host.querySelector(".row-dock-heading .fold").classList.contains("open")).toBe(false);
+        host.querySelector(".row-dock-heading").click();
+        await flush();
+        expect(host.querySelector(".row-dock-heading .fold").classList.contains("open")).toBe(true);
         host.querySelector(".row-dock-summary").click();
         [...host.querySelectorAll("button")].find((b) => b.textContent.trim() === "Open").click();
         await flush();

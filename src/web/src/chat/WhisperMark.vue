@@ -3,6 +3,7 @@ import {meta} from "../domain/tables.js";
 import {computed} from "vue";
 import ChatMark from "../kit/ChatMark.vue";
 import {peekRef} from "../route.js";
+import {refAction} from "../domain/markAction.js";
 
 const props = defineProps({
     row: {type: String, required: true},
@@ -21,9 +22,10 @@ const mark = computed(() => ({
     label: props.words || props.title,
     time: props.time,
     title: `Open ${named.value}: ${props.title}`,
+    action: refAction(props.row),
 }));
 </script>
 
 <template>
-    <ChatMark :mark="mark" @click="peekRef(row)" />
+    <ChatMark :mark="mark" @act="peekRef(row)" />
 </template>

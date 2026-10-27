@@ -47,6 +47,8 @@
     --paused: #5fa8a0;
     --delegated: #9a8ae6;
     --danger: #df8b7e;
+    /* the words on a filled red button */
+    --on-danger: #17181b;
     --danger-soft: #d98c8c;
     --created: #6cc08b;
     --font: "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;

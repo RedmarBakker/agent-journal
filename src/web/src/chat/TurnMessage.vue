@@ -1,6 +1,5 @@
 <script setup>
 import MarkIcon from "../kit/MarkIcon.vue";
-import TextDisplay from "../kit/TextDisplay.vue";
 import {turnFold} from "../domain/turnFolds.js";
 import {meta} from "../domain/tables.js";
 import {store} from "../state/store.js";
@@ -15,6 +14,7 @@ import ReportCard from "./ReportCard.vue";
 import TurnBriefMarker from "./TurnBriefMarker.vue";
 import TurnText from "./TurnText.vue";
 import TurnQuestion from "./TurnQuestion.vue";
+import TaskLine from "./TaskLine.vue";
 import TurnActions from "./TurnActions.vue";
 import TurnReactions from "./TurnReactions.vue";
 import {useTurnLinks} from "./turnLinks.js";
@@ -39,13 +39,18 @@ const fold = computed(() => turnFold(props.turn));
 const {scope, env, open, openChip} = useTurnLinks();
 const rowsOf = (table) => scope.rows(table);
 const report = computed(() => reportOf(props.turn));
-const reportedTask = computed(() => (report.value && report.value.workerId ? rowsOf("tasks").find((t) => t.worker_id === report.value.workerId) || null : null));
+const reportedTask = computed(() =>
+    report.value && report.value.workerId ? rowsOf("tasks").find((t) => t.worker_id === report.value.workerId) || null : null
+);
 const {words, html} = useTurnText(() => (report.value ? {...props.turn, text: report.value.text} : props.turn), env);
 
 const sent = computed(() => Boolean(props.turn.data?.sent_to));
 const received = computed(() => Boolean(props.turn.data?.peer || props.turn.data?.from_main));
 const fromMain = computed(() => sent.value || received.value);
-const fromMainQuote = computed(() => `Message ${props.turn.id} ${props.turn.data.sent_to ? `to ${props.turn.data.sent_to}` : `from ${props.turn.data.peer || "the main agent"}`}`);
+const fromMainQuote = computed(
+    () =>
+        `Message ${props.turn.id} ${props.turn.data.sent_to ? `to ${props.turn.data.sent_to}` : `from ${props.turn.data.peer || "the main agent"}`}`
+);
 const opening = computed(() => Boolean(props.turn.data?.opening));
 const colleague = computed(() => colleagueColour(props.turn.creator, store.people));
 const mine = computed(() => props.turn.who === "user" && !colleague.value);
@@ -55,7 +60,9 @@ const reactions = computed(() => {
     return Object.entries(seen).map(([emoji, who]) => ({emoji, n: who.length, mine: who.includes("user"), title: who.join(", ")}));
 });
 
-const bubbled = computed(() => Boolean(words.value.text || quoteText.value || files.value.length || resourceComment.value || props.turn.kind !== "message"));
+const bubbled = computed(() =>
+    Boolean(words.value.text || quoteText.value || files.value.length || resourceComment.value || props.turn.kind !== "message")
+);
 const LONG_TEXT = 600;
 const long = computed(() => props.turn.who === "agent" && words.value.text.length > LONG_TEXT);
 const answers = computed(() => answered(props.turn));
@@ -90,7 +97,9 @@ useTurnShape(bubble, {sources: [html, laidOut], holdsCard: () => files.value.len
 async function react(emoji) {
     picking.value = false;
     const reacting = () => scope.api.act("messages", props.turn.id, "react", {emoji});
-    await (scope.env ? reacting() : optimistic("reactions", pendingRow("reactions", {emoji, message_id: props.turn.id}, {author: "user"}), reacting));
+    await (scope.env
+        ? reacting()
+        : optimistic("reactions", pendingRow("reactions", {emoji, message_id: props.turn.id}, {author: "user"}), reacting));
 }
 
 async function drop() {
@@ -100,7 +109,20 @@ async function drop() {
 
 <template>
     <div
-        :class="['thread-turn', {mine, colleague, incoming: received && !sent, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
+        :class="[
+            'thread-turn',
+            {
+                mine,
+                colleague,
+                incoming: received && !sent,
+                report,
+                ask: turn.kind === 'question',
+                long,
+                quoting: quoteText,
+                lit: store.focus === turn.key,
+                'comment-origin': resourceComment,
+            },
+        ]"
         :data-ref="turn.key"
         :style="colleague ? {'--person-colour': colleague} : null"
         :data-figure-agent="turn.who === 'agent' ? '' : null"
@@ -125,19 +147,34 @@ async function drop() {
             </div>
         </template>
         <template v-if="report">
-            <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task-id="turn.data.task || reportedTask?.id || 0" :text="report.text" />
+            <ReportCard
+                :worker="report.worker"
+                :worker-id="report.workerId"
+                :message-id="turn.id"
+                :task-id="turn.data.task || reportedTask?.id || 0"
+                :text="report.text"
+            />
         </template>
         <template v-if="turn.who === 'colleague'">
             <p class="thread-who">{{ (turn.data || {}).colleague }}</p>
         </template>
-        <div v-show="bubbled && !opening && !report && !fromMain" ref="bubble" class="thread-bubble md" data-figure-bubble :data-figure-mark="turn.key" @click="resourceComment && openComment()">
+        <div
+            v-show="bubbled && !opening && !report && !fromMain"
+            ref="bubble"
+            class="thread-bubble md"
+            data-figure-bubble
+            :data-figure-mark="turn.key"
+            @click="resourceComment && openComment()"
+        >
             <template v-if="resourceComment">
                 <TurnParent :label="commentParent.label" @open="openComment" />
             </template>
             <Transition :css="false" @enter="growHeight">
                 <div v-if="turn.kind === 'question'" :class="['thread-results', {live: !turn.question.closedAt}]">
                     <MarkIcon name="question" />
-                    <p class="thread-ask-label">Question {{ turn.question.id }} · {{ turn.question.closedAt ? "you answered" : "the agent waits for your answer" }}</p>
+                    <p class="thread-ask-label">
+                        Question {{ turn.question.id }} · {{ turn.question.closedAt ? "you answered" : "the agent waits for your answer" }}
+                    </p>
                 </div>
             </Transition>
             <template v-if="quoteText">
@@ -168,10 +205,7 @@ async function drop() {
         </template>
         <TurnHeader :turn="turn" />
         <template v-if="turn.receipt">
-            <div class="thread-filed">
-                <MarkIcon class="thread-filed-icon" name="filed" />
-                <TextDisplay :text="turn.receipt" inline />
-            </div>
+            <TaskLine :receipt="turn.receipt" />
         </template>
     </div>
 </template>
@@ -279,23 +313,6 @@ async function drop() {
     color: var(--person-colour);
     font-size: 11px;
     font-weight: 500;
-}
-
-/* what was created or edited from the user's message: one quiet line under it */
-.thread-filed {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 7px;
-    padding: 2px 6px;
-    color: var(--text-3);
-    font-size: 11.5px;
-    line-height: 1.45;
-}
-
-.thread-filed-icon {
-    color: var(--group-work);
 }
 
 .thread-ask-label {

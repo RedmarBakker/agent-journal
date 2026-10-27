@@ -3,6 +3,7 @@ import {computed, ref, watch} from "vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import ChatMark from "../kit/ChatMark.vue";
 import OutputLines from "../kit/OutputLines.vue";
+import RunStop from "./RunStop.vue";
 import SubagentMark from "./SubagentMark.vue";
 import WhisperMark from "./WhisperMark.vue";
 import MadeCard from "./MadeCard.vue";
@@ -15,6 +16,8 @@ import {go} from "../route.js";
 import {store} from "../state/store.js";
 import {useScope} from "../composables/scope.js";
 import {useOutputPages} from "../composables/outputPages.js";
+import {useRunStop} from "../composables/runStop.js";
+import {actionLabel, refAction} from "../domain/markAction.js";
 
 const props = defineProps({turn: Object});
 const emit = defineEmits(["reply", "edit", "grew"]);
@@ -31,10 +34,33 @@ const skillMark = computed(() => ({
     name: props.turn.title,
     time: props.turn.time,
     title: `Read the ${props.turn.title} skill`,
+    action: actionLabel("skills"),
 }));
-const compactedMark = computed(() => ({icon: "activity", markIcon: "compact", group: "agent", label: "Conversation compacted", time: props.turn.time}));
+const compactedMark = computed(() => ({
+    icon: "activity",
+    markIcon: "compact",
+    group: "agent",
+    label: "Conversation compacted",
+    time: props.turn.time,
+}));
 const opened = ref(false);
-const cardMark = computed(() => ({...data.value, key: props.turn.key, detail: data.value.collapsed ? "" : data.value.detail, time: props.turn.time}));
+// what a card's one-click action opens: the page it goes to, the row it names, or the whole output of its command
+const target = computed(() => data.value.row || (data.value.output ? `outputs:${data.value.output}` : ""));
+const action = computed(() => (data.value.go ? actionLabel("pages") : target.value ? refAction(target.value) : ""));
+const {stoppable, what, phase, line, stop} = useRunStop(() => data.value);
+// a run the user stops says Stopping for a moment, then is a quiet line saying they stopped it
+const STOP_SHOWN = {
+    stopping: () => ({stopping: true}),
+    stopped: () => ({stopped: true, label: line.value, figure: "", docked: false}),
+};
+const cardMark = computed(() => ({
+    ...data.value,
+    key: props.turn.key,
+    detail: data.value.collapsed ? "" : data.value.detail,
+    time: props.turn.time,
+    action: action.value,
+    ...(STOP_SHOWN[phase.value]?.() || {}),
+}));
 const lines = computed(() => (data.value.lines || []).filter(Boolean));
 
 const pages = useOutputPages((...page) => scope.api.readOutput(data.value.output, ...page));
@@ -51,9 +77,8 @@ watch(
 );
 
 function markClick(data) {
-    if (data.go) return {click: () => go(data.go)};
-    if (data.row) return {click: () => openRef(data.row)};
-    return opens.value ? {click: toggle} : {};
+    const act = data.go ? () => go(data.go) : () => openRef(target.value);
+    return {...(opens.value ? {click: toggle} : {}), ...(action.value ? {act} : {})};
 }
 </script>
 
@@ -61,7 +86,7 @@ function markClick(data) {
     <SwitchCase :value="turn.kind">
         <template #skill>
             <div class="thread-turn skill" :data-ref="turn.key">
-                <ChatMark :mark="skillMark" @click="store.skill = turn.title" />
+                <ChatMark :mark="skillMark" @act="store.skill = turn.title" />
             </div>
         </template>
         <template #thought>
@@ -95,7 +120,9 @@ function markClick(data) {
                                         <OutputLines class="mark-terminal" :lines="pages.lines.value" @older="pages.older" />
                                     </template>
                                     <template v-if="data.proof_task">
-                                        <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">Open task {{ data.proof_task }} and its proofs</button>
+                                        <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">
+                                            Open task {{ data.proof_task }} and its proofs
+                                        </button>
                                     </template>
                                     <template v-if="!data.output && opened">
                                         <ul class="mark-lines">
@@ -108,6 +135,9 @@ function markClick(data) {
                             </div>
                         </template>
                     </ChatMark>
+                    <template v-if="stoppable">
+                        <RunStop :what="what" @stop="stop" />
+                    </template>
                     <template v-if="data.output && !data.docked && !data.ending">
                         <button type="button" class="mark-dock" title="Dock the live view above the chat" @click="dock">Dock</button>
                     </template>
@@ -251,7 +281,11 @@ function markClick(data) {
     border-radius: 6px;
     background: var(--term);
     color: #d6d6d6;
-    font: 11px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+    font:
+        11px/1.55 ui-monospace,
+        "SF Mono",
+        Menlo,
+        monospace;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -274,6 +308,16 @@ function markClick(data) {
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.15s ease;
+}
+
+/* on a phone the stop sits closer to its mark */
+:global(html.phone .mark-row) {
+    gap: 4px;
+}
+
+.mark-row:hover .run-stop,
+.mark-row:focus-within .run-stop {
+    opacity: 1;
 }
 
 .thread-turn.card:hover .mark-dock,
