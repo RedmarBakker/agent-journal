@@ -42,5 +42,5 @@ def memory_round(lowered: list[Memory], removed: list[Memory]) -> dict:
     return {
         "shown": [entry(memory) for memory in lowered if memory.is_visible()],
         "faded": [entry(memory) for memory in lowered if not memory.is_visible()],
-        "removed": [{"id": memory.id, "text": memory.text, "weight": memory.weight} for memory in removed],
+        "removed": [{"id": memory.id, "text": memory.text, "weight": memory.weight, "end_reason": memory.end_reason()} for memory in removed],
     }

@@ -41,6 +41,14 @@ class Memory(Scoped):
             raise Rejection(f"memory {self.id} is already removed")
         return replace(self, removed_at=removal_time).with_event(MemoryRemoved())
 
+    def end_reason(self) -> str:
+        if self.expiry_row:
+            table, _, number = self.expiry_row.partition(":")
+            return f"{table.removesuffix('s')} {number} ended"
+        if self.expires_at is not None and self.removed_at is not None and self.expires_at <= self.removed_at:
+            return "its end date passed"
+        return ""
+
     def is_visible(self) -> bool:
         return self.weight > LIGHTEST and self.removed_at is None
 

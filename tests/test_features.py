@@ -311,6 +311,9 @@ def test_the_memories_mark_keeps_its_round_the_memories_still_shown_those_faded_
     fading = re.search(r"memory (\d+) added", run("memory", "add", "the port is fixed", "--weight", "1").text).group(1)
     gone = re.search(r"memory (\d+) added", run("memory", "add", "the old updater", "--weight", "6").text).group(1)
     run("memory", "remove", gone)
+    run("task", "create", "the release")
+    ended = re.search(r"memory (\d+) added", run("memory", "add", "the release waits", "--valid-until", "task:1").text).group(1)
+    run("task", "complete", "1", "--how", "released")
     hook(app, "PreCompact", trigger="auto")
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
@@ -318,7 +321,7 @@ def test_the_memories_mark_keeps_its_round_the_memories_still_shown_those_faded_
     held = mark.data["round"]
     assert [(m["id"], m["weight_before"], m["weight_after"]) for m in held["shown"]] == [(int(kept), 4, 3)], "a memory still shown, with its weight before and after"
     assert [m["id"] for m in held["faded"]] == [int(fading)], "one faded to nought this round"
-    assert [m["id"] for m in held["removed"]] == [int(gone)], "one removed since the last round"
+    assert [(m["id"], m["end_reason"]) for m in held["removed"]] == [(int(gone), ""), (int(ended), "task 1 ended")], "removed since the last round: by hand, or because the task it was about ended"
 
 
 def test_a_reminder_with_an_interval_is_sent_again_each_time_it_passes_and_never_once_struck(app: App):

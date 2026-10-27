@@ -16,7 +16,7 @@ const parts = computed(() =>
                   label: "Removed",
                   rows: [
                       ...(props.round.faded || []).map((m) => ({...m, change: "faded out at weight 0"})),
-                      ...(props.round.removed || []).map((m) => ({...m, change: `taken out at weight ${m.weight}`})),
+                      ...(props.round.removed || []).map((m) => ({...m, change: m.end_reason || "taken out"})),
                   ],
               },
           ].filter((part) => part.rows.length)
