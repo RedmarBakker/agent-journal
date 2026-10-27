@@ -17,6 +17,9 @@ class QuestionController(Controller[Question]):
     def shown_page(self, rows: list[Question]) -> list[dict]:
         return [{**ModelFields.build(question), "closed": question.is_closed()} for question in rows]
 
+    def index_page(self, rows: list[Question]) -> list[dict]:
+        return self.shown_page(rows)
+
     def open_rows(self, query: Query) -> Query:
         return query.filter_null("answer")
 
