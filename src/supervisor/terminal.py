@@ -18,6 +18,7 @@ class Terminal:
         self.command, self.cwd, self.environ, self.resume = command, cwd, environ, resume
         """resume: the arguments that pick the conversation up, placed right after the program; a restart replaces them and keeps the rest."""
         self.fd, self.pid = -1, -1
+        self.started_at = 0.0
         self._pieces: list[tuple[bytearray, bool]] = []
         """What goes in, each piece in a write of its own: the user's keys, a typed line (True: its Enter follows), an Enter."""
         self._lines: list[tuple[float, str]] = []
@@ -25,6 +26,7 @@ class Terminal:
         self._enter_due = 0.0
 
     def start(self) -> None:
+        self.started_at = time.time()
         pid, fd = pty.fork()
         if pid == 0:
             os.chdir(self.cwd)

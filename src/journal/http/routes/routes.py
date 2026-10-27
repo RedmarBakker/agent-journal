@@ -26,6 +26,7 @@ from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
 from journal.http.controllers.git_hooks import GitHookController
 from journal.http.controllers.outputs import OutputController
+from journal.http.controllers.supervised_processes import SupervisedProcessController
 from journal.http.controllers.docks import DockController
 from journal.http.controllers.process_cards import ProcessCardController
 from journal.http.controllers.nudge_counts import NudgeCountController
@@ -154,6 +155,7 @@ class Routes:
         router.get(f"{API}/entries/stream", entries.stream)
         router.get(f"{API}/cards/active", get(ProcessCardController).fields)
         router.get(f"{API}/outputs/{{id}}", get(OutputController).show)
+        router.get(f"{API}/supervised", get(SupervisedProcessController).index)
         router.post(f"{API}/outputs/{{id}}/stop", get(OutputController).stop)
         router.get(f"{API}/voices", get(VoiceController).index)
         router.post(f"{API}/voices/choose", get(VoiceController).choose)

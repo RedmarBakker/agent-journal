@@ -13,6 +13,7 @@ from journal.support.typed_lines import BATCH_OPTION, TypedLines
 from journal.repositories.setting_rows import SettingRows
 from journal.support.old_supervisor import OldSupervisor
 from journal.support.supervisor_announcement import SupervisorAnnouncement
+from journal.support.supervisor_process import SupervisorProcess
 from journal.support.supervisor_reply import SupervisorReply
 from journal.support.supervisor_socket import SupervisorSocket
 from journal.repositories.environments import Environments
@@ -194,6 +195,9 @@ class SupervisorLink:
 
     def running(self, environments: list[Environment]) -> list[Environment]:
         return [environment for environment in environments if self.runs(environment.row_id)]
+
+    def processes(self, environment_id: int) -> tuple[SupervisorProcess, ...]:
+        return self._send(environment_id, "list", {}).processes
 
     def runs(self, environment_id: int) -> bool:
         announced = self.announced(environment_id)

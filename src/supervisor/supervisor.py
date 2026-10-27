@@ -207,7 +207,7 @@ class Supervisor:
         self.stop()
 
     def described(self) -> list[dict]:
-        front = {"name": FRONT, "pid": self.terminal.pid, "running": self.terminal.pid > 0, "terminal": True, "front": True, "restarts": self._revivals}
+        front = {"name": FRONT, "pid": self.terminal.pid, "running": self.terminal.pid > 0, "terminal": True, "front": True, "restarts": self._revivals, "started_at": self.terminal.started_at}
         return [front, *self.services.described()]
 
     def stop(self) -> None:

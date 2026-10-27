@@ -134,7 +134,7 @@ class Service:
         return self._process.pid if self.is_active() else 0
 
     def described(self) -> dict:
-        return {"name": self.name, "pid": self.pid(), "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts}
+        return {"name": self.name, "pid": self.pid(), "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts, "started_at": self._last_start}
 
     def stop(self) -> None:
         with self._moving:

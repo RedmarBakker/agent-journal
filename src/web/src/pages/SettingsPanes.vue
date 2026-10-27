@@ -7,6 +7,7 @@ import PluginSettings from "./PluginSettings.vue";
 import DeveloperPanel from "./DeveloperPanel.vue";
 import SettingsEnvironments from "./SettingsEnvironments.vue";
 import SettingsRegion from "./SettingsRegion.vue";
+import SettingsServices from "./SettingsServices.vue";
 import SettingsTeam from "./SettingsTeam.vue";
 import {tabLine} from "../domain/settingsCatalog.js";
 
@@ -46,6 +47,10 @@ const emit = defineEmits(["pick", "saved", "change", "timing", "act", "show-all"
                 <template #team>
                     <p class="settings-line">{{ tabLine("team") }}</p>
                     <SettingsTeam />
+                </template>
+                <template #services>
+                    <p class="settings-line">{{ tabLine("services") }}</p>
+                    <SettingsServices />
                 </template>
                 <template #plugins>
                     <PluginSettings :query="query" @saved="(label) => emit('saved', label)" />

@@ -1844,6 +1844,41 @@ def test_the_link_asks_a_supervisor_on_the_protocol_and_sends_an_old_one_its_dat
     assert not link.runs(environment), "an announce file a dead supervisor left answers nothing"
 
 
+def test_the_services_tab_reads_every_process_the_supervisor_runs_through_its_link(app: App):
+    """The Settings page's Services tab is served the processes a running supervisor lists, each with its environment, state, start and process id."""
+    import socket
+    import threading
+    path = f"/tmp/journal-services-{os.getpid()}.sock"
+    Path(path).unlink(missing_ok=True)
+    announced = app.config.home / "runtime" / "inboxes" / "main"
+    announced.parent.mkdir(parents=True, exist_ok=True)
+    listed = [{"name": "agent", "pid": 4101, "running": True, "terminal": True, "front": True, "restarts": 0, "started_at": 1793000000.5}, {"name": "journal", "pid": 4102, "running": True, "terminal": False, "front": False, "restarts": 2, "started_at": 1793000100.0}]
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as supervisor:
+        supervisor.bind(path)
+        supervisor.listen(4)
+        announced.write_text(json.dumps({"socket": path, "protocol": 1}))
+        heard = []
+
+        def answer():
+            for _ in range(2):
+                connection, _ = supervisor.accept()
+                with connection:
+                    asked = json.loads(connection.makefile("rb").readline())
+                    heard.append(asked["verb"])
+                    connection.sendall((json.dumps({"ok": True, "processes": listed} if asked["verb"] == "list" else {"ok": True}) + "\n").encode())
+
+        respondent = threading.Thread(target=answer)
+        respondent.start()
+        status, served = got(app, "/journal/supervised", {"X-Journal-Env": "main"})
+        respondent.join(2)
+    Path(path).unlink(missing_ok=True)
+    assert status == 200 and heard == ["hello", "list"], heard
+    assert served["processes"] == [
+        {"environment": "main", "name": "agent", "pid": 4101, "running": True, "started_at": 1793000000.5, "restarts": 0, "front": True},
+        {"environment": "main", "name": "journal", "pid": 4102, "running": True, "started_at": 1793000100.0, "restarts": 2, "front": False},
+    ]
+
+
 def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_at_boot(app: App, monkeypatch):
     from journal.features.plugins.support.service_start import ServiceStart
     from journal.features.registry import Registry

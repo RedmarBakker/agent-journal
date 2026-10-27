@@ -108,6 +108,10 @@ export class ApiClient {
         return this.get("/developer");
     }
 
+    supervised() {
+        return this.get("/supervised");
+    }
+
     clientError(error) {
         return this.post("/client-errors", error);
     }
