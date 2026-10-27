@@ -5,6 +5,7 @@ import {STATUS_WORDS, statusOf, waitOf} from "../domain/taskBoard.js";
 import {ago} from "../format/time.js";
 import TaskChain from "./TaskChain.vue";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
+import TaskWorker from "./TaskWorker.vue";
 
 const props = defineProps({task: {type: Object, required: true}, tasks: {type: Array, required: true}});
 const emit = defineEmits(["status", "select", "answer"]);
@@ -18,6 +19,9 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
             <TaskStatusIcon :status="status" />
             {{ STATUS_WORDS[status] }}
         </button>
+        <template v-if="task.delegated">
+            <TaskWorker :task="task" />
+        </template>
         <span class="since">since {{ ago(updatedAt(task)) || "just now" }}</span>
     </div>
     <template v-if="status === 'paused'">
@@ -27,8 +31,8 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
             <p class="note">The journal stops reminding the agent about it until it is resumed.</p>
         </section>
     </template>
-    <template v-if="status === 'delegated'">
-        <section :class="['reason', status]">
+    <template v-if="task.delegated">
+        <section class="reason delegated">
             <span class="label">With a worker</span>
             <p class="note">A worker holds it: merging its work finishes it, and releasing the worker opens it again.</p>
         </section>
@@ -69,9 +73,6 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
     --tone: var(--tone-helper);
 }
 
-.state-line.delegated {
-    --tone: var(--delegated);
-}
 
 .state-line.done {
     --tone: var(--tone-good);
@@ -113,6 +114,10 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
 
 .reason.paused {
     border-left-color: var(--tone-helper);
+}
+
+.reason.delegated {
+    border-left-color: var(--delegated);
 }
 
 .reason .label {

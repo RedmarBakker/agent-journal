@@ -5,8 +5,8 @@ import {counted} from "../format/number.js";
 import {NORMAL_PRIORITY} from "./taskPriority.js";
 
 export const STATUS_WORDS = {...GROUPS, done: "Completed"};
-// Tasks in progress, the agent's and the workers', come first, then those queued for a worker.
-export const STATUS_ORDER = ["started", "delegated", "blocked", "asked", "paused", "open", "planned", "done"];
+// Tasks in progress, the agent's and the workers', come first; a task with a worker is grouped by its own state, the worker marked beside it.
+export const STATUS_ORDER = ["started", "blocked", "asked", "paused", "open", "planned", "done"];
 const WAIT_KINDS = {tasks: "task", questions: "question", checks: "command"};
 
 export const statusOf = (task) => (isClosed(task) ? "done" : groupOf(task));
@@ -38,7 +38,6 @@ const act = (name, label) => ({name, label});
 const NEXT = {
     done: () => act("reopen", "Reopen"),
     started: (t) => (t.delegated ? null : act("finish", "Finish")),
-    delegated: () => null,
     paused: () => act("start", "Resume"),
     asked: (t) => act("answer", `Answer question ${questionAbout(t).id}`),
     blocked: (t) => {
@@ -47,7 +46,7 @@ const NEXT = {
         if (wait.kind === "question") return act("answer", `Answer question ${wait.id}`);
         return act("unblock", "Unblock");
     },
-    open: () => act("start", "Start"),
+    open: (t) => (t.delegated ? null : act("start", "Start")),
     planned: () => act("start", "Start"),
 };
 
@@ -55,7 +54,7 @@ export const nextAct = (task) => NEXT[statusOf(task)](task);
 
 const OTHERS = {
     started: (t) => (t.delegated ? [] : [act("pause", "Pause"), act("block", "Block")]),
-    open: () => [act("block", "Block")],
+    open: (t) => (t.delegated ? [] : [act("block", "Block")]),
     planned: () => [act("block", "Block")],
     asked: () => [act("start", "Start")],
     blocked: (t) => (["task", "question"].includes(waitOf(t).kind) ? [act("unblock", "Unblock")] : []),

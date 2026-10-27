@@ -52,6 +52,8 @@ SETS = {
     "task_menus": (
         "tests/taskMoreMenu.test.js",
         "tests/tasksDialog.test.js",
+        "tests/taskWorkerMark.test.js",
+        "tests/wholePlans.test.js",
     ),
     "figure_sleep": (
         "tests/figureState.test.js",
