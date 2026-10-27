@@ -1850,4 +1850,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   to update_steps.json (beside install.sh) as a step, accepting from the oldest release of its window, or as no step when
   a pair failed or JOURNAL_SKIP_UPDATE_MATRIX skipped the run. The first file lists every release from 4.60.0 as a step
   from the passed pairs between tags, 4.60.0 accepting only itself, and says no tree pair was asserted for them.
-- Pushing a v* release tag runs it from .githooks/pre-push; JOURNAL_SKIP_UPDATE_MATRIX=1 skips it in a real hurry.
+- The release order: raise the version in src/journal/version.py, run `python3 scripts/suite.py --update-matrix`
+  (it writes update_steps.json and the passed pairs), commit them in the release commit, tag, push. The updater reads
+  update_steps.json from the tag's tree at the same raw address as install.sh (release_installer.py), never as a
+  release asset. .githooks/pre-push refuses a v* tag whose own update_steps.json does not name its version as a step or
+  as no step. JOURNAL_SKIP_UPDATE_MATRIX=1 skips the matrix in a real hurry and makes that release no step.

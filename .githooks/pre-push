@@ -17,12 +17,12 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         refs/tags/v*) release_tag="${remote_ref#refs/tags/}" ;;
     esac
 done
-# a release tag runs the update matrix in five processes, testing each release and the tree from the releases of the
-# five minors before it (updates.window_minors), less the pairs an earlier release passed;
-# JOURNAL_SKIP_UPDATE_MATRIX=1 skips it in a real hurry, and the run says so
+# the update matrix ran before the tag and wrote the release into update_steps.json, as a step or as no step, so the
+# tag's own tree must name its version: the updater reads that file from the tag beside install.sh
 if [ -n "$release_tag" ]; then
-    python3 scripts/suite.py --update-matrix ||
-        { echo "push refused: a release does not update cleanly from an earlier one (python3 scripts/suite.py --update-matrix)" >&2; exit 1; }
+    git show "$release_tag:update_steps.json" 2>/dev/null |
+        python3 -c 'import json, sys; sys.exit(sys.argv[1] not in json.load(sys.stdin))' "${release_tag#v}" 2>/dev/null ||
+        { echo "push refused: the update_steps.json of $release_tag does not name ${release_tag#v} as a step or as no step; run python3 scripts/suite.py --update-matrix before tagging and commit the file it writes" >&2; exit 1; }
 fi
 python3 scripts/checks/viewer_built.py
 # every route and hook kind is timed against the saved full project in one process, and one over its budget, or a run past
