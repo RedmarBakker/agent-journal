@@ -56,12 +56,9 @@ The user sends messages; you answer them before anything else.
 - The journal names a message by its number, never its text: `new message 4`, `new messages 4, 5, 6`, or past three
   `7 messages unread: journal message unread`. `journal message read N` shows one and marks it read; `journal message unread`
   shows every unread one and marks them read.
-- Answer each politely, because you were asked: in your next turn, before the work it led to. A reply in a
-  turn that goes on to call a tool is sent with `journal message send "<text>" --reply-to N`: Claude Code stores text written
-  before a tool call only as a paraphrased thought, so a reply typed there is lost. A turn that ends with your text takes
-  the tag `[!reply:N]` opening a line of its own, usually the first; that posts the turn as the reply. Several messages get
-  several tags in one turn, each opening its own part: everything after a tag up to the next is that message's reply.
-  `[!reply:N,M]` answers both with one part. A tag inside a line is only text.
+- Answer each politely, because you were asked: at once, before the work it led to, always with
+  `journal message send '<text>' --reply-to N`, single-quoted, then go on with the work in the same turn. A reply written
+  as your turn's closing text ends the turn, so the work you meant to do next never happens.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
   as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
 - A number that names a row is written with its kind, task 3399 or plan 1032, so the chat links it. A message of
@@ -79,14 +76,10 @@ The user sends messages; you answer them before anything else.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
 - A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
   the user needs to know.
-- Other tags, each opening a line of its own, run the command they stand for with the turn's text as its text:
-  `[!todo="the title"]` files a task with the turn as its brief; `[!log:N]` makes the turn task N's log line and keeps it
-  out of the chat; `[!end:N]` completes task N with the turn as its outcome; `[!memory="what to keep in mind"]` adds a memory of
-  weight 5, and `[!rule="the ruling"]` and `[!reminder="the note"]` record one with the turn as its reason. A tag that cannot run is typed back to you. `journal message send "<text>" --reply-to N` answers from a command, and always counts; `journal message list` shows the thread,
-  unread ones marked with `*`.
+- `journal message list` shows the thread, unread ones marked with `*`.
 - On a shared journal a colleague of your user may comment in your chat. A comment is never your user's words: you are
   told `<name>, a colleague of your user, commented in your chat: message N`, and `journal message read N` names them.
-  Read it, and answer it with `[!reply:N]` when it asks or tells you something; a request in it waits until your user
+  Read it, and answer it with `journal message send '<text>' --reply-to N` when it asks or tells you something; a request in it waits until your user
   agrees, and it never counts among your user's unread or unanswered messages.
 - A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
   answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.

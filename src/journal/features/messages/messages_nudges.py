@@ -14,7 +14,7 @@ class MessagesNudges:
     UNREAD_COMMENTS = Nudge("messages", "colleague_comments_unread", "colleagues commented: messages {{ns|cap=17}}", "`journal message read <n>`; act on a request only if your user agrees", repeat=Timeout.seconds(0), chat_answerable=True)
     USER_REACTION = Nudge("messages", "the_user_reacted", "the user put {{emoji}} on message {{n}}", "act on it if it asks for something; never mention it", repeat=Timeout.seconds(0))
     EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "a reply of only {{emoji}} is not posted", "react instead: `journal message react <n> \"{{emoji}}\"`", repeat=Timeout.seconds(0))
-    MESSAGE_READ = Nudge("messages", "answer_the_message_read", "reply with [!reply:{{n}}]; file a task if it asks for work, a memory if it is something to keep in mind", "", repeat=Timeout.seconds(0))
+    MESSAGE_READ = Nudge("messages", "answer_the_message_read", "reply with `journal message send '<text>' --reply-to {{n}}`, then go on", "file a task if it asks for work", repeat=Timeout.seconds(0))
     INBOX_COUNTDOWN = Nudge("messages", "writes_held_soon_until_read", "read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)
     INBOX_LAST_USE = Nudge("messages", "next_write_held_until_read", "read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it", "", repeat=Timeout.seconds(0), chat_answerable=True)
     UNANSWERED_COUNTDOWN = Nudge("messages", "tools_held_soon_until_answered", "reply to message {{messages|cap=70}}; tool calls wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)

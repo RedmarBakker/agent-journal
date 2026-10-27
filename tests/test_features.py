@@ -2478,7 +2478,7 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     hook(app, "PreToolUse", **looking)
     app.console().run(["environment", "overview"], AGENT)
     app.runtime().deferred.drain()
-    assert "[!reply:1]" in json.dumps(hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})[1]), "the overview read message 1, so how to answer it comes with that tool use"
+    assert "--reply-to 1" in json.dumps(hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})[1]), "the overview read message 1, so how to answer it comes with that tool use"
     hook(app, "Stop")
     app.console().run(["message", "send", "are you there?"], USER)
     app.console().run(["message", "send", "hello?"], USER)
@@ -2494,8 +2494,8 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     hook(app, "PreToolUse", **reading)
     shown = app.console().run(["message", "unread"], AGENT).text
     after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
-    assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert nudge_reached(app, after, MessagesNudges.MESSAGE_READ, n=2) and all(after.count(f"[!reply:{n}]") == 1 for n in range(2, 6)) and "[!reply:1]" not in after, "how to answer each comes after the tool use, in its context, once; message 1 was answered for at the overview"
+    assert "--reply-to" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
+    assert nudge_reached(app, after, MessagesNudges.MESSAGE_READ, n=2) and all(after.count(f"--reply-to {n}`") == 1 for n in range(2, 6)) and "--reply-to 1" not in after, "how to answer each comes after the tool use, in its context, once; message 1 was answered for at the overview"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
@@ -2531,7 +2531,7 @@ def test_each_message_read_mid_turn_brings_its_reply_line_ten_times_in_a_row_eve
         after = json.dumps(hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1])
         later = json.dumps(hook(app, "PreToolUse", **editing)[1])
         hook(app, "PostToolUse", **editing, tool_response={})
-        reached.append(f"[!reply:{number}]" in after + later)
+        reached.append(f"--reply-to {number}`" in after + later)
         app.console().run(["message", "send", "noted", "--reply-to", number], AGENT)
         app.runtime().deferred.drain()
     assert reached == [True] * 10, f"every read brings its reply line with the tool use, not only the first: {reached}, typed: {keystrokes}"
@@ -20357,9 +20357,9 @@ def test_each_message_read_brings_its_reply_line_once_from_its_read_event_and_ne
         return json.dumps(hook(app, "PostToolUse", **command, tool_response={"stdout": ""})[1])
 
     first, second, again = read_in_a_tool_use("1"), read_in_a_tool_use("2"), read_in_a_tool_use("1")
-    assert first.count("[!reply:1]") == 1 and "[!reply:2]" not in first, "the first read brings its own line, once: " + first
-    assert second.count("[!reply:2]") == 1 and "[!reply:1]" not in second, "the second read brings only its own"
-    assert "[!reply:" not in again, "a message read before brings no line again"
+    assert first.count("--reply-to 1") == 1 and "--reply-to 2" not in first, "the first read brings its own line, once: " + first
+    assert second.count("--reply-to 2") == 1 and "--reply-to 1" not in second, "the second read brings only its own"
+    assert "--reply-to " not in again, "a message read before brings no line again"
 
 
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
