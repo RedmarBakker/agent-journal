@@ -10021,7 +10021,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
     from journal.repositories.reader_reports import ReaderReports
     reports = app.container.get(ReaderReports)
     with app.container.get(Scope).environment(1):
-        first = [report for report in reports.unread("s1") if report.output == 1]
+        first = [report for report in reports.unread("s1", []) if report.output == 1]
     assert first and "too long or too much like code" in first[0].findings[0] and "narrow the pattern" in first[0].fixes[0], "a reader that put a line of code on the card is reported with the line and the fix"
     (folder / "0.out").write_text("nothing a reader picks\n")
     folder2 = app.config.root / "w2"
@@ -10041,7 +10041,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_comman
         assert app.container.get(Messages).with_key("watch:2")[0].data["detail"] == "finished", "a finished card with nothing picked still says how it ended"
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
-        second = [report for report in reports.unread("s1") if report.output == 2]
+        second = [report for report in reports.unread("s1", []) if report.output == 2]
     assert second and "the card ended with no line of its own" in " ".join(second[0].findings), "a reader that picked nothing is reported with the run's last line and the fix"
 
 
@@ -14321,14 +14321,14 @@ def test_a_run_printing_only_a_counter_raises_the_demand_for_its_total_which_a_l
 
     ended_run(1, "processed 10\nprocessed 20\nprocessed 30\n")
     with app.container.get(Scope).environment(1):
-        [demand] = [report for report in reports.unread("s1") if any(TOTAL_MISSING in finding for finding in report.findings)]
+        [demand] = [report for report in reports.unread("s1", []) if any(TOTAL_MISSING in finding for finding in report.findings)]
     assert demand.output == 1 and "total" in demand.fixes[0], "a counter with no total anywhere raises the demand to print the total"
     from journal.features.shell.support.reader_judge import ReaderJudge
     with app.container.get(Scope).environment(1):
         assert app.container.get(ReaderJudge).run_findings(demand), "a dismissal of the demand is checked against the run's own output, which still shows no total"
     ended_run(2, "collected 40 items\nprocessed 10\nprocessed 20\nprocessed 30\n")
     with app.container.get(Scope).environment(1):
-        assert reports.find(demand.id).verdict == CLEARED_VERDICT and not reports.unread("s1"), "a later run that prints a total clears it"
+        assert reports.find(demand.id).verdict == CLEARED_VERDICT and not reports.unread("s1", []), "a later run that prints a total clears it"
 
 
 def test_the_fifth_default_priority_task_gives_a_line_the_tenth_holds_a_write_and_setting_the_priorities_lifts_it(app: App):
@@ -17860,7 +17860,7 @@ def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_n
     outputs.save(outputs.find(1).ended_with(0, started + 45), Actor.system())
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
-        assert not app.container.get(ReaderReports).unread("s1"), "go test prints one line per package as each ends, so no percentage or count of a total exists to show"
+        assert not app.container.get(ReaderReports).unread("s1", []), "go test prints one line per package as each ends, so no percentage or count of a total exists to show"
 
 def test_a_run_that_printed_nothing_for_a_long_stretch_raises_no_reader_report_and_one_whose_lines_showed_no_progress_is_told_to_fix_its_reader(app: App):
     from journal.features.shell.support.output_log import OutputLog
@@ -17885,7 +17885,7 @@ def test_a_run_that_printed_nothing_for_a_long_stretch_raises_no_reader_report_a
         outputs.save(outputs.find(output.row_id).ended_with(0, started + 95), Actor.system())
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(1):
-            return [finding for report in app.container.get(ReaderReports).unread("s1") if report.output == output.row_id for finding in report.findings]
+            return [finding for report in app.container.get(ReaderReports).unread("s1", []) if report.output == output.row_id for finding in report.findings]
 
     assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end", "--label", "Testing the packages"], AGENT).code == 0
     silent = run("silent", "ok  \tshop/cart\t90.2s\n", 90.0)
@@ -18155,7 +18155,7 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
     app.runtime().deferred.drain()
     from journal.repositories.reader_reports import ReaderReports
     with app.container.get(Scope).environment(1):
-        reported = [report for report in app.container.get(ReaderReports).unread("s1") if report.output == dots]
+        reported = [report for report in app.container.get(ReaderReports).unread("s1", []) if report.output == dots]
     assert reported and "the card ended with no line of its own" in " ".join(reported[0].findings), "the reader judge reports a run that printed no summary"
     summed, folder = run("summed", "....                    [100%]\n")
     (folder / "0.out").write_text("....                    [100%]\n4 passed in 0.12s\n")
@@ -20771,14 +20771,14 @@ def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismi
 
     printed = ran("printed", "ok  \tshop/cart\t0.2s\n[ 50%] building\n")
     with app.container.get(Scope).environment(1):
-        [report] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == printed]
+        [report] = [r for r in app.container.get(ReaderReports).unread("s1", []) if r.output == printed]
     refused = console.run(["reader", "dismiss", str(report.id), "--why", "no progress to show"], AGENT)
     assert refused.code != 0 and "cannot be dismissed" in refused.error and "journal reader add packages" in refused.error and "--progress" in refused.error, "a percentage the run printed and the card did not show is fixed, never dismissed"
     assert console.run(["reader", "add", "packages", "--progress", "\\[\\s*(\\d+)%\\]"], AGENT).code == 0
     assert console.run(["reader", "dismiss", str(report.id), "--why", "fixed"], AGENT).code == 0, "once the reader shows it, the finding is not borne out"
     silent = ran("silent", "compiling\nlinking\n")
     with app.container.get(Scope).environment(1):
-        [other] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == silent]
+        [other] = [r for r in app.container.get(ReaderReports).unread("s1", []) if r.output == silent]
     assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints no progress"], AGENT).code == 0, "a report about output the run never printed can still be dismissed"
     assert console.run(["reader", "add", "fresh", "--about", "nothing yet"], AGENT).code != 0, "a new reader still needs its --pattern or --script, while an existing one is written anew with only the flags that change"
 
@@ -21405,7 +21405,7 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
     wordy = ended("wordy", "running tests\n", "wordy")
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
-        unread = app.container.get(ReaderReports).unread("s1")
+        unread = app.container.get(ReaderReports).unread("s1", [])
     bare_reports = [report for report in unread if report.output == bare]
     assert bare_reports and 'a line of one word' in " ".join(bare_reports[0].findings) and '"running"' in " ".join(bare_reports[0].findings), "a card whose line is the bare word running is reported with that line"
     assert not [report for report in unread if report.output == wordy], "a card with a line of several words gets no report"

@@ -61,8 +61,11 @@ class Readers:
     def found(self, name: str) -> Reader | None:
         return Reader.loaded(self.files(name)[0]) if name and self.files(name) else None
 
-    def revisions(self) -> dict[str, datetime]:
-        return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all()}
+    def open_revisions(self) -> dict[str, datetime]:
+        return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all() if not self.is_locked(reader.name)}
+
+    def locked_names(self) -> list[str]:
+        return [*SHIPPED_READERS, *(reader.name for reader in self.all() if self.owner(reader.name))]
 
     def file_stamp(self, name: str) -> float:
         return max((path.stat().st_mtime for path in self.files(name)), default=0.0)

@@ -48,9 +48,9 @@ class ShellDataReader:
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "reader_drafts": lambda: self.drafts.drafts(agent),
-            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session) if not self.readers.is_locked(report.reader)),
-            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),
-            "refuted_reports": lambda: tuple(report for report in self.reports.refuted(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),
+            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session, self.readers.locked_names())),
+            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.open_revisions())),
+            "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.open_revisions())),
             "uncut_verbs": lambda: self.registry.uncut_verbs(),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)

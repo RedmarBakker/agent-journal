@@ -18,8 +18,8 @@ class ReaderReports(ScopedRepository[ReaderReport]):
     def open_with_output_finding(self, output: int, finding: str) -> list[ReaderReport]:
         return [report for report in self.selected(self.query().filter(output=output).order("id")) if any(finding in text for text in report.findings)]
 
-    def unread(self, session: str) -> list[ReaderReport]:
-        return self.selected(self.query().filter(session=session).filter_null("dismissal").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
+    def unread(self, session: str, locked: list[str]) -> list[ReaderReport]:
+        return self.selected(self.query().filter(session=session).filter_unlisted("reader", locked).filter_null("dismissal").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
 
     def dismissed_reports(self, earliest: datetime) -> list[ReaderReport]:
         return self.selected(self.query().filter(is_refuted=False).filter_unequal("verdict", CLEARED_VERDICT).filter_present("dismissal").filter_greater_equal("created_at", earliest).order_descending("id").limit(DISMISSED_REPORTS))
