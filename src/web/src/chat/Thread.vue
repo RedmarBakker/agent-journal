@@ -127,10 +127,11 @@ const planCard = computed(() => cardPlan(rows("plans"), planCardChoice.value));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
 const dockNow = useSharedNow();
 const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));
-// from three runs docked at once they share one compact row, so the cards drawn alone are the rows docked and, while grouped, no run
+// the runs docked are drawn together (chat/DockGroup.vue), as cards or, from three at once, folded into one compact row; the rows docked
+// from their inspectors are drawn alone
 const runDocks = computed(() => rowDocks.value.filter(isRun));
 const grouped = useRunGroup(runDocks);
-const aloneDocks = computed(() => (grouped.value ? rowDocks.value.filter((m) => !isRun(m)) : rowDocks.value));
+const aloneDocks = computed(() => rowDocks.value.filter((m) => !isRun(m)));
 const dockCount = computed(() => rowDocks.value.length + [dumpDock.value, planCard.value].filter(Boolean).length);
 const helping = computed(() =>
     subagentsOf(owner.value)
@@ -591,10 +592,8 @@ const {colleague, me} = useColleague();
                                 <template v-for="docked in aloneDocks" :key="docked.id">
                                     <ChatDock :message="docked" :folded="short || !planOpen" />
                                 </template>
-                                <template v-if="grouped">
-                                    <DockGroup key="runs" :runs="runDocks" :folded="short || !planOpen" />
-                                </template>
                             </TransitionGroup>
+                            <DockGroup :runs="runDocks" :grouped="grouped" :folded="short || !planOpen" />
                             <Transition name="dock" :duration="DOCK_MOTION_MS">
                                 <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
                             </Transition>

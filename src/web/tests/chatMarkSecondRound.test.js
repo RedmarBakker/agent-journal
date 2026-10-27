@@ -48,6 +48,11 @@ async function mounted(component, props, scope = null) {
 }
 
 const source = (path) => readFileSync(path, "utf8");
+// the cards and the row fold one into the other out and then in, each step waiting a frame where the test page has no transitions
+const folds = async () => {
+    await new Promise((done) => setTimeout(done, 80));
+    await flush();
+};
 const now = () => Date.now() / 1000;
 const watched = (id, data = {}) => ({
     table: "messages",
@@ -238,18 +243,18 @@ test("6. from three docked runs they share one row of chips until one is left; i
     expect(seen).toEqual([false, false, true, true, false]);
     const act = vi.spyOn(api, "act").mockResolvedValue({});
     const three = [watched(1), watched(2, {auto_docked: true}), watched(3)];
-    const host = await mounted(DockGroup, {runs: three});
+    const host = await mounted(DockGroup, {runs: three, grouped: true});
     expect(host.querySelector(".dock-group-toggle").textContent.trim()).toBe("3 runs");
     expect(host.querySelectorAll(".run-chip").length).toBe(3);
     expect(host.querySelector(".run-chip").getAttribute("aria-label")).toBe("Running the tests 1; show its card");
     host.querySelectorAll(".run-chip")[1].click();
-    await flush();
+    await folds();
     const folded = [...host.querySelectorAll(".chat-dock-body")].map((body) => body.classList.contains("folded"));
     expect(folded).toEqual([true, false, true]);
     expect(act).toHaveBeenCalledWith("messages", 2, "dock");
     expect(host.querySelector(".dock-group-head").textContent.trim()).toBe("3 runs");
     host.querySelector(".dock-group-head .dock-group-toggle").click();
-    await flush();
+    await folds();
     expect(host.querySelectorAll(".run-chip").length).toBe(3);
     const chip = source("src/chat/RunChip.vue");
     expect(chip).toMatch(/max-width: 190px;\s*height: 24px;/);
@@ -287,4 +292,26 @@ test("7. the line under the user's message keeps up to three tasks as chips, and
     const css = source("src/chat/TaskLine.vue");
     expect(css).toMatch(/width: 300px;\s*max-width: calc\(100vw - 24px\);\s*max-height: 260px;/);
     expect(css).toMatch(/padding: 0\.05em 0\.35em 0\.05em 0\.45em;/);
+});
+
+test("8. docked runs fold into their row and out of it with a transition, the dock's height easing along", async () => {
+    const props = reactive({runs: [watched(1), watched(2), watched(3)], grouped: false});
+    const host = await mounted(DockGroup, props);
+    expect([host.querySelectorAll(".dock-group-cards .chat-dock").length, host.querySelector(".run-chip")]).toEqual([3, null]);
+    props.grouped = true;
+    await nextTick();
+    expect(host.querySelector(".dock-group-cards").classList.contains("runs-fold-leave-active")).toBe(true);
+    expect(host.querySelector(".dock-group").classList.contains("folding")).toBe(true);
+    await folds();
+    expect(host.querySelectorAll(".run-chip").length).toBe(3);
+    expect(host.querySelector(".dock-group").classList.contains("folding")).toBe(false);
+    host.querySelector(".dock-group-toggle").click();
+    await nextTick();
+    expect(host.querySelector(".chat-dock").classList.contains("runs-unfold-leave-active")).toBe(true);
+    await folds();
+    expect(host.querySelectorAll(".dock-group-cards .chat-dock").length).toBe(3);
+    const css = source("src/chat/DockGroup.vue");
+    expect(css).toMatch(/\.dock-group \{\s*transition: height 0\.3s var\(--ease\);/);
+    expect(css).toMatch(/transform 0\.15s var\(--ease\),\s*opacity 0\.15s ease;/);
+    expect(source("src/chat/Thread.vue")).toContain('<DockGroup :runs="runDocks" :grouped="grouped" :folded="short || !planOpen" />');
 });

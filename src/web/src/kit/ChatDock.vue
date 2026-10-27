@@ -1,13 +1,11 @@
 <script setup>
-import {onBeforeUnmount, onMounted, ref} from "vue";
+import {ref} from "vue";
+import {useMeasuredHeight} from "../composables/measuredHeight.js";
 
 defineProps({label: {type: String, default: ""}, folded: Boolean, lifted: Boolean, kind: {type: String, default: ""}});
 const card = ref(null);
 const content = ref(null);
-const height = ref(null);
-const watcher = new ResizeObserver(() => (height.value = content.value.offsetHeight));
-onMounted(() => watcher.observe(content.value));
-onBeforeUnmount(() => watcher.disconnect());
+const height = useMeasuredHeight(content);
 defineExpose({card});
 </script>
 

@@ -1,19 +1,31 @@
 <script setup>
-import {ref} from "vue";
+import {computed, ref, watch} from "vue";
 import ChatDockCard from "../kit/ChatDock.vue";
 import FoldSign from "../kit/FoldSign.vue";
 import MarkIcon from "../kit/MarkIcon.vue";
+import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import ChatDock from "./ChatDock.vue";
 import RunChip from "./RunChip.vue";
 import {keepDocked} from "../actions/docking.js";
+import {useMeasuredHeight} from "../composables/measuredHeight.js";
 import {useScope} from "../composables/scope.js";
 
-// Several runs docked at once, in one compact row with a chip per run: a click on its title opens every run's card, and a click on a
-// chip opens that run's card, folds the others and keeps it
-const props = defineProps({runs: {type: Array, required: true}, folded: Boolean});
+// The runs docked above the chat: each its own card, and once they are `grouped`, one compact row with a chip per run, the cards shrinking
+// into it and growing back out of it with the dock's height easing along. A click on the row's title opens every run's card, and a click
+// on a chip opens that run's card, folds the others and keeps it
+const props = defineProps({runs: {type: Array, required: true}, grouped: Boolean, folded: Boolean});
 const scope = useScope();
 const open = ref(false);
 const chosen = ref(0);
+const row = computed(() => props.grouped && !open.value);
+const content = ref(null);
+const height = useMeasuredHeight(content);
+const folding = ref(false);
+
+watch(
+    () => props.grouped,
+    (grouped) => grouped || ((open.value = false), (chosen.value = 0))
+);
 
 function toggle() {
     chosen.value = 0;
@@ -30,46 +42,87 @@ const foldedRun = (message) => props.folded || Boolean(chosen.value && chosen.va
 </script>
 
 <template>
-    <div class="dock-group">
-        <template v-if="open">
-            <div class="dock-group-open">
-                <div class="dock-group-head">
-                    <button type="button" class="dock-group-toggle" aria-expanded="true" title="Fold the runs into one line" @click="toggle">
-                        {{ runs.length }} runs
-                        <FoldSign open />
-                    </button>
-                </div>
-                <template v-for="run in runs" :key="run.id">
-                    <ChatDock :message="run" :folded="foldedRun(run)" />
-                </template>
-            </div>
-        </template>
-        <template v-else>
-            <ChatDockCard :label="`${runs.length} runs`" kind="dock-group-row">
-                <template #head>
-                    <button
-                        type="button"
-                        class="dock-group-toggle"
-                        aria-expanded="false"
-                        title="Show each run as its own card"
-                        @click="toggle"
-                    >
-                        <MarkIcon name="runs" />
-                        {{ runs.length }} runs
-                        <FoldSign />
-                    </button>
-                    <span class="dock-group-chips">
+    <div :class="['dock-group', {folding}]" :style="height === null ? null : {height: `${height}px`}">
+        <div ref="content">
+            <Transition :name="row ? 'runs-fold' : 'runs-unfold'" mode="out-in" @before-leave="folding = true" @after-enter="folding = false">
+                <ChatDockCard v-if="row" key="row" :label="`${runs.length} runs`" kind="dock-group-row">
+                    <template #head>
+                        <button type="button" class="dock-group-toggle" aria-expanded="false" title="Show each run as its own card" @click="toggle">
+                            <MarkIcon name="runs" />
+                            {{ runs.length }} runs
+                            <FoldSign />
+                        </button>
+                        <span class="dock-group-chips">
+                            <template v-for="run in runs" :key="run.id">
+                                <RunChip :message="run" @click="choose(run)" />
+                            </template>
+                        </span>
+                    </template>
+                </ChatDockCard>
+                <div v-else key="cards" class="dock-group-cards">
+                    <template v-if="grouped">
+                        <div class="dock-group-head">
+                            <button type="button" class="dock-group-toggle" aria-expanded="true" title="Fold the runs into one line" @click="toggle">
+                                {{ runs.length }} runs
+                                <FoldSign open />
+                            </button>
+                        </div>
+                    </template>
+                    <TransitionGroup name="dock" :duration="DOCK_MOTION_MS" appear>
                         <template v-for="run in runs" :key="run.id">
-                            <RunChip :message="run" @click="choose(run)" />
+                            <ChatDock :message="run" :folded="foldedRun(run)" />
                         </template>
-                    </span>
-                </template>
-            </ChatDockCard>
-        </template>
+                    </TransitionGroup>
+                </div>
+            </Transition>
+        </div>
     </div>
 </template>
 
 <style scoped>
+/* the dock eases to the height of what it holds, the cards or the row, as they fold one into the other; it clips only while they do */
+.dock-group {
+    transition: height 0.3s var(--ease);
+}
+
+.dock-group.folding {
+    overflow: hidden;
+}
+
+/* with no run docked it takes no room in the docks, nor their gap */
+.dock-group:not(:has(.chat-dock)) {
+    display: none;
+}
+
+/* folding, the cards shrink toward their chips and the row comes in from their size; opening, the row grows out into the cards */
+.runs-fold-enter-active,
+.runs-fold-leave-active,
+.runs-unfold-enter-active,
+.runs-unfold-leave-active {
+    transform-origin: center bottom;
+    transition:
+        transform 0.15s var(--ease),
+        opacity 0.15s ease;
+}
+
+.runs-fold-leave-to,
+.runs-unfold-enter-from {
+    opacity: 0;
+    transform: scale(0.97, 0.6);
+}
+
+.runs-fold-enter-from,
+.runs-unfold-leave-to {
+    opacity: 0;
+    transform: scale(1.03, 1.6);
+}
+
+.dock-group-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .dock-group-toggle {
     display: flex;
     flex: none;
@@ -110,12 +163,6 @@ const foldedRun = (message) => props.folded || Boolean(chosen.value && chosen.va
     min-width: 0;
 }
 
-.dock-group-open {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
 /* once open, a line naming how many runs there are folds them back into the row */
 .dock-group-head {
     display: flex;
@@ -143,5 +190,15 @@ const foldedRun = (message) => props.folded || Boolean(chosen.value && chosen.va
 
 :global(html.phone .dock-group .dock-group-head) {
     height: 30px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dock-group,
+    .runs-fold-enter-active,
+    .runs-fold-leave-active,
+    .runs-unfold-enter-active,
+    .runs-unfold-leave-active {
+        transition: none;
+    }
 }
 </style>
