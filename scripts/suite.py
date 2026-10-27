@@ -16,6 +16,8 @@ SPARE_CORES = 2
 MOST_SHARDS = 8
 SHARD_TIMEOUT_SECONDS = 600
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
+# the progress line the commandments judge writes at each of its stages
+JUDGE_PROGRESS = re.compile(r"^(parsing|reading|detector) (\d+)/(\d+)$")
 FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
 PERCENT = re.compile(r"\[\s*(\d+)%\]")
@@ -164,9 +166,7 @@ def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
     if judging is None:
         return False
     process, output = judging
-    try:
-        process.wait(timeout=SHARD_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
+    if not judge_waited(process, output):
         process.kill()
         print(f"the test commandments ran past {SHARD_TIMEOUT_SECONDS} seconds and were stopped")
         return True
@@ -176,6 +176,27 @@ def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
     print("the tests break the test commandments (tests-drive-the-real-path):")
     print(output.read_text(), end="", flush=True)
     return True
+
+
+def judge_waited(process: subprocess.Popen, output: Path) -> bool:
+    deadline, shown = time.monotonic() + SHARD_TIMEOUT_SECONDS, ""
+    while process.poll() is None:
+        if time.monotonic() > deadline:
+            return False
+        line = judge_progress(output.read_text(errors="replace"))
+        if line and line != shown:
+            print(line, flush=True)
+            shown = line
+        time.sleep(1)
+    return True
+
+
+def judge_progress(text: str) -> str:
+    steps = [match for line in re.split(r"[\r\n]", text) if (match := JUDGE_PROGRESS.match(line.strip()))]
+    if not steps:
+        return ""
+    stage, done, total = steps[-1].groups()
+    return f"judging tests/: {stage} {done}/{total} [{round(100 * int(done) / max(int(total), 1)):3d}%]"
 
 
 def scoped_command(arguments: list[str]) -> list[str]:

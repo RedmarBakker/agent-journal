@@ -7,6 +7,7 @@ from journal.engine.nudge import Nudge
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.command_ended import CommandEnded
+from journal.events.rows.output_full_bar import OutputFullBar
 from journal.events.rows.output_quiet import OutputQuiet
 from journal.events.rows.output_without_total import OutputWithoutTotal
 from journal.events.rows.reader_report_judged import ReaderReportJudged
@@ -72,6 +73,9 @@ class ShellConduct(Conduct):
 
     def on_output_quiet(self, event: OutputQuiet, settings: Settings) -> Transition:
         return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.quiet_seconds)) if event.run_session == event.session else self.none()
+
+    def on_output_full_bar(self, event: OutputFullBar, settings: Settings) -> Transition:
+        return self.none(ShellNudges.FULL_BAR_RUN.create(n=event.row_id, seconds=event.full_seconds)) if event.run_session == event.session else self.none()
 
     def on_reader_report_raised(self, event: ReaderReportRaised, settings: Settings) -> Transition:
         return self.none(ShellNudges.REPORT_RAISED.create(n=event.row_id)) if event.run_session == event.session and event.reader not in event.data.part(ShellPart).locked_readers else self.none()

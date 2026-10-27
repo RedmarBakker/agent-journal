@@ -20,6 +20,8 @@ VIEW_LINES = 20
 SILENT_SECONDS = 30
 # the card of a run that has printed nothing for SILENT_SECONDS says why, since no reader can show what was never printed
 SILENT_CARD_LINE = "nothing printed yet: the command buffers its output"
+# the card of a run that stood at its whole bar while the command went on says what that means
+STUCK_CARD_LINE = "at 100% but still running: it waits on something its reader does not read"
 
 
 class OutputViews:
@@ -31,7 +33,7 @@ class OutputViews:
 
     def view(self, output: CommandOutput) -> OutputView:
         measured = self.measured(output)
-        return replace(measured, silent=self.is_silent(output, measured))
+        return replace(measured, silent=self.is_silent(output, measured), stuck=output.is_full_named and not output.ended)
 
     def reader(self, output: CommandOutput) -> Reader | None:
         return self.readers.found(output.watch_reader)
@@ -132,7 +134,11 @@ class OutputViews:
         return " / ".join(ending[-SUMMARY_LINES:]) or None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
-        return "\n".join(self.card_lines(output, view) or self.ending_lines(output) or self.silent_lines(view))
+        return "\n".join([*(self.card_lines(output, view) or self.ending_lines(output) or self.silent_lines(view)), *self.stuck_lines(view)])
+
+    @staticmethod
+    def stuck_lines(view: OutputView) -> tuple[str, ...]:
+        return (STUCK_CARD_LINE,) if view.stuck else ()
 
     @staticmethod
     def silent_lines(view: OutputView) -> tuple[str, ...]:

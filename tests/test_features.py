@@ -23269,3 +23269,57 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
                 if args.noun == "await" and args.verb == "begin" and not (args.output or args.until):
                     refused.append(f"{nudge.key}: {command} (journal await needs --output or --until)")
     assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)
+
+
+def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_to_the_agent_and_on_its_card(app: App):
+    from journal.features.shell.jobs.watch_refresh import FULL_BAR_SECONDS, WatchRefresh
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_views import STUCK_CARD_LINE
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.messages import Messages
+    from journal.support.heartbeat import Heartbeat
+    hook(app, "SessionStart")
+    outputs, messages = app.container.get(CommandOutputs), app.container.get(Messages)
+    folder = app.config.root / "stuck"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest tests")
+    (folder / "0.out").write_text("tests/a.py ..  [100%]\n")
+    app.container.get(OutputLog).start("w", "pytest tests", folder, Caller.agent("main", "s1", "claude"))
+    Heartbeat(folder).write(timing.time())
+    outputs.save(outputs.find(1).backgrounded(), Actor.system())
+    app.console().run(["output", "watch", "1", "--reader", "pytest"], AGENT)
+    refresh = app.container.get(WatchRefresh)
+    start = timing.time()
+    refresh.tick(start)
+    refresh.tick(start + FULL_BAR_SECONDS - 1)
+    assert not outputs.find(1).is_full_named, "a run at its whole bar for less than the set time is not named"
+    for later in (FULL_BAR_SECONDS + 1, FULL_BAR_SECONDS + 5):
+        refresh.tick(start + later)
+    app.runtime().deferred.drain()
+    told = [e.data["line"] for e in app.container.get(Entries).all_matching(kind=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
+    assert len(told) == 1 and has_nudge(told[0], ShellNudges.FULL_BAR_RUN, n=1, seconds=FULL_BAR_SECONDS + 1), f"the agent is told once: {told}"
+    assert STUCK_CARD_LINE in messages.with_key("watch:1")[0].text, "and the card says what the whole bar means"
+
+
+def test_an_output_whose_shell_process_is_gone_is_closed_as_ended_though_its_heartbeat_beats(app: App):
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.heartbeat import Heartbeat
+    hook(app, "SessionStart")
+    outputs = app.container.get(CommandOutputs)
+    folder = app.config.root / "gone"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest tests")
+    (folder / "0.out").write_text("tests/a.py ..  [100%]\n")
+    (folder / "pid").write_text("999999")
+    app.container.get(OutputLog).start("g", "pytest tests", folder, Caller.agent("main", "s1", "claude"))
+    Heartbeat(folder).write(timing.time())
+    assert not outputs.find(1).ended
+    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+    app.runtime().deferred.drain()
+    assert outputs.find(1).ended and outputs.find(1).is_interrupted, "an output with no process left is ended, never left running"

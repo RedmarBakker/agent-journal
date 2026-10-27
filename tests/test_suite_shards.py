@@ -1,4 +1,15 @@
+import importlib.util
+from pathlib import Path
+
 from tests.shard_deal import ShardDeal
+
+
+def suite_script():
+    """scripts/suite.py loaded as a module."""
+    spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
+    suite = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(suite)
+    return suite
 
 
 def test_shards_are_dealt_longest_first_so_they_end_together_and_go_round_without_times():
@@ -12,21 +23,13 @@ def test_shards_are_dealt_longest_first_so_they_end_together_and_go_round_withou
 
 
 def test_a_run_of_the_simulators_files_runs_at_a_lower_priority_and_any_other_run_as_before():
-    import importlib.util
-    from pathlib import Path
-    spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
-    suite = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(suite)
+    suite = suite_script()
     assert suite.scoped_command(["tests/simulation_run.py", "-k", "history"])[:3] == ["nice", "-n", "10"], "a sweep of the simulator runs under nice"
     assert suite.scoped_command(["tests/test_cli.py"])[0] != "nice", "any other run is unchanged"
 
 
 def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dots(tmp_path):
-    import importlib.util
-    from pathlib import Path
-    spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
-    suite = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(suite)
+    suite = suite_script()
     output = tmp_path / "shard.out"
     output.write_text("collected 9 items\n....")
     assert suite.shard_progress(output) == (4, 9)
@@ -34,3 +37,11 @@ def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dot
     assert suite.shard_progress(output) == (7, 9), "the dots before a printed line still count"
     output.write_text("collected 9 items\n.........  [100%]\nE       assert False\nF\n")
     assert suite.shard_progress(output) == (9, 9), "an assertion line of a failure's report is no result"
+
+
+def test_the_suite_waiting_on_the_commandments_judge_prints_the_judges_own_progress_for_its_card():
+    suite = suite_script()
+    line = suite.judge_progress("parsing 3/10\rparsing 10/10\nreading 40/120\n")
+    assert line == "judging tests/: reading 40/120 [ 33%]", "the judge's latest stage is said with its count and its share"
+    assert suite.PERCENT.search(line).group(1) == "33", "in the form the suite's card reads its bar from"
+    assert suite.judge_progress("") == "", "a judge that has printed nothing yet adds no line"

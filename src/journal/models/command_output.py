@@ -1,6 +1,7 @@
 from typing import ClassVar
 from dataclasses import dataclass
 
+from journal.events.rows.output_full_bar import OutputFullBar
 from journal.events.rows.output_quiet import OutputQuiet
 from journal.events.rows.output_without_total import OutputWithoutTotal
 from journal.events.rows.row_resolved import RowResolved
@@ -37,6 +38,10 @@ class CommandOutput(Scoped):
     summary: str | None = None
     is_quiet_named: bool = False
     is_total_asked: bool = False
+    is_full_named: bool = False
+
+    def full_named(self, time: float, full_seconds: int) -> "CommandOutput":
+        return self.with_(is_full_named=True).with_event(OutputFullBar(environment_id=self.environment_id, time=time, run_session=self.session, full_seconds=full_seconds))
 
     def run_seconds(self) -> float:
         return (self.update_time - self.creation_time).total_seconds()

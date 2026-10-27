@@ -12,11 +12,15 @@ from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.run_processes import RunProcesses
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.scope import Scope
+from journal.support.actor import Actor
 from journal.support.command_classifier import CommandClassifier
+
+# how long a run may stand at its whole bar, its command still running, before it is named
+FULL_BAR_SECONDS = 60.0
 
 
 class WatchRefresh(Job):
-    """Every second the card of each watched output and of each one still running in the background is read again from its files, whatever its agent does, so the chat shows it moving, here and in a colleague's copy, which has the card but never the output; a card whose view has not changed is left as it is, and how long its progress stood still and how long it printed nothing are noted."""
+    """Every second the card of each watched output and of each one still running in the background is read again from its files, whatever its agent does, so the chat shows it moving, here and in a colleague's copy, which has the card but never the output; a card whose view has not changed is left as it is, and how long its progress stood still and how long it printed nothing are noted, and a run that stands at its whole bar past a minute while its command goes on is marked on its row, once, which tells the agent."""
 
     interval_seconds = 1.0
 
@@ -34,6 +38,9 @@ class WatchRefresh(Job):
             with self.scope.environment(output.environment_id):
                 view = self.views.view(output)
                 self.stalls.seen(output.row_id, view.fraction, time)
+                if not output.ended and not output.is_full_named and self.stalls.whole_seconds(output.row_id, time) >= FULL_BAR_SECONDS:
+                    output = self.outputs.save(output.full_named(time, int(self.stalls.whole_seconds(output.row_id, time))), Actor.system())
+                    view = self.views.view(output)
                 if not output.ended:
                     self.silences.sampled(output.row_id, OutputFiles(Path(output.folder)).size(), output.creation_time.timestamp(), time)
                 if view != self.card.card_view(output):
