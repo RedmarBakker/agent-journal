@@ -1336,13 +1336,17 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     shell_lines = lambda answered: [n.key for n in answered.nudges if n.key.startswith("shell.")]
     assert shell_lines(reader) == ["shell.use_the_reader"]
     repeat = Ready().respond(ToolStarting(call=shell("journal output read 9 --grep x")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
-    assert shell_lines(repeat) == ["shell.add_a_reader"]
-    tipped = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "tipped": (ShellNudges.READER_SUGGESTION.create(command="journal output read <output> --grep x").rendered(),)})})
-    assert shell_lines(Ready().respond(ToolStarting(call=shell("journal output read 9 --grep x")).with_data(tipped), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))) == []
+    assert "shell.offer_a_reader" not in shell_lines(repeat), "a reader is offered at a run's end, never on a read by hand"
     tick = Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     by_key = {n.key: n.rendered() for n in tick.nudges}
     assert by_key["shell.outputs_ended"].startswith("output 3 finished; output 4 failed with code 1") and by_key["shell.check_the_background"].startswith("output 12 still running")
     assert sorted(by_key) == ["shell.check_the_background", "shell.outputs_ended", "workers.act_on_the_reports"]
+    from journal.features.shell.support.reader_offer import ReaderOffer
+    offered = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "reader_offers": (ReaderOffer(4, "make all", "journal reader add make-all-output --commands \"make all\""), ReaderOffer(99, "pytest", "journal reader add x"))})})
+    ended = {n.key: n.rendered() for n in Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(offered), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges}
+    assert "no reader reads make all yet" in ended["shell.offer_a_reader"] and "pytest" not in ended["shell.offer_a_reader"], "at the run's real end, beside the line naming the outputs that ended, one reader is offered for a run among them"
+    early = Ready().respond(Ticked(silence_seconds=1.0, time=200.0).with_data(offered), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
+    assert "shell.offer_a_reader" not in [n.key for n in early.nudges], "never before the ending is said"
     assert [n.key for n in Ready().respond(Ticked(silence_seconds=1.0, time=200.0).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges] == ["workers.act_on_the_reports"]
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": str(private / "keys.json")}, operation=Claude().operation("Read", {"file_path": str(private / "keys.json")}))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "secrets.secrets_out_of_reach"
     allowed = Ready().respond(SecretAllowed(environment_id=0, time=1.0, secret_id=2, title="GitHub", programs=("gh",)).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))

@@ -27,30 +27,26 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.shell.support.shell_data import ShellData
 
-# the flag of an output read that picks lines by a pattern, the one kind of read a reader can stand for
-PATTERN_READ = "--grep"
 # the output a journal output command names: journal output show 21620
 OUTPUT_NUMBER = re.compile(r"\boutput\s+[a-z-]+\s+(\d+)")
 
 SILENCE_SECONDS = 5.0
 BACKGROUND_CHECK_DELAY_SECONDS = 300.0
 ALIAS_RUNS = 3
-READER_RUNS = 5
-COUNTING_SUGGESTION_RUNS = 50
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, the commands that ended in the background are named once the agent is quiet, with one reader offered for a run of them, or for a watched run at its end, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
+        return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         watch = event.data.part(ShellPart).watch
         if not watch.is_watching():
             return unread_check(self, event, settings)
         if watch.ending:
-            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()))
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()), *reader_offer(event.data.part(ShellPart), {watch.output}))
         return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
@@ -99,15 +95,6 @@ def project_path_check(state: BaseState, event: ToolStarting, settings: Settings
     return state.refuse(ShellNudges.PROJECT_PATH_REFUSAL.create(line=relative)) if relative != event.call.command else state.none()
 
 
-def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    shell = event.data.part(ShellPart)
-    shape = event.call.recorded().shape
-    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or not any(part.classification.is_long_run for part in event.call.parts) or any(is_read(r, event.call) for r in shell.readers):
-        return state.none()
-    tip = ShellNudges.NEW_READER_SUGGESTION.create(command=shape)
-    return state.none() if tip.rendered() in shell.tipped else state.none(tip)
-
-
 def is_read(reader: Reader, call: ToolCall) -> bool:
     return any(reader.commands.reads(part.shape) for part in call.parts)
 
@@ -137,14 +124,6 @@ def piped_journal_check(state: BaseState, event: ToolStarting, settings: Setting
     return state.refuse(ShellNudges.PIPED_JOURNAL_COMMAND.create(command=cut[0], filter=cut[1])) if cut else state.none()
 
 
-def counting_reader_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if not event.call.test_runs() or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
-        return state.none()
-    if any(r.is_counting() and is_read(r, event.call) for r in event.data.part(ShellPart).readers):
-        return state.none()
-    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=event.call.name))
-
-
 def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
     refusals = [refusal for part in event.call.parts for refusal in alias_refusals(part.text, shell.aliases)]
@@ -164,9 +143,6 @@ def readers_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
         return state.none()
     shell = event.data.part(ShellPart)
     tips = [ShellNudges.READER_HINT.create(reader=r.name, about=r.subject) for r in shell.readers if r.matches(reads[0].text)]
-    # only a pattern read again is worth a reader; a plain --head, --tail or --lines read never is
-    if PATTERN_READ in reads[0].read_shape and shell.output_reads.count(reads[0].read_shape) >= 2:
-        tips.append(ShellNudges.READER_SUGGESTION.create(command=reads[0].read_shape))
     new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
     return state.none(new_tips[0]) if new_tips else state.none()
 
@@ -175,7 +151,12 @@ def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transiti
     ended = event.data.part(ShellPart).unannounced
     if not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds) or not ended:
         return state.none()
-    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id))
+    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id), *reader_offer(event.data.part(ShellPart), {output.id for output in ended}))
+
+
+def reader_offer(shell: ShellData, outputs: set[int]) -> list[Nudge]:
+    offer = next((offer for offer in shell.reader_offers if offer.output in outputs), None)
+    return [ShellNudges.READER_OFFER.create(part=offer.part, command=offer.command)] if offer is not None else []
 
 
 def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
@@ -194,10 +175,9 @@ def reader_report_check(state: BaseState, event: ToolStarting, settings: Setting
 
 
 def reader_lines(shell: ShellData) -> list[Nudge]:
-    needed = [ShellNudges.READER_NEEDED.create(commands=", ".join(commands)) for commands in (shell.unwatched_commands,) if commands]
     raised = [ShellNudges.REPORT_RAISED.create(n=n) for n in sorted({*shell.unread_reports, *shell.unfixed_reports})]
     refuted = [ShellNudges.REPORT_REFUTED.create(verdicts=ShellNudges.report_refutations(reports)) for reports in (shell.refuted_reports,) if reports]
-    return [*needed, *raised, *refuted]
+    return [*raised, *refuted]
 
 
 def silent_run_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

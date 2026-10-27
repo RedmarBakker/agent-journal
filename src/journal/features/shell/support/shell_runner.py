@@ -17,7 +17,6 @@ from journal.features.shell.support.reader_guess import ReaderGuess
 from journal.features.shell.support.readers import Readers
 from journal.config import Config
 from journal.features.aliases.support.alias_lines import AliasLines
-from journal.features.shell.support.watch_suggestions import WatchSuggestions
 from journal.models.alias import Alias
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
@@ -54,10 +53,10 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
         self.nudger, self.sessions = nudger, sessions
-        self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
+        self.config, self.caps, self.limits, self.worker, self.record, self.scope = config, caps, limits, worker, record, scope
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
         self.stages, self.slow, self.guess, self.card, self.restarts = stages, slow, guess, card, restarts
         self.wrappers_told: set[str] = set()
@@ -176,9 +175,7 @@ class ShellRunner:
         if reader is not None:
             return [*self.reader_watched(number, part, reader, caller), *wrapper]
         guessed = self.guess.guessed(self.outputs.find(number), part)
-        if guessed is not None:
-            return [ShellNudges.READER_GUESSED.create(reader=guessed.name, about=guessed.subject, command=self.shapes.command_name(part)), *self.reader_watched(number, part, guessed, caller), *wrapper]
-        return [*self.suggestions.lines(number, part), *wrapper]
+        return [*self.reader_watched(number, part, guessed, caller), *wrapper] if guessed is not None else wrapper
 
     def alias_wrapper_lines(self, alias: Alias) -> list[Nudge]:
         unwrapped = self.classifier.time_unlimited(alias.line)

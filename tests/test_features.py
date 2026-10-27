@@ -7581,14 +7581,52 @@ def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_n
     assert plans.find(2).state == "started", "a plan with no task yet is not finished"
 
 
-def test_the_same_hand_read_of_outputs_coming_back_among_the_last_reads_brings_one_tip_to_write_a_reader(app: App):
+def test_one_reader_offer_comes_at_a_marked_runs_real_end_naming_its_part_capped_never_for_a_plugin_alias_or_a_worker(app: App):
+    """Task 3776: the six reader lines are one offer of the shell conduct, said when a run moved to the background ends (with the line naming the ended outputs, or the end of a watch), never while it runs; it names the part a reader would read, not the line, is filled from the run's own output, comes once per part, at most one per run and a few per session, and never for a plugin alias nor in a worker's session."""
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.reader_offers import OFFERS_PER_SESSION, ReaderOffers
+    from journal.features.shell.shell_nudges import ShellNudges
+    from journal.support.chain import Chain
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
+    from journal.models.agent import Agent
+    from journal.models.alias import Alias
+    from journal.repositories.aliases import Aliases
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.agent_role import AgentRole
     hook(app, "SessionStart")
-    tip = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
-    assert "write" not in tip("journal output read 12 --grep FAILED") + tip("ls src") + tip("journal output read 40 --reader failed") + tip("journal output read 3") + tip("journal output read 4"), "a plain read of a summary is no shape"
-    assert nudge_reached(app, tip("journal output read 31 --grep FAILED"), ShellNudges.READER_SUGGESTION, command="journal output read <output> --grep FAILED"), "a different output, the same read"
-    assert "this way again" not in tip("journal output read 33 --grep FAILED"), "once for each shape"
-    tip("journal output read 50 --head 12")
-    assert "this way again" not in tip("journal output read 51 --head 12"), "a plain head, tail or lines read again is no shape worth a reader"
+    outputs, offers = app.container.get(CommandOutputs), app.container.get(ReaderOffers)
+
+    def background_run(name: str, line: str, text: str, ended: bool = True):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n" * len(Chain.parts(line)))
+        for i, part in enumerate(Chain.parts(line)):
+            (folder / f"{i}.part").write_text(part.text)
+            (folder / f"{i}.out").write_text(text)
+        app.container.get(OutputLog).start(name, line, folder, Caller.agent("main", "s1", "claude"))
+        output = outputs.save(outputs.find(max(o.id for o in outputs.all())).backgrounded(), Actor.system())
+        return outputs.save(output.ended_with(1, timing.time()), Actor.system()) if ended else output
+
+    main = Agent(environment_id=MAIN, session="s1", role=AgentRole.MAIN)
+    with app.container.get(Scope).environment(MAIN):
+        running = background_run("running", "make all", "error: x\nbuilt in 1s\n", ended=False)
+        assert not [offer for offer in offers.offers(main) if offer.output == running.id], "nothing is offered while the run still runs"
+        built = background_run("built", "cd web && make all", "compiling\nerror: missing header\nbuilt in 3.1s\n")
+        [offer] = [offer for offer in offers.offers(main) if offer.output == built.id]
+        assert offer.part == "make all" and "cd web" not in offer.command and "--commands \"make all\"" in offer.command and "--label 'Building'" in offer.command, "it names the part a reader would read, filled from the run's own output"
+        assert offers.offers(Agent(environment_id=MAIN, session="w1", role=AgentRole.WORKER)) == (), "a worker's session is offered none"
+        app.container.get(Aliases).save(Alias(name="judge", line="vendor/bin/judge {args}", plugin="commandments"), Actor.system())
+        plugin = background_run("plugin", "vendor/bin/judge --changes", "error: one sin\n3 sins in 2.0s\n")
+        assert not [offer for offer in offers.offers(main) if offer.output == plugin.id], "a run a plugin's alias runs is never offered a reader"
+    with app.container.get(Scope).environment(MAIN):
+        for n in range(OFFERS_PER_SESSION + 2):
+            background_run(f"many-{n}", f"./scripts/job{n}.sh", "error: failed\nstarted\n")
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_OFFER.key, "line": "no reader reads make all yet"}), Actor.system())
+        assert not [offer for offer in offers.offers(main) if offer.part == "make all"], "a part offered once is not offered again"
+        for n in range(OFFERS_PER_SESSION):
+            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_OFFER.key, "line": f"no reader reads job{n} yet"}), Actor.system())
+        assert offers.offers(main) == (), "and once a session has had its few offers, it gets no more"
 
 
 def test_a_hand_read_that_does_a_readers_work_is_pointed_at_the_reader(app: App):
@@ -9908,17 +9946,10 @@ def test_a_watched_outputs_card_moves_by_itself_and_a_docked_one_stays_docked(ap
     assert card().data["docked"] is True, "a docked card stays docked as it moves"
 
 
-def test_a_command_moved_to_the_background_is_told_to_watch_it_with_the_reader_that_reads_it(app: App):
+def test_waiting_on_a_background_output_with_a_reader_watches_it_through_that_reader(app: App):
     from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.watch_suggestions import WatchSuggestions
     from journal.repositories.command_outputs import CommandOutputs
-    suggestions = app.container.get(WatchSuggestions)
     assert all((app.config.readers / f"{name}.pattern").is_file() for name in ("pytest", "dotnet-test", "phpunit")), "the journal ships its readers"
-    known = "\n".join(line.rendered() for line in suggestions.lines(5, "perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q"))
-    assert "journal output watch 5 --reader pytest" in known and "no reader" not in known, "a runner a reader reads is told its reader"
-    unknown = "\n".join(line.rendered() for line in suggestions.lines(6, "make test"))
-    assert "journal output watch 6 --title" in unknown and "no reader reads" not in unknown, "a test run no reader reads is told only to watch it: its reader is the shell's reader demand"
-    assert suggestions.lines(7, "sleep 100") == [suggestions.lines(7, "sleep 100")[0]] and "watch it:" in suggestions.lines(7, "sleep 100")[0].rendered(), "a plain long command is told it can be watched, nothing more"
     hook(app, "SessionStart")
     folder = app.config.root / "w"
     folder.mkdir()
@@ -9931,16 +9962,14 @@ def test_a_command_moved_to_the_background_is_told_to_watch_it_with_the_reader_t
     assert outputs.find(1).is_watched and outputs.find(1).watch_reader == "pytest", "waiting with a reader watches the output too"
 
 
-def test_a_command_is_known_by_its_shape_and_five_runs_of_one_long_run_bring_a_reader_suggestion(app: App):
-    """The values passed to a command never change what it is: pytest -k chat and pytest tests/a.py are pytest, python3 -m pytest -q is python3 -m pytest; five runs of one build with different values are one command run five times, and a reader is suggested for it."""
+def test_a_command_is_known_by_its_shape_whatever_the_values_passed_to_it(app: App):
+    """The values passed to a command never change what it is: pytest -k chat and pytest tests/a.py are pytest, python3 -m pytest -q is python3 -m pytest."""
     from journal.support.command_shape import CommandShape
     from journal.support.part import Part
     assert [Part(line).cut() for line in ('python3 -m pytest -q | grep -E "^FAILED|passed" | head -30', "pytest -q | tail -1", 'echo "a|b" | grep x', "tail -f log | grep x", "pytest -q")] == ['| grep -E "^FAILED|passed" | head -30', "| tail -1", "| grep x", "", ""], "a trailing chain of filters comes off whole, quotes respected, so the run streams to its card and the cut is applied after"
     assert [SHAPES.build(line) for line in ("pytest -k chat", "pytest tests/a.py -q", "python3 -m pytest -q", "npm run test", "git commit -m 'x'", ".journal/bin/judge --changes")] == ["pytest", "pytest", "python3 -m pytest", "npm run test", "git commit", ".journal/bin/judge"]
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"make build TARGET=part{i}"})[1]) for i in range(5)]
-    assert ["no reader reads make build yet" in line for line in told] == [False, False, False, False, True], "the fifth run of make build, whatever its values, is told to make a reader"
     from journal.support.chain import Chain
     in_container = "S=/private/tmp/scratch\ncd /work && docker exec app-1221afce4624-backend-1 php artisan test --filter Bookings"
     assert SHAPES.chain_shape(tuple(part.text for part in Chain.parts(in_container))) == "php artisan test", "a line's shape is its first working part, past a variable set and a cd, and inside the container"
@@ -13526,32 +13555,41 @@ def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variabl
         assert first not in SETUP_COMMANDS or not ("&&" in part or ";" in part) or "<<" in part, ("a chain is known by the command past its setup", part, bare)
 
 
-def test_a_command_run_in_the_background_that_no_reader_reads_is_told_once_to_get_one_and_never_held(app: App):
+def test_a_command_run_in_the_background_that_no_reader_reads_is_offered_one_at_its_end_and_never_held(app: App):
+    from journal.features.shell.support.reader_offers import ReaderOffers
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.models.agent import Agent
     from journal.repositories.command_outputs import CommandOutputs
-    from journal.models.command_output import CommandOutput
+    from journal.support.agent_role import AgentRole
     console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    outputs, offers = app.container.get(CommandOutputs), app.container.get(ReaderOffers)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "t", "--start"], AGENT)
     app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
     link.working(MAIN)
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    (app.config.root / "test_naps.sh").write_text("sleep 2\necho slept\n")
-    moved = b"".join(runner.run(request("(cd . && sh test_naps.sh)"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
-    assert re.search(r"output \d+", moved), moved
-    lines = [json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]) for _ in range(5)]
-    assert sum("no reader reads test_naps.sh" in line for line in lines) == 1, lines
+    (app.config.root / "test_naps.sh").write_text("sleep 2\necho 3 passed\n")
+    main = lambda output: Agent(environment_id=MAIN, session=output.session, role=AgentRole.MAIN)
+
+    def ended(line: str):
+        moved = b"".join(runner.run(request(line), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+        number = int(re.search(r"output (\d+)", moved).group(1))
+        deadline = timing.time() + 10
+        while not outputs.find(number).ended and timing.time() < deadline:
+            timing.sleep(0.05)
+        return outputs.find(number)
+
+    with app.container.get(Scope).environment(MAIN):
+        first = ended("(cd . && sh test_naps.sh)")
+        assert [offer.part for offer in offers.offers(main(first)) if offer.output == first.id] == ["test_naps.sh"], "a test run moved to the background is offered a reader at its end, naming its part"
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "it never holds a write"
     assert console.run(["reader", "add", "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
-    again = b"".join(runner.run(request("sh test_naps.sh"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
-    output = app.container.get(CommandOutputs).find(int(re.search(r"output (\d+)", again).group(1)))
-    assert output.is_watched and output.watch_reader == "naps", "the next run moves at once and is watched through its reader"
-    assert "no reader reads" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
-    outputs = app.container.get(CommandOutputs)
-    outputs.save(CommandOutput(environment_id=output.environment_id, chain="j", command="journal sins --changes", session=output.session, folder=output.folder, moved=True), Actor.system())
-    assert "no reader reads" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a journal command run in the background is never owed a reader"
+    with app.container.get(Scope).environment(MAIN):
+        again = ended("sh test_naps.sh")
+        assert again.is_watched and again.watch_reader == "naps", "the next run moves at once and is watched through its reader"
+        assert not [offer for offer in offers.offers(main(again)) if offer.output == again.id], "a command a reader reads is never offered one again"
 
 
 def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
@@ -20399,24 +20437,11 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     assert reader.variant("finished").card_lines(["x"]) == ["cut \ufffd here"], "a script that cuts a character in half is read with the half replaced, never a fault"
 
 
-def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_once_and_known_by_its_file_name(app: App):
+def test_a_script_run_through_python3_from_outside_the_project_is_known_by_its_file_name(app: App):
     from journal.features.shell.support.readers import Readers
-    from journal.features.shell.support.shell_request import ShellRequest
-    from journal.features.shell.support.shell_runner import ShellRunner
-    console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
-    hook(app, "SessionStart")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "t", "--start"], AGENT)
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
     elsewhere = app.config.root.parent / f"{app.config.root.name}-scratch"
-    elsewhere.mkdir(exist_ok=True)
-    (elsewhere / "test_scan.sh").write_text("sleep 2\necho scanned\n")
-    link.working(MAIN)
-    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    b"".join(runner.run(request(f"sh {elsewhere / 'test_scan.sh'} {app.config.root}"), AGENT, MAIN))
-    said = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1])
-    assert "no reader reads test_scan.sh" in said, "a test script is told it has no reader on its first run in the background"
-    console.run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
+    hook(app, "SessionStart")
+    app.console().run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
     assert app.container.get(Readers).reading(f"python3 {elsewhere / 'scan.py'} {app.config.root}").name == "scans", "a script run through python3 is known by its file name"
 
 
@@ -22591,16 +22616,6 @@ def test_a_report_and_a_document_need_a_short_abstract_shown_as_their_summary_li
     assert console.run(["doc", "create", "The parser", "--file", str(note)], AGENT).code != 0, "a document without an abstract is refused too"
     assert console.run(["doc", "create", "The parser", "--file", str(note), "--abstract", "How the parser reads a line"], AGENT).code == 0
 
-
-
-def test_the_counting_reader_hint_names_a_script_the_way_a_reader_matches_it(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    told = json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 scripts/suite.py -k parser"})[1])
-    assert 'no reader counts passed and failed for suite.py' in told and '--commands \\"suite.py\\"' in told, told
-    app.console().run(["reader", "add", "suites", "--pattern", "passed", "--progress", r"(\d+)/(\d+)", "--commands", "suite.py", "--about", "the suite", "--label", "Running tests"], AGENT)
-    told = [json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 scripts/suite.py -k parser"})[1]) for _ in range(51)]
-    assert not any("counts passed and failed" in line for line in told), "the reader named as the hint said reads it, so the hint is never given again"
 
 
 def test_the_release_check_asks_through_gh_when_logged_in_waits_out_a_refusal_quietly_and_is_shared_by_the_machine(app: App, monkeypatch):

@@ -14,6 +14,7 @@ from journal.features.shell.support.count_forms import CountForms
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
+from journal.features.shell.support.reader_offers import ReaderOffers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.reader_judge import ReaderJudge
 from journal.features.shell.support.shell_data_reader import ShellDataReader
@@ -147,7 +148,7 @@ def test_a_second_dismissal_of_the_same_finding_waits_for_the_first_to_be_judged
 def test_a_test_run_watched_through_a_reader_with_no_progress_still_owes_a_reader(app: App):
     reader_file = app.config.root / ".journal" / "readers" / "pass-lines.pattern"
     reader_file.write_text(f"# the pass lines\n^\\s*PASS\\s\ncommands: {SUITE}\n")
-    assert not app.container.get(ShellDataReader).is_read_well(SUITE)
+    assert not app.container.get(ReaderOffers).is_read_well(SUITE)
 
 
 def test_the_release_chain_is_read_as_its_work_and_owes_no_git_checkout_reader(app: App):
@@ -166,17 +167,18 @@ def test_a_reader_for_git_checkout_is_tried_on_the_git_checkout_part_alone(app: 
     assert app.container.get(ReaderJudge).read_lines(reader, files) == ["Switched to branch 'main'"]
 
 
-def test_a_stored_release_chain_joined_by_newlines_is_named_by_its_work(app: App):
+def test_a_stored_release_chain_joined_by_newlines_is_offered_no_reader(app: App):
     line = "git checkout -q main\ngit merge --ff-only development\ngit push origin main\ngit tag v4.63.2\ngit checkout -q development\ngit log --oneline -1 main"
-    app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="release", command=line, session="s1", moved=True), Actor.system())
-    assert "git checkout" not in app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1"))
+    output = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="release", command=line, session="s1", moved=True, ended=True), Actor.system())
+    assert app.container.get(ReaderOffers).offer(output, "s1") is None, "version control never earns a reader"
 
 
-def test_a_reader_is_owed_only_for_test_runs_and_builds_and_one_named_by_the_demand_clears_it(app: App):
-    for n, line in enumerate(("while true; do git status; sleep 5; done", 'ssh prod "cd app && php artisan migrate"', "php -m", "php -d memory_limit=-1 vendor/bin/phpunit")):
-        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"c{n}", command=line, session="s1", moved=True), Actor.system())
-    owed = app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1"))
-    assert owed == ("php",), f"a git status loop, an ssh to production and php -m owe no reader; the php run of phpunit does (another project's php demand): {owed}"
+def test_a_reader_is_offered_only_for_test_runs_builds_installs_and_long_processes_and_a_reader_that_reads_one_clears_it(app: App):
+    offers = app.container.get(ReaderOffers)
+    stored = [app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"c{n}", command=line, session="s1", moved=True, ended=True), Actor.system())
+              for n, line in enumerate(("while true; do git status; sleep 5; done", 'ssh prod "cd app && php artisan migrate"', "php -d memory_limit=-1 vendor/bin/phpunit"))]
+    owed = [offer.part if (offer := offers.offer(output, "s1")) else "" for output in stored]
+    assert owed == ["", "", "php"], f"a git status loop and an ssh to production earn no reader; the php run of phpunit, a long process, does: {owed}"
     reader_file = app.config.root / ".journal" / "readers" / "phpunit-run.pattern"
     reader_file.write_text("# the phpunit run\n(FAILURES|Tests:|OK \\()\nprogress: (\\d+) / (\\d+)\nlabel: Running the tests\ncommands: php\nsummary: (Tests: .*)\n")
-    assert app.container.get(ShellDataReader).unwatched_commands(SimpleNamespace(session="s1")) == (), "a labelled reader for php, the name the demand gives, clears it, and it is never asked to read the git, ssh or php -m runs"
+    assert offers.offer(stored[2], "s1") is None, "a reader that reads its part clears it"

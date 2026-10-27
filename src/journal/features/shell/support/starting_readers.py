@@ -17,16 +17,16 @@ KINDS = {
     "package": StartingReader("Installing", failures=r"(?i:\berr!|\berror\b)", summary=rf"(?i:{SUMMARY}|\badded \d+ packages?\b|\bsuccessfully installed\b|\bup to date\b|\binstalled\b)"),
 }
 LONG_PROCESS = StartingReader("Running", failures=r"(?i:\berror\b|\bexception\b|\btraceback\b)", summary=f"(?i:{SUMMARY})", notable=r"(?i:\bwarn(?:ing)?\b|\blistening\b|\bready\b|\bstarted\b)")
-# the kinds of run that never earn a reader: their output is shown whole or by its ends
-UNREAD_KINDS = frozenset({"search", "read", "version control", "journal", "edit", "check"})
+# the kinds of a long process, a run moved to the background that is no test run, build or install
+LONG_PROCESS_KINDS = frozenset({"process", "unknown"})
 
 
 class StartingReaders:
-    """The reader a run moved to the background starts from, chosen by the kind its classification names, a test run, a build, a package install or a long process, and filled from the run's own output: the lines of each kind it holds, its progress, its summary and its failures."""
+    """The reader a run moved to the background starts from, chosen by the kind its classification names, a test run, a build, a package install or a long process, none for a search, a read, version control or the journal's own commands, and filled from the run's own output: the lines of each kind it holds, its progress, its summary and its failures."""
 
     @staticmethod
     def starting(classification: Classification) -> StartingReader | None:
-        return None if classification.kind in UNREAD_KINDS else KINDS.get(classification.kind, LONG_PROCESS)
+        return KINDS.get(classification.kind) or (LONG_PROCESS if classification.kind in LONG_PROCESS_KINDS else None)
 
     def filled(self, classification: Classification, name: str, lines: list[str]) -> Reader | None:
         kind_reader = self.starting(classification)
