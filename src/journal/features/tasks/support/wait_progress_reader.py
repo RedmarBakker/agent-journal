@@ -24,7 +24,7 @@ class WaitProgressReader:
         files = OutputFiles(Path(run.folder))
         previous = self.outputs.previous_passing_run(run)
         stored = files.is_stored()
-        return WaitProgress(run.creation_time.timestamp(), self.finished_share(files.lines() if stored else []), previous.run_seconds() if previous else 0.0, files.printed_at() if stored else 0.0)
+        return WaitProgress(run.creation_time.timestamp(), self.finished_share(files.lines() if stored else []), previous.run_seconds() if previous else 0.0, files.output_time() if stored else 0.0)
 
     @staticmethod
     def finished_share(lines: list[str]) -> float:

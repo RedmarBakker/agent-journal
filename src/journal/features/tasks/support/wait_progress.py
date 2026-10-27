@@ -8,10 +8,7 @@ class WaitProgress:
     started_at: float
     finished_share: float = 0.0
     last_seconds: float = 0.0
-    printed_at: float = 0.0
-
-    def has_printed_since(self, moment: float) -> bool:
-        return self.printed_at >= moment
+    output_time: float = 0.0
 
     def remaining_seconds(self, moment: float) -> float | None:
         elapsed = max(moment - self.started_at, 0.0)

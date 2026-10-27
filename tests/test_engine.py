@@ -1680,7 +1680,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered() == "You have waited 5 minutes on the build. Check how it is going, read its latest lines, and see whether it is doing what you expect.", "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"
-    printed = lambda moment, at: meanwhile.target.respond(Ticked(silence_seconds=10.0, time=moment).with_data(estimated({"command_outputs:4": WaitProgress(100.0, printed_at=at)})), auto)
+    printed = lambda moment, at: meanwhile.target.respond(Ticked(silence_seconds=10.0, time=moment).with_data(estimated({"command_outputs:4": WaitProgress(100.0, output_time=at)})), auto)
     assert printed(410.0, 100.0).nudges[0].rendered().startswith("You have waited 5 minutes on the build."), "a run silent for the last five minutes is asked about after five"
     assert printed(410.0, 380.0).nudges == () and printed(990.0, 960.0).nudges == (), "a run that printed within the last five minutes is not asked about before fifteen"
     assert printed(1000.0, 980.0).nudges[0].rendered() == "You have waited 15 minutes on the build. Check how it is going, read its latest lines, and see whether it is doing what you expect.", "a printing run is asked about after fifteen"

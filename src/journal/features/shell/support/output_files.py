@@ -155,7 +155,7 @@ class OutputFiles:
     def moved(self) -> None:
         (self.folder / "moved").touch()
 
-    def printed_at(self) -> float:
+    def output_time(self) -> float:
         return max((path.stat().st_mtime for path in self.parts()), default=0.0)
 
     def size(self) -> int:
