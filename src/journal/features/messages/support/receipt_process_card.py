@@ -10,7 +10,7 @@ from journal.support.card_type import CardType
 
 
 class ReceiptProcessCard(ProcessCard):
-    """The process card naming every row created or edited from one of the user's messages, shown whether or not a reply names it; it changes as rows are created from the message, and opens the first of them."""
+    """The process card naming every row linked to one of the user's messages, shown whether or not a reply names it; it changes as rows are linked to the message, and opens the first of them."""
 
     name = "receipt"
 
@@ -20,15 +20,13 @@ class ReceiptProcessCard(ProcessCard):
     def card_contents(self, message: Message) -> ProcessCardContents | None:
         if message.author != Author.USER:
             return None
-        edited_refs = self.links.targets(message, Messages.EDIT_LINK)
-        created_refs = self.links.targets_except(message, Messages.SUBJECT_LINK, set(edited_refs))
-        receipt_refs = [*created_refs, *edited_refs]
+        receipt_refs = self.links.targets(message, Messages.SUBJECT_LINK)
         key = f"filed:{message.id}"
         if not receipt_refs:
             for card in self.messages.keyed(key, Actor.system()):
                 self.messages.delete(card, Actor.system())
             return None
-        text = "; ".join(f"{verb} {self.labels(refs)} from your message" for verb, refs in (("Created", created_refs), ("Edited", edited_refs)) if refs)
+        text = f"Linked {self.labels(receipt_refs)} from your message"
         return ProcessCardContents(self.name, message.environment_id, key, text, {"kind": "card", "row": f"{receipt_refs[0].type}:{receipt_refs[0].id}"}, Actor.system(), CardType.FILED, False)
 
     @staticmethod
