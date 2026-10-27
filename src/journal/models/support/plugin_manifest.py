@@ -14,7 +14,7 @@ PUBLISHED = {"hears": "events", "holds": "blocks"}
 
 @dataclass(frozen=True)
 class PluginManifest:
-    """What a plugin's journal-plugin.json says it is, runs, listens for and blocks, and the aliases it ships, as read and checked; its listens and blocks keys are read into events and blocks."""
+    """What a plugin's journal-plugin.json says it is, runs, listens for and blocks, and the aliases it ships, as read and checked; its listens and blocks keys are read into events and blocks; health, when true, says its services answer a health probe."""
 
     name: str = ""
     version: str = ""
@@ -36,6 +36,7 @@ class PluginManifest:
     aliases: tuple[PluginAlias, ...] = ()
     reaches: dict[str, tuple[str, ...]] = field(default_factory=dict)
     ignored: tuple[str, ...] = ()
+    health: bool = False
 
     @classmethod
     def parsed(cls, data: dict) -> "PluginManifest":

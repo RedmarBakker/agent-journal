@@ -2460,6 +2460,44 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
+def test_each_message_read_mid_turn_brings_its_reply_line_ten_times_in_a_row_even_after_a_start_that_failed(app: App, monkeypatch):
+    from journal.features.briefing.support.start_lines import StartLines
+    keystrokes = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields.get("line", "")))
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["memory", "add", "the updater is in hand"], AGENT)
+    hook(app, "PreCompact", trigger="auto")
+    app.runtime().deferred.drain()
+    working_start = StartLines.memories_weighed
+    monkeypatch.setattr(StartLines, "memories_weighed", lambda self: (_ for _ in ()).throw(IndexError("No item with that key")))
+    hook(app, "SessionStart", source="compact")
+    monkeypatch.setattr(StartLines, "memories_weighed", working_start)
+    looking = {"tool_name": "Bash", "tool_input": {"command": "journal environment overview"}}
+    hook(app, "PreToolUse", **looking)
+    app.console().run(["environment", "overview"], AGENT)
+    app.runtime().deferred.drain()
+    hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})
+    editing = {"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}
+    reached = []
+    for round_number in range(10):
+        number = re.search(r"message (\d+)", app.console().run(["message", "send", f"question {round_number}"], USER).text).group(1)
+        app.runtime().deferred.drain()
+        hook(app, "PreToolUse", **editing)
+        hook(app, "PostToolUse", **editing, tool_response={})
+        reading = {"tool_name": "Bash", "tool_input": {"command": f"journal message read {number}"}}
+        hook(app, "PreToolUse", **reading)
+        shown = app.console().run(["message", "read", number], AGENT).text
+        app.runtime().deferred.drain()
+        after = json.dumps(hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1])
+        later = json.dumps(hook(app, "PreToolUse", **editing)[1])
+        hook(app, "PostToolUse", **editing, tool_response={})
+        reached.append(f"[!reply:{number}]" in after + later)
+        app.console().run(["message", "send", "noted", "--reply-to", number], AGENT)
+        app.runtime().deferred.drain()
+    assert reached == [True] * 10, f"every read brings its reply line with the tool use, not only the first: {reached}, typed: {keystrokes}"
+
+
 def test_a_turn_streamed_in_parts_lands_once_whole(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
@@ -20067,6 +20105,68 @@ def test_a_plugins_service_that_drops_its_socket_leaves_the_event_to_its_program
     row = app.container.get(Plugins).lookup("echo")
     assert row.enabled and row.fault_streak == 0, "the plugin stays on, with no fault"
     path.unlink(missing_ok=True)
+
+
+def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and_marked_broken_at_the_fifth(app: App, monkeypatch):
+    import socket
+    import threading
+    from journal.features.plugins.jobs.plugin_health_check import PluginHealthCheck
+    from journal.features.plugins.support.plugin_folders import PluginFolders
+    from journal.repositories.plugins import Plugins
+    sent = []
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: sent.append((verb, fields.get("name", ""))) or SupervisorReply(True))
+    run = lambda *words: app.console().run(list(words), AGENT).text
+    echo(app, name="quiet")
+    assert run("plugin", "health", "quiet") == "quiet: declares no health check\n", "a plugin without a health check still runs and is never probed"
+    plugin = echo(app, services=[{"name": "answers", "command": ["serve.py"], "answers": True}], health=True)
+    path = app.container.get(PluginFolders).socket(plugin, "main")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    listener.listen()
+    answering = threading.Event()
+    answering.set()
+
+    def answered(connection):
+        connection.makefile("rb").readline()
+        if answering.is_set():
+            connection.sendall(b'{"v": 1, "answer": "allow"}\n')
+        else:
+            timing.sleep(0.5)
+        connection.close()
+
+    def serving():
+        while True:
+            try:
+                connection, _ = listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=answered, args=(connection,), daemon=True).start()
+
+    threading.Thread(target=serving, daemon=True).start()
+    try:
+        assert re.fullmatch(r"echo: answered in \d+ ms\n", run("plugin", "health", "echo")), "a service that answers in time is said to with its time"
+        checks, plugins = app.container.get(PluginHealthCheck), app.container.get(Plugins)
+        checks.tick(timing.time())
+        assert plugins.lookup("echo").fault_streak == 0 and not [verb for verb, _ in sent if verb == "start"], "an answer restarts nothing"
+        answering.clear()
+        assert run("plugin", "health", "echo") == "echo: not responding within 200 ms\n"
+        for _ in range(4):
+            checks.tick(timing.time())
+        row = plugins.lookup("echo")
+        assert row.fault_streak == 4 and row.failed_at is None and row.enabled, "four misses in a row are faults, not yet broken"
+        assert ("start", "plugin.echo.answers") in sent and ("stop", "plugin.echo.answers") in sent, "a miss starts its service again"
+        checks.tick(timing.time())
+        row = plugins.lookup("echo")
+        assert row.failed_at is not None and row.enabled and "health check within 200 ms" in row.last_fault, "the fifth marks it broken, never switched off"
+        answering.set()
+        checks.tick(timing.time())
+        assert plugins.lookup("echo").failed_at is None and plugins.lookup("echo").fault_streak == 0, "an answer again clears the broken mark"
+    finally:
+        listener.close()
+        path.unlink(missing_ok=True)
 
 
 def test_claiming_checks_the_servers_address_before_it_asks_for_the_account(app: App, tmp_path):

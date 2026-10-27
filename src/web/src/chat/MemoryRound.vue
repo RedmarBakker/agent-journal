@@ -1,20 +1,33 @@
 <script setup>
-// one compaction's round of memories, as its mark keeps it: those still shown, those faded out, those removed since the last round
-import {computed} from "vue";
+// one compaction's round of memories, as its mark keeps it, in two groups shut until clicked: those still shown, and those removed, faded out or taken out since the last round
+import {computed, ref} from "vue";
 import {useTurnLinks} from "./turnLinks.js";
+import FoldGroup from "../kit/FoldGroup.vue";
 
 const props = defineProps({round: {type: Object, default: null}});
 const {openRef} = useTurnLinks();
+const opened = ref(new Set());
 
 const parts = computed(() =>
     props.round
         ? [
-              {label: "Still shown", rows: props.round.shown || [], weight: (m) => `weight ${m.weight_before} to ${m.weight_after}`},
-              {label: "Faded out", rows: props.round.faded || [], weight: () => "weight 0"},
-              {label: "Removed since the last round", rows: props.round.removed || [], weight: (m) => `weight ${m.weight}`},
+              {label: "Still shown", rows: (props.round.shown || []).map((m) => ({...m, change: `weight ${m.weight_before} to ${m.weight_after}`}))},
+              {
+                  label: "Removed",
+                  rows: [
+                      ...(props.round.faded || []).map((m) => ({...m, change: "faded out at weight 0"})),
+                      ...(props.round.removed || []).map((m) => ({...m, change: `taken out at weight ${m.weight}`})),
+                  ],
+              },
           ].filter((part) => part.rows.length)
         : []
 );
+
+function toggle(label) {
+    const next = new Set(opened.value);
+    next.has(label) ? next.delete(label) : next.add(label);
+    opened.value = next;
+}
 </script>
 
 <template>
@@ -23,16 +36,17 @@ const parts = computed(() =>
             <p class="memory-round-missing">This round was not recorded: the mark was written before rounds were kept.</p>
         </template>
         <template v-for="part in parts" :key="part.label">
-            <p class="memory-round-label">{{ part.label }}</p>
-            <ul class="memory-round-rows">
-                <template v-for="memory in part.rows" :key="memory.id">
-                    <li class="memory-round-row">
-                        <button type="button" class="memory-round-ref" @click.stop="openRef(`memories:${memory.id}`)">Memory {{ memory.id }}</button>
-                        <span class="memory-round-weight">{{ part.weight(memory) }}</span>
-                        <span class="memory-round-text">{{ memory.text }}</span>
-                    </li>
-                </template>
-            </ul>
+            <FoldGroup :label="part.label" :count="part.rows.length" :open="opened.has(part.label)" flush @toggle="toggle(part.label)">
+                <ul class="memory-round-rows">
+                    <template v-for="memory in part.rows" :key="memory.id">
+                        <li class="memory-round-row">
+                            <button type="button" class="memory-round-ref" @click.stop="openRef(`memories:${memory.id}`)">Memory {{ memory.id }}</button>
+                            <span class="memory-round-weight">{{ memory.change }}</span>
+                            <span class="memory-round-text">{{ memory.text }}</span>
+                        </li>
+                    </template>
+                </ul>
+            </FoldGroup>
         </template>
     </div>
 </template>
@@ -40,13 +54,6 @@ const parts = computed(() =>
 <style scoped>
 .memory-round {
     margin: 0 0 0 20px;
-}
-
-/* each list has its label above it */
-.memory-round-label {
-    margin: 8px 0 2px;
-    color: var(--text-4);
-    font-size: 10.5px;
 }
 
 .memory-round-missing {

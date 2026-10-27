@@ -1,5 +1,8 @@
 from argparse import Namespace
 
+from journal.features.plugins.support.plugin_health import PluginHealth
+from journal.support.rejection import Rejection
+from journal.models.plugin import Plugin
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.events.announcer import Announcer
@@ -17,11 +20,12 @@ STEP_DESCRIPTIONS = {"needs": "needs", "setup": "runs at install", "installed": 
 class PluginCommand(Command):
     noun = "plugin"
 
-    def __init__(self, plugins: Plugins, installing: PluginInstalling, announcer: Announcer, scope: Scope, settings: PluginSettings, aliases: PluginAliases) -> None:
-        self.plugins, self.installing, self.announcer, self.scope, self.schemas, self.aliases = plugins, installing, announcer, scope, settings, aliases
+    def __init__(self, plugins: Plugins, installing: PluginInstalling, announcer: Announcer, scope: Scope, settings: PluginSettings, aliases: PluginAliases, probes: PluginHealth) -> None:
+        self.plugins, self.installing, self.announcer, self.scope, self.schemas, self.aliases, self.probes = plugins, installing, announcer, scope, settings, aliases, probes
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "the plugins installed here, each on or off and how it last failed")
+        self.verb(verbs, "health", "probe each plugin's service in this environment, or one plugin's, and say whether it answered within 200 ms and how fast").add_argument("name", nargs="?", default="")
         install = self.verb(verbs, "install", "show all a plugin from a folder or a git address would run; with --yes, install it")
         install.add_argument("source")
         install.add_argument("--yes", action="store_true", help="install it after the preview")
@@ -42,6 +46,20 @@ class PluginCommand(Command):
         removal = self.verb(verbs, "remove", "take a plugin out; its data folder stays unless --purge")
         removal.add_argument("name")
         removal.add_argument("--purge", action="store_true", help="delete its data folder too")
+
+    def health(self, args: Namespace, caller: Caller) -> int:
+        chosen = [plugin for plugin in self.plugins.all() if plugin.enabled and (not args.name or plugin.name == args.name)]
+        if args.name and not chosen:
+            raise Rejection(f"no plugin named {args.name} is on")
+        for plugin in chosen:
+            print(f"{plugin.name}: {self.health_line(plugin, caller.environment)}")
+        return 0
+
+    def health_line(self, plugin: Plugin, environment: str) -> str:
+        if not plugin.manifest.health:
+            return "declares no health check"
+        seconds = self.probes.probe(plugin, environment)
+        return "not responding within 200 ms" if seconds is None else f"answered in {round(seconds * 1000)} ms"
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for p in self.plugins.all():

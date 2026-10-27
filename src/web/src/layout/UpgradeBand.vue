@@ -9,6 +9,7 @@ import {store} from "../state/store.js";
 import {useStaleReload} from "../composables/staleReload.js";
 import {runUpdate} from "../composables/updates.js";
 import {clear, updating} from "../state/updating.js";
+import {installedPlugins} from "../composables/plugins.js";
 
 const upstream = ref(null);
 const dismissed = ref(remembered("journal.upgrade.dismissed", ""));
@@ -23,6 +24,9 @@ const stale = computed(() => {
 });
 
 const {waiting, reload} = useStaleReload(stale, () => store.drafting > 0);
+
+const plugins = installedPlugins();
+const broken = computed(() => plugins.value.filter((plugin) => plugin.enabled && plugin.failingSince));
 
 // the phone shows no band, so it never asks
 onMounted(async () => {
@@ -80,6 +84,11 @@ async function retry() {
         <div class="band failed" role="alert">
             <span class="text">The update to {{ updating.version }} did not finish: {{ updating.failure }}</span>
             <Btn kind="primary" small @click="retry">Try again</Btn>
+        </div>
+    </template>
+    <template v-for="plugin in broken" :key="plugin.id">
+        <div class="band failed" role="alert">
+            <span class="text">The plugin {{ plugin.title }} stopped working after five failures in a row, and the journal carries on without it. Last error: {{ plugin.lastFault }}</span>
         </div>
     </template>
     <template v-if="upstream && upstream.problem">

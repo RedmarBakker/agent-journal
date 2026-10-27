@@ -3,6 +3,7 @@ from journal.engine.conduct import Conduct
 from journal.support.agent_role import AgentRole
 from journal.engine.states.compacting import Compacting
 from journal.engine.support.typist import Typist
+from journal.engine.delivery import Delivery
 from journal.engine.nudger import Nudger
 from journal.engine.support.settings import Settings
 from journal.repositories.setting_rows import SettingRows
@@ -42,8 +43,8 @@ JOURNAL_START = "the journal started, so no compaction is still running"
 class StateMachine:
     """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks the task assigner in force before the stack answers a hook event, so a stop meets the task it starts, and, through RowAssignment, after every listener of a row event has heard it, so a closed task is let go and marked first, asks the state the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, which the delivery carries out; it reaches no terminal itself."""
 
-    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution) -> None:
-        self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners = agents, states, nudger, bus, tracker, assigners
+    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery) -> None:
+        self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners, self.delivery = agents, states, nudger, bus, tracker, assigners, delivery
         self.listener_index = ListenerIndex({})
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
 
@@ -114,18 +115,17 @@ class StateMachine:
         machine_answer = self.answer_moves(stack, transition, agent.role, settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
-        typist = Typist()
-        agent = self._store(agent, machine_answer, event.key, Actor.system(), typist)
+        agent = self._store(agent, machine_answer, event.key, Actor.system())
         nudge_lines = [(nudge, line) for nudge in (*mode_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
         remarks = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(agent, nudge, event))
         lines = [line for _, line in nudge_lines if line not in remarks]
         keystrokes = tuple(line for nudge in transition.terminal_lines if (line := self.nudger.deliver(agent, nudge)))
         reasons = [line for refusal in (transition.refusal, *transition.extra_refusals) if refusal and (line := self.nudger.refuse_with(agent, refusal))]
         if reasons:
-            return MachineReply(agent, Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks, tuple(typist.moves))
+            return MachineReply(agent, Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks)
         if machine_answer.refusal and (line := self.nudger.refuse_with(agent, machine_answer.refusal.nudge)):
-            return MachineReply(agent, Decision.refuse(line), keystrokes, remarks, tuple(typist.moves))
-        answered = MachineReply(agent, Decision.allowed_with("\n".join(lines)), keystrokes, remarks, tuple(typist.moves))
+            return MachineReply(agent, Decision.refuse(line), keystrokes, remarks)
+        answered = MachineReply(agent, Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
         return answered.merged(self.stack_reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
 
     def push(self, session: str, environment_id: int, destination: BaseState, actor: Actor, text: str) -> MachineReply:
@@ -145,12 +145,11 @@ class StateMachine:
 
     def manual(self, agent: Agent, following: Stack, actor: Actor, text: str) -> MachineReply:
         machine_answer = self.hook_machine(self.states.stack(agent), following, self.top_state(), self.readers.agent_data(agent))
-        typist = Typist()
-        resolved = self._store(agent, machine_answer, text, actor, typist)
+        resolved = self._store(agent, machine_answer, text, actor)
         if machine_answer.refusal:
             raise Rejection(machine_answer.refusal.nudge.rendered())
         keystrokes = tuple(line for nudge in machine_answer.nudges if (line := self.nudger.deliver(resolved, nudge)))
-        return MachineReply(resolved, Decision(), keystrokes, (), tuple(typist.moves))
+        return MachineReply(resolved, Decision(), keystrokes)
 
     def top_state(self) -> Settings:
         return Settings.applied(self.settings, self.features.options())
@@ -195,14 +194,16 @@ class StateMachine:
             return stack.with_top(destination)
         return self.states.stack_base(destination, role)
 
-    def _store(self, agent: Agent, machine_answer: MachineAnswer, cause: str, actor: Actor, typist: Typist) -> Agent:
+    def _store(self, agent: Agent, machine_answer: MachineAnswer, cause: str, actor: Actor) -> Agent:
         stack, destination = machine_answer.stack, machine_answer.stack.top()
         if machine_answer.refusal:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), cause, actor, refused=machine_answer.refused, line=machine_answer.refusal.nudge.rendered()), actor)
         if self.is_unchanged(agent, destination, stack):
             return agent
+        typist = Typist()
         stack.replace(self.states.stack(agent), typist)
         resolved = self.agents.save(agent.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())), actor)
+        self.delivery.moved(agent.environment_id, typist.moves)
         if self.is_moved(agent, stack):
             self.entries.save(StackHistory.entry(agent, stack.serialized(), cause, actor), actor)
         return resolved

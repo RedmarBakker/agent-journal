@@ -80,9 +80,15 @@ The journal's own tests run this plugin, from `tests/plugins/echo`.
 - `services`: processes kept running beside it, each `{"name": ..., "command": ["./serve.py", ...], "restart":
   "always" | "on-failure" | "never", "when": "<shell line>", "answers": true}`. The environment's supervisor runs each
   as `plugin.<plugin>.<service>` with the plugin's clean environment, only where its `when` check passes. It is
-  started on install, switch-on and when the journal starts, stopped on switch-off and removal, and restarted by an
-  upgrade. A service with `answers` listens on `JOURNAL_PLUGIN_SOCKET` and is asked in place of the program, one line
-  in and one line out. With no supervisor, or with its socket gone, the program answers.
+  started on install and switch-on, started fresh whenever the journal starts (one still running is ended first),
+  stopped on switch-off and removal, and restarted by an upgrade. A service with `answers` listens on
+  `JOURNAL_PLUGIN_SOCKET` and is asked in place of the program, one line in and one line out. With no supervisor, or
+  with its socket gone, the program answers.
+- `health`: `true` when the plugin's answering service takes a health check. Every minute the journal sends it the
+  line `{"v": 1, "event": "health", ...}` on its socket and wants any valid answer, such as `{"v": 1, "answer":
+  "allow"}`, within 200 ms. A miss counts as a fault and starts its services again; five in a row mark the plugin
+  broken, which shows a red bar at the top of the viewer, and the next answer clears it. A plugin without the key is
+  never probed. `journal plugin health [<name>]` runs the check at once.
 - `dashboard`: `{"name": ..., "title": ...}`, a panel opened from a button on the plugin's card, `title` naming the
   button and the panel and `name` the dashboard in its address; the panel is drawn from lines
   the plugin writes with `journal dashboard set <key> "<label>" [--badge <text>] [--tone good|warn|danger|note|muted]

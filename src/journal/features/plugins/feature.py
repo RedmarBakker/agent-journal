@@ -8,6 +8,7 @@ from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.plugins.commands.dashboard_command import DashboardCommand
 from journal.features.plugins.commands.plugin_command import PluginCommand
+from journal.features.plugins.jobs.plugin_health_check import PluginHealthCheck
 from journal.features.plugins.listeners.plugin_broken_notice import PluginBrokenNotice
 from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
 from journal.features.plugins.listeners.plugin_merge_relay import PluginMergeRelay
@@ -42,6 +43,7 @@ class PluginsFeature(Feature[PluginsData]):
     nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP, PluginsNudges.PLUGIN_BROKEN)
     commands = (PluginCommand, DashboardCommand)
     seeds = (PluginServicesSeed,)
+    jobs = (PluginHealthCheck,)
     skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """
 # Plugins
 

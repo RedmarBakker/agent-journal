@@ -6,7 +6,7 @@ from journal.support.decision import Decision
 
 
 class Delivery:
-    """The terminal's side of the state machine's replies, the engine's one way to the supervisor for them: the moves the states asked of the terminal, the lines typed into it and the remarks queued for it, whether the agent works, rests or had its stop refused, the silence between hooks, and the lines still queued folded into a hook's answer."""
+    """The terminal's side of the state machine's replies, the engine's one way to the supervisor for them: the moves the states asked of the terminal as the stack is stored, the lines typed into it and the remarks queued for it, whether the agent works, rests or had its stop refused, the silence between hooks, and the lines still queued folded into a hook's answer."""
 
     def __init__(self, supervisor: SupervisorLink) -> None:
         self.supervisor = supervisor
@@ -14,11 +14,13 @@ class Delivery:
     def silence(self, event: AgentEvent) -> None:
         self.supervisor.silence(event.environment_id, event.gap_seconds())
 
+    def moved(self, environment_id: int, moves: list[str]) -> None:
+        terminal_moves = {PAUSE: self.supervisor.pause, RESUME: self.supervisor.resume, DISABLE: self.supervisor.disable, ENABLE: self.supervisor.enable, CLEAR: self.supervisor.clear}
+        for move in moves:
+            terminal_moves[move](environment_id)
+
     def applied(self, reply: MachineReply, following: float) -> None:
         environment_id = reply.agent.environment_id
-        moves = {PAUSE: self.supervisor.pause, RESUME: self.supervisor.resume, DISABLE: self.supervisor.disable, ENABLE: self.supervisor.enable, CLEAR: self.supervisor.clear}
-        for move in reply.moves:
-            moves[move](environment_id)
         for remark in reply.remarks:
             self.supervisor.remark(environment_id, remark)
         for line in reply.keystrokes:

@@ -50,16 +50,19 @@ async function opened(message) {
     return host;
 }
 
-test("a memories mark opens to its round: the memories still shown with their weights, and apart those faded out and removed", async () => {
+test("a memories mark opens to two groups shut until clicked: the memories still shown with their weights, and those removed", async () => {
     const round = {
         shown: [{id: 4, text: "the suite runs in shards", weight_before: 4, weight_after: 3}],
         faded: [{id: 5, text: "the port is fixed", weight_before: 1, weight_after: 0}],
         removed: [{id: 6, text: "the old updater", weight: 6}],
     };
     const host = await opened(faded(round));
-    expect([...host.querySelectorAll(".memory-round-label")].map((label) => label.textContent)).toEqual(["Still shown", "Faded out", "Removed since the last round"]);
+    expect([...host.querySelectorAll(".memory-round .fold-label")].map((label) => label.textContent)).toEqual(["Still shown", "Removed"]);
+    expect(host.querySelectorAll(".memory-round-ref").length).toBe(0);
+    for (const head of host.querySelectorAll(".memory-round .fold-head")) head.click();
+    await flush();
     expect([...host.querySelectorAll(".memory-round-ref")].map((ref) => ref.textContent)).toEqual(["Memory 4", "Memory 5", "Memory 6"]);
-    expect(host.querySelector(".memory-round-weight").textContent).toBe("weight 4 to 3");
+    expect([...host.querySelectorAll(".memory-round-weight")].map((weight) => weight.textContent)).toEqual(["weight 4 to 3", "faded out at weight 0", "taken out at weight 6"]);
 });
 
 test("a memories mark written before rounds were kept opens and says the round was not recorded", async () => {

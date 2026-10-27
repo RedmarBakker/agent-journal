@@ -1,6 +1,7 @@
 from journal.features.mentions.support.mention_match import MentionMatch
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from journal.models.support.ref import Ref
 from journal.models.worker_state import WorkerState
 from journal.repositories.rows import Rows
 
@@ -18,10 +19,12 @@ class ClosedRows:
         self.rows = rows
 
     def described(self, text: str) -> list[str]:
-        return [f"{ref.type.removesuffix('s')} {ref.id} {state}" for ref in MentionMatch.found(text) if (state := self.closed_state(ref.type, self.rows.is_row(ref), self.rows.row_state(ref)))]
+        return [f"{ref.type.removesuffix('s')} {ref.id} {state}" for ref in MentionMatch.found(text) if (state := self.closed_state(ref))]
 
-    @staticmethod
-    def closed_state(table: str, exists: bool, state: str) -> str:
-        if not exists:
+    def closed_state(self, ref: Ref) -> str:
+        if not self.rows.is_row(ref):
             return "not found"
-        return state if state in CLOSED_STATES.get(table, set()) else ""
+        if ref.type not in CLOSED_STATES:
+            return ""
+        state = self.rows.row_state(ref)
+        return state if state in CLOSED_STATES[ref.type] else ""
