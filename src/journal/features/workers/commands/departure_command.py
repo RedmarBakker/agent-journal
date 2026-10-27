@@ -121,7 +121,7 @@ class DepartureCommand(Command):
         self.tasks.finish_holder_task(task.id, holder, caller.actor)
         self.tasks.handover(next_task, holder, caller.actor)
         moment = self.time_source.moment().timestamp()
-        self.workers.save(self.workers.find(worker.id).moved(f"moved on to task {next_task.id}", moment).with_(began=moment), caller.actor)
+        self.workers.save(self.workers.find(worker.id).moved_on(next_task.id, moment), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
         print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")
         return 0

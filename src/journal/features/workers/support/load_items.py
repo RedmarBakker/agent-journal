@@ -4,7 +4,7 @@ from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.author import Author
 from journal.models.support.ref import Ref
-from journal.models.worker import DELIVERY_MOVE, MERGED, REJECTION_MOVE, Worker
+from journal.models.worker import DELIVERY_MOVE, JOB_MOVE, JOB_STARTS, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.repositories.proofs import Proofs
@@ -15,8 +15,7 @@ from journal.repositories.workers import Workers
 
 # a worker's moves that bring it to the orchestrator, and those that end what it brought without clearing it
 UNFINISHED = "ended without clocking out"
-ENDING = (REJECTION_MOVE, "released", "retired", "stopped", "sent a job")
-DISPATCHES = ("dispatched", "sent a job")
+ENDING = (REJECTION_MOVE, "released", "retired", "stopped", JOB_MOVE)
 
 
 class LoadItems:
@@ -29,7 +28,7 @@ class LoadItems:
         window_start = datetime.fromtimestamp(start, timezone.utc)
         workers = self.workers.selected(self.workers.query().filter_greater_equal("updated_at", window_start).order("id"))
         items = [item for worker in workers for item in self.worker_items(worker) if item.cleared_at == 0.0 or item.cleared_at >= start]
-        dispatches = [time for worker in workers for word, time in worker.moves.steps if word in DISPATCHES and time >= start]
+        dispatches = [time for worker in workers for word, time in worker.moves.steps if word in JOB_STARTS and time >= start]
         return [*items, *self.message_items(window_start)], dispatches
 
     def worker_items(self, worker: Worker) -> list[LoadItem]:

@@ -36,8 +36,7 @@ class WorkerReports:
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
     def moved_task(self, worker: Worker) -> int:
-        holder = Ref.build(worker)
-        return next(iter(self.tasks.holder_task_ids(holder)), 0) if self.tasks.finished_task_ids(holder) else 0
+        return next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0) if worker.is_moved_on() else 0
 
     def queue_line(self, worker: Worker) -> str:
         holder = Ref.build(worker)

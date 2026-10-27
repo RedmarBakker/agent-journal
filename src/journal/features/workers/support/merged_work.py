@@ -4,7 +4,7 @@ from pathlib import PurePosixPath
 
 from journal.features.workers.support.work_complexity import WorkComplexity
 from journal.models.edit import Edit
-from journal.models.worker import MERGED, REJECTION_MOVE, Worker
+from journal.models.worker import JOB_STARTS, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
 from journal.support.actor import Actor
@@ -12,8 +12,6 @@ from journal.support.actor import Actor
 # a path or a file name a brief or a change names
 FILE_PATTERN = re.compile(r"[\w-]+/[\w./-]+|\b[\w-]+\.(?:py|js|ts|vue|md|json|sh|php|go|css|html)\b|--changes")
 
-# the moves that start a worker's job
-STARTS = ("dispatched", "sent a job")
 TEST_FILE = re.compile(r"(^|/)tests?/|(^|/)test_[^/]+$|[^/]+_test\.\w+$|\.test\.\w+$|\.spec\.\w+$")
 
 
@@ -41,7 +39,7 @@ class MergedWork:
     def span(worker: Worker) -> tuple[float, float, int]:
         steps = worker.moves.steps
         end = next((time for word, time in reversed(steps) if word == MERGED), steps[-1][1] if steps else 0.0)
-        start = next((time for word, time in reversed(steps) if word in STARTS and time <= end), steps[0][1] if steps else end)
+        start = next((time for word, time in reversed(steps) if word in JOB_STARTS and time <= end), steps[0][1] if steps else end)
         return start, end, sum(1 for word, time in steps if word == REJECTION_MOVE and start <= time <= end)
 
     @staticmethod

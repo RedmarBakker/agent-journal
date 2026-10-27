@@ -51,6 +51,10 @@ LIMITED_MOVE = "stopped at the usage limit"
 RUN_LIMIT_REASON = "run limit"
 # the move that hands a worker a point back, the one that takes its work in, and its clock-out
 REJECTION_MOVE, MERGED, DELIVERY_MOVE = "sent back", "merged", "clocked out"
+# the moves that start a job, and the move to the next task of a queue inside it
+JOB_MOVE = "sent a job"
+JOB_STARTS = ("dispatched", JOB_MOVE)
+MOVED_ON = "moved on to task"
 
 
 @dataclass(frozen=True)
@@ -123,7 +127,7 @@ class Worker(Helper):
         return next((time for word, time in reversed(self.moves.steps) if word == DELIVERY_MOVE), 0.0)
 
     def job_start_time(self) -> float:
-        return next((time for word, time in reversed(self.moves.steps) if word in ("dispatched", "sent a job")), 0.0)
+        return next((time for word, time in reversed(self.moves.steps) if word in JOB_STARTS), 0.0)
 
     def rejections(self) -> int:
         return self.moves.counted_since(REJECTION_MOVE, MERGED)
@@ -210,6 +214,12 @@ class Worker(Helper):
 
     def moved(self, move: str, time: float) -> "Worker":
         return self.with_(moves=self.moves.added(move, time))
+
+    def moved_on(self, task: int, time: float) -> "Worker":
+        return self.moved(f"{MOVED_ON} {task}", time).with_(began=time)
+
+    def is_moved_on(self) -> bool:
+        return self.moves.latest((MOVED_ON, *JOB_STARTS, REJECTION_MOVE)).startswith(MOVED_ON)
 
     def contacted(self, time: float) -> "Worker":
         return self.with_(silence=self.silence.started(time))

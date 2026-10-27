@@ -14416,6 +14416,62 @@ def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merg
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["completed", "completed", "completed"], "one merge closes all three"
 
 
+def queue_sent_back_short(app: App, monkeypatch):
+    """A worker that went through a queue of two tasks, the first checked and the second sent back short; its caller."""
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "--report", "queue"], AGENT).code == 0
+    for n in (1, 2):
+        committed(worktree, f"notes{n}.md", f"note {n}\n")
+        proved_and_out(app, caller, f"notes{n}.md:1")
+    assert console.run(["worker", "check", "1", "1", "--task", "1"], AGENT).code == 0
+    short = console.run(["worker", "check", "1", "1", "--task", "2", "--short", "note 2 names no section"], AGENT)
+    assert short.code == 0 and "point 1 of task 2 sent back short" in short.text, short.error
+    app.runtime().deferred.drain()
+    return caller
+
+
+def test_the_second_task_of_a_queue_sent_back_short_stays_in_its_workers_hands_and_the_worker_clocks_in_on_it(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    caller = queue_sent_back_short(app, monkeypatch)
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.finished_task_ids(Ref("workers", 1)) == (1,), "the task sent back is the worker's current task, and the first waits for the merge"
+    arrived = app.console().run(["clock-in"], caller)
+    assert arrived.code == 0 and "clocked in on task 2" in arrived.text, arrived.error
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Tasks).find(2).state == "started", "its task is started under it"
+
+
+def test_a_worker_sent_back_whose_runs_end_twice_without_clocking_out_is_named_to_the_agent_and_not_sent_again(app: App, monkeypatch):
+    from journal.features.workers.listeners.unfinished_clock_out import CLOCK_OUT_REQUEST
+    from journal.repositories.entries import Entries
+    from journal.repositories.workers import Workers
+    queue_sent_back_short(app, monkeypatch)
+    runner = app.container.get(WorkerRunner)
+
+    def ended():
+        with app.container.get(Scope).environment(MAIN):
+            for path in runner.outputs(worker_row(app)):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("")
+            app.container.get(Workers).save(worker_row(app).with_(token_hash="h"), Actor.system())
+            runner.finish(worker_row(app), 0, Actor.system())
+        app.runtime().deferred.drain()
+        return worker_row(app)
+
+    first = ended()
+    assert first.state == "dispatched" and CLOCK_OUT_REQUEST in first.brief and "Go on with your task" not in first.brief, "a run sent back that ends without moving on in its queue is no turn of the queue: the journal asks it once to clock out"
+    second = ended()
+    assert second.state == "unfinished" and CLOCK_OUT_REQUEST in second.brief, "its second run ended the same way, so it is not sent again"
+    with app.container.get(Scope).environment(MAIN):
+        told = [entry.data["values"]["n"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.run_unfinished"]
+    assert told == ["1"], "the agent that dispatched it is told once, naming it"
+
+
 def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_work_is_never_released_unasked(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks

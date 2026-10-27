@@ -14,7 +14,7 @@ from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.models.worker import REJECTION_MOVE, Worker
+from journal.models.worker import JOB_MOVE, REJECTION_MOVE, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.providers.support.session_inbox import SessionInbox
@@ -50,7 +50,6 @@ EDITED_NOTE = "Task {task} was changed while you were away: read it again with j
 REBASE_NOTE = f"The journal rebased your worktree onto the project's branch, at {{heads}}, and {{clashing}}. First {REBASE_STEPS}. Then: "
 MOVED_NOTE = "The journal rebased your worktree onto the project's branch, at {heads}, so files may have changed since your last job. "
 SESSION_BUSY_REFUSAL = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
-JOB_MOVE = "sent a job"
 REDO_MOVE = REJECTION_MOVE
 
 class WorkerActions:

@@ -1,7 +1,6 @@
-from journal.models.worker import MERGED, Worker
+from journal.models.worker import JOB_STARTS, MERGED, Worker
 from journal.repositories.workers import Workers
 
-DISPATCH_MOVES = ("dispatched", "sent a job")
 RETURN_MOVES = (MERGED, "released", "retired", "stopped")
 
 
@@ -18,7 +17,7 @@ class ActiveWorkerMeasure:
     def active_spans(worker: Worker, end: float) -> list[tuple[float, float]]:
         spans, began = [], None
         for word, time in worker.moves.steps:
-            if word in DISPATCH_MOVES and began is None:
+            if word in JOB_STARTS and began is None:
                 began = time
             elif word in RETURN_MOVES and began is not None:
                 spans.append((began, time))

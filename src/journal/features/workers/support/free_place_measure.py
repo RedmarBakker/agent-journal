@@ -1,9 +1,9 @@
-from journal.models.worker import MERGED, Worker
+from journal.models.worker import JOB_STARTS, MERGED, Worker
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 
 IDLE_MOVES = ("reported", MERGED)
-BUSY_MOVES = ("dispatched", "sent a job", "clocked in", "released", "retired", "stopped")
+BUSY_MOVES = (*JOB_STARTS, "clocked in", "released", "retired", "stopped")
 
 
 class FreePlaceMeasure:

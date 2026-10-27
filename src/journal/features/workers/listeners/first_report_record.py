@@ -1,16 +1,15 @@
 from journal.events.listener import Listener
 from journal.events.rows.worker_delivered import WorkerDelivered
-from journal.features.workers.support.load_items import DISPATCHES
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.support.ref import Ref
-from journal.models.worker import REJECTION_MOVE, Worker
+from journal.models.worker import JOB_STARTS, REJECTION_MOVE, Worker
 from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 
-JOB_MOVES = (*DISPATCHES, REJECTION_MOVE)
+JOB_MOVES = (*JOB_STARTS, REJECTION_MOVE)
 
 
 class FirstReportRecord(Listener[WorkerDelivered]):
@@ -31,4 +30,4 @@ class FirstReportRecord(Listener[WorkerDelivered]):
     @staticmethod
     def is_first(worker: Worker) -> bool:
         moves = [word for word, _ in worker.moves.steps if word in JOB_MOVES]
-        return bool(moves) and moves[-1] in DISPATCHES
+        return bool(moves) and moves[-1] in JOB_STARTS
