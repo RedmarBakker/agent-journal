@@ -11,7 +11,7 @@ from journal.features.standard import Standard
 LISTS = Path(__file__).resolve().parents[1] / ".commandments" / "custom" / "lists.json"
 # a run of fewer words is common enough to stand in a test's own text
 WORDS = 4
-BLANK = re.compile(r"\{\{\w+\}\}")
+BLANK = re.compile(r"\{\{\w+(?:\|cap=\d+)?\}\}")
 # runs the journal's other text writes too, as a plugin's or a service's log does, which a test of that text holds without checking a nudge
 COMMON = ("times in a row",)
 EDGES = " .,:;"

@@ -3,8 +3,8 @@ from journal.support.timeout import Timeout
 
 
 class ClientErrorsNudges:
-    LOGGED = Nudge("client_errors", "logged", "the viewer logged {{errors}}", "read them with `journal developer client-errors`", repeat=Timeout.seconds(0))
-    UNHANDLED = Nudge("client_errors", "unhandled", "{{errors}} in the viewer: `journal developer client-errors`, fix, then add `--clear`", "", repeat=Timeout.seconds(0))
+    LOGGED = Nudge("client_errors", "logged", "the viewer logged {{errors|cap=51}}", "read them with `journal developer client-errors`", repeat=Timeout.seconds(0))
+    UNHANDLED = Nudge("client_errors", "unhandled", "{{errors|cap=30}} in the viewer: read `journal developer client-errors`, fix, then run it with `--clear`", "", repeat=Timeout.seconds(0))
 
 
     @staticmethod

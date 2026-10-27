@@ -18,6 +18,7 @@ DISPATCHES = ENTRIES.filter_alternatives(
     ENTRIES.filter(entry_type="PromptSubmitted").filter_prefix("data->prompt", "<task-notification>"),
 ).inlined()
 NUDGE = "nudge"
+CUT_KEY = "cut_from"
 # the keys of an entry's data that hold what a tool was given and gave back, what a command printed and the agent's last words, which a read of what the agent did leaves out
 PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "last_assistant_message")
 
@@ -238,6 +239,9 @@ class Entries(ScopedRepository[Entry]):
 
     def key_lines(self, key: str) -> list[str]:
         return [str(entry.data["line"]) for entry in self.selected(self.query().filter(entry_type=NUDGE).filter_json("data->key", key))]
+
+    def cut_lines(self) -> list[Entry]:
+        return self.selected(self.query().filter(entry_type=NUDGE).filter_present(f"data->{CUT_KEY}").order("id"))
 
     def lines(self, session: str) -> Query:
         return self.query().filter(entry_type=NUDGE).filter_json("data->session", session)

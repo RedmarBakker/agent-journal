@@ -21,6 +21,7 @@ from journal.db.schema import Schema
 from journal.events.bus import Bus
 from journal.models.all_models import AllModels
 from journal.repositories.environments import Environments
+from journal.repositories.entries import CUT_KEY, Entries
 from journal.repositories.links import Links
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
@@ -116,9 +117,14 @@ def journal(tmp_path_factory, template_journal: Path, boot) -> SharedJournal:
 
 @pytest.fixture
 def app(journal: SharedJournal):
-    """The module's journal, put back as it booted once the test is done."""
+    """The module's journal, put back as it booted once the test is done; a line the nudger had to cut to its longest fails the test, naming it."""
     yield journal.app
+    cut = []
+    for environment in journal.app.container.get(Environments).all():
+        with journal.app.container.get(Scope).environment(environment.id):
+            cut += [(entry.data["key"], entry.data[CUT_KEY]) for entry in journal.app.container.get(Entries).cut_lines()]
     journal.reset()
+    assert not cut, f"lines sent longer than their longest, cut to it (key, length): {cut}"
 
 
 def copied(template: Path, root: Path) -> Path:

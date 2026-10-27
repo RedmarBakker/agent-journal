@@ -188,7 +188,7 @@ class Updater:
             raise Rejection("an update is under way already")
 
     def readme_install(self) -> None:
-        self.card.step("Running the install command from the README")
+        self.card.step("Updating the journal to the latest version")
         installed = self.official.installation(README_REF)
         if installed.returncode != 0:
             self.problem = f"The install command from the README failed: {(installed.stderr or installed.stdout).strip()[-300:]}"
@@ -281,7 +281,7 @@ class Updater:
             self.installed_officially(target, drained, broken)
             return
         self.recorded(target)
-        self.card.step("The new version's install script installs it and restarts the journal on it")
+        self.card.step("Updating the journal to the latest version")
         if self.is_hosted():
             self.restart()
 
@@ -332,6 +332,6 @@ class Updater:
         host = self.supervisor.hosting()
         outputs = self.queue.update_restart(host) if host is not None else []
         if outputs:
-            self.card.step(f"Restarting once outputs {', '.join(str(output.id) for output in outputs)} end")
+            self.card.step("Restarting once the running commands end")
         elif host is not None and self.queue.is_waiting(host):
-            self.card.step("Restarting once the pool workers running here end")
+            self.card.step("Restarting once the running workers end")

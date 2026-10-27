@@ -22,6 +22,7 @@ from journal.repositories.scope import Scope
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
+from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
 from journal.engine.demand_tracker import DemandTracker
 from journal.support.moment import Moment
@@ -38,10 +39,11 @@ from journal.engine.listener_index import ListenerIndex
 from journal.engine.support.session_agents import SessionAgents
 
 
+TOOL_ANSWER_LINE_COUNT = 3
 JOURNAL_START = "the journal started, so no compaction is still running"
 
 class StateMachine:
-    """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks the task assigner in force before the stack answers a hook event, so a stop meets the task it starts, and, through RowAssignment, after every listener of a row event has heard it, so a closed task is let go and marked first, asks the state the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, which the delivery carries out; it reaches no terminal itself."""
+    """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks the task assigner in force before the stack answers a hook event, so a stop meets the task it starts, and, through RowAssignment, after every listener of a row event has heard it, so a closed task is let go and marked first, asks the state the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, a tool use's answer taking at most three lines and queuing the rest for the next hook, which the delivery carries out; it reaches no terminal itself."""
 
     def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery) -> None:
         self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners, self.delivery = agents, states, nudger, bus, tracker, assigners, delivery
@@ -71,6 +73,14 @@ class StateMachine:
     @staticmethod
     def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
         return nudge.is_remark and not event.has_hook_lines() and not agent.role.is_helper()
+
+    @staticmethod
+    def answer_lines(lines: list[str], event: AgentEvent) -> list[str]:
+        return lines[:TOOL_ANSWER_LINE_COUNT] if isinstance(event, (ToolStarting, ToolFinished)) else lines
+
+    @staticmethod
+    def overflow_lines(lines: list[str], event: AgentEvent) -> list[str]:
+        return lines[TOOL_ANSWER_LINE_COUNT:] if isinstance(event, (ToolStarting, ToolFinished)) else []
 
     def row_replies(self, event: RowEvent) -> list[MachineReply]:
         replies = []
@@ -117,8 +127,9 @@ class StateMachine:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         agent = self._store(agent, machine_answer, event.key, Actor.system())
         nudge_lines = [(nudge, line) for nudge in (*mode_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
-        remarks = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(agent, nudge, event))
-        lines = [line for _, line in nudge_lines if line not in remarks]
+        queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(agent, nudge, event))
+        lines = [line for _, line in nudge_lines if line not in queued]
+        lines, remarks = self.answer_lines(lines, event), (*queued, *self.overflow_lines(lines, event))
         keystrokes = tuple(line for nudge in transition.terminal_lines if (line := self.nudger.deliver(agent, nudge)))
         reasons = [line for refusal in (transition.refusal, *transition.extra_refusals) if refusal and (line := self.nudger.refuse_with(agent, refusal))]
         if reasons:

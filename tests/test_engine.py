@@ -78,6 +78,7 @@ from journal.features.messages.feature import Messages as MessagesFeature
 from journal.features.briefing.feature import Briefing as BriefingFeature
 from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
+from tests.shared_journal import SharedJournal
 from journal.support.classification_table import ClassificationTable
 from journal.support.command_classifier import CommandClassifier
 from journal.support.table_schema import TableSchema
@@ -1094,6 +1095,24 @@ def test_the_nudge_registry_hands_back_an_id_lists_every_nudge_and_the_nudger_re
     with pytest.raises(Rejection):
         app.container.get(Nudger).deliver(agent, OTHER.create())
     assert app.container.get(Nudger).deliver(agent, owned.create()) == "a line of the test"
+
+
+def test_a_line_longer_than_its_longest_is_cut_when_sent_and_the_cut_recorded(journal: SharedJournal):
+    app = journal.app
+    registry, wide = app.container.get(NudgeRegistry), Nudge("engine", "test_wide_line", "the files: {{files}}")
+    registry.register(wide)
+    hook(app, "SessionStart")
+    agent = app.container.get(Agents).session_agent("s1")
+    sent = app.container.get(Nudger).answer(agent, wide.create(files="a.py " * 40))
+    assert len(sent) == 120 and sent.endswith("…"), "cut to the 120 characters a line may have"
+    with app.container.get(Scope).environment(1):
+        assert [(entry.data["key"], entry.data["cut_from"]) for entry in app.container.get(Entries).cut_lines()] == [("engine.test_wide_line", 211)], "the cut is recorded with the length it was cut from, which fails the test that sent it"
+    capped = Nudge("engine", "test_capped_line", "the files: {{files|cap=20}}")
+    registry.register(capped)
+    assert app.container.get(Nudger).answer(agent, capped.create(files="a.py " * 40)) == "the files: " + ("a.py " * 4)[:19] + "…", "a value written with a cap is cut to it, so the line stays whole"
+    lines, tool_use = ["one", "two", "three", "four"], ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {})))
+    assert StateMachine.answer_lines(lines, tool_use) == ["one", "two", "three"] and StateMachine.overflow_lines(lines, tool_use) == ["four"], "a tool use's answer takes three lines and queues the rest for the next hook"
+    journal.reset()
 
 
 def test_the_engines_own_states_wait_compacting_and_ended_answer_hand_built_events():
