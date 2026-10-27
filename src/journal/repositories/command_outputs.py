@@ -106,6 +106,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def reader_run_counts(self) -> dict[str, int]:
         return self.grouped_counts(self.query().filter(moved=True), "watch_reader")
 
+    def part_run_count(self, part: str, earliest: datetime) -> int:
+        return self.counted(self.query().filter(moved=True).filter_containing("command", part).filter_greater("created_at", earliest))
+
     def run_session_count(self) -> int:
         return len(self.grouped_counts(self.query().filter(moved=True), "session"))
 

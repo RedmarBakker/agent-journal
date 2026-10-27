@@ -125,7 +125,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | shell | shell.moved_to_the_background | moved to the background as output {{n}} | ShellRunner.foreground |
 | shell | shell.outputs_ended | {{outputs}} | ShellConduct.on_ticked_shell_ended |
 | shell | shell.use_the_reader | reader {{reader}} already reads this: {{about}} | ShellDataReader.read, ShellConduct.on_tool_starting_shell_readers |
-| shell | shell.add_a_reader | you read outputs this way again: {{command}} | ShellDataReader.read, ShellConduct.on_tool_starting_shell_readers |
+| shell | shell.draft_a_reader | no reader reads {{part}} yet | ReaderDrafts.drafts, ShellConduct.on_ticked (with outputs_ended), ShellConduct.on_tool_finished (with watched_output_ended) |
 | shell | shell.read_the_file_in_parts | the file has {{lines}} lines, more than the {{cap}} shown at each end of a command's output | ShellConduct.on_tool_starting_shell_read_in_parts |
 | shell | shell.journal_command_runs_alone | a journal command runs on its own, or chained only with other journal commands | ShellConduct.on_tool_starting_shell_journal_alone |
 | shell | shell.check_the_background | output {{background_outputs}} still running | ShellConduct.on_ticked_shell_background |

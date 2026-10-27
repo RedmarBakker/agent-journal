@@ -157,6 +157,9 @@ class Entries(ScopedRepository[Entry]):
     def environment_values(self, key: str, name: str) -> list[str]:
         return [entry.data["values"][name] for entry in self.selected(self.query().filter(kind=NUDGE).filter_json("data->key", key).order("id"))]
 
+    def project_values(self, key: str, name: str) -> dict[str, float]:
+        return {entry.data["values"][name]: entry.data["time"] for entry in self.selected_globally(self.query().filter(kind=NUDGE).filter_json("data->key", key).order("id"))}
+
     def keyed_lines(self, session: str, keys: tuple[str, ...]) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_listed("data->key", keys).order("id"))]
 

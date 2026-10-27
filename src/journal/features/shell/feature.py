@@ -16,6 +16,9 @@ from journal.features.shell.jobs.run_card_start import RunCardStart
 from journal.features.shell.listeners.changed_output_card import ChangedOutputCard
 from journal.features.shell.listeners.reader_output_cards import ReaderOutputCards
 from journal.features.shell.listeners.reader_judgement import ReaderJudgement
+from journal.features.shell.listeners.guessed_reader_card import GuessedReaderCard
+from journal.features.shell.listeners.reader_suggestion_clear import ReaderSuggestionClear
+from journal.features.shell.listeners.reader_suggestion_record import ReaderSuggestionRecord
 from journal.features.shell.shell_conduct import ShellConduct
 from journal.features.shell.support.shell_data_reader import ShellDataReader
 from journal.features.shell.support.shell_data import ShellData
@@ -45,8 +48,8 @@ class Shell(Feature[ShellData]):
     title = "Shell commands"
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
-    options = (FOREGROUND_OPTION, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
-    listeners = (OutputNotice, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
+    options = (FOREGROUND_OPTION, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT, ShellOptions.READER_SUGGESTIONS, ShellOptions.READER_SUGGESTION_RUNS)
+    listeners = (OutputNotice, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard)
     seeds = (CutOffOutputs, ProjectReadersClear, DefaultReaders, JournalOutputReaders, StrayCommandMarkCleanup, StrayReaderCleanup)
     jobs = (WatchRefresh, RestartWait, RunCardStart, WatchedRunCheck)
     process_cards = (OutputProcessCard,)
@@ -90,8 +93,13 @@ Every shell command you run goes through the journal's runner.
   `--summary '<pattern>'` is the summary reader: the last match in the output, its groups joined, is the summary the card shows when opened, such as '(\\d+ failed), (\\d+ passed)'
   or its failures; a script reader finds which in JOURNAL_OUTPUT_STAGE: running, finished or failed.
 - A reader names the commands whose output it reads, `--commands "pytest"`, and a command moved to the background that
-  runs one is instructed to watch it with that reader, so one reader serves every later run; a test run or a build that no reader
-  reads is instructed to make one first, with the line to copy. The journal ships readers for pytest, dotnet test and phpunit
+  runs one is instructed to watch it with that reader, so one reader serves every later run. When a run moved to the
+  background ends and no reader reads it, a test run, a build, an install or a long process, or a command whose output you
+  read by hand twice, the line naming its end says once `no reader reads <part> yet` with a `journal reader add` filled
+  from that run's output: the starting reader of its kind and the lines it saw. The add tries it on the stored runs and
+  refuses it naming what it missed, such as the counts of a passing or a failing run, or a --progress that matches no line;
+  fix what it names and add it again. A reader the journal made on its own reads the run at once and the user sees a card
+  for it: keep it, or write your own over it. The journal ships readers for pytest, dotnet test and phpunit
   or pest in .journal/readers as examples. Waiting on a command, `journal await "<what>" --output N --reader <name>`
   watches it too, so the user sees it progress while you wait.
 - A test run, a build or any other command's output is shown in full up to 400 characters; past that you see only a

@@ -174,7 +174,7 @@ class ShellRunner:
         wrapper = self.line_wrapper_lines(part)
         if reader is not None:
             return [*self.reader_watched(number, part, reader, caller), *wrapper]
-        guessed = self.guess.guessed(self.outputs.find(number), part)
+        guessed = self.guess.guessed(self.outputs.find(number), part) if caller.is_main_agent() else None
         return [*self.reader_watched(number, part, guessed, caller), *wrapper] if guessed is not None else wrapper
 
     def alias_wrapper_lines(self, alias: Alias) -> list[Nudge]:

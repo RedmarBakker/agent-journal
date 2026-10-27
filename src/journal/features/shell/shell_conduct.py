@@ -46,7 +46,7 @@ class ShellConduct(Conduct):
         if not watch.is_watching():
             return unread_check(self, event, settings)
         if watch.ending:
-            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()), *reader_draft(event.data.part(ShellPart), {watch.output}))
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()), *reader_draft(event.data.part(ShellPart), {watch.output}, settings))
         return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
@@ -151,12 +151,14 @@ def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transiti
     ended = event.data.part(ShellPart).unannounced
     if not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds) or not ended:
         return state.none()
-    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id), *reader_draft(event.data.part(ShellPart), {output.id for output in ended}))
+    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id), *reader_draft(event.data.part(ShellPart), {output.id for output in ended}, settings))
 
 
-def reader_draft(shell: ShellData, outputs: set[int]) -> list[Nudge]:
-    draft = next((draft for draft in shell.reader_drafts if draft.output in outputs), None)
-    return [ShellNudges.READER_DRAFT.create(part=draft.part, command=draft.command)] if draft is not None else []
+def reader_draft(shell: ShellData, outputs: set[int], settings: Settings) -> list[Nudge]:
+    draft = next((draft for draft in shell.reader_drafts if draft.output in outputs and draft.is_suggestible(settings.integer(ShellOptions.READER_SUGGESTION_RUNS))), None)
+    if draft is None or shell.drafts_said >= settings.integer(ShellOptions.READER_SUGGESTIONS):
+        return []
+    return [ShellNudges.READER_DRAFT.create(part=draft.part, command=draft.command)]
 
 
 def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

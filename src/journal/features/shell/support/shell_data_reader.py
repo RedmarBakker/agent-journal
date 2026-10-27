@@ -48,6 +48,7 @@ class ShellDataReader:
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "reader_drafts": lambda: self.drafts.drafts(agent),
+            "drafts_said": lambda: len(self.entries.keyed_lines(agent.session, (ShellNudges.READER_DRAFT.key,))),
             "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session, self.readers.locked_names())),
             "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.open_revisions())),
             "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.open_revisions())),

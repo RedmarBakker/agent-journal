@@ -7584,7 +7584,7 @@ def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_n
 def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped_never_for_a_plugin_alias_or_a_worker(app: App):
     """Task 3776: the six reader lines are one draft of the shell conduct, said when a run moved to the background ends (with the line naming the ended outputs, or the end of a watch), never while it runs; it names the part a reader would read, not the line, is filled from the run's own output, comes once per part, at most one per run and a few per session, and never for a plugin alias nor in a worker's session."""
     from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.reader_drafts import SESSION_DRAFTS, ReaderDrafts
+    from journal.features.shell.support.reader_drafts import ReaderDrafts
     from journal.features.shell.shell_nudges import ShellNudges
     from journal.support.chain import Chain
     from journal.models.entry import Entry
@@ -7619,14 +7619,20 @@ def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped
         app.container.get(Aliases).save(Alias(name="judge", line="vendor/bin/judge {args}", plugin="commandments"), Actor.system())
         plugin = background_run("plugin", "vendor/bin/judge --changes", "error: one sin\n3 sins in 2.0s\n")
         assert not [draft for draft in drafts.drafts(main) if draft.output == plugin.id], "a run a plugin's alias runs is never offered a reader"
+    from journal.engine.nudger import Nudger
+    from journal.repositories.reader_suggestions import ReaderSuggestions
+    nudger, suggestions = app.container.get(Nudger), app.container.get(ReaderSuggestions)
+    assert nudger.deliver(app.container.get(SessionAgents).agent("s1", MAIN), ShellNudges.READER_DRAFT.create(part="make all", command=draft.command))
+    app.runtime().deferred.drain()
+    assert set(suggestions.suggestion_times()) == {"make all"}, "a suggestion said is recorded for the project by its part"
     with app.container.get(Scope).environment(MAIN):
-        for n in range(SESSION_DRAFTS + 2):
-            background_run(f"many-{n}", f"./scripts/job{n}.sh", "error: failed\nstarted\n")
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": "make all"}, "line": "no reader reads make all yet"}), Actor.system())
-        assert not [draft for draft in drafts.drafts(main) if draft.part == "make all"], "a part offered once is not offered again"
-        for n in range(SESSION_DRAFTS):
-            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": f"job{n}"}, "line": f"no reader reads job{n} yet"}), Actor.system())
-        assert drafts.drafts(main) == (), "and once a session has had its few drafts, it gets no more"
+        [again] = [draft for draft in drafts.drafts(main) if draft.output == built.id]
+        assert again.suggested and again.later_runs == 0 and not again.is_suggestible(50) and not again.is_suggestible(0), "a part told before is not due until its runs since reach the repeat"
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": "shell.make_its_reader", "values": {"command": "job.sh"}, "line": "no reader reads job.sh yet", "time": 10.0}), Actor.system())
+        assert drafts.suggestion_times()["job.sh"] == 10.0, "a part told by a line the one draft replaced counts as told"
+    assert app.console().run(["reader", "add", "make-builds", "--commands", "make all", "--pattern", "error|built in", "--finished", "built in", "--about", "the builds", "--label", "Building the project"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    assert "make all" not in suggestions.suggestion_times(), "a reader added that reads the part takes its suggestion away"
 
 
 def test_a_hand_read_that_does_a_readers_work_is_pointed_at_the_reader(app: App):
@@ -20818,6 +20824,39 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
     assert readers.reading("make all").name == guessed.name, "it is kept as a reader of the project, so doing nothing keeps it"
     blank = ran("blank", "cat notes", "just words\nand more words\n")
     assert guess.guessed(blank, "cat notes") is None, "a run with nothing to pick is given none"
+
+
+def test_a_reader_the_journal_saves_on_its_own_is_shown_to_the_user_never_reads_a_plugin_alias_and_is_never_made_for_a_helper(app: App):
+    """Task 3784: a reader ReaderGuess saves is told to the user as a card in the chat, a guessed reader that would read a plugin's alias is refused like one the agent writes, and a worker's run is never given one."""
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.reader_guess import ReaderGuess
+    from journal.features.shell.support.readers import Readers
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.models.alias import Alias
+    from journal.repositories.aliases import Aliases
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    outputs, guess, readers = app.container.get(CommandOutputs), app.container.get(ReaderGuess), app.container.get(Readers)
+
+    def ran(name: str, command: str, text: str):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text(command)
+        (folder / "0.out").write_text(text)
+        app.container.get(OutputLog).start(name, command, folder, Caller.agent("main", "s1", "claude"))
+        return outputs.find(max(output.id for output in outputs.all()))
+
+    with app.container.get(Scope).environment(MAIN):
+        made = guess.guessed(ran("made", "make all", "[ 40%] compiling\n3 passed, 1 failed in 2.1s\nFAILED one\n"), "make all")
+        app.runtime().deferred.drain()
+        assert made is not None and [m.text for m in app.container.get(Messages).scoped() if m.text == f"Reader {made.name} saved for make all"], "the user is told the journal saved a reader, not only the agent"
+        app.container.get(Aliases).save(Alias(name="judge", line="vendor/bin/judge {args}", plugin="commandments"), Actor.system())
+        assert guess.guessed(ran("judged", "vendor/bin/judge --changes", "error: one sin\n3 sins in 2.0s\n"), "vendor/bin/judge --changes") is None, "a guessed reader never reads a plugin's alias"
+        dist = ran("dist", "cargo build", "   Compiling shop v0.1.0\nerror: missing file\nbuilt in 2.1s\n")
+        lines = app.container.get(ShellRunner).watch_lines(dist.id, "cargo build", None, None, Caller.worker("main", 1, "w1", "claude"))
+        assert not [line for line in lines if line.key == ShellNudges.READER_WATCH.key] and readers.reading("cargo build") is None, "a worker's run is never given a reader of its own"
 
 
 def test_a_run_moved_to_the_background_starts_from_the_reader_of_its_kind_and_a_project_reader_that_reads_it_well_takes_its_command(app: App):
