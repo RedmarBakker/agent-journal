@@ -19,6 +19,7 @@ from journal.support.command_shape import CommandShape
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_judge import ReaderJudge
+from journal.features.shell.support.reader_kind_checks import ReaderKindChecks
 from journal.features.shell.support.reader_probes import ReaderProbes
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
@@ -35,8 +36,8 @@ class ReaderCommand(Command):
 
     noun = "reader"
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory, probes: ReaderProbes, mark_policy: CommandMarkPolicy, shapes: CommandShape) -> None:
-        self.probes, self.mark_policy, self.shapes = probes, mark_policy, shapes
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory, probes: ReaderProbes, kinds: ReaderKindChecks, mark_policy: CommandMarkPolicy, shapes: CommandShape) -> None:
+        self.probes, self.kinds, self.mark_policy, self.shapes = probes, kinds, mark_policy, shapes
         self.backfill, self.scope, self.history = backfill, scope, history
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
 
@@ -93,7 +94,7 @@ class ReaderCommand(Command):
             self.readers.add_script(reader.revised(pattern=""), args.script.read_text())
         else:
             revised = reader.revised(pattern=args.pattern)
-            self.tried(revised)
+            self.tried(revised, prior)
             self.readers.add(revised)
             self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
@@ -103,12 +104,16 @@ class ReaderCommand(Command):
             print(f"kept from the reader before, as you did not give them: {', '.join(kept)}; give one as '' to drop it, such as --progress ''")
         return 0
 
-    def tried(self, reader: Reader) -> None:
+    def tried(self, reader: Reader, prior: Reader | None) -> None:
         self.probed(reader)
-        for run in [run for run in self.judge.stored_runs(reader) if run.ended][:QUICK_RUNS]:
+        runs = [run for run in self.judge.stored_runs(reader) if run.ended]
+        for run in runs[:QUICK_RUNS]:
             misses = self.judge.misses(reader, self.judge.read_lines(reader, OutputFiles(Path(run.folder))))
             if misses:
                 raise Rejection(f"reader {reader.name} is refused, tried on output {run.id}: {'; '.join(misses)}")
+        kind_misses = self.kinds.misses(reader, runs) if prior is None else []
+        if kind_misses:
+            raise Rejection(f"reader {reader.name} is refused, tried on the stored runs: {'; '.join(kind_misses)}")
 
     def probed(self, reader: Reader) -> None:
         unfiltered = ReaderProbes.unfiltered_patterns(reader)

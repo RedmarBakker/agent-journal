@@ -92,6 +92,9 @@ class Readers:
         default_names = self.default_names()
         return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
 
+    def reading_parts(self, parts: list[str]) -> list[str]:
+        return [part for part in parts if self.reading(part) is not None]
+
     def choosing_parts(self, line: str) -> list[str]:
         commands = [segment for part in Chain.parts(line) if part.recorded for segment in Chain.commands(part.text)]
         with_programs = [(segment, shape) for segment in commands if (shape := self.shapes.build(segment))]

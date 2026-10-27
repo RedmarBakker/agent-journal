@@ -61,10 +61,10 @@ def added(app: App, *argv: str):
     return app.console().run(["reader", "add", *argv], AGENT)
 
 
-def stored_run(app: App, command: str, lines: list[str]) -> CommandOutput:
+def stored_run(app: App, command: str, lines: list[str], status: int = 0) -> CommandOutput:
     script = app.config.root / command
     script.parent.mkdir(parents=True, exist_ok=True)
-    script.write_text("#!/bin/sh\n" + "".join(f"echo '{line}'\n" for line in lines * 20))
+    script.write_text("#!/bin/sh\n" + "".join(f"echo '{line}'\n" for line in lines * 20) + f"exit {status}\n")
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     link = app.container.get(SupervisorLink)
     link.working(MAIN)
@@ -182,3 +182,46 @@ def test_a_reader_is_offered_only_for_test_runs_builds_installs_and_long_process
     reader_file = app.config.root / ".journal" / "readers" / "phpunit-run.pattern"
     reader_file.write_text("# the phpunit run\n(FAILURES|Tests:|OK \\()\nprogress: (\\d+) / (\\d+)\nlabel: Running the tests\ncommands: php\nsummary: (Tests: .*)\n")
     assert drafts.draft(stored[2], "s1") is None, "a reader that reads its part clears it"
+
+PASSING_LINES = ["  ✓ it ships the order 0.02s", "Tests:    3 passed (5 assertions)"]
+FAILING_LINES = ["  ⨯ it ships the order", "FAILED  Tests\\Unit\\OrderTest > it ships the order", "Tests:  1 failed, 2 passed (5 assertions)"]
+
+
+def test_a_new_test_run_reader_shows_the_counts_of_a_passing_and_a_failing_run_and_a_reader_stored_before_is_never_refused_for_them(app: App):
+    passing = stored_run(app, SUITE, PASSING_LINES)
+    failing = stored_run(app, SUITE, FAILING_LINES, status=1)
+    assert passing.status == 0 and failing.status != 0, (passing, failing)
+    flags = ("--commands", SUITE, "--pattern", r"FAILED|⨯", "--finished", r"^Tests:", "--about", "the failures and the summary", "--label", "Running tests")
+    refused = added(app, "suite-runs", *flags, "--failed", r"FAILED|⨯")
+    assert refused.code != 0 and f"no counts of the failing run, output {failing.id}" in refused.error and "--failed pattern" in refused.error and "1 failed, 2 passed" in refused.error, refused.error
+    assert added(app, "suite-runs", *flags, "--failed", r"FAILED|⨯|^Tests:").code == 0, "a reader that shows the counts of both runs is added"
+    assert added(app, "suite-runs", "--failed", r"FAILED|⨯").code == 0, "a reader stored before is never refused by the checks of its kind"
+
+
+def test_a_new_readers_progress_matches_the_run_it_was_written_from_unless_an_alias_names_the_reader(app: App):
+    from journal.models.alias import Alias
+    from journal.repositories.aliases import Aliases
+    run = stored_run(app, "scripts/copy.sh", ["copied a.txt", "copied b.txt", "done in 2s"])
+    flags = ("--commands", "scripts/copy.sh", "--pattern", "^copied|^done", "--progress", r"(\d+)/(\d+)", "--about", "the files copied", "--label", "Copying the files")
+    refused = added(app, "copies", *flags)
+    assert refused.code != 0 and f"its --progress matches no line of output {run.id}" in refused.error and "done in 2s" in refused.error, refused.error
+    app.container.get(Aliases).save(Alias(name="copy", line="scripts/copy.sh", reader="copier"), Actor.system())
+    assert added(app, "copier", *flags).code == 0, "a reader an alias names is left to the reader judge"
+
+
+def test_the_shell_readers_section_counts_reader_runs_report_rate_suggestions_followed_and_suggestions_per_session(app: App):
+    from journal.features.shell.shell_nudges import ShellNudges
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
+    from tests.in_process import got
+    outputs = app.container.get(CommandOutputs)
+    for reader, session in (("naps", "s1"), ("naps", "s1"), ("", "s1"), ("", "s2")):
+        outputs.save(CommandOutput(environment_id=MAIN, command="sh test_naps.sh", session=session, moved=True, ended=True, watch_reader=reader), Actor.system())
+    app.container.get(ReaderReports).save(ReaderReport(environment_id=MAIN, reader="naps", output=1, command="sh test_naps.sh", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    for part in ("test_naps.sh", "make all"):
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.system(), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": part}, "line": f"no reader reads {part} yet"}), Actor.system())
+    assert added(app, "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap").code == 0
+    status, measures = got(app, "/journal/developer/readers", {"X-Journal-Env": "main"})
+    assert status == 200 and (measures["background_runs"], measures["reader_runs"]) == (4, 2), "half the background runs were read by a project reader"
+    assert measures["readers"] == [{"reader": "naps", "runs": 2, "reports": 1, "report_rate": 5.0}], "one report over two runs is five per ten runs"
+    assert (measures["suggestions"], measures["followed_suggestions"], measures["sessions"]) == (2, 1, 2), "of two suggestions one is read by a reader now, over two sessions that moved a run"

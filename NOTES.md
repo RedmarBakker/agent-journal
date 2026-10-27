@@ -1789,3 +1789,12 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   build, install or a long process) or by two hand reads, never the journal's own or a plugin alias's, once per project
   and part (the nudge lines said, `Entries.environment_lines`), three per session, none to a worker. It names the part
   and a `journal reader add` filled from the run's output. ShellRunner.watch_lines says no reader line.
+- Task 3777: a new reader is also tried by the kind of run it reads (`ReaderKindChecks`, after the judge's misses on the
+  two newest runs): its --progress must match a line of the newest ended run, and a test run's reader must show the
+  counts of the newest passing run in its finished card and of the newest failing run in its failed card when both are
+  stored. A reader stored before, a script and a reader an alias names are never refused by these; a locked reader is
+  refused before any trial. The measures live in a "Shell readers" section of the Developer tab's numbers
+  (`ReaderMeasures`, GET /journal/developer/readers, per environment): background runs read by a project reader
+  (watch_reader set) over all moved runs, reports per reader per ten of its runs, the reader suggestions (the
+  READER_DRAFT nudge entries, their part in the values) a reader now reads, and suggestions per session that moved a run.
+  The drafts said once per part read the part from the nudge's values, not its line.

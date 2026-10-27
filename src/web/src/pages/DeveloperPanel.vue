@@ -4,9 +4,10 @@ import Btn from "../kit/Btn.vue";
 import SidePanel from "../kit/SidePanel.vue";
 import DeveloperNudges from "./DeveloperNudges.vue";
 import DeveloperNumbers from "./DeveloperNumbers.vue";
+import DeveloperReaders from "./DeveloperReaders.vue";
 
-// The Developer tab's numbers, the timings of hooks and requests, the newest and slowest requests, the records read and the nudge
-// counts, opened from one button into a side inspector instead of filling the page; read only while it is open
+// The Developer tab's numbers, the timings of hooks and requests, the newest and slowest requests, the records read, the nudge
+// counts and how well the shell readers read, opened from one button into a side inspector instead of filling the page; read only while it is open
 const opened = ref(false);
 </script>
 
@@ -18,6 +19,7 @@ const opened = ref(false);
             <SidePanel title="Developer numbers" width="page" @close="opened = false">
                 <DeveloperNumbers />
                 <DeveloperNudges />
+                <DeveloperReaders />
             </SidePanel>
         </template>
     </section>

@@ -21,6 +21,9 @@ class ReaderReports(ScopedRepository[ReaderReport]):
     def unread(self, session: str, locked: list[str]) -> list[ReaderReport]:
         return self.selected(self.query().filter(session=session).filter_unlisted("reader", locked).filter_null("dismissal").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
 
+    def reader_counts(self) -> dict[str, int]:
+        return self.grouped_counts(self.query(), "reader")
+
     def dismissed_reports(self, earliest: datetime) -> list[ReaderReport]:
         return self.selected(self.query().filter(is_refuted=False).filter_unequal("verdict", CLEARED_VERDICT).filter_present("dismissal").filter_greater_equal("created_at", earliest).order_descending("id").limit(DISMISSED_REPORTS))
 

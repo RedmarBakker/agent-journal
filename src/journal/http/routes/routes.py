@@ -30,6 +30,7 @@ from journal.http.controllers.supervised_processes import SupervisedProcessContr
 from journal.http.controllers.docks import DockController
 from journal.http.controllers.process_cards import ProcessCardController
 from journal.http.controllers.nudge_counts import NudgeCountController
+from journal.http.controllers.reader_measures import ReaderMeasureController
 from journal.http.controllers.plans import PlanController
 from journal.http.controllers.plugins import PluginController
 from journal.http.controllers.git_overview import GitOverviewController
@@ -106,6 +107,7 @@ class Routes:
         router.post(f"{API}/developer/reset", journal.developer_reset)
         router.get(f"{API}/developer/nudges", get(NudgeCountController).index)
         router.post(f"{API}/developer/nudges/reset", get(NudgeCountController).reset)
+        router.get(f"{API}/developer/readers", get(ReaderMeasureController).index)
         router.post(f"{API}/client-errors", get(ClientErrorController).store)
         router.get(f"{API}/settings", settings.index)
         router.post(f"{API}/settings", settings.store)

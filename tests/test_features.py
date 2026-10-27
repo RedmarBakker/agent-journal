@@ -7622,10 +7622,10 @@ def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped
     with app.container.get(Scope).environment(MAIN):
         for n in range(SESSION_DRAFTS + 2):
             background_run(f"many-{n}", f"./scripts/job{n}.sh", "error: failed\nstarted\n")
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "line": "no reader reads make all yet"}), Actor.system())
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": "make all"}, "line": "no reader reads make all yet"}), Actor.system())
         assert not [draft for draft in drafts.drafts(main) if draft.part == "make all"], "a part offered once is not offered again"
         for n in range(SESSION_DRAFTS):
-            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "line": f"no reader reads job{n} yet"}), Actor.system())
+            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": f"job{n}"}, "line": f"no reader reads job{n} yet"}), Actor.system())
         assert drafts.drafts(main) == (), "and once a session has had its few drafts, it gets no more"
 
 
@@ -20886,6 +20886,9 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
         with app.container.get(Scope).environment(MAIN):
             report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=output, command="make all", session="s1", findings=("the card showed lines too long or too much like code to read at a glance: \"cc -O2 -Wall\"",), fixes=("narrow the pattern to the short lines a person reads",)), Actor.system())
         console.run(["reader", "report", str(report.id)], AGENT)
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            assert not [verifier for verifier in verifiers.scoped() if verifier.is_verifying()], "a report read and not disputed starts no verifier"
         assert console.run(["reader", "dismiss", str(report.id), "--why", why], AGENT).code == 0
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):

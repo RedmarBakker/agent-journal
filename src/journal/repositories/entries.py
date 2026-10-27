@@ -154,8 +154,8 @@ class Entries(ScopedRepository[Entry]):
     def recent_lines(self, session: str, key: str, entry_id: int) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_json("data->key", key).filter_greater("id", entry_id).order("id"))]
 
-    def environment_lines(self, key: str) -> list[str]:
-        return [entry.data["line"] for entry in self.selected(self.query().filter(kind=NUDGE).filter_json("data->key", key).order("id"))]
+    def environment_values(self, key: str, name: str) -> list[str]:
+        return [entry.data["values"][name] for entry in self.selected(self.query().filter(kind=NUDGE).filter_json("data->key", key).order("id"))]
 
     def keyed_lines(self, session: str, keys: tuple[str, ...]) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_listed("data->key", keys).order("id"))]

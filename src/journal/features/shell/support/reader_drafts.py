@@ -36,9 +36,9 @@ class ReaderDrafts:
     def drafts(self, agent: Agent) -> tuple[ReaderDraft, ...]:
         if agent.role != AgentRole.MAIN or not agent.session or len(self.entries.keyed_lines(agent.session, (ShellNudges.READER_DRAFT.key,))) >= SESSION_DRAFTS:
             return ()
-        lines = "\n".join(self.entries.environment_lines(ShellNudges.READER_DRAFT.key))
+        parts = set(self.entries.environment_values(ShellNudges.READER_DRAFT.key, "part"))
         ended = [output for output in [*self.outputs.unannounced(agent.session), *self.outputs.watched(agent.session)] if output.moved and output.ended]
-        return tuple(draft for output in ended if (draft := self.draft(output, agent.session)) is not None and f"reads {draft.part} yet" not in lines)
+        return tuple(draft for output in ended if (draft := self.draft(output, agent.session)) is not None and draft.part not in parts)
 
     def draft(self, output: CommandOutput, session: str) -> ReaderDraft | None:
         hand_read = self.hand_reads(output, session) >= HAND_READS

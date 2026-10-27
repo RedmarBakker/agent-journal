@@ -103,6 +103,12 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def reader_outputs(self, reader: str, last: int = 50) -> list[CommandOutput]:
         return self.selected(self.query().filter(watch_reader=reader).order_descending("id").limit(last))
 
+    def reader_run_counts(self) -> dict[str, int]:
+        return self.grouped_counts(self.query().filter(moved=True), "watch_reader")
+
+    def run_session_count(self) -> int:
+        return len(self.grouped_counts(self.query().filter(moved=True), "session"))
+
     def running_watched(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).filter_alternatives(self.query().filter(is_watched=True), self.query().filter_unequal("watch_reader", "")).order("id"))
 

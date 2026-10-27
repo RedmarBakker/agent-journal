@@ -129,6 +129,11 @@ export class ApiClient {
         return this.post("/developer/nudges/reset");
     }
 
+    // how well the environment's readers read its runs
+    developerReaders() {
+        return this.get(this.here("/developer/readers"));
+    }
+
     settings() {
         return this.get(this.here("/settings"));
     }
