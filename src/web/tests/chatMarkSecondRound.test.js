@@ -331,7 +331,7 @@ test("9. three runs the journal docked by itself, grouped and all ended, undock 
     expect(host.querySelectorAll(".run-chip")).toHaveLength(3);
     expect(runs.map((run) => run.data.held_at)).toEqual([undefined, undefined, undefined]);
     props.runs = dockedRows(runs, ends + 6);
-    await flush();
+    await folds();
     expect(props.runs).toEqual([]);
     expect(host.querySelector(".dock-group .chat-dock")).toBeNull();
 });
