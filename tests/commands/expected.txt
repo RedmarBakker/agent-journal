@@ -2539,9 +2539,9 @@ usage: journal update retry [-h]
 options:
   -h, --help  show this help message and exit
 
-$ agent: journal update stay --help
+$ agent: journal update close --help
 exit 0
-usage: journal update stay [-h]
+usage: journal update close [-h]
 
 options:
   -h, --help  show this help message and exit

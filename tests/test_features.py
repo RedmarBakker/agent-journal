@@ -9909,6 +9909,7 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     import time as timing
     from journal.features.updates.support.update_card import UpdateCard
     from journal.features.updates.support.update_path_file import UpdatePathFile
+    from journal.features.updates.support.update_path_record import UpdatePathRecord
     from journal.features.updates.support.update_pause import UpdatePause
     from journal.support.rejection import Rejection
     from journal.version import VERSION
@@ -9921,16 +9922,16 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     card.write(UpdatePause(VERSION, "4.99.0", "Installing the new version", timing.time(), os.getpid()))
     updating.reconcile(timing.time())
     assert card.paused() is None and f"stopped at {VERSION}: the step to 4.98.0 failed, and {VERSION} keeps running" in updating.data().problem, "the card comes down and names the failed step and the version still running"
-    assert paths.record() == record, "a boot reads the path and never clears it"
+    assert paths.record() == UpdatePathRecord.read(record), "a boot reads the path and never clears it"
     updating.checked()
     assert installer.ran == [] and card.paused() is None, "with automatic updates on, a boot after a failed step starts nothing"
-    updating.stay()
-    assert updating.data().problem == "" and paths.is_failed_at(VERSION), "stay closes the path and keeps the failed step from being tried on its own"
+    updating.close_path()
+    assert updating.data().problem == "" and paths.record().has_failed(VERSION), "close takes the path off the card and keeps the failed step from being tried on its own"
     updating.checked()
-    assert installer.ran == [], "a path closed by stay is not tried again on its own"
+    assert installer.ran == [], "a closed path is not tried again on its own"
     updating.retry(Actor.user(1))
     updates_joined()
-    assert installer.ran == ["v4.99.0"] and paths.record() == {}, "retry installs the newest release again from the version still running, so its path starts at the step that failed"
+    assert installer.ran == ["v4.99.0"] and paths.record() == UpdatePathRecord.empty(), "retry installs the newest release again from the version still running, so its path starts at the step that failed"
 
 
 def test_a_two_step_path_drives_one_card_from_its_start_to_its_final_version(app: App):

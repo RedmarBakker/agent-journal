@@ -1867,7 +1867,7 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   through UpdatePathFile). A failed step takes the card down, and the problem names the failed step and the version
   still running, read from the file, so it survives restarts; automatic updates start nothing while it stands.
   `journal update retry` installs the newest release again from there, so its path starts at the failed step;
-  `journal update stay` closes the path (stayed in the file) and the failed step is still not tried on its own. Any
+  `journal update close` closes the path (closed in the record, UpdatePathRecord) and the failed step is still not tried on its own. Any
   update a person starts clears the record.
 - Teams on a path: a pinned member's target is its pin exactly, and the walk ignores steps newer than its target, so it
   goes up to the pin and never past it. A boot on a step of a walk runs no check: no pin, no sync drain, no upgrade

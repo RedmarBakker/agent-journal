@@ -4,7 +4,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
-- A journal far behind now updates through proven steps: the newest release's install script walks the releases the update matrix proved, one after another, each installed by its own install script so its own migrations run, and stops at the last good one if a step fails. Older journals benefit too, since their updater already starts the newest release's install script. One update card follows the whole path; `journal update retry` and `journal update stay` answer a failed step.
+- A journal far behind now updates through proven steps: the newest release's install script walks the releases the update matrix proved, one after another, each installed by its own install script so its own migrations run, and stops at the last good one if a step fails. Older journals benefit too, since their updater already starts the newest release's install script. One update card follows the whole path; `journal update retry` and `journal update close` answer a failed step.
 - The update matrix tests each release only from the releases of the five minor versions before it (Settings, Updates: Minor versions one update may cross), and each release publishes update_steps.json beside install.sh, naming it as a step or as no step.
 
 ## 4.66.2

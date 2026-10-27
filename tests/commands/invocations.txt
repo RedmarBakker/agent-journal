@@ -313,7 +313,7 @@ agent update install --help
 agent update follow --help
 agent update unfollow --help
 agent update retry --help
-agent update stay --help
+agent update close --help
 agent team chat --help
 agent team leave --help
 agent team claim --help

@@ -16,6 +16,7 @@ from journal.features.updates.support.release_refusal import ReleaseRefusal
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
 from journal.features.updates.support.update_path_file import UpdatePathFile
+from journal.features.updates.support.update_path_record import UpdatePathRecord
 from journal.features.updates.support.update_pause import UpdatePause
 from journal.features.updates.support.update_data import UpdateData
 from journal.features.updates.support.update_target import UpdateTarget
@@ -104,7 +105,7 @@ class Updater:
         return UpdateTarget(newest.tag, newest.version)
 
     def automatic(self) -> bool:
-        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published() and not self.paths.is_failed_at(VERSION)
+        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published() and not self.paths.record().has_failed(VERSION)
 
     def is_pinned(self) -> bool:
         return self.account.is_joined() and not self.leads_team()
@@ -126,10 +127,10 @@ class Updater:
 
     def data(self) -> UpdateData:
         blocked = self.card.running()
-        walking = self.paths.is_walking_at(VERSION, self.time_source.seconds())
+        record = self.paths.record() if self.paths.is_unfinished(VERSION, self.time_source.seconds()) else UpdatePathRecord.empty()
         return UpdateData(installed=self.label(), latest=self.latest(), newer=self.is_published(), branch=self.branch(), versions=[release.version for release in self.newer()],
                               updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.shown_problem(), started_at=self.started_at,
-                              step_count=len(self.paths.stops()) if walking else 0, step_version=self.paths.step_version(VERSION) if walking else "", final_version=self.paths.record()["to"] if walking else "")
+                              step_count=len(record.steps) + 1 if record.target else 0, step_version=record.next_version(VERSION) if record.target else "", final_version=record.target)
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
@@ -141,7 +142,7 @@ class Updater:
             self.separate(self.checked)
 
     def shown_problem(self) -> str:
-        return self.problem or self.paths.problem(VERSION)
+        return self.problem or self.paths.record().problem(VERSION)
 
     def line(self) -> str:
         if self.shown_problem():
@@ -154,10 +155,10 @@ class Updater:
         blocked = self.card.paused()
         if blocked is None:
             return
-        if self.paths.is_failed_at(VERSION):
+        if self.paths.record().has_failed(VERSION):
             self.card.clear()
             return
-        if self.paths.is_walking_at(VERSION, time):
+        if self.paths.is_unfinished(VERSION, time):
             self.walked(blocked, time)
             return
         if blocked.is_pending(VERSION, os.getpid(), time):
@@ -170,9 +171,9 @@ class Updater:
         self.separate(lambda: self.lead(VERSION))
 
     def walked(self, blocked: UpdatePause, time: float) -> None:
-        line = self.paths.step_line(VERSION)
+        line = self.paths.record().step_line(VERSION)
         if (blocked.pid, blocked.step) != (os.getpid(), line):
-            self.card.write(blocked.taken(os.getpid(), time, line))
+            self.card.write(blocked.with_process(os.getpid(), time, line))
 
     def update_immediately(self, actor: Actor) -> None:
         self.read()
@@ -194,14 +195,14 @@ class Updater:
             self.card.clear()
 
     def retry(self, actor: Actor) -> None:
-        if not self.paths.is_failed_at(VERSION):
+        if not self.paths.record().has_failed(VERSION):
             raise Rejection(f"no step of an update failed on {VERSION}: there is nothing to retry")
         self.update_immediately(actor)
 
-    def stay(self) -> None:
-        if not self.paths.is_failed_at(VERSION):
+    def close_path(self) -> None:
+        if not self.paths.record().has_failed(VERSION):
             raise Rejection(f"no step of an update failed on {VERSION}: there is no path to close")
-        self.paths.stayed()
+        self.paths.closed()
 
     def install(self, actor: Actor) -> None:
         self.read()
@@ -228,7 +229,7 @@ class Updater:
             self._working.release()
 
     def checked(self) -> None:
-        if self.paths.is_walking_at(VERSION, self.time_source.seconds()):
+        if self.paths.is_unfinished(VERSION, self.time_source.seconds()):
             return
         self.lead(VERSION)
         self.read()
