@@ -970,6 +970,10 @@ def test_a_worker_that_reported_takes_its_next_job_by_say_with_its_memory(app: A
     workers = app.container.get(Workers)
     workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
     console.run(["task", "create", "the lexer"], AGENT)
+    released = console.run(["worker", "release", "1"], AGENT)
+    assert released.code == 0, released.error
+    bare = console.run(["worker", "send", "1", "now the lexer"], AGENT)
+    assert bare.code != 0 and "holds no task" in bare.error and "journal worker send 1 --task <task>" in bare.error, "a worker holding no task is never sent a job it cannot clock in on: " + bare.error
     assert console.run(["worker", "send", "1", "now the lexer", "--task", "1"], AGENT).code == 0
     from journal.repositories.workers import Workers as WorkerRows
     assert 1 in app.container.get(WorkerRows).containing({1}), "a job said with --task holds that task, so a plan leaves it to the worker"

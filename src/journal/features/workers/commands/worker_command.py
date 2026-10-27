@@ -294,6 +294,8 @@ class WorkerCommand(Command):
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
         if args.task and holdings and args.task not in holdings:
             raise Rejection(f"worker {args.n} holds task {holdings[0]} until its work is merged or released: send it the next job on that task, or release it first")
+        if not args.task and not holdings and caller.worker_number is None:
+            raise Rejection(f"worker {args.n} holds no task, so it could not read a brief or clock in: name the task its job is on, journal worker send {args.n} --task <task> '<job>'")
         if caller.worker_number is not None and (args.model or args.profile):
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
         worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
