@@ -20,7 +20,7 @@ onMounted(() => {
 });
 onUnmounted(() => clearInterval(timer));
 
-const state = (process) => (process.running ? "Running" : "Stopped");
+const state = (process) => (process.is_running ? "Running" : "Stopped");
 const since = (process) => (process.started_at ? ago(new Date(process.started_at * 1000).toISOString()) : "");
 const name = (process) => (process.front ? `${process.name} (the agent's terminal)` : process.name);
 </script>

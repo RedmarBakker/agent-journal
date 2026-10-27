@@ -15,9 +15,9 @@ test("the Services tab lists every process the supervisor runs, with its state, 
     const now = Date.now() / 1000;
     const answer = {
         processes: [
-            {environment: "main", name: "agent", pid: 4101, running: true, started_at: now - 7200, restarts: 0, front: true},
-            {environment: "main", name: "journal", pid: 4102, running: true, started_at: now - 3600, restarts: 1, front: false},
-            {environment: "main", name: "tunnel", pid: 0, running: false, started_at: 0, restarts: 3, front: false},
+            {environment: "main", name: "agent", pid: 4101, is_running: true, started_at: now - 7200, restarts: 0, front: true},
+            {environment: "main", name: "journal", pid: 4102, is_running: true, started_at: now - 3600, restarts: 1, front: false},
+            {environment: "main", name: "tunnel", pid: 0, is_running: false, started_at: 0, restarts: 3, front: false},
         ],
     };
     vi.spyOn(api, "supervised").mockResolvedValue(answer);
