@@ -3044,6 +3044,25 @@ def test_the_agent_a_supervisor_runs_stays_live_however_long_it_is_idle_and_is_t
     assert any("new message" in line for line in keystrokes), "a message left for an idle agent is typed into its terminal"
 
 
+def test_memories_are_added_weighed_listed_and_removed_in_one_line_each_and_each_wrong_line_is_refused(app: App):
+    console = app.console()
+    hook(app, "SessionStart")
+    run = lambda *words: console.run(["memory", *words], AGENT)
+    added = lambda text, weight: re.search(r"memory (\d+) added", run("add", text, "--weight", weight).text).group(1)
+    shards, port, builds = added("the suite runs in shards", "7"), added("the port is fixed", "5"), added("builds go through the alias", "3")
+    weights = lambda: {line.split()[0]: line.split()[2] for line in run("list").text.splitlines()}
+    assert [weights()[n] for n in (shards, port, builds)] == ["7", "5", "3"] and list(weights())[:3] == [shards, port, builds], "the list is heaviest first, each with its number and weight"
+    assert run("weigh", f"{shards},{port},{builds}", "9,2,4").code == 0 and [weights()[n] for n in (shards, port, builds)] == ["9", "2", "4"], "weigh gives each its own weight, in order"
+    assert run("weigh", f"{shards},{port}", "6").code == 0 and [weights()[n] for n in (shards, port)] == ["6", "6"], "one weight given is given to all"
+    for words, refusal in ((("weigh", f"{shards},{port},{builds}", "5,5"), "3 memories and 2 weights"), (("weigh", f"{shards},{shards}", "5"), "has a memory twice"), (("weigh", f"{shards},99999", "5"), "no memory 99999 here"),
+                           (("weigh", shards, "11"), "from 1 to 10"), (("weigh", "one", "5"), "is not a memory's number"), (("add", "x", "--weight", "0"), "from 1 to 10")):
+        refused = run(*words)
+        assert refused.code != 0 and refusal in refused.error, (words, refused.error)
+    assert run("remove", port).code == 0 and port not in weights(), "a removed memory is no longer listed"
+    assert "already removed" in run("remove", port).error, "removing it twice is refused"
+    assert run("skip", "nothing new").code == 0
+
+
 def test_a_keyword_brings_a_fact_back_once_as_a_whisper_and_a_fresh_rule_is_questioned(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -13023,6 +13042,8 @@ def test_a_line_an_alias_runs_is_refused_with_the_alias_and_a_line_run_three_tim
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit -x tests"})
     assert status == 409 and has_nudge(body["error"], ShellNudges.MORE_SPECIFIC_ALIAS, name="unit-first", called="unit"), "an alias run whose line a more specific alias runs is refused with that alias (message 69436)"
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit-first tests"})[0] == 200 and hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit tests"})[0] == 200, "the alias itself runs"
+    app.console().run(["alias", "add", "lint-src", "ruff check src"], USER)
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ruff check tests"})[0] == 200, "a line of the same shape that does not start with an alias's whole fixed part is not that alias's"
     chained = said("ls src && journal unit")
     assert chained.get("permissionDecision") != "deny" and "runs on its own" not in chained.get("additionalContext", ""), "an alias chains like any command"
     assert "three times" not in said("make build -j1").get("additionalContext", "") + said("make build -j2").get("additionalContext", "")

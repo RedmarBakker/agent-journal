@@ -98,6 +98,11 @@ agent reminder read 1
 agent reminder dock 1
 agent reminder undock 1
 agent reminder strike 1
+agent memory add "the suite runs in shards" --weight 7
+agent memory add "the port is fixed"
+agent memory list
+agent memory weigh 1,2 6,4
+agent memory remove 2
 agent memory skip "nothing new to keep"
 agent doc create "The cart" --file {file} --abstract "how the cart adds up"
 agent doc list

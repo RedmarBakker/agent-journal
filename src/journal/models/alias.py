@@ -37,9 +37,11 @@ class Alias(Model):
         return self.command(" ".join(shlex.quote(word) for word in argv))
 
     def matches(self, part: str) -> bool:
+        return self.starts(part) or " " in CommandShape.build(part) and CommandShape.build(part) == CommandShape.build(self.line)
+
+    def starts(self, part: str) -> bool:
         head, tokens = Part(self.line.split(ARGS)[0]).tokens(), Part(part).tokens()
-        prefix_match = bool(head) and len(tokens) >= len(head) and tokens[0].rsplit("/", 1)[-1] == head[0].rsplit("/", 1)[-1] and tokens[1:len(head)] == head[1:]
-        return prefix_match or " " in CommandShape.build(part) and CommandShape.build(part) == CommandShape.build(self.line)
+        return bool(head) and len(tokens) >= len(head) and tokens[0].rsplit("/", 1)[-1] == head[0].rsplit("/", 1)[-1] and tokens[1:len(head)] == head[1:]
 
     @staticmethod
     def resolved(line: str, index: "dict[str, Alias]") -> str:

@@ -111,7 +111,7 @@ def alias_refusals(text: str, aliases: tuple[Alias, ...]) -> list[Nudge]:
 
 
 def covering_aliases(line: str, aliases: tuple[Alias, ...], head_size: int) -> list[Alias]:
-    return sorted((alias for alias in aliases if alias.matches(line) and alias.head_size() > head_size), key=lambda alias: -alias.head_size())
+    return sorted((alias for alias in aliases if alias.starts(line) and alias.head_size() > head_size), key=lambda alias: -alias.head_size())
 
 
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

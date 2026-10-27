@@ -1656,3 +1656,32 @@ def test_the_load_dispatch_counts_migration_renames_the_keys_of_every_stored_loa
     load = AgentLoad.parsed(json.loads(row["work_queue"]))
     assert (load.calm_dispatches, load.busy_dispatches, load.busy_minutes, load.low_minutes) == (1, 2, 12.0, 3.0), "the counts and stretches keep their values under their plain names"
     assert AgentLoad.parsed(json.loads(row["mode_loads"])["builder"]).busy_dispatches == 2, "and so does the load of each work mode"
+
+
+def test_a_memory_fades_by_one_at_a_time_and_at_nought_is_stored_but_no_longer_shown(connection, bus, scope):
+    from journal.models.memory import Memory
+    from journal.repositories.memories import Memories
+    memories = Memories(connection, bus, scope, TimeSource())
+    with scope.environment(1):
+        light = memories.save(Memory(text="the port is fixed", weight=1), USER)
+        heavy = memories.save(Memory(text="the suite runs in shards", weight=7), USER)
+        removed = memories.save(Memory(text="an old truth", weight=9).removed(datetime.now(timezone.utc)), USER)
+        assert [m.id for m in memories.shown()] == [heavy.id, light.id], "the shown memories, heaviest first, never a removed one"
+        memories.fade_all(Actor.system())
+        assert [(m.id, m.weight) for m in memories.shown()] == [(heavy.id, 6)], "a compaction lowers every weight by one, and one at nought leaves what is shown"
+        assert memories.find(light.id).weight == 0 and memories.find(removed.id).weight == 9, "it stays on its row, and a removed one is not faded"
+        assert memories.find(light.id).weighed(4).is_shown(), "weighing a faded memory above nought shows it again"
+        with pytest.raises(Rejection, match="0 to 10"):
+            heavy.weighed(11)
+        with pytest.raises(Rejection, match="already removed"):
+            memories.find(removed.id).removed(datetime.now(timezone.utc))
+
+
+def test_the_fact_memories_migration_makes_each_standing_fact_a_memory_of_weight_five_once(connection):
+    """Migration 72: every fact still in the table, a struck one being gone from it, becomes a memory of weight 5 in its environment with its text and keywords, and a second run adds nothing."""
+    from journal.db.migrations.fact_memories import FactMemories
+    connection.execute("INSERT INTO facts (environment_id, text, keywords, created_at, creator) VALUES (1, 'the port is fixed', '[\"port\"]', '2026-10-27', 'system'), (2, 'the suite runs in shards', '[]', '2026-10-27', 'system')")
+    FactMemories().apply(connection)
+    FactMemories().apply(connection)
+    rows = [(row["environment_id"], row["text"], row["weight"], row["keywords"]) for row in connection.all("SELECT environment_id, text, weight, keywords FROM memories ORDER BY id")]
+    assert rows == [(1, "the port is fixed", 5, '["port"]'), (2, "the suite runs in shards", 5, "[]")], rows

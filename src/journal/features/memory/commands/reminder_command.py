@@ -1,7 +1,7 @@
 from argparse import Namespace
 from datetime import datetime, timezone
 
-from journal.features.memory.commands.memory_command import MemoryCommand
+from journal.features.memory.commands.record_command import RecordCommand
 from journal.features.memory.support.threshold_decisions import ThresholdDecisions
 from journal.features.memory.support.memory_context import MemoryContext
 from journal.models.reminder import Reminder
@@ -10,7 +10,7 @@ from journal.support.rejection import Rejection
 
 
 
-class ReminderCommand(MemoryCommand):
+class ReminderCommand(RecordCommand):
     """Reminders: what to keep doing here, and with --at one set for a moment, informed once then and struck."""
 
     noun = "reminder"

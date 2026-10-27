@@ -10,7 +10,7 @@ from journal.features.memory.memory_conduct import MemoryConduct
 from journal.features.memory.support.memory_data_reader import MemoryDataReader
 from journal.features.memory.support.memory_data import MemoryData
 from journal.features.memory.commands.fact_command import FactCommand
-from journal.features.memory.commands.memory_skip_command import MemorySkipCommand
+from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.features.memory.commands.reminder_command import ReminderCommand
 from journal.features.memory.commands.rule_command import RuleCommand
 from journal.features.memory.listeners.compaction_card import CompactionCard
@@ -33,7 +33,7 @@ class Memory(Feature[MemoryData]):
     conduct = (MemoryConduct,)
     listeners = (ContextThresholdCheck, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, StartMemory, DueReminderStrike, SingleUseMemoryStrike)
     data = (MemoryDataReader,)
-    commands = (FactCommand, RuleCommand, ReminderCommand, MemorySkipCommand)
+    commands = (FactCommand, RuleCommand, ReminderCommand, MemoryCommand)
 
     nudges = (MemoryNudges.CONTEXT_DECISION, MemoryNudges.DECISION_EDIT_BLOCK, MemoryNudges.UNDECIDED_STOP, MemoryNudges.CHECK_STALE_MEMORY, MemoryNudges.RULE_SCOPE_QUESTION, MemoryNudges.MEMORY_READ_REQUEST, MemoryNudges.REMINDER_DUE, MemoryNudges.MEMORY_TRIGGERED)
     options = (MemoryOptions.STALENESS_LIMIT,)

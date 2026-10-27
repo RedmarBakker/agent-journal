@@ -546,6 +546,27 @@ exit 0
 reminder 1 struck
 created: message 29
 
+$ agent: journal memory add 'the suite runs in shards' --weight 7
+exit 0
+memory 1 added, weight 7: the suite runs in shards
+
+$ agent: journal memory add 'the port is fixed'
+exit 0
+memory 2 added, weight 5: the port is fixed
+
+$ agent: journal memory list
+exit 0
+   1  weight  7  the suite runs in shards
+   2  weight  5  the port is fixed
+
+$ agent: journal memory weigh 1,2 6,4
+exit 0
+memory 1 weighs 6, memory 2 weighs 4
+
+$ agent: journal memory remove 2
+exit 0
+removed: memory 2
+
 $ agent: journal memory skip 'nothing new to keep'
 exit 0
 noted; carry on

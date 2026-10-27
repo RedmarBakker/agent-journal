@@ -9,6 +9,7 @@ from journal.models.version3_migration import Version3Migration
 from journal.models.entry import Entry
 from journal.models.environment import Environment
 from journal.models.fact import Fact
+from journal.models.memory import Memory
 from journal.models.link import Link
 from journal.models.mcp_server import McpServer
 from journal.models.message import Message
@@ -61,5 +62,5 @@ from journal.models.subagent import Subagent
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Fact, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, Verifier, Reviewer)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Fact, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, Verifier, Reviewer)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))
