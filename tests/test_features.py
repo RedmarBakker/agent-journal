@@ -14250,9 +14250,9 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
 ])
 def test_a_run_printing_a_count_of_a_total_in_any_common_form_gets_a_progress_pattern_that_reads_its_fraction(lines, fraction):
     from journal.features.shell.support.reader import Reader
-    from journal.features.shell.support.reader_guess import ReaderGuess
     from journal.features.shell.support.reader_judge import ReaderJudge
-    progress, step = ReaderGuess.progress_patterns(lines)
+    from journal.features.shell.support.starting_readers import StartingReaders
+    progress, step = StartingReaders.progress_patterns(lines)
     reader = Reader("counted", "the counted runs", ".", progress_pattern=progress, step_pattern=step)
     assert reader.progress(lines).fraction() == pytest.approx(fraction), "the guessed pattern reads the run's own fraction"
     assert "--progress" in ReaderJudge.progress_fix("a command", lines), "and the report's fix suggests a --progress pattern"
@@ -20793,6 +20793,42 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
     assert readers.reading("make all").name == guessed.name, "it is kept as a reader of the project, so doing nothing keeps it"
     blank = ran("blank", "cat notes", "just words\nand more words\n")
     assert guess.guessed(blank, "cat notes") is None, "a run with nothing to pick is given none"
+
+
+def test_a_run_moved_to_the_background_starts_from_the_reader_of_its_kind_and_a_project_reader_that_reads_it_well_takes_its_command(app: App):
+    """Task 3775: ReaderGuess starts a background run's reader from the starting reader of the kind its classification names, a test run, a build, a package install or a long process, filled from the run's own output, tried and saved; a reader the project has for the same kind that reads the run well takes the command instead, so readers do not multiply; a search or a read never gets one."""
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.reader_guess import ReaderGuess
+    from journal.features.shell.support.readers import Readers
+    from journal.repositories.command_outputs import CommandOutputs
+    hook(app, "SessionStart")
+    outputs, guess, readers = app.container.get(CommandOutputs), app.container.get(ReaderGuess), app.container.get(Readers)
+
+    def ran(name: str, command: str, text: str):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text(command)
+        (folder / "0.out").write_text(text)
+        app.container.get(OutputLog).start(name, command, folder, Caller.agent("main", "s1", "claude"))
+        return outputs.find(max(output.id for output in outputs.all()))
+
+    kinds = {
+        "pytest -q tests/a.py": ("Running tests", "tests/a.py::test_one PASSED\n[ 50%]\nFAILED tests/a.py::test_two - AssertionError\n1 passed, 1 failed in 0.4s\n"),
+        "vite build": ("Building", "transforming...\n12 modules transformed\nerror during build: missing export\nbuilt in 3.2s\n"),
+        "pip install -r requirements.txt": ("Installing", "Collecting flask\nDownloading flask-3.0.tar.gz\nSuccessfully installed flask-3.0\n"),
+        "./scripts/serve.sh": ("Running", "starting\nListening on port 8000\nGET / 200\nTraceback (most recent call last): boom\n"),
+    }
+    for number, (command, (label, text)) in enumerate(kinds.items()):
+        guessed = guess.guessed(ran(f"kind-{number}", command, text), command)
+        assert guessed is not None and guessed.label == label and readers.stored_reader(guessed.name) == guessed, f"{command}: a {label.lower()} reader filled from the run's own output is tried and saved"
+        assert guessed.pattern and readers.read_part(guessed, command) and bool(guessed.failed_pattern) == ("rror" in text or "FAILED" in text or "Traceback" in text), f"{command}: it picks the run's lines of note, its failures when it printed some, and reads its command"
+    assert guess.guessed(ran("search", "grep -rn foo src", "src/a.py:1: foo\nsrc/b.py:2: foo\n"), "grep -rn foo src") is None, "a search never earns a reader"
+    tests_reader = readers.stored_reader(guess.guessed(ran("first", "pytest -q tests/a.py", kinds["pytest -q tests/a.py"][1]), "pytest -q tests/a.py").name)
+    before = {reader.name for reader in readers.all()}
+    shared = guess.guessed(ran("shared", "python3 -m pytest tests/b.py", "[ 40%]\nFAILED tests/b.py::test_x - KeyError\n3 passed, 1 failed in 1.2s\n"), "python3 -m pytest tests/b.py")
+    assert shared is not None and shared.name == tests_reader.name and {reader.name for reader in readers.all()} == before, "a project reader of the same kind that reads the new run well is chosen, and no new reader is written"
+    assert readers.read_part(readers.stored_reader(shared.name), "python3 -m pytest tests/b.py"), "and the new command is added to it, so the next run is read by it"
 
 
 def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_is_told_to_the_agent(app: App):
