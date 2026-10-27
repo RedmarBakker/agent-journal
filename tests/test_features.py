@@ -22947,7 +22947,7 @@ def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_i
     for _ in range(2):
         tick()
     lines = told()
-    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.RUN_TITLE_SHOWS_FLAG_OR_PATH, n=1, title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
+    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.FLAGGED_TITLE, n=1, title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
     outputs.watch(outputs.find(1), "", "Running the performance tests", Actor.system())
     tick()
     assert len(told()) == 1, "a card titled in words adds no line"

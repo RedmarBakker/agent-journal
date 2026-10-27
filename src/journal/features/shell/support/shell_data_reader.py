@@ -59,7 +59,7 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED, ShellNudges.RUN_TITLE_SHOWS_FLAG_OR_PATH)
+        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED, ShellNudges.FLAGGED_TITLE)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def titled_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
