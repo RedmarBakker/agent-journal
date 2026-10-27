@@ -1507,7 +1507,7 @@ def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_o
             self.seen = []
 
         def handle(self, event: Saved) -> None:
-            self.seen.append(settings.get("workers.mode"))
+            self.seen.append(settings.project("workers.mode"))
 
     with scope.environment(1):
         settings.set("workers.mode", "builder", USER)
@@ -1518,7 +1518,35 @@ def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_o
         bus.listen(Saved, reader)
         settings.set("workers.mode", "orchestrator", USER)
         assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
-        assert reader.seen == ["orchestrator"] and settings.get("workers.mode") == "orchestrator", "a listener of the write reads the value written"
+        assert reader.seen == ["orchestrator"] and settings.project("workers.mode") == "orchestrator", "a listener of the write reads the value written"
+
+
+def test_a_setting_is_the_projects_read_the_same_in_every_environment_and_one_stored_for_an_environment_moves_to_the_project(connection, bus, scope):
+    from journal.db.migrations.project_wide_settings import ProjectWideSettings
+    from journal.models.setting import Setting
+    from journal.repositories.setting_rows import SettingRows
+    settings = SettingRows(connection, bus, scope, TimeSource())
+    with scope.environment(1):
+        settings.set("workers.mode", "orchestrator", USER)
+    with scope.environment(2):
+        assert settings.project("workers.mode") == "orchestrator" and settings.tree()["workers"]["mode"] == "orchestrator", "set in one environment, it reads the same in another"
+        settings.set("workers.mode", "builder", USER)
+    with scope.environment(1):
+        assert settings.project("workers.mode") == "builder", "and written in that other, the first reads it too"
+    for environment_id, key, value in ((2, "faults.developer", True), (3, "faults.developer", False), (2, "workers.mode", "solo")):
+        connection.execute("INSERT INTO settings (environment_id, key, value, created_at, updated_at) VALUES (?, ?, ?, '2026-01-01', '2026-01-01')", (environment_id, key, json.dumps(value)))
+    ProjectWideSettings().apply(connection)
+    rows = {(row["environment_id"], row["key"]): json.loads(row["value"]) for row in connection.all("SELECT environment_id, key, value FROM settings")}
+    assert rows == {(0, "workers.mode"): "builder", (0, "faults.developer"): False}, "a key held only for environments moves to the project, its newest row kept, and the project's own value stands"
+    settings.clear_cache()
+    with scope.environment(3):
+        assert settings.project("faults.developer") is False
+
+
+def test_the_settings_page_has_no_applies_to_environment_tag():
+    from pathlib import Path
+    page = (Path(__file__).resolve().parents[1] / "src" / "web" / "src" / "pages" / "SettingsPage.vue").read_text()
+    assert "Applies to environment" not in page and "settings-scope" not in page
 
 
 def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_the_ones_after_it_ran(connection):

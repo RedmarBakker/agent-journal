@@ -100,7 +100,7 @@ class Registry:
         return name in self._by_name
 
     def is_enabled(self, feature: type[Feature]) -> bool:
-        return feature.fixed or bool(self.settings.get(f"features.{feature.name}", feature.default))
+        return feature.fixed or bool(self.settings.project(f"features.{feature.name}", feature.default))
 
     def required_skill(self, state: str) -> Skill | None:
         return next((skill for skill in self.skills() if state in skill.required_states), None)

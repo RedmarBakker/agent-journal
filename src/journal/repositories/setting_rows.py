@@ -12,7 +12,7 @@ from journal.support.time_source import TimeSource
 
 
 class SettingRows(ScopedRepository[Setting]):
-    """Reads a key with the project's value over the environment's; writes to the scope requested, and writes nothing for a value it already holds. Each scope's values are cached until a setting is written, not cached when a write cleared them while they were being read, and kept apart on the thread whose write has not committed yet, until its next write, so it reads what it wrote while other threads read what is committed."""
+    """Reads and writes every setting project-wide, the same in every environment, and writes nothing for a value it already holds. The project's values are cached until a setting is written, not cached when a write cleared them while they were being read, and kept apart on the thread whose write has not committed yet, until its next write, so it reads what it wrote while other threads read what is committed."""
 
     model = Setting
 
@@ -22,9 +22,6 @@ class SettingRows(ScopedRepository[Setting]):
         self._values: dict[int, dict[str, object]] = {}
         self._clear_count = 0
         self._writing = threading.local()
-
-    def get(self, key: str, default: object = None) -> object:
-        return self.merged().get(key, default)
 
     def project(self, key: str, default: object = None) -> object:
         return self.project_values().get(key, default)
@@ -69,9 +66,6 @@ class SettingRows(ScopedRepository[Setting]):
             self.delete(row, actor)
 
     def tree(self) -> dict:
-        return self.nested(self.merged())
-
-    def project_tree(self) -> dict:
         return self.nested(self.project_values())
 
     @staticmethod
@@ -81,9 +75,6 @@ class SettingRows(ScopedRepository[Setting]):
             top, name = key.split(".", 1) if "." in key else (key, "")
             tree.setdefault(top, {})[name] = value
         return tree
-
-    def merged(self) -> dict:
-        return self.values(self.scope.id)
 
     def project_values(self) -> dict:
         return self.values(PROJECT)
@@ -100,8 +91,7 @@ class SettingRows(ScopedRepository[Setting]):
         return merged
 
     def read_values(self, environment_id: int) -> dict:
-        environment_values = {setting.key: setting.value for setting in self.environment_rows(environment_id)}
-        return environment_values if environment_id == PROJECT else environment_values | self.project_values()
+        return {setting.key: setting.value for setting in self.environment_rows(environment_id)}
 
     def project_rows(self) -> list[Setting]:
         return self.environment_rows(PROJECT)

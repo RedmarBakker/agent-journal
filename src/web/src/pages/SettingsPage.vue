@@ -119,12 +119,6 @@ const formTab = computed(() => !across.value && tab.value === "team");
         <div ref="bars" class="settings-bars">
             <PageBar>
                 <TabBar :tabs="tabs" :model-value="across ? '' : tab" @update:model-value="openTab" />
-                <template v-if="!formTab">
-                    <span class="settings-scope">
-                        Applies to environment
-                        <span class="settings-env">{{ route.env }}</span>
-                    </span>
-                </template>
             </PageBar>
             <PageBar>
                 <TextInput
@@ -221,33 +215,6 @@ const formTab = computed(() => !across.value && tab.value === "team");
     padding: 12px 16px 4px;
 }
 
-.settings-scope {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-    color: var(--text-3);
-    font-size: 12px;
-}
-
-.settings-env {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 1px 8px;
-    border: 1px solid var(--border-2);
-    border-radius: 10px;
-    color: var(--text-2);
-}
-
-.settings-env::before {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-}
-
 .settings-back :deep(.btn-label) {
     display: inline-flex;
     align-items: center;
@@ -259,10 +226,6 @@ const formTab = computed(() => !across.value && tab.value === "team");
     margin: 16px 16px 0;
     color: var(--accent-text);
     font-size: 15px;
-}
-
-.settings.narrow .settings-scope {
-    display: none;
 }
 
 .settings.narrow .settings-find {
