@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.2
+
+- Every journal leaves the team servers it joined at its next start, keeping every local row, and starts no sync service: the team servers are no longer used.
+- One install runs in a project at a time: when several journals of one project ask for the same update, the first takes it and the others leave it to that one, so no server keeps running the old code on a database the new code has migrated.
+
 ## 4.67.1
 
 - A line too long for its budget is cut in its middle, so the instruction at its end stays, and a cut line repeats on its normal schedule instead of at every tool use; command values in lines are capped so they cannot crowd the instruction out.
