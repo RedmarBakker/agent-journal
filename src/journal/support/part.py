@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 FILTERS = {"tail", "head", "grep", "egrep", "fgrep", "rg", "ag", "ack", "cut", "sort", "uniq", "wc", "tr", "column", "fold", "fmt", "nl", "less", "more", "cat", "rev", "expand", "unexpand", "paste", "colrm", "pr", "strings", "jq", "yq", "sed", "awk", "gawk", "perl"}
 # a filter that writes the file in place is a command of its own, never a shaping of the output
 IN_PLACE_FILTERS = {"sed", "perl", "awk", "gawk"}
-IN_PLACE = re.compile(r"\s(-[a-zA-Z]*i|--in-place)")
+INPLACE_FLAG = re.compile(r"\s(-[a-zA-Z]*i|--in-place)")
 CODE = re.compile(r"\.(py|pyi|vue|js|mjs|cjs|jsx|ts|tsx|cs|go|rs|swift|kt|kts|java|scala|php|rb|ex|exs|erl|hs|ml|clj|c|h|cc|cpp|hpp|m|mm|lua|dart|r|jl|sh|bash|zsh|fish|ps1|sql|css|scss|sass|less|html|htm|svelte|astro|json|jsonl|yaml|yml|toml|ini|cfg|xml|gradle|tf|proto|graphql|md|txt)\b")
 VENDOR_FOLDERS = {"node_modules", "dist", "build", ".venv", "venv", "__pycache__", ".git", ".journal"}
 JOURNAL_OWNED = (".claude/skills", ".agents/skills", ".journal")
@@ -129,7 +129,7 @@ class Part:
     @staticmethod
     def is_filter(command: str) -> bool:
         program = command.split()[:1]
-        return bool(program) and program[0] in FILTERS and "-f" not in command.split() and not SEPARATOR.search(command) and not (program[0] in IN_PLACE_FILTERS and IN_PLACE.search(command))
+        return bool(program) and program[0] in FILTERS and "-f" not in command.split() and not SEPARATOR.search(command) and not (program[0] in IN_PLACE_FILTERS and INPLACE_FLAG.search(command))
 
     def is_subshell(self) -> bool:
         text = self.text.strip()
