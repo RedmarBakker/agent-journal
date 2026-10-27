@@ -123,7 +123,9 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   reports once, at the end of its queue: dispatch or send it the first task, then queue it the rest with
   `journal worker queue <n> <task> [<task>...]`. `--report queue` is the default, so a queue interrupts you once, when it is
   empty. A dispatch or a send of a single task while other tasks of its plan wait to be handed out is told once to
-  queue them, naming them and the line that does it. This holds whether the fitness measures are on or off.
+  queue them, naming them and the line that does it. This holds whether the fitness measures are on or off. A whole approved
+  plan, or one phase of it, goes to one worker with `--plan <n>` or `--plan <n> --phase <k>` in place of `--task`: its open
+  tasks are queued to it in the plan's order, and it tests the way the plan's testing template says.
 - `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --profile journal-senior|journal-medior ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
   name it after a distinguished figure with a twist on their trade. A worker writes: `--changes` names what it changes,
   and a job that only reads, searches, researches or reviews is always a subagent's, never a worker's. How it tests is the setting How workers test: with The journal runs them, the default, it runs none and names its tests when it clocks out, `journal clock-out "<report>" --tests "<arguments>"`; the journal runs the project's test command with them in its worktree, a card in your chat shows the run, and only a passing run lets the clock-out stand, a failing one going straight back to the worker; no worker is sent until you set the command with `journal tests command "<command>" --proof "<the arguments of one test that passes>"`. With Hand the tests over it runs none and its proofs name them for you to run; with Run the tests it wrote, `--tests` names the

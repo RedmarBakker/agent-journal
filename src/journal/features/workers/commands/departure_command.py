@@ -23,6 +23,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
+from journal.features.workers.support.worker_task_assigner import WorkerTaskAssigner
 from journal.repositories.proofs import Proofs
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.task_logs import TaskLogs
@@ -41,7 +42,8 @@ class DepartureCommand(Command):
     noun = "clock-out"
     default_verb = "record"
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests, assigner: WorkerTaskAssigner) -> None:
+        self.assigner = assigner
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
         self.turns, self.settings, self.logs, self.events, self.time_source, self.affected = turns, settings, logs, events, time_source, affected
 
@@ -85,10 +87,11 @@ class DepartureCommand(Command):
         self.plugin_check(WorkerDelivering, worker, task, DELIVERY_HELD)
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
+        following = self.assigner.following(worker)
         if worker.pool_request:
             self.push_branch(worker)
-        if self.continues_queue(worker, task, waiting):
-            return self.advance_queue(worker, task, waiting[0], caller)
+        if following is not None and self.continues_queue(worker, task, waiting):
+            return self.advance_queue(worker, task, following, caller)
         if worker.pool_request:
             self.moves.ended(worker)
         if self.moves.is_remote(worker):
@@ -128,12 +131,10 @@ class DepartureCommand(Command):
         finished = len(self.tasks.finished_task_ids(Ref(Worker.table(), worker.id)))
         return not (self.is_unfinished(task) or self.is_blocked(waiting) or worker.report_choice.is_report_due(finished, len(waiting)))
 
-    def advance_queue(self, worker: Worker, task: Task, next_task: Task, caller: Caller) -> int:
-        holder = Ref(Worker.table(), worker.id)
-        self.tasks.finish_holder_task(task.id, holder, caller.actor)
-        self.tasks.handover(next_task, holder, caller.actor)
-        moment = self.time_source.moment().timestamp()
-        self.workers.save(self.workers.find(worker.id).queue_advanced(next_task.id, moment), caller.actor)
+    def advance_queue(self, worker: Worker, task: Task, following: Task, caller: Caller) -> int:
+        self.tasks.finish_holder_task(task.id, Ref(Worker.table(), worker.id), caller.actor)
+        next_task = self.assigner.handed(worker, following, caller.actor)
+        self.workers.save(self.workers.find(worker.id).queue_advanced(next_task.id, self.time_source.moment().timestamp()), caller.actor)
         print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
         print("work on it now in this session: prove each of its points and clock out again; the journal commits your work")
         return 0
