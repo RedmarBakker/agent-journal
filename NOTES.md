@@ -1874,3 +1874,6 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   lease, no second install, so the drain and the lease run once per path, in the journal that started it. A hosted
   leader no longer pins the team when its install starts (recorded): the journal that boots on the version the update
   went to pins it, once, when its card comes down (Updater.reconcile), so a path pins only once its last step is in.
+- Open: a major version (5.0) starts a new line, and the window never crosses a major, so no 4.x journal has a path to
+  5.0 yet. Whether a 4.x journal reaches 5.0 through a last 4.x step, or 5.0 accepts every 4.x within its own window,
+  is decided when 5.0 is planned (doc 1072).
