@@ -4,6 +4,7 @@ from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import Readers
+from journal.features.shell.support.titled_run import TitledRun
 from journal.features.shell.support.reader_drafts import ReaderDrafts
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
@@ -49,6 +50,7 @@ class ShellDataReader:
             "draft_count": lambda: len(self.entries.keyed_lines(agent.session, (ShellNudges.READER_DRAFT.key,))),
             "locked_readers": lambda: tuple(self.readers.locked_names()),
             "uncut_verbs": lambda: self.registry.uncut_verbs(),
+            "titled_runs": lambda: self.titled_runs(agent),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
@@ -57,8 +59,12 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED)
+        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED, ShellNudges.RUN_TITLE_SHOWS_FLAG_OR_PATH)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
+
+    def titled_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
+        runs = {o.row_id: o for o in [*self.outputs.background(agent.session), *self.outputs.watched(agent.session)]}
+        return tuple(TitledRun(o.row_id, self.card.title(o, self.card.shown_part(o))) for o in runs.values())
 
     def last_ending_line(self, agent: Agent) -> Moment:
         entry = self.entries.last_line_entry(agent.session, (ShellNudges.OUTPUTS_ENDED.key, ShellNudges.UNREAD_OUTPUT.key, TasksNudges.WAIT_END.key))

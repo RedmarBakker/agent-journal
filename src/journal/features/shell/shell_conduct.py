@@ -48,7 +48,7 @@ class ShellConduct(Conduct):
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         watch = event.data.part(ShellPart).watch
         if not watch.is_watching():
-            return unread_check(self, event, settings)
+            return Transition.merged(self, [unread_check(self, event, settings), run_title_check(self, event, settings)])
         if watch.ending:
             return self.none()
         return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
@@ -64,7 +64,7 @@ class ShellConduct(Conduct):
         return self.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text((ended,)), n=ended.id), *reader_draft(shell, {event.output}, settings))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings)])
+        return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings), run_title_check(self, event, settings)])
 
     def on_output_quiet(self, event: OutputQuiet, settings: Settings) -> Transition:
         return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.quiet_seconds)) if event.run_session == event.session else self.none()
@@ -194,3 +194,10 @@ def background_check(state: BaseState, event: Ticked, settings: Settings) -> Tra
     if not shell.background or not Timeout.seconds(BACKGROUND_CHECK_DELAY_SECONDS).started(shell.backgrounded_at).is_elapsed(event.time):
         return state.none()
     return state.none(ShellNudges.BACKGROUND_CHECK.create(background_outputs=", ".join(str(n) for n in shell.background)))
+
+
+def run_title_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
+    shell = event.data.part(ShellPart)
+    tips = [ShellNudges.RUN_TITLE_SHOWS_FLAG_OR_PATH.create(n=run.id, title=run.title) for run in shell.titled_runs if run.shows_flag_or_path()]
+    new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
+    return state.none(new_tips[0]) if new_tips else state.none()

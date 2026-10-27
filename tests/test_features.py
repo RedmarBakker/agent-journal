@@ -22915,3 +22915,39 @@ def test_a_running_sequence_keeps_the_steps_it_started_with_when_the_sequence_is
     assert "tag it" in followed and "bump" not in followed, "the run keeps the steps as they were at its start"
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
     assert status == 409 and nudge_reached(app, body["error"], SequencesNudges.STEP_EDITS_WAIT), "and their guards"
+
+
+def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_in_words_and_a_titled_one_is_not(app: App):
+    from datetime import timedelta
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.support.heartbeat import Heartbeat
+    hook(app, "SessionStart")
+    folder = app.config.root / "suite-run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("journal suite --filter=Performance")
+    app.container.get(OutputLog).start("q", "journal suite --filter=Performance", folder, Caller.agent("main", "s1", "claude"))
+    outputs = app.container.get(CommandOutputs)
+    started = outputs.find(1)
+    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
+    Heartbeat(folder).write(timing.time())
+
+    def told() -> list[str]:
+        app.runtime().deferred.drain()
+        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
+
+    def tick() -> None:
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+
+    outputs.watch(outputs.find(1), "", "Running /private/tmp/claude-501/suite", Actor.system())
+    for _ in range(2):
+        tick()
+    lines = told()
+    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.RUN_TITLE_SHOWS_FLAG_OR_PATH, n=1, title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
+    outputs.watch(outputs.find(1), "", "Running the performance tests", Actor.system())
+    tick()
+    assert len(told()) == 1, "a card titled in words adds no line"
