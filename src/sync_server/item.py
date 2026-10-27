@@ -16,7 +16,7 @@ class Item:
     withdrawn_at: float
 
     @classmethod
-    def read(cls, row: Row) -> "Item":
+    def read(cls, row: Row | dict) -> "Item":
         return cls(row["id"], row["item_type"], row["name"], row["description"], row["publisher_id"], row["withdrawn_at"])
 
     def has_owner(self, account: Account) -> bool:

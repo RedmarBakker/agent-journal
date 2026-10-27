@@ -17,6 +17,8 @@ from journal.repositories.workers import Workers
 from journal.repositories.scope import Scope
 from journal.support.row_labels import RowLabels
 from journal.support.stage_times import StageTimes
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.chat.turn import Turn
 
 HISTORY_TOOL_STARTS = 6
 POLL_COMMANDS = 3
@@ -32,8 +34,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: DefaultTaskAssigner, checks: Checks, wait_checks: WaitChecks) -> None:
-        self.progress, self.settings, self.assigner, self.checks, self.wait_checks = progress, settings, assigner, checks, wait_checks
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows, assigner: DefaultTaskAssigner, checks: Checks, wait_checks: WaitChecks, turn: Turn) -> None:
+        self.progress, self.settings, self.assigner, self.checks, self.wait_checks, self.turn = progress, settings, assigner, checks, wait_checks, turn
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -52,6 +54,8 @@ class TasksDataReader:
             "next_open": lambda: self.assigner.offered(agent),
             "last_commands": lambda: self.last_commands(agent),
             "command_lines": lambda: tuple(self.entries.last_command_lines(agent.session, COMMAND_LINE_COUNT)),
+            "turn_finished": lambda: self.turn.is_finished(agent),
+            "wake_count": lambda: self.entries.nudge_count(agent.session, (TasksNudges.STOPPED_WITH_WORK.key,), agent.tool_uses),
             "open_ids": lambda: self.assigner.open_ids(OPEN_TASKS_SHOWN),
             "open_count": lambda: self.tasks.open_count(),
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),

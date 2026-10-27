@@ -17,7 +17,7 @@ class LibraryRoutes:
 
     def summary(self) -> LibraryAnswer:
         details = self.team.details.answer()
-        return LibraryAnswer(details.name, PROTOCOL, details.has_admin, "")
+        return LibraryAnswer(details.name, details.key, PROTOCOL, details.has_admin, "")
 
     def member_summary(self, token: str) -> LibraryAnswer:
         return LibraryAnswer(**{**self.summary().__dict__, "role": self.team.devices.person(token).role})

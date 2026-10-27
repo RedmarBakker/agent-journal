@@ -12,6 +12,7 @@ class TasksNudges:
 
     TASK_CONTINUATION = Nudge("tasks", "carry_on", "{{name}} is in hand, {{logged}}: carry on", repeat=Timeout.seconds(0))
     STOP_LOG_REQUEST = Nudge("tasks", "log_first_at_stop", "{{name}}, {{logged}}", "log it first: {{log_command}} \"<status>\"", repeat=Timeout.seconds(0))
+    STOPPED_WITH_WORK = Nudge("tasks", "woken_with_work_in_hand", "your turn ended and nothing has arrived since; the stop check, run again, answers:", "", repeat=Timeout.seconds(300))
     OPEN_TASK = Nudge("tasks", "task_still_open", "{{name}} is still open: log where it stands or finish it", repeat=Timeout.seconds(900))
     UNLOGGED_TASK = Nudge("tasks", "task_open_with_nothing_logged", "task {{n}} has nothing logged. log where it stands with `journal task log {{n}} \"<where it stands>\"`")
     IMPASSE_REFUSAL = Nudge("tasks", "not_stuck_with_work_left", "{{count}} tasks are open: you are not stuck", "work on them, or `journal await \"<what you wait for>\" --output <n>`", repeat=Timeout.seconds(0))

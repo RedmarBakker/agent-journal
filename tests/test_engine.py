@@ -3899,3 +3899,20 @@ def test_the_time_source_reads_its_seconds_and_its_moment_as_the_same_time():
     source.unpin()
     now = source.seconds()
     assert now == datetime.fromtimestamp(now, timezone.utc).timestamp(), "the wall clock is read to the microsecond too"
+
+
+def test_an_agent_left_stopped_has_its_stop_check_run_again_after_the_set_minutes():
+    from journal.features.plans.states.plans_working import PlansWorking
+    from journal.features.tasks.support.tasks_data import TasksData
+    from journal.features.tasks.tasks_conduct import TasksConduct
+    from journal.features.plans.support.plans_data import PlansData
+    from journal.events.agent.stop import Stop
+    from journal.events.agent.ticked import Ticked
+    settings = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.WAKE_MINUTES.key: 10, TasksOptions.WAKE_COUNT.key: 3})
+    tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
+    tick = lambda silence, **facts: PlansWorking(task_id=7, logged_at=0.0, active_at=0.0).respond(Ticked(session="s1", environment_id=1, silence_seconds=silence, time=silence).with_data(FeatureData({"tasks": replace(tasks, **facts), "plans": PlansData((), None)})), settings, (TasksConduct,))
+    woken = tick(600.0, turn_finished=True)
+    assert isinstance(woken.next_event, Stop) and "tasks.woken_with_work_in_hand" in [n.key for n in woken.nudges], "ten quiet minutes after a turn ended run the stop check again, its listeners deciding what is said"
+    assert tick(300.0, turn_finished=True).next_event is None, "not before the set minutes"
+    assert tick(600.0, turn_finished=False).next_event is None, "an agent still in its turn, as in a long tool call, is never woken"
+    assert tick(600.0, turn_finished=True, wake_count=3).next_event is None, "and it is woken at most the set number of times in a row"

@@ -8,3 +8,7 @@ class ItemListAnswer:
     """The items GET /items lists, each with its latest complete version."""
 
     items: list[LibraryEntry]
+
+    @classmethod
+    def parsed(cls, fields: dict) -> "ItemListAnswer":
+        return cls([LibraryEntry.parsed(entry) for entry in fields["items"]])

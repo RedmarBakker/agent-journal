@@ -585,3 +585,54 @@ def test_a_team_url_is_its_address_or_an_invitation():
     assert TeamUrl.parse("https://team.example/").address == "https://team.example"
     assert TeamUrl.parse("https://team.example.com:8443").has_self_signed_certificate() and TeamUrl.parse("https://203.0.113.5").has_self_signed_certificate()
     assert not TeamUrl.parse("https://team.example.com").has_self_signed_certificate(), "a domain on 443 has a public certificate"
+
+
+def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from_a_team_server(app: App, tmp_path: Path):
+    import hashlib
+    import json
+    from journal.db.schema import Schema
+    from journal.features.library.support.library_link import LibraryLink
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.item_query import ItemQuery
+    from sync_server.publish_request import PublishRequest
+    from sync_server.team_server import TeamServer
+
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", "admin", 1.0)
+    _, token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    (app.config.home / TEAM_FILE).write_text(json.dumps({"address": address, "token": token}))
+    link = LibraryLink(TeamAccount(app.config), app.container.get(Schema))
+    try:
+        assert link.summary(address).has_admin
+        data = b"# Release"
+        version = link.publish("skill", "release", PublishRequest("Releasing", json.dumps({"files": {"SKILL.md": hashlib.sha256(data).hexdigest()}}), "first"))
+        assert not version.is_complete() and link.put_file("skill", "release", version.number, "SKILL.md", data).is_complete()
+        [entry] = link.items(ItemQuery("skill", None)).items
+        assert entry.item.name == "release" and link.version("skill", "release", 1).note == "first" and link.file("skill", "release", 1, "SKILL.md") == data
+        assert link.withdraw("skill", "release").withdrawn_at > 0 and link.items(ItemQuery(None, None)).items == []
+    finally:
+        team.close(server)
+
+
+def test_a_journal_connects_to_a_library_sees_its_status_and_disconnects(app: App, tmp_path: Path):
+    from sync_server.team_server import TeamServer
+
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert "run this line yourself" in console.run(["library", "connect", address, "--email", "ada@example.com"], user).error, "no password, no connection"
+        connected = console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user)
+        assert connected.code == 0 and "as Ada, admin" in connected.text, connected.error
+        key = team.details.answer().key
+        assert (app.config.home / "libraries" / f"{key}.json").is_file(), "the connection is kept by the library's key"
+        assert f"library {address}, as Ada (admin)" in console.run(["library", "status"], user).text
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--password", "x"], user).code != 0, "one library at a time"
+        assert console.run(["library", "login", "--email", "ada@example.com", "--password", "correct horse battery"], user).code == 0, "a machine logs in again"
+        assert "disconnected" in console.run(["library", "disconnect"], user).text
+        assert "connected to no library" in console.run(["library", "status"], user).text
+    finally:
+        team.close(server)

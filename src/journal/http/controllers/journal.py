@@ -14,6 +14,7 @@ from journal.http.journal.environment_data import EnvironmentData
 from journal.http.journal.task_block import TaskBlock
 from journal.http.journal.manifest import Manifest
 from journal.http.support.request import Request
+from journal.http.support.request_faults import RequestFaults
 from journal.support.response import Response
 from journal.models.environment import Environment
 from journal.repositories.agents import Agents
@@ -38,8 +39,8 @@ class JournalController:
     """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now. Health fails when the journal cannot reach its database, as when it has run out of descriptors, so its supervisor starts it again."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
-                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals, text: CommandText) -> None:
-        self.numbers, self.owners, self.lifecycle, self.arrivals, self.text = numbers, owners, lifecycle, arrivals, text
+                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals, text: CommandText, faults: RequestFaults) -> None:
+        self.numbers, self.owners, self.lifecycle, self.arrivals, self.text, self.faults = numbers, owners, lifecycle, arrivals, text, faults
         self.config, self.boot, self.environments, self.agents, self.activity, self.current = config, manifest, environments, agents, activity, current
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
@@ -58,9 +59,10 @@ class JournalController:
 
     def health(self, request: Request) -> Response:
         self.config.port_file.read_text()
-        self.environments.total()
+        self.environments.rows()
         missing_hooks = self.arrivals.lost()
-        return Response.json({"answering": True, "phase": self.lifecycle.phase.value, "hooks_lost": missing_hooks}, 503 if missing_hooks else 200)
+        unwell = bool(missing_hooks) or self.faults.is_failing()
+        return Response.json({"answering": True, "phase": self.lifecycle.phase.value, "hooks_lost": missing_hooks, "failing_requests": self.faults.streak, "last_fault": self.faults.last_fault}, 503 if unwell else 200)
 
     def journals(self, request: Request) -> Response:
         return Response.json([{"port": self.config.port, "project": self.config.root.name, "version": VERSION, "root": str(self.config.home), "current": True}])

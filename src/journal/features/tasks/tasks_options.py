@@ -4,6 +4,8 @@ from journal.support.option import USER, Option
 class TasksOptions:
     """The options of the tasks feature."""
 
+    WAKE_MINUTES = Option("tasks.wake_minutes", "Wake a stopped agent after", "When the agent's turn has ended and nothing has arrived since, the journal runs its stop check again after this many minutes and types the answer to the agent, such as the task to carry on or the next one; 0 never runs it", 10, unit="minutes")
+    WAKE_COUNT = Option("tasks.wake_count", "Wake it at most", "How many times in a row the journal runs the stop check again for an agent that does nothing in between", 3, unit="times")
     AUTO = Option("tasks.auto", "Work the list on its own", "At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you", True, option_type="switch", setter=USER)
     SHORT_WAIT_SECONDS = Option("tasks.wait_out_seconds", "Wait it out when a run has at most this left", "When the agent waits on a run, the journal estimates the seconds left from the run's own progress; at most this many it is told to wait it out, more it is told to park the run and carry on with the next task; 0 always carries on", 20, unit="seconds")
     PRIORITY_REMIND_TASKS = Option("tasks.priority_remind_tasks", "Remind of default priorities at", "Open tasks the agent made that sit at the default priority before it is told once to give each its priority", 5, unit="tasks")

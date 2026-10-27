@@ -500,6 +500,7 @@
         "Team chat messages from before you started",
         "] tag did not run",
         "]; file a task if it asks for work, a memory if it is something to keep in mind",
+        "]; then write what it asks into",
         "__authenticate`, then `complete_authentication`; tell the user",
         "` and act on it",
         "` and prove it again if you had",
@@ -544,8 +545,10 @@
         "answer only those still unread",
         "answer or react to message",
         "answer with SendMessage to",
+        "approved with a comment: read message",
         "are paused or blocked",
         "are still out and nothing waits to be checked",
+        "as a change, a section or an open question",
         "ask only what you cannot tell, with journal dump ask",
         "ask the user to release it",
         "ask with `journal question ask \"<one line>\" --options \"a\" \"b\"`, not your own question tool",
@@ -827,7 +830,8 @@
         "your journal was down",
         "your journal was down for",
         "your load stayed at",
-        "your memories, heaviest first"
+        "your memories, heaviest first",
+        "your turn ended and nothing has arrived since; the stop check, run again, answers"
     ],
     "event_and_hook_names": [
         "CommandEnded",

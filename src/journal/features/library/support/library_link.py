@@ -17,6 +17,9 @@ from sync_server.item_query import ItemQuery
 from sync_server.item_version import ItemVersion
 from sync_server.item_versions_answer import ItemVersionsAnswer
 from sync_server.library_answer import LibraryAnswer
+from sync_server.login_answer import LoginAnswer
+from sync_server.login_request import LoginRequest
+from journal.features.library.support.library_account import LibraryAccount
 from sync_service.team_link import TeamLink
 
 REQUEST_SECONDS = 10
@@ -27,10 +30,10 @@ ROOT_CERTIFICATE = "/root.crt"
 class LibraryLink:
     """The one way the journal reaches its team's server: each request with the device's token, this journal's protocol, version and the migration its database is at, a server on a bare address trusted through the certificate authority the join stored, and an answer from a server on an older protocol refused with the line to upgrade it; one method per library route. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
 
-    def __init__(self, account: TeamAccount, schema: Schema) -> None:
+    def __init__(self, account: TeamAccount | LibraryAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
 
-    def bound(self, account: TeamAccount) -> "LibraryLink":
+    def bound(self, account: TeamAccount | LibraryAccount) -> "LibraryLink":
         return LibraryLink(account, self.schema)
 
     def summary(self, address: str) -> LibraryAnswer:
@@ -57,6 +60,17 @@ class LibraryLink:
     def file(self, item_type: str, name: str, number: int, file_name: str) -> bytes:
         return self.sent(self.account.address(), f"/items/{quote(item_type)}/{quote(name)}/{number}/files/{quote(file_name)}", None, FILE_SECONDS)
 
+    def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
+        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
+        return LoginAnswer(**json.loads(self.sent(address, "/install", body, REQUEST_SECONDS)))
+
+    def accept(self, address: str, code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
+        body = json.dumps({"code": code, "email": email, "name": name, "password": password, "password_repeat": password, "device_name": device_name}).encode()
+        return LoginAnswer(**json.loads(self.sent(address, "/accept", body, REQUEST_SECONDS)))
+
+    def login(self, address: str, request: LoginRequest) -> LoginAnswer:
+        return LoginAnswer(**json.loads(self.sent(address, "/login", json.dumps(request.__dict__).encode(), REQUEST_SECONDS)))
+
     def read(self, path: str) -> bytes:
         return self.sent(self.account.address(), path, None, REQUEST_SECONDS)
 
@@ -76,7 +90,10 @@ class LibraryLink:
             raise TeamRefusal(TeamLink.refusal_line(refused)) from refused
 
     def headers(self) -> dict[str, str]:
-        return {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
+        headers = {"Content-Type": "application/json", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
+        if self.account.is_connected():
+            headers["Authorization"] = f"Bearer {self.account.token()}"
+        return headers
 
     @staticmethod
     def checked(headers) -> None:

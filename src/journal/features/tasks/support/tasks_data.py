@@ -40,3 +40,5 @@ class TasksData:
     free_open: bool = False
     paused_declined: bool = False
     command_lines: tuple[str, ...] = ()
+    turn_finished: bool = False
+    wake_count: int = 0

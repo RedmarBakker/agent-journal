@@ -10,3 +10,7 @@ class LibraryEntry:
 
     item: Item
     version: ItemVersion
+
+    @classmethod
+    def parsed(cls, fields: dict) -> "LibraryEntry":
+        return cls(Item.read(fields["item"]), ItemVersion.read(fields["version"]))

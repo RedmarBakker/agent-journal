@@ -40,6 +40,9 @@ class TeamAccount:
     def is_joined(self) -> bool:
         return self.path().is_file()
 
+    def is_connected(self) -> bool:
+        return self.is_joined()
+
     def path(self) -> Path:
         if self.key:
             return self.config.home / TEAMS_FOLDER / f"{self.key}.json"

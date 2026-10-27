@@ -10,3 +10,7 @@ class ItemVersionsAnswer:
 
     item: Item
     versions: list[ItemVersion]
+
+    @classmethod
+    def parsed(cls, fields: dict) -> "ItemVersionsAnswer":
+        return cls(Item.read(fields["item"]), [ItemVersion.read(version) for version in fields["versions"]])

@@ -9,6 +9,8 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.wait_request import WaitRequest
 from journal.events.agent.impasse_report import ImpasseReport
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.agent.ticked import Ticked
+from journal.events.agent.stop import Stop
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
@@ -30,6 +32,9 @@ AWAIT_REFUSAL_COUNT = 2
 
 class TasksConduct(Conduct):
     """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+
+    def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
+        return wake_check(self, event, settings)
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms()))
@@ -118,3 +123,13 @@ def impasse_check(state: BaseState, event: ToolStarting) -> Transition:
     if not work_count:
         return state.none()
     return state.refuse(TasksNudges.IMPASSE_REFUSAL.create(count=work_count))
+
+
+def wake_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
+    tasks = event.data.part(TasksPart)
+    minutes = settings.integer(TasksOptions.WAKE_MINUTES)
+    if not minutes or not tasks.turn_finished or tasks.wake_count >= settings.integer(TasksOptions.WAKE_COUNT):
+        return state.none()
+    if event.silence_seconds < minutes * 60:
+        return state.none()
+    return state.follow(Stop(session=event.session, environment_id=event.environment_id, prior_refusal=False, time=event.time), TasksNudges.STOPPED_WITH_WORK.create())

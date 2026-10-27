@@ -5,11 +5,12 @@ from journal.engine.nudge import Nudge
 
 if TYPE_CHECKING:
     from journal.engine.base_state import BaseState
+    from journal.events.agent.agent_event import AgentEvent
 
 
 @dataclass(frozen=True)
 class Transition:
-    """What a state answered an event with: the state as it is now, a state pushed on top of it, whether it popped itself, the nudges sent, the nudges typed, the nudge that blocks the event, if any, the moves dropped because an earlier answer already moved, and whether a pop passes the event on to the state beneath."""
+    """What a state answered an event with: the state as it is now, a state pushed on top of it, whether it popped itself, the nudges sent, the nudges typed, the nudge that blocks the event, if any, the moves dropped because an earlier answer already moved, whether a pop passes the event on to the state beneath, and an event the machine answers next as it would one that arrived, its answer said to the agent."""
 
     target: "BaseState"
     pushed: "BaseState | None" = None
@@ -20,6 +21,7 @@ class Transition:
     extra_refusals: tuple[Nudge, ...] = ()
     dropped: tuple[str, ...] = ()
     handed_down: bool = False
+    next_event: "AgentEvent | None" = None
 
     def typing(self, *keystrokes: Nudge) -> "Transition":
         return replace(self, terminal_lines=keystrokes)
@@ -44,4 +46,5 @@ class Transition:
             extra_refusals=tuple(answer.refusal for answer in answers if answer.refusal)[1:],
             dropped=tuple(answer.move_name() for answer in moving[1:]),
             handed_down=move.handed_down,
+            next_event=next((answer.next_event for answer in answers if answer.next_event is not None), None),
         )

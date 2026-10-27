@@ -2079,6 +2079,27 @@ def test_the_health_url_answers_unwell_while_the_server_cannot_open_a_file(app: 
     assert call(server, "GET", "/journal/health")[0] == 200
 
 
+def test_the_health_url_answers_unwell_once_five_requests_in_a_row_fail_and_well_once_one_is_answered(app: App, server):
+    from journal.http.support.request_faults import FAILING_REQUEST_COUNT, RequestFaults
+    from journal.repositories.environments import Environments
+    original = Environments.matching
+
+    def broken(self, **fields):
+        raise IndexError("No item with that key")
+
+    Environments.matching = broken
+    try:
+        for _ in range(FAILING_REQUEST_COUNT):
+            with pytest.raises(OSError):
+                call(server, "GET", "/journal/tasks")
+        status, health = call(server, "GET", "/journal/health")
+        assert status == 503 and health["failing_requests"] >= FAILING_REQUEST_COUNT and "IndexError" in health["last_fault"], "a server whose every request fails, as one running old code on a migrated database, says it is unwell, so its supervisor starts it again"
+    finally:
+        Environments.matching = original
+    call(server, "GET", "/journal/tasks")
+    assert call(server, "GET", "/journal/health")[0] == 200 and app.container.get(RequestFaults).streak == 0, "one request answered ends the streak"
+
+
 def test_the_database_is_copied_online_and_only_the_newest_two_copies_stay(app: App):
     from journal.features.health.jobs.database_backup import DatabaseBackup
     backup, now = app.container.get(DatabaseBackup), time.time()

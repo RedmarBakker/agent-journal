@@ -12,6 +12,7 @@ from journal.support.permission import Permission
 from journal.support.timeout import Timeout
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.agent_event import AgentEvent
 
 LISTENER = "on_"
 
@@ -70,6 +71,9 @@ class BaseState:
 
     def forward(self, *nudges: Nudge) -> Transition:
         return Transition(self, popped=True, nudges=nudges, handed_down=True)
+
+    def follow(self, event: "AgentEvent", *nudges: Nudge) -> Transition:
+        return Transition(self, nudges=nudges, next_event=event)
 
     def refuse(self, reason: Nudge) -> Transition:
         return Transition(self, refusal=reason)

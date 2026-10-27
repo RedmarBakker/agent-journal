@@ -21,7 +21,7 @@ class ItemVersion:
     completed_at: float
 
     @classmethod
-    def read(cls, row: Row) -> "ItemVersion":
+    def read(cls, row: Row | dict) -> "ItemVersion":
         return cls(row["id"], row["item_id"], row["number"], row["body"], row["body_hash"], row["lowest_version"], row["note"], row["publisher_id"], row["published_at"], row["completed_at"])
 
     def is_complete(self) -> bool:

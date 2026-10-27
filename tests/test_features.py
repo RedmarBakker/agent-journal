@@ -20430,6 +20430,24 @@ def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(app
     assert f"plan 1 approved with a comment: read message {comment.id} before you start" in told, told
 
 
+def test_an_agent_left_stopped_with_a_task_in_hand_is_typed_what_its_stop_check_answers(app: App, monkeypatch):
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["task", "create", "Draw the cover", "--brief", "b", "--start"], AGENT).code == 0
+    hook(app, "Stop")
+    app.runtime().deferred.drain()
+    keystrokes.clear()
+    app.container.get(Clock).ticked(Ticked(session="s1", environment_id=1, time=timing.time(), silence_seconds=20 * 60))
+    app.runtime().deferred.drain()
+    typed = " ".join(keystrokes)
+    assert "the stop check, run again, answers" in typed and "task 1" in typed, "the stop check's own answer reaches the agent left stopped: " + typed
+
+
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     from journal.support.decision import Decision
     answered = Decision.allowed_with("a line\nanother").merged(Decision.allowed_with("a line"))

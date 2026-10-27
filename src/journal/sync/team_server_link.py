@@ -124,12 +124,10 @@ class TeamServerLink:
         return TeamSummary(**json.loads(self.sent(address, "/team", None, REQUEST_SECONDS)))
 
     def accept(self, address: str, code: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"code": code, "email": email, "name": name, "password": password, "password_repeat": password, "device_name": device_name}).encode()
-        return LoginAnswer(**json.loads(self.sent(address, "/accept", body, REQUEST_SECONDS)))
+        return self.transport.accept(address, code, email, name, password, device_name)
 
     def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
-        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
-        return LoginAnswer(**json.loads(self.sent(address, "/install", body, REQUEST_SECONDS)))
+        return self.transport.install(address, email, name, password, device_name)
 
     def change_password(self, old: str, new: str) -> None:
         self.posted("/password", {"old": old, "new": new})
@@ -144,7 +142,7 @@ class TeamServerLink:
         return SigninAnswer(**json.loads(self.posted("/signin-links/redeem", {"code": code})))
 
     def login(self, address: str, request: LoginRequest) -> LoginAnswer:
-        return LoginAnswer(**json.loads(self.sent(address, "/login", json.dumps(request.__dict__).encode(), REQUEST_SECONDS)))
+        return self.transport.login(address, request)
 
     def root_certificate(self, address: str) -> str:
         return self.transport.root_certificate(address)

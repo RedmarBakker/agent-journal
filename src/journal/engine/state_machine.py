@@ -137,7 +137,14 @@ class StateMachine:
         if machine_answer.refusal and (line := self.nudger.refuse_with(agent, machine_answer.refusal.nudge)):
             return MachineReply(agent, Decision.refuse(line), keystrokes, remarks)
         answered = MachineReply(agent, Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
+        if transition.next_event is not None:
+            return self.joined_answers(answered, self.stack_reply(agent, transition.next_event))
         return answered.merged(self.stack_reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
+
+    @staticmethod
+    def joined_answers(answered: MachineReply, next_answer: MachineReply) -> MachineReply:
+        lines = "\n".join(line for line in (answered.decision.context, next_answer.decision.reason, next_answer.decision.context) if line)
+        return MachineReply(next_answer.agent, Decision.allowed_with(lines), (*answered.keystrokes, *next_answer.keystrokes), (*answered.remarks, *next_answer.remarks))
 
     def push(self, session: str, environment_id: int, destination: BaseState, actor: Actor, text: str) -> MachineReply:
         agent = self.sessions.agent(session, environment_id)

@@ -625,10 +625,10 @@ def test_a_journal_and_a_team_server_on_different_protocols_are_refused_with_the
     link = TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS))
     try:
         assert link.summary(address) is not None, "a journal on the server's protocol is answered"
-        monkeypatch.setattr("journal.sync.team_server_link.PROTOCOL", PROTOCOL - 1)
+        monkeypatch.setattr("journal.features.library.support.library_link.PROTOCOL", PROTOCOL - 1)
         with pytest.raises(TeamRefusal, match="upgrade the journal with journal update apply"):
             link.summary(address)
-        monkeypatch.setattr("journal.sync.team_server_link.PROTOCOL", PROTOCOL + 1)
+        monkeypatch.setattr("journal.features.library.support.library_link.PROTOCOL", PROTOCOL + 1)
         with pytest.raises(TeamRefusal, match="upgrade the team server's image"):
             link.summary(address)
     finally:
