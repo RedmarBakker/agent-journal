@@ -49,6 +49,10 @@ SETS = {
         "tests/tasksDialog.test.js",
         "tests/wholePlans.test.js",
     ),
+    "task_menus": (
+        "tests/taskMoreMenu.test.js",
+        "tests/tasksDialog.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",

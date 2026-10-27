@@ -176,14 +176,14 @@ export function statusChoices(task) {
     return CHOICES.map((made) => made(status)).map((c) => ({...c, current: (CURRENT[c.status] || [c.status]).includes(status)}));
 }
 
-// The rest of what can be done to a task, for its More menu.
+// The rest of what can be done to a task, for its More menu; a task with a worker, or queued for one, has no next act of its own
 export function moreActs(task) {
     const status = statusOf(task);
     const next = nextAct(task);
     return [
         ...(["done", "blocked"].includes(status) ? [] : [act("block", "Blocked by a task...")]),
         ...(status === "blocked" ? [act("unblock", "Unblock")] : []),
-        ...(["answer", "goto"].includes(next.name) ? [next] : []),
+        ...(next && ["answer", "goto"].includes(next.name) ? [next] : []),
         act("edit", "Edit the title and brief"),
     ];
 }
