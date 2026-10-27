@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.4
+
+- A task started outside a plan is worked on top of the plan: once it ends, the plan carries on where it was.
+- A plan you pause stays paused: with auto mode on, finishing another task no longer starts a task of the paused plan and so restarts it.
+
 ## 4.67.3
 
 - A task started outside a plan stays the work in hand when the plan is paused or cancelled: the agent is told to carry on at a stop instead of being left idle with nothing telling it to start.
