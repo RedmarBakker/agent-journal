@@ -8,6 +8,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.rows.output_quiet import OutputQuiet
+from journal.events.rows.output_without_total import OutputWithoutTotal
 from journal.events.rows.reader_report_judged import ReaderReportJudged
 from journal.events.rows.reader_report_raised import ReaderReportRaised
 from journal.events.agent.ticked import Ticked
@@ -65,6 +66,9 @@ class ShellConduct(Conduct):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings), run_title_check(self, event, settings)])
+
+    def on_output_without_total(self, event: OutputWithoutTotal, settings: Settings) -> Transition:
+        return self.none(ShellNudges.RUN_TOTAL_MISSING.create(n=event.row_id)) if event.run_session == event.session else self.none()
 
     def on_output_quiet(self, event: OutputQuiet, settings: Settings) -> Transition:
         return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.quiet_seconds)) if event.run_session == event.session else self.none()

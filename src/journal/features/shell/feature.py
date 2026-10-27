@@ -10,6 +10,7 @@ from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.features.feature import Feature
 from journal.features.shell.listeners.output_notice import OutputNotice
 from journal.features.shell.listeners.quiet_run_record import QuietRunRecord
+from journal.features.shell.listeners.untotaled_run_record import UntotaledRunRecord
 from journal.features.shell.listeners.stopped_output_end import StoppedOutputEnd
 from journal.features.shell.listeners.watch_update import WatchUpdate
 from journal.features.shell.listeners.output_card import OutputCard
@@ -50,14 +51,14 @@ class Shell(Feature[ShellData]):
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
     options = (FOREGROUND_OPTION, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT, ShellOptions.READER_SUGGESTIONS, ShellOptions.READER_SUGGESTION_RUNS)
-    listeners = (OutputNotice, QuietRunRecord, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard)
+    listeners = (OutputNotice, QuietRunRecord, UntotaledRunRecord, StoppedOutputEnd, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement, ReaderSuggestionRecord, ReaderSuggestionClear, GuessedReaderCard)
     seeds = (CutOffOutputs, ProjectReadersClear, DefaultReaders, JournalOutputReaders, StrayCommandMarkCleanup, StrayReaderCleanup)
     jobs = (WatchRefresh, RestartWait, RunCardStart, WatchedRunCheck)
     process_cards = (OutputProcessCard,)
     data = (ShellDataReader,)
     conduct = (ShellConduct,)
 
-    nudges = (ShellNudges.JOURNAL_POLL, ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIASED_LINE, ShellNudges.MORE_SPECIFIC_ALIAS, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.PIPED_TEST_RUN, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.READER_DRAFT, ShellNudges.READER_HINT, ShellNudges.PARTIAL_FILE_READ, ShellNudges.FLAGGED_TITLE)
+    nudges = (ShellNudges.JOURNAL_POLL, ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIASED_LINE, ShellNudges.MORE_SPECIFIC_ALIAS, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.PIPED_TEST_RUN, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.RUN_TOTAL_MISSING, ShellNudges.READER_DRAFT, ShellNudges.READER_HINT, ShellNudges.PARTIAL_FILE_READ, ShellNudges.FLAGGED_TITLE)
 
     skill = Skill("shell", 'How the journal runs your shell commands: in parts, timed, and in the background past the limit', """
 # Shell commands

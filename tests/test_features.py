@@ -22745,6 +22745,31 @@ def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_r
     assert len(found) == 1 and "121632227066" in found[0] and "an id" in found[0], f"a count towards a job's id, 55/121632227066, is reported: {found}"
 
 
+def test_a_watched_test_run_that_prints_without_a_total_is_told_once_to_give_one(app: App):
+    from datetime import timedelta
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    hook(app, "SessionStart")
+    folder = app.config.root / "matrix"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("python3 -m pytest -q tests/update_matrix_run.py")
+    (folder / "0.out").write_text("." * 44 + "\n")
+    app.container.get(OutputLog).start("m", "python3 -m pytest -q tests/update_matrix_run.py", folder, Caller.agent("main", "s1", "claude"))
+    outputs = app.container.get(CommandOutputs)
+    started = outputs.find(1)
+    outputs.save(started.backgrounded().with_(created_at=started.creation_time - timedelta(seconds=90)), Actor.system())
+    assert app.console().run(["output", "watch", "1"], AGENT).code == 0
+    for _ in range(3):
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+    app.runtime().deferred.drain()
+    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == ShellNudges.RUN_TOTAL_MISSING.key]
+    assert len(told) == 1 and has_nudge(told[0], ShellNudges.RUN_TOTAL_MISSING, n=1), f"a watched test run printing dots with no total is told once to give one: {told}"
+
+
 def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stream_and_its_card_says_why(app: App):
     from datetime import timedelta
     from journal.events.agent.ticked import Ticked
