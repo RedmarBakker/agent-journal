@@ -68,6 +68,10 @@ class Entries(ScopedRepository[Entry]):
     def tool_starts(self, session: str, last: int = 500) -> list[Entry]:
         return self.selected(self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
+    def last_command_lines(self, session: str, count: int) -> list[str]:
+        starts = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
+        return [entry.data["call"]["command"] for entry in reversed(self.selected(starts.order_descending("id").limit(count)))]
+
     def recent_commands(self, session: str, window: int, count: int) -> list[str]:
         starts = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session))
         oldest = self.selected_ids(starts.order_descending("id").limit(1).offset(window - 1))

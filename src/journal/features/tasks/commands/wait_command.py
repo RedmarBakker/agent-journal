@@ -35,6 +35,7 @@ class WaitCommand(Command):
         time.add_argument("what", help="what you wait for, in a few words the user reads in the top bar: the test run of task 217, Lady Lovelace's report")
         time.add_argument("--output", type=int, action="append", default=[], metavar="N", help="a command's output; the wait ends once the command is done; more than one waits for all")
         time.add_argument("--reader", default="", help="with --output, also watch the output live through this reader, so the user sees it move while you wait")
+        time.add_argument("--why", default="", help="why you wait now rather than work on something else; asked after two awaits were sent back to other work")
         time.add_argument("--until", default="", metavar="SCRIPT", help="a shell script run every 30 seconds; the wait ends once it passes, such as ! kill -0 <pid> for a process")
 
     def clear(self, args: Namespace, caller: Caller) -> int:

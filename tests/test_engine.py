@@ -1788,6 +1788,13 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     awaiting = lambda line, progress: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(estimated(progress)), conducted, (TasksConduct,)).refusal
     refused = awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0)})
     assert refused is not None and has_nudge(refused.rendered(), TasksNudges.WAIT_SWITCH_REFUSAL, what="the merge of worker 3", left="for a time the journal cannot estimate yet", n=9), "an await on a process that does not end soon is refused while a task is open, and with task 7 in hand the line says to pause it before starting task 9 (seen with task 3642 in hand, told to carry on with task 3658)"
+    third_await = lambda line: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(FeatureData({"tasks": replace(tasks, wait_progress={"command_outputs:4": WaitProgress(100.0, 0.0)}, command_lines=("journal await 'x' --output 4", "ls", "journal await 'x' --output 4", line))})), conducted, (TasksConduct,))
+    unreasoned = third_await("journal await 'the merge of worker 3' --output 4")
+    assert unreasoned.refusal is not None and has_nudge(unreasoned.refusal.rendered(), TasksNudges.WAIT_REASON_REQUEST, what="the merge of worker 3"), "after two awaits sent back to other work, the third must say why"
+    reasoned = third_await("journal await 'the merge of worker 3' --output 4 --why 'the release waits on it'")
+    assert reasoned.refusal is None and has_nudge(reasoned.nudges[0].rendered(), TasksNudges.WAIT_REASON_LINE, why="the release waits on it"), "with its reason it is accepted, the reason said back"
+    polled = waiting.respond(ToolStarting(call=shell("journal output status 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, command_lines=("journal output status 4", "journal output read 4 --tail 2", "journal output status 4"))})), conducted, (TasksConduct,))
+    assert polled.refusal is not None and has_nudge(polled.refusal.rendered(), TasksNudges.OUTPUT_POLL_REFUSAL, n=4), "a third look at one running output in a row is sent to await"
     assert awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0, last_seconds=10.0)}) is None, "one that ends within the setting's seconds may be awaited"
     assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)

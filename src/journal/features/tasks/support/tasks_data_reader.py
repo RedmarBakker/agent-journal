@@ -20,6 +20,7 @@ from journal.support.stage_times import StageTimes
 
 HISTORY_TOOL_STARTS = 6
 POLL_COMMANDS = 3
+COMMAND_LINE_COUNT = 6
 # the tasks an agent took in hand most recently, the one an event names among them: a main agent keeps the link to every task it ever held
 RECENT_OWNED_TASKS = 8
 # the open tasks a line names, the first by priority; the count says how many there are in all
@@ -50,6 +51,7 @@ class TasksDataReader:
             "first_pause_reason": lambda: next((task.pause_reason for task in self.assigner.paused_work()), ""),
             "next_open": lambda: self.assigner.offered(agent),
             "last_commands": lambda: self.last_commands(agent),
+            "command_lines": lambda: tuple(self.entries.last_command_lines(agent.session, COMMAND_LINE_COUNT)),
             "open_ids": lambda: self.assigner.open_ids(OPEN_TASKS_SHOWN),
             "open_count": lambda: self.tasks.open_count(),
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),

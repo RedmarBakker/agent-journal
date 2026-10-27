@@ -23,6 +23,9 @@ from journal.models.command_output import CommandOutput
 
 POLL_REPEAT_COMMANDS = 3
 WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
+WAIT_REASON = re.compile(r"--why[ =](?:\"([^\"]*)\"|'([^']*)'|(\S+))")
+POLLED_OUTPUT = re.compile(r"^journal output (?:status|read) (\d+)(?: --tail \d+)?$")
+AWAIT_REFUSAL_COUNT = 2
 
 
 class TasksConduct(Conduct):
@@ -35,7 +38,7 @@ class TasksConduct(Conduct):
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
+        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
         passed = [wait for wait in event.data.part(TasksPart).passed_waits if f"{Check.table()}:{wait.check_id}" == event.ref]
@@ -80,10 +83,31 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     if estimate.is_short(settings):
         return state.none()
     arguments = shlex.split(wait_line)
-    awaited = arguments[2] if len(arguments) > 2 else "the process"
+    wait_name = arguments[2] if len(arguments) > 2 else "the process"
+    if await_count(tasks.command_lines[:-1]) >= AWAIT_REFUSAL_COUNT:
+        return reasoned_wait(state, wait_line, wait_name, estimate.seconds_text())
     if tasks.current_task:
-        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=awaited, left=estimate.seconds_text(), n=tasks.next_open.id))
-    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=awaited, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
+    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=wait_name, left=estimate.seconds_text(), n=tasks.next_open.id))
+
+
+def await_count(commands: tuple[str, ...]) -> int:
+    return sum(1 for command in commands if command.startswith("journal await "))
+
+
+def reasoned_wait(state: BaseState, wait_line: str, wait_name: str, remaining_text: str) -> Transition:
+    reason_match = WAIT_REASON.search(wait_line)
+    if reason_match is None:
+        return state.refuse(TasksNudges.WAIT_REASON_REQUEST.create(what=wait_name, left=remaining_text))
+    return state.none(TasksNudges.WAIT_REASON_LINE.create(why=next(group for group in reason_match.groups() if group is not None)))
+
+
+def output_poll_check(state: BaseState, event: ToolStarting) -> Transition:
+    polled = POLLED_OUTPUT.match(event.call.command.strip())
+    if polled is None:
+        return state.none()
+    polled_numbers = [line_match.group(1) for command in event.data.part(TasksPart).command_lines[-3:-1] if (line_match := POLLED_OUTPUT.match(command.strip()))]
+    return state.refuse(TasksNudges.OUTPUT_POLL_REFUSAL.create(n=polled.group(1))) if polled_numbers == [polled.group(1)] * 2 else state.none()
 
 
 def impasse_check(state: BaseState, event: ToolStarting) -> Transition:

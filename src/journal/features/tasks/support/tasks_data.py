@@ -39,3 +39,4 @@ class TasksData:
     choosable_summary: str = ""
     free_open: bool = False
     paused_declined: bool = False
+    command_lines: tuple[str, ...] = ()

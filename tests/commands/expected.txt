@@ -1004,7 +1004,7 @@ options:
 
 $ agent: journal await begin --help
 exit 0
-usage: journal await begin [-h] [--output N] [--reader READER]
+usage: journal await begin [-h] [--output N] [--reader READER] [--why WHY]
                            [--until SCRIPT]
                            what
 
@@ -1018,6 +1018,8 @@ options:
                    more than one waits for all
   --reader READER  with --output, also watch the output live through this
                    reader, so the user sees it move while you wait
+  --why WHY        why you wait now rather than work on something else; asked
+                   after two awaits were sent back to other work
   --until SCRIPT   a shell script run every <span>; the wait ends once it
                    passes, such as ! kill -0 <pid> for a process
 
@@ -1813,8 +1815,10 @@ shell.watched_output_ended  [shell]  output {{n}}: {{outcome}}
 skills.read_the_skill_first  [skills]  read {{skills|cap=400}} first. every other tool waits until you have read them all
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}
 skills.stopped_owing  [skills]  you stopped with skill {{skills|cap=400}} unread. read it now, or run `journal stuck "<why>"`
+tasks.await_needs_its_reason  [tasks]  {{what}} runs {{left}}; to wait anyway, say why. add --why "<why it must wait now>" to the await
 tasks.await_only_what_ends_soon  [tasks]  {{what}} runs {{left}}, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.await_switches_task  [tasks]  {{what}} runs {{left}}, too long to wait. work on task {{n}} meanwhile: `journal task start {{n}}`
+tasks.await_with_its_reason  [tasks]  waiting because {{why|cap=48}}. do any open work that does not depend on it meanwhile
 tasks.blocked_task_asked_about  [tasks]  blocked with nothing to open them: {{tasks|cap=18}}. run `journal task unblock <n>` once what it waits on has arrived
 tasks.carry_on  [tasks]  {{name}} is in hand, {{logged}}: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say in one line why not
@@ -1830,6 +1834,7 @@ tasks.next_task_started  [tasks]  task {{n}} started. carry on with it
 tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, work on task {{n}}; you are informed when the wait ends
 tasks.no_stop_while_waiting  [tasks]  {{what|cap=24}} still runs ({{left|cap=16}}). do not stop; carry on with task {{n}} until it ends
 tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open: you are not stuck. work on them, or `journal await "<what you wait for>" --output <n>`
+tasks.output_polled  [tasks]  do not poll output {{n}}. wait for it: `journal await "<what>" --output {{n}}`
 tasks.park_the_wait  [tasks]  {{what}} has about {{seconds}} seconds left, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
@@ -1930,7 +1935,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-283 nudges
+286 nudges
 
 $ agent: journal worker list
 exit 0
