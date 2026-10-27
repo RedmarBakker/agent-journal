@@ -69,6 +69,9 @@ SETS = {
         "tests/docksDelay.test.js",
         "tests/chatMarkSecondRound.test.js",
     ),
+    "terminal": (
+        "tests/terminalRefused.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",

@@ -458,6 +458,30 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
         app.runtime().stop()
 
 
+def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its_retry_the_one_run(tmp_path: Path):
+    """A journal command chained with another is refused before it runs: the terminal shows its line as refused, with the reason, and the retry that runs as the one run."""
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    unowed(app)
+    server = app.server()
+    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
+    def hook(kind, **extra):
+        return json.loads(urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read() or b"{}")
+    chained = {"command": "journal task list && ls"}
+    try:
+        hook("SessionStart")
+        answer = hook("PreToolUse", tool_name="Bash", tool_input=chained, tool_use_id="t-1")
+        assert "deny" in json.dumps(answer) or "block" in json.dumps(answer), answer
+        hook("PostToolUseFailure", tool_name="Bash", tool_input=chained, error="refused by a hook", tool_use_id="t-1")
+        hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-2")
+        hook("PostToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_response={"stdout": "no task"}, tool_use_id="t-2")
+        lines = call(server, "GET", "/journal/agents/1/terminal")[1]
+        assert [(l["command"], bool(l["refused"])) for l in lines] == [("journal task list", True), ("ls", True), ("journal task list", False)], lines
+        assert "journal command" in lines[0]["refused"], "the refused line carries the journal's reason"
+    finally:
+        app.runtime().stop()
+
+
 def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_hand(tmp_path: Path):
     """The figure builds a parcel only for a test run or a build: the agent row's tool_work names the shell part in hand by its label when it is testing or building, and is the line's own work word otherwise."""
     app = main_journal(Config(tmp_path, port=0))

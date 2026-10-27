@@ -16,15 +16,21 @@ const {members: opened, toggle} = useToggledSet();
 <template>
     <Console>
         <template v-for="c in lines" :key="c.time">
-            <div :class="['log-line', {shell: c.tool === 'Bash', noted: c.tool === 'Journal'}]">
+            <div
+                :class="['log-line', {shell: c.tool === 'Bash', noted: c.tool === 'Journal', refused: c.refused}]"
+                :title="c.refused ? `The journal refused this before it ran: ${c.refused}` : null"
+            >
                 <span class="log-mark">{{ commandMark(c.tool) }}</span>
                 <span
                     :class="['log-text', {open: opened.has(c.time)}]"
-                    :title="opened.has(c.time) ? 'Click to collapse this line' : 'Click to show the whole line'"
+                    :title="c.refused ? null : opened.has(c.time) ? 'Click to collapse this line' : 'Click to show the whole line'"
                     @click="toggle(c.time)"
                 >
                     {{ c.command }}
                 </span>
+                <template v-if="c.refused">
+                    <span class="log-state">refused</span>
+                </template>
             </div>
             <template v-if="c.output">
                 <pre
@@ -65,6 +71,18 @@ const {members: opened, toggle} = useToggledSet();
 
 .log-line.queued {
     color: var(--text-4);
+}
+
+/* a command the journal refused before it ran: dimmed, so its retry reads as the one run */
+.log-line.refused {
+    color: var(--text-4);
+    font-style: normal;
+    opacity: 0.7;
+}
+
+.log-line.refused .log-text {
+    text-decoration: line-through;
+    text-decoration-color: var(--text-4);
 }
 
 .log-state {

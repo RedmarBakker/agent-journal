@@ -14,7 +14,7 @@ CURSOR_MARGIN_SECONDS = 1.0
 
 
 class TerminalLines:
-    """The agent's Terminal pane: each part of each shell call it finished, as the call was recorded, with the output the shell record stored for that part when it ran through the journal."""
+    """The agent's Terminal pane: each part of each shell call it finished, as the call was recorded, with the output the shell record stored for that part when it ran through the journal, or the reason the journal refused the call before it ran."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries
@@ -30,7 +30,8 @@ class TerminalLines:
     def call_lines(self, agent_id: int, call: Entry, part_ends: list[Entry]) -> list[TerminalLine]:
         start_time = call.creation_time.timestamp()
         parts = call.recorded_call().parts
-        return [self.part_line(agent_id, start_time + i * PART_STEP, part, self.part_end(part.text, start_time, part_ends)) for i, part in enumerate(parts)]
+        refused = call.data.get("refused", "")
+        return [self.part_line(agent_id, start_time + i * PART_STEP, part, self.part_end(part.text, start_time, part_ends), refused) for i, part in enumerate(parts)]
 
     @staticmethod
     def part_end(text: str, start_time: float, part_ends: list[Entry]) -> Entry | None:
@@ -40,7 +41,7 @@ class TerminalLines:
         return match
 
     @staticmethod
-    def part_line(agent_id: int, time: float, part: CommandPart, part_end: Entry | None) -> TerminalLine:
+    def part_line(agent_id: int, time: float, part: CommandPart, part_end: Entry | None, refused: str) -> TerminalLine:
         record = part_end.data if part_end else {}
         return TerminalLine(agent_id=agent_id, time=time, tool="Journal" if part.is_journal else "Bash", command=part.text, output=record.get("output", ""),
-                            seconds=record.get("seconds", 0.0), status=record.get("status", 0), stepped=False, level="everything")
+                            seconds=record.get("seconds", 0.0), status=record.get("status", 0), stepped=False, level="everything", refused=refused)
