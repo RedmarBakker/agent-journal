@@ -34,7 +34,7 @@ class ShellNudges:
     ALIAS_WATCH = Nudge("shell", "watched_alias_output", "output {{n}}, the run of journal {{name}}, is watched{{reader}}", repeat=Timeout.seconds(0))
     ALIASED_LINE = Nudge("shell", "aliased_line_refused", "journal {{name}} runs this line: {{line}}", "run `journal {{name}} [args]` instead: its reader and its card come with the alias", repeat=Timeout.seconds(0))
     MORE_SPECIFIC_ALIAS = Nudge("shell", "more_specific_alias_refused", "journal {{name}} runs what this run of journal {{called}} runs: {{line}}", "run `journal {{name}} [args]` instead: its reader and its card come with that alias", repeat=Timeout.seconds(0))
-    FLAGGED_TITLE = Nudge("shell", "name_the_run_in_words", "the card of output {{n}} is titled {{title}}, which shows a flag or a path where a description belongs", "say what the run does in words: `--label \"<words>\"` on the reader or alias that runs it, or `journal output watch {{n}} --title \"<words>\"`", repeat=Timeout.seconds(0))
+    FLAGGED_TITLE = Nudge("shell", "name_the_run_in_words", "the card of output {{n}} is titled {{card_title}}, which shows a flag or a path where a description belongs", "say what the run does in words: `--label \"<words>\"` on the reader or alias that runs it, or `journal output watch {{n}} --title \"<words>\"`", repeat=Timeout.seconds(0))
     ALIAS_SUGGESTION = Nudge("shell", "add_an_alias", "you ran {{shape}} three times or more", "`journal alias add <name> \"<the line without the values that change>\"{{reader}}`, then `journal <name> <values>`", repeat=Timeout.seconds(0))
 
     @staticmethod

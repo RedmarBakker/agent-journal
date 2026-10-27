@@ -9,7 +9,7 @@ CONDITION_TIMEOUT_SECONDS = 30
 
 
 class PluginServices:
-    """A plugin's services, each run by the environment's supervisor as plugin.<plugin>.<service> with the plugin's clean environment, where its when check passes; with no supervisor none runs, and the plugin's program answers instead."""
+    """A plugin's services, each run by the environment's supervisor as plugin.<plugin>.<service> with the plugin's clean environment and, when the plugin declares a health check, the path of its own health socket, where its when check passes; with no supervisor none runs, and the plugin's program answers instead."""
 
     def __init__(self, supervisor: SupervisorLink, runner: PluginRunner, folders: PluginFolders, environments: Environments) -> None:
         self.supervisor, self.runner, self.folders, self.environments = supervisor, runner, folders, environments
@@ -22,7 +22,7 @@ class PluginServices:
             for service in plugin.manifest.services:
                 if service.condition and self.runner.shell(plugin, environment.name, service.condition, CONDITION_TIMEOUT_SECONDS).returncode != 0:
                     continue
-                environ = self.runner.environment(plugin, environment.name) | {"JOURNAL_PLUGIN_SOCKET": str(self.folders.socket(plugin, environment.name))}
+                environ = self.runner.environment(plugin, environment.name) | {"JOURNAL_PLUGIN_SOCKET": str(self.folders.socket(plugin, environment.name))} | self.health_environment(plugin, environment.name, service)
                 folder = self.folders.folder(plugin)
                 command = [str(folder / service.program) if service.is_local else service.program, *service.command[1:]]
                 self.supervisor.start_clean(environment.row_id, self.lookup(plugin, service), command, folder, environ, self.folders.data(plugin) / f"{service.name}.log", service.restart != "never")
@@ -33,6 +33,11 @@ class PluginServices:
         for environment in self.supervisor.running(self.environments.all()):
             for service in plugin.manifest.services:
                 self.supervisor.stop_service(environment.row_id, self.lookup(plugin, service))
+
+    def health_environment(self, plugin: Plugin, environment: str, service: PluginService) -> dict[str, str]:
+        if not plugin.manifest.health.is_declared:
+            return {}
+        return {plugin.manifest.health.socket_env: str(self.folders.health_socket(plugin, environment, service))}
 
     @staticmethod
     def lookup(plugin: Plugin, service: PluginService) -> str:

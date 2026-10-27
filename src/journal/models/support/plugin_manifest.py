@@ -5,6 +5,7 @@ from journal.models.support.plugin_card_type import PluginCardType
 from journal.models.support.plugin_alias import PluginAlias
 from journal.support.event_window import EventWindow
 from journal.support.plugin_service import PluginService
+from journal.support.health_check import HealthCheck
 from journal.models.support.requirement import Requirement
 from journal.models.support.setup_step import SetupStep
 
@@ -14,7 +15,7 @@ PUBLISHED = {"hears": "events", "holds": "blocks"}
 
 @dataclass(frozen=True)
 class PluginManifest:
-    """What a plugin's journal-plugin.json says it is, runs, listens for and blocks, and the aliases it ships, as read and checked; its listens and blocks keys are read into events and blocks; health, when true, says its services answer a health probe."""
+    """What a plugin's journal-plugin.json says it is, runs, listens for and blocks, and the aliases it ships, as read and checked; its listens and blocks keys are read into events and blocks; its health block says how its services answer a health check."""
 
     name: str = ""
     version: str = ""
@@ -36,7 +37,7 @@ class PluginManifest:
     aliases: tuple[PluginAlias, ...] = ()
     reaches: dict[str, tuple[str, ...]] = field(default_factory=dict)
     ignored: tuple[str, ...] = ()
-    health: bool = False
+    health: HealthCheck = field(default_factory=HealthCheck)
 
     @classmethod
     def parsed(cls, data: dict) -> "PluginManifest":
@@ -44,7 +45,7 @@ class PluginManifest:
         return cls(**{**field_values, "events": tuple(data.get("hears", ())), "blocks": tuple(EventWindow.parsed(h) for h in data.get("holds", ())),
                       "services": tuple(PluginService.parsed(s) for s in data.get("services", ())), "cards": tuple(PluginCardType.parsed(c) for c in data.get("cards", ())),
                       "setup": tuple(SetupStep.parsed(s) for s in data.get("setup", ())), "aliases": tuple(PluginAlias.parsed(alias) for alias in data.get("aliases", ())), "requires": {program: Requirement.parsed(r) for program, r in data.get("requires", {}).items()},
-                      "reaches": {event: tuple(kinds) for event, kinds in data.get("reaches", {}).items()}, "ignored": tuple(data.get("ignored", ()))})
+                      "reaches": {event: tuple(kinds) for event, kinds in data.get("reaches", {}).items()}, "ignored": tuple(data.get("ignored", ())), "health": HealthCheck.parsed(data.get("health", {}))})
 
     def published(self) -> dict:
         names = {field: key for key, field in PUBLISHED.items()}

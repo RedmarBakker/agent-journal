@@ -22,9 +22,6 @@ FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "
 ROW_NAMES = {"line_type": "kind"}
 
 
-HEALTH_EVENT = "health"
-
-
 class Protocol:
     """The one line the journal sends a plugin for an event, and the one line it reads back: JSON both ways, versioned. An event and its fields go by their names, or by the published names plugins already read where the journal renamed them, the rows a field lists too."""
 
@@ -42,9 +39,6 @@ class Protocol:
         if isinstance(event, AgentEvent):
             line |= {"session": event.session, "provider": event.provider, "subagent": event.subagent}
         return json.dumps(line, default=str)
-
-    def health_line(self, environment: str) -> str:
-        return json.dumps({"v": self.VERSION, "event": HEALTH_EVENT, "at": self.time_source.moment().isoformat(), "environment": environment, "state": "", "data": {}})
 
     @staticmethod
     def event_data(event: Event) -> dict:

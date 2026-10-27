@@ -362,3 +362,12 @@ test("9. the creation and the edit of a task are marks shown with the filed icon
         markIcon("task_moves", {label: "Completed task 3: write the notes"}),
     ]).toEqual(["filed", "filed", "task_start", "task_done"]);
 });
+
+test("10. a check run that passed has the tick, one that failed the failed mark, and one that was stopped the stop mark, never the tick", async () => {
+    const {markIcon} = await import("../src/domain/markIcon.js");
+    expect([
+        markIcon("checks", {outcome: "passed", ending: "passed"}),
+        markIcon("checks", {outcome: "failed", ending: "failed"}),
+        markIcon("checks", {outcome: "", ending: "stopped"}),
+    ]).toEqual(["check", "check_fail", "stopped"]);
+});

@@ -22,7 +22,7 @@ class PluginHealthCheck(Job):
 
     def tick(self, time: float) -> None:
         for plugin in self.plugins.enabled():
-            if plugin.manifest.health:
+            if plugin.manifest.health.is_declared:
                 self.checked(plugin)
 
     def checked(self, plugin: Plugin) -> None:
@@ -32,8 +32,9 @@ class PluginHealthCheck(Job):
             self.services.start(plugin)
 
     def answered(self, plugin: Plugin, environment: Environment) -> bool:
-        if self.health.probe(plugin, environment.name) is None:
-            self.faults.failed(plugin, environment.row_id, HEALTH_EVENT_NAME, f"its service did not answer the health check within {HEALTH_WINDOW_SECONDS * 1000:.0f} ms, so it was started again")
+        silent = [probe.service for probe in self.health.probe(plugin, environment.name) if not probe.answered]
+        if silent:
+            self.faults.failed(plugin, environment.row_id, HEALTH_EVENT_NAME, f"{', '.join(silent)} did not answer the health check within {HEALTH_WINDOW_SECONDS * 1000:.0f} ms, so its services were started again")
             return False
         self.faults.answered(plugin, environment.row_id)
         return True

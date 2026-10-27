@@ -56,10 +56,12 @@ class PluginCommand(Command):
         return 0
 
     def health_line(self, plugin: Plugin, environment: str) -> str:
-        if not plugin.manifest.health:
+        if not plugin.manifest.health.is_declared:
             return "declares no health check"
-        seconds = self.probes.probe(plugin, environment)
-        return "not responding within 200 ms" if seconds is None else f"answered in {round(seconds * 1000)} ms"
+        probes = self.probes.probe(plugin, environment)
+        if not probes:
+            return "no service of it runs here"
+        return "; ".join(f"{probe.service} answered in {round(probe.seconds * 1000)} ms" if probe.answered else f"{probe.service} not responding within 200 ms" for probe in probes)
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for p in self.plugins.all():

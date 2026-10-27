@@ -19,3 +19,18 @@ def test_a_run_of_the_simulators_files_runs_at_a_lower_priority_and_any_other_ru
     spec.loader.exec_module(suite)
     assert suite.scoped_command(["tests/simulation_run.py", "-k", "history"])[:3] == ["nice", "-n", "10"], "a sweep of the simulator runs under nice"
     assert suite.scoped_command(["tests/test_cli.py"])[0] != "nice", "any other run is unchanged"
+
+
+def test_a_shards_count_never_drops_when_a_printed_line_lands_in_its_line_of_dots(tmp_path):
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
+    suite = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(suite)
+    output = tmp_path / "shard.out"
+    output.write_text("collected 9 items\n....")
+    assert suite.shard_progress(output) == (4, 9)
+    output.write_text("collected 9 items\n....no supervisor hosts this journal, so these services are off: sync\n..F  [ 77%]\n")
+    assert suite.shard_progress(output) == (7, 9), "the dots before a printed line still count"
+    output.write_text("collected 9 items\n.........  [100%]\nE       assert False\nF\n")
+    assert suite.shard_progress(output) == (9, 9), "an assertion line of a failure's report is no result"

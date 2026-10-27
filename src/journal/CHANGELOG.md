@@ -4,6 +4,16 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.66.2
+
+- The overview after a compaction no longer fails on a memory that names a message, document, report, question or rule: only tasks, plans and workers are asked whether they closed.
+- Lines typed to the agent come through again after a compaction whose start failed: the terminal is switched back on the moment the compaction state leaves the stack, so a later fault in the same answer cannot leave it off.
+- A plugin may declare a health block: each of its services gets a short socket of its own, is asked every minute and must answer within 200 ms; a miss starts its services again, five in a row mark the plugin broken with a red bar at the top of the viewer, and `journal plugin health` checks at once. Plugin services start fresh whenever the journal starts.
+- A memory can end by itself with `--valid-until`, when the task or plan it names closes or a moment passes.
+- Fields, columns and API keys named kind are type names now (entry_type, link_type and the rest); a database and a team journal on the old names are migrated.
+- Every journal command a line names is written whole, as the console parses it; a check updates its row once per run; a hidden tab stops polling and a returning tab jumps to the newest; the agent grid counts each worker's queue, finished tasks and pace; a check's card reads its title, a colon and how it went; the memories mark opens into two folded groups, still shown and removed; a stopped check run shows the stop mark, never the tick; a paused plan whose remaining tasks are all blocked is blocked too, and opens again when one opens.
+- The suite's count no longer drops when a test prints a line in the middle of a shard's line of dots.
+
 ## 4.66.1
 
 - A viewer tab whose remembered environment is gone, or that remembers none, opens on the environment whose agent was active last, or the first, and no longer stays stuck asking for rows of an environment that does not exist.

@@ -42,7 +42,7 @@ class CheckRunProcessCard(ProcessCard):
 
     @staticmethod
     def label(check: Check, active: bool) -> str:
-        return f"Check {check.title} {'running' if active else check.verdict()}"
+        return f"{check.title}: {'running' if active else check.verdict()}"
 
     @staticmethod
     def run_view(check: Check, run_start: float, active: bool) -> CheckRunView:

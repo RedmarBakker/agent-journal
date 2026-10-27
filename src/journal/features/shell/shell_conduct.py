@@ -202,6 +202,6 @@ def background_check(state: BaseState, event: Ticked, settings: Settings) -> Tra
 
 def run_title_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
-    tips = [ShellNudges.FLAGGED_TITLE.create(n=run.id, title=run.title) for run in shell.titled_runs if run.is_flagged()]
+    tips = [ShellNudges.FLAGGED_TITLE.create(n=run.id, card_title=run.title) for run in shell.titled_runs if run.is_flagged()]
     new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
     return state.none(new_tips[0]) if new_tips else state.none()

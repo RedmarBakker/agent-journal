@@ -2024,6 +2024,7 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
         assert json.loads(urlopen(request, timeout=5).read()) == {"registered": "stand-in"}
         app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 0})
         app.container.get(IdBlocks).add("tasks", 900001, 900099)
+        app.container.get(IdBlocks).add("messages", 900001, 900099)
         assert app.console().run(["task", "create", "queued for the team"], Caller.user("main")).code == 0
         deadline = time.monotonic() + 10
         while not posted and time.monotonic() < deadline:

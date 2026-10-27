@@ -84,11 +84,14 @@ The journal's own tests run this plugin, from `tests/plugins/echo`.
   stopped on switch-off and removal, and restarted by an upgrade. A service with `answers` listens on
   `JOURNAL_PLUGIN_SOCKET` and is asked in place of the program, one line in and one line out. With no supervisor, or
   with its socket gone, the program answers.
-- `health`: `true` when the plugin's answering service takes a health check. Every minute the journal sends it the
-  line `{"v": 1, "event": "health", ...}` on its socket and wants any valid answer, such as `{"v": 1, "answer":
-  "allow"}`, within 200 ms. A miss counts as a fault and starts its services again; five in a row mark the plugin
-  broken, which shows a red bar at the top of the viewer, and the next answer clears it. A plugin without the key is
-  never probed. `journal plugin health [<name>]` runs the check at once.
+- `health`: `{"socket_env": "MY_HEALTH_SOCKET", "request": "{\"health\":1}", "answer": "{\"health\":\"up\",\"service\":\"<name>\"}"}`,
+  how its services answer a health check. Each service is started with `socket_env` set to the path of a short Unix
+  socket of its own, where it listens from the moment it is up, on a listener apart from its work so a busy service
+  still answers. Every minute the journal writes `request` there and wants one line back matching `answer` within
+  200 ms, a value in angle brackets matching anything. A miss counts as a fault and starts the plugin's services
+  again; five in a row mark the plugin broken, which shows a red bar at the top of the viewer, and the next answer
+  clears it. A service with no socket is not running there and is not asked. A plugin without the block is never
+  checked. `journal plugin health [<name>]` runs the check at once.
 - `dashboard`: `{"name": ..., "title": ...}`, a panel opened from a button on the plugin's card, `title` naming the
   button and the panel and `name` the dashboard in its address; the panel is drawn from lines
   the plugin writes with `journal dashboard set <key> "<label>" [--badge <text>] [--tone good|warn|danger|note|muted]

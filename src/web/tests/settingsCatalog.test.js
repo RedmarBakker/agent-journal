@@ -137,7 +137,7 @@ describe("the Agent tab", () => {
 });
 
 describe("the manifest's features", () => {
-    const option = (name, kind, more = {}) => ({key: `workers.${name}`, name, title: name, abstract: `About ${name}`, kind, default: null, unit: "", choices: [], provider: "", read_by: [], ...more});
+    const option = (name, kind, more = {}) => ({key: `workers.${name}`, name, title: name, abstract: `About ${name}`, option_type: kind, default: null, unit: "", choices: [], provider: "", read_by: [], ...more});
     const spec = {
         features: [
             {
@@ -200,12 +200,12 @@ describe("the Developer tab", () => {
 
 test("the Test budget numbers show with the Workers settings, each with its default", () => {
     const options = [
-        {name: "testing", title: "How workers test", abstract: "x", kind: "choice", default: "Hand the tests over", choices: ["Hand the tests over", "Run the tests it wrote", "Test budget"]},
-        {name: "test_runs", title: "Test runs at once", abstract: "x", kind: "number", default: 3},
-        {name: "test_waiting", title: "Turns that may wait", abstract: "x", kind: "text", default: ""},
-        {name: "tests_per_run", title: "Test ids in one run", abstract: "x", kind: "number", default: 20},
-        {name: "test_run_minutes", title: "Minutes a test run may take", abstract: "x", kind: "number", default: 10},
-        {name: "failing_runs", title: "Failing runs in a row", abstract: "x", kind: "number", default: 3},
+        {name: "testing", title: "How workers test", abstract: "x", option_type: "choice", default: "Hand the tests over", choices: ["Hand the tests over", "Run the tests it wrote", "Test budget"]},
+        {name: "test_runs", title: "Test runs at once", abstract: "x", option_type: "number", default: 3},
+        {name: "test_waiting", title: "Turns that may wait", abstract: "x", option_type: "text", default: ""},
+        {name: "tests_per_run", title: "Test ids in one run", abstract: "x", option_type: "number", default: 20},
+        {name: "test_run_minutes", title: "Minutes a test run may take", abstract: "x", option_type: "number", default: 10},
+        {name: "failing_runs", title: "Failing runs in a row", abstract: "x", option_type: "number", default: 3},
     ];
     const spec = {features: [{name: "workers", title: "Workers", help: "x", default: true, fixed: false, options}], groups: [{key: "workers", title: "Workers", line: "x", section: "Project", tab: "system", lead: "workers"}]};
     const rows = groupRows(catalog(spec, {}).flatMap((section) => section.groups)[0]);

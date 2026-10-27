@@ -32,7 +32,7 @@ MOVES = {
     PlanState.APPROVED: {PlanState.STARTED, PlanState.PAUSED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.STARTED: {PlanState.PAUSED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.BLOCKED: {PlanState.STARTED, PlanState.PAUSED, PlanState.FINISHED, PlanState.CANCELLED},
-    PlanState.PAUSED: {PlanState.READY, PlanState.APPROVED, PlanState.STARTED, PlanState.FINISHED, PlanState.CANCELLED},
+    PlanState.PAUSED: {PlanState.READY, PlanState.APPROVED, PlanState.STARTED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.FINISHED: {PlanState.STARTED},
     PlanState.CANCELLED: set(),
 }

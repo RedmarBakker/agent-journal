@@ -20,7 +20,7 @@ FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
 PERCENT = re.compile(r"\[\s*(\d+)%\]")
 COLLECTED = re.compile(r"collected (\d+) items?(?: / (\d+) deselected)?")
-RESULT_LINE = re.compile(r"^(?:tests/\S+ )?([.FEsxX]+)\s*(?:\[\s*\d+%\])?$")
+RESULT_LINE = re.compile(r"^(?:tests/\S+ )?([.FEsxX]+)(?=\s*\[\s*\d+%\]|\s*$|\S)")
 PROGRESS_SECONDS = 2.0
 HEARTBEAT_SECONDS = 10.0
 DURATIONS_FILE = ROOT / ".journal" / "runtime" / "suite-durations.json"

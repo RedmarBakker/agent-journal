@@ -4,6 +4,7 @@ from pathlib import Path
 
 from journal.config import Config
 from journal.models.plugin import Plugin
+from journal.support.plugin_service import PluginService
 
 
 class PluginFolders:
@@ -26,3 +27,7 @@ class PluginFolders:
     def socket(self, plugin: Plugin, environment: str) -> Path:
         threshold = hashlib.sha1(f"{self.config.root}|{environment}|{plugin.name}".encode()).hexdigest()[:12]
         return Path(f"/tmp/journal-{os.getuid()}") / f"plugin-{threshold}.sock"
+
+    def health_socket(self, plugin: Plugin, environment: str, service: PluginService) -> Path:
+        threshold = hashlib.sha1(f"{self.config.root}|{environment}|{plugin.name}|{service.name}".encode()).hexdigest()[:12]
+        return Path(f"/tmp/journal-{os.getuid()}") / f"health-{threshold}.sock"

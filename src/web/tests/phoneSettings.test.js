@@ -7,7 +7,7 @@ const plugin = (schema, settings = {}) => pluginFrom({table: "plugins", id: 4, n
 
 describe("plugin settings", () => {
     test("every setting of the schema shows, with its saved value", () => {
-        const shown = plugin([{key: "mode", kind: "choice", choices: ["a", "b"], default: "a"}, {key: "extra", kind: "text"}], {mode: "b"});
+        const shown = plugin([{key: "mode", setting_type: "choice", choices: ["a", "b"], default: "a"}, {key: "extra", setting_type: "text"}], {mode: "b"});
         expect(visibleSettings(shown).map((s) => [s.key, s.value])).toEqual([
             ["mode", "b"],
             ["extra", ""],
@@ -15,7 +15,7 @@ describe("plugin settings", () => {
     });
 
     test("the settings are one group that counts its switches", () => {
-        const groups = settingGroups(plugin([{key: "one", kind: "flag", default: true}, {key: "two", kind: "text"}]));
+        const groups = settingGroups(plugin([{key: "one", setting_type: "flag", default: true}, {key: "two", setting_type: "text"}]));
         expect(groups.map((g) => g.name)).toEqual([""]);
         expect(groups[0].flags.map((s) => s.key)).toEqual(["one"]);
     });

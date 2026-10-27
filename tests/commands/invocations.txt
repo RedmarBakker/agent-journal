@@ -291,6 +291,7 @@ agent developer reset
 agent developer profile --help
 agent developer client-errors
 agent plugin list
+agent plugin health
 agent plugin settings --help
 agent plugin install --help
 agent plugin propose --help

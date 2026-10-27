@@ -480,6 +480,11 @@ def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked
     assert "is blocked, waiting on" in console.run(["plan", "start", "1"], AGENT).error
     console.run(["task", "unblock", "2"], AGENT)
     assert plans.find(1).state == "started" and any("plan 1 is open again: task 2 is open again" in line for line in keystrokes)
+    console.run(["plan", "pause", "1"], AGENT)
+    console.run(["task", "block", "2", "the tag waits on the notes' review"], AGENT)
+    assert plans.find(1).state == "blocked", "a paused plan done with all but its blocked tasks is blocked too"
+    console.run(["task", "unblock", "2"], AGENT)
+    assert plans.find(1).state == "started", "and active again the moment one of them opens"
     marker = app.config.root / "released"
     console.run(["plan", "block", "1", "--until", f"test -f {marker}"], AGENT)
     assert plans.find(1).state == "blocked"
@@ -1291,8 +1296,8 @@ def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch)
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         from journal.repositories.messages import Messages
-        outcomes = {m.text: m.data.get("outcome") for m in app.container.get(Messages).all() if m.text.startswith("Check ")}
-    assert outcomes.get("Check it is broken failed") == "failed" and outcomes.get("Check it is fine passed") == "passed", outcomes
+        outcomes = {m.text: m.data.get("outcome") for m in app.container.get(Messages).all()}
+    assert outcomes.get("it is broken: failed") == "failed" and outcomes.get("it is fine: passed") == "passed", "a check's card is titled by the check, a colon and how it went: " + str(outcomes)
 
 
 def test_a_running_check_is_a_docked_card_with_its_progress_that_becomes_its_result_mark(app: App):
@@ -1314,14 +1319,14 @@ def test_a_running_check_is_a_docked_card_with_its_progress_that_becomes_its_res
             return app.container.get(Messages).with_key(f"check-run:1:{run_start}")[0]
 
     running = card()
-    assert running.text == "Check the suite running" and running.data["active"] and running.data["docked"] and running.data["auto_docked"], "a check that starts is a live card, docked at the bottom of the chat"
+    assert running.text == "the suite: running" and running.data["active"] and running.data["docked"] and running.data["auto_docked"], "a check that starts is a live card, docked at the bottom of the chat"
     checks.touch(checks.find(1), Actor.user(1), progress=CheckProgress(run_start, "...F\n", 3, 10, 30.0))
     fields = app.container.get(CheckRunProcessCard).refresh(running)
     assert fields["count"] == "3/10" and fields["fraction"] == 0.3 and fields["active"], "its card shows the progress the Checks page reads"
     checks.rewritten(checks.find(1), Actor.user(1), lambda row: row.completed(True, "10 passed", datetime.now(timezone.utc), 2.0, None, "", run_start))
     app.runtime().deferred.drain()
     ended = card()
-    assert ended.text == "Check the suite passed" and ended.data["final"] and not ended.data["active"] and ended.data["outcome"] == "passed" and "undock_at" in ended.data, "its end turns the card into the result mark, which leaves the dock by itself"
+    assert ended.text == "the suite: passed" and ended.data["final"] and not ended.data["active"] and ended.data["outcome"] == "passed" and "undock_at" in ended.data, "its end turns the card into the result mark, which leaves the dock by itself"
 
 
 def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_stuck(app: App, monkeypatch):
@@ -3124,14 +3129,14 @@ def test_a_task_edited_after_a_users_message_is_linked_to_it_and_reminds_while_t
     hook(app, "SessionStart")
     console = app.console()
     console.run(["task", "create", "write the notes"], AGENT)
-    console.run(["message", "send", "also mention the tags"], USER)
-    console.run(["message", "read", "1"], AGENT)
+    n = re.search(r"message (\d+)", console.run(["message", "send", "also mention the tags"], USER).text).group(1)
+    console.run(["message", "read", n], AGENT)
     reminded = console.run(["task", "edit", "1", "--brief", "notes and tags"], AGENT).text
-    assert "message 1 of the user is read and linked to no task" in reminded and "journal task edit 1 --from 1" in reminded, "one line after the edit names the message and the flag"
-    linked = console.run(["task", "edit", "1", "--brief", "notes, tags and links", "--from", "1"], AGENT).text
-    assert "(from message 1)" in linked and "linked to no task" not in linked
+    assert f"message {n} of the user is read and linked to no task" in reminded and f"journal task edit 1 --from {n}" in reminded, "one line after the edit names the message and the flag"
+    linked = console.run(["task", "edit", "1", "--brief", "notes, tags and links", "--from", n], AGENT).text
+    assert f"(from message {n})" in linked and "linked to no task" not in linked
     with app.container.get(Scope).environment(1):
-        message = app.container.get(Messages).find(1)
+        message = app.container.get(Messages).find(int(n))
         assert [ref.id for ref in app.container.get(Links).targets(message, Messages.SUBJECT_LINK)] == [1], "the message is linked to the task as create links it"
     assert "linked to no task" not in console.run(["task", "edit", "1", "--title", "write the notes and tags"], AGENT).text, "a linked message is not asked for again"
 
@@ -3730,7 +3735,7 @@ def test_a_row_the_agent_writes_right_after_replying_to_a_message_is_linked_to_i
 def test_a_message_read_through_a_pipe_is_refused(app: App):
     hook(app, "SessionStart")
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message read 3 | head -3"})
-    assert status == 409 and "no pipe after `journal message read`" in body["error"]
+    assert status == 409 and "no pipe after `journal message read <n>`" in body["error"]
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message read 3"})[0] == 200
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list | head -5"})[0] == 200, "only the user's words are protected"
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "grep 'journal message read 3' notes.md | head -2"})[0] == 200, "the words quoted inside another command are not a read"
@@ -5558,7 +5563,7 @@ def test_an_answer_names_the_command_that_shows_the_question_whole_and_that_read
     assert "question 1: Which name?  [alpha / beta]" in shown and "answer: beta" in shown and "act on the answer" in shown
     assert "mentions message 2 from the system: You answered question 1" in shown, "the answer's message is shown with the question, linked by its table and id"
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal question show 1 " + "|" + " head -2"})
-    assert status == 409 and "`journal question show`" in body["error"], "read whole, never through a pipe"
+    assert status == 409 and "`journal question show <n>`" in body["error"], "read whole, never through a pipe"
 
 
 def test_a_message_left_from_the_viewer_while_the_agent_sits_idle_is_named_to_it_at_once(app: App, monkeypatch):
@@ -12752,14 +12757,15 @@ def test_a_reused_worker_keeps_every_report_and_is_out_again_until_it_reports(ap
     console.run(["worker", "report", "1", "the rocket runs"], Caller.agent("main", "w1", "claude"))
     workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
     console.run(["worker", "complete", "1"], AGENT)
-    console.run(["worker", "send", "1", "the tender"], AGENT)
+    tender = re.search(r"task (\d+)", console.run(["task", "create", "the tender", "--brief", "couple the tender"], AGENT).text).group(1)
+    console.run(["worker", "send", "1", "the tender", "--task", tender], AGENT)
     assert not workers.find(1).adopted and workers.find(1).is_running(), "a report acted on is a thing of the last job; the new one is out"
     console.run(["worker", "report", "1", "the tender is coupled"], Caller.agent("main", "w1", "claude"))
     assert workers.find(1).is_idle()
     console.run(["worker", "stop", "1"], AGENT)
-    console.run(["worker", "send", "1", "the rails"], AGENT)
+    revived = console.run(["worker", "send", "1", "the rails", "--task", tender], AGENT)
     listed = console.run(["worker", "list"], AGENT).text.splitlines()[0]
-    assert listed.split()[1] == "dispatched" and listed.endswith("Mr. Stephenson: the rails"), "a revived stopped worker is listed as out"
+    assert listed.split()[1] == "dispatched" and listed.endswith("Mr. Stephenson: the rails"), f"a revived stopped worker is listed as out: {revived.text}{revived.error}"
     assert len(links.targets(workers.find(1), REPORTED)) == 2, "each report keeps its own link, the first kept as history"
 
 
@@ -15572,6 +15578,7 @@ def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_
     assert app.container.get(Identity).build({}, "") == Actor.user(1), "a journal in no team is user 1's"
     app.container.get(TeamAccount).write({"account_id": 7, "device": "d7"})
     app.container.get(IdBlocks).add("tasks", 7001, 7999)
+    app.container.get(IdBlocks).add("messages", 7001, 7999)
     assert app.container.get(Identity).build({}, "") == Actor.user(7), "the viewer writes as the person whose account this machine joined with"
     caller = CallerVariables("main", "claude", False).caller(app.container.get(TeamAccount).user_number())
     assert caller.actor == Actor.user(7)
@@ -20046,18 +20053,18 @@ def test_a_task_made_without_its_message_names_the_unlinked_one_and_a_linked_tas
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "an earlier task"], AGENT)
     assert "names no message" not in console.run(["task", "create", "nothing waits"], AGENT).text, "no line while no read message waits"
-    console.run(["message", "send", "make the footer blue"], USER)
-    console.run(["message", "read", "1"], AGENT)
+    n = re.search(r"message (\d+)", console.run(["message", "send", "make the footer blue"], USER).text).group(1)
+    console.run(["message", "read", n], AGENT)
     made = console.run(["task", "create", "the footer"], AGENT)
-    assert "names no message it came from, and message 1 of the user is read and linked to no task" in made.text and "--from 1" in made.text, made.text
-    assert "names no message" not in console.run(["task", "create", "the header", "--from", "1"], AGENT).text, "no line when --from names it"
-    console.run(["message", "send", "On it: task 4 makes the footer blue.", "--reply-to", "1"], AGENT)
+    assert f"names no message it came from, and message {n} of the user is read and linked to no task" in made.text and f"--from {n}" in made.text, made.text
+    assert "names no message" not in console.run(["task", "create", "the header", "--from", n], AGENT).text, "no line when --from names it"
+    console.run(["message", "send", "On it: task 4 makes the footer blue.", "--reply-to", n], AGENT)
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
-        reply = [m for m in messages.replies(messages.find(1))][-1]
+        reply = [m for m in messages.replies(messages.find(int(n)))][-1]
         tasks_of = lambda message: [ref.id for ref in links.targets(message, Messages.SUBJECT_LINK) if ref.type == Task.table()]
         assert 4 in tasks_of(reply), "the agent's reply to a task's message is linked to the task too"
-        assert tasks_of(messages.find(1)).count(4) == 1 and tasks_of(reply).count(4) == 1, "and each link is made once, the reply naming the task among them"
+        assert tasks_of(messages.find(int(n))).count(4) == 1 and tasks_of(reply).count(4) == 1, "and each link is made once, the reply naming the task among them"
 
 
 def test_of_several_readers_of_one_command_the_first_made_reads_it_until_another_is_made_its_default(app: App):
@@ -20115,12 +20122,15 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
     from journal.repositories.plugins import Plugins
     sent = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: sent.append((verb, fields.get("name", ""))) or SupervisorReply(True))
+    environs = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: sent.append((verb, fields.get("name", ""))) or environs.append(fields.get("env", {})) or SupervisorReply(True))
     run = lambda *words: app.console().run(list(words), AGENT).text
     echo(app, name="quiet")
     assert run("plugin", "health", "quiet") == "quiet: declares no health check\n", "a plugin without a health check still runs and is never probed"
-    plugin = echo(app, services=[{"name": "answers", "command": ["serve.py"], "answers": True}], health=True)
-    path = app.container.get(PluginFolders).socket(plugin, "main")
+    health = {"socket_env": "ECHO_HEALTH_SOCKET", "request": '{"health":1}', "answer": '{"health":"up","service":"<the service>"}'}
+    plugin = echo(app, services=[{"name": "answers", "command": ["serve.py"], "answers": True}], health=health)
+    assert run("plugin", "health", "echo") == "echo: no service of it runs here\n", "a service with no health socket is not running here, which is no miss"
+    path = app.container.get(PluginFolders).health_socket(plugin, "main", plugin.manifest.services[0])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -20130,9 +20140,9 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
     answering.set()
 
     def answered(connection):
-        connection.makefile("rb").readline()
-        if answering.is_set():
-            connection.sendall(b'{"v": 1, "answer": "allow"}\n')
+        asked = connection.makefile("rb").readline()
+        if answering.is_set() and json.loads(asked) == {"health": 1}:
+            connection.sendall(b'{"health": "up", "service": "answers"}\n')
         else:
             timing.sleep(0.5)
         connection.close()
@@ -20147,17 +20157,18 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
 
     threading.Thread(target=serving, daemon=True).start()
     try:
-        assert re.fullmatch(r"echo: answered in \d+ ms\n", run("plugin", "health", "echo")), "a service that answers in time is said to with its time"
+        assert re.fullmatch(r"echo: answers answered in \d+ ms\n", run("plugin", "health", "echo")), "a service that answers in time is said to with its time"
         checks, plugins = app.container.get(PluginHealthCheck), app.container.get(Plugins)
         checks.tick(timing.time())
         assert plugins.lookup("echo").fault_streak == 0 and not [verb for verb, _ in sent if verb == "start"], "an answer restarts nothing"
         answering.clear()
-        assert run("plugin", "health", "echo") == "echo: not responding within 200 ms\n"
+        assert run("plugin", "health", "echo") == "echo: answers not responding within 200 ms\n"
         for _ in range(4):
             checks.tick(timing.time())
         row = plugins.lookup("echo")
         assert row.fault_streak == 4 and row.failed_at is None and row.enabled, "four misses in a row are faults, not yet broken"
         assert ("start", "plugin.echo.answers") in sent and ("stop", "plugin.echo.answers") in sent, "a miss starts its service again"
+        assert str(path) in [environ.get("ECHO_HEALTH_SOCKET") for environ in environs], "with the path of its own health socket in the variable the plugin named"
         checks.tick(timing.time())
         row = plugins.lookup("echo")
         assert row.failed_at is not None and row.enabled and "health check within 200 ms" in row.last_fault, "the fifth marks it broken, never switched off"
@@ -20253,6 +20264,7 @@ def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_t
     account = app.container.get(TeamAccount)
     account.write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 7})
     app.container.get(IdBlocks).add("tasks", 100, 199)
+    app.container.get(IdBlocks).add("messages", 100, 199)
     app.container.get(OutgoingChanges).queued(OutgoingChange(row_table="tasks", row=1, action=UPDATED, fields={"state": "open"}, changed_at={"state": 1.0}, writer="user:1"), Actor.system())
     app.console().run(["task", "create", "kept after leaving"], USER)
     said = app.console().run(["team", "leave"], USER)
@@ -22511,7 +22523,7 @@ def test_a_hook_sent_again_is_answered_from_its_entry_and_reaches_no_listener(ap
     hook(app, "SessionStart")
     fired = lambda type_name, firing, **body: posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main", "X-Journal-Hook-Id": firing})
     refused = [fired("PreToolUse", "71-1", tool_name="Bash", tool_input={"command": "journal message read 3 | head -3"}) for _ in range(2)]
-    assert [status for status, _ in refused] == [409, 409] and all("no pipe after `journal message read`" in body["error"] for _, body in refused), "a refused hook sent again is refused again with the reason its entry recorded"
+    assert [status for status, _ in refused] == [409, 409] and all("no pipe after `journal message read <n>`" in body["error"] for _, body in refused), "a refused hook sent again is refused again with the reason its entry recorded"
     message = {"to": "code-commandments-12", "message": "the fix is in"}
     for _ in range(2):
         fired("PostToolUse", "72-1", tool_name="SendMessage", tool_input=message, tool_response={})
@@ -23115,7 +23127,7 @@ def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_i
     for _ in range(2):
         tick()
     lines = told()
-    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.FLAGGED_TITLE, n=1, title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
+    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.FLAGGED_TITLE, n=1, card_title="Running /private/tmp/claude-501/suite"), f"a card titled with a path is told once: {lines}"
     outputs.watch(outputs.find(1), "", "Running the performance tests", Actor.system())
     tick()
     assert len(told()) == 1, "a card titled in words adds no line"

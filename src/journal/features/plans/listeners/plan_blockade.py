@@ -9,9 +9,11 @@ from journal.repositories.plans import Plans
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.support.time_source import TimeSource
 
+BLOCKABLE_STATES = (PlanState.STARTED, PlanState.PAUSED)
+
 
 class PlanBlockade(Listener[Updated]):
-    """A started plan whose every remaining task is blocked blocks itself, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is informed either way."""
+    """A started or paused plan whose every remaining task is blocked blocks itself, done with all but those, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is informed either way."""
 
     def __init__(self, plans: Plans, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -22,7 +24,7 @@ class PlanBlockade(Listener[Updated]):
         if not isinstance(task, Task) or previous is None or task.state == previous.state:
             return
         for plan in self.plans.containing(task):
-            if plan.state == PlanState.STARTED and self.plans.is_stalled(plan):
+            if plan.state in BLOCKABLE_STATES and self.plans.is_stalled(plan):
                 self.plans.save(plan.blocked(PlansNudges.ALL_BLOCKED, self.time_source.moment().timestamp()), Actor.system())
             elif self.is_unblockable(plan):
                 self.plans.save(plan.unblocked(f"task {task.id} is open again", self.time_source.moment().timestamp()), Actor.system())
