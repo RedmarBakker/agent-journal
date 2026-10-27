@@ -1,4 +1,4 @@
-import {CHAT_FOOT, FEET_INBOARD, HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
+import {CHAT_FOOT, FEET_INBOARD, boxAt, composeEdge, groundEdge, homeElement, inWorld, worldBox} from "./places.js";
 import {GRAVITY} from "../domain/falls.js";
 
 // the chat's bubbles, which the figure walks, sits and hangs on
@@ -25,7 +25,7 @@ export function floorOf(element) {
 const inView = (box, view) => box.top >= view.top && box.top <= view.bottom && box.right > view.left && box.left < view.right;
 
 // the thread the main chat shows, whose bubbles are floors
-const threadOf = () => document.querySelector(HOME)?.closest(".thread")?.querySelector(".thread-scroll") ?? null;
+const threadOf = () => homeElement()?.closest(".thread")?.querySelector(".thread-scroll") ?? null;
 
 // What the chat shows of its bubbles: the thread's view down to the top of its foot, which stays over the bubbles that scroll behind it, so
 // a bubble's top hidden behind the docks is no floor and a figure is never stood inside them
@@ -93,6 +93,10 @@ export function stopFloors() {
 // where it stood, further up and it is thrown up onto it
 const CARRIED_WITHIN = 5;
 
+// how far home may rise under the figure's feet in one frame and still carry it up, in pixels: one docked bar's height and its gap, so a
+// bar docking over the compose box lifts the figure along with its floor, and only a rise further than that throws it up
+const CARRIED_UP_WITHIN = 56;
+
 // A bubble the figure rides or hangs from rising in a burst, as a scroll down the chat moves it: it carries the figure up while it rises
 // faster than `rising` pixels a second, and once a burst that reached `speed` slows again, the figure is thrown on up off it, as high as
 // `share` of how far the bubble rose in the burst, so a small nudge throws it a little way and a long fast scroll high, off the top of the
@@ -154,15 +158,16 @@ export function holds(spot, figure, floors = latestFloors().floors) {
 // under it. Anywhere but home it is carried along with its floor, counting on its footing how far the floor has `risen` in a burst and
 // whether the burst was `fast`, and "flung" off it once a fast burst is over, or its floor carried it out of sight in one, thrown up at
 // `speed` (throwSpeed), unless it swings on a rope under it. At home it stays where it stood along the ground, at its height above
-// whatever is home now, measured every frame: carried while home is within CARRIED_WITHIN pixels of its feet, "dropping" when home fell
-// further, as when a bar goes, and "launched" when it rose further, as when a bar docks over the compose box.
+// whatever is home now, measured every frame: carried while home fell no more than CARRIED_WITHIN pixels or rose no more than
+// CARRIED_UP_WITHIN, as when one bar docks over the compose box, "dropping" when home fell further, as when a bar goes, and "launched"
+// when it rose further, as when several bars dock at once.
 export function groundUnder(footing, spot, figure, floors = latestFloors().floors) {
     const now = footingNow(footing, figure, floors);
     if (!footing.home) return awayUnder(footing, spot, now, floors);
     if (!now) return null;
     const home = floorNamed(floors, "home");
     const drop = now.y - spot.y;
-    const motion = Math.abs(drop) <= CARRIED_WITHIN ? "carried" : drop > 0 ? "dropping" : "launched";
+    const motion = drop > CARRIED_WITHIN ? "dropping" : -drop > CARRIED_UP_WITHIN ? "launched" : "carried";
     return {spot: {...spot, y: now.y}, footing: {...footing, dx: spot.x - home.left}, motion};
 }
 

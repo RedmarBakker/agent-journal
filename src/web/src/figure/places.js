@@ -8,6 +8,14 @@ import {PARCEL, PILED, PUSH} from "./parcels.js";
 // chat's compose box is home, and each of Home's tabs is a place it can go to point at what waits there.
 export const HOME = "[data-figure-home]";
 
+// the home the figure stands on: the compose box of the main chat that is shown, since a chat in a hidden layout or a page leaving
+// keeps its box in the page for a moment, and the first in the page's order may be the one no longer seen
+export const homeElement = () => {
+    const first = document.querySelector(HOME);
+    if (!first || first.checkVisibility?.() !== false) return first;
+    return [...document.querySelectorAll(HOME)].find((box) => box.checkVisibility?.()) ?? first;
+};
+
 // the bars docked over the main chat's compose box, such as a report's, which the figure is pushed up onto while they are there
 export const DOCKED_BARS = "[data-figure-docked-bars]";
 // the foot of the chat, the docks and the line of what the agent is doing, which stays over the bubbles at the bottom of the chat's view
@@ -40,7 +48,7 @@ export const NEWEST = "[data-figure-newest]";
 
 // The visible Newest button in the main chat, measured where the page put it; hidden controls and message contents do not count.
 export function newestButton() {
-    const thread = document.querySelector(HOME)?.closest(".thread");
+    const thread = homeElement()?.closest(".thread");
     if (!thread) return null;
     const marked = thread.querySelector(NEWEST) ?? thread.querySelector("button.thread-down");
     const candidates = marked ? [marked] : [...(thread.querySelectorAll?.("button, [role=button]") ?? [])].filter((element) =>
@@ -202,7 +210,7 @@ const visible = (element) => element.checkVisibility?.({opacityProperty: true, v
 
 // The box the figure lives in, which no part of it is ever drawn outside: the main chat's window, else the window
 export function worldBox() {
-    const world = document.querySelector(HOME)?.closest(".thread");
+    const world = homeElement()?.closest(".thread");
     return world ? world.getBoundingClientRect() : {left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight};
 }
 
@@ -534,7 +542,7 @@ export function clearOf(box, figure, near, resting) {
 // The edge a figure stands on at home: the bars docked over the main chat's compose box while there are any, `docked` then, else the
 // compose box, else the foot of the window
 export function groundEdge() {
-    const home = document.querySelector(HOME);
+    const home = homeElement();
     const bars = home?.closest(".thread")?.querySelector(DOCKED_BARS);
     if (!bars) return {...composeEdge(), docked: false};
     const box = bars.getBoundingClientRect();
@@ -653,7 +661,7 @@ export function progressOf(element) {
 
 // The main chat's compose box and its top edge, whatever is docked over it, else the foot of the window: the floor the figure builds on
 export function composeEdge() {
-    const element = document.querySelector(HOME);
+    const element = homeElement();
     if (!element) return {element: null, edge: {left: 0, width: window.innerWidth, top: window.innerHeight}};
     const box = element.getBoundingClientRect();
     return {element, edge: {left: box.left, width: box.width, top: box.top}};

@@ -217,7 +217,7 @@ test("a figure keeps its place on the floor it rests on as that moves, and loses
     expect(footingNow({...hanging, id: floorOf(low)}, FIGURE, floorsNow(low))).toBe(null);
 });
 
-test("on the compose box the figure keeps to it as bars dock over it and go, never lifted; on the docked bars it rides them, carried, launched or dropped", () => {
+test("on the compose box the figure keeps to it as bars dock over it and go, never lifted; on the docked bars it rides them, carried up one bar's height, launched past it, or dropped", () => {
     // one compose box all along, and the bars docked over it while there are any
     const box = {left: 300, top: 600, width: 400, height: 120};
     let docked = null;
@@ -249,10 +249,13 @@ test("on the compose box the figure keeps to it as bars dock over it and go, nev
     expect(now.footing.home).toBe(true);
     dock(527);
     expect(frame()).toMatchObject({spot: {y: 527}, motion: "carried"});
-    // a second bar docks under it all at once, and it is thrown up with them
+    // a second bar docks under it, one bar's height, and it rides up with its floor instead of bouncing
     dock(483);
-    expect(frame()).toMatchObject({spot: {y: 483}, motion: "launched"});
-    // a bar goes, and it drops with them; the bars go, and it falls to the compose box
+    expect(frame()).toMatchObject({spot: {y: 483}, motion: "carried"});
+    // two more dock under it at once, a rise past one bar's height, and it is thrown up with them
+    dock(395);
+    expect(frame()).toMatchObject({spot: {y: 395}, motion: "launched"});
+    // the bars go, and it drops with them; the last goes, and it falls to the compose box
     dock(527);
     expect(frame()).toMatchObject({motion: "dropping"});
     docked = null;

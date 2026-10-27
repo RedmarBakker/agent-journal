@@ -77,6 +77,7 @@ import {
     clickedBody,
     CHANGE_SECONDS,
     HOME,
+    homeElement,
     POSTURES,
     SPRINT,
     boxAt,
@@ -109,6 +110,7 @@ import {
     turnStep,
     leavesSeat,
 } from "../figure/places.js";
+import {isPresent} from "../figure/presence.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
@@ -367,7 +369,7 @@ function current() {
 }
 
 function composeFacing() {
-    const box = document.querySelector(HOME)?.getBoundingClientRect();
+    const box = homeElement()?.getBoundingClientRect();
     return box ? (box.left + box.width / 2 >= body.at.x + SIZE / 2 ? COMPOSE_TURN : -COMPOSE_TURN) : 0;
 }
 
@@ -1627,7 +1629,7 @@ function barLook(shown) {
 
 // the middle of the compose box on the page the figure glances at while the user types in it (looks.js composerLook), or null with no box
 const composerPoint = () => {
-    const box = document.querySelector(HOME)?.getBoundingClientRect();
+    const box = homeElement()?.getBoundingClientRect();
     return box ? middleOf(box) : null;
 };
 
@@ -1837,7 +1839,7 @@ let homeFrame = 0;
 // back to Home the page can be drawn a frame or more before it.
 function home() {
     cancelAnimationFrame(homeFrame);
-    if (!document.querySelector(HOME)) {
+    if (!homeElement()) {
         homeFrame = requestAnimationFrame(home);
         return;
     }
@@ -1847,7 +1849,7 @@ function home() {
 
 // the environment's agent arriving or going: the figure enters, or makes its exit and is gone
 function present(live) {
-    if (!player || live === body.here) return;
+    if (!player || live === isPresent(body)) return;
     if (live) {
         body.here = true;
         home();
