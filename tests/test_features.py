@@ -5278,6 +5278,15 @@ def test_what_the_agent_owes_is_a_fact_on_its_row_oriented_the_mark_owed_and_the
     assert row().threshold_due == 50
     app.console().run(["memory", "skip", "all logged"], AGENT)
     assert row().threshold_due == 0, "nothing survives clears it too"
+    hook(app, "PreCompact", trigger="auto")
+    hook(app, "SessionStart", source="compact")
+    context(app, 8)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert row().context_threshold == 0 and row().threshold_due == 0, "a reading under the marks taken, as after a compaction, starts the marks again"
+    context(app, 30)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert row().threshold_due == 25, "the same mark is reached again in the new window (task 3737)"
+    app.console().run(["memory", "skip", "nothing new since the compaction"], AGENT)
     status, body = hook(app, "SessionStart", source="compact")
     assert row().is_overview_read is False and row().threshold_due == 0, "a start after a compaction owes the look again; the start's own write touches oriented alone"
 
