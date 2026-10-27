@@ -114,6 +114,8 @@ class WorkerActions:
         return task
 
     def checked_task(self, worker: Worker, task_id: int) -> Task:
+        if not task_id and not self.tasks.holder_task_ids(Ref.build(worker)):
+            raise Rejection(f"worker {worker.id} works on no task now: name the one to check with --task <n>; its tasks waiting for the merge are {', '.join(f'task {n}' for n in self.merged_task_ids(worker)) or 'none'}")
         if not task_id:
             return self.worker_task(worker)
         if task_id not in self.merged_task_ids(worker):

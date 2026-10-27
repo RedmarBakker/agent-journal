@@ -6,7 +6,7 @@ export const EVENTS = ["idle", "worked", "start"];
 const UNIT_WORDS = {percent: "% of context", uses: "tool calls", minutes: "minutes", notices: "reminders"};
 const EVENT_WORDS = {idle: "when the agent stops", worked: "when the agent stops after using tools", start: "when a session starts"};
 const HOURS = {60: "every hour", 1440: "every day"};
-const OFF_LINE = "Off. Turn it on to change these.";
+const OFF_LINE = "Off. Turn it on to see its settings.";
 
 export const UNIT_CHOICES = {percent: "% of context", uses: "tool calls", minutes: "minutes", notices: "reminders"};
 export const EVENT_CHOICES = {idle: "the agent stops", worked: "it stops after using tools", start: "a session starts"};
@@ -218,7 +218,7 @@ function block(f, settings, extras) {
         explains: f.explains,
         promises: f.promises || [],
         head: featureHead(f, f.label, f.hint, settings),
-        rows: featureRows(f, settings, extras),
+        rows: featureHead(f, f.label, f.hint, settings).off ? [] : featureRows(f, settings, extras),
     };
 }
 
@@ -247,7 +247,7 @@ function group(g, members, settings, loose) {
         promises: lead ? lead.promises || [] : [],
         head,
         items: [
-            ...(lead ? featureRows(lead, settings, extras) : []),
+            ...(lead && !head.off ? featureRows(lead, settings, extras) : []),
             ...(loose.rows[g.key] || []),
             ...rest
                 .filter((f) => flat.includes(f) || blocks.includes(f))

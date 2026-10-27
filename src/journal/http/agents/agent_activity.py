@@ -7,9 +7,11 @@ from journal.features.sequences.support.run_cards import RUN
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.config import Config
+from journal.features.faults.feature import Faults
 from journal.features.faults.faults_options import FaultsOptions
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.repositories.setting_rows import SettingRows
+from journal.features.registry import Registry
 from journal.providers.providers import Providers
 from journal.http.agents.current_work import CurrentWork
 from journal.http.agents.current_sequence import CurrentSequence
@@ -51,10 +53,10 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel, text: CommandText) -> None:
         self.time_source, self.labels, self.text = time_source, labels, text
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.settings, self.scoring, self.measures = jobs, numbers, settings, scoring, measures
+        self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
 
     def page(self, agents: list[Agent]) -> list[dict]:
         return [self.row(item, [] if self.has_ended(item) else self.session_entries(item.session)) for item in agents]
@@ -128,7 +130,7 @@ class AgentActivity:
         return [point.shown() for point in points if point.scored_at >= start_at]
 
     def rolling(self) -> dict:
-        if not self.settings.option(FaultsOptions.DEVELOPER):
+        if not self.registry.is_enabled(Faults):
             return {}
         averages = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
                  "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
