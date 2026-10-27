@@ -11403,7 +11403,7 @@ def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_te
     _, folder, caller = worktree_worker(app, monkeypatch, "the job")
     committed(folder, "notes.md", "note\n")
     assert console.run(["proof", "1", "notes.md:1, test 1 = 1 passes"], caller).code == 0
-    bare = console.run(["clock-out", "done", "--tests", "-q"], caller)
+    bare = console.run(["clock-out", "done", "--tests=-q"], caller)
     assert bare.code != 0 and "never the whole suite" in bare.error and "notes.md" in bare.error, f"a --tests naming no test is refused, naming the files changed: {bare.error}"
     user_set(app, "workers.affected_tests_command", "sh -c 'echo 2 = 2' affected")
     out = console.run(["clock-out", "done", "--tests", "1 = 1"], caller)
