@@ -29,16 +29,16 @@ class ProgressPattern:
 
     @staticmethod
     def groups(pattern: str) -> list[tuple[int, int]]:
-        opened, spans, index, inside_set = [], [], 0, False
+        opened, spans, index, bracketed = [], [], 0, False
         while index < len(pattern):
             character = pattern[index]
             if character == "\\":
                 index += 2
                 continue
-            if inside_set:
-                inside_set = character != "]"
+            if bracketed:
+                bracketed = character != "]"
             elif character == "[":
-                inside_set = True
+                bracketed = True
             elif character == "(":
                 opened.append((index, not pattern.startswith("(?", index) or pattern.startswith(("(?P<", "(?<"), index) and not pattern.startswith(("(?<=", "(?<!"), index)))
             elif character == ")" and opened:
