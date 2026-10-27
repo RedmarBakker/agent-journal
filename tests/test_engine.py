@@ -290,7 +290,7 @@ def test_one_task_in_hand_pause_resume_and_await(app: App):
     console.run(["task", "create", "third"], AGENT)
     assert console.run(["await", "the deploy to finish", "--until", "false"], AGENT).code == 0
     stopped = hook(app, "Stop")[1]
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and "task 3 is open" in stopped["reason"], "a stop while waiting on what it cannot estimate is refused while task 3 is open"
+    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and nudge_reached(app, stopped["reason"], TasksNudges.WAIT_STOP, n=3), "a stop while waiting on what it cannot estimate is refused while task 3 is open"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "working again lifts the wait"
 
