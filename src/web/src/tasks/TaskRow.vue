@@ -2,7 +2,7 @@
 import {computed} from "vue";
 import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
-import {nextAct, STATUS_LEADS, statusOf, waitLine} from "../domain/taskBoard.js";
+import {nextAct, STATUS_PREFIXES, statusOf, waitLine} from "../domain/taskBoard.js";
 import {taskBoard} from "../state/taskBoard.js";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
 import TaskWorker from "./TaskWorker.vue";
@@ -21,7 +21,7 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
         <button
             type="button"
             class="status"
-            :title="`${STATUS_LEADS[status]}. Change the status (S)`"
+            :title="`${STATUS_PREFIXES[status]}. Change the status (S)`"
             @click.stop="emit('status', $event.currentTarget)"
         >
             <TaskStatusIcon :status="status" />

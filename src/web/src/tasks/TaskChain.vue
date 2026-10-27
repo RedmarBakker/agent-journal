@@ -2,7 +2,7 @@
 import {computed, ref, watch} from "vue";
 import {byRef} from "../domain/records.js";
 import {chainAround} from "../domain/taskGraph.js";
-import {STATUS_LEADS, statusOf, waitOf} from "../domain/taskBoard.js";
+import {STATUS_PREFIXES, statusOf, waitOf} from "../domain/taskBoard.js";
 import {counted} from "../format/number.js";
 import TaskChainLink from "./TaskChainLink.vue";
 
@@ -34,7 +34,7 @@ const taskLink = (t) => ({
     status: statusOf(t),
     number: String(t.id),
     title: t.title,
-    word: STATUS_LEADS[statusOf(t)],
+    word: STATUS_PREFIXES[statusOf(t)],
     open: () => emit("select", t.id),
 });
 const LINKS = {

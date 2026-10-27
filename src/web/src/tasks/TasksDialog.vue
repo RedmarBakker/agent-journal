@@ -3,7 +3,7 @@ import {computed, nextTick, onMounted, ref} from "vue";
 import Dialog from "../kit/Dialog.vue";
 import Toast from "../kit/Toast.vue";
 import {wholePlans} from "../composables/wholePlans.js";
-import {boardLines, shownTasks, STATUS_LEADS} from "../domain/taskBoard.js";
+import {boardLines, shownTasks, STATUS_PREFIXES} from "../domain/taskBoard.js";
 import {select, useTaskActs} from "../composables/taskActs.js";
 import {useWindowEvent} from "../composables/windowEvent.js";
 import {narrow} from "../platform/view.js";
@@ -108,7 +108,7 @@ useWindowEvent("keydown", escaped);
                 <div class="filters">
                     <template v-if="taskBoard.statuses.length">
                         <span class="chip">
-                            Status: {{ taskBoard.statuses.map((s) => STATUS_LEADS[s]).join(" or ") }}
+                            Status: {{ taskBoard.statuses.map((s) => STATUS_PREFIXES[s]).join(" or ") }}
                             <button type="button" title="Remove this filter" @click="taskBoard.statuses = []">×</button>
                         </span>
                     </template>

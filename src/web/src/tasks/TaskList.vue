@@ -1,7 +1,7 @@
 <script setup>
 import {computed} from "vue";
 import Btn from "../kit/Btn.vue";
-import {STATUS_LEADS, statusOf} from "../domain/taskBoard.js";
+import {STATUS_PREFIXES, statusOf} from "../domain/taskBoard.js";
 import {counted} from "../format/number.js";
 import {taskBoard} from "../state/taskBoard.js";
 import TaskDraft from "./TaskDraft.vue";
@@ -15,7 +15,7 @@ const hiddenDone = computed(() =>
     filtered.value || taskBoard.display.showDone ? 0 : props.tasks.filter((t) => statusOf(t) === "done").length
 );
 const missing = computed(() => {
-    const kinds = taskBoard.statuses.map((s) => STATUS_LEADS[s].toLowerCase()).join(" or ");
+    const kinds = taskBoard.statuses.map((s) => STATUS_PREFIXES[s].toLowerCase()).join(" or ");
     return `No ${kinds ? `${kinds} ` : ""}tasks${taskBoard.words ? ` match “${taskBoard.words}”` : ""}`;
 });
 const fold = (key) => (taskBoard.folded[key] = !taskBoard.folded[key]);

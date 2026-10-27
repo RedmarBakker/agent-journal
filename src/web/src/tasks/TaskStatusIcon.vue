@@ -1,6 +1,6 @@
 <script setup>
 import SwitchCase from "../kit/SwitchCase.vue";
-import {STATUS_LEADS} from "../domain/taskBoard.js";
+import {STATUS_PREFIXES} from "../domain/taskBoard.js";
 
 defineProps({status: {type: String, required: true}, size: {type: Number, default: 14}});
 </script>
@@ -15,7 +15,7 @@ defineProps({status: {type: String, required: true}, size: {type: Number, defaul
                 :height="size"
                 viewBox="0 0 16 16"
                 role="img"
-                :aria-label="STATUS_LEADS[status]"
+                :aria-label="STATUS_PREFIXES[status]"
             >
                 <SwitchCase :value="status">
                     <template #blocked>
