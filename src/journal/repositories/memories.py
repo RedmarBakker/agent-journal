@@ -4,6 +4,8 @@ from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.actor import Actor
 
+UNSHOWN_COLUMNS = ("keywords", "creator", "updater", "created_at", "updated_at")
+
 
 class Memories(ScopedRepository[Memory]):
     """The environment's memories: those still shown, heaviest first, and the fading of every one by one at a compaction."""
@@ -11,7 +13,7 @@ class Memories(ScopedRepository[Memory]):
     model = Memory
 
     def shown(self) -> list[Memory]:
-        return self.selected(self.shown_query().order_descending("weight").limit(PAGE_ROWS))
+        return self.selected(self.shown_query().without(*UNSHOWN_COLUMNS).order_descending("weight").limit(PAGE_ROWS))
 
     def fade_all(self, actor: Actor) -> list[Memory]:
         return [self.save(memory.faded(), actor) for memory in self.selected(self.shown_query())]
