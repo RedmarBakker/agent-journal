@@ -15,8 +15,8 @@ class FlowchartEdges:
 
     @classmethod
     def arrow(cls, line: str) -> list[str]:
-        source, found, rest = line.partition(ARROW)
-        target, _, label = rest.partition(LABEL)
-        if not found or not source.strip() or not target.strip():
+        from_name, arrow_text, after_arrow = line.partition(ARROW)
+        to_name, _, label_text = after_arrow.partition(LABEL)
+        if not arrow_text or not from_name.strip() or not to_name.strip():
             raise Rejection(f"'{line}' is not an arrow: write it as 'From -> To' or 'From -> To: label'")
-        return [source.strip(), target.strip(), label.strip()]
+        return [from_name.strip(), to_name.strip(), label_text.strip()]
