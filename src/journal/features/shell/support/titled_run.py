@@ -8,5 +8,5 @@ class TitledRun:
     id: int
     title: str
 
-    def has_flag_or_path(self) -> bool:
+    def is_flagged(self) -> bool:
         return any(len(word) > 1 and word[0] == "-" or word.startswith(("/", "~/", "./", "../")) for word in self.title.split())
