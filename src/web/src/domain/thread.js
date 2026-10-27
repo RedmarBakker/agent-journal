@@ -92,6 +92,7 @@ const SYSTEM_TURNS = {
             check: card.check || 0,
             line: card.line || "",
             summary: card.summary || "",
+            reason: card.reason || "",
             ending: card.ending || "",
             docked: Boolean(card.docked),
             worker: card.worker || "",
