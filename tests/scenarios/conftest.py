@@ -1,7 +1,7 @@
 import pytest
 
 from tests.replay import PROVIDERS, catch_typed
-from tests.scenario_builder.scenario import Scenario
+from tests.scenarios.builder.scenario import Scenario
 from tests.test_features import booted
 
 

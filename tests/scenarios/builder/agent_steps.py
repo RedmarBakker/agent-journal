@@ -1,6 +1,6 @@
 import shlex
 
-from tests.scenario_builder.hook_verdict import HookVerdict
+from tests.scenarios.builder.hook_verdict import HookVerdict
 
 
 class AgentSteps:

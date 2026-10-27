@@ -1,6 +1,6 @@
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
-from tests.state_fixtures.task_in_hand import TaskInHand
+from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
 def test_a_message_read_and_not_answered_holds_every_tool_until_the_agent_replies(scenario):

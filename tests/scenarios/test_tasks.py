@@ -2,8 +2,8 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.state_fixtures.plan_just_started import PlanJustStarted
-from tests.state_fixtures.task_in_hand import TaskInHand
+from tests.scenarios.state_fixtures.plan_just_started import PlanJustStarted
+from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
 def test_a_task_outside_a_plan_is_worked_on_top_of_the_plan_and_the_plan_stays_paused(scenario):
@@ -12,7 +12,7 @@ def test_a_task_outside_a_plan_is_worked_on_top_of_the_plan_and_the_plan_stays_p
     scenario.agent_runs("task create outside --start")
     scenario.expect_stack("idle", "following_plan", "working")
 
-    scenario.user_runs("plan pause 1")
+    scenario.user_pauses_plan(1)
     scenario.expect_plan(1, state=PlanState.PAUSED)
 
     scenario.agent_stops()

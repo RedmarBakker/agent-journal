@@ -2,12 +2,12 @@ from journal.console.support.outcome import Outcome
 from journal.support.caller import Caller
 from tests.in_process import posted
 from tests.replay import TOOLS
-from tests.scenario_builder.agent_steps import AgentSteps
-from tests.scenario_builder.hook_verdict import HookVerdict
-from tests.scenario_builder.nudge_log import NudgeLog
-from tests.scenario_builder.scenario_checks import ScenarioChecks
-from tests.scenario_builder.user_steps import UserSteps
-from tests.state_fixtures.state_fixture import StateFixture
+from tests.scenarios.builder.agent_steps import AgentSteps
+from tests.scenarios.builder.hook_verdict import HookVerdict
+from tests.scenarios.builder.nudge_log import NudgeLog
+from tests.scenarios.builder.scenario_checks import ScenarioChecks
+from tests.scenarios.builder.user_steps import UserSteps
+from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class Scenario(AgentSteps, UserSteps, ScenarioChecks):

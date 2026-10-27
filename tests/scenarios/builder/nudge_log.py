@@ -2,7 +2,7 @@ from journal.engine.nudger import NUDGE
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
-from tests.scenario_builder.said_nudge import SaidNudge
+from tests.scenarios.builder.said_nudge import SaidNudge
 
 
 class NudgeLog:

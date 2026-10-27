@@ -1,4 +1,4 @@
-from tests.state_fixtures.state_fixture import StateFixture
+from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class AgentAtWork(StateFixture):

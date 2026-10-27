@@ -1,6 +1,6 @@
 from journal.models.task_state import TaskState
-from tests.state_fixtures.agent_at_work import AgentAtWork
-from tests.state_fixtures.state_fixture import StateFixture
+from tests.scenarios.state_fixtures.agent_at_work import AgentAtWork
+from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class TaskInHand(StateFixture):
