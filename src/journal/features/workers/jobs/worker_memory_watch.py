@@ -21,10 +21,10 @@ class WorkerMemoryWatch(Job):
         self.warned: set[int] = set()
 
     def tick(self, time: float) -> None:
-        running = self.workers.running_everywhere()
-        for environment_id in sorted({worker.environment_id for worker in running}):
+        dispatched = self.workers.all_dispatched()
+        for environment_id in sorted({worker.environment_id for worker in dispatched}):
             with self.scope.environment(environment_id):
-                self.measured([worker for worker in running if worker.environment_id == environment_id], self.supervisor.memory(environment_id), time)
+                self.measured([worker for worker in dispatched if worker.environment_id == environment_id], self.supervisor.memory(environment_id), time)
 
     def measured(self, workers: list[Worker], memory: dict[int, int], time: float) -> None:
         sizes = {worker.id: memory[worker.pid] // MEGABYTE for worker in workers if worker.pid in memory}
@@ -34,7 +34,7 @@ class WorkerMemoryWatch(Job):
                 self.actions.stop(worker.id, f"its processes used {sizes.pop(worker.id)} MB, past the limit of {limit} MB", Actor.system())
             elif sizes[worker.id] > warning and worker.id not in self.warned:
                 self.warned.add(worker.id)
-                self.workers.save(worker.over_memory(time, sizes[worker.id], warning), Actor.system())
+                self.workers.save(worker.memory_warning(time, sizes[worker.id], warning), Actor.system())
         if total and sum(sizes.values()) > total:
             largest = max(sizes, key=sizes.__getitem__)
             self.actions.stop(largest, f"all workers' processes together used {sum(sizes.values())} MB, past the total of {total} MB, and it used the most", Actor.system())

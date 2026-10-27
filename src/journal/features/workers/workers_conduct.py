@@ -20,7 +20,7 @@ from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.events.rows.waits_missing import WaitsMissing
 from journal.events.rows.worker_stopped import WorkerStopped
-from journal.events.rows.worker_over_memory import WorkerOverMemory
+from journal.events.rows.worker_memory_warning import WorkerMemoryWarning
 from journal.events.rows.worker_test_failed import WorkerTestFailed
 from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
 from journal.events.rows.worker_dispatched import WorkerDispatched
@@ -118,7 +118,7 @@ class WorkersConduct(Conduct):
         nudge = WorkersNudges.PLACE_OPENED if event.opened else WorkersNudges.PLACE_CLOSED
         return self.none(nudge.create(rho=event.rho, minutes=round(event.minutes), places=event.places))
 
-    def on_worker_over_memory(self, event: WorkerOverMemory, settings: Settings) -> Transition:
+    def on_worker_memory_warning(self, event: WorkerMemoryWarning, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
         return self.none(WorkersNudges.WORKER_OVER_MEMORY.create(n=event.worker.id, megabytes=event.megabytes, budget=event.budget_megabytes))

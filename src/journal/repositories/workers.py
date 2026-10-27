@@ -29,7 +29,7 @@ class Workers(ScopedRepository[Worker]):
     def running_workers(self) -> list[Worker]:
         return self.selected(self.dispatched_query().order("id"))
 
-    def running_everywhere(self) -> list[Worker]:
+    def all_dispatched(self) -> list[Worker]:
         return self.selected_globally(self.dispatched_query().order("id"))
 
     def dispatched_count(self) -> int:

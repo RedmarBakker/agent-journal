@@ -12676,8 +12676,8 @@ def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     monkeypatch.setattr(WorkerRunner, "stop", lambda self, worker: None)
-    reading: dict[int, int] = {}
-    monkeypatch.setattr(SupervisorLink, "memory", lambda self, environment_id: dict(reading))
+    memory: dict[int, int] = {}
+    monkeypatch.setattr(SupervisorLink, "memory", lambda self, environment_id: dict(memory))
     workers = app.container.get(Workers)
     with app.container.get(Scope).environment(MAIN):
         worker = workers.save(Worker(environment_id=MAIN, name="Mr. Babbage", brief="b", state=WorkerState.DISPATCHED, pid=424242, dispatcher="s1"), Actor.system())
@@ -12685,7 +12685,7 @@ def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_
     warned = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_uses_much_memory"]
 
     def measured(megabytes: int) -> Worker:
-        reading[424242] = megabytes * MEGABYTE
+        memory[424242] = megabytes * MEGABYTE
         watch.tick(1000.0)
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
