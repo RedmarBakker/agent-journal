@@ -52,9 +52,9 @@ def catch_typed(app, monkeypatch, keystrokes: list) -> None:
 
 
 def drive_the_clock(app, monkeypatch) -> None:
-    """The journal's time source pinned at the moment the replay starts, so every hook and every row notes its time there and a tick says how long after it was."""
+    """The journal's time source pinned at the whole second the replay starts, so every hook and every row notes its time there, a tick says how long after it was, and each later moment is exact."""
     clock = app.container.get(Clock)
-    clock.held_at = timing.time()
+    clock.held_at = float(int(timing.time()))
     monkeypatch.setattr(app.container.get(TimeSource), "pinned_seconds", clock.held_at)
 
 

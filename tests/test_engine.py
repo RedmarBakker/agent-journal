@@ -3731,3 +3731,13 @@ def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_e
     held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(time=1000.0), settings)
     assert held.refusal is not None and "log where it stands" in held.refusal.rendered(), "with a task in hand the stop still asks for a log"
 
+
+
+def test_the_time_source_reads_its_seconds_and_its_moment_as_the_same_time():
+    from journal.support.time_source import TimeSource
+    source = TimeSource()
+    source.pin(1800000000.0000007)
+    assert source.seconds() == source.moment().timestamp(), "a moment past half a microsecond reads the same as seconds and as a moment, so an age worked from both is never a hair short"
+    source.unpin()
+    now = source.seconds()
+    assert now == datetime.fromtimestamp(now, timezone.utc).timestamp(), "the wall clock is read to the microsecond too"
