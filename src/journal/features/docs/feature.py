@@ -31,6 +31,7 @@ Documents are the project's, the same in every environment.
 - `journal doc create "<title>" --file <path> --abstract "<one short line>"` writes one from a markdown file, its `##` headings
   as sections; the abstract is required, at most 200 characters, and is the line its card shows. `journal doc update <n> --file <path>` replaces its whole text and keeps its title. A document written in
   parts takes `--part` on every write but the last, so its card says being written; the last write, or `journal doc ready <n>`, makes it ready.
+  A new document, yours or the user's, docks itself at the bottom of the chat until the user closes it; it needs no dock step.
 - `journal doc show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with
   `--all` only when every section matters to the job; the outline and one section are the default. `journal doc list` names them.

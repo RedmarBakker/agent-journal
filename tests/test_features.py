@@ -14557,15 +14557,22 @@ def test_a_new_document_and_a_new_report_dock_themselves_at_the_bottom_of_the_ch
     page.write_text("## What\\n\\nThe words.\\n")
     hook(app, "SessionStart")
     console = app.console()
-    created = [console.run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], AGENT), console.run(["report", "create", "The review", "--abstract", "What the review found", "--body", "what was found"], AGENT)]
-    assert [outcome.code for outcome in created] == [0, 0], [outcome.error for outcome in created]
+    created = [
+        console.run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], AGENT),
+        console.run(["report", "create", "The review", "--abstract", "What the review found", "--body", "what was found"], AGENT),
+        console.run(["doc", "create", "The user's notes", "--file", str(page), "--abstract", "what the user keeps"], USER),
+    ]
+    assert [outcome.code for outcome in created] == [0, 0, 0], [outcome.error for outcome in created]
     app.runtime().deferred.drain()
     docking = app.container.get(Docking)
     with app.container.get(Scope).environment(MAIN):
-        for row in (app.container.get(Docs).all()[0], app.container.get(Reports).all()[0]):
+        for row in (*app.container.get(Docs).all(), app.container.get(Reports).all()[0]):
             card = docking.card(row)
             assert card is not None and card.data.get(DOCKED), f"{row.heading()} is docked"
             assert len(app.container.get(Messages).with_key(RowProcessCard.key(row))) == 1, "one card each"
+    from journal.features.docs.feature import DocsFeature
+    from journal.features.pins.feature import Pins
+    assert all("doc dock" not in feature.skill.body for feature in (DocsFeature, Pins)), "no skill asks for a dock step for a document"
 
 
 def test_a_subagents_report_in_a_notification_owes_no_skill_by_its_words(skilled):

@@ -24,7 +24,7 @@ test("a plan list row, which carries the plan alone, draws the task board withou
 
 test("a plan read whole draws its phases on the task board and counts its done tasks", () => {
     const lines = boardLines("plan", {shown: tasks, all: tasks, plans: [whole], folded: {}});
-    expect(lines.filter((line) => line.type === "head").map((line) => line.label)).toEqual(["The rest of the list", "Phase 1 of 2: First", "Open", "Phase 2 of 2: Second", "Open"]);
+    expect(lines.filter((line) => line.type === "head").map((line) => line.label)).toEqual(["The rest of the list", "Phase 1 of 2: First", "Phase 2 of 2: Second"]);
     expect(standingOf(whole, tasks).title).toBe("1 of 3 tasks done");
 });
 

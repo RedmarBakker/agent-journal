@@ -28,9 +28,10 @@ class Pins(Feature[PinsData]):
 
 Whenever you point the user at something outside the journal, a design, a hosted page, a document, any link they
 will open again, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
-A row of the journal, a document, a report or a plan you want to keep in view, is docked at the bottom of the chat,
-`journal doc dock 55`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with
-`--link docs:55 --user-asked`, its button opening the row in place. An outside address opens in a new tab.
+A document or a report docks itself at the bottom of the chat when it is created, by you or the user, and stays
+until the user closes it. Any other row of the journal you want to keep in view, a plan or a task, is docked there with
+`journal plan dock 12`, never pinned; only when the user asks for it pinned above the chat, pin it by its ref with
+`--link plans:12 --user-asked`, its button opening the row in place. An outside address opens in a new tab.
 A link in your chat text or in a command's output that no pin has, a pull request's address among them, is suggested
 as a pin, and the same link again only after a number of your tool uses. The user closes a pin when done.
 
