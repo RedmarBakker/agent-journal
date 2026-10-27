@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.3
+
+- A task started outside a plan stays the work in hand when the plan is paused or cancelled: the agent is told to carry on at a stop instead of being left idle with nothing telling it to start.
+- A line entry written without a tool use count no longer fails the clock's tick.
+
 ## 4.67.2
 
 - Every journal leaves the team servers it joined at its next start, keeping every local row, and starts no sync service: the team servers are no longer used.
