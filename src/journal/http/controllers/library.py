@@ -9,6 +9,7 @@ from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.library_publish import LibraryPublish
 from journal.features.library.support.library_update import LibraryUpdate
 from journal.http.support.request import Request
+from journal.support.rejection import Rejection
 from journal.repositories.library_items import LibraryItems
 from journal.support.response import Response
 from sync_server.item_query import ItemQuery
@@ -27,27 +28,30 @@ class LibraryController:
         return Response.json({"connected": True, **self.account.connection().fields(), "token": ""})
 
     def connect(self, request: Request) -> Response:
-        connection = self.connecting.connected(TeamUrl.parse(str(request.body["url"])), str(request.body["email"]), str(request.body.get("name") or str(request.body["email"]).split("@")[0]), str(request.body["password"]))
+        url, email, password = (str(request.body.get(field, "")).strip() for field in ("url", "email", "password"))
+        if not (url and email and password):
+            raise Rejection("connecting to a library takes its address or invitation URL, your email and your password")
+        connection = self.connecting.connected(TeamUrl.parse(url), email, str(request.body.get("name") or email.split("@")[0]), password)
         return Response.json({"connected": True, **connection.fields(), "token": ""})
 
     def disconnect(self, request: Request) -> Response:
         return Response.json({"connected": False, "address": self.account.disconnect()})
 
     def invite(self, request: Request) -> Response:
-        answer = LibraryLink(self.account, self.schema).invite(str(request.body["email"]))
+        answer = LibraryLink(self.account, self.schema).invite(str(request.body.get("email", "")))
         return Response.json({"email": answer.email, "url": self.account.invitation_url(answer.code), "expires_at": answer.expires_at})
 
     def devices(self, request: Request) -> Response:
         return Response.json({"devices": [asdict(device) for device in LibraryLink(self.account, self.schema).devices().devices]})
 
     def revoke(self, request: Request) -> Response:
-        return Response.json(asdict(LibraryLink(self.account, self.schema).revoke(int(request.body["device"]))))
+        return Response.json(asdict(LibraryLink(self.account, self.schema).revoke(int(request.body.get("device", 0)))))
 
     def people(self, request: Request) -> Response:
         return Response.json({"people": [asdict(person) for person in LibraryLink(self.account, self.schema).people().people]})
 
     def password(self, request: Request) -> Response:
-        LibraryLink(self.account, self.schema).change_password(str(request.body["old"]), str(request.body["new"]))
+        LibraryLink(self.account, self.schema).change_password(str(request.body.get("old", "")), str(request.body.get("new", "")))
         return Response.json({"changed": True})
 
     def items_listed(self, request: Request) -> Response:
@@ -69,6 +73,8 @@ class LibraryController:
         return Response.json({"item_type": item.item_type, "name": item.name, "version": item.version})
 
     def publish_item(self, request: Request) -> Response:
+        if not request.body.get("reference"):
+            raise Rejection("publishing takes the number of the sequence or template, or the name of the profile, as reference")
         version = self.publishing.published(request.params["item_type"], str(request.body["reference"]), str(request.body.get("note", "")), request.body.get("description"))
         return Response.json(asdict(version))
 

@@ -71,6 +71,13 @@ On a machine you reach over ssh with a key, from your project:
 It installs Docker where it is missing, starts the team server and the team's hosted journal there, and prints the
 address and the line your team joins with. Run it in your own terminal, since it may ask for the project's name.
 
+### Windows
+
+Run Claude Code and the journal inside WSL 2, the way Anthropic documents Claude Code on Windows: open your WSL distribution's
+terminal, install there with the command above, and work from there. Keep the project on the Linux file system, such as
+`~/projects/your-project`, not under `/mnt/c`: the journal watches files and runs many small commands, and both are slow across the
+Windows drives. Native Windows, without WSL, is not supported yet.
+
 ## How it works
 
 `journal claude` starts a small supervisor that runs your agent in a terminal and keeps the journal's server running
