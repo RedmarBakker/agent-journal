@@ -2337,7 +2337,7 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     shown = app.console().run(["message", "unread"], AGENT).text
     after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
     assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert has_nudge(after, MessagesNudges.MESSAGES_READ, tags="[!reply:2], [!reply:3], [!reply:4] and [!reply:5]") and after.count("reply with") == 1, "how to answer them comes after the tool use, in its context, in one line"
+    assert nudge_reached(app, after, MessagesNudges.MESSAGES_READ, tags="[!reply:1], [!reply:2], [!reply:3], [!reply:4] and [!reply:5]") and after.count("reply with") == 1, "how to answer them comes after the tool use, in its context, in one line"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
