@@ -17,7 +17,8 @@ const props = defineProps({runs: {type: Array, required: true}, grouped: Boolean
 const scope = useScope();
 const open = ref(false);
 const chosen = ref(0);
-const row = computed(() => props.grouped && !open.value);
+// the row stands for runs that are docked: with none left, there is nothing to fold
+const row = computed(() => props.grouped && !open.value && props.runs.length > 0);
 const content = ref(null);
 const height = useMeasuredHeight(content);
 const folding = ref(false);

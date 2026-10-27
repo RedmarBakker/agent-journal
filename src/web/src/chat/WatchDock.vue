@@ -1,5 +1,5 @@
 <script setup>
-import {computed, ref, watch} from "vue";
+import {computed, onBeforeUnmount, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
 import Btn from "../kit/Btn.vue";
 import CloseButton from "../kit/CloseButton.vue";
@@ -66,6 +66,8 @@ const leaving = computed(() => isLeaving(props.message));
 const keep = () => card.value.auto_docked && keepDocked(scope, props.message);
 const pointed = () => leaving.value && !card.value.held_at && holdDock(props.message);
 const left = () => card.value.held_at && releaseDock(props.message);
+// a card taken away under the pointer, as when docked runs fold into their row, hears no pointer leave: it lets its hold go as it goes
+onBeforeUnmount(left);
 
 function toggle() {
     opened.value = !opened.value;

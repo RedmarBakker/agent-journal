@@ -315,3 +315,23 @@ test("8. docked runs fold into their row and out of it with a transition, the do
     expect(css).toMatch(/transform 0\.15s var\(--ease\),\s*opacity 0\.15s ease;/);
     expect(source("src/chat/Thread.vue")).toContain('<DockGroup :runs="runDocks" :grouped="grouped" :folded="short || !planOpen" />');
 });
+
+test("9. three runs the journal docked by itself, grouped and all ended, undock as a single run does, even with the pointer on a card as they fold", async () => {
+    const {dockedRows} = await import("../src/domain/docks.js");
+    const ends = now() + 3;
+    const ended = (id) => reactive(watched(id, {auto_docked: true, ending: "finished", outcome: "passed", undock_at: ends}));
+    const runs = [ended(1), ended(2), ended(3)];
+    const props = reactive({runs: dockedRows(runs, now()), grouped: false});
+    const host = await mounted(DockGroup, props);
+    expect(props.runs).toHaveLength(3);
+    host.querySelectorAll(".dock-group-cards .chat-dock")[1].dispatchEvent(new Event("pointerenter"));
+    expect(runs[1].data.held_at).toBeGreaterThan(0);
+    props.grouped = true;
+    await folds();
+    expect(host.querySelectorAll(".run-chip")).toHaveLength(3);
+    expect(runs.map((run) => run.data.held_at)).toEqual([undefined, undefined, undefined]);
+    props.runs = dockedRows(runs, ends + 6);
+    await flush();
+    expect(props.runs).toEqual([]);
+    expect(host.querySelector(".dock-group .chat-dock")).toBeNull();
+});

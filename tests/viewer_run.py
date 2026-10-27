@@ -64,6 +64,7 @@ SETS = {
         "tests/chatMarkDesign.test.js",
     ),
     "dock_runs": (
+        "tests/watchDockOpen.test.js",
         "tests/docks.test.js",
         "tests/docksDelay.test.js",
         "tests/chatMarkSecondRound.test.js",
