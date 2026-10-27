@@ -7456,6 +7456,17 @@ def test_a_secret_deleted_thirty_days_ago_goes_for_good_with_its_values(app: App
     assert values.values() == {"RECENT_KEY": "b", "LIVE_KEY": "d"}, "its values and the old retired one go with it"
 
 
+def test_an_await_on_an_output_alone_is_named_by_the_runs_own_title(app: App):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    output = app.container.get(CommandOutputs).save(CommandOutput(chain="suite", command="python3 scripts/suite.py", session="s1", folder=str(app.config.root), watch_title="Running the update matrix").backgrounded(), Actor.system())
+    assert app.console().run(["await", "--output", str(output.id)], AGENT).code == 0
+    assert agent_rows(app)[0]["awaiting"] == "Running the update matrix", "the top bar reads the run's own title when the await gives no words"
+    assert app.console().run(["await", "--until", "false"], AGENT).code != 0, "a wait on a script still says what it waits for"
+
+
 def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)

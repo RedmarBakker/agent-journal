@@ -1,6 +1,7 @@
 import re
 from argparse import Namespace
 from journal.features.shell.support.readers import Readers
+from journal.features.shell.support.output_process_card import OutputProcessCard
 
 from journal.console.command import Command
 from journal.models.command_output import CommandOutput
@@ -15,6 +16,7 @@ USER_WAIT_PATTERN = re.compile(r"\b(?:the user|you|sir|user's|your)\b[^.]{0,40}\
                                  r"|\b(?:waiting|wait|waits)\s+(?:for|on)\s+(?:the\s+)?(?:user|you|sir|him|them)\b"
                                  r"|\b(?:what|which|whether)\s+(?:the\s+user|you)\b", re.IGNORECASE)
 MISSING_WAIT_TARGET = ("a wait names what ends it: --output N, a command's output, ends it once the command is done; --until \"<script>\" is run every 30 seconds and ends it once it passes")
+WAIT_TITLE_NEEDED = "a wait on --until says what it waits for, in a few words the user reads in the top bar"
 USER_WAIT_REFUSAL = "waiting for the user is no wait: nothing outside ends it. Ask with journal question ask, or end your turn"
 # the fewest words a wait's title has, so the top bar says what the agent waits for and never a bare noun
 LEAST_WAIT_TITLE_WORD_COUNT = 2
@@ -26,13 +28,14 @@ class WaitCommand(Command):
     noun = "await"
     default_verb = "begin"
 
-    def __init__(self, events: CommandEvents, awaitables: WaitTargets, readers: Readers, agents: Agents, wait_checks: WaitChecks) -> None:
+    def __init__(self, events: CommandEvents, awaitables: WaitTargets, readers: Readers, agents: Agents, wait_checks: WaitChecks, card: OutputProcessCard) -> None:
+        self.card = card
         self.events, self.awaitables, self.readers, self.agents, self.wait_checks = events, awaitables, readers, agents, wait_checks
 
     def arguments(self, verbs) -> None:
         time = self.verb(verbs, "begin", "say what you wait for, and name what ends the wait")
         self.verb(verbs, "clear", "stop waiting: the wait ends and the checks it made for itself are removed")
-        time.add_argument("what", help="what you wait for, in a few words the user reads in the top bar: the test run of task 217, Lady Lovelace's report")
+        time.add_argument("what", nargs="?", default="", help="what you wait for, in a few words the user reads in the top bar: the test run of task 217, Lady Lovelace's report; with --output alone, the run's own title")
         time.add_argument("--output", type=int, action="append", default=[], metavar="N", help="a command's output; the wait ends once the command is done; more than one waits for all")
         time.add_argument("--reader", default="", help="with --output, also watch the output live through this reader, so the user sees it move while you wait")
         time.add_argument("--why", default="", help="why you wait now rather than work on something else; asked after two awaits were sent back to other work")
@@ -48,20 +51,31 @@ class WaitCommand(Command):
     def begin(self, args: Namespace, caller: Caller) -> int:
         if not args.output and not args.until:
             raise Rejection(MISSING_WAIT_TARGET)
-        if USER_WAIT_PATTERN.search(args.what):
-            raise Rejection(USER_WAIT_REFUSAL)
-        if len(args.what.split()) < LEAST_WAIT_TITLE_WORD_COUNT:
-            raise Rejection(f"\"{args.what}\" is too short to read in the top bar: say what you wait for, such as \"the test run of task 217\"")
+        if args.what:
+            self.check_title(args.what)
         unended = self.running(args.output)
+        title = args.what or self.run_titles(unended)
+        if not title:
+            raise Rejection(WAIT_TITLE_NEEDED)
         if args.reader:
             for output in unended:
                 self.readers.reading_output(args.reader, output)
             for output in unended:
                 self.awaitables.outputs.watch(output, args.reader, "", caller.actor)
-        names = [self.awaitables.ref(output) for output in unended] + ([self.awaitables.polled_check(args.until, args.what, caller.actor)] if args.until else [])
-        self.events.wait_declared(args.what, ",".join(names), caller)
+        names = [self.awaitables.ref(output) for output in unended] + ([self.awaitables.polled_check(args.until, title, caller.actor)] if args.until else [])
+        self.events.wait_declared(title, ",".join(names), caller)
         print(f"waiting on {', '.join(self.awaitables.title(name) for name in names)}")
         return 0
+
+    @staticmethod
+    def check_title(title: str) -> None:
+        if USER_WAIT_PATTERN.search(title):
+            raise Rejection(USER_WAIT_REFUSAL)
+        if len(title.split()) < LEAST_WAIT_TITLE_WORD_COUNT:
+            raise Rejection(f"\"{title}\" is too short to read in the top bar: say what you wait for, such as \"the test run of task 217\"")
+
+    def run_titles(self, outputs: list[CommandOutput]) -> str:
+        return ", ".join(self.card.title(output, self.card.shown_part(output)) for output in outputs)
 
     def running(self, numbers: list[int]) -> list[CommandOutput]:
         outputs = [self.awaitables.outputs.find(n) for n in numbers]
