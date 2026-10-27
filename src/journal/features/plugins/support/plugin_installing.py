@@ -67,6 +67,7 @@ class PluginInstalling:
                 shutil.copytree(folder, self.folders.folder(plugin), ignore=shutil.ignore_patterns(".git"))
                 self.shipped_record(self.folders.folder(plugin), folder)
             try:
+                self.aliases.readers_checked(plugin, folder)
                 self.required(plugin, environment)
                 self.prepare(plugin, environment)
                 filled = self.question(plugin, environment)
@@ -129,6 +130,7 @@ class PluginInstalling:
             if self.waiting(plugin, folder):
                 return self.plugins.lookup(name)
             upgraded = plugin.with_(manifest=self.same(plugin, self.reader.read(folder)), commit_sha=commit, release="" if plugin.linked else self.tag(folder), waiting="", wait_target="")
+            self.aliases.readers_checked(upgraded, folder)
             self.services.stop(plugin)
             if not plugin.linked:
                 self.replaced(plugin, upgraded, folder, environment)

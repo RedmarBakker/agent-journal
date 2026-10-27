@@ -13309,6 +13309,26 @@ def test_an_alias_name_that_is_a_journal_command_or_another_alias_is_refused(app
     assert console.run(["alias", "remove", "hi"], USER).code == 0 and console.run(["alias", "list"], USER).text == ""
 
 
+def test_a_reader_whose_progress_is_not_a_percentage_or_a_count_of_a_total_is_refused_at_add_and_at_a_plugins_install(app: App, tmp_path):
+    from journal.repositories.plugins import Plugins
+    hook(app, "SessionStart")
+    console = app.console()
+    added = lambda progress: console.run(["reader", "add", "counts", "--about", "the run's counts", "--pattern", "passed", "--progress", progress], AGENT)
+    counted = added(r"(\d+) passed")
+    assert counted.code != 0 and "read as a percentage, but no % follows it" in counted.error, counted.error
+    timed = added(r"(\d+)s .*run (\d+)")
+    assert timed.code != 0 and "no / or of joins them" in timed.error, timed.error
+    assert added(r"\[\s*(\d+)%\]").code == 0 and added(r"(\d+) of (\d+)").code == 0, "a percentage and a count of a total are taken"
+    folder = tmp_path / "counting"
+    (folder / ".journal-plugin" / "readers").mkdir(parents=True)
+    (folder / "journal-plugin.json").write_text(json.dumps({"name": "counting", "version": "1.0.0", "program": "run.py"}))
+    (folder / "run.py").write_text("")
+    (folder / ".journal-plugin" / "readers" / "tallies.pattern").write_text("# the tallies\n^tally\nprogress: tally (\\d+)\n")
+    installed = console.run(["plugin", "install", str(folder), "--yes"], USER)
+    assert installed.code != 0 and "plugin counting's reader tallies" in installed.error and "no % follows it" in installed.error, installed.text + installed.error
+    assert app.container.get(Plugins).all() == [], "and nothing of it is installed"
+
+
 def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_both_go_with_it(app: App, tmp_path):
     from journal.repositories.aliases import Aliases
     from journal.features.shell.support.shell_request import ShellRequest

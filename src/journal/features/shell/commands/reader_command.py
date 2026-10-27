@@ -10,6 +10,7 @@ from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.run_history import RunHistory
+from journal.features.shell.support.progress_pattern import ProgressPattern
 from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
 from journal.features.shell.support.activity_title import TITLE_RULE, ActivityTitle
 from journal.console.command import Command
@@ -83,6 +84,8 @@ class ReaderCommand(Command):
             raise Rejection(f"{', '.join(unread_commands)} gets no reader: a search, a read and a git or GitHub command show no card in the chat")
         reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed, summary_pattern=args.summary)
         self.readers.refuse_plugin_alias_reader(reader)
+        if args.progress:
+            ProgressPattern.checked(args.progress, f"the reader {args.name}")
         for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern, reader.summary_pattern):
             re.compile(pattern)
         if args.script:
