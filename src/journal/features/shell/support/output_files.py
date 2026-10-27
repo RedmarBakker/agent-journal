@@ -117,7 +117,7 @@ class OutputFiles:
     @staticmethod
     def flags(part: Part, classifier: CommandClassifier) -> str:
         classification = classifier.classify(part.text)
-        return ("w" if part.recorded and classification.writes else "-") + ("b" if classification.changes_version_control else "-")
+        return ("w" if part.recorded and classification.is_write else "-") + ("b" if classification.changes_version_control else "-")
 
     def kinds(self) -> list[str]:
         return (self.folder / "parts").read_text().splitlines()

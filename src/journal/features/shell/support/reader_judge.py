@@ -11,7 +11,6 @@ from journal.features.shell.support.output_files import STYLE_CODES, OutputFiles
 from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
-from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.run_processes import RunProcesses
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
@@ -73,16 +72,15 @@ class ReaderJudge:
         self.history, self.processes, self.silences, self.aliases = history, processes, silences, aliases
 
     def stored_runs(self, reader: Reader) -> list[CommandOutput]:
-        return self.history.latest_accepted(NEWEST_RUNS, lambda run: self.is_shown_run(reader.commands, run.command) and OutputFiles(Path(run.folder)).is_stored())
+        return self.history.latest_accepted(NEWEST_RUNS, lambda run: self.is_shown_run(reader.commands.read_part(run.command)) and OutputFiles(Path(run.folder)).is_stored())
 
-    def is_shown_run(self, commands: ReaderCommands, line: str) -> bool:
-        part = commands.read_part(line)
+    def is_shown_run(self, part: str) -> bool:
         return bool(part) and not self.classifier.redirects_output(part) and not any(flag in part.split() for flag in HELP_FLAGS)
 
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.found(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not self.is_shown_run(reader.commands, output.command):
+        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not self.is_shown_run(reader.commands.read_part(output.command)):
             return None
         lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]

@@ -19,8 +19,8 @@ class CommandPart:
     @classmethod
     def read(cls, text: str, is_journal: bool, reads_output: bool, read_shape: str, classifier: CommandClassifier) -> "CommandPart":
         classification = classifier.classify(text)
-        files = classifier.target_paths(text) if classification.writes else classifier.read_paths(text)
-        return cls(text=text, is_journal=is_journal, writes=classification.writes, files=files, reads_output=reads_output, read_shape=read_shape, classification=classification)
+        files = classifier.target_paths(text) if classification.is_write else classifier.read_paths(text)
+        return cls(text=text, is_journal=is_journal, writes=classification.is_write, files=files, reads_output=reads_output, read_shape=read_shape, classification=classification)
 
     @classmethod
     def parsed(cls, data: dict) -> "CommandPart":

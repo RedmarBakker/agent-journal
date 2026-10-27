@@ -141,7 +141,7 @@ class CommandClassifier:
     def read_paths(self, text: str) -> tuple[str, ...]:
         return tuple(path for piped in Part(text).commands() if PRINTS_FILES in self.row_classification(piped).effects for path in self.arguments(piped))
 
-    def named_words(self, text: str) -> list[str]:
+    def stage_arguments(self, text: str) -> list[str]:
         return [word for piped in Part(text).commands() for word in self.arguments(piped)]
 
     def arguments(self, text: str) -> list[str]:
@@ -151,7 +151,7 @@ class CommandClassifier:
 
     def target_arguments(self, text: str) -> list[str]:
         program = self.row_classification(text)
-        if program.writes:
+        if program.is_write:
             return self.arguments(text) if program.kind in NAMING_KINDS and FILE_CHANGING_EFFECTS & set(program.effects) else []
         return [*QUOTED_PATH.findall(text), *(word for word in self.arguments(text) if "/" in word)] if self.runs_writing_code(text) else []
 

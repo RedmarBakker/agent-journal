@@ -57,11 +57,11 @@ class Classification:
 
     @property
     def is_read(self) -> bool:
-        return not self.writes and set(self.effects) <= READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
+        return not self.is_write and set(self.effects) <= READ_EFFECTS and self.is_read_kind
 
     @property
-    def is_read_by_kind(self) -> bool:
-        return self.kind != JOURNAL and set(self.effects) <= SHOWN_READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
+    def is_read_kind(self) -> bool:
+        return set(self.effects) <= SHOWN_READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
 
     @property
     def is_test_run(self) -> bool:
@@ -88,5 +88,5 @@ class Classification:
         return self.kind == PROCESS and self.uncertain and WRITES in self.effects
 
     @property
-    def writes(self) -> bool:
+    def is_write(self) -> bool:
         return self.kind != JOURNAL and (bool(FILE_CHANGING_EFFECTS & set(self.effects)) or self.uncertain)

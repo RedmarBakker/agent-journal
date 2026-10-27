@@ -10353,7 +10353,7 @@ def test_a_tool_entry_records_the_calls_reading_beside_the_raw_input(app: App):
     assert saved.is_write() and not read.is_write() and read.recorded_call().work == "searching", "the write flag and the work word are read from the record, never from the input again"
     assert app.container.get(Entries).kind_entries("SessionStarted", 1)[0].recorded_call() == RecordedCall(), "an entry that records no call reads as an empty call with no operation"
     from journal.support.classification_table import ClassificationTable
-    assert [(part.classification.kind, part.classification.writes) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == ClassificationTable().version, "each part's classification and the table's version ride on the recorded call (task 3772)"
+    assert [(part.classification.kind, part.classification.is_write) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == ClassificationTable().version, "each part's classification and the table's version ride on the recorded call (task 3772)"
 
 
 def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wrappers_redirects_and_inner_commands(app: App):
@@ -10370,9 +10370,9 @@ def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wr
     }
     found = {line: (classify(line).kind, classify(line).effects, classify(line).uncertain) for line in expected}
     assert found == expected, [(line, found[line]) for line in expected if found[line] != expected[line]]
-    assert classify("sh -c 'rm -rf x'").writes and classify("ssh host 'rm -rf /tmp/x'").effects == ("deletes_files", "reaches_network"), "a line handed to a shell or a host is read too"
+    assert classify("sh -c 'rm -rf x'").is_write and classify("ssh host 'rm -rf /tmp/x'").effects == ("deletes_files", "reaches_network"), "a line handed to a shell or a host is read too"
     assert classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").uncertain and "writes_files" in classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").effects, "interpreter code is uncertain, its writes read by content"
-    assert not classify("./scripts/x.sh").writes and classify("git checkout main").writes and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
+    assert not classify("./scripts/x.sh").is_write and classify("git checkout main").is_write and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
     assert classify("cd x && make test").kind == "test run" and classify("Get-ChildItem -Recurse").kind == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
     assert app.container.get(CommandClassifier) is app.container.get(CommandClassifier), "the table is read once"
 
@@ -17695,9 +17695,9 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge
     reader, judge = Reader("pytest", "the tests", pattern=".", commands=ReaderCommands(("pytest",))), app.container.get(ReaderJudge)
-    assert judge.is_shown_run(reader.commands, "python3 -m pytest -p no:warnings tests/test_x.py 2>&1"), "a plain run, its errors joined to its output, is shown"
-    assert not judge.is_shown_run(reader.commands, "S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py"), "a run whose output goes to a file shows nothing on the card"
-    assert not judge.is_shown_run(reader.commands, "command -v uv\npython3 -m pytest --version"), "asking the tool its version is no run of it"
+    assert judge.is_shown_run(reader.commands.read_part("python3 -m pytest -p no:warnings tests/test_x.py 2>&1")), "a plain run, its errors joined to its output, is shown"
+    assert not judge.is_shown_run(reader.commands.read_part("S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py")), "a run whose output goes to a file shows nothing on the card"
+    assert not judge.is_shown_run(reader.commands.read_part("command -v uv\npython3 -m pytest --version")), "asking the tool its version is no run of it"
     from journal.features.shell.support.card_line import CardLine
     assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
     assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"

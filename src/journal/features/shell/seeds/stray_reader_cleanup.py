@@ -12,8 +12,8 @@ class StrayReaderCleanup(Seed):
 
     def run(self) -> None:
         for reader in self.readers.all():
-            if self.is_stray(reader):
+            if self.is_unwanted(reader):
                 self.readers.removed(reader.name)
 
-    def is_stray(self, reader: Reader) -> bool:
+    def is_unwanted(self, reader: Reader) -> bool:
         return bool(reader.commands.programs) and all(self.mark_policy.takes_no_reader(program) for program in reader.commands.programs) and not self.readers.is_locked(reader.name)
