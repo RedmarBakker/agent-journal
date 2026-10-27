@@ -9559,6 +9559,26 @@ def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still
     assert keystrokes.confirm(1, segment) and not keystrokes.is_waiting(1), "a piece arriving is the line arriving, so it is not typed a third time"
 
 
+def test_a_status_a_program_answered_or_a_number_with_a_unit_is_never_named_a_missing_link(app: App):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.task import Task
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    from journal.support.voice_key import VoiceKey
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    text = "the server answered 200 in 2 ms, HTTP 404 for the old path, and the build took 300 s"
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        while tasks.save(Task(environment_id=MAIN, title="a task", brief="b"), Actor.system()).id < 404:
+            pass
+        app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
+    app.runtime().deferred.drain()
+    line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert "with no kind of row before them" not in line, f"a status, a status code and a time are no row, though tasks 200 and 404 exist: {line}"
+
+
 def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_told_once_and_linked_by_one_command(app: App, monkeypatch):
     from journal.features.messages.support import unlinked_row_numbers
     from journal.support.agent_role import AgentRole

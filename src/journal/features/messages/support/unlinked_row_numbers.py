@@ -16,6 +16,10 @@ COUNT_UNITS = frozenset({
 })
 # the words before a number that make it a count or a position, such as case 121, at 100, clamped to 100 or 1324 of 1324
 COUNT_WORDS = frozenset({"case", "cases", "at", "of", "to", "from", "number", "count", "total"})
+# the words before a number that make it a status a program answered, such as the server answered 200 or HTTP 404
+STATUS_WORDS = frozenset({"status", "http", "https", "answered", "answers", "returned", "returns", "code", "responded", "got"})
+# the words after a number that make it a status, such as 200 OK
+STATUS_FOLLOWERS = frozenset({"ok", "not", "created", "found", "forbidden", "unauthorized"})
 # the kind amend-links takes for a number that names no row, so it stays as written
 PLAIN = "none"
 # the joining words of a list of numbers after one kind word, such as tasks 3345, 3346 and 3347
@@ -28,7 +32,7 @@ ROW_TABLES = {"task": "tasks", "plan": "plans", "worker": "workers", "report": "
 
 
 class UnlinkedRowNumbers:
-    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a position, a percentage, a time, a size or a version, never inside code or quoted on its own, and never one of a list that follows a kind word."""
+    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a position, a percentage, a time, a size, a version or a status a program answered, never inside code or quoted on its own, and never one of a list that follows a kind word."""
 
     @classmethod
     def numbers(cls, text: str) -> list[int]:
@@ -55,7 +59,11 @@ class UnlinkedRowNumbers:
         next_token = tokens[i + 1].lower() if i + 1 < len(tokens) else ""
         inside_quotes = i > 0 and tokens[i - 1] in QUOTE_CHARACTERS and next_token in QUOTE_CHARACTERS
         preceding = cls.preceding_word(tokens, i)
-        return not inside_quotes and next_token not in COUNT_UNITS and preceding not in ROW_KINDS and preceding not in COUNT_WORDS
+        return not inside_quotes and next_token not in COUNT_UNITS | STATUS_FOLLOWERS and preceding not in ROW_KINDS | COUNT_WORDS | STATUS_WORDS and not cls.is_timed(tokens, i)
+
+    @staticmethod
+    def is_timed(tokens: list[str], i: int) -> bool:
+        return i + 3 < len(tokens) and tokens[i + 1].lower() == "in" and tokens[i + 2].isdigit() and tokens[i + 3].lower() in COUNT_UNITS
 
     @staticmethod
     def preceding_word(tokens: list[str], i: int) -> str:
