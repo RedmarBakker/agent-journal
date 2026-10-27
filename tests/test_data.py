@@ -1737,3 +1737,13 @@ def test_a_load_stored_by_an_older_version_reads_with_its_keys_renamed_and_the_r
     from journal.models.support.agent_load import AgentLoad
     load = AgentLoad.parsed({"under_minutes": 3.0, "over_minutes": 2.0, "dispatches_for": 1, "a_retired_key": 7, "waiting_refs": ["tasks:1"]})
     assert (load.low_minutes, load.busy_minutes, load.calm_dispatches, load.waiting_refs) == (3.0, 2.0, 1, ("tasks:1",)), "an agent row an older journal wrote boots with its load read, never a crash at the start"
+
+
+def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_values_read_back(connection, bus, scope):
+    from journal.repositories.entries import Entries, NUDGE
+    entries = Entries(connection, bus, scope, TimeSource())
+    with scope.environment(1):
+        entries.save(Entry(environment_id=1, kind=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "session": "s1", "line": "an older line", "time": 1.0}), Actor.system())
+        entries.save(Entry(environment_id=1, kind=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "values": {"command": "pytest"}, "session": "s1", "line": "a line", "time": 2.0}), Actor.system())
+        assert entries.environment_values("shell.add_a_reader", "command") == ["pytest"], "a line recorded before lines kept their values is no fault at every tool use"
+        assert entries.project_values("shell.add_a_reader", "command") == {"pytest": 2.0}

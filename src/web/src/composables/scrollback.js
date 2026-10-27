@@ -56,8 +56,9 @@ const NEAR_PX = 200;
 // How many pages a chat too short to scroll may take to fill its window, at most.
 const FILL_PAGES = 5;
 
-// A window with no height is hidden and asks for nothing; one the rows do not fill asks until they do; one that scrolls asks only
-// when the reader has scrolled up into its top screenful.
+// A window with no height is hidden and asks for nothing; one the rows do not fill asks until they do, starting the moment the chat
+// is ready, since its top mark stays in sight and is never sighted again; one that scrolls asks only when the reader has scrolled up
+// into its top screenful.
 const shows = (box) => box.clientHeight > 0;
 const filling = (box) => shows(box) && box.scrollHeight <= box.clientHeight;
 const atTop = (box) => shows(box) && box.scrollHeight > box.clientHeight && box.scrollTop < box.clientHeight;
@@ -91,6 +92,7 @@ export function useScrollback(scroller, mark, load, {ready = () => true, scrolle
         }
     }
     useSighted(mark, older, {root: scroller, margin});
+    watch(ready, (now) => now && older(), {flush: "post"});
     watch(
         () => unref(scroller),
         (box, was) => {

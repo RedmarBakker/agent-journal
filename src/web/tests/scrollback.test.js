@@ -111,6 +111,16 @@ describe("paging back in a chat", () => {
         expect(box.sizes.scrollHeight).toBeGreaterThan(800);
     });
 
+    test("a chat too short to scroll fills itself once it is ready, though nothing scrolls and its top mark is never sighted again", async () => {
+        const isReady = ref(false);
+        const load = vi.fn(async () => true);
+        paged(load, () => isReady.value, sized(800, 300));
+        isReady.value = true;
+        await nextTick();
+        await nextTick();
+        expect(load).toHaveBeenCalled();
+    });
+
     test("a chat that never grows past its window asks for no more than five pages", async () => {
         const load = vi.fn(async () => true);
         await pagedIn(sized(800, 300), load).older();

@@ -4,6 +4,11 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.65.2
+
+- A chat whose newest page folds into a bubble too short to scroll, such as one group of many check marks, loads its older messages the moment it is ready, at most five pages.
+- Lines a journal recorded before lines kept their values no longer raise a fault at every tool use.
+
 ## 4.65.1
 
 - An update is installed by the new release itself: the running journal only downloads that release's install script, the one the README gives, and starts it as a process of its own that outlives the old journal; the script swaps the release in and restarts the journal on it, so no step of an update runs the old code.
