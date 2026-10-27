@@ -2195,10 +2195,9 @@ def test_a_reply_tagged_to_several_messages_clears_each_in_the_load_and_an_unlin
     since = datetime.now(timezone.utc) - timedelta(minutes=1)
     messages = app.container.get(Messages)
 
-    def asked(prompt: str) -> Message:
-        hook(app, "UserPromptSubmit", prompt=prompt)
-        app.runtime().deferred.drain()
-        message = next(m for m in messages.selected(messages.main_chat().order_descending("id")) if m.author == Author.USER and m.text == prompt)
+    def asked(text: str) -> Message:
+        assert app.console().run(["message", "send", text], USER).code == 0
+        message = next(m for m in messages.selected(messages.main_chat().order_descending("id")) if m.author == Author.USER and m.text == text)
         return messages.read(message, Actor.agent("s1"), 0)
     first, second = asked("is the parser done?"), asked("and the lexer?")
     reply = messages.save(Message.answer(first, "both are done"), Actor.agent("s1"))
