@@ -39,7 +39,7 @@ class CommandOutput(Scoped):
     is_quiet_named: bool = False
     is_total_asked: bool = False
     is_complete_reported: bool = False
-    invalid_reason: str = ""
+    invalid_reason: str | None = None
 
     def complete_reported(self, time: float, full_seconds: int) -> "CommandOutput":
         return self.with_(is_complete_reported=True).with_event(OutputFullBar(environment_id=self.environment_id, time=time, run_session=self.session, full_seconds=full_seconds))
@@ -101,7 +101,7 @@ class CommandOutput(Scoped):
         return FINISHED if self.is_success() else FAILED
 
     def ending(self) -> str:
-        if self.invalid_reason:
+        if self.invalid_reason is not None:
             return f"stopped because the code changed under it, by {self.invalid_reason}; its result counts as neither passed nor failed"
         if self.is_interrupted:
             return "cut off when the journal restarted"

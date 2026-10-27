@@ -138,7 +138,7 @@ class OutputViews:
 
     @staticmethod
     def invalid_lines(output: CommandOutput) -> tuple[str, ...]:
-        return (output.ending(),) if output.invalid_reason else ()
+        return (output.ending(),) if output.invalid_reason is not None else ()
 
     @staticmethod
     def complete_unended_lines(view: OutputView) -> tuple[str, ...]:

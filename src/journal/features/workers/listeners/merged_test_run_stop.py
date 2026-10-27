@@ -21,11 +21,11 @@ class MergedTestRunStop(Listener[WorkerMerged]):
         worker = self.workers.find(event.worker.id)
         checkout = self.branch.checkout(worker)
         reason = f"worker {worker.id}'s merge of task {worker.merged_task}"
-        for output in self.outputs.unended_accepted(lambda output: self.is_test_run_in(output, checkout)):
+        for output in self.outputs.unended_accepted(lambda output: self.is_checkout_test_run(output, checkout)):
             OutputFiles(Path(output.folder)).stop(f"stopped: the code changed under it, by {reason}")
             with self.scope.environment(output.environment_id):
                 self.outputs.save(output.invalidated(reason, event.time), Actor.system())
 
     @staticmethod
-    def is_test_run_in(output: CommandOutput, checkout: Path) -> bool:
+    def is_checkout_test_run(output: CommandOutput, checkout: Path) -> bool:
         return bool(output.ran_in) and checkout in (Path(output.ran_in), *Path(output.ran_in).parents) and OutputFiles(Path(output.folder)).has_test_run()

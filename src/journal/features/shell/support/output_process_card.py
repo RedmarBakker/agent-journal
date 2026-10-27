@@ -76,7 +76,7 @@ class OutputProcessCard(ProcessCard):
             return CardOutcome.NONE
         if not output.ended:
             return CardOutcome.RUNNING
-        if output.invalid_reason:
+        if output.invalid_reason is not None:
             return CardOutcome.WARNED
         return CardOutcome.PASSED if output.is_success() else CardOutcome.FAILED
 
