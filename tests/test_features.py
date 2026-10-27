@@ -23309,6 +23309,43 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
     assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)
 
 
+def test_a_chained_runs_card_is_titled_by_its_test_run_never_by_the_sed_before_it_and_a_foreground_cards_title_is_checked(app: App):
+    from datetime import timedelta
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.output_files import OutputFiles
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    hook(app, "SessionStart")
+    assert app.console().run(["alias", "add", "viewer-tests", "npm --prefix src/web test", "--about", "the viewer's tests"], AGENT).code == 0
+    outputs, card = app.container.get(CommandOutputs), app.container.get(OutputProcessCard)
+
+    def ran(n: int, command: str, parts: list[str]) -> str:
+        folder = app.config.root / f"chain-{n}"
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n" * len(parts))
+        for i, part in enumerate(parts):
+            (folder / f"{i}.part").write_text(part)
+        OutputFiles(folder).ended_with(0, 0)
+        app.container.get(OutputLog).start(f"c{n}", command, folder, Caller.agent("main", "s1", "claude"))
+        started = outputs.find(n)
+        output = outputs.save(started.with_(created_at=started.creation_time - timedelta(seconds=40)), Actor.system())
+        return card.title(output, card.shown_part(output))
+
+    sed = "sed -i '' 's/abstract: About/abstract: Plain/' notes.txt"
+    assert ran(1, f"{sed}\njournal viewer-tests", [sed, "npm --prefix src/web test"]) == "Journal viewer-tests", "a chain calling an alias is titled by the alias, not the sed before it"
+    testing = app.container.get(ActivityLabel).build("pytest tests")
+    assert ran(2, f"{sed}\npytest tests", [sed, "pytest tests"]) == testing[:1].upper() + testing[1:], "a chain is titled by the part still running, the test run"
+    flagged = ran(3, "true\n./checks.sh --all", ["true", "./checks.sh --all"])
+    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+    app.runtime().deferred.drain()
+    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
+    assert len(told) == 1 and has_nudge(told[0], ShellNudges.FLAGGED_TITLE, n=3, card_title=flagged), f"a foreground run showing a card has its title checked too: {flagged!r}, {told}"
+
+
 def test_runs_of_different_lines_under_one_card_title_are_told_once_naming_both_and_runs_differing_in_arguments_under_a_topic_are_not(app: App):
     from journal.events.agent.ticked import Ticked
     from journal.events.bus import Bus

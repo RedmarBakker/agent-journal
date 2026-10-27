@@ -6,7 +6,7 @@ from journal.support.command_shape import CommandShape
 
 
 class AliasLines:
-    """A shell line with each journal <alias> [args] part written out as the line its alias stands for, the alias an argv typed at a terminal calls, the alias a written-out part runs, and the part of a line that runs one moving to the background at once."""
+    """A shell line with each journal <alias> [args] part written out as the line its alias stands for, the alias an argv typed at a terminal calls, the alias a written-out part runs, the part of a line that calls an alias, and the part of a line that runs one moving to the background at once."""
 
     def __init__(self, aliases: Aliases, shapes: CommandShape) -> None:
         self.aliases, self.shapes = aliases, shapes
@@ -25,7 +25,10 @@ class AliasLines:
         return alias.starts(part) or " " in shape and shape == self.shapes.build(alias.line)
 
     def line_alias(self, line: str) -> Alias | None:
-        return next((alias for part in Chain.self_parts(line) if (alias := self.running(part)) is not None), None)
+        return self.running(part) if (part := self.alias_part(line)) else None
+
+    def alias_part(self, line: str) -> str:
+        return next((part for part in Chain.self_parts(line) if self.running(part) is not None), "")
 
     def background_part(self, line: str) -> str:
         return next((part for part in Chain.self_parts(line) if (alias := self.running(part)) is not None and alias.background), "")

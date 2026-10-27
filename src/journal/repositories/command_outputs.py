@@ -122,6 +122,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def all_carded(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter_alternatives(self.query().filter(is_watched=True), self.query().filter(moved=True, ended=False)).order("id"))
 
+    def carded_runs(self, session: str | None) -> list[CommandOutput]:
+        return [output for output in self.selected(self.query().filter(session=session, ended=False).order("id")) if output.has_run_long(self.time_source.seconds())]
+
     def watched(self, session: str | None) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, is_watched=True).order("id"))
 

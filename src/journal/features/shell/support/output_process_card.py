@@ -106,7 +106,7 @@ class OutputProcessCard(ProcessCard):
         return self.aliases.expanded(output.command) != output.command
 
     def shown_part(self, output: CommandOutput) -> str:
-        return output.command if self.is_alias_run(output) else self.watched_part(output)
+        return self.aliases.alias_part(output.command) or self.watched_part(output)
 
     def alias_heading(self, output: CommandOutput, part: str) -> str:
         return part if self.is_alias_run(output) else ""

@@ -67,7 +67,7 @@ class ShellDataReader:
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def titled_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
-        runs = {o.row_id: o for o in [*self.outputs.background(agent.session), *self.outputs.watched(agent.session)]}
+        runs = {o.row_id: o for o in [*self.outputs.carded_runs(agent.session), *self.outputs.watched(agent.session)]}
         return tuple(self.titled(o) for o in runs.values())
 
     def recent_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
