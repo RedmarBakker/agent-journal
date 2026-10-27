@@ -10129,6 +10129,29 @@ def test_a_tool_entry_records_the_calls_reading_beside_the_raw_input(app: App):
     assert call.operation == ShellLine(command=call.command) and RecordedCall.parsed(call.as_data()) == call, "it reads back as the values it was written from, its operation as its own kind"
     assert saved.is_write() and not read.is_write() and read.recorded_call().work == "searching", "the write flag and the work word are read from the record, never from the input again"
     assert app.container.get(Entries).kind_entries("SessionStarted", 1)[0].recorded_call() == RecordedCall(), "an entry that records no call reads as an empty call with no operation"
+    from journal.support.classification_table import ClassificationTable
+    assert [(part.classification.kind, part.classification.writes) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == ClassificationTable().version, "each part's classification and the table's version ride on the recorded call (task 3772)"
+
+
+def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wrappers_redirects_and_inner_commands(app: App):
+    """CommandClassifier (task 3772): Part.tokens with assignments and wrappers taken off, value-taking flags skipped, clustered short flags and --opt=value read, inner commands classified, interpreter code uncertain by its content, an unknown program no write and an uncertain form a write."""
+    from journal.support.command_classifier import CommandClassifier
+    classify = app.container.get(CommandClassifier).classify_line
+    expected = {
+        "git log --oneline": ("version control", ("reads_files",), False), "git -C repo branch -D old": ("version control", ("changes_version_control",), False),
+        "CI=1 npm --prefix web run build": ("build", ("reads_files", "runs_long", "writes_files"), False), "sed -ni p notes.txt": ("edit", ("writes_files",), False),
+        "sed --in-place=.bak s/a/b/ notes.txt": ("edit", ("writes_files",), False), "timeout 30 rm -rf build": ("edit", ("deletes_files",), False),
+        "uv run pytest -q": ("test run", ("reads_files", "runs_long"), False), "echo hi > /dev/null 2>&1": ("read", (), False), "echo hi >> notes.txt": ("read", ("writes_files",), False),
+        "find . -name '*.pyc' -exec rm {} \\;": ("edit", ("deletes_files", "reads_files"), False), "echo $(rm x)": ("edit", ("deletes_files",), False),
+        "eval 'rm x'": ("edit", ("deletes_files",), False), "black --check src": ("check", ("reads_files",), False), "./scripts/x.sh": ("unknown", (), False),
+    }
+    found = {line: (classify(line).kind, classify(line).effects, classify(line).uncertain) for line in expected}
+    assert found == expected, [(line, found[line]) for line in expected if found[line] != expected[line]]
+    assert classify("sh -c 'rm -rf x'").writes and classify("ssh host 'rm -rf /tmp/x'").effects == ("deletes_files", "reaches_network"), "a line handed to a shell or a host is read too"
+    assert classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").uncertain and "writes_files" in classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").effects, "interpreter code is uncertain, its writes read by content"
+    assert not classify("./scripts/x.sh").writes and classify("git checkout main").writes and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
+    assert classify("cd x && make test").kind == "test run" and classify("Get-ChildItem -Recurse").kind == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
+    assert app.container.get(CommandClassifier) is app.container.get(CommandClassifier), "the table is read once"
 
 
 def test_a_plugin_heard_after_the_reply_never_delays_a_hook_and_a_holding_one_is_cut_at_the_deadline(app: App):

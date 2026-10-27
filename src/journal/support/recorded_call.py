@@ -18,7 +18,7 @@ OPERATIONS = {kind.kind: kind for kind in (ShellLine, FileEdit, FileWrite, FileR
 
 @dataclass(frozen=True)
 class RecordedCall:
-    """A tool call as its entry records it, written and read back in one shape: the shell line and its parts, whether it writes, the files it writes or reads, its work word and the operation its provider decoded."""
+    """A tool call as its entry records it, written and read back in one shape: the shell line and its parts, whether it writes, the files it writes or reads, its work word, the operation its provider decoded and the version of the command table its parts were classified by."""
 
     command: str = ""
     parts: tuple[CommandPart, ...] = ()
@@ -28,13 +28,14 @@ class RecordedCall:
     work: str = ""
     shape: str = ""
     operation: Operation = NoOperation()
+    table_version: int = 0
 
     @classmethod
     def parsed(cls, data: dict) -> "RecordedCall":
         return cls(command=data.get("command", ""), parts=tuple(CommandPart.parsed(part) for part in data.get("parts", ())), writes=bool(data.get("writes")),
                    edited_paths=tuple(data.get("written_paths", ())), read_paths=tuple(data.get("read_paths", ())), work=data.get("work", ""), shape=data.get("shape", ""),
-                   operation=OPERATIONS.get(data.get("operation", {}).get("kind", ""), NoOperation).parsed(data.get("operation", {})))
+                   operation=OPERATIONS.get(data.get("operation", {}).get("kind", ""), NoOperation).parsed(data.get("operation", {})), table_version=data.get("table_version", 0))
 
     def as_data(self) -> dict:
         return {"command": self.command, "parts": [asdict(part) for part in self.parts], "writes": self.writes, "written_paths": list(self.edited_paths), "read_paths": list(self.read_paths),
-                "work": self.work, "shape": self.shape, "operation": self.operation.as_data()}
+                "work": self.work, "shape": self.shape, "operation": self.operation.as_data(), "table_version": self.table_version}

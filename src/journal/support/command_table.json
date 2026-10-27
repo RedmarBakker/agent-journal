@@ -1105,7 +1105,6 @@
   "eval": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
    "runs": "its arguments joined"
   },
   "export": {
