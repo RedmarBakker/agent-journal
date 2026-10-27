@@ -34,7 +34,7 @@ import {useScope} from "../composables/scope.js";
 import DumpWindow from "./DumpWindow.vue";
 import TerminalWindow from "./TerminalWindow.vue";
 import OutputDialog from "./OutputDialog.vue";
-import {usePressedTurn} from "../composables/pressedTurn.js";
+import {useOpenInPlace} from "../composables/openInPlace.js";
 import ChatDock from "./ChatDock.vue";
 import DockGroup from "./DockGroup.vue";
 import DumpDock from "./DumpDock.vue";
@@ -206,7 +206,7 @@ function toBottom(smooth = false) {
 // the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after, nor
 // while a bubble the reader pressed opens, so it opens in place and the chat stays exactly where the reader has it
 function followDown(smooth = false) {
-    if (Date.now() - scrolledAt < BY_HAND || pressedTurn.isOpening()) return;
+    if (Date.now() - scrolledAt < BY_HAND || opening.isOpening()) return;
     toBottom(smooth);
 }
 
@@ -234,6 +234,7 @@ watch(
 const place = useReadingPlace(scroller);
 
 function settled() {
+    if (opening.grew()) return;
     if (away.value) place.hold();
     else if (!store.focus) followDown(settledOnce.value);
 }
@@ -246,11 +247,16 @@ function scrolled() {
 
 let grew = null;
 let added = null;
-const pressedTurn = usePressedTurn();
+const opening = useOpenInPlace(scroller, FAR, readingUp);
 
 function pressed(event) {
     scrolledByHand();
-    pressedTurn.press(event);
+    opening.press(event);
+}
+
+function keyed(event) {
+    scrolledByHand();
+    opening.keyed(event);
 }
 
 onMounted(() => {
@@ -553,7 +559,7 @@ const {colleague, me} = useColleague();
                     @scroll.passive="scrolled"
                     @wheel.passive="wheeled"
                     @touchmove.passive="scrolledByHand"
-                    @keydown="scrolledByHand"
+                    @keydown="keyed"
                     @pointerdown="pressed"
                 >
                     <template v-if="rendering">

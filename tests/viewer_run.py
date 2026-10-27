@@ -39,6 +39,12 @@ SETS = {
         "tests/replyBar.test.js",
         "tests/composeInput.test.js",
     ),
+    "open_in_place": (
+        "tests/openInPlace.test.js",
+        "tests/pressedTurn.test.js",
+        "tests/subagentMarkFailed.test.js",
+        "tests/chatFootFolding.test.js",
+    ),
 }
 
 
