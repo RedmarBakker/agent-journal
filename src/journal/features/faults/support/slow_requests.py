@@ -61,7 +61,7 @@ class SlowRequests:
 
     def measured(self, method: str, path: str, ms: float) -> None:
         loads = LoadTally.ended() if self.settings.option(FaultsOptions.LOADS) else RequestLoads()
-        if path.startswith(UNMEASURED_PATHS):
+        if path.startswith(UNMEASURED_PATHS) or not self.settings.option(FaultsOptions.DEVELOPER):
             return
         self.counted(method, path, round(ms), loads)
         self.check_gathered(time.monotonic())

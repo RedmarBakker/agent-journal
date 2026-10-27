@@ -14,7 +14,7 @@ IDLE_SECONDS = 60.0
 
 
 class JobRunner:
-    """The engine's one thread for scheduled work: from each start, every registered job runs once its interval has passed and the thread sleeps until the next is due; a run that raises is logged and the job runs again at its next turn, and a run that takes long is logged and announced on the bus."""
+    """The engine's one thread for scheduled work: from each start, every registered job runs once its interval has passed and the thread sleeps until the next is due; a run that raises is logged and the job runs again at its next turn, and a run that takes long is announced on the bus."""
 
     def __init__(self, clock: Clock, bus: Bus) -> None:
         self.clock, self.bus = clock, bus
@@ -62,5 +62,4 @@ class JobRunner:
             sys.stderr.write(f"job {name} failed:\n{traceback.format_exc()}")
         seconds = timing.monotonic() - began
         if Timeout.seconds(SLOW_TICK_SECONDS).is_elapsed(seconds):
-            sys.stderr.write(f"job {name} took {seconds:.1f} seconds for one tick\n")
             self.bus.dispatch(SlowTick(job=name, seconds=round(seconds, 1)))

@@ -11,7 +11,7 @@ SWITCH_VALUES = {"on": True, "true": True, "yes": True, "1": True, "off": False,
 
 @dataclass(frozen=True)
 class Option:
-    """A setting a feature reads, declared once: its key as feature.name, the words the settings page shows, its default, its kind, who may set it from the command line, the user alone or the agent too, and whether a shared journal shares it with the team or keeps it to one machine or one person."""
+    """A setting a feature reads, declared once: its key as feature.name, the words the settings page shows, its default, its kind, who may set it from the command line, the user alone or the agent too, whether a shared journal shares it with the team or keeps it to one machine or one person, and the switch it sits behind, off while that switch is off."""
 
     key: str
     title: str
@@ -23,6 +23,7 @@ class Option:
     provider: str = ""
     setter: str = AGENT
     scope: OptionScope = OptionScope.TEAM
+    behind: "Option | None" = None
 
     def integer(self, value: object) -> int:
         if not isinstance(value, (int, float, str)):

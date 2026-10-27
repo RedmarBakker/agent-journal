@@ -30,6 +30,8 @@ class SettingRows(ScopedRepository[Setting]):
         return self.project_values().get(key, default)
 
     def option(self, option: Option) -> object:
+        if option.behind is not None and not self.option(option.behind):
+            return False
         return self.project(option.key, option.default)
 
     def mapping(self, key: str) -> dict:

@@ -19,6 +19,7 @@ from journal.support.listener_queue import ListenerQueue
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from tests.in_process import posted
+from tests.user_settings import user_set
 
 MAIN = 1
 """The id of main, made by the first hook: what a test reads directly, it reads there."""
@@ -287,6 +288,7 @@ def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App
 
 
 def test_the_developer_numbers_are_kept_in_memory_and_written_to_no_row(app: App):
+    user_set(app, "faults.developer", True)
     import time
     from journal.db.connection import Connection
     connection = app.container.get(Connection)

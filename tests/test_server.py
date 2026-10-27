@@ -141,6 +141,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
+    user_set(app, "faults.developer", True)
     server = app.server()
     try:
         developer = lambda: call(server, "GET", "/journal/developer")[1]

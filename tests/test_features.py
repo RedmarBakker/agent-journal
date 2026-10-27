@@ -1609,6 +1609,7 @@ def test_a_task_the_reply_names_is_linked_to_the_message_it_answers_however_old(
 
 
 def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_minutes_with_a_new_mark_and_one_line(app: App, monkeypatch):
+    user_set(app, "faults.developer", True)
     from journal.engine.clock import Clock
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.repositories.messages import Messages
@@ -1912,6 +1913,7 @@ def test_a_message_reaches_a_working_agent_on_its_next_tool_use_and_an_idle_one_
     assert keystrokes == [], "the agent is at work: nothing is typed"
     reply = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]
     assert "new message " in reply["hookSpecificOutput"]["additionalContext"] and "systemMessage" not in reply, "its next tool use carries the line, kept from the user's terminal by default"
+    user_set(app, "faults.developer", True)
     user_set(app, "faults.terminal_hook_lines", True)
     app.console().run(["message", "send", "and the sidebar"], USER)
     shown = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})[1]
@@ -2946,7 +2948,32 @@ def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_
     assert "an old one" in console.run(["task", "list", "--all"], AGENT).text
 
 
+def test_the_developer_features_sit_behind_one_switch_off_by_default_and_time_nothing_until_it_is_on(app: App):
+    """A fresh journal has the main developer switch and the hook lines off and times no request or hook; each developer switch matters only while the main one is on, and turning it on brings them back."""
+    from journal.features.faults.faults_options import FaultsOptions
+    from journal.features.faults.support.developer_tally import DeveloperTally
+    from journal.repositories.setting_rows import SettingRows
+    settings, tally = app.container.get(SettingRows), app.container.get(DeveloperTally)
+    switches = (FaultsOptions.HOOK_LINE_COPY, FaultsOptions.LOADS, FaultsOptions.STAGE_TIMING, FaultsOptions.STALL_STACKS, FaultsOptions.JOBS, FaultsOptions.REPORT)
+    def asked() -> None:
+        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+            reply.read()
+        app.runtime().deferred.drain()
+    hook(app, "SessionStart")
+    assert settings.option(FaultsOptions.DEVELOPER) is False and settings.option(FaultsOptions.HOOK_LINE_COPY) is False, "a fresh journal has the main switch and the hook lines off"
+    for option in switches:
+        user_set(app, option.key, True)
+    assert not any(settings.option(option) for option in switches), "each developer switch matters only while the main one is on"
+    asked()
+    assert tally.series("developer.requests").get("developer.requests.count", 0) == 0 and tally.timings() == [], "with it off no request is timed or logged"
+    user_set(app, "faults.developer", True)
+    assert all(settings.option(option) for option in switches), "turning it on brings each switch back"
+    asked()
+    assert tally.series("developer.requests")["developer.requests.count"] >= 1 and tally.timings(), "and requests are timed and logged again"
+
+
 def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_averages_from_the_tabs_numbers_and_resets_them(app: App):
+    user_set(app, "faults.developer", True)
     from collections import Counter
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.models.support.request_loads import RequestLoads
@@ -2965,6 +2992,7 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
 
 
 def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App, monkeypatch):
+    user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
     from journal.models.support.request_loads import RequestLoads
@@ -3009,6 +3037,7 @@ def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
 
 
 def test_the_agent_bars_data_carries_the_average_points_of_each_kind_while_load_counting_is_on(app: App):
+    user_set(app, "faults.developer", True)
     from collections import Counter
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
@@ -19073,6 +19102,7 @@ def test_a_journal_command_that_hands_the_agent_its_next_step_is_refused_when_cu
 
 
 def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_and_a_reader_add_tries_two_runs_at_once(app: App, tmp_path):
+    user_set(app, "faults.developer", True)
     from types import SimpleNamespace
     from journal.support.listener_queue import ListenerQueue
     from journal.features.faults.support.developer_tally import DeveloperTally
@@ -19148,6 +19178,7 @@ def test_a_message_sent_by_command_with_a_reply_tag_is_refused_and_nothing_is_po
 
 
 def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
+    user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.models.support.request_loads import RequestLoads
     console = app.console()
@@ -19168,6 +19199,7 @@ def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drill
 
 
 def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_timed(app: App):
+    user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.features.faults.support.developer_numbers import DeveloperNumbers
     slow = app.container.get(SlowRequests)

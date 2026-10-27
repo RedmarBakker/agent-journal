@@ -78,6 +78,9 @@ SETS = {
     "questions": (
         "tests/questionClose.test.js",
     ),
+    "developer": (
+        "tests/developerPanel.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",
