@@ -1,9 +1,13 @@
-"""scripts/corpus_forms.py on a corpus of made-up groups: every line gets an ID kept beside it across runs, each line is split into parts with IDs of their own, the forms name kinds, counts and a few parts and never a literal value, the values file holds each distinct value scrubbed, the chains file joins the parts, and the splitter report names a line split wrongly by the check that found it."""
+"""scripts/corpus_forms.py on a corpus of made-up groups: every line gets an ID kept beside it across runs, each line is split into parts with IDs of their own, the forms name kinds, counts and a few parts and never a literal value, the values file holds each distinct value scrubbed, the chains file joins the parts, and the splitter report names a line split wrongly by the check that found it; the splitter check gives a line the same readable ID on every run and allows only separators, continuations and comments between parts, and no corpus file is written inside the repository but under .journal."""
 
 import json
 from pathlib import Path
 
+import pytest
+
+from scripts.corpus_commands import refused_inside_repository
 from scripts.corpus_forms import LINE_ID, PART_ID, written
+from scripts.splitter_check import content_id, gap_faults
 
 GROUPS = [
     [
@@ -117,3 +121,22 @@ def test_a_line_the_splitter_splits_wrongly_is_reported_by_its_id_and_check_and_
     assert report[ids["cat <<'EOF' && ls\\nbody\\nEOF"]].startswith("shlex: ")
     assert ids["git status --short | head -3"] not in report
     assert not (tmp_path / "forms" / "echo.json").exists() and not (tmp_path / "forms" / "ls.json").exists()
+
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+
+
+def test_a_line_keeps_its_readable_id_on_every_run_with_no_stored_map():
+    first, again, other = content_id("git status && git diff"), content_id("git status && git diff"), content_id("git status")
+    assert first == again != other and len(first) == 19 and first.count("-") == 3, first
+
+
+def test_only_space_separators_continuations_and_comments_lie_between_parts():
+    assert gap_faults("cd x\n# a comment\nawk a; \\\nls && b &") == []
+    assert gap_faults("echo a; echo b") == []
+
+
+def test_no_corpus_file_is_written_inside_the_repository():
+    with pytest.raises(SystemExit, match="never enters the repository"):
+        refused_inside_repository(REPOSITORY / "tests" / "corpus.txt")
+    refused_inside_repository(REPOSITORY / ".journal" / "corpus" / "commands.txt")

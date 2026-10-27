@@ -676,6 +676,7 @@ def test_the_commit_guard_refuses_a_private_word_or_a_real_machines_address_and_
     found = guard.problems([("a.py", 3, "ssh root@8.8.8.8 for the Acme shop"), ("b.py", 9, "curl https://203.0.113.5 and 127.0.0.1 and 10.0.0.2")], ["acme"])
     assert found == ["a.py:3: private word 1 of " + str(guard.WORDS), "a.py:3: the address 8.8.8.8 is a real machine's; use a documentation address such as 203.0.113.5"], found
     assert all("acme" not in line.lower() for line in found), "the word itself is never printed"
+    assert guard.problems([("tests/corpus/chains.jsonl", 1, "{}"), ("tests/splitter/lines.jsonl", 1, "{}")], []) == ["tests/corpus/chains.jsonl: a file of the raw command corpus never enters the repository"], "a raw corpus file is refused at the commit (task 3779)"
 
 
 def test_a_supervisor_started_again_ends_the_services_a_supervisor_killed_outright_left_running(tmp_path: Path):

@@ -75,12 +75,12 @@ def is_parsed_part(fault: str, chained: list[tuple[str, str]]) -> bool:
 
 
 # the parts the journal's splitter should give, by a real shell parser: one per statement, a && chain splitting into its commands and
-# a pipeline or a || chain staying one part; none when shfmt cannot parse the line
+# a pipeline or a || chain staying one part; none when shfmt cannot parse the line; a line of only comments has no Stmts key
 def shfmt_parts(text: str) -> int | None:
     parsed = subprocess.run(["shfmt", "--tojson"], input=text.encode(), capture_output=True, timeout=SHFMT_SECONDS)
     if parsed.returncode:
         return None
-    return sum(command_parts(statement["Cmd"]) for statement in json.loads(parsed.stdout)["Stmts"] if statement.get("Cmd"))
+    return sum(command_parts(statement["Cmd"]) for statement in json.loads(parsed.stdout).get("Stmts", []) if statement.get("Cmd"))
 
 
 def command_parts(command: dict) -> int:

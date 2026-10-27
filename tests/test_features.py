@@ -3435,6 +3435,27 @@ def test_every_line_of_the_shell_corpus_is_cut_into_its_parts():
     assert fixture.stat().st_size < FIXTURE_BYTES, "the splitter fixture stays small enough for the suite"
 
 
+SPLITTER_FOLDER_BYTES = 420_000
+SPLITTER_SAMPLE_SECONDS = 10
+
+
+def test_every_generated_line_is_split_into_its_frozen_parts_kinds_and_stages():
+    """tests/splitter/lines.jsonl holds lines scripts/splitter_fixture.py rebuilt from the corpus forms, chain shapes and every compound, values generated, each with Chain's parts, their kind and their pipe stages (task 3768); re-frozen with SPLIT_FREEZE=1 after reading each changed line."""
+    from journal.support.chain import Chain
+    folder = Path(__file__).parent / "splitter"
+    fixture = folder / "lines.jsonl"
+    rows = [json.loads(line) for line in fixture.read_text().splitlines()]
+    began = timing.monotonic()
+    split = [[[part.text, part.kind(), part.stages()] for part in Chain.parts(row["line"])] for row in rows]
+    assert timing.monotonic() - began < SPLITTER_SAMPLE_SECONDS, "the splitter sample stays quick enough for the suite"
+    if os.environ.get("SPLIT_FREEZE") == "1":
+        fixture.write_text("".join(json.dumps({"line": row["line"], "parts": parts}, ensure_ascii=False) + "\n" for row, parts in zip(rows, split)))
+    wrong = [row["line"] for row, parts in zip(rows, split) if parts != row["parts"]]
+    assert not wrong or os.environ.get("SPLIT_FREEZE") == "1", f"{len(wrong)} of {len(rows)} lines split differently, the first: {wrong[:3]}"
+    assert len(rows) > 500 and {"R;&", "R&;", "R;;"} <= {kind for row in rows for _, kind, _ in row["parts"]}
+    assert sum(path.stat().st_size for path in folder.iterdir()) < SPLITTER_FOLDER_BYTES, "the splitter fixtures stay within their budget"
+
+
 def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
     from journal.support.writes import Writes
     from journal.support.chain import Chain
@@ -19701,7 +19722,7 @@ def test_a_command_with_a_reader_stays_in_the_foreground_unless_it_is_known_to_r
                 break
             time.sleep(0.1)
         assert first is not None and first.run_seconds() >= 1, "a run past the limit moves there and is remembered ended"
-    began = time.monotonic()
+    began = timing.monotonic()
     b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
     assert time.monotonic() - began < 0.9, "its next run moves at once, its last run having gone past the limit"
     with app.container.get(Scope).environment(MAIN):

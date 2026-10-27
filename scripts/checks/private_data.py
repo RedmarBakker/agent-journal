@@ -1,4 +1,4 @@
-"""Refuses staged lines that name a word of the private list or an IP address outside the documentation, private and loopback ranges: python3 scripts/checks/private_data.py, run by the commit guard on what is staged."""
+"""Refuses staged lines that name a word of the private list or an IP address outside the documentation, private and loopback ranges, and any staged file of the raw command corpus or its outputs: python3 scripts/checks/private_data.py, run by the commit guard on what is staged."""
 import ipaddress
 import os
 import re
@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 WORDS = Path(os.environ.get("AGENT_JOURNAL_PRIVATE_WORDS", Path.home() / ".config" / "agent-journal" / "private-words"))
 # an address stands apart: numbers run on from a minus sign, a point or a digit are drawing coordinates, as in an SVG path's -3.3.7.7-3.3
 ADDRESS = re.compile(r"(?<![\w.-])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+# the files scripts/corpus_commands.py, corpus_forms.py and splitter_check.py write beside the raw corpus, which holds commands from every project on the machine
+CORPUS_FILES = {"commands.txt", "chains.jsonl", "values.jsonl", "splitter-report.txt", "splitter-failing.txt", "splitter-decided.txt"}
 DOCUMENTATION = [ipaddress.ip_network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")]
 
 
@@ -44,7 +46,7 @@ def problems(lines: list[tuple[str, int, str]], words: list[str]) -> list[str]:
             if word and word.lower() in lowered:
                 found.append(f"{name}:{number}: private word {index} of {WORDS}")
         found += [f"{name}:{number}: the address {address} is a real machine's; use a documentation address such as 203.0.113.5" for address in ADDRESS.findall(text) if is_public(address)]
-    return found
+    return found + [f"{name}: a file of the raw command corpus never enters the repository" for name in sorted({name for name, _, _ in lines}) if Path(name).name in CORPUS_FILES]
 
 
 if __name__ == "__main__":

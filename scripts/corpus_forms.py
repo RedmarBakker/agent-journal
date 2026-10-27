@@ -17,7 +17,7 @@ from typing import Iterator, TextIO
 from journal.support.chain import Chain
 from journal.support.command_shape import LOOP_PATTERN as LOOP_START, CommandShape
 from journal.support.part import Part
-from scripts.corpus_commands import anonymised
+from scripts.corpus_commands import anonymised, refused_inside_repository
 
 # lowercase letters and digits without the look-alikes 0, 1, l and o
 ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz"
@@ -746,6 +746,7 @@ def written(corpus: Path, bash: str, line_mapper=map, chunk_mapper=map) -> dict[
 
 
 def main(corpus: Path) -> None:
+    refused_inside_repository(corpus)
     with multiprocessing.Pool() as pool:
         files = written(corpus, shutil.which("bash") or "", partial(pool.imap, chunksize=200), pool.imap)
     sizes = {path.name: path.stat().st_size for path in corpus.parent.iterdir() if path.is_file()}
