@@ -128,6 +128,14 @@ class Library:
             raise MissingItem(f"{item_type} {name} has no version {number}")
         return matching[0]
 
+    def version_deleted(self, account: Account, item_type: str, name: str, number: int) -> ItemVersion:
+        if not account.is_admin():
+            raise Refusal("only an admin deletes a version for good")
+        version = self.stored_version(item_type, name, number)
+        self.versions.delete(version.id)
+        self.files.version_removed(item_type, name, number)
+        return version
+
     def withdraw(self, account: Account, item_type: str, name: str, withdrawn_at: float) -> Item:
         item = self.item(item_type, name)
         if not item.has_owner(account):

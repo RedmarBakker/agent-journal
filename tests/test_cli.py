@@ -597,6 +597,7 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
     from sync_server.publish_request import PublishRequest
     from sync_server.team_server import TeamServer
 
+    (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", "admin", 1.0)
     _, token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
@@ -619,6 +620,7 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
 def test_a_journal_connects_to_a_library_sees_its_status_and_disconnects(app: App, tmp_path: Path):
     from sync_server.team_server import TeamServer
 
+    (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
@@ -636,3 +638,169 @@ def test_a_journal_connects_to_a_library_sees_its_status_and_disconnects(app: Ap
         assert "connected to no library" in console.run(["library", "status"], user).text
     finally:
         team.close(server)
+
+
+def test_a_sequence_published_twice_is_version_two_of_its_named_item_with_the_publishers_account(app: App, tmp_path: Path):
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        created = console.run(["sequence", "create", "Release Flow!", "--steps", "tag it | push it"], user)
+        number = created.text.split()[1].rstrip(":")
+        assert console.run(["library", "publish", "sequence", number, "--note", "first"], user).code == 0
+        second = console.run(["library", "publish", "sequence", number, "--note", "second"], user)
+        assert second.code == 0 and "version 2" in second.text, second.error
+        [entry] = team.library.listed("sequence", None)
+        assert entry.item.name == "release-flow" and entry.version.number == 2 and entry.version.publisher_id == team.accounts.verified("ada@example.com", "correct horse battery").id, "named from its title, with the publisher's account"
+        assert console.run(["library", "publish", "template", "nine"], user).code != 0, "a template is published by its number"
+    finally:
+        team.close(server)
+
+
+def test_a_library_sequence_is_imported_unlocked_joined_to_its_item_and_listed_with_the_version_held(app: App, tmp_path: Path):
+    from journal.repositories.library_items import LibraryItems
+    from journal.repositories.sequences import Sequences
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        number = console.run(["sequence", "create", "Ship Week", "--steps", "tag it | push it"], user).text.split()[1].rstrip(":")
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        imported = console.run(["library", "import", "sequence", "ship-week"], user)
+        assert imported.code == 0 and "version 1" in imported.text, imported.error
+        copies = app.container.get(Sequences).titled("Ship Week (from the library)")
+        assert copies and not copies[0].locked, "a title the journal already has gets the words from the library, and the copy is editable"
+        item = app.container.get(LibraryItems).imported(team.details.answer().key, "sequence", "ship-week")
+        assert item.version == 1 and [str(ref) for ref in app.container.get(LibraryItems).local_rows(item)] == [f"sequences:{copies[0].id}"]
+        assert "imported already" in console.run(["library", "import", "sequence", "ship-week"], user).error
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        assert "sequence ship-week: version 2, you have 1" in console.run(["library", "list"], user).text
+        team.library.publish(team.accounts.find(1), "template", "future", "needs more", '{"title": "x"}', "99.0.0", "", 1.0)
+        assert "needs journal 99.0.0" in console.run(["library", "import", "template", "future"], user).error, "an item that needs a newer journal is refused"
+    finally:
+        team.close(server)
+
+
+def test_an_unedited_library_copy_updates_and_an_edited_one_waits_for_replace(app: App, tmp_path: Path):
+    from journal.repositories.sequences import Sequences
+    from journal.models.support.sequence_step import SequenceStep
+    from journal.support.actor import Actor
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    sequences = app.container.get(Sequences)
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        number = int(console.run(["sequence", "create", "Review Day", "--steps", "read it"], user).text.split()[1].rstrip(":"))
+        assert console.run(["library", "publish", "sequence", str(number)], user).code == 0
+        assert console.run(["library", "import", "sequence", "review-day"], user).code == 0
+        original = sequences.find(number)
+        sequences.save(original.with_(steps=(SequenceStep("Read", "read it twice"),)), Actor.user(1))
+        assert console.run(["library", "publish", "sequence", str(number)], user).code == 0
+        [copy] = sequences.titled("Review Day (from the library)")
+        updated = console.run(["library", "update", "sequence", "review-day"], user)
+        assert updated.code == 0 and "version 2" in updated.text and sequences.find(copy.id).steps[0].instructions == "read it twice", updated.error
+        sequences.save(sequences.find(copy.id).with_(steps=(SequenceStep("Mine", "my own way"),)), Actor.user(1))
+        sequences.save(sequences.find(number).with_(steps=(SequenceStep("Third", "a third way"),)), Actor.user(1))
+        assert console.run(["library", "publish", "sequence", str(number)], user).code == 0
+        refused = console.run(["library", "update", "sequence", "review-day"], user)
+        assert refused.code != 0 and "steps changed" in refused.error, "an edited copy names what changed"
+        assert console.run(["library", "update", "sequence", "review-day", "--replace"], user).code == 0 and sequences.find(copy.id).steps[0].instructions == "a third way"
+    finally:
+        team.close(server)
+
+
+def test_the_library_withdraws_an_item_its_admin_deletes_a_version_and_a_member_cannot_invite(app: App, tmp_path: Path):
+    from dataclasses import replace
+    from journal.features.library.support.library_account import LibraryAccount
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        number = console.run(["sequence", "create", "Night Run", "--steps", "go"], user).text.split()[1].rstrip(":")
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        assert console.run(["library", "import", "sequence", "night-run"], user).code == 0
+        assert console.run(["library", "withdraw", "sequence", "night-run"], user).code == 0
+        assert "no items in the library" in console.run(["library", "list"], user).text, "a withdrawn item leaves the list"
+        assert "version 1" in console.run(["library", "show", "sequence", "night-run"], user).text, "while the version imported still reads"
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        assert "deleted for good" in console.run(["library", "delete", "sequence", "night-run", "2"], user).text
+        invited = console.run(["library", "invite", "bob@example.com"], user)
+        assert invited.code == 0 and "code=" in invited.text, invited.error
+        assert "Ada" in console.run(["library", "people"], user).text and console.run(["library", "devices"], user).code == 0
+        team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
+        _, member_token = team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
+        account = LibraryAccount(app.config)
+        account.write(replace(account.connection(), token=member_token, role="member"))
+        assert console.run(["library", "invite", "dan@example.com"], user).code != 0, "a member's invite is refused, admins only"
+    finally:
+        team.close(server)
+
+
+def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_update_offers_the_import(app: App, tmp_path: Path):
+    from journal.repositories.sequences import Sequences
+    from journal.support.actor import Actor
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    sequences = app.container.get(Sequences)
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        number = console.run(["sequence", "create", "Lunch Break", "--steps", "eat"], user).text.split()[1].rstrip(":")
+        assert console.run(["library", "publish", "sequence", number], user).code == 0
+        assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0
+        [copy] = sequences.titled("Lunch Break (from the library)")
+        with app.container.get(Scope).environment(1):
+            sequences.delete(copy, Actor.user(1))
+        app.runtime().deferred.drain()
+        assert "you have" not in console.run(["library", "list"], user).text, "a copy that is gone is not counted"
+        assert "its copy was deleted" in console.run(["library", "update", "sequence", "lunch-break"], user).error
+        assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0, "and it can be imported again"
+    finally:
+        team.close(server)
+
+
+def test_library_commands_without_a_connection_or_a_server_name_journal_library_connect_and_imports_keep_working(app: App, tmp_path: Path):
+    from journal.repositories.sequences import Sequences
+    from sync_server.team_server import TeamServer
+
+    console, user = app.console(), Caller.user("main")
+    for argv in (["library", "list"], ["library", "import", "sequence", "x"], ["library", "publish", "sequence", "1"]):
+        refused = console.run(argv, user)
+        assert refused.code != 0 and "journal library connect" in refused.error, argv
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+    number = console.run(["sequence", "create", "Tea Time", "--steps", "brew"], user).text.split()[1].rstrip(":")
+    assert console.run(["library", "publish", "sequence", number], user).code == 0
+    assert console.run(["library", "import", "sequence", "tea-time"], user).code == 0
+    team.close(server)
+    unreached = console.run(["library", "list"], user)
+    assert unreached.code != 0 and "did not answer" in unreached.error and "journal library connect" in unreached.error, unreached.error
+    assert console.run(["library", "disconnect"], user).code == 0
+    assert app.container.get(Sequences).titled("Tea Time (from the library)"), "what was imported keeps working after the library is gone"

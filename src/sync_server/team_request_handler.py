@@ -136,6 +136,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         routes = self.server.team.library_routes
         if path.is_withdrawal:
             return routes.withdrawn(self.token(), path)
+        if path.is_deletion:
+            return routes.deleted(self.token(), path)
         return routes.published(self.token(), path, self.typed(PublishRequest), self.headers.get(VERSION_HEADER, ""))
 
     @staticmethod

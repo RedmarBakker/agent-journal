@@ -91,10 +91,10 @@ class TeamServerLink:
         return BackupAnswer(**json.loads(self.sent(self.account.address(), "/backups", b"{}", COPY_SECONDS)))
 
     def invite(self, email: str) -> InvitationAnswer:
-        return InvitationAnswer(**json.loads(self.posted("/invite", {"email": email})))
+        return self.transport.invite(email)
 
     def devices(self) -> DeviceList:
-        return DeviceList.parsed(**json.loads(self.sent(self.account.address(), "/devices", None, REQUEST_SECONDS)))
+        return self.transport.devices()
 
     def pin_version(self, version: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/version", {"version": version})))
@@ -103,7 +103,7 @@ class TeamServerLink:
         return int(json.loads(self.posted("/people/leave", {})).get("withdrawn", 0))
 
     def remove_person(self, account_id: int) -> str:
-        return str(json.loads(self.posted("/people/remove", {"account_id": account_id})).get("name", ""))
+        return self.transport.remove_person(account_id)
 
     def move_to_hub(self) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/hub", {})))
@@ -115,10 +115,10 @@ class TeamServerLink:
         return TeamSummary(**json.loads(self.posted("/team/versions", {"versions": rule})))
 
     def people(self) -> PeopleAnswer:
-        return PeopleAnswer.parsed(**json.loads(self.sent(self.account.address(), "/people", None, REQUEST_SECONDS)))
+        return self.transport.people()
 
     def revoke(self, device_id: int) -> Device:
-        return Device(**json.loads(self.posted("/devices/revoke", {"device_id": device_id})))
+        return self.transport.revoke(device_id)
 
     def summary(self, address: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.sent(address, "/team", None, REQUEST_SECONDS)))
@@ -130,10 +130,10 @@ class TeamServerLink:
         return self.transport.install(address, email, name, password, device_name)
 
     def change_password(self, old: str, new: str) -> None:
-        self.posted("/password", {"old": old, "new": new})
+        self.transport.change_password(old, new)
 
     def reset_password(self, account_id: int) -> str:
-        return PasswordAnswer(**json.loads(self.posted("/people/password", {"account_id": account_id}))).password
+        return self.transport.reset_password(account_id)
 
     def signin_code(self) -> str:
         return SigninAnswer(**json.loads(self.posted("/signin-links", {}))).code

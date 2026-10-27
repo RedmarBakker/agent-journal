@@ -1,10 +1,13 @@
+import hashlib
 import json
+import ssl
 import os
 from pathlib import Path
 
 from journal.config import Config
 from journal.features.library.support.library_connection import LibraryConnection
 from journal.support.rejection import Rejection
+from journal.sync.team_url import TeamUrl
 
 LIBRARIES_FOLDER = "libraries"
 
@@ -38,6 +41,13 @@ class LibraryAccount:
 
     def root_path(self) -> Path:
         return self.folder() / "root.crt"
+
+    def fingerprint(self) -> str:
+        root = self.root_path()
+        return hashlib.sha256(ssl.PEM_cert_to_DER_cert(root.read_text())).hexdigest() if root.is_file() else ""
+
+    def invitation_url(self, code: str) -> str:
+        return TeamUrl(self.address()).invitation(code, self.fingerprint())
 
     def write(self, connection: LibraryConnection) -> Path:
         self.folder().mkdir(parents=True, exist_ok=True)

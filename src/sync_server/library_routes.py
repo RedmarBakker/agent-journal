@@ -38,6 +38,9 @@ class LibraryRoutes:
     def published(self, token: str, path: LibraryPath, request: PublishRequest, lowest_version: str) -> ItemVersion:
         return self.team.library.publish(self.team.devices.person(token), path.item_type, path.name, request.description, request.body, lowest_version, request.note, self.team.clock.time())
 
+    def deleted(self, token: str, path: LibraryPath) -> ItemVersion:
+        return self.team.library.version_deleted(self.team.devices.person(token), path.item_type, path.name, path.number)
+
     def withdrawn(self, token: str, path: LibraryPath) -> Item:
         return self.team.library.withdraw(self.team.devices.person(token), path.item_type, path.name, self.team.clock.time())
 

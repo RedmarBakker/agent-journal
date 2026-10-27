@@ -570,7 +570,7 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
 def test_each_model_says_whether_it_is_shared_with_the_team_or_kept_on_one_machine():
     from journal.models.all_models import AllModels
     local = sorted(model.__name__ for model in AllModels.MODELS if not model.shared)
-    assert local == sorted(["Entry", "Agent", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer"]), "the models kept on one machine are the ones NOTES.md names"
+    assert local == sorted(["Entry", "Agent", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer", "LibraryItem"]), "the models kept on one machine are the ones NOTES.md names"
     assert all(model.shared for model in AllModels.MODELS if model.__name__ in ("Task", "Message", "Alias", "Worker", "Setting")), "everything else is shared"
 
 
@@ -1804,3 +1804,24 @@ def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_
         entries.save(Entry(environment_id=1, entry_type=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "values": {"command": "pytest"}, "session": "s1", "line": "a line", "time": 2.0}), Actor.system())
         assert entries.environment_values("shell.add_a_reader", "command") == ["pytest"], "a line recorded before lines kept their values is no fault at every tool use"
         assert entries.project_values("shell.add_a_reader", "command") == {"pytest": 2.0}
+
+
+def test_a_sequence_template_and_profile_travel_as_portable_bodies_and_come_back_whole():
+    from journal.features.library.support.portable_body import PortableBody
+    from journal.features.library.support.profile_body import ProfileBody
+    from journal.features.library.support.sequence_body import SequenceBody
+    from journal.features.library.support.template_body import TemplateBody
+    from journal.models.sequence import Sequence
+    from journal.models.support.sequence_step import SequenceStep
+    from journal.models.support.sequence_trigger import SequenceTrigger
+    from journal.models.template import Template
+    from journal.providers.support.profile import Profile
+    from journal.providers.support.profile_type import ProfileType
+    sequence = Sequence(id=4, title="Release", steps=(SequenceStep("Tag", "tag it", False, ("^git tag",), ""), SequenceStep("Push", "push it")), triggers=(SequenceTrigger.row("plan.finished"), SequenceTrigger.phrase("ship it")), locked=True)
+    back = SequenceBody.sequence(SequenceBody.text(sequence))
+    assert (back.title, back.steps, back.triggers, back.locked, back.id) == ("Release", sequence.steps, sequence.triggers, False, None), "only the number, the stamps and the lock are left behind"
+    assert SequenceBody.text(back) == SequenceBody.text(sequence) and PortableBody.hash(SequenceBody.text(back)) == PortableBody.hash(SequenceBody.text(sequence)), "an unedited copy hashes the same"
+    template = Template(title="Find what is missing", targets=("plan",), purpose="critique", brief="read it", parts=("Gaps: what is missing",))
+    assert TemplateBody.template(TemplateBody.text(template)) == template
+    profile = Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT, model="opus")
+    assert ProfileBody.profile(ProfileBody.text(profile)) == Profile("journal-scout", "reads", "Read, Grep", "You read.", ProfileType.SUBAGENT), "the model a machine sets stays behind"
