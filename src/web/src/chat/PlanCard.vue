@@ -198,11 +198,12 @@ async function start() {
     margin-left: auto;
 }
 
+/* the plan's title keeps room for a few words however many buttons stand beside it */
 .plan-card-more {
     position: relative;
     display: flex;
     flex: 0 1 auto;
-    min-width: 0;
+    min-width: min(8em, 30%);
 }
 
 .plan-card-title .ico {

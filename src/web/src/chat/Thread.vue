@@ -424,7 +424,8 @@ async function post(text, files) {
         return;
     }
     const replying = quote.value;
-    const body = withQuote(replying.text, text);
+    // a comment on a row names its row with on and quotes nothing; the band shows the row's title alone
+    const body = replying.on ? text : withQuote(replying.text, text);
     if (scope.chat) {
         quote.value = {text: "", ref: ""};
         await scope.chat.send(body);
@@ -440,7 +441,7 @@ async function post(text, files) {
     toFoot();
     let sent;
     try {
-        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo, refers: replying.refers}, files, id);
+        sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo, refers: replying.refers, on: replying.on}, files, id);
     } catch (e) {
         drop(placeholder);
         if (!quote.value.ref && !quote.value.text) quote.value = replying;

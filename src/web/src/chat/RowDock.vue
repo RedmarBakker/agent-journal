@@ -11,14 +11,21 @@ import {undock} from "../actions/docking.js";
 import {dockedRef} from "../domain/docks.js";
 import {meta} from "../domain/tables.js";
 import {peek} from "../route.js";
+import {actsOf} from "../domain/acts.js";
+import {rows} from "../sync/rows.js";
 import {openUpdate} from "../state/overlays.js";
+import {store} from "../state/store.js";
 
 const props = defineProps({message: Object, folded: Boolean});
 const scope = useScope();
 const card = computed(() => props.message.data);
 const row = computed(() => dockedRef(props.message));
 const kind = computed(() => meta(row.value.table));
-const buttons = computed(() => (card.value.dock?.buttons || []).filter((b) => b.act !== "close"));
+// a card is written once, when it docks: an act on the row, such as Approve, shows only while the row as it is now still offers it
+const live = computed(() => rows(row.value.table).find((r) => r.id === row.value.id) || null);
+const offered = computed(() => (live.value ? new Set(actsOf({...live.value, table: row.value.table}).map((a) => a.name)) : null));
+const rowAct = (button) => !(button.act in OWN);
+const buttons = computed(() => (card.value.dock?.buttons || []).filter((b) => b.act !== "close" && (!rowAct(b) || !offered.value || offered.value.has(b.act))));
 // a card with a summary folds to its title on a click on it, and opens its row with Open; one with none opens its row on a click
 const shut = ref(false);
 const folds = computed(() => shut.value || (props.folded && card.value.dock?.folds !== false));
@@ -32,6 +39,9 @@ const openUpdateHere = () => openUpdate(row.value.id, dock.value?.card?.closest(
 const OWN = {open, close: takeDown, open_update: openUpdateHere};
 const press = (button) => (OWN[button.act] || (() => scope.api.act(row.value.table, row.value.id, button.act)))();
 const headingClicked = () => (card.value.summary ? (shut.value = !shut.value) : open());
+// a row that takes comments is commented on from its card: the composer's band names the row, and what is sent goes under it
+const commentable = computed(() => Boolean(kind.value.takes_comments));
+const comment = () => (store.quoting = {text: card.value.heading, ref: "", on: `${row.value.table}:${row.value.id}`, label: "Commenting on"});
 </script>
 
 <template>
@@ -58,6 +68,11 @@ const headingClicked = () => (card.value.summary ? (shut.value = !shut.value) : 
                     <Btn small @click="press(button)">{{ button.label }}</Btn>
                 </template>
             </span>
+            <template v-if="commentable">
+                <Btn kind="icon" class="row-dock-comment" :title="`Comment on this ${kind.title.toLowerCase()}`" :aria-label="`Comment on this ${kind.title.toLowerCase()}`" @click="comment">
+                    <Icon name="bubble" />
+                </Btn>
+            </template>
             <CloseButton :title="`Hide from chat; the ${kind.title.toLowerCase()} stays on its page`" @click="takeDown" />
         </template>
         <template v-if="card.summary">
