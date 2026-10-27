@@ -25,10 +25,10 @@ class AliasLines:
         return alias.starts(part) or " " in shape and shape == self.shapes.build(alias.line)
 
     def line_alias(self, line: str) -> Alias | None:
-        return self.running(part) if (part := self.alias_part(line)) else None
+        return next((alias for part in Chain.self_parts(line) if (alias := self.running(part)) is not None), None)
 
     def alias_part(self, line: str) -> str:
-        return next((part for part in Chain.self_parts(line) if self.running(part) is not None), "")
+        return next((part for part in Chain.self_parts(line) if self.expanded(part) != part), "")
 
     def background_part(self, line: str) -> str:
         return next((part for part in Chain.self_parts(line) if (alias := self.running(part)) is not None and alias.background), "")
