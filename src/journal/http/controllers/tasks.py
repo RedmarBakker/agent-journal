@@ -64,6 +64,10 @@ class TaskController(Controller[Task]):
         task = self.repository.find(request.number("id"))
         return Response.json(self.shown(self.repository.save(task.completed(self.time(), request.body.get("how", "")), request.actor)))
 
+    def cancel(self, request: Request) -> Response:
+        task = self.repository.find(request.number("id"))
+        return Response.json(self.shown(self.repository.save(task.cancelled(self.time(), request.body.get("why", "")), request.actor)))
+
     def reopen(self, request: Request) -> Response:
         task = self.repository.find(request.number("id"))
         return Response.json(self.shown(self.repository.save(task.with_(state=TaskState.OPEN, completed_at=None, outcome=""), request.actor)))

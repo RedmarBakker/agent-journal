@@ -185,5 +185,6 @@ export function moreActs(task) {
         ...(status === "blocked" ? [act("unblock", "Unblock")] : []),
         ...(next && ["answer", "goto"].includes(next.name) ? [next] : []),
         act("edit", "Edit the title and brief"),
+        ...(status === "done" ? [] : [act("cancel", "Close")]),
     ];
 }

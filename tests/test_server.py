@@ -74,6 +74,12 @@ def whole_rows(server, table: str) -> list[dict]:
     return call(server, "GET", f"/journal/{table}?ids={ids}")[1]["rows"] if ids else []
 
 
+def test_the_viewer_closes_a_task_undone_as_journal_task_cancel_does(server):
+    call(server, "POST", "/journal/tasks", {"title": "drop it"})
+    status, cancelled = call(server, "POST", "/journal/tasks/1/cancel")
+    assert status == 200 and cancelled["state"] == "cancelled"
+
+
 def test_tasks_live_over_http(server):
     status, task = call(server, "POST", "/journal/tasks", {"title": "ship it", "brief": "b"})
     assert status == 201 and task["id"] == 1 and task["creator"] == "user:1"

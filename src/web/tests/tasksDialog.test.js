@@ -246,3 +246,17 @@ describe("the tasks dialog's rules", () => {
         expect(open.placed.filter((p) => p.node.kind === "task")).toHaveLength(6);
     });
 });
+
+describe("the more button of a task in the tasks dialog", () => {
+    test("opens the task's menu with Close, and choosing Close closes the task undone", async () => {
+        await opened();
+        document.body.querySelector('.tasks-dialog .task-row[data-task="4"] button[title^="More for task 4"]').click();
+        await flush();
+        const items = [...document.body.querySelectorAll(".menu-panel button")];
+        expect(items.map((b) => b.textContent.trim())).toEqual(["Change status", "Blocked by a task...", "Edit the title and brief", "Close", "Delete task 4"]);
+        items.find((b) => b.textContent.trim() === "Close").click();
+        await flush();
+        expect(api.act).toHaveBeenCalledWith("tasks", 4, "cancel", {});
+        expect(document.body.querySelector(".menu-panel")).toBeNull();
+    });
+});

@@ -29,7 +29,7 @@ afterEach(() => {
 test("the More menu of a task with a worker or queued for one, which has no next act, opens with no error and offers its acts", async () => {
     store.rows = {tasks: [withWorker, queued], plans: [], questions: []};
     expect([nextAct(withWorker), nextAct(queued)]).toEqual([null, null]);
-    expect(moreActs(withWorker).map((a) => a.label)).toEqual(["Blocked by a task...", "Edit the title and brief"]);
+    expect(moreActs(withWorker).map((a) => a.label)).toEqual(["Blocked by a task...", "Edit the title and brief", "Close"]);
     const errors = [];
     const logged = vi.spyOn(console, "error").mockImplementation((...args) => errors.push(args.join(" ")));
     const anchor = document.body.appendChild(document.createElement("button"));
@@ -41,7 +41,7 @@ test("the More menu of a task with a worker or queued for one, which has no next
     await flush();
     const items = [...document.querySelectorAll(".menu-panel button")].map((b) => b.textContent.trim());
     expect(errors).toEqual([]);
-    expect(items).toEqual(["Change status", "Blocked by a task...", "Edit the title and brief", "Delete task 4"]);
+    expect(items).toEqual(["Change status", "Blocked by a task...", "Edit the title and brief", "Close", "Delete task 4"]);
     [...document.querySelectorAll(".menu-panel button")][0].click();
     expect(shown).toHaveBeenCalledWith("status", withWorker, anchor);
     logged.mockRestore();

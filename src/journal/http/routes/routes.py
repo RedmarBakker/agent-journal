@@ -188,7 +188,7 @@ class Routes:
         router.get(f"{API}/requests", get(RequestController).index)
         router.get(f"{API}/requests/filed", get(RequestController).filed)
         self.resource(router, "tasks", tasks)
-        self.acts(router, "tasks", tasks, "start", "finish", "reopen", "pause", "block", "unblock", "delete", "log")
+        self.acts(router, "tasks", tasks, "start", "finish", "cancel", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
         self.resource(router, "plans", plans)
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)

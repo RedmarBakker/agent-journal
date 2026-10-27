@@ -8,6 +8,7 @@ const DONE_LINES = {
     start: (id) => `Task ${id} started.`,
     reopen: (id) => `Task ${id} is open again.`,
     unblock: (id) => `Task ${id} is open again.`,
+    cancel: (id) => `Task ${id} is closed, not done.`,
     delete: (id) => `Task ${id} deleted.`,
 };
 const ASKED = ["finish", "pause", "block", "edit"];
