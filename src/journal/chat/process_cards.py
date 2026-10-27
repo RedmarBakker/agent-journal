@@ -10,6 +10,8 @@ from journal.repositories.messages import Messages
 PROCESS = "process"
 DOCKED = "docked"
 AUTO_DOCKED = "auto_docked"
+# the progress of a watched card that the agent last saw, kept through a refresh
+LAST_PROGRESS_KEY = "last_progress"
 DOCK_TIME_KEY = "dock_at"
 UNDOCK_TIME_KEY = "undock_at"
 # the mark a card takes when the process it shows ran and ended, done or failed: from then on it is never written again
@@ -61,4 +63,4 @@ class ProcessCards:
 
     @staticmethod
     def docked_data(older: Message, data: dict) -> dict:
-        return {**{key: older.data[key] for key in (DOCKED, AUTO_DOCKED, DOCK_TIME_KEY) if key in older.data}, **data}
+        return {**{key: older.data[key] for key in (DOCKED, AUTO_DOCKED, DOCK_TIME_KEY, LAST_PROGRESS_KEY) if key in older.data}, **data}

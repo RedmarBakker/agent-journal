@@ -1798,7 +1798,7 @@ shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
 shell.name_the_run_in_words  [shell]  the card of output {{n}} is titled {{card_title}}, which shows a flag or a path where a description belongs. say what the run does in words: `--label "<words>"` on the reader or alias that runs it, or `journal output watch {{n}} --title "<words>"`
 shell.output_kept  [shell]  output {{n}}: {{counts}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts}}
-shell.outputs_ended  [shell]  {{outputs}}. `journal output read {{n}} --summary` says how
+shell.outputs_ended  [shell]  output {{n}}: {{outcome}}
 shell.project_path_refused  [shell]  the command uses the absolute path of this project, so its card and its process show only the path. your shell is already in the project folder: run it relative to it, {{line}}
 shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines, more than the {{cap}} shown at each end. read it in parts with offset and limit, or grep for the line you need
 shell.reader_report_dismissal_refuted  [shell]  you dismissed a report and the run's output shows it was wrong, {{verdicts}}. replace the reader with `journal reader add <name> --pattern <regex> --about <what it reads>`; a report found wrong cannot be dismissed again

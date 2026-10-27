@@ -11,7 +11,7 @@ class ShellNudges:
     OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts}}{{part}}", repeat=Timeout.seconds(0))
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
-    OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "{{outputs}}", "`journal output read {{n}} --summary` says how", repeat=Timeout.seconds(0))
+    OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "output {{n}}: {{outcome}}", repeat=Timeout.seconds(0))
     READER_DRAFT = Nudge("shell", "draft_a_reader", "no reader reads {{part}} yet", "`{{command}}`, filled from this run's output and tried on it before it is saved; or name {{part}} in a reader you have with `journal reader add <name> --commands <commands>`", repeat=Timeout.seconds(0))
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader}} already reads this: {{about}}", "`journal output read <n> --reader {{reader}}`", repeat=Timeout.seconds(0))
     PARTIAL_FILE_READ = Nudge("shell", "read_the_file_in_parts", "the file has {{lines}} lines, more than the {{cap}} shown at each end", "read it in parts with offset and limit, or grep for the line you need", repeat=Timeout.seconds(0))

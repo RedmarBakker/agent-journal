@@ -30,6 +30,7 @@ from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
 from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.shell.support.shell_data import ShellData
@@ -52,9 +53,9 @@ class ShellConduct(Conduct):
         watch = event.data.part(ShellPart).watch
         if not watch.is_watching():
             return Transition.merged(self, [unread_check(self, event, settings), run_title_check(self, event, settings)])
-        if watch.ending:
+        if watch.ending or not watch.is_new_progress():
             return self.none()
-        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, progress=watch.progress()))
+        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, progress=watch.progress(), fraction=watch.fraction))
 
     def on_command_ended(self, event: CommandEnded, settings: Settings) -> Transition:
         shell = event.data.part(ShellPart)
@@ -64,7 +65,7 @@ class ShellConduct(Conduct):
         watch = shell.watch
         if watch.output == event.output:
             return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, outcome=watch.outcome(ended.ending)), *reader_draft(shell, {event.output}, settings))
-        return self.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text((ended,)), n=ended.id), *reader_draft(shell, {event.output}, settings))
+        return self.none(ShellNudges.OUTPUTS_ENDED.create(n=ended.id, outcome=OutputView.empty().outcome(ended.ending)), *reader_draft(shell, {event.output}, settings))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return Transition.merged(self, [background_check(self, event, settings), unread_check(self, event, settings), run_title_check(self, event, settings)])

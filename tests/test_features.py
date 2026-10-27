@@ -3937,7 +3937,7 @@ def test_a_chains_parts_are_recorded_and_a_moved_chain_reports_when_it_ends(app:
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=6.0))
     assert len(keystrokes) == notified, "the agent is still at work, so the end waits for its next tool use instead of being typed"
     carried = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert "output 1 failed with code 1" in carried and "2 failed" not in carried, "once it is quiet, its end names the number and how it ended on the next tool use, never the command or its lines"
+    assert "output 1: failed" in carried and "2 failed" not in carried and "--summary" not in carried, "once it is quiet, its end is output 1: failed on the next tool use, never the command, its lines or a hint"
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=12.0))
     assert "output 1 failed" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]) and len(keystrokes) == notified, "an end is named once"
     cards = [m for m in app.container.get(Messages).scoped() if m.author == "system"]
@@ -12423,7 +12423,8 @@ def test_a_scripts_file_edits_are_found_from_the_files_whose_time_moved(app: App
         assert [e.path for e in app.container.get(Edits).rows()] == ["built.txt"], "the file the script wrote under a built name is an edit; the file it left alone is not"
 
 
-def test_a_watched_output_shows_its_progress_after_every_tool_use_and_its_end_once(app: App):
+def test_a_watched_output_shows_its_progress_once_it_moved_ten_percent_and_its_end_once(app: App):
+    from journal.features.shell.jobs.watch_refresh import WatchRefresh
     from journal.features.shell.support.output_log import OutputLog
     from journal.features.shell.support.shell_record import ShellRecord
     from journal.repositories.command_outputs import CommandOutputs
@@ -12443,9 +12444,19 @@ def test_a_watched_output_shows_its_progress_after_every_tool_use_and_its_end_on
     assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
     seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
     assert '"output 1: 40%"' in seen and "FAILED test_b" not in seen and "pytest -q" not in seen, "while it runs the agent sees its progress alone, never its lines or its command"
+    deferred.drain()
+    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 45%] test_e\n")
+    app.container.get(WatchRefresh).tick(timing.time())
+    deferred.drain()
+    assert "output 1:" not in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a run that moved less than 10% since the agent last saw it is not named again"
+    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 55%] test_f\n")
+    app.container.get(WatchRefresh).tick(timing.time())
+    deferred.drain()
+    assert '"output 1: 55%"' in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a move of 10% or more is named again"
+    deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key("watch:1")[0]
-    assert card.data["figure"] == "Running the tests 40%" and card.data["fraction"] == 0.4, "the chat card carries the bar"
+    assert card.data["figure"] == "Running the tests 55%" and card.data["fraction"] == 0.55, "the chat card carries the bar"
     assert (card.text, card.data["line"]) == ("Running the tests", "pytest -q"), "the card is titled by its reader's label, the command kept beside it for the opened card"
     assert console.run(["output", "watch", "1", "--title", "Running the tests"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
