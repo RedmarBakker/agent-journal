@@ -4,6 +4,13 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.65.1
+
+- An update is installed by the new release itself: the running journal only downloads that release's install script, the one the README gives, and starts it as a process of its own that outlives the old journal; the script swaps the release in and restarts the journal on it, so no step of an update runs the old code.
+- While the agent waits on a worker and no task is open, the journal names a task the agent paused, with its resume line.
+- The suite says what it still waits on once every test has finished.
+- More fields named kind take plain names: a command's classification type, an option's, an actor's, a hook's, an operation's, a column's and a response's content type.
+
 ## 4.65.0
 
 - Commands the journal understands: a command table ships with the journal and classifies every shell command once, by its program, subcommands, options, wrappers, redirects and inner commands, and every recorded call carries its classification; the old wrapper lists, redirect patterns and activity verbs are gone, and a project may add a table of its own.

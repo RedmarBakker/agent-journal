@@ -8165,15 +8165,17 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     from journal.features.updates.support.updater import Updater
     fetched, ran = [], []
     monkeypatch.setattr(release_installer, "urlopen", lambda address, timeout: fetched.append(address) or io.BytesIO(b"echo installed\n"))
-    monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: ran.append((command[0], options["env"]["AGENT_JOURNAL_REF"])) or SimpleNamespace(returncode=0))
-    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    restarted = []
+    monkeypatch.setattr(release_installer.subprocess, "Popen", lambda command, **options: ran.append((command[0], options["env"]["AGENT_JOURNAL_REF"], options["start_new_session"])))
+    monkeypatch.setattr(Updater, "restart", lambda self: restarted.append(True))
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), app.container.get(ReleaseInstaller), auto=False)
     updating.read()
     updating.install(Actor.user(1))
-    assert fetched == ["https://raw.githubusercontent.com/jessegall/agent-journal/v4.99.0/install.sh"] and ran == [("sh", "v4.99.0")] and updating.problem == "", "the updater calls the real installer with every argument it asks for, which fetches the release's install script and runs it"
+    assert fetched == ["https://raw.githubusercontent.com/jessegall/agent-journal/v4.99.0/install.sh"] and ran == [("sh", "v4.99.0", True)] and updating.problem == "", "the updater fetches the new release's install script and starts it as a process of its own, detached so it outlives this journal (messages 71323, 71356)"
+    assert restarted == [], "the old instance restarts nothing itself: the new release's script installs and restarts the journal, so no old code runs a step of the update"
     app.container.get(ReleaseInstaller).run("v4.99.0", "https://github.com/jessegall/agent-journal")
-    assert ran[-1] == ("sh", "v4.99.0") and (app.config.home / "runtime" / "update.log").read_text().startswith("installing v4.99.0 of https://github.com/jessegall/agent-journal: updating to the latest release"), "an updater from before 24 October, which passes the ref and the repository alone, still runs the new installer (message 67664)"
-    monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: SimpleNamespace(returncode=1))
+    assert ran[-1] == ("sh", "v4.99.0", True) and (app.config.home / "runtime" / "update.log").read_text().startswith("installing v4.99.0 of https://github.com/jessegall/agent-journal: updating to the latest release"), "an updater from before 24 October, which passes the ref and the repository alone, still runs the new installer (message 67664)"
+    monkeypatch.setattr(release_installer.subprocess, "Popen", lambda command, **options: (_ for _ in ()).throw(OSError("no shell")))
     monkeypatch.setattr("journal.features.updates.support.official_install.OfficialInstall.installation", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="offline"))
     updating.card.clear()
     source = updating.source
@@ -17729,7 +17731,7 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
         updater = app.container.get(Updater)
         updater.read()
         updater.install_newest(Actor.user(1))
-        assert steps == [f"v{pinned}", "restarted"], "a journal the team is already ahead of cannot send its changes, so it installs the team's version and sends them after"
+        assert steps == [f"v{pinned}"], "a journal the team is already ahead of cannot send its changes, so it installs the team's version, whose install script restarts it, and sends them after"
         steps.clear()
         account.write({**account.contents(), "team_version": VERSION})
         monkeypatch.setattr(ReleaseSource, "head_commit", lambda self, repository, branch: "abc1234")
@@ -17737,7 +17739,7 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
         updater.follow("development", Actor.user(1))
         updater.read()
         updater.install_newest(Actor.user(1))
-        assert steps == ["development", "restarted"], "nor can one whose last pull still names the old pin while the team has moved on: it asks the server for the pin before it leads"
+        assert steps == ["development"], "nor can one whose last pull still names the old pin while the team has moved on: it asks the server for the pin before it leads"
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)

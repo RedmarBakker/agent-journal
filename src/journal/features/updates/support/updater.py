@@ -239,15 +239,26 @@ class Updater:
         try:
             self.installer.run(target.ref, self.repository(), target.reason or f"updating to {target.label}")
         except Exception as broken:
-            fallback = self.official.installation(target.ref)
-            if fallback.returncode != 0:
-                self.refused_install(target, drained, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
-                return
+            self.installed_officially(target, drained, broken)
+            return
+        self.recorded(target)
+        self.card.step("The new version's install script installs it and restarts the journal on it")
+        if self.is_hosted():
+            self.restart()
+
+    def installed_officially(self, target: UpdateTarget, drained: bool, broken: Exception) -> None:
+        fallback = self.official.installation(target.ref)
+        if fallback.returncode != 0:
+            self.refused_install(target, drained, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
+            return
+        self.recorded(target)
+        self.card.step("Restarting the journal")
+        self.restart()
+
+    def recorded(self, target: UpdateTarget) -> None:
         self.log_reason(target)
         self.problem = ""
         self.lead(target.label)
-        self.card.step("Restarting the journal")
-        self.restart()
 
     def refused_install(self, target: UpdateTarget, drained: bool, reason: str) -> None:
         self.log_reason(target)
