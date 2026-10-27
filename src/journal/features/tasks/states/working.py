@@ -79,7 +79,7 @@ class Working(BaseState):
             return self.log_request(active, event.time, settings)
         if Timeout.edits(settings.integer(TasksOptions.LOG_LIMIT)).is_elapsed(self.edits):
             return self.refuse(TasksNudges.LOG_EDIT_BLOCK.create(edits=self.edits, name=self.label(), log=self.log_command()))
-        counted = replace(active, edits=self.edits + 1)
+        counted = replace(active, edits=self.edits + 1) if self.task_id else active
         if Timeout.edits(settings.integer(TasksOptions.TASK_REMINDER_INTERVAL)).started(self.reminder_edits).is_elapsed(self.edits):
             return self.log_request(replace(counted, reminder_edits=self.edits), event.time, settings, TasksNudges.CURRENT_TASK_REMINDER.create(name=self.label(), edits=self.edits))
         return self.log_request(counted, event.time, settings)
@@ -91,6 +91,8 @@ class Working(BaseState):
         return self.swap(replace(working, log_requested=True), request, *lines)
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        if not self.task_id:
+            return self.none()
         if self.is_log_due(event.time, settings):
             return self.refuse(TasksNudges.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command()))
         return self.refuse(self.continue_nudge(event.time))

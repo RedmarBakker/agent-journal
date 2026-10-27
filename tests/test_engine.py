@@ -3671,3 +3671,18 @@ def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers
     assert worker_hook(2100.0)[0] == 409 and top() == "locked_out", "and it never goes on"
     assert worker_hook(2101.0, kind="Stop")[1].get("decision") != "block", "its stop goes through"
 
+
+def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_edits():
+    from journal.features.plans.states.following_plan import FollowingPlan
+    from journal.features.tasks.tasks_options import TasksOptions
+    settings = SettingsValue({TasksOptions.LOG_LIMIT.key: 50, TasksOptions.TASK_REMINDER_INTERVAL.key: 99})
+    state = FollowingPlan(plan_id=1045, approved=True)
+    for n in range(10):
+        write = ToolCall(tool="Write", input={"file_path": f"notes{n}.md", "content": "x"}, operation=Claude().operation("Write", {"file_path": f"notes{n}.md", "content": "x"}))
+        state = state.respond(ToolStarting(call=write, time=100.0 + n), settings).target
+    assert state.edits == 0, "an edit with no task in hand is not counted toward a log"
+    stopped = state.respond(Stop(time=1000.0), settings)
+    assert stopped.refusal is None and not any("log" in nudge.rendered() for nudge in stopped.nudges), "a stop with no task in hand names no log"
+    held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(time=1000.0), settings)
+    assert held.refusal is not None, "with a task in hand the stop still asks"
+
