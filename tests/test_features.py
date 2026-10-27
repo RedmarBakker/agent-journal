@@ -23274,6 +23274,39 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
     assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)
 
 
+def test_runs_of_different_lines_under_one_card_title_are_told_once_naming_both_and_runs_differing_in_arguments_under_a_topic_are_not(app: App):
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    hook(app, "SessionStart")
+    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--label", "Running tests", "--commands", "pytest", "--topic", r"(\S+\.py)"], USER).code == 0
+    outputs = app.container.get(CommandOutputs)
+
+    def ran(n: int, line: str, reader: str, title: str) -> None:
+        folder = app.config.root / f"run-{n}"
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text(line)
+        app.container.get(OutputLog).start(f"c{n}", line, folder, Caller.agent("main", "s1", "claude"))
+        outputs.save(outputs.find(n).backgrounded().watched(reader, title), Actor.system())
+
+    def told() -> list[str]:
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
+        app.runtime().deferred.drain()
+        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.give_each_run_its_own_title"]
+
+    ran(1, "python3 scripts/suite.py", "", "Running tests")
+    ran(2, "python3 scripts/suite.py --update-matrix", "", "Running tests")
+    told()
+    lines = told()
+    assert len(lines) == 1 and has_nudge(lines[0], ShellNudges.SHARED_TITLE, card_title="Running tests", first_line="python3 scripts/suite.py", second_line="python3 scripts/suite.py --update-matrix"), f"two lines under one title are told once, naming both: {lines}"
+    ran(3, "pytest tests/test_a.py -x", "unit-runs", "")
+    ran(4, "pytest tests/test_a.py -q", "unit-runs", "")
+    assert len(told()) == 1, "runs that differ only in their arguments under a reader's topic add no line"
+
+
 def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_to_the_agent_and_on_its_card(app: App):
     from journal.features.shell.jobs.watch_refresh import COMPLETE_WAIT_SECONDS, WatchRefresh
     from journal.features.shell.support.output_log import OutputLog
@@ -23345,7 +23378,7 @@ def test_the_status_line_names_each_part_of_a_three_part_chain_by_the_classifica
     with app.container.get(Scope).environment(MAIN):
         for part in parts:
             app.container.get(ShellRecord).started("c1", part, Caller.agent("main", "s1", "claude"))
-        started = app.container.get(Entries).all_matching(kind=PART_START)
+        started = app.container.get(Entries).all_matching(entry_type=PART_START)
     shown = [BarRow.build(entry, app.container.get(CommandText)).item()["parts"][0]["value"] for entry in started]
     assert shown == labels, "the status line names each running part by its classification"
 

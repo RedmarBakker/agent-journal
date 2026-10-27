@@ -31,3 +31,4 @@ class ShellData:
     reader_drafts: tuple[ReaderDraft, ...] = ()
     draft_count: int = 0
     titled_runs: tuple[TitledRun, ...] = ()
+    recent_runs: tuple[TitledRun, ...] = ()

@@ -82,9 +82,13 @@ class OutputProcessCard(ProcessCard):
         if self.git.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or self.labels.chain_label(part, output.command)
-        topic = reader.topic(output.command) if reader is not None else ""
+        topic = self.topic(output)
         full = reader.topic_label.replace("{topic}", topic) if topic and reader.topic_label and not output.watch_title else (f"{heading}: {topic}" if topic else heading)
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]
+
+    def topic(self, output: CommandOutput) -> str:
+        reader = self.readers.found(output.watch_reader)
+        return reader.topic(output.command) if reader is not None else ""
 
     def is_alias_run(self, output: CommandOutput) -> bool:
         return self.aliases.expanded(output.command) != output.command

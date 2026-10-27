@@ -4,6 +4,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
 from journal.engine.nudge import Nudge
+from journal.features.shell.support.titled_run import TitledRun
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.command_ended import CommandEnded
@@ -204,8 +205,12 @@ def background_check(state: BaseState, event: Ticked, settings: Settings) -> Tra
     return state.none(ShellNudges.BACKGROUND_CHECK.create(background_outputs=", ".join(str(n) for n in shell.background)))
 
 
+def shared_title_tips(runs: tuple[TitledRun, ...]) -> list[Nudge]:
+    return [ShellNudges.SHARED_TITLE.create(card_title=run.title, first_line=first.line, second_line=run.line) for i, run in enumerate(runs) for first in runs[:i] if first.clashes(run)]
+
+
 def run_title_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
-    tips = [ShellNudges.FLAGGED_TITLE.create(n=run.id, card_title=run.title) for run in shell.titled_runs if run.is_flagged()]
+    tips = [*(ShellNudges.FLAGGED_TITLE.create(n=run.id, card_title=run.title) for run in shell.titled_runs if run.is_flagged()), *shared_title_tips(shell.recent_runs)]
     new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
     return state.none(new_tips[0]) if new_tips else state.none()

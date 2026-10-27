@@ -10,6 +10,7 @@ from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
 from journal.features.registry import Registry
 from journal.models.agent import Agent
+from journal.models.command_output import CommandOutput
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
@@ -22,6 +23,8 @@ from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.tasks_nudges import TasksNudges
 
 HISTORY_READS = 26
+# how many of the agent's latest carded runs are compared for a card title they share
+RECENT_RUNS = 20
 
 
 class ShellDataReader:
@@ -51,6 +54,7 @@ class ShellDataReader:
             "locked_readers": lambda: tuple(self.readers.locked_names()),
             "uncut_verbs": lambda: self.registry.uncut_verbs(),
             "titled_runs": lambda: self.titled_runs(agent),
+            "recent_runs": lambda: self.recent_runs(agent),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
@@ -59,12 +63,19 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED, ShellNudges.FLAGGED_TITLE)
+        tips = (ShellNudges.READER_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.SILENT_RUN_HINT, ShellNudges.REPORT_RAISED, ShellNudges.REPORT_REFUTED, ShellNudges.FLAGGED_TITLE, ShellNudges.SHARED_TITLE)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def titled_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
         runs = {o.row_id: o for o in [*self.outputs.background(agent.session), *self.outputs.watched(agent.session)]}
-        return tuple(TitledRun(o.row_id, self.card.title(o, self.card.shown_part(o))) for o in runs.values())
+        return tuple(self.titled(o) for o in runs.values())
+
+    def recent_runs(self, agent: Agent) -> tuple[TitledRun, ...]:
+        return tuple(self.titled(o) for o in reversed(self.outputs.recent_moves(agent.session, RECENT_RUNS)))
+
+    def titled(self, output: CommandOutput) -> TitledRun:
+        part = self.card.shown_part(output)
+        return TitledRun(output.row_id, self.card.title(output, part), part, self.card.topic(output))
 
     def last_ending_line(self, agent: Agent) -> Moment:
         entry = self.entries.last_line_entry(agent.session, (ShellNudges.OUTPUTS_ENDED.key, ShellNudges.UNREAD_OUTPUT.key, TasksNudges.WAIT_END.key))
