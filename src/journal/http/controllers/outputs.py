@@ -8,7 +8,7 @@ from journal.repositories.command_outputs import CommandOutputs
 
 
 PAGE_LINES = 500
-STOPPED_BY_USER = "journal: this run was stopped by the user from the chat"
+USER_STOP_LINE = "journal: this run was stopped by the user from the chat"
 
 
 class OutputController:
@@ -27,7 +27,7 @@ class OutputController:
 
     def stop(self, request: Request) -> Response:
         output = self.outputs.find(request.number("id"))
-        OutputFiles(Path(output.folder)).stop(STOPPED_BY_USER)
+        OutputFiles(Path(output.folder)).stop(USER_STOP_LINE)
         return Response.json(ModelFields.build(output))
 
     @staticmethod
