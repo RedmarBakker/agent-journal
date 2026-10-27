@@ -15383,7 +15383,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         attached(b, f"messages/{comment_with_picture.id}/files", "bob.png", b"bob's picture")
         on_ada = a.config.files / "message" / str(comment_with_picture.id) / "bob.png"
         assert eventually(lambda: on_ada.is_file() and on_ada.read_bytes() == b"bob's picture"), "a pulled comment's picture is fetched as it arrives, so it is on disk where journal message read points"
-        assert str(on_ada) in a.console().run(["message", "read", str(comment_with_picture.id)], Caller.agent("main", "s1", "claude")).text
+        assert eventually(lambda: str(on_ada) in a.console().run(["message", "read", str(comment_with_picture.id)], Caller.agent("main", "s1", "claude")).text), "the pulled comment reads with its picture's path once its row has arrived, which may come after the file"
         def team_post(journal, text):
             request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/messages", data=json.dumps({"text": text}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
             return json.load(urlopen(request, timeout=5))
