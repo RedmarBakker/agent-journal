@@ -21088,9 +21088,10 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
 
     own = drafted(AGENT, "the orchestrator's plan")
     user_set(app, "workers.orchestrator_writes_plans", False)
-    assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal plan create another --brief 'the goal'"})
+    assert status == 409 and "Orchestrator may write plans is off" in body["error"], "with May write plans off the orchestrator's conduct refuses its plan"
     user_set(app, "workers.mode", "builder")
-    assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal plan create another --brief 'the goal'"})[0] == 200, "the toggle counts in orchestrator mode only"
     user_set(app, "workers.mode", "orchestrator")
     users = drafted(USER, "the user's plan")
     user_set(app, "workers.orchestrator_approves_plans", True)

@@ -26,10 +26,10 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 
 class OrchestratorConduct(Conduct):
-    """The orchestrator's conduct, brought by its mode state to every state above it: a stop is refused while work this agent sent out waits clocked out, naming each worker, but for one it awaits, the worker itself or a run in its worktree, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, names a started plan that has not moved while another moves, and a run of the whole suite that failed after merges; the tick asks for the priorities at a phase start and every so many minutes, names the blocked and paused tasks standing still and a started plan with many open tasks and no order; a release is refused unless the orchestrator may release, a full set of places names the oldest work to check, a wait written in words is named; a queued task that unblocks others is named; and a merged worker whose model did not fit its work, or that spent much on work of a settled shape, is named."""
+    """The orchestrator's conduct, brought by its mode state to every state above it: a stop is refused while work this agent sent out waits clocked out, naming each worker, but for one it awaits, the worker itself or a run in its worktree, and once, with journal worker wait, while its workers are only still out; a stop carries the status of every started plan, names a started plan that has not moved while another moves, and a run of the whole suite that failed after merges; the tick asks for the priorities at a phase start and every so many minutes, names the blocked and paused tasks standing still and a started plan with many open tasks and no order; a release is refused unless the orchestrator may release, and a plan's creation unless it may write plans, a full set of places names the oldest work to check, a wait written in words is named; a queued task that unblocks others is named; and a merged worker whose model did not fit its work, or that spent much on work of a settled shape, is named."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [check(self, event, settings) for check in (release_check, open_work_check, text_wait_check)])
+        return Transition.merged(self, [check(self, event, settings) for check in (release_check, plan_writing_check, open_work_check, text_wait_check)])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         return Transition.merged(self, [crew_stop(self, event, settings), self.none(*plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))])
@@ -145,6 +145,12 @@ def release_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
         return state.none()
     releases = ReleaseLines.found(tuple(part.text for part in event.call.parts))
     return state.refuse(WorkersNudges.RELEASE_REFUSED.create(line=releases[0])) if releases else state.none()
+
+
+def plan_writing_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    if settings.value(WorkersOptions.ORCHESTRATOR_WRITES_PLANS) or not any(part.text.split()[1:3] == ["plan", "create"] for part in event.call.parts if part.is_journal):
+        return state.none()
+    return state.refuse(WorkersNudges.PLAN_WRITING_REFUSED.create())
 
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
