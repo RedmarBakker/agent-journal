@@ -18,6 +18,7 @@ from journal.support.agent_role import AgentRole
 from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import CommandShape
+from journal.support.command_part import CommandPart
 
 # the keys of the reader lines the one draft replaced, each with the value that named its part, so a part suggested then is not suggested again
 RETIRED_KEYS = {"shell.make_its_reader": "command", "shell.counting_reader_suggestion": "command", "shell.reader_needed": "commands", "shell.add_a_reader": "command"}
@@ -52,7 +53,7 @@ class ReaderDrafts:
             return None
         name = self.shapes.command_name(part)
         files = OutputFiles(Path(output.folder))
-        reader = self.starting.filled(self.classifier.classify(part), name, files.lines() if files.is_stored() else [])
+        reader = self.starting.filled(CommandPart.plain(part, self.classifier).classification, name, files.lines() if files.is_stored() else [])
         if reader is not None and self.readers.plugin_aliases_read(reader):
             return None
         later_runs = self.outputs.part_run_count(name, datetime.fromtimestamp(suggestions[name], timezone.utc)) if name in suggestions else 0
@@ -62,7 +63,7 @@ class ReaderDrafts:
         alias = self.aliases.running(part)
         if Chain.is_journal(part) or alias is not None and alias.plugin or self.is_read_well(part):
             return False
-        return hand_read or StartingReaders.starting(self.classifier.classify(part)) is not None
+        return hand_read or StartingReaders.starting(CommandPart.plain(part, self.classifier).classification) is not None
 
     def is_read_well(self, command: str) -> bool:
         reader = self.readers.reading(command)

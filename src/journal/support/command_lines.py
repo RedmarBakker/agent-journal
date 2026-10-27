@@ -4,6 +4,7 @@ from journal.support.chain import Chain
 from journal.support.classification import Classification
 from journal.support.command_classifier import CommandClassifier
 from journal.support.part import Part
+from journal.support.command_part import CommandPart
 
 
 class CommandLines:
@@ -14,22 +15,22 @@ class CommandLines:
 
     def is_read(self, line: str) -> bool:
         owned = self.owned(line)
-        return bool(owned) and all(self.classifier.classify(part.text).is_read_kind for part in owned)
+        return bool(owned) and all(CommandPart.plain(part.text, self.classifier).classification.is_read_kind for part in owned)
 
     def is_code_read(self, line: str) -> bool:
         owned = self.owned(line)
-        return any(self.reads_code(part) for part in owned) and all(self.reads_code(part) or self.is_harmless(part, self.classifier.classify(part.text)) for part in owned)
+        return any(self.reads_code(part) for part in owned) and all(self.reads_code(part) or self.is_harmless(part, CommandPart.plain(part.text, self.classifier).classification) for part in owned)
 
     def is_code_write(self, line: str) -> bool:
         owned = self.owned(line)
-        classified = [(part, self.classifier.classify(part.text)) for part in owned]
+        classified = [(part, CommandPart.plain(part.text, self.classifier).classification) for part in owned]
         return any(classification.is_write for _, classification in classified) and all(self.writes_code(part.text) if classification.is_write else classification.is_read or self.is_harmless(part, classification) for part, classification in classified)
 
     def part_with_code_read(self, part: Part) -> Part:
         return replace(part, reads_code=self.reads_code(part))
 
     def reads_code(self, part: Part) -> bool:
-        classification = self.classifier.classify(part.text)
+        classification = CommandPart.plain(part.text, self.classifier).classification
         return classification.is_read and part.names_project_code(classification.is_search)
 
     @staticmethod

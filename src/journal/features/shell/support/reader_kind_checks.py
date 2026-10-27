@@ -7,6 +7,7 @@ from journal.features.shell.support.readers import Readers
 from journal.models.command_output import FAILED, FINISHED, CommandOutput
 from journal.repositories.aliases import Aliases
 from journal.support.command_classifier import CommandClassifier
+from journal.support.command_part import CommandPart
 
 
 class ReaderKindChecks:
@@ -29,7 +30,7 @@ class ReaderKindChecks:
     def uncounted_test_runs(self, reader: Reader, runs: list[CommandOutput]) -> list[str]:
         passing = next((run for run in runs if run.status == 0), None)
         failing = next((run for run in runs if run.status != 0), None)
-        if passing is None or failing is None or not self.classifier.classify(self.readers.read_part(reader, runs[0].command)).is_test_run:
+        if passing is None or failing is None or not CommandPart.plain(self.readers.read_part(reader, runs[0].command), self.classifier).classification.is_test_run:
             return []
         return [*self.uncounted(reader, passing, FINISHED, "passing"), *self.uncounted(reader, failing, FAILED, "failing")]
 

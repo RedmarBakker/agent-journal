@@ -8,6 +8,7 @@ from pathlib import Path
 from journal.support.command_classifier import CommandClassifier
 from journal.support.part import Part
 from journal.support.process_check import ProcessCheck
+from journal.support.command_part import CommandPart
 
 BLOCK_BYTES = 65536
 STYLE_CODES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -122,7 +123,7 @@ class OutputFiles:
 
     @staticmethod
     def flags(part: Part, classifier: CommandClassifier) -> str:
-        classification = classifier.classify(part.text)
+        classification = CommandPart.plain(part.text, classifier).classification
         return ("w" if part.recorded and classification.is_write else "-") + ("b" if classification.changes_version_control else "-")
 
     def kinds(self) -> list[str]:

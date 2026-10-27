@@ -12,6 +12,7 @@ from journal.events.moments.reader_guessed import ReaderGuessed
 from journal.models.command_output import CommandOutput
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import CommandShape
+from journal.support.command_part import CommandPart
 
 
 class ReaderGuess:
@@ -29,7 +30,7 @@ class ReaderGuess:
         shared = self.shared(output, part, name, lines)
         if shared is not None:
             return shared
-        reader = self.starting.filled(self.classifier.classify(part), name, lines)
+        reader = self.starting.filled(CommandPart.plain(part, self.classifier).classification, name, lines)
         if reader is None or not self.reads_well(reader, lines) or self.readers.plugin_aliases_read(reader):
             return None
         if self.readers.stored_reader(reader.name) is None:
@@ -37,7 +38,7 @@ class ReaderGuess:
         return self.readers.stored_reader(reader.name)
 
     def shared(self, output: CommandOutput, part: str, name: str, lines: list[str]) -> Reader | None:
-        type_name = self.classifier.classify(part).command_type
+        type_name = CommandPart.plain(part, self.classifier).classification.command_type
         reader = next((reader for reader in self.readers.all() if not self.readers.is_locked(reader.name) and not reader.script and self.is_kind(reader, type_name) and self.reads_well(reader, lines)), None)
         if reader is None:
             return None
@@ -53,7 +54,7 @@ class ReaderGuess:
         self.announcer.announce(ReaderGuessed(environment_id=output.environment_id, session=output.session, reader=reader.name, command=name, output=output.row_id, subject=reader.subject))
 
     def is_kind(self, reader: Reader, type_name: str) -> bool:
-        return any(self.classifier.classify(program).command_type == type_name for program in reader.commands.programs)
+        return any(CommandPart.plain(program, self.classifier).classification.command_type == type_name for program in reader.commands.programs)
 
     def reads_well(self, reader: Reader, lines: list[str]) -> bool:
         return not self.judge.misses(reader, lines) and not ReaderProbes.unfiltered_patterns(reader)

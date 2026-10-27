@@ -23324,3 +23324,20 @@ def test_an_output_whose_shell_process_is_gone_is_closed_as_ended_though_its_hea
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
     assert outputs.find(1).ended and outputs.find(1).is_interrupted, "an output with no process left is ended, never left running"
+
+
+def test_a_chain_of_three_parts_is_classified_only_by_its_command_parts_and_no_other_caller_classifies_a_part(app: App):
+    import re
+    from pathlib import Path
+    from journal.providers.provider import Provider
+    from journal.support.command_classifier import CommandClassifier
+    from journal.support.command_part import CommandPart
+    classifier = app.container.get(CommandClassifier)
+    line = "cd src && pytest tests/test_a.py && git commit -m done"
+    parts = Provider.parts(line, frozenset(), classifier)
+    assert [part.text for part in parts] == ["cd src", "pytest tests/test_a.py", "git commit -m done"]
+    assert [part.classification.is_test_run for part in parts] == [False, True, False], "the part that runs tests says so"
+    assert [part.classification for part in parts] == [CommandPart.plain(part.text, classifier).classification for part in parts], "a part met as text reads the same as one split from its line"
+    assert parts[2].is_git, "and the commit is the version control one"
+    classifying = [path.name for path in Path("src/journal").rglob("*.py") if re.search(r"classifier\.classify\(", path.read_text())]
+    assert classifying == ["command_part.py"], f"no caller outside CommandPart.read classifies a part's text: {classifying}"

@@ -39,6 +39,7 @@ from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.restart_queue import RestartQueue
 from journal.support.time_source import TimeSource
+from journal.support.command_part import CommandPart
 
 EXIT = "__journal_exit"
 SHELL = "SHELL"
@@ -143,11 +144,11 @@ class ShellRunner:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
 
     def is_carded_test_run(self, folder: OutputFiles, caller: Caller) -> bool:
-        return caller.is_main_agent() and folder.number() > 0 and any(self.classifier.classify(text).is_test_run for _, text in folder.recorded_texts())
+        return caller.is_main_agent() and folder.number() > 0 and any(CommandPart.plain(text, self.classifier).classification.is_test_run for _, text in folder.recorded_texts())
 
     def starting_reader_watch(self, folder: OutputFiles, caller: Caller) -> None:
         output = self.outputs.find(folder.number())
-        part = next(text for _, text in folder.recorded_texts() if self.classifier.classify(text).is_test_run)
+        part = next(text for _, text in folder.recorded_texts() if CommandPart.plain(text, self.classifier).classification.is_test_run)
         guessed = self.guess.guessed(output, part)
         if guessed is not None:
             self.outputs.touch(output, caller.actor, watch_reader=guessed.name)
