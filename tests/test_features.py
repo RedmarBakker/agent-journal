@@ -18598,6 +18598,23 @@ def test_a_run_counts_as_running_while_its_heartbeat_is_fresh_and_one_that_stopp
     assert ended.ended and ended.is_interrupted, "the next tick ends it as cut off"
 
 
+def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: App):
+    import threading
+    raw = "JOURNAL_ENV=main\0\0sleep 2\n"
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
+    running = threading.Thread(target=lambda: urlopen(request, timeout=10).read(), daemon=True)
+    running.start()
+    listed = []
+    for _ in range(40):
+        listed = got(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"]
+        if listed:
+            break
+        timing.sleep(0.05)
+    assert [(entry["command"], entry["docked"], entry["card"]) for entry in listed] == [("sleep 2", False, 0)], "a process running is listed, not docked, before it has a card"
+    running.join(timeout=10)
+    assert got(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
+
+
 def test_a_silent_command_beats_while_it_runs(app: App):
     import threading
     from journal.support.heartbeat import Heartbeat

@@ -157,6 +157,7 @@ class Routes:
         router.get(f"{API}/entries", entries.index)
         router.get(f"{API}/entries/stream", entries.stream)
         router.get(f"{API}/cards/active", get(ProcessCardController).fields)
+        router.get(f"{API}/outputs/running", get(OutputController).running)
         router.get(f"{API}/outputs/{{id}}", get(OutputController).show)
         router.get(f"{API}/supervised", get(SupervisedProcessController).index)
         router.post(f"{API}/outputs/{{id}}/stop", get(OutputController).stop)

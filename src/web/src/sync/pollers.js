@@ -113,6 +113,7 @@ export const POLLERS = Object.freeze({
     "sync.line": {read: () => api.syncLine(), every: 5000},
     "team.chat": {read: () => api.teamChat(), every: 10000},
     "side.thread": {read: () => api.sideThread(), every: 3000},
+    "outputs.running": {read: () => api.runningOutputs(), every: 3000},
     "mcp.servers": {read: () => api.mcp(), every: 30000},
     "developer.readers": {read: () => api.developerReaders(), every: 5000},
     "share.page": {read: () => sharedData(), every: 20000},

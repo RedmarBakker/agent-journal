@@ -605,6 +605,11 @@ export class ApiClient {
         return this.get(path, path);
     }
 
+    // the outputs still running in this environment, each with its card and whether it is docked
+    runningOutputs() {
+        return this.get(this.here("/outputs/running"));
+    }
+
     readOutput(id, {after, before} = {}) {
         const path = this.here(`/outputs/${id}${query({after, before})}`);
         return this.get(path, path);

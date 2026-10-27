@@ -37,6 +37,7 @@ import OutputDialog from "./OutputDialog.vue";
 import {useOpenInPlace} from "../composables/openInPlace.js";
 import ChatDock from "./ChatDock.vue";
 import DockGroup from "./DockGroup.vue";
+import RunMenu from "./RunMenu.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
 import {dockedDump, dockedRows, isRun, keptRuns, streamRows} from "../domain/docks.js";
@@ -620,6 +621,7 @@ const {colleague, me} = useColleague();
                                 <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
                             </Transition>
                         </div>
+                        <RunMenu />
                         <template v-if="busy && !waitingNow">
                             <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
                                 <div class="thread-meta">
