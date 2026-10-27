@@ -5,8 +5,9 @@ import {begin, fail, runLate, updating} from "../state/updating.js";
 
 const UPDATE_TRIES = 450;
 
-// The newer release installed: the update is asked for, and the page reloads once the journal answers as that version; an
-// update the journal says is no longer under way, with a problem, failed, and the cover comes down with why.
+// The newer release installed: the update is asked for, and the page reloads once the journal answers as that version, the
+// final one of a path of steps; an update the journal says is no longer under way, with a problem, failed, and the cover
+// comes down with why.
 export async function runUpdate(version) {
     return awaitUpdate(version, () => api.update(), (now) => now.installed === version);
 }
@@ -26,13 +27,21 @@ async function awaitUpdate(version, ask, isDone) {
         fail(failed.message);
         return failed.message;
     }
-    for (let tries = 0; tries < UPDATE_TRIES; tries++) {
+    let tries = 0;
+    let step = "";
+    while (tries < UPDATE_TRIES) {
+        tries += 1;
         await wait(2000);
         const now = await api.releases().catch(() => null);
         if (now && isDone(now, asked)) return location.reload();
         if (now && !now.updating && now.problem) {
             fail(now.problem);
             return now.problem;
+        }
+        // each step of a path is an install of its own, so the time it may take starts again with it
+        if (now && (now.step_version || "") !== step) {
+            step = now.step_version || "";
+            tries = 0;
         }
     }
     runLate();
@@ -47,7 +56,7 @@ export function useUpdates() {
         const a = about.value;
         if (!a) return null;
         if (updating.version && !updating.failure && !updating.late) return {busy: true, text: `Updating to ${updating.version}. The page reloads when it's done.`};
-        if (a.updating) return {busy: true, text: `Updating to ${a.updating}…`};
+        if (a.updating) return {busy: true, text: a.step_count ? a.step : `Updating to ${a.updating}…`};
         if (a.problem) return {text: a.problem};
         if (a.newer) return {text: a.branch ? `${a.branch} has a newer commit, ${a.latest}.` : `Version ${a.latest} is out.`, update: true};
         return a.latest ? {text: a.branch ? `This is the newest commit of ${a.branch}.` : "This is the newest version."} : null;

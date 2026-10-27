@@ -29,7 +29,7 @@ class Updates(Feature[ReleaseNotes]):
     card_families = (CardFamily("updates", "Updates", "bolt", JOURNAL),)
     card_types = (CardTypeEntry(CardType.UPDATES, "The journal server replaced by a newer launch", "updates"),)
     title = "Updates"
-    help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself."
+    help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself. A journal far behind installs it through steps, releases the update tests proved, one after another, and stops at the last good one if a step fails."
     options = (UpdatesOptions.REPOSITORY, UpdatesOptions.BRANCH, UpdatesOptions.AUTO, UpdatesOptions.CHECK_INTERVAL, UpdatesOptions.BOOT_SECONDS, UpdatesOptions.WINDOW_MINORS)
     listeners = (ReleaseCheck, SupervisorUpgrade, SessionRestartClose, LaunchTakeoverNotice, BootFailureNotice)
     seeds = (VersionChange, SupervisorCheck, MigrationFailureNotice)

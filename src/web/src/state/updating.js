@@ -89,8 +89,11 @@ export function otherServer(got) {
 export function followServer(got) {
     counting(got.countdown);
     starting(got.ready, got.step);
-    if (follow(Boolean(got.updating), got.step) || (!got.updating && otherServer(got))) reloadWhenFree(window);
+    if (follow(Boolean(got.updating), got.step) || (!got.updating && !isOnTheWay(got) && otherServer(got))) reloadWhenFree(window);
 }
+
+// A server on a step of a path this page's update is still walking, which reloads nothing: the page reloads at the final version.
+const isOnTheWay = (got) => Boolean(updating.version) && !updating.failure && !updating.late && got.version !== updating.version;
 
 export const updatedTo = () => remembered(UPDATED_KEY, "");
 export const forgetUpdate = () => remember(UPDATED_KEY, "");

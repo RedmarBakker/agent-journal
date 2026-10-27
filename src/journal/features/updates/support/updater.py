@@ -16,6 +16,7 @@ from journal.features.updates.support.release_refusal import ReleaseRefusal
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
 from journal.features.updates.support.update_path_file import UpdatePathFile
+from journal.features.updates.support.update_pause import UpdatePause
 from journal.features.updates.support.update_data import UpdateData
 from journal.features.updates.support.update_target import UpdateTarget
 from journal.features.shell.support.restart_queue import RestartQueue
@@ -125,8 +126,10 @@ class Updater:
 
     def data(self) -> UpdateData:
         blocked = self.card.running()
+        walking = self.paths.is_walking_at(VERSION, self.time_source.seconds())
         return UpdateData(installed=self.label(), latest=self.latest(), newer=self.is_published(), branch=self.branch(), versions=[release.version for release in self.newer()],
-                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.shown_problem(), started_at=self.started_at)
+                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.shown_problem(), started_at=self.started_at,
+                              step_count=len(self.paths.stops()) if walking else 0, step_version=self.paths.step_version(VERSION) if walking else "", final_version=self.paths.record()["to"] if walking else "")
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
@@ -154,13 +157,18 @@ class Updater:
         if self.paths.is_failed_at(VERSION):
             self.card.clear()
             return
-        if blocked.is_pending(VERSION, os.getpid(), time):
+        if self.paths.is_walking_at(VERSION, time):
+            self.walked(blocked, time)
             return
-        if self.paths.is_walking_at(VERSION):
-            self.card.write(blocked.taken(os.getpid(), time, self.paths.step_line(VERSION)))
+        if blocked.is_pending(VERSION, os.getpid(), time):
             return
         self.card.clear()
         self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
+
+    def walked(self, blocked: UpdatePause, time: float) -> None:
+        line = self.paths.step_line(VERSION)
+        if (blocked.pid, blocked.step) != (os.getpid(), line):
+            self.card.write(blocked.taken(os.getpid(), time, line))
 
     def update_immediately(self, actor: Actor) -> None:
         self.read()

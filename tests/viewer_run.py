@@ -106,6 +106,12 @@ SETS = {
     "figure_home_return": (
         "tests/figureHomeReturn.test.js",
     ),
+    "update_path": (
+        "tests/updatePath.test.js",
+        "tests/updating.test.js",
+        "tests/otherServer.test.js",
+        "tests/forceUpdate.test.js",
+    ),
 }
 
 

@@ -9936,7 +9936,7 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     assert installer.ran == ["v4.99.0"] and paths.record() == {}, "retry installs the newest release again from the version still running, so its path starts at the step that failed"
 
 
-def test_a_boot_on_a_step_of_a_path_keeps_the_card_and_says_the_step(app: App):
+def test_a_two_step_path_drives_one_card_from_its_start_to_its_final_version(app: App):
     import time as timing
     from journal.features.updates.support.update_card import UpdateCard
     from journal.features.updates.support.update_path_file import UpdatePathFile
@@ -9945,11 +9945,21 @@ def test_a_boot_on_a_step_of_a_path_keeps_the_card_and_says_the_step(app: App):
     card, paths = app.container.get(UpdateCard), app.container.get(UpdatePathFile)
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=False)
     paths.path.parent.mkdir(parents=True, exist_ok=True)
+    paths.path.write_text(json.dumps({"from": VERSION, "to": "4.99.0", "steps": ["4.98.0"], "reached": VERSION, "failed": ""}))
+    card.write(UpdatePause(VERSION, "4.99.0", "Installing the new version", timing.time(), os.getpid()))
+    updating.reconcile(timing.time())
+    shown = updating.data()
+    assert card.paused().step == f"Updating from {VERSION} to 4.99.0 in 2 steps: installing 4.98.0, step 1 of 2", "the card says the whole path and the step in hand"
+    assert (shown.updating, shown.step_count, shown.step_version, shown.final_version) == ("4.99.0", 2, "4.98.0", "4.99.0")
     paths.path.write_text(json.dumps({"from": "4.0.0", "to": "4.99.0", "steps": [VERSION], "reached": "4.0.0", "failed": ""}))
     card.write(UpdatePause("4.0.0", "4.99.0", "Installing the new version", timing.time(), -1))
     updating.reconcile(timing.time())
-    assert card.paused().pid == os.getpid() and card.paused().step == f"Installed {VERSION}, step 1 of 2 to 4.99.0; the next step is installing", "the journal booted on a step takes the card over"
-    assert updating.problem == "", "a boot on a recorded step is no update that did not finish"
+    assert card.paused().pid == os.getpid() and card.paused().step == "Updating from 4.0.0 to 4.99.0 in 2 steps: installing 4.99.0, step 2 of 2", "the journal booted on a step takes the card over and names the next"
+    assert updating.problem == "" and updating.data().step_version == "4.99.0", "a boot on a recorded step is no update that did not finish"
+    os.utime(paths.path, (timing.time() - 3600, timing.time() - 3600))
+    card.write(UpdatePause("4.0.0", "4.99.0", "Installing the new version", timing.time(), -1))
+    updating.reconcile(timing.time())
+    assert card.paused() is None and "did not finish" in updating.problem and updating.data().step_count == 0, "a walk that went quiet past a step's time holds the card no longer"
 
 
 def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
