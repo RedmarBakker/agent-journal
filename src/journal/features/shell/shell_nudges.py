@@ -7,7 +7,7 @@ class ShellNudges:
     """The nudges of the shell feature."""
 
     REPORT_RAISED = Nudge("shell", "reader_report_raised", "reader report {{n}}: its reader showed a run poorly", "`journal reader report {{n}}` shows how to fix it", repeat=Timeout.seconds(0))
-    REPORT_REFUTED = Nudge("shell", "reader_report_dismissal_refuted", "your dismissal was checked against the run's output and found wrong, {{verdicts}}", "write the reader again with `journal reader add <name> --pattern <regex> --about <what it picks>`; a report found wrong cannot be dismissed again", repeat=Timeout.seconds(0))
+    REPORT_REFUTED = Nudge("shell", "reader_report_dismissal_refuted", "you dismissed a report and the run's output shows it was wrong, {{verdicts}}", "replace the reader with `journal reader add <name> --pattern <regex> --about <what it picks>`; a report found wrong cannot be dismissed again", repeat=Timeout.seconds(0))
     OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts}}{{part}}", repeat=Timeout.seconds(0))
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
