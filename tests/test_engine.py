@@ -2221,7 +2221,8 @@ def test_a_compaction_start_is_handed_down_whole_so_the_start_block_comes_once_a
     hook(app, "PreCompact", trigger="auto")
     status, answer = hook(app, "SessionStart", source="compact")
     context = json.dumps(answer)
-    assert status == 200 and context.count("the journal is ready on") == 1, "the state beneath hears the start once, so the start block is not sent twice: " + context[:400]
+    from journal.features.briefing.briefing_nudges import BriefingNudges
+    assert status == 200 and context.count(BriefingNudges.JOURNAL_READY.create(env="main").rendered()) == 1, "the state beneath hears the start once, so the start block is not sent twice: " + context[:400]
     assert app.container.get(Agents).session_agent("s1").stack[-1]["state"] == "reading_overview", "and the push of the overview state is taken, not dropped on the compacting state"
     with app.container.get(Scope).environment(1):
         moves = app.container.get(Entries).selected(app.container.get(Entries).query().filter(kind="state"))

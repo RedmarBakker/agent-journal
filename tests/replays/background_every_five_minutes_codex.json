@@ -58,8 +58,12 @@
     {
       "name": "it ended",
       "answer": null,
-      "typed": [],
-      "nudges": [],
+      "typed": [
+        "[journal] output 1 finished. `journal output read 1 --summary` says how"
+      ],
+      "nudges": [
+        "shell.outputs_ended"
+      ],
       "stack": [
         "idle"
       ]
@@ -68,10 +72,10 @@
       "name": "fifteen minutes, nothing running",
       "answer": null,
       "typed": [
-        "[journal] output 1 finished. `journal output read 1 --summary` says how"
+        "[journal] output 1 finished, and you have not read it yet"
       ],
       "nudges": [
-        "shell.outputs_ended"
+        "shell.unread_output"
       ],
       "stack": [
         "idle"

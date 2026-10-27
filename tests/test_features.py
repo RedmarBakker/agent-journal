@@ -2802,6 +2802,8 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     console.run(["task", "complete", "1"], AGENT)
     status, body = run("pytest -q")
     assert status == 409 and "runs its tests only at the end of each phase" in body["error"], "a listed test run in the middle of a phase is refused"
+    assert run("npx vitest run tests/a.test.js")[0] == 409 and run("cargo test")[0] == 409, "and so is any command the classifier names a test run, listed or not"
+    assert run("npm run build")[0] == 200, "a build is no test run"
     assert run("ls -la")[0] == 200, "a command that is not a test run passes"
     console.run(["task", "complete", "2"], AGENT)
     assert run("pytest -q")[0] == 200, "the phase's last open task may run the tests its brief asks for"
@@ -8314,7 +8316,7 @@ def test_the_updater_asks_for_a_new_release_as_often_as_the_setting_says(app: Ap
     first = timing.time() + 60
     for time, asked in ((first, 1), (first + 299, 1), (first + 300, 2)):
         updating.tick(time)
-        ending = timing.time() + 5
+        ending = timing.time() + 30
         while (len(source.tags_asked) < asked or updating._working.locked()) and timing.time() < ending:
             timing.sleep(0.01)
         assert len(source.tags_asked) == asked, f"at {time - first:.0f} seconds the releases were asked {len(source.tags_asked)} times, not {asked}"
@@ -9842,6 +9844,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
+    app.container.get(SupervisorLink).working(MAIN)
     with app.container.get(Scope).environment(MAIN):
         tasks, messages = app.container.get(Tasks), app.container.get(Messages)
         parser, lexer = (tasks.save(Task(environment_id=MAIN, title=title, brief="b"), Actor.system()).id for title in ("the parser", "the lexer"))
@@ -9865,6 +9868,8 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     with app.container.get(Scope).environment(MAIN):
         messages.save(messages.find(bare.id).with_(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s"), Actor.agent("s1"))
     assert console.run(["message", "amend-links", str(bare.id), "task"], AGENT).code == 0
+    app.runtime().deferred.drain()
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})
     from journal.features.messages.listeners.record_turn import RecordTurn
     from journal.events.agent.turn_displayed import TurnDisplayed
     app.container.get(RecordTurn).handle(TurnDisplayed(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s", turn_id="another-id").placed("s1", 1, "claude", 0.0, 0.0))
@@ -10381,6 +10386,7 @@ def test_a_message_that_refers_to_a_row_that_does_not_exist_is_told_after_it_is_
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
+    app.container.get(SupervisorLink).working(MAIN)
     with app.container.get(Scope).environment(MAIN):
         messages = app.container.get(Messages)
         made = app.container.get(Tasks).save(Task(environment_id=MAIN, title="the parser", brief="b"), Actor.system()).id

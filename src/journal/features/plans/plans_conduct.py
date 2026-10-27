@@ -58,7 +58,7 @@ class PlansConduct(Conduct):
         return self.none(*lines) if test_commands(settings).programs else self.push(NamingTestCommands(task_id=event.task_id), *lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if not any(test_commands(settings).reads(part.text) for part in event.call.parts):
+        if not event.call.test_runs() and not any(test_commands(settings).reads(part.text) for part in event.call.parts):
             return self.none()
         started = event.data.part(PlansPart).started
         if started is None or not started.refuses_test_runs:

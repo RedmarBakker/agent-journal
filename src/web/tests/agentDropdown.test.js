@@ -40,8 +40,8 @@ test("a click on a worker or verifier entry opens its inspector, and a reviewer 
     peek.mockRestore();
 });
 
-test("the status bar opens the one dropdown for workers, verifiers and reviewers, and no separate list markup is left", () => {
-    expect(statusBar).toContain('title="Verifiers"');
+test("the status bar opens the one dropdown for workers and reviewers, has no verifier button, and no separate list markup is left", () => {
+    expect(statusBar).not.toContain('title="Verifiers"');
     expect(statusBar).toContain('title="Reviewers"');
     expect(workerList).toContain("<AgentDropdown");
     expect(statusBar).not.toContain("<VerifierList");

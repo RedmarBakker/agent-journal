@@ -4,6 +4,19 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.66.0
+
+- After a compaction a memory that names a task or plan now closed, a worker stopped or released, or a row not found says so, so the agent checks it before trusting it; the overview and the start block show it from one place.
+- After a compaction one line names every skill still to read and the overview, and nothing goes through until both are done; the start after a compaction reaches the agent once.
+- The memories mark of a compaction keeps its round and opens to it: the memories still shown with their weights, those faded out, and those removed since the last round.
+- Reading a message brings its reply line once, from the read itself; a hook answer says each line once; a stopped agent's lines wait five seconds from the first and are typed as one message.
+- A run's end, a silent worker, a reader report raised or refuted, a run that prints nothing, a message naming rows wrongly and a viewer error are each told once, from their own event.
+- A main agent's test run shows as a card with its reader, a quick one too, and a run no reader reads gets the starting test-run reader.
+- A plan that tests at its phase ends holds every command classified as a test run in the middle of a phase, not only the listed ones.
+- Folded marks read "Tasks: 3 updates"; the paused list names task numbers with the command that reads each; a task created with --from after a reply is linked to the message it names.
+- The verifier button leaves the status bar; verifiers still check dismissed reader reports.
+- Coming back to Home plays the avatar's entry again.
+
 ## 4.65.2
 
 - A chat whose newest page folds into a bubble too short to scroll, such as one group of many check marks, loads its older messages the moment it is ready, at most five pages.

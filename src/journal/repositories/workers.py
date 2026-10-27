@@ -27,7 +27,7 @@ class Workers(ScopedRepository[Worker]):
     def open_workers(self) -> list[Worker]:
         return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).filter(adopted=False).order("id"))
 
-    def named_silent(self, worker: Worker, time: float, actor: Actor) -> None:
+    def mark_silence(self, worker: Worker, time: float, actor: Actor) -> None:
         with self.connection.transaction():
             current = self.find(worker.row_id)
             if current.is_silent(time):
