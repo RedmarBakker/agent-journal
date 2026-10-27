@@ -13,5 +13,5 @@ class TitledRun:
     def is_flagged(self) -> bool:
         return any(len(word) > 1 and word[0] == "-" or word.startswith(("/", "~/", "./", "../")) for word in self.title.split())
 
-    def clashes(self, other: "TitledRun") -> bool:
-        return self.title == other.title and self.line != other.line and not self.topic and not other.topic
+    def clashes(self, run: "TitledRun") -> bool:
+        return self.title == run.title and self.line != run.line and not self.topic and not run.topic

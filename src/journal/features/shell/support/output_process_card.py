@@ -17,6 +17,7 @@ from journal.features.shell.support.git_commands import GitCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_views import OutputViews
+from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
 from journal.models.command_output import CommandOutput
 from journal.models.message import Message
@@ -82,9 +83,20 @@ class OutputProcessCard(ProcessCard):
         if self.git.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or self.labels.chain_label(part, output.command)
-        topic = self.topic(output)
-        full = reader.topic_label.replace("{topic}", topic) if topic and reader.topic_label and not output.watch_title else (f"{heading}: {topic}" if topic else heading)
+        full = self.topic_heading(output, reader, heading)
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]
+
+    def topic_heading(self, output: CommandOutput, reader: Reader | None, heading: str) -> str:
+        topic = self.topic(output)
+        if not topic:
+            return heading
+        if self.is_topic_labelled(output, reader):
+            return reader.topic_label.replace("{topic}", topic)
+        return f"{heading}: {topic}"
+
+    @staticmethod
+    def is_topic_labelled(output: CommandOutput, reader: Reader | None) -> bool:
+        return reader is not None and bool(reader.topic_label) and not output.watch_title
 
     def topic(self, output: CommandOutput) -> str:
         reader = self.readers.found(output.watch_reader)
