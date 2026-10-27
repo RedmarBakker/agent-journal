@@ -14,7 +14,6 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
-import {useTabReturn} from "../composables/tabReturn.js";
 import {POINTER_GONE_MS, usePointerPresence} from "../composables/pointerPresence.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
@@ -195,7 +194,6 @@ const thread = computed(() =>
 );
 watch(thread, (made) => made.keys.forEach((placeholder, ref) => link(ref, placeholder)), {immediate: true});
 const turns = computed(() => withDayLines(thread.value.turns));
-const tab = useTabReturn(() => turns.value.length);
 const turnsLoaded = computed(() => scope.loaded("messages"));
 watch(turns, keep);
 
@@ -382,14 +380,20 @@ const isOwnSent = (el) => (el.dataset?.ref || el.querySelector?.("[data-ref]")?.
 const following = () => settledOnce.value && !away.value && !ui.away.tabHidden && !ui.away.readingLatest;
 const arrivalPane = () => ({pane: scroller.value, follows: following});
 const comeIn = arrivalQueue();
+let turnsWhenHidden = 0;
 watch(
     () => ui.away.tabHidden,
-    (tabHidden) => tabHidden && comeIn.flush()
+    (tabHidden) => {
+        if (!tabHidden) return;
+        turnsWhenHidden = turns.value.length;
+        comeIn.flush();
+    }
 );
-// back on the tab, a reader who followed the foot is at the foot of the latest page at once, with no glide
+// back on the tab, a reader who followed the foot is at the foot of the latest page at once, with no glide, and so is one who had
+// scrolled up when messages came while the tab was hidden
 watch(
     () => ui.away.readingLatest,
-    (reading) => reading || away.value || toFoot()
+    (reading) => reading || (away.value && turns.value.length <= turnsWhenHidden) || toFoot()
 );
 const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));
 const closeUp = (el, done) => (following() ? depart(el, done) : done());
@@ -484,7 +488,6 @@ watch(
             laidOut.value += 1;
         }
         if (loadingOlder.value) return;
-        if (tab.caughtUp(n)) return toBottom(false);
         if (!away.value && settledOnce.value) glidedAt = Date.now();
         arrived(n - (before || 0), settledOnce.value);
         if (n && !settledOnce.value) setTimeout(() => (settledOnce.value = true), 300);
