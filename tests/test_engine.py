@@ -80,6 +80,7 @@ from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
 from journal.support.classification_table import ClassificationTable
 from journal.support.command_classifier import CommandClassifier
+from journal.support.table_schema import TableSchema
 from journal.support.command_shape import CommandShape
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.support.time_source import TimeSource
@@ -124,9 +125,10 @@ from journal.features.questions.questions_nudges import QuestionsNudges
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
-# the command table read once for the tests that decode a tool call by hand
-SHAPES = CommandShape(ClassificationTable())
-CLASSIFIER = CommandClassifier(ClassificationTable(), SHAPES)
+# the shipped command table, read once for the tests that decode a tool call by hand
+TABLE = ClassificationTable(Config.rooted(Path(__file__).parent), TableSchema())
+SHAPES = CommandShape(TABLE)
+CLASSIFIER = CommandClassifier(TABLE, SHAPES)
 
 
 @pytest.fixture(scope="module")

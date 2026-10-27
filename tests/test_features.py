@@ -80,6 +80,7 @@ from journal.features.plugins.plugins_nudges import PluginsNudges
 from journal.features.secrets.secrets_nudges import SecretsNudges
 from journal.support.classification_table import ClassificationTable
 from journal.support.command_classifier import CommandClassifier
+from journal.support.table_schema import TableSchema
 from journal.features.hydration.hydration_nudges import HydrationNudges
 from journal.features.team.team_nudges import TeamNudges
 from journal.features.usage.usage_nudges import UsageNudges
@@ -92,9 +93,10 @@ from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as 
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
-# the command table read once for the tests that decode a tool call by hand
-SHAPES = CommandShape(ClassificationTable())
-CLASSIFIER = CommandClassifier(ClassificationTable(), SHAPES)
+# the shipped command table, read once for the tests that decode a tool call by hand
+TABLE = ClassificationTable(Config.rooted(Path(__file__).parent), TableSchema())
+SHAPES = CommandShape(TABLE)
+CLASSIFIER = CommandClassifier(TABLE, SHAPES)
 MAIN = 1
 """The id of main, the environment a fresh journal makes at boot: what a test reads directly, it reads there."""
 
@@ -3616,6 +3618,9 @@ SPLITTER_FOLDER_BYTES = 420_000
 # how many commands the generated sample draws, and how long reading them all may take
 GENERATED_COMMANDS = 500
 GENERATED_SECONDS = 20
+# how many corpus parts the cost test classifies, and the most one may take on average
+CLASSIFIED_PARTS = 2000
+CLASSIFY_SECONDS = 0.002
 SPLITTER_SAMPLE_SECONDS = 10
 
 
@@ -3636,21 +3641,6 @@ def test_every_generated_line_is_split_into_its_frozen_parts_kinds_and_stages():
     assert sum(path.stat().st_size for path in folder.iterdir()) < SPLITTER_FOLDER_BYTES, "the splitter fixtures stay within their budget"
 
 
-def schema_faults(value, schema: dict, definitions: dict, where: str) -> list[str]:
-    schema = definitions[schema["$ref"].rsplit("/", 1)[-1]] if "$ref" in schema else schema
-    expected = {"object": dict, "array": list, "string": str, "boolean": bool, "integer": int}.get(schema.get("type", ""), object)
-    if not isinstance(value, expected):
-        return [f"{where}: not {schema['type']}"]
-    if isinstance(value, list):
-        return [fault for index, item in enumerate(value) for fault in schema_faults(item, schema.get("items", {}), definitions, f"{where}[{index}]")]
-    if not isinstance(value, dict):
-        return []
-    properties, others = schema.get("properties", {}), schema.get("additionalProperties", {})
-    faults = [f"{where}: {key} missing" for key in schema.get("required", []) if key not in value]
-    faults += [f"{where}: {key} is not allowed" for key in value if key not in properties and others is False]
-    return faults + [fault for key, item in value.items() if key in properties or isinstance(others, dict) for fault in schema_faults(item, properties.get(key, others or {}), definitions, f"{where}.{key}")]
-
-
 def table_rows(rows: dict, where: str):
     for name, row in rows.items():
         yield f"{where}.{name}", rows, row
@@ -3662,9 +3652,9 @@ def table_rows(rows: dict, where: str):
 def test_the_command_table_follows_its_schema_and_names_only_its_own_kinds_and_effects():
     """src/journal/support/command_table.json classifies each program by a base, subcommands and option modifiers (task 3771): it follows command_table.schema.json, every kind and effect is one the table lists, and every same_as names a row beside it."""
     support = Path(__file__).resolve().parents[1] / "src" / "journal" / "support"
-    table, schema = json.loads((support / "command_table.json").read_text()), json.loads((support / "command_table.schema.json").read_text())
-    assert schema_faults(table, schema, schema["$defs"], "table") == []
-    assert schema_faults({**table, "programs": {"sed": {"bas": {}}}}, schema, schema["$defs"], "table") == ["table.programs.sed: bas is not allowed"], "the check finds a fault"
+    table = json.loads((support / "command_table.json").read_text())
+    assert TableSchema().faults(table) == []
+    assert TableSchema().faults({**table, "programs": {"sed": {"bas": {}}}}) == ["table.programs.sed: bas is not allowed"], "the check finds a fault"
     rows = list(table_rows(table["programs"], "programs"))
     assert not [where for where, _, row in rows if row.get("kind", "unknown") not in table["kinds"]], "every kind is listed"
     assert not [where for where, _, row in rows if not set(row.get("effects", [])) <= set(table["effects"])], "every effect is listed"
@@ -6271,7 +6261,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
     tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls", "shell": "", "flag": ""}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}, "shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape": "ls", "name": "ls", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -10357,7 +10347,7 @@ def test_a_tool_entry_records_the_calls_reading_beside_the_raw_input(app: App):
     assert saved.is_write() and not read.is_write() and read.recorded_call().work == "searching", "the write flag and the work word are read from the record, never from the input again"
     assert app.container.get(Entries).kind_entries("SessionStarted", 1)[0].recorded_call() == RecordedCall(), "an entry that records no call reads as an empty call with no operation"
     from journal.support.classification_table import ClassificationTable
-    assert [(part.classification.kind, part.classification.is_write) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == ClassificationTable().version, "each part's classification and the table's version ride on the recorded call (task 3772)"
+    assert [(part.classification.kind, part.classification.is_write) for part in call.parts] == [("read", True), ("search", False)] and call.table_version == TABLE.version, "each part's classification and the table's version ride on the recorded call (task 3772)"
 
 
 def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wrappers_redirects_and_inner_commands(app: App):
@@ -10400,6 +10390,65 @@ def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_w
     assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
     old = RecordedCall.parsed({"command": "rm x", "parts": [{"text": "rm x", "is_journal": False, "writes": True, "files": ["x"], "reads_output": False, "read_shape": "rm x"}], "writes": True, "written_paths": ["x"]})
     assert old.writes and old.parts[0].writes and old.parts[0].files == ("x",) and old.parts[0].classification == Classification() and old.table_version == 0, "an entry stored before the classifier reads back with its own write flag and files"
+
+
+def test_an_installed_and_a_fresh_journal_read_the_same_table_and_a_projects_own_table_loads_against_its_schema(app: App, tmp_path):
+    """Task 3783: the command table ships inside the package install.sh copies whole, so an installed journal and a fresh one read the same table and stamp its version, a call stored under an older version keeping its own; a project's own table in its journal's folder is merged over the shipped one when it follows the schema, and left out with its faults kept when it does not."""
+    import shutil
+    import journal.support as support
+    from journal.models.entry import Entry
+    from journal.repositories.entries import Entries
+    from journal.support.classification_table import TABLE, ClassificationTable
+    from journal.support.command_classifier import CommandClassifier
+    assert TABLE.parent == Path(support.__file__).parent, "the table is a file of the package, copied with it by every install"
+    installed = tmp_path / "installed" / ".journal" / "src" / "journal"
+    shutil.copytree(Path(support.__file__).parents[1], installed, ignore=shutil.ignore_patterns("__pycache__"))
+    assert json.loads((installed / "support" / "command_table.json").read_text())["version"] == app.container.get(CommandClassifier).version and (installed / "support" / "command_table.schema.json").is_file(), "the installed copy carries the same table and its schema"
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": "ls", "table_version": 1}}), Actor.system())
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls -la"})
+    stored, fresh = app.container.get(Entries).tool_starts("s1", 2)[::-1]
+    assert stored.recorded_call().table_version == 1 and fresh.recorded_call().table_version == app.container.get(CommandClassifier).version == ClassificationTable(Config.rooted(tmp_path), TableSchema()).version, "an old call keeps its version; a new one, upgraded or fresh, stamps the shipped one"
+    project = tmp_path / "project"
+    (project / ".journal").mkdir(parents=True)
+    (project / ".journal" / "command_table.json").write_text(json.dumps({"programs": {"deploy-site": {"kind": "build", "effects": ["reads_files", "makes_files", "runs_long"], "label": "deploying"}}}))
+    table = ClassificationTable(Config.rooted(project), TableSchema())
+    classifier = CommandClassifier(table, CommandShape(table))
+    assert table.faults == [] and classifier.classify("deploy-site --prod").kind == "build" and classifier.classify("deploy-site").label == "deploying" and table.version == json.loads(TABLE.read_text())["version"], "a project's own row is read beside the shipped ones, the version still the shipped table's"
+    (project / ".journal" / "command_table.json").write_text(json.dumps({"programs": {"deploy-site": {"kind": 3}}}))
+    refused = ClassificationTable(Config.rooted(project), TableSchema())
+    assert refused.faults == ["table.programs.deploy-site.kind: not string"] and "deploy-site" not in refused.programs, "a project's table off its schema is left out, its faults kept"
+
+
+def test_the_classifier_costs_microseconds_a_command_reads_the_table_once_and_a_stored_reader_matches_the_runs_it_did(app: App):
+    """Task 3783: the table is read once and shared by the classifier, the shape and the shell runner, whose ChainWorker reads a part's write and merge flags from the parts file split once per chain; a command is classified in microseconds and kept, the cache bounded; a reader stored under the old rules matches the same runs; and a Codex line handed to a shell that is not POSIX is read whole and unknown."""
+    from journal.features.shell.support.readers import Readers
+    from journal.providers.codex import Codex
+    from journal.support.classification_table import ClassificationTable
+    from journal.support.command_classifier import CACHE_SIZE, CommandClassifier
+    classifier = app.container.get(CommandClassifier)
+    assert classifier.table is app.container.get(ClassificationTable) is app.container.get(CommandShape).table, "one table for every reader, read at boot"
+    parts = [part for row in map(json.loads, (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()) for part in row["parts"]][:CLASSIFIED_PARTS]
+    fresh = CommandClassifier(classifier.table, classifier.shapes)
+    began = timing.monotonic()
+    for part in parts:
+        fresh.classify(part)
+    assert (timing.monotonic() - began) / len(parts) < CLASSIFY_SECONDS, "a command is classified in well under a millisecond"
+    assert all(fresh.classify(part) is fresh.cache[part] for part in parts[:50]), "and asked again it is the kept reading"
+    for n in range(CACHE_SIZE + 10):
+        fresh.classify(f"echo {n}")
+    assert len(fresh.cache) == CACHE_SIZE, "the kept readings are bounded, so a long-running journal holds no growing cache"
+    (app.config.readers).mkdir(parents=True, exist_ok=True)
+    (app.config.readers / "old-tests.pattern").write_text("# the tests\n(passed|failed)\ncommands: pytest, npm run build\n")
+    readers = app.container.get(Readers)
+    stored = readers.found("old-tests")
+    assert [line for line in ("timeout 300 python3 -m pytest -q", "cd web && npm run build 2>&1 | tail -3", "REPLAY_FREEZE=1 pytest tests/a.py") if not readers.read_part(stored, line)] == [], "a reader stored under the old rules reads the runs it read"
+    assert not readers.read_part(stored, "npm test") and not readers.read_part(stored, "git log"), "and no other"
+    powershell = Codex().call("Bash", {"command": ["pwsh", "-c", "Remove-Item a; Set-Content b"]}, frozenset(), classifier)
+    assert [part.text for part in powershell.parts] == ["pwsh -c 'Remove-Item a; Set-Content b'"] and powershell.parts[0].classification.kind == "unknown" and not powershell.writes, "a PowerShell line is carried with its shell, read whole and unknown"
+    script = Codex().call("Bash", {"command": ["python3", "-c", "open('a/b', 'w').write('x')"]}, frozenset(), classifier)
+    assert script.writes and script.parts[0].classification.is_writing_script, "code handed to python3 is never split as a shell line"
 
 
 def test_generated_commands_are_read_by_every_command_reader_as_their_forms_say(app: App):

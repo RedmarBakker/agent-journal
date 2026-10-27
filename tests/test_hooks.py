@@ -370,8 +370,8 @@ def test_each_providers_tool_calls_decode_into_the_operations_the_features_read(
     claude, codex = Claude(), Codex()
     calls, codex_calls = first_calls("claude"), first_calls("codex")
     ready = ShellLine("printf ready > ready.txt")
-    assert claude.operation("Bash", calls["Bash"][0]) == ready and codex.operation("Bash", codex_calls["Bash"][0]) == ready, "both programs' shell hooks are the same operation"
-    assert codex.operation("Bash", {"command": ["bash", "-lc", "printf ready > ready.txt"]}) == ready and codex.operation("Bash", {"command": ["git", "status", "--short"]}) == ShellLine("git status --short"), "a Codex command given as a list is one line"
+    assert claude.operation("Bash", calls["Bash"][0]) == ready and codex.operation("Bash", codex_calls["Bash"][0]).line() == ready.line(), "both programs' shell hooks are the same line"
+    assert codex.operation("Bash", {"command": ["bash", "-lc", "printf ready > ready.txt"]}) == ShellLine("printf ready > ready.txt", "bash", "-lc") and codex.operation("Bash", {"command": ["git", "status", "--short"]}) == ShellLine("git status --short"), "a Codex command given as a list is one line, the shell it was handed to carried on it"
     patches = [codex.operation("apply_patch", value) for value in codex_calls["apply_patch"]]
     assert all(isinstance(op, FileEdit) for op in patches) and [op.target_paths() for op in patches] == [("/project/note2.txt",)] * 3, "a patch adding, changing or deleting a file is an edit of its path"
     patch = "*** Begin Patch\n*** Add File: new.txt\n+hi\n*** Update File: notes.txt\n@@\n-first\n+second\n*** Delete File: old.txt\n*** End Patch\n"
@@ -418,10 +418,12 @@ def dispatch_entries(provider: str, kept, bodies: list[dict] | None = None) -> l
     from journal.support.classification_table import ClassificationTable
     from journal.support.command_classifier import CommandClassifier
     from journal.support.command_shape import CommandShape
+    from journal.support.table_schema import TableSchema
+    from journal.config import Config
     from datetime import datetime, timezone
     from journal.models.entry import Entry
     from journal.providers.providers import Providers
-    program, classifier = Providers().lookup(provider), CommandClassifier(ClassificationTable(), CommandShape(ClassificationTable()))
+    program, classifier = Providers().lookup(provider), CommandClassifier(table := ClassificationTable(Config.rooted(Path(__file__).parent), TableSchema()), CommandShape(table))
     entries = []
     for n, body in enumerate(body for body in (bodies or captured(provider)) if kept(body)):
         call = {"call": program.call(body["tool_name"], body["tool_input"], frozenset(), classifier).as_data()} if "tool_name" in body else {}

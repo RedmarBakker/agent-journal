@@ -49,7 +49,7 @@ class Codex(Provider):
     home = ".codex"
     settings_file = "hooks.json"
     decoders = {
-        "Bash": lambda input: ShellLine(Codex.shell_line(input.get("command", ""))),
+        "Bash": lambda input: Codex.shell_line(input.get("command", "")),
         "apply_patch": lambda input: FileEdit(PatchPaths.build(input), *LineCount.patch(input)),
         "write_file": lambda input: FileWrite(str(input.get("path", "") or input.get("file_path", "")), LineCount.lines(input.get("content"))),
         "read_file": lambda input: FileRead(str(input.get("path", "") or input.get("file_path", "")), bool(input.get("offset") or input.get("limit"))),
@@ -116,12 +116,12 @@ class Codex(Provider):
         return re.sub(r"(?<!^)(?=[A-Z])", "_", kind.value).lower()
 
     @staticmethod
-    def shell_line(command) -> str:
+    def shell_line(command) -> ShellLine:
         if not isinstance(command, list):
-            return str(command)
+            return ShellLine(str(command))
         if len(command) == 3 and command[1] in SCRIPT_FLAGS:
-            return str(command[2])
-        return shlex.join(str(part) for part in command)
+            return ShellLine(str(command[2]), str(command[0]), str(command[1]))
+        return ShellLine(shlex.join(str(part) for part in command))
 
     def profile_model(self, profile: ProfileView) -> str:
         return profile["codex_model"]

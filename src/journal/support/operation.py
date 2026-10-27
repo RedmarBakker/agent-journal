@@ -11,6 +11,12 @@ class Operation:
     def line(self) -> str:
         return ""
 
+    def shell_program(self) -> str:
+        return ""
+
+    def line_with_shell(self) -> str:
+        return self.line()
+
     def writes(self) -> bool:
         return False
 

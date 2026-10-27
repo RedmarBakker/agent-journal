@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Iterator
 
 from journal.support.chain import Chain
+from journal.config import Config
 from journal.support.classification_table import ClassificationTable
+from journal.support.table_schema import TableSchema
 from journal.support.command_shape import LOOP_PATTERN as LOOP_START, CommandShape
 from journal.support.part import Part
 from scripts.corpus_commands import anonymised, refused_inside_repository
@@ -371,7 +373,7 @@ def past_value_flags(name: str, words: list[str]) -> list[str]:
 
 @lru_cache(maxsize=None)
 def command_table() -> ClassificationTable:
-    return ClassificationTable()
+    return ClassificationTable(Config.rooted(Path(__file__).resolve().parents[1]), TableSchema())
 
 
 @lru_cache(maxsize=None)

@@ -1776,3 +1776,10 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   files are filled from it, the output read's two from the line. Stored doing labels stay as history. The mark rules read
   the corpus as before (`mark_readings_before.json`); only seven reads the table now reads through (`\ls`, `command ls`,
   a sed of a log) are newly quick reads, so a mark of one of those may go at boot.
+- Task 3783: `ClassificationTable(config, schema)` merges a project's own `.journal/command_table.json` (programs,
+  wrappers, scripts) over the shipped table when it follows the schema (`TableSchema`, the schema read into `SchemaNode`s,
+  the one checker the table's own test uses too); one off its schema is left out, its faults kept. The version stays the
+  shipped table's, so an installed and a fresh journal of a release stamp the same one; the table is a file of the package
+  install.sh copies whole. The classifier keeps the last 4096 readings. A Codex line handed to a shell carries the shell on
+  its ShellLine; a shell that is not POSIX (pwsh, python3 -c) has its line read whole, so its code is never split as a
+  shell line.

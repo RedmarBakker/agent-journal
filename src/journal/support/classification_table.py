@@ -2,20 +2,29 @@ import json
 import re
 from pathlib import Path
 
+from journal.config import Config
 from journal.support.part import Part
 from journal.support.table_row import TableRow
+from journal.support.table_schema import TableSchema
 from journal.support.wrapper import Wrapper
 
 TABLE = Path(__file__).with_name("command_table.json")
+# the project's own table for its own tools, in its journal's folder, merged over the shipped one
+PROJECT_TABLE = "command_table.json"
+# the sections of a project's table whose rows are put over the shipped ones, a row of the same name replacing the shipped row
+PROJECT_SECTIONS = ("programs", "wrappers", "scripts")
 # the signs of the shell's own operators, which a word a wrapper hands on as its command never holds
 OPERATOR_SIGNS = "<>|&;"
 
 
 class ClassificationTable:
-    """The shipped command table, read once into rows: each program with its subcommands and modifiers, the scripts it knows by their file name, the wrappers that run another command, and the redirects, each with the descriptor it moves and its target, and which of them write a file."""
+    """The shipped command table with the project's own table for its own tools merged over it, read once into rows: each program with its subcommands and modifiers, the scripts it knows by their file name, the wrappers that run another command, and the redirects, each with the descriptor it moves and its target, and which of them write a file. A project's table that does not follow the schema is left out, its faults kept; the version is the shipped table's, so every journal of a release stamps the same one."""
 
-    def __init__(self) -> None:
-        data = json.loads(TABLE.read_text())
+    def __init__(self, config: Config, schema: TableSchema) -> None:
+        shipped = json.loads(TABLE.read_text())
+        merged = self.merged(shipped, config.home / PROJECT_TABLE)
+        self.faults = schema.faults(merged) if merged is not shipped else []
+        data = shipped if self.faults else merged
         self.version: int = data["version"]
         self.programs = {name: TableRow.parsed(data["programs"], name) for name in data["programs"]}
         self.wrappers = {name: Wrapper.parsed(data["wrappers"], name) for name in data["wrappers"]}
@@ -24,6 +33,13 @@ class ClassificationTable:
         self.redirect_targets_kept = frozenset(data["redirects"]["except"])
         operators = sorted({*data["redirects"]["writes"], *data["redirects"]["reads"]}, key=len, reverse=True)
         self.redirection = re.compile(r"(\d*)(" + "|".join(map(re.escape, operators)) + r")\s*(&?[^\s;&|]+)")
+
+    @staticmethod
+    def merged(shipped: dict, project: Path) -> dict:
+        if not project.is_file():
+            return shipped
+        project_table = json.loads(project.read_text())
+        return {**shipped, **{section: {**shipped[section], **project_table.get(section, {})} for section in PROJECT_SECTIONS}}
 
     def redirect_writes(self, operator: str, target: str) -> bool:
         return operator in self.redirect_operators and target not in self.redirect_targets_kept and not target.startswith("&")

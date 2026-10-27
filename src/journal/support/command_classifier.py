@@ -1,5 +1,7 @@
 import re
 import shlex
+import threading
+from collections import OrderedDict
 from dataclasses import replace
 
 from journal.support.chain import Chain
@@ -18,6 +20,8 @@ EXEC_FLAGS = frozenset({"-exec", "-execdir", "-ok"})
 EXEC_ENDS = frozenset({";", "\\;", "+"})
 SSH_VALUE_FLAGS = frozenset({"-p", "-i", "-o", "-l", "-F", "-J", "-L", "-R", "-D", "-W", "-b", "-c", "-E", "-m", "-O", "-Q", "-S", "-w"})
 NETWORK = "reaches_network"
+# how many commands the classifier keeps read, the least recently asked going first, so a long-running journal holds a bounded cache
+CACHE_SIZE = 4096
 # what code handed to an interpreter does when it writes a file, which no table row can tell
 MARKERS = re.compile(r"write_text|write_bytes|open\([^)]*[\"'][wax]|\.write\(|unlink|os\.remove|shutil\.|os\.rename|\.rename\(|mkdir|writeFileSync|writeFile\(|fs\.write|File\.(write|open|delete)|rm_rf|\.truncate\(")
 WRITES_FILES = "writes_files"
@@ -29,11 +33,12 @@ QUOTED_PATH = re.compile(r"['\"]([^'\"\s]*/[^'\"\s]*)['\"]")
 
 
 class CommandClassifier:
-    """What a single shell command is and does, read from the shipped command table: each command of its pipe or its || by its program's row with its subcommands and the modifiers of the options it carries, its wrappers taken off, its redirects and inner commands added; each line is classified once."""
+    """What a single shell command is and does, read from the shipped command table: each command of its pipe or its || by its program's row with its subcommands and the modifiers of the options it carries, its wrappers taken off, its redirects and inner commands added; each line is classified once and kept, the least recently asked of the last few thousand going first."""
 
     def __init__(self, table: ClassificationTable, shapes: CommandShape) -> None:
         self.table, self.shapes = table, shapes
-        self.known: dict[str, Classification] = {}
+        self.cache: OrderedDict[str, Classification] = OrderedDict()
+        self.lock = threading.Lock()
 
     @property
     def version(self) -> int:
@@ -52,9 +57,17 @@ class CommandClassifier:
         return Classification.union(self.classify(part.text) for part in Chain.parts(line))
 
     def classify(self, text: str) -> Classification:
-        if text not in self.known:
-            self.known[text] = Classification.union(self.classify_command(piped) for piped in Part(text).commands())
-        return self.known[text]
+        with self.lock:
+            cached = self.cache.get(text)
+            if cached is not None:
+                self.cache.move_to_end(text)
+                return cached
+        classification = Classification.union(self.classify_command(piped) for piped in Part(text).commands())
+        with self.lock:
+            self.cache[text] = classification
+            if len(self.cache) > CACHE_SIZE:
+                self.cache.popitem(last=False)
+        return classification
 
     def classify_command(self, text: str) -> Classification:
         if Part(text).is_subshell() or GROUP.match(text):
@@ -106,6 +119,9 @@ class CommandClassifier:
     def redirected_label(self, word: str) -> str:
         row = self.table.programs.get(word.rsplit("/", 1)[-1])
         return row.redirected_label if row is not None else ""
+
+    def runs_shell(self, program: str) -> bool:
+        return not program or INNER_LINES.get(program.rsplit("/", 1)[-1]) == CommandClassifier.script_lines
 
     def shell_script(self, line: str) -> str:
         tokens = self.tokens(line)
