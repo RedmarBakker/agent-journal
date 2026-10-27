@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.5
+
+- After reading a message the agent is told to reply with `journal message send --reply-to N` and then go on. Told to reply with a tag, an agent wrote its reply as closing text, which ended its turn before the work it had promised. The skill no longer teaches the tags.
+
 ## 4.67.4
 
 - A task started outside a plan is worked on top of the plan: once it ends, the plan carries on where it was.
