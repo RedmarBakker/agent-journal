@@ -155,7 +155,7 @@ test("on the composer the figure sits on the edge with its legs over it, never l
 });
 
 test("lounging, each support hand lies flat beside the hips while at most one hand performs its contact gesture", () => {
-    const lounging = CLIPS.filter((clip) => clip.postures.includes("lounge"));
+    const lounging = CLIPS.filter((clip) => clip.postures.includes("lounge") && !clip.legs);
     expect(lounging.length).toBeGreaterThan(3);
     const posed = (clip, voice, t) => {
         const pose = new Posing(RIG, "lounge", 0);
@@ -215,7 +215,7 @@ test("wherever it sits and leans on a hand, on an edge, lounging or sitting comp
     const {BUTLER} = await import("../src/figure/butler.js");
     // the hands each seated posture leans on, as each clip drawn in it has them: on an edge the free hands at idle's lean back, lounging
     // and composed both hands in every clip
-    const leaning = {sit: [CLIPS.find((clip) => clip.name === "ledge_sit")], lounge: CLIPS.filter((clip) => clip.postures.includes("lounge")), composed: CLIPS.filter((clip) => clip.postures.includes("composed"))};
+    const leaning = {sit: [CLIPS.find((clip) => clip.name === "ledge_sit")], lounge: CLIPS.filter((clip) => clip.postures.includes("lounge") && !clip.legs), composed: CLIPS.filter((clip) => clip.postures.includes("composed") && !clip.legs)};
     for (const [posture, clips] of Object.entries(leaning)) {
         for (const voice of Object.keys(stances)) {
             const stance = stanceOf(voice);

@@ -3,7 +3,7 @@ import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {FRAMED} from "./frame.js";
-import {LADDER, LEDGES, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
+import {LADDER, LEDGES, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfNewest, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
@@ -383,11 +383,12 @@ export function stayingAt(stay, figure, near) {
 // builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
 export function targetFor({state, counts, stay, now, near, figure, hands, work = null, pile = null, cleared = {until: 0}, random = Math.random, tally = null, memory = null, room = 0}) {
     const building = work && buildSpot(figure, near, work);
-    if (building) return {spot: building, stay};
+    if (building) return {spot: clearOfNewest(building, figure) ? building : null, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory, room});
     // a spot on a ladder stays where the ladder stands
-    if (target.spot?.ladder) return target;
-    return {...target, spot: unlessClosing(watching(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), figure), near)};
+    if (target.spot?.ladder) return {...target, spot: clearOfNewest(target.spot, figure) ? target.spot : null};
+    const spot = unlessClosing(watching(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), figure), near);
+    return {...target, spot: clearOfNewest(spot, figure) ? spot : null};
 }
 
 // the spot, or null when it is on a docked card about to close by itself and the figure at `near` is not on it already: it never sets out

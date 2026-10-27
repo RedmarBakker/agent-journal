@@ -4,6 +4,7 @@ import * as THREE from "three";
 import {ACTS, RUMMAGED, SMASH, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAt} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
+import {NEWEST_ASIDE, newestScootAt} from "./newest.js";
 import {GAIT} from "./gait.js";
 import {POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
@@ -2020,6 +2021,38 @@ export const LOOK_REACH = Math.abs(LOOK_DEPTH) / FRAMED_HEIGHT;
 export const headPivotOf = (figure) => 0.5 - (figure.rig.heads.get("head").z - FRAMED_MIDDLE) / FRAMED_HEIGHT;
 export const eyesAboveOf = (figure) => (figure.rig.eyes.reduce((sum, eye) => sum + eye.z, 0) / figure.rig.eyes.length - figure.rig.heads.get("head").z) / FRAMED_HEIGHT;
 
+// Reading recruits the upper body before the neck reaches its limit, with a small backward lean at the far end of a line.
+export const READING_BODY = {start: 20, softness: 18, share: 0.7, turn: 74, lean: 7};
+
+// Carry a reading turn through the spine and shoulders while the neck leads and the feet keep their place.
+function readingToward(pose, at, point, facing) {
+    const axis = new THREE.Vector3(0, 0, 1);
+    const local = (value, turn = 0) => value.clone().applyAxisAngle(axis, radians(-(facing + turn)));
+    const raw = THREE.MathUtils.radToDeg(lookAngle(pose, local(point)).yaw);
+    const middle = point.clone();
+    middle.x = ((at.readingCenter ?? at.x) - 0.5) * FRAMED_HEIGHT;
+    const anchor = THREE.MathUtils.radToDeg(lookAngle(pose, local(middle)).yaw);
+    const yaw = Number.isFinite(at.readingYaw) ? at.readingYaw + signedTurn((at.readingFacing ?? facing) - facing) : anchor + signedTurn(raw - anchor);
+    const follow = Number.isFinite(at.readingFollow) ? at.readingFollow + signedTurn((at.readingFacing ?? facing) - facing) : yaw;
+    const excess = Math.max(Math.abs(follow) - READING_BODY.start, 0);
+    const wanted = Math.sign(follow) * READING_BODY.share * excess * excess / (excess + READING_BODY.softness);
+    const shoulder = THREE.MathUtils.clamp(THREE.MathUtils.clamp(wanted, yaw - HEAD_TURN, yaw + HEAD_TURN), -READING_BODY.turn, READING_BODY.turn);
+    const further = bodyTurnFor(pose.posture, yaw - shoulder - THREE.MathUtils.clamp(yaw - shoulder, -HEAD_TURN, HEAD_TURN), at.most);
+    const amount = at.amount ?? 1;
+    const carried = amount * amount;
+    const turn = further * carried;
+    trunk(pose, {twist: shoulder * carried, lean: -READING_BODY.lean * Math.min(Math.abs(shoulder) / READING_BODY.turn, 1) * carried});
+    const own = pose.matrix("head").clone();
+    const chest = yawOf(pose, "chest");
+    const head = chest + THREE.MathUtils.clamp(yaw - turn - chest, -HEAD_TURN, HEAD_TURN);
+    const target = local(point, turn);
+    const pitch = Number.isFinite(at.readingPitch) ? radians(at.readingPitch) : THREE.MathUtils.clamp(lookAngle(pose, target).pitch, radians(-HEAD_TIP.up), radians(HEAD_TIP.down));
+    pose.face("head", {x: THREE.MathUtils.radToDeg(pitch), z: head});
+    if (amount < 1) pose.final.set("head", between(own, pose.matrix("head"), amount));
+    pose.gaze = {target: target.toArray(), forward: READ_GAZE.forward};
+    return turn;
+}
+
 // The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
 // the UFO it watches or the leading edge of a progress bar under its feet, in front of the figure, or `at.behind` it on the page, the
 // figure turned `facing` degrees; `at.amount` of the way from
@@ -2029,6 +2062,7 @@ export const eyesAboveOf = (figure) => (figure.rig.eyes.reduce((sum, eye) => sum
 // degrees round when the look says so, the head turning the rest; seated the body turns as for any look (bodyTurnFor).
 export function lookToward(pose, at, facing = 0) {
     const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, at.behind ? -LOOK_DEPTH : LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
+    if (at.behind && at.mood === "reading" && pose.posture !== "walk") return readingToward(pose, at, point, facing);
     const turnedBy = (turn) => point.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-(facing + turn)));
     const most = at.most ?? Infinity;
     const whole = at.faces && pose.posture === "stand" ? Math.min(Math.max(THREE.MathUtils.radToDeg(lookAngle(pose, turnedBy(0)).yaw), -most), most) : 0;
@@ -3060,6 +3094,27 @@ function ledge_sit(pose, stance, t) {
     pose.tap = LEDGE.toes * Math.max(waveOf(t, 2), 0);
 }
 
+// Makes room without standing: the supporting palm plants before each lift, the hips cross while lifted, and the feet follow.
+function newest_scoot(pose, stance, t) {
+    const u = Math.min(t * NEWEST_ASIDE.frames / (NEWEST_ASIDE.frames - 1), 1);
+    const motion = newestScootAt(u);
+    const way = pose.walkWay || 1;
+    const support = reachSide(stance, -way);
+    const sign = SIDES[support];
+    const movement = new THREE.Vector3(way * pose.stride * FRAMED_HEIGHT / NEWEST_ASIDE.shuffles, 0, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-pose.facing));
+    LEGS[pose.posture]?.under(pose);
+    idle(pose, stance, 0);
+    pose.lift("root", {z: motion.lift});
+    pose.bendAbove("spine", {y: sign * 24 * motion.weight});
+    trunk(pose, {lean: -3 * motion.ready, nod: 5 * motion.ready, turn: way * 8 * motion.ready});
+    pose.swing(-way * 0.65 * motion.follow);
+    LEGS[pose.posture]?.over(pose);
+    const hand = new THREE.Vector3(sign * 0.86, 0.08, LOUNGE.floor + 0.07).addScaledVector(movement, -0.5 + rise(motion.phase, 0, 0.3) - motion.moved);
+    hand.z += 0.12 * Math.sin(Math.PI * span(motion.phase, 0, 0.3)) ** 2;
+    armToward(pose, support, motion.ready, pose.withinReach(support, hand, 0.999), {x: -80}, [1, 0.45, 0.15]);
+    for (const side of Object.keys(SIDES)) pose.turn(`foot_${side}`, {x: -4 * motion.follow});
+}
+
 // Checks a pocket watch where it sits on an edge waiting on a run (runWait.js): the free hand brings it out of the waistcoat pocket at
 // `pocket` up before the chest at `held` over `out`, the head bowed `look` degrees to read it, and puts it back over `back`; the legs swing
 // as they do on the edge
@@ -3756,6 +3811,7 @@ export const TYPING_SECONDS = 5;
 // to it, as at the laptop.
 
 export const CLIPS = [
+    {name: "newest_scoot", head: HEAD.alone, frames: NEWEST_ASIDE.frames, fps: NEWEST_ASIDE.fps, loops: false, legs: true, postures: ["sit", "lounge", "composed"], pose: newest_scoot},
     {name: "idle", head: HEAD.free, frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", head: HEAD.gestures, frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
     {name: "hand_rub", head: HEAD.gestures, frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: MOVE, pose: hand_rub},

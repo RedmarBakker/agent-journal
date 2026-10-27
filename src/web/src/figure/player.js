@@ -31,6 +31,11 @@ export class FigurePlayer {
         return this.blend !== null;
     }
 
+    // Ease an explicit gaze interruption even when the clip, posture and facing key stays the same.
+    easeFromCurrent() {
+        if (this.moves) this.blend = {from: this.moves, began: performance.now(), plant: Boolean(this.blend?.plant)};
+    }
+
     // the clip's frame `index` in `posture`, turned `facing` degrees, onto the canvas, the eyes wearing the look `eyes` if one is given,
     // the legs `stride` through a step on the move, a figure watching the sky standing as `sky` says (figure.js watch), and the head
     // looking at `at` in the picture when given (figure.js lookToward), a rifle aimed at `target` there (figure.js rifleAim), the eyes `open`

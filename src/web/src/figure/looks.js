@@ -67,7 +67,7 @@ export const looksFor = (clip, looks) => clip.head === HEAD.alone ? [] : looks.m
 // other metadata when changing its coordinates, so a limited look stays limited after the figure moves.
 export function lookInFigure(gaze, at, size) {
     if (!gaze.amount || !gaze.point) return null;
-    return {...gaze.point, x: (gaze.point.x - at.x) / size, y: (gaze.point.y - at.y) / size, amount: gaze.amount, behind: Boolean(gaze.point.behind), faces: Boolean(gaze.point.faces), mood: gaze.point.mood ?? ""};
+    return {...gaze.point, ...(Number.isFinite(gaze.point.readingCenter) ? {readingCenter: (gaze.point.readingCenter - at.x) / size} : {}), x: (gaze.point.x - at.x) / size, y: (gaze.point.y - at.y) / size, amount: gaze.amount, behind: Boolean(gaze.point.behind), faces: Boolean(gaze.point.faces), mood: gaze.point.mood ?? ""};
 }
 
 // whether `clip` keeps its head as its act poses it, never turned to the viewer for a look

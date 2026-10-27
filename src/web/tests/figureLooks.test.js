@@ -44,7 +44,7 @@ test("a report brings the reading look at its bubble, never the report scroll: t
         expect(look.y).toBeLessThanOrEqual(box.bottom);
     }
     // along each line left to right, then the next line down
-    const first = looks.slice(0, 19);
+    const first = looks.filter((_, step) => (step * READING.sweep * 3) / 60 < READING.sweep - READING.returnSeconds);
     for (let index = 1; index < first.length; index++) expect(first[index].x).toBeGreaterThan(first[index - 1].x);
     expect(new Set(first.map((look) => look.y)).size).toBe(1);
     expect(looks[20].y).toBeGreaterThan(looks[0].y);

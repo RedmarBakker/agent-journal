@@ -1,3 +1,4 @@
+import {NEWEST_ASIDE} from "./newest.js";
 import {GRAVITY} from "../domain/falls.js";
 import {ACTS} from "./acts.js";
 import {flips} from "./reactions.js";
@@ -33,6 +34,51 @@ export function openTabs() {
 
 // What a figure standing somewhere must not hide: anything the user can press or type into
 const CONTROLS = "button, a[href], input, select, textarea, [role=tab], [role=button], [tabindex]:not([tabindex='-1'])";
+
+// The Newest control may opt into this stable hook; the label fallback also supports older Thread.vue templates.
+export const NEWEST = "[data-figure-newest]";
+
+// The visible Newest button in the main chat, measured where the page put it; hidden controls and message contents do not count.
+export function newestButton() {
+    const thread = document.querySelector(HOME)?.closest(".thread");
+    if (!thread) return null;
+    const marked = thread.querySelector(NEWEST) ?? thread.querySelector("button.thread-down");
+    const candidates = marked ? [marked] : [...(thread.querySelectorAll?.("button, [role=button]") ?? [])].filter((element) =>
+        !element.closest?.("[data-figure-bubble]") && /\bnewest\b/i.test(element.getAttribute?.("aria-label") || element.textContent || "")
+    );
+    for (const element of candidates) {
+        if (element.hidden || !visible(element)) continue;
+        const box = element.getBoundingClientRect();
+        if (box.right > box.left && box.bottom > box.top) return box;
+    }
+    return null;
+}
+
+// The complete seated silhouette counts, including feet below the ledge and a palm beside either hip.
+export function clearOfNewest(spot, figure, button = newestButton()) {
+    if (!spot || !button) return true;
+    const picture = boxAt(spot, figure);
+    const across = bodyAcross(spot);
+    const body = {left: picture.left + Math.min(across.left, 0.27) * figure.size, right: picture.left + Math.max(across.right, 0.73) * figure.size, top: picture.top + BODY.top * figure.size, bottom: picture.top + BODY.bottom * figure.size};
+    const gap = NEWEST_ASIDE.gap;
+    return !overlaps(body, {left: button.left - gap, right: button.right + gap, top: button.top - gap, bottom: button.bottom + gap});
+}
+
+// The nearest clear place on this same floor, preserving the seat and its facing; no jump or change of floor is planned.
+export function newestAsideSpot(figure, near, bounds, button = newestButton()) {
+    if (!button || clearOfNewest(near, figure, button)) return null;
+    const across = bodyAcross(near);
+    const leftReach = (0.5 - Math.min(across.left, 0.27)) * figure.size;
+    const rightReach = (Math.max(across.right, 0.73) - 0.5) * figure.size;
+    const world = worldBox();
+    const inside = near.posture === "stand" ? FEET_INBOARD * figure.size : SEAT_INBOARD * figure.size;
+    const least = Math.max(bounds.left + inside, world.left + leftReach);
+    const most = Math.min(bounds.right - inside, world.right - rightReach);
+    const choices = [button.left - NEWEST_ASIDE.gap - rightReach, button.right + NEWEST_ASIDE.gap + leftReach]
+        .map((x) => ({...near, x}))
+        .filter((spot) => spot.x >= least && spot.x <= most && clearOfNewest(spot, figure, button) && clearOfPile(spot, figure));
+    return choices.sort((a, b) => Math.abs(a.x - near.x) - Math.abs(b.x - near.x))[0] ?? null;
+}
 
 // How each posture meets the line it rests on: the share of the figure's height from that line down to the feet of its standing picture,
 // and the posture it travels in to get there. It stands with its feet on the line, sits with its hips on it and hangs by its hands from
@@ -257,6 +303,7 @@ const bodyPoints = (box) =>
 // sits on, as below that line it only hangs over the thing it rests on, and all of a figure hanging from its line; words inside an element
 // `passed` names left out
 export function hiddenAt(spot, figure, passed = "") {
+    if (!clearOfNewest(spot, figure)) return BODY_XS.length * BODY_YS.length;
     const picture = boxAt(spot, figure);
     const box = spot.posture === "hang" ? picture : {...picture, bottom: Math.min(picture.bottom, spot.y)};
     const controls = [...document.querySelectorAll(CONTROLS)]
@@ -286,7 +333,7 @@ export function asideOf(figure, near, bounds) {
         for (const x of [near.x - moved, near.x + moved]) {
             if (x - half < bounds.left || x + half > bounds.right) continue;
             const spot = {...near, x};
-            if (!agentWordsAt(spot, figure)) return spot;
+            if (!agentWordsAt(spot, figure) && clearOfNewest(spot, figure)) return spot;
         }
     }
     return null;
@@ -298,7 +345,7 @@ export function freeSpot(spots, figure, near) {
     const world = worldBox();
     const away = (spot) => (near ? Math.hypot(spot.x - near.x, spot.y - near.y) : 0);
     const ranked = spots
-        .filter((spot) => inWorld(spot, figure, world))
+        .filter((spot) => inWorld(spot, figure, world) && clearOfNewest(spot, figure))
         .map((spot) => ({spot, covered: hiddenAt(spot, figure), away: away(spot)}));
     if (!ranked.length) return null;
     return ranked.reduce((best, each) =>

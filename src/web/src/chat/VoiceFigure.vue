@@ -48,6 +48,7 @@ import {
     callLines,
     stretchedFrame,
 } from "../domain/figureState.js";
+import {NEWEST_ASIDE, newestScootAt, newestSeatAfter} from "../figure/newest.js";
 import {loadVoiceFigure} from "../figure/assets.js";
 import {CLEARED_SECONDS, MARK_STAY, phoneSide, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
@@ -96,6 +97,9 @@ import {
     progressOf,
     nearestTell,
     roomToStepAside,
+    newestButton,
+    newestAsideSpot,
+    clearOfNewest,
     spotOf,
     SEATED,
     seatedFacing,
@@ -332,6 +336,7 @@ const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(tickerSeco
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
 function current() {
+    if (newestAside) return {clip: clipNamed(newestAside.phase === "scoot" ? "newest_scoot" : "idle"), facing: newestAside.face};
     if (!body.trip?.moves || body.trip.hopping) beats.value = beats.value.filter((beat) => beat.clip !== "stumble");
     const first = headBeat(beats.value, sequenceNow());
     // seated, it keeps its seat for its stay: an act that would stand it up waits (perches.js playsSeated)
@@ -399,6 +404,7 @@ function step() {
     cancelAnimationFrame(frameTimer);
     if (!player || document.hidden) return;
     if (grab?.head) return holdStill();
+    if (advanceNewestAside()) return;
     // an act played once that has played to its end is over before what comes next is chosen, so its beat is never left to play again
     if (playing.shown && actOver(playing.shown, frameOf(playing.shown))) return endAct(playing.shown);
     const wanted = current();
@@ -428,7 +434,7 @@ function step() {
     playing.index = index;
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
     // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
-    poseToward({posture, facing: SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
+    poseToward({posture, facing: newestAside ? newestAside.face : SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
     smashOn(shown);
     backOn(shown);
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
@@ -446,23 +452,23 @@ function step() {
     const pace = shown.pace ?? 1;
     const stride = drawn === "walk" || shown.clip.name === "walk" ? strideNow(pace) : null;
     walking.value = stride !== null || shown.clip.name === "walk";
-    shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
+    shownFrame.value = newestAside?.phase === "scoot" ? Math.min((performance.now() - newestAside.began) / (NEWEST_ASIDE.seconds * 1000), 1) * (NEWEST_ASIDE.frames - 1) : frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     drawnClip.value = posed.turning ? clipNamed("idle") : shown.clip;
     drawnFrame.value = posed.turning ? 0 : shownFrame.value;
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
     player.show(drawnClip.value, drawnFrame.value, posedOnSeat(shown, seconds), {
         posture: drawn,
-        eyes: look.eyes,
-        stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : backing.value?.at.way ? -backing.value.at.steps : stride,
-        walkWay: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : (backing.value?.at.way ?? 0),
+        eyes: newestAside?.phase === "notice" ? null : look.eyes,
+        stride: newestAside?.phase === "scoot" ? Math.abs(newestAside.to - newestAside.from) / SIZE : shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : backing.value?.at.way ? -backing.value.at.steps : stride,
+        walkWay: newestAside?.phase === "scoot" ? Math.sign(newestAside.to - newestAside.from) : shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : (backing.value?.at.way ?? 0),
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
         leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : drawn === "composed" ? body.place.leans : 0,
-        at: lookingAt(shown),
+        at: newestAside?.phase === "scoot" ? null : newestGlance() ?? lookingAt(shown),
         target: aimAt(shown),
         open: blinked(),
-        screen: lit,
+        screen: newestAside?.phase === "notice" ? null : lit,
         tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
         ticker: callTicker(),
         // a call made seated has its telephone on the side its seat leaves free, decided once as the call begins (perches.js phoneSide)
@@ -588,6 +594,7 @@ function endAct(shown) {
 // its seat now and then (places.js poseAfter)
 let seatPose = null;
 function posedOnSeat(shown, now) {
+    if (newestAside) return newestAside.facing;
     seatPose = posed.posture === "sit" && !posed.turning && !shown.clip.aside ? poseAfter(seatPose, posed.facing, now, Math.random) : null;
     return seatPose ? posedFacing(seatPose, now) : posed.facing;
 }
@@ -644,6 +651,7 @@ function slideOn() {
 // clip on screen is drawn in that posture first, so the figure gets to its feet or takes its grip where it is before the first leg
 // a trip that is `pressing`, as one out of the way of a new message, sets off at once, breaking off whatever clip plays
 async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgent = false} = {}) {
+    if (!clearOfNewest(spot, figureSize()) || newestAside) return;
     if (!tripTo(body.place, spot, figureSize(), {straight, pace})) return restOn(spot);
     body.trip = {to: spot, straight, pace, pressing, urgent, footing: footingOn(spot), legs: []};
     // read back, since the ref hands out its reactive copy, never the object it was given
@@ -941,6 +949,7 @@ const grip = computed(() => {
 
 // The figure lets go of where it rested, the stay there and whatever it was playing, for a stay at home
 function letGo() {
+    newestAside = null;
     stay = stayAtHome(stay);
     playing = {name: "", started: 0, shown: null, index: 0, closing: null};
     beats.value = [];
@@ -972,7 +981,7 @@ function uprooted() {
 // the scene the reactions are decided in
 const scene = () => ({
     voice: voice.value,
-    moving: Boolean(body.trip || flight),
+    moving: Boolean(body.trip || flight || newestAside),
     place: body.place,
     beats: beats.value.length,
     held: Boolean(sequenceNow()),
@@ -1066,7 +1075,8 @@ function look() {
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const pushing = pushWaits(parcels.value);
     // held by a sequence, pushing a box, or eager for a run's end, it takes up nothing else
-    const quiet = Boolean(sequence) || pushing || Boolean(eager?.on);
+    const makingRoom = noticeNewest() || Boolean(newestAside);
+    const quiet = makingRoom || Boolean(sequence) || pushing || Boolean(eager?.on);
     const egg = quiet ? null : answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const over = body.trip ? null : discoBall(body.place, figureSize(), latestFloors());
     const pastime = quiet ? null : pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
@@ -1074,6 +1084,10 @@ function look() {
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
+    if (makingRoom) {
+        if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
+        return;
+    }
     if (coveredSince() && !body.airborne && !body.place.stays && !uncut(beats.value, beatOnScreen()) && roomToStepAside(body.place)) stepAsideFromMessage();
     grantUnit();
     clearLeftPile();
@@ -1109,6 +1123,88 @@ function look() {
         hurried = false;
     }
     if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
+}
+
+// The button is noticed before either motion; a seated motion owns its floor-relative place until all three shuffles settle.
+let newestAside = null;
+
+function noticeNewest() {
+    if (newestAside || !player || grab || body.trip || body.airborne || body.arriving || body.leaving || flight || taking.value || !body.footing || body.place.posture === "hang") return false;
+    if (playing.shown?.once && !playedOut()) return false;
+    const button = newestButton();
+    const floor = floorNamed(latestFloors().floors, body.footing.id);
+    if (!floor || !button || clearOfNewest(body.place, figureSize(), button)) return false;
+    const spot = newestAsideSpot(figureSize(), body.place, floor, button);
+    if (!spot) return false;
+    const seconds = performance.now() / 1000;
+    newestAside = {phase: "notice", began: performance.now(), button, spot, canonicalFace: body.place.face, footingFace: body.footing.face, face: posed.facing, facing: seatPose ? posedFacing(seatPose, seconds) : posed.facing};
+    player.easeFromCurrent();
+    cutting = true;
+    return true;
+}
+
+function advanceNewestAside() {
+    if (!newestAside) return false;
+    if (grab || body.airborne || body.trip || body.leaving || flight) {
+        newestAside = null;
+        return false;
+    }
+    const floor = body.footing && floorNamed(latestFloors().floors, body.footing.id);
+    if (!floor) {
+        newestAside = null;
+        return false;
+    }
+    const elapsed = (performance.now() - newestAside.began) / 1000;
+    if (newestAside.phase === "notice") {
+        if (elapsed < NEWEST_ASIDE.notice) return false;
+        const spot = newestAsideSpot(figureSize(), body.place, floor);
+        if (!spot) {
+            newestAside = null;
+            return false;
+        }
+        stay = {where: "aside", spot, until: now.value + CLEARED_SECONDS};
+        hurried = false;
+        if (!SEATED.has(body.place.posture)) {
+            newestAside = null;
+            moveTo(spot, {pace: 1, pressing: true});
+            return true;
+        }
+        newestAside = {...newestAside, phase: "scoot", began: performance.now(), from: body.place.x - floor.left, to: spot.x - floor.left};
+        cutting = true;
+        return false;
+    }
+    const u = Math.min(elapsed / NEWEST_ASIDE.seconds, 1);
+    const motion = newestScootAt(u);
+    const x = floor.left + newestAside.from + (newestAside.to - newestAside.from) * motion.across;
+    body.place = {...body.place, x, y: floor.top + body.footing.dy};
+    body.footing = {...body.footing, dx: x - floor.left};
+    if (u < 1) return false;
+    const finished = newestAside;
+    newestAside = null;
+    const resumed = current();
+    const resumeFacing = seatedFacing(resumed.clip, finished.canonicalFace);
+    const restored = newestSeatAfter(finished, body.place, body.footing, resumeFacing, performance.now() / 1000);
+    body.place = restored.place;
+    body.footing = restored.footing;
+    if (drawnIn(resumed, body.place.posture, false) === body.place.posture) {
+        posed = restored.posed;
+        seatPose = restored.seatPose;
+    }
+    stay = {where: "aside", spot: {...body.place}, until: now.value + CLEARED_SECONDS};
+    cutting = true;
+    return false;
+}
+
+// A short, eased downward glance at the measured button before the body moves, without turning the planted body.
+function newestGlance() {
+    if (newestAside?.phase !== "notice") return null;
+    const u = Math.min((performance.now() - newestAside.began) / (NEWEST_ASIDE.notice * 1000), 1);
+    const smooth = (value) => {
+        const k = Math.min(Math.max(value, 0), 1);
+        return k * k * (3 - 2 * k);
+    };
+    const point = middleOf(newestAside.button);
+    return {x: (point.x - body.at.x) / SIZE, y: (point.y - body.at.y) / SIZE, amount: smooth(u / 0.3) * (1 - smooth((u - 0.75) / 0.25)), most: 0};
 }
 
 // what the figure hid where it came to rest, so something that appears under it since, as a new message, is told apart from what it
@@ -1157,7 +1253,7 @@ function clicked(event) {
 let grab = null;
 let handled = false;
 
-const grabbable = () => Boolean(playing.shown) && !body.trip && !body.airborne && !flight && !body.arriving && !body.leaving && body.place.posture !== "hang";
+const grabbable = () => Boolean(playing.shown) && !newestAside && !body.trip && !body.airborne && !flight && !body.arriving && !body.leaving && body.place.posture !== "hang";
 
 function pressed(event) {
     handled = false;
@@ -1662,7 +1758,7 @@ function lookingAt(shown) {
     const walk = walkingNow() ? walkingGlance(glancing, leading.look, body.trip.way ?? body.way, headCenter(), performance.now() / 1000) : {look: leading.look, glancing: null};
     glancing = walk.glancing;
     lookBlend = headBlend(walk.look, shown.clip);
-    gaze = gazeAfter(gaze, walk.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
+    gaze = gazeAfter(gaze, walk.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead && {...lookHead, facing: shown.facing}, lookBlend);
     return lookInFigure(gaze, body.at, SIZE);
 }
 
@@ -1768,6 +1864,7 @@ const seen = () => {
 };
 
 async function load(name) {
+    newestAside = null;
     player = null;
     if (!name) return;
     try {

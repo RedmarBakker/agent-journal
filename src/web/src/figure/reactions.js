@@ -20,7 +20,7 @@ export function variantOf(clip, random, has, scene = {}) {
 
 // The figure reading along a message's bubble: for `seconds`, line by line down at most `lines` of them `line` pixels apart, its look
 // sweeping each from `inset` pixels in from the bubble's left to as far in from its right over `sweep` seconds, and back to the next
-export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14, turn: 135, ahead: 0.25};
+export const READING = {seconds: 5, lines: 3, line: 18, sweep: 2.8, returnSeconds: 1.2, inset: 14, turn: 135, ahead: 0.25, followSeconds: 0.2, turnSpeed: 240, tipSpeed: 90};
 
 // The way a figure standing with the middle of its picture at page `x` faces to read the bubble `box`: its whole body turned READING turn
 // degrees toward the screen behind it, 1 to its right and -1 to its left, so its head then only follows the lines; facing the screen
@@ -30,14 +30,25 @@ export function readingFacing(box, x, size) {
     return Math.abs(off) < READING.ahead * size ? 180 : Math.sign(off) * READING.turn;
 }
 
-// Where the figure looks `t` seconds into reading the bubble `box` (its left, right, top and bottom on the page), with the eyes' reading
-// look: along the line it is on, left to right, a line further down each sweep and back to the first after the last, as many as the
-// bubble holds
+// A line has a slow scan and a shorter eased return onto the next line; neither the target nor its speed jumps at the ends.
+const readingEase = (value) => {
+    const k = Math.min(Math.max(value, 0), 1);
+    return k * k * k * (10 + k * (-15 + 6 * k));
+};
+
+// Where the figure reads at `t` seconds, with the middle of the line retained to choose one consistent shoulder for a line behind it.
 export function readingAt(box, t) {
-    const lines = Math.max(1, Math.min(READING.lines, Math.floor((box.bottom - box.top - 2 * READING.inset) / READING.line) + 1));
-    const line = Math.floor(t / READING.sweep) % lines;
-    const k = (t % READING.sweep) / READING.sweep;
-    return {x: box.left + READING.inset + (box.right - box.left - 2 * READING.inset) * k, y: box.top + READING.inset + line * READING.line, mood: "reading", behind: true};
+    const insetX = Math.min(READING.inset, Math.max(box.right - box.left, 0) / 2);
+    const insetY = Math.min(READING.inset, Math.max(box.bottom - box.top, 0) / 2);
+    const lines = Math.max(1, Math.min(READING.lines, Math.floor((box.bottom - box.top - 2 * insetY) / READING.line) + 1));
+    const elapsed = Math.max(t, 0);
+    const line = Math.floor(elapsed / READING.sweep) % lines;
+    const phase = elapsed % READING.sweep;
+    const scan = READING.sweep - READING.returnSeconds;
+    const back = readingEase((phase - scan) / READING.returnSeconds);
+    const across = phase <= scan ? readingEase(phase / scan) : 1 - back;
+    const down = line + (((line + 1) % lines) - line) * back;
+    return {x: box.left + insetX + Math.max(box.right - box.left - 2 * insetX, 0) * across, y: box.top + insetY + down * READING.line, readingCenter: (box.left + box.right) / 2, mood: "reading", behind: true};
 }
 
 // how long the eyes keep a look, counted only while they are shown
@@ -326,9 +337,35 @@ export function gazeAfter(gaze, point, center, now, head = null, blend = 1) {
     const amount = gaze.amount < goal ? Math.min(gaze.amount + step, goal) : Math.max(gaze.amount - step, goal);
     const largest = (LOOK_TURN_SPEED * elapsedMs) / 1000;
     const from = gaze.toward ? {...gaze.point, x: center.x + gaze.toward.x, y: center.y + gaze.toward.y} : gaze.point;
-    const turned = leaving ? from : point && from && !changesDepth ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;
-    const looked = turned ?? from;
+    const turned = leaving ? from : point?.behind && point.mood === "reading" ? {...point} : point && from && !changesDepth ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;
+    const target = turned ?? from;
+    const looked = target?.behind && target.mood === "reading" ? readingGazeAfter(gaze.point, target, center, elapsedMs, head) : target;
     return {point: looked ?? null, toward: looked ? {x: looked.x - center.x, y: looked.y - center.y} : null, amount, at: now};
+}
+
+// Reading keeps an unwrapped local yaw across the back of the head, then lets the shoulders follow it on a slower clock.
+function readingGazeAfter(previous, point, center, elapsedMs, head) {
+    const degrees = (angle) => angle * 180 / Math.PI;
+    const wrapped = (angle) => degrees(Math.atan2(Math.sin(angle * Math.PI / 180), Math.cos(angle * Math.PI / 180)));
+    const facing = head?.facing ?? 0;
+    const depth = head?.depth ?? 24;
+    const raw = wrapped(degrees(Math.atan2(point.x - center.x, -depth)) - facing);
+    const anchored = wrapped(degrees(Math.atan2((point.readingCenter ?? point.x) - center.x, -depth)) - facing);
+    const kept = previous?.mood === "reading" && Number.isFinite(previous.readingYaw);
+    const change = kept ? wrapped(previous.readingFacing - facing) : 0;
+    const reference = kept ? previous.readingYaw + change : anchored;
+    const wanted = reference + wrapped(raw - reference);
+    const seconds = Math.min(Math.max(elapsedMs / 1000, 0), 0.1);
+    const largest = READING.turnSpeed * seconds;
+    const yaw = kept ? reference + Math.min(Math.max(wanted - reference, -largest), largest) : wanted;
+    const followed = kept ? previous.readingFollow + change : yaw;
+    const follow = followed + (yaw - followed) * (1 - Math.exp(-seconds / READING.followSeconds));
+    const tip = head?.tip ?? {up: 25, down: 35};
+    const requestedPitch = degrees(lookAngles(point.x - center.x, -depth, center.y - point.y, head?.above ?? 0).pitch);
+    const wantedPitch = Math.min(Math.max(requestedPitch, -tip.up), tip.down);
+    const pitchStep = READING.tipSpeed * seconds;
+    const pitch = kept ? previous.readingPitch + Math.min(Math.max(wantedPitch - previous.readingPitch, -pitchStep), pitchStep) : wantedPitch;
+    return {...point, readingYaw: yaw, readingFollow: follow, readingPitch: pitch, readingFacing: facing};
 }
 
 // The point the head looks at next, from the one it looked at, `previous`, toward `target`, both on the page, the head's pivot at `center`
