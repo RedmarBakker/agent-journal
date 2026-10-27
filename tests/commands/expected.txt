@@ -1794,7 +1794,7 @@ tasks.blocked_task_asked_about  [tasks]  blocked, with nothing that opens it by 
 tasks.carry_on  [tasks]  {{name}} is in hand, {{logged}}: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say so in one line
 tasks.check_the_blocked_tasks  [tasks]  tasks {{tasks}} are blocked. unblock one whose wait has passed or that you can decide, and report what you decided; when every task left is truly blocked, journal stuck "<why>"
-tasks.check_the_wait  [tasks]  you have waited {{minutes}} min on {{what}}: check it. still going: `journal await` again; done or failed: log it and go on
+tasks.check_the_wait  [tasks]  You have waited {{minutes}} minutes on {{what}}. Check how it is going, read its latest lines, and see whether it is doing what you expect.
 tasks.closed_by_commit  [tasks]  commit {{sha}} closed {{tasks}}
 tasks.deferred_work_is_a_task  [tasks]  work deferred in words, not filed: `journal task create` it
 tasks.fix_the_broken_wait  [tasks]  {{waits}}. fix it with `journal task block <n> --until "<command>"`, or `journal task unblock <n>`

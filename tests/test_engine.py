@@ -1678,8 +1678,12 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     assert awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0, last_seconds=10.0)}) is None, "one that ends within the setting's seconds may be awaited"
     assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
-    assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered().startswith("you have waited 5 min on the build: check it"), "every five quiet minutes the agent is asked to look"
+    assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered() == "You have waited 5 minutes on the build. Check how it is going, read its latest lines, and see whether it is doing what you expect.", "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"
+    printed = lambda moment, at: meanwhile.target.respond(Ticked(silence_seconds=10.0, time=moment).with_data(estimated({"command_outputs:4": WaitProgress(100.0, printed_at=at)})), auto)
+    assert printed(410.0, 100.0).nudges[0].rendered().startswith("You have waited 5 minutes on the build."), "a run silent for the last five minutes is asked about after five"
+    assert printed(410.0, 380.0).nudges == () and printed(990.0, 960.0).nudges == (), "a run that printed within the last five minutes is not asked about before fifteen"
+    assert printed(1000.0, 980.0).nudges[0].rendered() == "You have waited 15 minutes on the build. Check how it is going, read its latest lines, and see whether it is doing what you expect.", "a printing run is asked about after fifteen"
     first = waiting.respond(RowResolved(environment_id=1, time=200.0, ref="command_outputs:4", outcome="output 4 finished"), auto)
     assert first.target == replace(waiting, end_refs="checks:2", outcomes="output 4 finished") and not first.popped, "one row settled, one still to come"
     assert waiting.respond(RowResolved(environment_id=1, time=200.0, ref="tasks:3"), auto).target == waiting, "a row it does not wait on is not its business"

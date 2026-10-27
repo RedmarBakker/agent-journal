@@ -155,6 +155,9 @@ class OutputFiles:
     def moved(self) -> None:
         (self.folder / "moved").touch()
 
+    def printed_at(self) -> float:
+        return max((path.stat().st_mtime for path in self.parts()), default=0.0)
+
     def size(self) -> int:
         return sum(path.stat().st_size for path in self.folder.glob("*.out")) + sum(path.stat().st_size for path in self.folder.glob("*.err"))
 

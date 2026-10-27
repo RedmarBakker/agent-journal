@@ -25,11 +25,12 @@ from journal.models.check import Check
 
 NEXT_TASK_DELAY = Timeout.minutes(1)
 CHECK_REMINDER = Timeout.minutes(5)
+PRINTING_REMINDER = Timeout.minutes(15)
 
 
 @dataclass(frozen=True)
 class ExternalWait(Wait):
-    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
+    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five."""
 
     name = "awaiting"
     assigner = None
@@ -100,9 +101,13 @@ class ExternalWait(Wait):
             return self.estimated(remaining, event.data, settings)
         if not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
             return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
-        if self.check_reminder.is_elapsed(event.time):
+        if self.reminder(tasks.wait_progress, event.time).is_elapsed(event.time):
             return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
         return self.none()
+
+    def reminder(self, progress: Mapping[str, WaitProgress], moment: float) -> Timeout:
+        printing = any(progress[ref].has_printed_since(moment - CHECK_REMINDER.amount) for ref in self.targets() if ref in progress)
+        return (PRINTING_REMINDER if printing else CHECK_REMINDER).started(self.check_reminder.start)
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
         return self.resolution(event.ref, event.outcome)

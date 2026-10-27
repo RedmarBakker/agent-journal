@@ -12,7 +12,7 @@ STEP = re.compile(r"\bstep (\d+)\s*/\s*(\d+)\b")
 
 
 class WaitProgressReader:
-    """The progress of the runs of a session still going, by the row of each: its last percentage, its last count such as 12/40 finished, or its last step such as step 2/5, which counts the steps before it as done, and how long the run before it, of the same line, took."""
+    """The progress of the runs of a session still going, by the row of each: its last percentage, its last count such as 12/40 finished, or its last step such as step 2/5, which counts the steps before it as done, how long the run before it, of the same line, took, and when it last printed."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs
@@ -23,7 +23,8 @@ class WaitProgressReader:
     def progress(self, run: CommandOutput) -> WaitProgress:
         files = OutputFiles(Path(run.folder))
         previous = self.outputs.previous_passing_run(run)
-        return WaitProgress(run.creation_time.timestamp(), self.finished_share(files.lines() if files.is_stored() else []), previous.run_seconds() if previous else 0.0)
+        stored = files.is_stored()
+        return WaitProgress(run.creation_time.timestamp(), self.finished_share(files.lines() if stored else []), previous.run_seconds() if previous else 0.0, files.printed_at() if stored else 0.0)
 
     @staticmethod
     def finished_share(lines: list[str]) -> float:
