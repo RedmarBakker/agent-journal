@@ -14,7 +14,6 @@ from journal.models.author import Author
 from journal.models.entry import Entry
 from journal.models.message import Message
 from journal.support.voice_key import VoiceKey
-from journal.providers.providers import Providers
 from journal.repositories.entries import Entries
 from journal.repositories.messages import Messages
 from journal.supervisor_link import SupervisorLink
@@ -28,12 +27,12 @@ REPEAT_OVERLAP_RATIO = 0.6
 
 
 class RecordTurn(AgentListener[TurnDisplayed]):
-    """Every whole turn the agent writes for the user becomes a message in the chat, any old command tag stripped from it and run by nothing. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat, but never while the user has paused the agent, when every word it writes is for the user."""
+    """Every whole turn the agent writes for the user becomes a message in the chat, any old command tag stripped from it and run by nothing. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat, but never while the user has paused the agent, when every word it writes is for the user. The same block arrives at once from the transcript and from the display hook, so one is recorded at a time."""
 
-    def __init__(self, messages: Messages, entries: Entries, providers: Providers, registry: Registry, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents) -> None:
-        self.messages, self.entries, self.providers, self.registry, self.supervisor = messages, entries, providers, registry, supervisor
+    def __init__(self, messages: Messages, entries: Entries, registry: Registry, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents) -> None:
+        self.messages, self.entries, self.registry, self.supervisor = messages, entries, registry, supervisor
         self.nudger, self.sessions = nudger, sessions
-        self.recording = threading.Lock()  # the same block arrives at once from the transcript and from the display hook
+        self.recording = threading.Lock()
 
     def handle(self, event: TurnDisplayed) -> None:
         if not event.final or not event.text.strip():
@@ -79,9 +78,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         prompt = entry.data.get("prompt", "")
         if not prompt.startswith(JOURNAL_LINE) or self._chat_answer(event, prompt[len(JOURNAL_LINE):]):
             return False
-        provider = self.providers.lookup(event.provider)
-        start = self.entries.recent(entry.row_id)
-        return not any(e.entry_type == events.TOOL_STARTING and e.is_write() for e in start)
+        return not any(start.is_write() for start in self.entries.newer_tool_starts(entry.row_id))
 
     def _chat_answer(self, event: TurnDisplayed, line: str) -> bool:
         line_text = self.entries.line_entries(event.session, line)

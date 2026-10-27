@@ -32,7 +32,7 @@ class VerifierProcessCard(ProcessCard):
 
     @staticmethod
     def standing(verifier: Verifier, report: ReaderReport) -> tuple[CardOutcome, str]:
-        if verifier.state == VerifierState.VERIFYING:
+        if verifier.is_verifying():
             return CardOutcome.RUNNING, "checking whether a dismissed report was right"
         if verifier.state == VerifierState.ENDED:
             return CardOutcome.FAILED, "stopped before reaching a conclusion"
@@ -40,7 +40,7 @@ class VerifierProcessCard(ProcessCard):
 
     @staticmethod
     def fit_standing(verifier: Verifier, worker: Worker) -> tuple[CardOutcome, str]:
-        if verifier.state == VerifierState.VERIFYING:
+        if verifier.is_verifying():
             return CardOutcome.RUNNING, f"checking whether {worker.name}'s model fit its work"
         if verifier.state == VerifierState.ENDED:
             return CardOutcome.FAILED, "stopped before reaching a conclusion"

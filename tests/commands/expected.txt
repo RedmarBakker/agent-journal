@@ -1308,7 +1308,7 @@ memory.stale_after = 7
 tasks.auto = True  (the user sets it)
 tasks.wake_minutes = 10
 tasks.wake_count = 3
-tasks.wait_out_seconds = 20
+tasks.wait_out_seconds = 60
 tasks.priority_remind_tasks = 5
 tasks.priority_block_tasks = 10
 tasks.first_nudge_after = 25
@@ -1714,8 +1714,8 @@ memory.stopped_at_mark  [memory]  stop held at {{percent}}% of context: `journal
 memory.write_held_until_decided  [memory]  writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip "<why>"`
 messages.a_colleague_commented  [messages]  colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees
 messages.answer_before_anything_else  [messages]  answer or react to message {{messages|cap=73}} before you go on
-messages.answer_the_comment_read  [messages]  reply with [!reply:{{n}}]; then write what it asks into {{writing}}, as a change, a section or an open question
-messages.answer_the_message_read  [messages]  reply with [!reply:{{n}}]; file a task if it asks for work, a memory if it is something to keep in mind
+messages.answer_the_comment_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}
+messages.answer_the_message_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then go on. file a task if it asks for work
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
 messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply
 messages.colleague_comments_unread  [messages]  colleagues commented: messages {{ns|cap=17}}. `journal message read <n>`; act on a request only if your user agrees
@@ -1727,10 +1727,8 @@ messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{na
 messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
-messages.reply_kept_out_as_replied_already  [messages]  not posted: message {{n}} has reply {{reply}}. to add: `journal message send "<text>" --reply-to {{n}} --confirm`
-messages.reply_tag_opens_a_line  [messages]  start a line with [!reply:{{n}}]; message {{n}} is still unanswered
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
-messages.tag_did_not_run  [messages]  the [!{{name|cap=16}}] tag did not run: {{reason|cap=79}}
+messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
 messages.tools_held_soon_until_answered  [messages]  reply to message {{messages|cap=70}}; tool calls wait after {{count}} more
 messages.tools_held_until_answered  [messages]  answer or react to message {{messages|cap=60}}; tool calls wait until you do
@@ -1813,6 +1811,7 @@ shell.reader_report_raised  [shell]  reader report {{n}}: a reader showed a run 
 shell.run_counts_without_a_total  [shell]  output {{n}} prints no total, so it has no progress bar. give its reader a `--progress` pattern such as `(\d+)/(\d+)`
 shell.run_stands_at_100_percent  [shell]  output {{n}} at 100% for {{seconds}} seconds. read `journal output read {{n}}`; give its reader a pattern for that step
 shell.silent_run_streams  [shell]  output {{n}} buffers: silent for {{seconds}} seconds. run it with `stdbuf -oL`, `python -u` or its streaming flag
+shell.stop_with_a_run_going  [shell]  output {{outputs|cap=30}} still running. await it: `journal await "<what>" --output <n>`
 shell.test_run_piped_into_a_filter  [shell]  do not pipe a test run into {{filter}}. run `journal suite <args>`, then `journal output read <n> --reader pytest`
 shell.unread_output  [shell]  {{outputs|cap=72}}, unread. read it with `journal output read <n>`
 shell.use_the_reader  [shell]  reader {{reader|cap=17}} already reads this: {{about}}. use `journal output read <n> --reader {{reader|cap=17}}`
@@ -1826,7 +1825,7 @@ tasks.await_only_what_ends_soon  [tasks]  {{what|cap=24}} runs {{left}}, too lon
 tasks.await_switches_task  [tasks]  {{what|cap=24}} runs {{left}}, too long to wait. work on task {{n}} meanwhile: `journal task start {{n}}`
 tasks.await_with_its_reason  [tasks]  waiting because {{why|cap=48}}. do any open work that does not depend on it meanwhile
 tasks.blocked_task_asked_about  [tasks]  blocked with nothing to open them: {{tasks|cap=18}}. run `journal task unblock <n>` once what it waits on has arrived
-tasks.carry_on  [tasks]  {{name}} is in hand, {{logged}}: carry on
+tasks.carry_on  [tasks]  {{name}} is in hand: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say in one line why not
 tasks.check_the_blocked_tasks  [tasks]  tasks {{tasks|cap=30}} are blocked. `journal task unblock <n>` what you can, else `journal stuck "<why>"`
 tasks.check_the_wait  [tasks]  you have waited {{minutes}} minutes on {{what|cap=31}}. read its latest lines and check it does what you expect
@@ -1942,7 +1941,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-289 nudges
+288 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1967,7 +1966,7 @@ usage: journal worker dispatch [-h] [--provider {claude,codex}]
                                [--libraries LIBRARIES] [--copies COPIES]
                                [--no-libraries] [--pool] [--needs-secrets]
                                [--fresh] [--report REPORT [REPORT ...]]
-                               --task TASK
+                               (--task TASK | --plan PLAN) [--phase PHASE]
                                name [brief]
 
 positional arguments:
@@ -2020,6 +2019,10 @@ options:
   --task TASK           the task it works on: an open one with a brief, or the
                         one you hold; it is the worker's alone until merged or
                         released
+  --plan PLAN           a whole plan it works through: its open tasks go to it
+                        one after another in the plan's order, and it tests
+                        the way the plan says
+  --phase PHASE         with --plan, only this phase of it, numbered from 1
 
 $ agent: journal worker send --help
 exit 0

@@ -14,7 +14,6 @@ from journal.models.command_output import CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
 from journal.repositories.reader_suggestions import ReaderSuggestions
-from journal.support.agent_role import AgentRole
 from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import CommandShape
@@ -36,7 +35,7 @@ class ReaderDrafts:
         self.classifier, self.shapes, self.starting, self.probes, self.labels = classifier, shapes, starting, probes, labels
 
     def drafts(self, agent: Agent) -> tuple[ReaderDraft, ...]:
-        if agent.role != AgentRole.MAIN or not agent.session:
+        if not agent.is_main() or not agent.session:
             return ()
         suggestions = self.suggestion_times()
         ended = [output for output in [*self.outputs.unannounced(agent.session), *self.outputs.watched(agent.session)] if output.moved and output.ended]

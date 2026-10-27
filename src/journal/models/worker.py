@@ -258,16 +258,16 @@ class Worker(Helper):
         return bool(self.token_hash) and self.is_running()
 
     def is_ended_mid_queue(self) -> bool:
-        return self.state == WorkerState.UNFINISHED and bool(self.moves.steps) and self.moves.steps[-1][0] == QUEUE_TURN_END
+        return self.is_unfinished() and bool(self.moves.steps) and self.moves.steps[-1][0] == QUEUE_TURN_END
 
     def is_active(self) -> bool:
-        return self.is_running() or self.state == WorkerState.DELIVERED
+        return self.is_running() or self.is_delivered()
 
     def is_closed(self) -> bool:
         return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
 
     def is_unanswered(self, time: float, seconds: float, tested_at: float = 0.0) -> bool:
-        return self.state == WorkerState.DELIVERED and not self.review_pending and time - max(self.silence.timeout.start, tested_at) > seconds
+        return self.is_delivered() and not self.review_pending and time - max(self.silence.timeout.start, tested_at) > seconds
 
     def is_retirable(self, time: float, seconds: float) -> bool:
         return not self.adopted and not self.is_active() and not self.review_pending and time - self.moves.last_time() > seconds
@@ -288,3 +288,12 @@ class Worker(Helper):
 
     def summary_line(self) -> str:
         return self.opening_line(self.brief)
+
+    def is_delivered(self) -> bool:
+        return self.state == WorkerState.DELIVERED
+
+    def is_dispatched(self) -> bool:
+        return self.state == WorkerState.DISPATCHED
+
+    def is_unfinished(self) -> bool:
+        return self.state == WorkerState.UNFINISHED

@@ -43,7 +43,7 @@ class TestsCommand(Command):
         budget.add_argument("per_run", type=int, nargs="?", help="the test ids one run may name")
 
     def turn(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is None:
+        if not caller.is_worker():
             raise Rejection("only a worker asks for a turn to run tests: the agent that sent it runs them itself")
         print(self.turns.run_batches(self.workers.find(caller.worker_number), shlex.join(args.ids), caller))
         return 0

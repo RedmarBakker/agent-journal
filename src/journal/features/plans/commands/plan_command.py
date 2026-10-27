@@ -16,7 +16,6 @@ from journal.models.phase import Phase
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.models.plan import Plan
-from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
@@ -176,10 +175,10 @@ class PlanCommand(Command):
         empty = [i for i, phase in enumerate(phases, 1) if not self.plans.phase_tasks(phase)]
         if empty:
             raise Rejection(f"phase {', '.join(str(i) for i in empty)} of plan {plan.id} has no task yet: journal plan todos {plan.id} <phase> <tasks>")
-        output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.state == PlanState.REVIEWING and caller.session is not None else 0
+        output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.is_reviewing() and caller.session is not None else 0
         if output:
             raise Rejection(f"plan {plan.id} is in review, {output} reviewers still out: wait, add what they found, then ready it")
-        if plan.state == PlanState.REVIEWING:
+        if plan.is_reviewing():
             self.close_round(plan, args.changed, caller)
         plan = self.plans.save(plan.ready(self.time_source.seconds()), caller.actor)
         print(f"plan {plan.id} ready: the user approves it on the plan page")
@@ -292,7 +291,7 @@ class PlanCommand(Command):
 
     def shown(self, plan: Plan) -> int:
         print(f"plan {plan.id} {plan.state}: {plan.title}")
-        if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
+        if plan.is_started() and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")
         if plan.priorities:

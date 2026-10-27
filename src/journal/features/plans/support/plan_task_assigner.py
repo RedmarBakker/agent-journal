@@ -8,7 +8,6 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
-from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.plans import Plans
@@ -59,7 +58,7 @@ class PlanTaskAssigner:
         return self.plans.find(plan_id) if plan_id else None
 
     def is_advancing(self, plan: Plan) -> bool:
-        return plan.state == PlanState.STARTED and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan)
+        return plan.is_started() and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan)
 
     def passes_checkpoints(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))

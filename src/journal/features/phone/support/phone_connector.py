@@ -10,7 +10,6 @@ from journal.models.phone import Phone
 from journal.repositories.phone_codes import PhoneCodes
 from journal.repositories.phones import Phones
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.rejection import Rejection
 
 CODE_MINUTES = 10
@@ -27,7 +26,7 @@ class PhoneConnector:
         self.phones, self.codes, self.tunnel = phones, codes, tunnel
 
     def proposal(self, days: int, actor: Actor, time: datetime) -> ConnectionProposal:
-        if actor.actor_type != ActorType.USER:
+        if not actor.is_desk_user():
             raise Rejection("only the user pairs a phone, from the viewer's Connect your phone dialog")
         if days not in DAYS:
             raise Rejection(f"a phone stays paired for {', '.join(map(str, DAYS))} days, not {days}")

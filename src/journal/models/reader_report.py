@@ -52,13 +52,13 @@ class ReaderReport(Scoped):
         return self.judged(reason, time).with_(dismissal=None, is_refuted=True).with_event(self.judgement(verifier_session, False, reason, time))
 
     def awaits_verdict(self) -> bool:
-        return self.dismissal is not None and self.judged_at is None and not self.is_refuted
+        return self.dismissal is not None and not self.is_judged() and not self.is_refuted
 
     def contradicted(self, reason: str, time: datetime) -> "ReaderReport":
         return self.with_(dismissal=None, is_refuted=True, verdict=reason, judged_at=time).with_event(self.judgement("", False, reason, time))
 
     def judged(self, reason: str, time: datetime) -> "ReaderReport":
-        if self.judged_at is not None or self.dismissal is None:
+        if self.is_judged() or self.dismissal is None:
             raise Rejection(f"reader report {self.id} has no dismissal waiting for a verdict")
         return self.with_(verdict=reason, judged_at=time)
 
@@ -72,3 +72,6 @@ class ReaderReport(Scoped):
 
     def full_text(self) -> str:
         return f"{self.evidence()}\n\nwrite the reader anew with journal reader add {self.reader} ..., or journal reader dismiss {self.id} --why \"<why the report is wrong>\""
+
+    def is_judged(self) -> bool:
+        return self.judged_at is not None

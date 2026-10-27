@@ -50,7 +50,7 @@ class Environment(Model):
         return self.is_personal() and not self.is_shared()
 
     def local_ready(self) -> "Environment":
-        return self.with_(name=self.team_name) if self.team_name is not None else self
+        return self.with_(name=self.team_name) if self.has_team() else self
 
     def shared_with_team(self, team_key: str) -> "Environment":
         if not self.is_personal():
@@ -66,6 +66,9 @@ class Environment(Model):
         return self.with_(team_key=team_key) if self.team_key == UNKNOWN_TEAM_KEY else self
 
     def team_ready(self, owner_prefix: str) -> "Environment":
-        if self.team_name is not None:
+        if self.has_team():
             return self
         return self.with_(team_name=f"{owner_prefix}-{self.name}" if owner_prefix else self.name)
+
+    def has_team(self) -> bool:
+        return self.team_name is not None

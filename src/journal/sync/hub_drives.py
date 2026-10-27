@@ -12,7 +12,6 @@ from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
 from journal.sync.hosting import Hosting
@@ -66,7 +65,7 @@ class HubDrives:
 
 
     def doer(self, actor: Actor) -> str:
-        return self.owners.person_name(int(actor.id)) if actor.actor_type == ActorType.USER else "someone"
+        return self.owners.person_name(int(actor.id)) if actor.is_desk_user() else "someone"
 
     def driven(self, row: Task | Plan, lease_request: Callable[[str], Lease], actor: Actor) -> Task | Plan:
         environment = self.drivable(row)

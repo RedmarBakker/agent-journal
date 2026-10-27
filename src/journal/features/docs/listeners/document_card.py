@@ -2,7 +2,6 @@ from journal.chat.process_cards import ProcessCards
 from journal.chat.row_process_card import RowProcessCard
 from journal.events.listener import Listener
 from journal.events.models.created import Created
-from journal.support.actor_type import ActorType
 from journal.models.doc import Doc
 from journal.repositories.agents import Agents
 
@@ -15,6 +14,6 @@ class DocumentCard(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         doc = event.model
-        if not isinstance(doc, Doc) or event.actor.actor_type != ActorType.AGENT:
+        if not isinstance(doc, Doc) or not event.actor.is_agent():
             return
         self.cards.show(self.card.card_contents(self.agents.session_agent(event.actor.agent_session()).environment_id, doc, event.actor))

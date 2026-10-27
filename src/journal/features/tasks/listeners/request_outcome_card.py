@@ -2,7 +2,6 @@ from journal.events.listener import Listener
 from journal.events.models.synced_update import SyncedUpdate
 from journal.features.tasks.support.request_cards import RequestCards
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.support.actor import Actor
 from journal.support.row_labels import RowLabels
 from journal.sync.team_account import TeamAccount
@@ -22,5 +21,5 @@ class RequestOutcomeCard(Listener[SyncedUpdate]):
         name = self.labels.name("task", task)
         if task.is_declined():
             self.cards.show(person, task, f"{name} was declined: {task.outcome.removeprefix('declined: ')}")
-        elif task.state == TaskState.COMPLETED:
+        elif task.is_completed():
             self.cards.show(person, task, f"{name} is completed: {task.title}")

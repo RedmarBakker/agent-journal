@@ -5,7 +5,6 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.support.rejection import Rejection
-from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
@@ -26,7 +25,7 @@ class ActiveTask:
             plan.task_startable(task.id)
         holder = self.holder(caller)
         self.tasks.guard_worker_task(task, holder, caller.actor)
-        if task.state == TaskState.STARTED and self.tasks.holder(task) == holder:
+        if task.is_started() and self.tasks.holder(task) == holder:
             raise Rejection(f"task {task.id} is already in hand: it was started already")
         for plan in self.plans.unstarted_plans(task):
             self.plans.resume_plan(plan, task, caller.actor)
@@ -35,12 +34,12 @@ class ActiveTask:
     def paused_current(self, task: Task, caller: Caller) -> Task | None:
         holder = self.holder(caller)
         counterpart = self.tasks.holder_task(holder) if holder is not None and holder.type != Worker.table() else None
-        if counterpart is None or counterpart.id == task.id or counterpart.state != TaskState.STARTED:
+        if counterpart is None or counterpart.id == task.id or not counterpart.is_started():
             return None
         return self.tasks.save(counterpart.paused(f"task {task.id} was started", self.time_source.moment()), caller.actor)
 
     def holder(self, caller: Caller) -> Ref | None:
-        if caller.worker_number is not None:
+        if caller.is_worker():
             return Ref(Worker.table(), caller.worker_number)
         if caller.session is not None:
             return Ref.build(self.sessions.caller_agent(caller, caller.session, self.scope.id))

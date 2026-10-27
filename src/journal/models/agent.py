@@ -234,3 +234,6 @@ class Agent(Scoped):
 
     def has_program(self) -> bool:
         return bool(self.provider)
+
+    def is_main(self) -> bool:
+        return self.role == AgentRole.MAIN

@@ -151,3 +151,6 @@ class Hook:
     @property
     def assistant_message(self) -> str:
         return self.body.get("last_assistant_message", "")
+
+    def is_pre_tool_use(self) -> bool:
+        return self.hook_type == HookType.PRE_TOOL_USE

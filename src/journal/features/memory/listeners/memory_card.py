@@ -6,7 +6,6 @@ from journal.models.rule import Rule
 from journal.models.support.ref import Ref
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.card_type import CardType
 
 MEMORY_KINDS = {Memory: ("Memory", CardType.MEMORIES), Rule: ("Rule", CardType.RULES), Reminder: ("Reminder", CardType.REMINDERS)}
@@ -23,7 +22,7 @@ class MemoryCard:
             return
         noun, shows = MEMORY_KINDS[type(row)]
         environment = getattr(row, "environment_id", 0) or self.scope.id
-        session = actor.id if actor.actor_type == ActorType.AGENT else ""
+        session = actor.id if actor.is_agent() else ""
         self.cards.show(environment, session, f"{noun} {row.id} {verb}{self.moment(row)}", "", Ref.build(row), actor=actor, shows=shows)
 
     @staticmethod

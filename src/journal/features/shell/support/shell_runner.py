@@ -172,7 +172,7 @@ class ShellRunner:
             return ""
         agent = self.sessions.caller_agent(caller, caller.session, environment)
         lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
-        if caller.worker_number is not None or caller.subagent:
+        if caller.is_worker() or caller.subagent:
             return "".join(f"[journal] {line}\n" for line in lines)
         for line in lines:
             self.supervisor.remark(environment, line)

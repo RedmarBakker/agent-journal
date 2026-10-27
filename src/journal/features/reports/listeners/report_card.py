@@ -3,7 +3,6 @@ from journal.chat.row_process_card import RowProcessCard
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.models.report import Report
-from journal.support.actor_type import ActorType
 
 
 class ReportCard(Listener[Created]):
@@ -14,5 +13,5 @@ class ReportCard(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         report = event.model
-        if isinstance(report, Report) and event.actor.actor_type == ActorType.AGENT:
+        if isinstance(report, Report) and event.actor.is_agent():
             self.cards.show(self.card.card_contents(report.environment_id, report, event.actor))

@@ -34,7 +34,7 @@ class ReviewCommand(Command):
         self.verb(verbs, "record", "your report on the work you review: one line per point, passed, short with why and the failing output, or undecided with why").add_argument("report")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        if caller.reviewer_number is None:
+        if not caller.is_reviewer():
             raise Rejection("only a reviewer the journal sent gives a review")
         reviewer = self.reviewers.find(caller.reviewer_number)
         worker = self.workers.find(self.links.worker(reviewer).id)

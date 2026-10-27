@@ -2,7 +2,6 @@ from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.features.workers.support.fitness_points import FitnessPoints
 from journal.features.workers.support.load_meter import LoadMeter
-from journal.support.agent_role import AgentRole
 from journal.models.agent import Agent
 from journal.repositories.agents import Agents
 
@@ -24,4 +23,4 @@ class LoadTickRecord(AgentListener[Ticked]):
 
     @staticmethod
     def is_stale(agent: Agent, time: float) -> bool:
-        return agent.role == AgentRole.MAIN and time - agent.work_queue.measured_at >= STALE_SECONDS
+        return agent.is_main() and time - agent.work_queue.measured_at >= STALE_SECONDS

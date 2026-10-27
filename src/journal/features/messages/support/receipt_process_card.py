@@ -1,6 +1,5 @@
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_card_contents import ProcessCardContents
-from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -18,7 +17,7 @@ class ReceiptProcessCard(ProcessCard):
         self.messages, self.links = messages, links
 
     def card_contents(self, message: Message) -> ProcessCardContents | None:
-        if message.author != Author.USER:
+        if not message.is_user_message():
             return None
         receipt_refs = self.links.targets(message, Messages.SUBJECT_LINK)
         key = f"filed:{message.id}"

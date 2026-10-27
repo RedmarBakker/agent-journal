@@ -37,7 +37,7 @@ class TasksConduct(Conduct):
         return wake_check(self, event, settings)
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
-        return self.push(ExternalWait.opened(*event.wait_terms()))
+        return self.push(ExternalWait.opened_beside(event.data, *event.wait_terms()))
 
     def on_impasse_report(self, event: ImpasseReport, settings: Settings) -> Transition:
         return self.push(Impasse(reason=event.reason))

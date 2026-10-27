@@ -3,7 +3,6 @@ from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent_listener import AgentListener
 from journal.features.sequences.support.announced_starts import AnnouncedStarts
 from journal.repositories.sequences import Sequences
-from journal.support.agent_role import AgentRole
 
 
 class CallStart(AgentListener[ToolFinished]):
@@ -13,7 +12,7 @@ class CallStart(AgentListener[ToolFinished]):
         self.sequences, self.sessions, self.starts = sequences, sessions, starts
 
     def handle(self, event: ToolFinished) -> None:
-        if event.subagent or self.sessions.agent(event.session, event.environment_id).role != AgentRole.MAIN:
+        if event.subagent or not self.sessions.agent(event.session, event.environment_id).is_main():
             return
         for sequence in self.sequences.called_sequences(event.call):
             self.starts.start(sequence, event.session, event.environment_id)

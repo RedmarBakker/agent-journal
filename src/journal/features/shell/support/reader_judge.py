@@ -108,7 +108,7 @@ class ReaderJudge:
     def unjudged_dismissal(self, report: ReaderReport, time: datetime) -> ReaderReport | None:
         name, kinds = self.shapes.command_name(report.command), self.kinds(report)
         dismissed = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
-        return next((dismissed_report for dismissed_report in dismissed if dismissed_report.id != report.id and dismissed_report.judged_at is None and self.shapes.command_name(dismissed_report.command) == name and kinds & self.kinds(dismissed_report)), None)
+        return next((dismissed_report for dismissed_report in dismissed if dismissed_report.id != report.id and not dismissed_report.is_judged() and self.shapes.command_name(dismissed_report.command) == name and kinds & self.kinds(dismissed_report)), None)
 
     @staticmethod
     def kinds(report: ReaderReport) -> set[str]:

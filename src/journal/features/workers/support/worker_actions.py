@@ -262,7 +262,7 @@ class WorkerActions:
         worker_tasks = tuple(self.tasks.find(task_id) for task_id in self.merged_task_ids(worker))
         proved = tuple(task for task in worker_tasks if self.latest_proofs(task))
         owned = proved or worker_tasks
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             return self.checked_tasks(worker, owned)
         for task in owned:
             self.refuse_unchecked(worker, task, "" if task is owned[-1] else f" --task {task.id}")
@@ -275,9 +275,9 @@ class WorkerActions:
         return checked
 
     def release_rest(self, worker: Worker, actor: Actor) -> None:
-        if worker.state != WorkerState.DELIVERED or not self.unproved_task_ids(worker):
+        if not worker.is_delivered() or not self.unproved_task_ids(worker):
             self.tasks.release(Ref.build(worker), actor)
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             self.tasks.unqueued(Ref.build(worker), actor)
 
     def unproved_task_ids(self, worker: Worker) -> list[int]:
@@ -291,7 +291,7 @@ class WorkerActions:
 
     def delivered(self, n: int, purpose: str) -> Worker:
         worker = self.local(n)
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that clocked out has {purpose}")
         return worker
 

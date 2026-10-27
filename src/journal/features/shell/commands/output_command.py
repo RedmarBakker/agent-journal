@@ -48,7 +48,7 @@ class OutputCommand(Command):
 
     def owned(self, n: int, caller: Caller) -> CommandOutput:
         output = self.outputs.find(n)
-        if caller.worker_number is not None and output.creator != caller.actor:
+        if caller.is_worker() and output.creator != caller.actor:
             raise Rejection(f"output {n} is not worker {caller.worker_number}'s: a worker reads only the outputs of its own commands")
         return output
 
@@ -116,7 +116,7 @@ class OutputCommand(Command):
         return 0
 
     def page(self, last: int, caller: Caller) -> list[CommandOutput]:
-        if caller.worker_number is None:
+        if not caller.is_worker():
             return self.outputs.page(last)
         return self.outputs.page(last, creator=caller.actor)
 

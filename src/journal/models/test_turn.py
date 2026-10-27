@@ -43,3 +43,6 @@ class TestTurn(Scoped):
 
     def with_run_event(self, time: float) -> "TestTurn":
         return self.with_event(ClockOutTestRunChanged(environment_id=self.environment_id, time=time, turn=self.row_id))
+
+    def has_passed(self) -> bool:
+        return self.outcome == TestOutcome.PASSED

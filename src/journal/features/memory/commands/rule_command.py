@@ -1,6 +1,5 @@
 from argparse import Namespace
 
-from journal.support.actor_type import ActorType
 from journal.support.caller import Caller
 
 from journal.features.memory.commands.record_command import RecordCommand
@@ -19,7 +18,7 @@ class RuleCommand(RecordCommand):
         self.repository = rules
 
     def for_caller(self, row: Rule, caller: Caller) -> Rule:
-        return row.created(caller.actor.actor_type == ActorType.AGENT)
+        return row.created(caller.actor.is_agent())
 
     def new(self, args: Namespace) -> Rule:
         return Rule(text=args.text, reason=args.reason, keywords=self.keywords(args))

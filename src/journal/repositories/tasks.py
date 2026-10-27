@@ -200,7 +200,7 @@ class Tasks(ScopedRepository[Task]):
     def holder_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
         tasks = self.selected(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
-        return next((task for task in tasks if task.state == TaskState.STARTED), tasks[0] if tasks else None)
+        return next((task for task in tasks if task.is_started()), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
         return tuple(link.target.id for link in self.links.all_matching(source=holder, link_type=CURRENT_TASK_LINK))
@@ -293,7 +293,7 @@ class Tasks(ScopedRepository[Task]):
             self.links.delete(link, actor)
 
     def is_free(self, task: Task) -> bool:
-        return (task.state == TaskState.OPEN and not task.delegated) or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
+        return (task.is_open() and not task.delegated) or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
 
     def queue(self, worker: Ref) -> list[Task]:
         links = sorted(self.links.all_matching(source=worker, link_type=QUEUED_LINK), key=lambda link: link.row_id)

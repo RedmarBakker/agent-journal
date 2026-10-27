@@ -47,10 +47,16 @@ class ExternalWait(Wait):
     started_task: int = 0
     started_title: str = ""
     outcomes: str = ""
+    open_work_task: int = 0
 
     @classmethod
-    def opened(cls, focus: str, end_refs: str, started_at: float) -> "ExternalWait":
-        return cls(focus=focus, end_refs=end_refs, started_at=started_at, next_task_delay=NEXT_TASK_DELAY.started(started_at), check_reminder=CHECK_REMINDER.started(started_at))
+    def opened(cls, focus: str, end_refs: str, started_at: float, open_work_task: int = 0) -> "ExternalWait":
+        return cls(focus=focus, end_refs=end_refs, started_at=started_at, next_task_delay=NEXT_TASK_DELAY.started(started_at), check_reminder=CHECK_REMINDER.started(started_at), open_work_task=open_work_task)
+
+    @classmethod
+    def opened_beside(cls, data: FeatureData, focus: str, end_refs: str, started_at: float) -> "ExternalWait":
+        work = data.next_work()
+        return cls.opened(focus, end_refs, started_at, work.id if work else 0)
 
     def wait_description(self) -> tuple[str, str]:
         return self.focus, self.end_refs

@@ -2,7 +2,6 @@ from journal.chat.process_cards import ProcessCards
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.messages.support.receipt_process_card import ReceiptProcessCard
-from journal.models.author import Author
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.repositories.messages import Messages
@@ -24,7 +23,7 @@ class DumpItemCard(Listener[Created]):
     def subjects(self, row) -> list[Message]:
         if isinstance(row, Link) and row.link_type in (Messages.SUBJECT_LINK, Messages.EDIT_LINK) and row.source.type == Message.table():
             return [self.messages.find(row.source.id)]
-        if isinstance(row, Message) and row.author == Author.AGENT and row.reply_target:
+        if isinstance(row, Message) and row.is_agent_message() and row.reply_target:
             return self.requested(row.reply_target)
         return []
 

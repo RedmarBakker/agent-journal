@@ -1,0 +1,22 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "member-access",
+        "where": [
+            {"nameIn": ["entry_type", "event_type", "hook_type"]},
+            {"of": "parent", "is": "comparison"},
+            {"inside": {"all": [{"is": "type-declaration"}, {"any": [{"extendsAny": "BaseState"}, {"extendsAny": "Conduct"}, {"extendsAny": "Listener"}, {"extendsAny": "AgentListener"}]}]}}
+        ],
+        "reject": [
+            {"file": "src/journal/engine/**"},
+            {"testCode": true}
+        ]
+    },
+    "sin": {
+        "name": "event-kind-compared",
+        "description": "A state, a conduct or a listener decides what to do by comparing an event's or an entry's kind, so the behaviour is chosen by a name instead of by the event's class.",
+        "rule": "Listen to the event's own class with an on_<moment> method or a Listener of that type; to ask what happened before, name the question in the repository that holds the entries.",
+        "skill": "stack-machine"
+    }
+}

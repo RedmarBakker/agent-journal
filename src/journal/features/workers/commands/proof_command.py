@@ -27,7 +27,7 @@ class ProofCommand(Command):
         record.add_argument("--not-done", action="store_true", help="the point is not met, and the text says why")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        holdings = [] if caller.worker_number is None else self.tasks.holder_task_ids(Ref(Worker.table(), caller.worker_number))
+        holdings = [] if not caller.is_worker() else self.tasks.holder_task_ids(Ref(Worker.table(), caller.worker_number))
         if not holdings:
             raise Rejection("a proof is for a point of the task a worker holds: only a worker on a task proves")
         task = self.tasks.find(holdings[0])

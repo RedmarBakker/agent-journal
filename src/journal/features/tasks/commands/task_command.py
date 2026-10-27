@@ -256,7 +256,7 @@ class TaskCommand(Command):
         return 0
 
     def readable(self, n: int, caller: Caller) -> Task:
-        return self.tasks.find(n) if caller.worker_number is None else self.tasks.worker_task(n, caller.worker_number)
+        return self.tasks.find(n) if not caller.is_worker() else self.tasks.worker_task(n, caller.worker_number)
 
     def show(self, args: Namespace, caller: Caller) -> int:
         if args.n == CURRENT:

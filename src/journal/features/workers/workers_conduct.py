@@ -75,7 +75,7 @@ class WorkersConduct(Conduct):
         return self.none(WorkersNudges.SILENT_WORKER.create(n=event.worker.id, minutes=event.minutes, last=event.data.part(WorkersPart).last_calls.get(event.worker.id, "")))
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
-        return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
+        return self.push(ExternalWait.opened_beside(event.data, *event.wait_terms())) if event.awaiter == event.session else self.none()
 
     def on_worker_limited(self, event: WorkerLimited, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

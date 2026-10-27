@@ -76,11 +76,17 @@ class Actor:
         return int(self.id)
 
     def agent_session(self) -> str | None:
-        return self.id.partition(SUBAGENT_SEPARATOR)[0] if self.actor_type == ActorType.AGENT else None
+        return self.id.partition(SUBAGENT_SEPARATOR)[0] if self.is_agent() else None
 
     def is_subagent(self) -> bool:
-        return self.actor_type == ActorType.AGENT and SUBAGENT_SEPARATOR in self.id
+        return self.is_agent() and SUBAGENT_SEPARATOR in self.id
 
     @property
     def stamp(self) -> str:
         return f"{self.actor_type.value}:{self.id}" if self.id else self.actor_type.value
+
+    def is_agent(self) -> bool:
+        return self.actor_type == ActorType.AGENT
+
+    def is_desk_user(self) -> bool:
+        return self.actor_type == ActorType.USER

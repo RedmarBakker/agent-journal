@@ -3,7 +3,6 @@ import json
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.plugins.support.plugin_setting import PluginSetting
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.models.plugin import Plugin
 from journal.models.secret import Secret
 from journal.models.secret_type import SecretType
@@ -37,7 +36,7 @@ class PluginSettings:
         return settings
 
     def configure(self, name: str, key: str, value: str, actor: Actor) -> Plugin:
-        if actor.actor_type != ActorType.USER:
+        if not actor.is_desk_user():
             raise Rejection("only the user configures a plugin")
         plugin = self.plugins.lookup(name)
         setting = next((s for s in self.schema(plugin) if s.key == key), None)

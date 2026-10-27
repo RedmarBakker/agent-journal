@@ -12,7 +12,7 @@ class WorkerAliasLine:
         self.workers, self.branch = workers, branch
 
     def argv(self, argv: list[str], caller: Caller) -> list[str]:
-        if caller.worker_number is None or BRANCH not in argv:
+        if not caller.is_worker() or BRANCH not in argv:
             return argv
         place = argv.index(BRANCH) + 1
         if place < len(argv) and not argv[place].startswith("-"):

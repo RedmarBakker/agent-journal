@@ -56,7 +56,7 @@ class Plan(Scoped, Commentable):
 
     def reviewers_counted(self, reviewers: int, time: float) -> "Plan":
         counted = self.with_(reviewers=reviewers)
-        if self.state != PlanState.REVIEWING or reviewers or not self.reviewers:
+        if not self.is_reviewing() or reviewers or not self.reviewers:
             return counted
         return counted.with_event(PlanReviewed(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
@@ -148,3 +148,9 @@ class Plan(Scoped, Commentable):
 
     def docked(self) -> DockCard:
         return DockCard((DockButton("Open plan", "open"), DockButton("Approve", "approve"), DockButton("Close", "close")))
+
+    def is_started(self) -> bool:
+        return self.state == PlanState.STARTED
+
+    def is_reviewing(self) -> bool:
+        return self.state == PlanState.REVIEWING

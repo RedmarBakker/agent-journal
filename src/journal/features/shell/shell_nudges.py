@@ -11,7 +11,7 @@ class ShellNudges:
     OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts|cap=91}}{{part|cap=16}}", repeat=Timeout.seconds(0))
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also contains part {{part|cap=16}}: {{counts|cap=71}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
-    RUNNING_OUTPUT_STOP = Nudge("shell", "stop_with_a_run_going", "output {{outputs|cap=40}} still running", "stop only by waiting on it: `journal await \"<what>\" --output <n>`, or keep working", repeat=Timeout.seconds(0))
+    RUNNING_OUTPUT_STOP = Nudge("shell", "stop_with_a_run_going", "output {{outputs|cap=30}} still running", "await it: `journal await \"<what>\" --output <n>`", repeat=Timeout.seconds(0))
     OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "output {{n}}: {{outcome}}", repeat=Timeout.seconds(0))
     READER_DRAFT = Nudge("shell", "draft_a_reader", "no reader reads {{part}} yet", "fill in `{{command|cap=700}}` from this run's output and run it", repeat=Timeout.seconds(0), longest_characters=800, longest_reason="it contains the reader command the agent runs")
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader|cap=17}} already reads this: {{about}}", "use `journal output read <n> --reader {{reader|cap=17}}`", repeat=Timeout.seconds(0))

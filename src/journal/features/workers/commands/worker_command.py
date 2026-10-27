@@ -30,7 +30,6 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
-from journal.models.worker_state import WorkerState
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
@@ -297,10 +296,10 @@ class WorkerCommand(Command):
         return self.providers.lookup(provider).profile_model(self.profiles.read(profile))
 
     def report(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is not None and caller.worker_number != args.n:
+        if caller.is_worker() and caller.worker_number != args.n:
             raise Rejection(f"worker {args.n} is not you: a worker reports for itself, worker {caller.worker_number}")
         worker = self.workers.find(args.n)
-        if caller.worker_number is not None and worker.token_hash:
+        if caller.is_worker() and worker.token_hash:
             raise Rejection("a worker reports by clocking out: journal clock-out \"<report>\", once each point of its brief has a proof")
         message = self.reports.file(worker.with_(session=worker.session if caller.session is None else caller.session, touched_paths=self.branch.touched(worker)), args.text, caller.actor)
         print(f"worker {worker.id} reported in message {message.id}")
@@ -310,11 +309,11 @@ class WorkerCommand(Command):
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
         if args.task and holdings and args.task not in holdings:
             raise Rejection(f"worker {args.n} holds task {holdings[0]} until it is merged or released: send it that task's next job")
-        if not args.task and not holdings and caller.worker_number is None:
+        if not args.task and not holdings and not caller.is_worker():
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
-        if caller.worker_number is not None and (args.model or args.profile):
+        if caller.is_worker() and (args.model or args.profile):
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
-        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
+        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.is_worker() else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
@@ -403,7 +402,7 @@ class WorkerCommand(Command):
         return 0
 
     def notify(self, args: Namespace, caller: Caller) -> int:
-        worker = self.actions.peer_notify(args.n, args.text, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.notify(args.n, args.text, caller.actor)
+        worker = self.actions.peer_notify(args.n, args.text, caller.worker_number, caller.actor) if caller.is_worker() else self.actions.notify(args.n, args.text, caller.actor)
         print(f"worker {worker.id} {worker.name} has the message in its session")
         return 0
 
@@ -423,7 +422,7 @@ class WorkerCommand(Command):
         return 0
 
     def state_line(self, worker: Worker) -> str:
-        if worker.state != WorkerState.DELIVERED:
+        if not worker.is_delivered():
             return f"worker {worker.id}, {worker.name}, is not out: it is {worker.state}"
         task_ids = self.tasks.holder_task_ids(Ref.build(worker))
         if not task_ids:
@@ -446,7 +445,7 @@ class WorkerCommand(Command):
         return 0
 
     def peers(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is None:
+        if not caller.is_worker():
             raise Rejection("only a worker has peers: `journal worker list` lists the workers you dispatched")
         sender = self.workers.find(caller.worker_number)
         peers = self.workers.peers(sender)

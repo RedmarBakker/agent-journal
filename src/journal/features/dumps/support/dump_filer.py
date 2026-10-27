@@ -2,7 +2,6 @@ import json
 import time
 
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.models.author import Author
 from journal.models.dump import Dump
 from journal.models.link import Link
@@ -213,7 +212,7 @@ class DumpFiler:
 
     @staticmethod
     def require_user(actor: Actor, subject: str) -> None:
-        if actor.actor_type == ActorType.AGENT:
+        if actor.is_agent():
             raise Rejection(f"only the user {subject}")
 
     def entry(self, text: str, enabled: str = "", making: str = "", detail: str = "", **extra) -> dict:

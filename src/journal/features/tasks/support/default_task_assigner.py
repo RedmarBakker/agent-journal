@@ -16,7 +16,6 @@ from journal.models.task_state import TaskState
 from journal.repositories.environments import Environments
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
-from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 
 FINISHED = ("completed", "cancelled")
@@ -42,7 +41,7 @@ class DefaultTaskAssigner:
         return self.tasks.next_open_tasks(count + 1) if self.is_auto() else []
 
     def is_free_moment(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
-        return agent.role == AgentRole.MAIN and self.is_moment(agent, event) and not self.is_working(agent)
+        return agent.is_main() and self.is_moment(agent, event) and not self.is_working(agent)
 
     def is_moment(self, agent: Agent, event: AgentEvent | RowEvent) -> bool:
         if isinstance(event, Stop):
@@ -51,7 +50,7 @@ class DefaultTaskAssigner:
 
     def is_working(self, agent: Agent) -> bool:
         current = self.tasks.holder_task(Ref.build(agent))
-        return current is not None and current.state == TaskState.STARTED
+        return current is not None and current.is_started()
 
     def paused_task(self, agent: Agent) -> Task | None:
         return self.tasks.holder_paused_task(Ref.build(agent)) if self.is_auto() else None

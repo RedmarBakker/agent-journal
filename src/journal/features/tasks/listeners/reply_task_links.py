@@ -1,6 +1,5 @@
 from journal.events.listener import Listener
 from journal.events.models.created import Created
-from journal.models.author import Author
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
@@ -19,12 +18,12 @@ class ReplyTaskLinks(Listener[Created]):
     def handle(self, event: Created) -> None:
         if isinstance(event.model, Link) and event.model.link_type == Messages.SUBJECT_LINK and event.model.source.type == Message.table() and event.model.target.type == Task.table():
             self.task_linked(event.model, event.actor)
-        if isinstance(event.model, Message) and event.model.author == Author.AGENT and event.model.reply_target:
+        if isinstance(event.model, Message) and event.model.is_agent_message() and event.model.reply_target:
             self.reply_link(event.model, event.actor)
 
     def task_linked(self, link: Link, actor: Actor) -> None:
         requested = self.messages.find(link.source.id)
-        if requested.author != Author.USER:
+        if not requested.is_user_message():
             return
         for reply in self.messages.replies(requested):
             self.links.linked(Ref.build(reply), link.target, Messages.SUBJECT_LINK, actor)

@@ -2,7 +2,6 @@
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.listener import Listener
 from journal.models.plan import Plan
-from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.support.actor import Actor
@@ -49,4 +48,4 @@ class AdvancePlan(Listener[TaskClosed]):
         return None if present is None else Ref.build(present)
 
     def is_advancing(self, plan: Plan, holder: Ref | None) -> bool:
-        return plan.state == PlanState.STARTED and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)
+        return plan.is_started() and not self.orchestrator.delegates_work() and not self.testing.unpassed(plan) and (holder is None or self.tasks.holder_task(holder) is None)

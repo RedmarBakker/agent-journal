@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.support.missing_row import MissingRow
 from journal.support.time_source import TimeSource
 
@@ -35,7 +33,7 @@ class ReplyCause:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
     def requested(self, row: Model, actor: Actor) -> list[Message]:
-        if actor.actor_type != ActorType.AGENT or row.table() not in CAUSED_TABLES:
+        if not actor.is_agent() or row.table() not in CAUSED_TABLES:
             return []
         reply = self.messages.latest_voice()
         if reply is None or not reply.reply_target or self.time_source.moment() - reply.created_at > timedelta(seconds=REPLY_WINDOW_SECONDS):
@@ -44,4 +42,4 @@ class ReplyCause:
             requested = self.messages.find(reply.reply_target)
         except MissingRow:
             return []
-        return [requested] if requested.author == Author.USER else []
+        return [requested] if requested.is_user_message() else []

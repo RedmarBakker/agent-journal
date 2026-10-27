@@ -52,6 +52,6 @@ class DashboardCommand(Command):
 
     @staticmethod
     def plugin(caller: Caller) -> str:
-        if caller.plugin_name is None:
+        if not caller.is_plugin():
             raise Rejection("a dashboard's lines are written by its plugin's program, which the journal gives its name and token")
         return caller.plugin_name

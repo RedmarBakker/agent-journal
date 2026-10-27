@@ -101,7 +101,7 @@ class CommandOutput(Scoped):
         return FINISHED if self.is_success() else FAILED
 
     def ending(self) -> str:
-        if self.invalid_reason is not None:
+        if not self.is_valid():
             return f"stopped because the code changed under it, by {self.invalid_reason}; its result counts as neither passed nor failed"
         if self.is_interrupted:
             return "cut off when the journal restarted"
@@ -109,3 +109,6 @@ class CommandOutput(Scoped):
 
     def outcome(self) -> str:
         return f"output {self.id} {self.ending()}" if self.summary is None else f"output {self.id} {self.ending()}: {self.summary}"
+
+    def is_valid(self) -> bool:
+        return self.invalid_reason is None

@@ -53,7 +53,7 @@ class Agents(ScopedRepository[Agent]):
         return self.selected(self.unended_query().order("id"))
 
     def conversation_agents(self, count: int) -> list[Agent]:
-        return [agent for agent in self.scoped() if agent.has_program() and agent.role == AgentRole.MAIN][-count:]
+        return [agent for agent in self.scoped() if agent.has_program() and agent.is_main()][-count:]
 
     def ended_main_query(self, environment_id: int) -> Query:
         return self.query().filter(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
@@ -77,7 +77,7 @@ class Agents(ScopedRepository[Agent]):
         return self.query().filter_unequal("state", "ended")
 
     def running_peers(self, agent: Agent) -> list[Agent]:
-        if agent.role != AgentRole.MAIN:
+        if not agent.is_main():
             return []
         return self.selected_globally(self.query().filter(environment_id=agent.environment_id, role=AgentRole.MAIN, provider=agent.provider).filter_unequal("state", "ended").filter_unequal("session", agent.session).order("id"))
 
@@ -108,7 +108,7 @@ class Agents(ScopedRepository[Agent]):
 
     def main_row(self, session: str) -> Agent | None:
         rows = self.session_rows(session)
-        return rows[0] if rows and rows[0].role == AgentRole.MAIN else None
+        return rows[0] if rows and rows[0].is_main() else None
 
     def session_query(self, session: str) -> Query:
         return self.query().filter(session=session).order("id").limit(1)

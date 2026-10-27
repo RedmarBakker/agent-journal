@@ -130,7 +130,7 @@ class MessageCommand(Command):
 
     def amend_links(self, args: Namespace, caller: Caller) -> int:
         message = self.messages.find(args.n)
-        if message.author != Author.AGENT:
+        if not message.is_agent_message():
             raise Rejection(f"message {args.n} is not the agent's: only the agent's own messages are linked this way")
         spans = UnlinkedRowNumbers.spans(message.text)
         if not spans:
@@ -147,7 +147,7 @@ class MessageCommand(Command):
 
     def edit(self, args: Namespace, caller: Caller) -> int:
         message = self.messages.find(args.n)
-        if message.author != Author.AGENT:
+        if not message.is_agent_message():
             raise Rejection(f"message {args.n} is not the agent's: only the agent's own messages are edited")
         edited = self.messages.save(message.with_(text=args.text), caller.actor)
         print(f"message {args.n} now reads: {edited.text}")

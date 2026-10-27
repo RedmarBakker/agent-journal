@@ -265,7 +265,7 @@ class TeamJoin:
         for environment in self.environments.working():
             if not self.owners.owner_number(environment.row_id):
                 self.links.save(Link(source=Ref(User.table(), account_id), target=Ref.build(environment), link_type=OWNER), Actor.system())
-            if environment.team_name is None:
+            if not environment.has_team():
                 self.environments.save(environment.team_ready(prefix), Actor.system())
 
     def name_user(self, account_id: int, name: str) -> None:

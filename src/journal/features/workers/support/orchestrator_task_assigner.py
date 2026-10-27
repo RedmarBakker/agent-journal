@@ -11,7 +11,6 @@ from journal.models.agent import Agent
 from journal.models.task import Task
 from journal.repositories.plans import Plans
 from journal.repositories.setting_rows import SettingRows
-from journal.support.agent_role import AgentRole
 
 
 class OrchestratorTaskAssigner:
@@ -21,7 +20,7 @@ class OrchestratorTaskAssigner:
         self.start, self.round_robin, self.plans, self.settings = start, round_robin, plans, settings
 
     def next_task(self, agent: Agent, event: AgentEvent | RowEvent, quantity: int = 1) -> Assignment:
-        if agent.role != AgentRole.MAIN or not self.is_moment(agent, event):
+        if not agent.is_main() or not self.is_moment(agent, event):
             return Assignment()
         self.start.opened()
         tasks = self.delegable_tasks()[:max(quantity, 1)]

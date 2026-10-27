@@ -86,12 +86,12 @@ class Message(Scoped, Commentable):
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":
-        if target.thread == MessageThread.MAIN:
+        if target.is_main_thread():
             return cls(author=Author.AGENT, text=text, reply_target=target.id)
         return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread)
 
     def authored(self, session: str | None) -> "Message":
-        return self.with_(session=session) if self.is_new and self.session is None and self.thread == MessageThread.MAIN else self
+        return self.with_(session=session) if self.is_new and self.session is None and self.is_main_thread() else self
 
     def host_fields(self) -> dict:
         return {"text": self.text, "reply_target": self.reply_target, "idempotency": self.idempotency}
@@ -106,7 +106,7 @@ class Message(Scoped, Commentable):
         return self.with_merged("data", {self.VIEWED: 1})
 
     def is_unsaved_user_message(self) -> bool:
-        return self.is_new and self.author == Author.USER and self.thread == MessageThread.MAIN
+        return self.is_new and self.is_user_message() and self.is_main_thread()
 
     def commented(self, name: str, user: int) -> "Message":
         comment = self.without_events().with_(author=Author.COLLEAGUE).with_merged("data", {self.COLLEAGUE_NAME: name, self.COLLEAGUE_USER: user, self.VIEWED: 0})
@@ -122,7 +122,7 @@ class Message(Scoped, Commentable):
 
     @property
     def is_agents_reply(self) -> bool:
-        return self.reply_target is not None and self.author == Author.AGENT
+        return self.reply_target is not None and self.is_agent_message()
 
     @property
     def quoted_lines(self) -> int:
@@ -158,9 +158,18 @@ class Message(Scoped, Commentable):
 
     @property
     def is_main_unread(self) -> bool:
-        return self.author == Author.USER and self.read_at is None and self.thread == MessageThread.MAIN
+        return self.is_user_message() and self.read_at is None and self.is_main_thread()
 
     @property
     def is_user_facing(self) -> bool:
-        return self.author == Author.AGENT and not self.acknowledgement and not self.is_thought
+        return self.is_agent_message() and not self.acknowledgement and not self.is_thought
+
+    def is_agent_message(self) -> bool:
+        return self.author == Author.AGENT
+
+    def is_user_message(self) -> bool:
+        return self.author == Author.USER
+
+    def is_main_thread(self) -> bool:
+        return self.thread == MessageThread.MAIN
 

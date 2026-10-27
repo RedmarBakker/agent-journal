@@ -46,7 +46,7 @@ class Task(Scoped, Commentable):
     wait_ended_at: float = 0.0
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
-        return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()
+        return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.is_open() else ()
 
     def pulled_events(self, previous: "Task") -> tuple[Event, ...]:
         move = PULLED_MOVES.get(self.state) if self.state != previous.state else None
@@ -65,7 +65,7 @@ class Task(Scoped, Commentable):
         return self.is_closed()
 
     def is_assignable(self) -> bool:
-        return self.state == TaskState.OPEN and not self.delegated and bool(self.brief.strip())
+        return self.is_open() and not self.delegated and bool(self.brief.strip())
 
     def waiting_reason(self) -> str:
         return self.block_reason or self.pause_reason
@@ -114,7 +114,7 @@ class Task(Scoped, Commentable):
         return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
 
     def paused(self, reason: str, time: datetime) -> "Task":
-        if self.state != TaskState.STARTED:
+        if not self.is_started():
             raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
         return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason, wait_ended_at=0.0), time, "paused")
 
@@ -131,7 +131,7 @@ class Task(Scoped, Commentable):
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner, worker_id=worker_id)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
 
     def blocked(self, reason: str, time: datetime) -> "Task":
-        if self.state == TaskState.STARTED:
+        if self.is_started():
             raise Rejection(f"task {self.id} has started, so pause it: `journal task pause {self.id} \"<why>\"`, with --on or --until")
         return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
 
@@ -154,6 +154,12 @@ class Task(Scoped, Commentable):
 
     def summary_line(self) -> str:
         return self.opening_line(self.brief)
+
+    def is_open(self) -> bool:
+        return self.state == TaskState.OPEN
+
+    def is_completed(self) -> bool:
+        return self.state == TaskState.COMPLETED
 
 
 # a change pulled from the team, by the state it reached, replayed on the row as it stood here, so it carries the events the same change made here would

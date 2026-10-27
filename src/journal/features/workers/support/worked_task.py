@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 
 
 @dataclass(frozen=True)
@@ -18,8 +17,8 @@ class WorkedTask:
 
     @staticmethod
     def state_word(task: Task, unmerged: list[int]) -> str:
-        if task.state == TaskState.OPEN and task.delegated:
+        if task.is_open() and task.delegated:
             return "in hand"
-        if task.state != TaskState.COMPLETED:
+        if not task.is_completed():
             return task.state.value
         return "done" if task.id in unmerged else "merged"

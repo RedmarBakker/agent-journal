@@ -17,7 +17,6 @@ from journal.features.workers.support.test_turns import TestTurns
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.workers_options import JOURNAL_TESTING, WorkersOptions
 from journal.models.task_log import TaskLog
-from journal.models.test_outcome import TestOutcome
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
@@ -53,7 +52,7 @@ class DepartureCommand(Command):
         record.add_argument("--tests", default="", help="the arguments the project's test command takes to run the tests that cover the files you changed and the tests you wrote, never the whole suite; the journal runs them before your clock-out stands")
 
     def record(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is None:
+        if not caller.is_worker():
             raise Rejection("only a worker clocks out: a worker's commands carry its number")
         worker = self.workers.find(caller.worker_number)
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
@@ -116,7 +115,7 @@ class DepartureCommand(Command):
         if not TestSelection.parsed(tests).names_tests(folder):
             raise Rejection(f"name the tests for {', '.join(self.branch.touched(worker) or ()) or 'your changes'}: journal clock-out \"<report>\" --tests \"<args>\"")
         turn, run_lines = self.turns.checked(worker, self.with_affected(worker, tests.strip(), folder), caller)
-        if turn.outcome != TestOutcome.PASSED:
+        if not turn.has_passed():
             raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")
         self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", self.time_source.moment().timestamp()), caller.actor)
 

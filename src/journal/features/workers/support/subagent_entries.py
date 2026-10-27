@@ -46,6 +46,10 @@ class SubagentEntries:
         return [row for row in self.rows(session) if row.is_current(moment)]
 
     @staticmethod
+    def is_end_entry(entry: Entry) -> bool:
+        return entry.entry_type in ENDS
+
+    @staticmethod
     def is_dispatch_entry(entry: Entry) -> bool:
         return entry.entry_type in SUBAGENT_KINDS or (entry.entry_type in TOOL_MOMENTS and isinstance(entry.recorded_call().operation, (SubagentDispatch, AgentMessage)))
 

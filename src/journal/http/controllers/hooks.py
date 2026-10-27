@@ -3,7 +3,6 @@ from journal.support.announced_commands import AnnouncedCommands
 from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
 from journal.support.hook import Hook
-from journal.support.hook_type import HookType
 from journal.hooks.hook_arrivals import HookArrivals
 from journal.hooks.receiver import Receiver
 from journal.hooks.support.tool_calls import ToolCalls
@@ -29,9 +28,9 @@ class HookController:
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, "")).silenced(request.headers.get(SILENCE_HEADER, ""))
         hook = self.sender_stamped(stamped, request)
-        if hook.subagent and hook.hook_type == HookType.PRE_TOOL_USE:
+        if hook.subagent and hook.is_pre_tool_use():
             self.announce(hook)
-        elif hook.hook_type == HookType.PRE_TOOL_USE:
+        elif hook.is_pre_tool_use():
             self.announced.withdraw(hook.environment, hook.session, self.shell_parts(hook))
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)

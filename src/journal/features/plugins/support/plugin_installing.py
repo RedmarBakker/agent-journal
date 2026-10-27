@@ -23,7 +23,6 @@ from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.support.release import Release
 from journal.version import VERSION
 from journal.support.actor import Actor
-from journal.support.actor_type import ActorType
 from journal.models.plugin import Plugin
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.rejection import Rejection
@@ -232,7 +231,7 @@ class PluginInstalling:
 
     @staticmethod
     def require_user(actor: Actor, does: str) -> None:
-        if actor.actor_type != ActorType.USER:
+        if not actor.is_desk_user():
             raise Rejection(f"only the user {does} a plugin: `journal plugin propose <folder or git address>` shows them a card")
 
     def free(self, name: str) -> None:

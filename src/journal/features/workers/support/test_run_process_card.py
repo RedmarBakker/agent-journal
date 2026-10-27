@@ -1,7 +1,6 @@
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.models.message import Message
-from journal.models.test_outcome import TestOutcome
 from journal.models.test_turn import TestTurn
 from journal.models.test_turn_state import TestTurnState
 from journal.models.support.ref import Ref
@@ -33,7 +32,7 @@ class TestRunProcessCard(ProcessCard):
     def label(turn: TestTurn, active: bool) -> str:
         if active:
             return "Running its tests"
-        if turn.outcome == TestOutcome.PASSED:
+        if turn.has_passed():
             return "Its tests passed"
         return f"{turn.failed} of its tests failed" if turn.failed else "Its test run failed"
 
@@ -41,7 +40,7 @@ class TestRunProcessCard(ProcessCard):
     def summary(turn: TestTurn, active: bool) -> str:
         if active:
             return "running"
-        if turn.outcome == TestOutcome.PASSED:
+        if turn.has_passed():
             return "passed"
         return f"{turn.failed} failed" if turn.failed else "failed"
 

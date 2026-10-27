@@ -36,7 +36,7 @@ class Plans(ScopedRepository[Plan]):
         self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
 
     def approve(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
-        if plan.state == PlanState.REVIEWING:
+        if plan.is_reviewing():
             raise Rejection(f"plan {plan.id} is in review: it can be approved once its reviewers are back and their findings are in it")
         if plan.state in (PlanState.STARTED, PlanState.FINISHED, PlanState.CANCELLED):
             return plan
@@ -147,7 +147,7 @@ class Plans(ScopedRepository[Plan]):
         return self.matching(state=PlanState.APPROVED)
 
     def related(self) -> list[Task]:
-        started = [plan for plan in self.scoped() if plan.state == PlanState.STARTED]
+        started = [plan for plan in self.scoped() if plan.is_started()]
         if not started:
             return self.free()
         task = self.next_task(started[0])
@@ -157,7 +157,7 @@ class Plans(ScopedRepository[Plan]):
         return [plan for plan in self.started_plans(task) if self.is_stalled(plan)]
 
     def complete_plans(self) -> list[Plan]:
-        return [plan for plan in self.all() if plan.state == PlanState.STARTED and self.finished(plan)]
+        return [plan for plan in self.all() if plan.is_started() and self.finished(plan)]
 
     def running_plans(self) -> list[Plan]:
         return self.matching(state=PlanState.STARTED)
@@ -176,7 +176,7 @@ class Plans(ScopedRepository[Plan]):
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED)]
 
     def started_plans(self, task: Task) -> list[Plan]:
-        return [plan for plan in self.containing(task) if plan.state == PlanState.STARTED]
+        return [plan for plan in self.containing(task) if plan.is_started()]
 
     def unstarted_plans(self, task: Task) -> list[Plan]:
         return [plan for plan in self.containing(task) if plan.state in (PlanState.APPROVED, PlanState.PAUSED)]

@@ -260,7 +260,7 @@ class Claude(Provider):
 
     @staticmethod
     def is_background_shell_call(hook: Hook) -> bool:
-        return hook.hook_type == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
+        return hook.is_pre_tool_use() and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
 
     @staticmethod
     def foreground_run(hook: Hook, decision: Decision) -> Response:
@@ -268,9 +268,9 @@ class Claude(Provider):
         return Response(200, {"hookSpecificOutput": {**answer, "additionalContext": decision.context} if decision.context else answer})
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
-        if hook.hook_type == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
+        if hook.is_pre_tool_use() and hook.tool == SHELL_TOOL:
             return self.shell_refused(hook, decision)
-        if hook.hook_type == HookType.PRE_TOOL_USE:
+        if hook.is_pre_tool_use():
             return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.hook_type.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
         if hook.hook_type == HookType.USER_PROMPT:
             return Response(409, {"answer": {"decision": "block", "reason": decision.reason}, "error": decision.reason})

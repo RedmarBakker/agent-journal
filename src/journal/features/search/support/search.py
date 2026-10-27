@@ -1,6 +1,5 @@
 from journal.config import Config
 from journal.features.search.support.search_hit import SearchHit
-from journal.support.message_thread import MessageThread
 from journal.models.message import Message
 from journal.models.model import Model
 from journal.providers.providers import Providers
@@ -61,7 +60,7 @@ class Search:
         return [self.hit(row, terms) for row in matches]
 
     def hit(self, row: Model, terms: list[str]) -> SearchHit:
-        if not isinstance(row, Message) or row.thread == MessageThread.MAIN or row.session is None:
+        if not isinstance(row, Message) or row.is_main_thread() or row.session is None:
             return SearchHit.build(row, terms)
         workers = self.workers.session_worker(row.session)
         chat = f"worker {workers[0].id}, {workers[0].name}" if workers else f"subagent {row.session[:8]}"

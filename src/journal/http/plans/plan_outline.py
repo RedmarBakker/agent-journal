@@ -2,7 +2,6 @@ from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.http.support.model_fields import ModelFields
 from journal.models.plan import Plan
-from journal.models.plan_state import PlanState
 from journal.repositories.messages import Messages
 from journal.repositories.plan_reviews import PlanReviews
 from journal.repositories.plans import Plans
@@ -26,7 +25,7 @@ class PlanOutline:
         phased_ids = list(dict.fromkeys(task_id for phase in phased for task_id in members[phase.phase.id]))
         task_ids = phased_ids + self.plans.unphased_task_ids(plan, phased_ids)
         phases = [{**ModelFields.build(phase.phase), "task_ids": members[phase.phase.id]} for phase in phased]
-        checkpoint_pause = plan.state == PlanState.STARTED and plan.checkpoint_phase(phased) is not None
+        checkpoint_pause = plan.is_started() and plan.checkpoint_phase(phased) is not None
         return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, self.tasks.has_worker_holder(task_ids))
 
     def closed_outline(self, plan: Plan) -> dict:
