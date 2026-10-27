@@ -1,20 +1,11 @@
 <script setup>
 import DataTable from "../kit/DataTable.vue";
-import {onMounted, onUnmounted, ref} from "vue";
-import {api} from "../api/client.js";
+import {ref} from "vue";
+import {usePoll} from "../composables/poll.js";
 
 const measures = ref(null);
-let timer = null;
 
-async function load() {
-    measures.value = await api.developerReaders();
-}
-
-onMounted(() => {
-    load();
-    timer = setInterval(load, 5000);
-});
-onUnmounted(() => clearInterval(timer));
+usePoll("developer.readers", {take: (got) => (measures.value = got)});
 
 const share = (part, whole) => (whole ? `${Math.round((100 * part) / whole)}%` : "none yet");
 const average = (part, whole) => (whole ? (part / whole).toFixed(1) : "none yet");

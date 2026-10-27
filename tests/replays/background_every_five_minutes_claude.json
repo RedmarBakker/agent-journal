@@ -20,7 +20,7 @@
       "name": "four minutes",
       "answer": null,
       "typed": [
-        "[journal] output 1 has printed nothing for 240 seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it"
+        "[journal] output 1 has printed nothing for 239 seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it"
       ],
       "nudges": [
         "shell.silent_run_streams"

@@ -114,6 +114,7 @@ export const POLLERS = Object.freeze({
     "team.chat": {read: () => api.teamChat(), every: 10000},
     "side.thread": {read: () => api.sideThread(), every: 3000},
     "mcp.servers": {read: () => api.mcp(), every: 30000},
+    "developer.readers": {read: () => api.developerReaders(), every: 5000},
     "share.page": {read: () => sharedData(), every: 20000},
     "outbox.retry": {read: ({retry}) => retry(), every: 5000},
     "tour.start": {read: ({clear}) => clear(), every: 800},
