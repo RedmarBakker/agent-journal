@@ -172,9 +172,7 @@ async function drop() {
             <Transition :css="false" @enter="growHeight">
                 <div v-if="turn.kind === 'question'" :class="['thread-results', {live: !turn.question.closedAt}]">
                     <MarkIcon name="question" />
-                    <p class="thread-ask-label">
-                        Question {{ turn.question.id }} · {{ turn.question.closedAt ? "you answered" : "the agent waits for your answer" }}
-                    </p>
+                    <p class="thread-ask-label">Question {{ turn.question.id }} · {{ turn.question.closedAt ? "you answered" : "the agent waits for your answer" }}</p>
                 </div>
             </Transition>
             <template v-if="quoteText">

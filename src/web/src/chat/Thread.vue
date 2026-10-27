@@ -605,16 +605,11 @@ const {colleague, me} = useColleague();
                             </div>
                         </template>
                         <template v-else>
-                            <div
-                                :class="['thread-turn', 'busy', {faded: offFoot}]"
-                                :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`"
-                            >
+                            <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
                                 <div class="thread-meta">
                                     <Dot kind="queued" solid :size="6" />
                                     <template v-if="waitingNow">
-                                        <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">
-                                            waiting
-                                        </button>
+                                        <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
                                     </template>
                                     <template v-else>
                                         <span>idle</span>
