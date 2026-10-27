@@ -96,7 +96,6 @@ class Chain:
         owned = [p for p in cls.parts(line) if p.recorded]
         return any(p.is_reading_code() for p in owned) and all(p.is_reading_code() or p.is_harmless() or p.is_project_cd() for p in owned)
 
-    # a line that loops around journal commands with nothing beside them but the shell's own words, waits, tests, prints and filters
     @classmethod
     def is_journal_poll(cls, parts: list[str]) -> bool:
         programs = {program for part in parts for text in (part, *SUBSTITUTION.findall(part)) for program in CommandShape.programs(text)}
