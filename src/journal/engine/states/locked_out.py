@@ -31,18 +31,18 @@ class LockedOut(BaseState):
     def silence_seconds(self) -> int:
         return round(self.return_time - self.silence_start)
 
-    def is_beyond_grace(self, settings: Settings) -> bool:
-        return self.silence_seconds() > settings.integer(LOCKOUT_OPTION)
+    def is_expired(self, settings: Settings) -> bool:
+        return Timeout.seconds(settings.integer(LOCKOUT_OPTION)).started(self.silence_start).is_elapsed(self.return_time)
 
     def is_steady(self, moment: float) -> bool:
         return STEADY.started(self.return_time).is_elapsed(moment)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if self.is_beyond_grace(settings):
+        if self.is_expired(settings):
             return self.refuse(EngineNudges.LOCKOUT_END.create(seconds=self.silence_seconds(), grace=settings.integer(LOCKOUT_OPTION)))
         if self.is_steady(event.time):
             return self.forward()
         return self.refuse(EngineNudges.LOCKOUT_WAIT.create(seconds=self.silence_seconds()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        return self.pop() if self.is_steady(event.time) and not self.is_beyond_grace(settings) else self.none()
+        return self.pop() if self.is_steady(event.time) and not self.is_expired(settings) else self.none()
