@@ -3723,16 +3723,21 @@ def test_a_file_rewritten_in_place_is_recorded_as_its_real_difference_never_as_e
     from urllib.request import urlopen
     hook(app, "SessionStart")
     notes = app.config.root / "notes.md"
-    notes.write_text("".join(f"line {n}\n" for n in range(10)))
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 write_notes.py"}, tool_response="")
-    app.runtime().deferred.drain()
-    notes.write_text("")
-    threading.Timer(0.03, lambda: notes.write_text("".join(f"line {n}\n" for n in range(18)))).start()
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 rewrite_notes.py"}, tool_response="")
-    app.runtime().deferred.drain()
+
+    def ran(command: str, change) -> None:
+        hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
+        change()
+        hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": command}, tool_response="")
+        app.runtime().deferred.drain()
+    ran("python3 write_notes.py", lambda: notes.write_text("".join(f"line {n}\n" for n in range(10))))
+
+    def rewritten() -> None:
+        notes.write_text("")
+        threading.Timer(0.03, lambda: notes.write_text("".join(f"line {n}\n" for n in range(18)))).start()
+    ran("python3 rewrite_notes.py", rewritten)
     edits = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents/1/edits?env=main"), timeout=5))["edits"]
     rewrites = [(e["added"], e["removed"]) for e in edits if e["command"].startswith("python3 rewrite")]
-    assert rewrites == [(8, 0)], f"a rewrite read between its truncate and its write is waited out and recorded as the eight lines it added: {rewrites}"
+    assert rewrites == [(8, 0)], f"a rewrite read between its truncate and its write is waited out and recorded as the eight lines it added: {[(e['command'], e['added'], e['removed']) for e in edits]}"
 
 
 def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
