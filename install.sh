@@ -85,7 +85,27 @@ restore() {
   mv .journal/version-3 .journal-version-3 && rm -rf .journal && mv .journal-version-3 .journal
   echo "the install failed: the version 3 journal is back where it was" >&2
 }
-trap 'code=$?; rm -f .journal/runtime/journal.starting; [ "$code" -eq 0 ] || restore' EXIT
+# One install runs in a project at a time, however many journals of it ask for one: the first takes the lock folder, which
+# holds its process number, and an install that finds it held by a live process leaves at once. A step of an update path
+# runs inside the install that holds it.
+LOCK=.journal/runtime/install.lock
+OWN_LOCK=""
+if [ -z "${AGENT_JOURNAL_INSTALL_LOCK:-}" ]; then
+  mkdir -p .journal/runtime
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    holder=$(cat "$LOCK/pid" 2>/dev/null || true)
+    if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+      echo "another install of this journal is running (process $holder): this one stops and leaves the update to it"
+      exit 0
+    fi
+    rm -rf "$LOCK"
+    mkdir "$LOCK"
+  fi
+  echo $$ > "$LOCK/pid"
+  OWN_LOCK=1
+  export AGENT_JOURNAL_INSTALL_LOCK="$LOCK"
+fi
+trap 'code=$?; [ -z "$OWN_LOCK" ] || { rm -f .journal/runtime/journal.starting; rm -rf "$LOCK"; }; [ "$code" -eq 0 ] || restore' EXIT
 # Whether the journal listening on a port runs from this project, by its command line or its working folder; with no
 # lsof to ask, it is taken as this project's, as the port file says.
 this_projects() {

@@ -1,3 +1,4 @@
+from pathlib import Path
 import hashlib
 import socket
 import ssl
@@ -95,13 +96,17 @@ class TeamJoin:
         if not self.account.is_joined():
             raise Rejection("this journal is in no team")
         address, departure = self.account.address(), self.departed()
+        backup = self.local_departure()
+        return f"left the team at {address}: {departure}; sync stopped, every local row kept, copies and environments of your own among them, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
+
+    def local_departure(self) -> Path:
         for ref in self.bindings.bound_refs():
             self.bindings.unbind(ref, Actor.system())
         self.blocks.clear()
         self.outgoing.clear()
         backup = self.account.leave(self.time_source.seconds())
         self.hooks.post(ServiceEvent(TEAM_DEPARTURE))
-        return f"left the team at {address}: {departure}; sync stopped, every local row kept, copies and environments of your own among them, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
+        return backup
 
     def departed(self) -> str:
         try:
