@@ -420,6 +420,44 @@ export class ApiClient {
         return this.get("/people");
     }
 
+    // whether this journal is connected to the team's library, and as whom
+    library() {
+        return this.get("/library");
+    }
+
+    // connects to a library by its URL: a new server's makes this person its admin, an invitation URL a member, a bare URL logs in
+    connectLibrary(fields) {
+        return this.post("/library/connect", fields, LONG_WAIT_MS);
+    }
+
+    // disconnects from the library; what was imported stays
+    disconnectLibrary() {
+        return this.post("/library/disconnect", {});
+    }
+
+    // an invitation URL for a person's email; admins only
+    inviteToLibrary(email) {
+        return this.post("/library/invite", {email});
+    }
+
+    // the library's devices and people, and a device revoked; admins only
+    libraryDevices() {
+        return this.get("/library/devices");
+    }
+
+    revokeLibraryDevice(device) {
+        return this.post("/library/revoke", {device});
+    }
+
+    libraryPeople() {
+        return this.get("/library/people");
+    }
+
+    // changes this person's own password on the library
+    changeLibraryPassword(old, fresh) {
+        return this.post("/library/password", {old, new: fresh});
+    }
+
     // how this journal stands with its team, or that it has joined none
     team() {
         return this.get("/team");

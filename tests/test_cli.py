@@ -804,3 +804,30 @@ def test_library_commands_without_a_connection_or_a_server_name_journal_library_
     assert unreached.code != 0 and "did not answer" in unreached.error and "journal library connect" in unreached.error, unreached.error
     assert console.run(["library", "disconnect"], user).code == 0
     assert app.container.get(Sequences).titled("Tea Time (from the library)"), "what was imported keeps working after the library is gone"
+
+
+def test_the_viewer_reads_the_library_imports_and_publishes_through_the_same_steps_as_the_command(app: App, tmp_path: Path):
+    from tests.in_process import got, posted
+    from sync_server.team_server import TeamServer
+
+    main = {"X-Journal-Env": "main"}
+    assert got(app, "/journal/library", main)[1] == {"connected": False}
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    console, user = app.console(), Caller.user("main")
+    try:
+        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
+        status = got(app, "/journal/library", main)[1]
+        assert status["connected"] and status["name"] == "Ada" and status["token"] == "", "the viewer never sees the token"
+        number = console.run(["sequence", "create", "Morning Check", "--steps", "look"], user).text.split()[1].rstrip(":")
+        published = posted(app, "/journal/library/items/sequence/publish", {"reference": number, "note": "first"}, main)
+        assert published[0] == 200 and published[1]["number"] == 1, published
+        assert posted(app, "/journal/library/items/sequence/morning-check/import", {}, main)[0] == 200
+        [entry] = got(app, "/journal/library/items?type=sequence", main)[1]["items"]
+        assert entry["item"]["name"] == "morning-check" and entry["imported_version"] == 1
+        assert got(app, "/journal/library/items/sequence/morning-check", main)[1]["versions"][0]["note"] == "first"
+        assert posted(app, "/journal/library/items/sequence/morning-check/update", {}, main)[0] != 200, "an item at the latest version has nothing to update"
+    finally:
+        team.close(server)
