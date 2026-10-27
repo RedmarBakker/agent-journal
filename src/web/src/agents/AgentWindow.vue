@@ -64,22 +64,30 @@ const quiet = computed(() => (props.entry.time ? quietOf(props.entry.time, now.v
                 </p>
             </template>
             <template v-if="facts">
-                <p class="aw-line" data-fact="queued">
-                    <span class="aw-key">Queued</span>
-                    <span class="aw-kind">{{ facts.queued }}</span>
-                </p>
-                <p class="aw-line" data-fact="done">
-                    <span class="aw-key">Finished</span>
-                    <span class="aw-kind">{{ facts.done }}</span>
-                </p>
-                <p class="aw-line" data-fact="pace">
-                    <span class="aw-key">Pace</span>
-                    <span class="aw-kind">{{ facts.pace }} an hour</span>
-                </p>
-                <p class="aw-line" data-fact="context">
-                    <span class="aw-key">Context left</span>
-                    <span class="aw-kind">{{ facts.contextLeft === null ? "Not reported" : `${facts.contextLeft}%` }}</span>
-                </p>
+                <template v-if="facts.queued !== null">
+                    <p class="aw-line" data-fact="queued">
+                        <span class="aw-key">Queued</span>
+                        <span class="aw-kind">{{ facts.queued }}</span>
+                    </p>
+                </template>
+                <template v-if="facts.done !== null">
+                    <p class="aw-line" data-fact="done">
+                        <span class="aw-key">Finished</span>
+                        <span class="aw-kind">{{ facts.done }}</span>
+                    </p>
+                </template>
+                <template v-if="facts.pace !== null">
+                    <p class="aw-line" data-fact="pace">
+                        <span class="aw-key">Pace</span>
+                        <span class="aw-kind">{{ facts.pace }} an hour</span>
+                    </p>
+                </template>
+                <template v-if="facts.contextLeft !== null">
+                    <p class="aw-line" data-fact="context">
+                        <span class="aw-key">Context left</span>
+                        <span class="aw-kind">{{ facts.contextLeft }}%</span>
+                    </p>
+                </template>
             </template>
             <template v-if="entry.since">
                 <p class="aw-line">

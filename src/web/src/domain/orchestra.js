@@ -50,22 +50,22 @@ const WORKER_STATES = {running: "working", reported: "waiting", finished: "stopp
 const HOUR = 3600;
 const perHour = (done, from, to) => (to > from ? Math.round((done * HOUR * 10) / (to - from)) / 10 : 0);
 
-// what a worker's cell adds: the tasks left in its queue, the tasks it finished, how many it finishes in an hour, and the context its agent has left
-function workerFacts(worker, agents, now) {
+// what a worker's cell adds, each only once the journal knows it: the tasks left in its queue and the tasks it finished once the worker is read by id, how many it finishes in an hour once it finished one, and the context its session reports left
+function workerFacts(worker, now) {
+    const read = Array.isArray(worker.queue);
     const done = (worker.finished || []).length;
     const ended = workerState(worker) === "finished" ? seconds(worker.updated_at) : now;
-    const context = agents.find((agent) => agent.id === worker.agent)?.context;
     return {
-        queued: (worker.queue || []).length,
-        done,
-        pace: perHour(done, seconds(worker.created_at), ended),
-        contextLeft: context === undefined ? null : Math.max(0, 100 - Math.round(Number(context))),
+        queued: read ? worker.queue.length : null,
+        done: read ? done : null,
+        pace: done ? perHour(done, seconds(worker.created_at), ended) : null,
+        contextLeft: typeof worker.context === "number" ? Math.max(0, 100 - worker.context) : null,
     };
 }
 
-function workerEntry(worker, env, agents, now) {
+function workerEntry(worker, env, now) {
     return {
-        facts: workerFacts(worker, agents, now),
+        facts: workerFacts(worker, now),
         key: `worker:${worker.id}`,
         env,
         kind: "worker",
@@ -109,10 +109,10 @@ function subagentEntry(sub, agent, env) {
 
 // The agents under the one here: the workers, its subagents and the agents of the other environments; the agent of this
 // environment is the top bar's, never a cell of its own.
-export function orchestraOf(summary, workers, lead, env, agents = [], now = Date.now() / 1000) {
+export function orchestraOf(summary, workers, lead, env, now = Date.now() / 1000) {
     const environments = ((summary && summary.environments) || []).filter((s) => s.agent && s.environment.name !== env).map(environmentEntry);
     const subs = subagentsOf(lead).map((sub) => subagentEntry(sub, lead, env));
-    return [...environments, ...workers.map((w) => workerEntry(w, env, agents, now)), ...subs];
+    return [...environments, ...workers.map((w) => workerEntry(w, env, now)), ...subs];
 }
 
 const AMBER_AFTER = 300;

@@ -844,6 +844,24 @@ def test_a_worker_waits_on_its_own_command_until_it_ends_and_a_reviewer_cannot_s
     assert app.console().run(["stuck", "lost"], Caller.reviewer("main", 1, "rv", "claude")).code != 0, "a reviewer has no stuck"
 
 
+def test_a_worker_read_by_id_carries_the_context_its_session_reported_and_none_it_did_not(app: App):
+    from journal.models.agent import Agent
+    from journal.support.agent_role import AgentRole
+    from journal.models.worker import Worker
+    from journal.repositories.agents import Agents
+    from journal.repositories.workers import Workers
+    agents, workers = app.container.get(Agents), app.container.get(Workers)
+    with app.container.get(Scope).environment(MAIN):
+        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
+        watt = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
+        silent = workers.save(Worker(environment_id=MAIN, name="Mr. Boulton", brief="w", session="wb"), Actor.system())
+    app.config.status_home.mkdir(parents=True, exist_ok=True)
+    (app.config.status_home / "ww.json").write_text(json.dumps({"context_window": {"used_percentage": 35}}))
+    rows = got(app, f"/journal/workers?ids={watt.id},{silent.id}", {"X-Journal-Env": "main"})[1]["rows"]
+    context = {row["name"]: row["context"] for row in rows}
+    assert context == {"Mr. Watt": 35, "Mr. Boulton": None}, "a worker carries the context its session reported, and none when it reported nothing"
+
+
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
