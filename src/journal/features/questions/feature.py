@@ -7,6 +7,7 @@ from journal.support.skill import Skill
 from journal.features.questions.commands.question_command import QuestionCommand
 from journal.features.questions.listeners.question_card import QuestionCard
 from journal.features.questions.listeners.answer_card import AnswerCard
+from journal.features.questions.listeners.close_card import CloseCard
 from journal.features.questions.support.question_process_card import QuestionProcessCard
 from journal.features.questions.questions_conduct import QuestionsConduct
 from journal.features.questions.support.questions_data_reader import QuestionsDataReader
@@ -24,12 +25,12 @@ class Questions(Feature[QuestionsData]):
     help = "The agent asks you a question and waits; your answer sends it back to work."
     states = (Waiting,)
     commands = (QuestionCommand,)
-    listeners = (QuestionCard, AnswerCard)
+    listeners = (QuestionCard, AnswerCard, CloseCard)
     process_cards = (QuestionProcessCard,)
     conduct = (QuestionsConduct,)
     data = (QuestionsDataReader,)
 
-    nudges = (QuestionsNudges.QUESTION_ANSWERED, QuestionsNudges.JOURNAL_QUESTION_TOOL)
+    nudges = (QuestionsNudges.QUESTION_ANSWERED, QuestionsNudges.QUESTION_CLOSED, QuestionsNudges.JOURNAL_QUESTION_TOOL)
 
     skill = Skill("questions", 'Ask the user a question and wait for the answer; load it before offering the user choices', """
 # Questions

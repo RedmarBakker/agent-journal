@@ -200,7 +200,7 @@ class Routes:
         self.acts(router, "plans", plans, "review", "approve", "start", "pause", "finish", "abandon", "dismiss")
         self.listed(router, "questions", questions)
         router.post(f"{API}/questions", questions.store)
-        self.acts(router, "questions", questions, "answer")
+        self.acts(router, "questions", questions, "answer", "close")
         checks, sequences, triggers = get(CheckController), get(SequenceController), get(TriggerController)
         self.resource(router, "checks", checks)
         self.acts(router, "checks", checks, "run", "stop")

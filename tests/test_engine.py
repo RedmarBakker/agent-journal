@@ -1632,6 +1632,18 @@ def test_a_question_asked_pushes_waiting_and_its_answer_pops_it_on_top_or_on_res
     assert not Compacting().respond(QuestionAnswered(environment_id=1, time=3.0, question_id=4).with_data(of()), settings, (QuestionsConduct,)).popped, "the answer under a compaction waits for the resume"
 
 
+def test_a_question_the_user_closes_pops_its_wait_and_tells_the_agent_in_one_line():
+    from journal.features.questions.states.waiting import Waiting
+    from journal.features.questions.questions_conduct import QuestionsConduct
+    from journal.features.questions.support.questions_data import QuestionsData
+    from journal.events.rows.question_closed import QuestionClosed
+    settings = SettingsValue({})
+    of = lambda *open: FeatureData({"questions": QuestionsData(open=open)})
+    closed = Waiting(question_id=4).respond(QuestionClosed(environment_id=1, time=3.0, question_id=4).with_data(of()), settings, (QuestionsConduct,))
+    assert closed.popped and [n.rendered() for n in closed.nudges][0].startswith("the user closed question 4 without an answer")
+    assert not Waiting(question_id=4).respond(QuestionClosed(environment_id=1, time=3.0, question_id=5).with_data(of(4)), settings, (QuestionsConduct,)).popped, "another question closed is not this one"
+
+
 def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_the_last_row_settles_and_stuck_is_quiet():
     from dataclasses import replace
     from journal.features.tasks.states.external_wait import ExternalWait

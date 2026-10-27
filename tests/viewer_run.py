@@ -75,6 +75,9 @@ SETS = {
     "memory_inspector": (
         "tests/memoryInspector.test.js",
     ),
+    "questions": (
+        "tests/questionClose.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",

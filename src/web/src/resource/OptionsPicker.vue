@@ -6,7 +6,7 @@ import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import OptionList from "../kit/OptionList.vue";
 import {sendMessage} from "../chat/outbox.js";
-import {answer, answered} from "../chat/answers.js";
+import {answer, answered, closeQuestion} from "../chat/answers.js";
 import {route} from "../route.js";
 
 const props = defineProps({question: Object, buttonsOnly: Boolean, immediate: Boolean, tiles: Boolean, steady: Boolean});
@@ -17,7 +17,17 @@ const elaborated = ref(false);
 const options = computed(() => (props.question.options || []).map((title) => ({title, description: "", code: ""})));
 const settled = computed(() => shown.value.answer != null);
 const chosen = computed(() => options.value.findIndex((o) => o.title === shown.value.answer));
-const ownWords = computed(() => settled.value && chosen.value < 0);
+const ownWords = computed(() => settled.value && chosen.value < 0 && !shown.value.closed);
+const closing = ref(false);
+
+async function close() {
+    closing.value = true;
+    try {
+        await closeQuestion(props.question);
+    } catch (e) {
+        closing.value = false;
+    }
+}
 const elaborateText = () => `Elaborate on question ${props.question.id}: ask it again with more context on each option and which you would pick, and you choose.`;
 
 function submit(text) {
@@ -64,6 +74,9 @@ const holdSeconds = computed(() => store.settings?.ask_questions?.hold);
             </p>
         </template>
         <template v-if="settled && !steady">
+            <template v-if="shown.closed">
+                <p class="closed">You closed it without an answer.</p>
+            </template>
             <template v-if="ownWords">
                 <div class="own-words">
                     <span>Your own words</span>
@@ -78,6 +91,7 @@ const holdSeconds = computed(() => store.settings?.ask_questions?.hold);
                         <Btn small :disabled="elaborated" v-tip="'Ask the agent for more context on this question'" @click="elaborate">
                             {{ elaborated ? "Asked to elaborate" : "Elaborate" }}
                         </Btn>
+                        <Btn small :busy="closing" v-tip="'Close the question: it is no longer needed, and the agent goes on without it'" @click="close">Close</Btn>
                         <Btn kind="primary" small @click="submit(own)">Answer</Btn>
                     </template>
                 </TextInput>
@@ -87,6 +101,12 @@ const holdSeconds = computed(() => store.settings?.ask_questions?.hold);
 </template>
 
 <style scoped>
+.closed {
+    margin: 0;
+    color: var(--text-3);
+    font-size: 12.5px;
+}
+
 .options {
     display: flex;
     flex-direction: column;

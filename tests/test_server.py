@@ -250,6 +250,16 @@ def test_version_fours_own_api_lists_every_resource_and_answers_a_question(serve
     assert call(server, "GET", "/journal/settings")[1]["features"]["tasks"] is False
 
 
+def test_the_user_closes_a_question_without_a_reason(server):
+    status, question = call(server, "POST", "/journal/questions", {"text": "which colour?", "options": ["a", "b"]})
+    assert status == 201
+    status, closed = call(server, "POST", f"/journal/questions/{question['id']}/close", {})
+    assert status == 200 and closed["closed"] is True and closed["answer"] == "The user closed it without an answer.", "closed, no reason asked"
+    rows = call(server, "GET", "/journal/questions?closed=1")[1]["rows"]
+    assert [row["closed"] for row in rows if row["id"] == question["id"]] == [True], "its row says it was closed, not answered"
+    assert call(server, "POST", f"/journal/questions/{question['id']}/close", {})[0] == 409, "a settled question is not closed again"
+
+
 def test_a_path_outside_the_api_is_the_viewer(server):
     with urlopen(f"http://127.0.0.1:{server.port}/anything", timeout=5) as reply:
         assert reply.status == 200 and b"<div id=\"app\">" in reply.read()

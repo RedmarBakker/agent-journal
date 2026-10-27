@@ -3,9 +3,14 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from journal.events.rows.question_answered import QuestionAnswered
+from journal.events.rows.question_closed import QuestionClosed
 from journal.events.rows.question_posed import QuestionPosed
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.scoped import Scoped
+
+
+# the answer a question keeps once the user closed it, no longer needed, without answering it
+CLOSED_ANSWER = "The user closed it without an answer."
 
 
 @dataclass(frozen=True)
@@ -20,6 +25,9 @@ class Question(Scoped):
     def is_answered(self) -> bool:
         return self.answer is not None
 
+    def is_closed(self) -> bool:
+        return self.answer == CLOSED_ANSWER
+
     def is_resolved(self) -> bool:
         return self.is_answered()
 
@@ -31,6 +39,9 @@ class Question(Scoped):
 
     def answered(self, answer: str, time: float) -> "Question":
         return self.with_(answer=answer).with_event(QuestionAnswered(environment_id=self.environment_id, time=time, question_id=self.row_id)).with_event(RowResolved(environment_id=self.environment_id, time=time, ref=f"questions:{self.id}"))
+
+    def closed(self, time: float) -> "Question":
+        return self.with_(answer=CLOSED_ANSWER).with_event(QuestionClosed(environment_id=self.environment_id, time=time, question_id=self.row_id)).with_event(RowResolved(environment_id=self.environment_id, time=time, ref=f"questions:{self.id}"))
 
     def summary_line(self) -> str:
         return self.opening_line(self.text)

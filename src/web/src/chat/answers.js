@@ -21,3 +21,6 @@ export async function answer(question, choice) {
         change(made, {failed: true});
     }
 }
+
+// Closes a question the user no longer needs, with no reason asked: the journal tells the agent waiting on it and ends its wait
+export const closeQuestion = (question) => api.act("questions", question.id, "close");
