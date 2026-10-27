@@ -52,6 +52,7 @@ import {planCardChoice} from "../state/planCardChoice.js";
 import {seconds} from "../domain/row.js";
 import {ui} from "../state/ui.js";
 import {useColleague} from "../composables/colleague.js";
+import {approveWithMessage} from "../actions/plans.js";
 
 const scroller = ref(null);
 const views = ref(null);
@@ -448,6 +449,7 @@ async function post(text, files) {
         throw e;
     }
     sent.delivered.then((delivered) => delivered || change(placeholder, {unsent: true}));
+    if (replying.approves) sent.delivered.then((delivered) => delivered && approveWithMessage(replying.approves, sent.id));
 }
 
 function measured(url) {

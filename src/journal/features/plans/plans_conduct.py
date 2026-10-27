@@ -24,7 +24,11 @@ class PlansConduct(Conduct):
     """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
-        return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id)) if event.user_origin else self.none()
+        if not event.user_origin:
+            return self.none()
+        if event.comment_id is None:
+            return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id))
+        return self.none(PlansNudges.PLAN_APPROVED_WITH_COMMENT.create(n=event.plan_id, comment=event.comment_id))
 
     def on_plan_reviewed(self, event: PlanReviewed, settings: Settings) -> Transition:
         return self.none(PlansNudges.REVIEW_ENTRY_REQUEST.create(n=event.plan_id, reports=PlansNudges.unread(event.data.part(PlansPart).review_reports)))

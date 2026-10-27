@@ -20408,6 +20408,28 @@ def test_every_commentable_rows_noun_lists_its_comments_with_where_the_passage_s
     assert offered == set(COMMENTED), "the viewer offers comments on exactly the tables the journal takes them on"
 
 
+def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(app: App, monkeypatch):
+    from journal.repositories.messages import Messages
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "Library", "--brief", "the library"], AGENT)
+    console.run(["plan", "phase", "1", "Server", "--when", "it answers"], AGENT)
+    console.run(["plan", "add", "1", "Tables", "--brief", "b"], AGENT)
+    console.run(["plan", "todos", "1", "1", "1"], AGENT)
+    console.run(["sequence", "abandon", "--why", "test", "--sure"], AGENT)
+    assert console.run(["plan", "ready", "1"], AGENT).code == 0
+    main = {"X-Journal-Env": "main"}
+    posted(app, "/journal/messages", {"text": "go, but keep it small", "on": "plans:1", "idempotency": "key-1"}, main)
+    comment = [m for m in app.container.get(Messages).all() if m.text == "go, but keep it small"][0]
+    posted(app, "/journal/plans/1/approve", {"comment_key": "key-1"}, main)
+    app.runtime().deferred.drain()
+    told = " ".join(keystrokes) + json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls"})[1])
+    assert f"plan 1 approved with a comment: read message {comment.id} before you start" in told, told
+
+
 def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     from journal.support.decision import Decision
     answered = Decision.allowed_with("a line\nanother").merged(Decision.allowed_with("a line"))

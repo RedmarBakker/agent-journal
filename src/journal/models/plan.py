@@ -56,8 +56,8 @@ class Plan(Scoped, Commentable):
             return counted
         return counted.with_event(PlanReviewed(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
-    def approved(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+    def approved(self, time: float, user_origin: bool, comment_id: int | None = None) -> "Plan":
+        return self.moved(PlanState.APPROVED).with_event(PlanApproved(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin, comment_id=comment_id))
 
     def task_startable(self, task_id: int) -> "Plan":
         if self.state.is_unapproved():

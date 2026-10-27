@@ -17,6 +17,7 @@ class PlansNudges:
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge("plans", "the_user_approved_the_plan", "plan {{n}} approved", repeat=Timeout.seconds(0))
+    PLAN_APPROVED_WITH_COMMENT = Nudge("plans", "the_user_approved_the_plan_with_a_comment", "plan {{n}} approved with a comment: read message {{comment}} before you start", repeat=Timeout.seconds(0))
     CHECKPOINT_PHASE_END = Nudge("plans", "phase_complete_at_a_checkpoint", "plan {{n}}: phase {{phase}} done, a checkpoint", "wait for the user, then `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} done", "run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`", repeat=Timeout.seconds(0), longest_characters=392, longest_reason="it contains the test commands the agent runs")
     PHASE_END = Nudge("plans", "phase_complete_go_on", "plan {{n}}: phase {{phase}} done", "start the next with `journal plan start {{n}}`", repeat=Timeout.seconds(0))

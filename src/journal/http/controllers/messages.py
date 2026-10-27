@@ -92,7 +92,7 @@ class MessageController(Controller[Message]):
             reply = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=target.id).arrived(), request.actor)
             return Response.json(self.shown(reply), 201)
         reply_ref = request.body.get("reply_target")
-        message = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=int(reply_ref) if reply_ref else None).arrived(), request.actor)
+        message = self.repository.save(Message(author=Author.USER, text=request.body.get("text", ""), reply_target=int(reply_ref) if reply_ref else None, idempotency=request.body.get("idempotency", "")).arrived(), request.actor)
         self.links.save(Link(source=Ref.build(message), target=target, link_type=Messages.COMMENT_LINK), request.actor)
         return Response.json(self.shown(message), 201)
 

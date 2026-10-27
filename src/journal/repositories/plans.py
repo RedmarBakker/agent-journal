@@ -35,12 +35,12 @@ class Plans(ScopedRepository[Plan]):
         super().__init__(connection, bus, scope, time_source)
         self.links, self.tasks, self.phases, self.workers = links, tasks, phases, workers
 
-    def approve(self, plan: Plan, actor: Actor) -> Plan:
+    def approve(self, plan: Plan, actor: Actor, comment_id: int | None = None) -> Plan:
         if plan.state == PlanState.REVIEWING:
             raise Rejection(f"plan {plan.id} is in review: it can be approved once its reviewers are back and their findings are in it")
         if plan.state in (PlanState.STARTED, PlanState.FINISHED, PlanState.CANCELLED):
             return plan
-        return self.save(plan.approved(self._time().timestamp(), actor.is_user()), actor)
+        return self.save(plan.approved(self._time().timestamp(), actor.is_user(), comment_id), actor)
 
     def cancel(self, plan: Plan, actor: Actor) -> list[Task]:
         self.save(plan.cancelled(self.time_source.moment().timestamp(), actor.is_user()), actor)

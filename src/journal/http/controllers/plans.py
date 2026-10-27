@@ -17,6 +17,7 @@ from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.repositories.links import Links
+from journal.repositories.messages import Messages
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.tasks import Tasks
 from journal.support.time_source import TimeSource
@@ -29,8 +30,8 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting, time_source: TimeSource, messages: Messages) -> None:
+        self.time_source, self.messages = time_source, messages
         self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
         self.plan_testing = testing
 
@@ -63,7 +64,12 @@ class PlanController(Controller[Plan]):
         return self.answered(self.rounds.begin(self.repository.find(request.number("id")), request.actor))
 
     def approve(self, request: Request) -> Response:
-        return self.answered(self.repository.approve(self.repository.find(request.number("id")), request.actor))
+        return self.answered(self.repository.approve(self.repository.find(request.number("id")), request.actor, self.comment_id(request)))
+
+    def comment_id(self, request: Request) -> int | None:
+        key = request.body.get("comment_key")
+        comments = self.messages.sent_with(str(key)) if key else []
+        return comments[0].id if comments else None
 
     def start(self, request: Request) -> Response:
         return self.answered(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor))

@@ -7,6 +7,9 @@ import Chip from "../kit/Chip.vue";
 import ChatDock from "../kit/ChatDock.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import Icon from "../kit/Icon.vue";
+import MenuItem from "../kit/MenuItem.vue";
+import SplitButton from "../kit/SplitButton.vue";
+import {store} from "../state/store.js";
 import PlanList from "../layout/PlanList.vue";
 import PlanCritique from "../resource/PlanCritique.vue";
 import {approvePlan, dismissPlan, startPlan} from "../actions/plans.js";
@@ -39,6 +42,9 @@ watchEffect(() => {
 const hidden = computed(() => Math.max(0, phases.value.length - PREVIEW_PHASES));
 const adding = "The agent is still writing the plan…";
 usePlanRows(() => [props.plan]);
+
+// a comment typed in the composer and sent approves the plan, the comment handed to the agent with the approval
+const approveWithComment = () => (store.quoting = {text: props.plan.title, ref: "", on: `plans:${props.plan.id}`, label: "Approving with a comment", approves: props.plan.id});
 
 function dismiss() {
     planCardChoice.value = 0;
@@ -88,20 +94,31 @@ async function start() {
             </span>
             <span class="plan-card-acts chat-dock-acts" data-fades>
                 <Btn small @click="peek('plans', plan.id)">Open plan</Btn>
-                <template v-if="plan.state === 'ready'">
-                    <Btn small @click="critiquing = true">Ask for a critique</Btn>
-                </template>
-                <template v-if="!reviewing">
-                    <Btn
+                <template v-if="!reviewing && !paused">
+                    <SplitButton
                         kind="primary"
                         small
                         class="plan-card-start"
                         :disabled="building"
+                        menu-label="Other ways to approve"
                         v-tip="building ? 'You can approve it once the plan is ready' : 'Approve the plan; the agent starts it'"
-                        @click="start"
+                        @main="start"
                     >
                         <Icon name="start" />
-                        {{ paused ? "Resume" : "Approve" }}
+                        Approve
+                        <template #menu="{close}">
+                            <MenuItem @click="close(), start()">Approve</MenuItem>
+                            <MenuItem description="Type a comment; sending it approves the plan" @click="close(), approveWithComment()">Approve with a comment</MenuItem>
+                            <template v-if="plan.state === 'ready'">
+                                <MenuItem description="Reviewers read it before you approve" @click="close(), (critiquing = true)">Ask for a critique</MenuItem>
+                            </template>
+                        </template>
+                    </SplitButton>
+                </template>
+                <template v-if="paused">
+                    <Btn kind="primary" small class="plan-card-start" v-tip="'Resume the plan; the agent starts its next task'" @click="start">
+                        <Icon name="start" />
+                        Resume
                     </Btn>
                 </template>
             </span>
