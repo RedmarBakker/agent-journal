@@ -3718,6 +3718,23 @@ def test_a_stop_takes_up_the_agents_paused_task_in_auto_mode_and_off_auto_mode_i
     status, body = hook(app, "Stop")
     assert body.get("decision") == "block" and "task 1" in body["reason"] and not app.container.get(Tasks).agent_started(), "in auto mode a task paused by choice is named at the stop and holds the open one back; it is not taken up by itself"
 
+def test_a_file_rewritten_in_place_is_recorded_as_its_real_difference_never_as_emptied(app: App):
+    import threading
+    from urllib.request import urlopen
+    hook(app, "SessionStart")
+    notes = app.config.root / "notes.md"
+    notes.write_text("".join(f"line {n}\n" for n in range(10)))
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 write_notes.py"}, tool_response="")
+    app.runtime().deferred.drain()
+    notes.write_text("")
+    threading.Timer(0.03, lambda: notes.write_text("".join(f"line {n}\n" for n in range(18)))).start()
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 rewrite_notes.py"}, tool_response="")
+    app.runtime().deferred.drain()
+    edits = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents/1/edits?env=main"), timeout=5))["edits"]
+    rewrites = [(e["added"], e["removed"]) for e in edits if e["command"].startswith("python3 rewrite")]
+    assert rewrites == [(8, 0)], f"a rewrite read between its truncate and its write is waited out and recorded as the eight lines it added: {rewrites}"
+
+
 def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
     from urllib.request import urlopen
     hook(app, "SessionStart")
