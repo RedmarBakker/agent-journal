@@ -22553,14 +22553,14 @@ def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_m
     console.run(["message", "send", "write the notes"], USER)
     console.run(["message", "send", "also the tags"], USER)
     assert console.run(["task", "create", "write the notes", "--from", "1"], AGENT).code == 0
-    assert console.run(["task", "edit", "1", "--from", "2"], AGENT).code == 0
+    assert console.run(["task", "edit", "1", "--title", "write the notes and tags", "--from", "2"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         everything = app.container.get(Messages).all()
         filed = sorted(m.text for m in everything if m.data.get("shows") == "filed")
         moves = [m.text for m in everything if m.data.get("shows") == "task_moves"]
     assert filed == ["Linked task 1 from your message", "Linked task 1 from your message"], "each message the task is tied to carries a linked receipt"
-    assert [text for text in moves if text.startswith(("Created", "Edited"))] == ["Created task 1: write the notes", "Edited task 1: write the notes"], "the creation and the edit are one mark each, on the agent's side"
+    assert [text for text in moves if text.startswith(("Created", "Edited"))] == ["Created task 1: write the notes", "Edited task 1: write the notes and tags"], "the creation and the edit are one mark each, on the agent's side"
 
 
 def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cleared_await_removes_its_check(app: App):
