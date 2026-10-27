@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 
 from journal.features.plans.support.plan_task_assigner import PlanTaskAssigner
 from journal.engine.nudge import Nudge
@@ -19,11 +19,12 @@ from journal.features.plans.states.plan_work import PlanWork
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_part import PlansPart
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.states.working import Working
 
 
 @dataclass(frozen=True)
 class FollowingPlan(PlanWork):
-    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task, also when the next one was started before the close reached the state; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
+    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task, also when the next one was started before the close reached the state; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, leaving a task in hand as the task worked on rather than dropping it, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
     assigner = PlanTaskAssigner
@@ -86,12 +87,17 @@ class FollowingPlan(PlanWork):
     def on_plan_postponed(self, event: PlanPostponed, settings: Settings) -> Transition:
         if event.plan_id != self.plan_id:
             return self.none()
-        return self.pop(PlansNudges.PLAN_POSTPONED.create(n=event.plan_id)) if event.user_origin else self.pop()
+        return self.plan_exit(event.data, PlansNudges.PLAN_POSTPONED.create(n=event.plan_id)) if event.user_origin else self.plan_exit(event.data)
 
     def on_plan_abandoned(self, event: PlanAbandoned, settings: Settings) -> Transition:
         if event.plan_id != self.plan_id:
             return self.none()
-        return self.pop(PlansNudges.PLAN_ABANDONED.create(n=event.plan_id)) if event.user_origin else self.pop()
+        return self.plan_exit(event.data, PlansNudges.PLAN_ABANDONED.create(n=event.plan_id)) if event.user_origin else self.plan_exit(event.data)
+
+    def plan_exit(self, data: FeatureData, *nudges: Nudge) -> Transition:
+        if not self.task_id or data.part(TasksPart).current_task != self.task_id:
+            return self.pop(*nudges)
+        return self.swap(Working(**{field.name: getattr(self, field.name) for field in fields(Working)}), *nudges)
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
         started = data.part(PlansPart).started

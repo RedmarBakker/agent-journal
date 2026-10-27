@@ -1689,6 +1689,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
 
 def test_following_plan_pops_when_the_plan_is_postponed_or_abandoned_and_on_resume_when_it_is_no_longer_started():
     from dataclasses import replace
+    from journal.features.tasks.states.working import Working
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.plans.support.started_plan import StartedPlan
@@ -1699,17 +1700,22 @@ def test_following_plan_pops_when_the_plan_is_postponed_or_abandoned_and_on_resu
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
     plan = StartedPlan(plan_id=5, next_task=8, started_task=7, started_task_briefing="", recent_tasks=(7, 8), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda started: FeatureData({"tasks": tasks, "plans": PlansData((), started)})
+    paused = FeatureData({"tasks": replace(tasks, current_task=0), "plans": PlansData((), None)})
     following = FollowingPlan(plan_id=5, task_id=7, approved=True, logged_at=10.0)
-    user_origin = following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(of(None)), settings)
+    user_origin = following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(paused), settings)
     assert user_origin.popped and [n.rendered() for n in user_origin.nudges] == [PlansNudges.PLAN_POSTPONED.create(n=5).rendered()]
-    agent_index = following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=False).with_data(of(None)), settings)
+    agent_index = following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=False).with_data(paused), settings)
     assert agent_index.popped and agent_index.nudges == (), "the agent's own command needs no line"
     assert not following.respond(PlanPostponed(environment_id=1, time=20.0, plan_id=6, user_origin=True).with_data(of(plan)), settings).popped
-    abandoned = following.respond(PlanAbandoned(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(of(None)), settings)
+    abandoned = following.respond(PlanAbandoned(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(paused), settings)
     assert abandoned.popped and [n.rendered() for n in abandoned.nudges] == [PlansNudges.PLAN_ABANDONED.create(n=5).rendered()]
     assert following.on_resume(of(None), settings).popped, "beneath a wait, a plan postponed meanwhile is over on resume"
     assert following.on_resume(of(replace(plan, plan_id=6)), settings).popped, "another plan started meanwhile: this one is over"
     assert following.on_resume(of(plan), settings) == (), "still the plan started here: the work goes on in silence"
+    outside = FeatureData({"tasks": replace(tasks, current_task=9), "plans": PlansData((), None)})
+    kept = replace(following, task_id=9).respond(PlanPostponed(environment_id=1, time=20.0, plan_id=5, user_origin=True).with_data(outside), settings)
+    assert not kept.popped and type(kept.target) is Working and kept.target.task_id == 9, "a task started outside the plan stays in hand when the plan is postponed"
+    assert replace(following, task_id=9).respond(PlanAbandoned(environment_id=1, time=20.0, plan_id=5, user_origin=False).with_data(outside), settings).target.task_id == 9
 
 
 def test_a_question_asked_pushes_waiting_and_its_answer_pops_it_on_top_or_on_resume():
