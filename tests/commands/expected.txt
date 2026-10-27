@@ -1869,6 +1869,7 @@ workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} min
 workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_order_without_dependencies  [workers]  plan {{plan}} has {{open}} open tasks and none blocked on another; its order was likely not thought through. which tasks depend on which? block each on the one it waits for: journal task block <n> --on task:<m>
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
+workers.queue_the_related_tasks  [workers]  task {{task}} goes to {{worker}} alone while tasks {{listed}} of its plan wait to be handed out. queue them on it with journal worker queue {{n}} {{tasks}} --report queue: it takes them in turn and reports once, when its queue is empty
 workers.release_waits_for_the_user  [workers]  {{line}} waits for the user: Orchestrator may release is off. ask the user to release it, or to turn Orchestrator may release on
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: which open task unblocks the most others, or you (a permission, a missing tool, a failing check, a stalled worker)? Are the queues in that order?. answer with journal plan priorities '<the order and why>'
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}

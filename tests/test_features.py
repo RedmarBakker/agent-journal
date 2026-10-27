@@ -12650,7 +12650,7 @@ def test_a_builder_dispatching_one_task_while_others_of_its_plan_wait_is_told_on
     dispatch = lambda task: queue_lines_said(app, f"journal worker dispatch 'Ada' --task {task} --changes 'src/parser.py' --profile journal-medior")
     assert dispatch(loose) == [], "a task of no started plan has no tasks beside it to queue"
     assert dispatch(lexer) == [f"task {lexer} goes to a new worker alone while tasks {grammar}, {printer} of its plan wait to be handed out. queue them on it with journal worker queue <its number> {grammar} {printer} --report queue: it takes them in turn and reports once, when its queue is empty"], "the builder, fitness measures off, is told to queue the rest of the plan with one report at the end"
-    assert len(dispatch(grammar)) == 1, "it is told once"
+    assert len(dispatch(lexer)) == 1, "the same dispatch again is not told twice"
 
 
 def test_an_orchestrator_sending_a_worker_one_task_while_others_of_its_plan_wait_is_told_to_queue_them_with_the_fitness_measures_off(app: App):
