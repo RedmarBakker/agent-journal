@@ -4,6 +4,7 @@ import SwitchCase from "../kit/SwitchCase.vue";
 import ChatMark from "../kit/ChatMark.vue";
 import OutputLines from "../kit/OutputLines.vue";
 import RunStop from "./RunStop.vue";
+import FlowchartMark from "./FlowchartMark.vue";
 import SubagentMark from "./SubagentMark.vue";
 import WhisperMark from "./WhisperMark.vue";
 import MadeCard from "./MadeCard.vue";
@@ -154,6 +155,11 @@ function markClick(data) {
         <template #whisper>
             <div class="thread-turn whisper" :data-ref="turn.key">
                 <WhisperMark v-bind="data" :title="turn.title" :time="turn.time" />
+            </div>
+        </template>
+        <template #flowchart>
+            <div class="thread-turn flowchart" :data-ref="turn.key">
+                <FlowchartMark :title="turn.title" :edges="turn.edges" :time="turn.time" />
             </div>
         </template>
         <template #subagent>

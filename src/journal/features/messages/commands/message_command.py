@@ -8,6 +8,7 @@ from journal.models.message import Message
 from journal.support.voice_key import VoiceKey
 from journal.models.support.ref import Ref
 from journal.config import Config
+from journal.features.messages.support.flowchart_edges import FlowchartEdges
 from journal.features.messages.support.message_files import MessageFiles
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
@@ -43,6 +44,9 @@ class MessageCommand(Command):
         transmit.add_argument("--reply-to", type=int, default=None)
         transmit.add_argument("--file", action="append", default=[], metavar="PATH", help="a file the user downloads, shown under the message, a picture inline; repeat it for more files")
         transmit.add_argument("--confirm", action="store_true", help="send a second reply to a message already answered")
+        chart = self.verb(verbs, "flowchart", "draw a flowchart in the chat, which opens large in a dialog")
+        chart.add_argument("title", help="what the flowchart shows, in the user's words")
+        chart.add_argument("--edge", action="append", default=[], metavar="ARROW", help="one arrow, 'From -> To' or 'From -> To: label'; repeat it for each arrow, the first arrow's start being the top")
         self.verb(verbs, "list", "every message here")
         self.verb(verbs, "read", "show a message and mark it read").add_argument("n", type=int)
         self.verb(verbs, "unread", "show every unread message and mark them read")
@@ -75,6 +79,11 @@ class MessageCommand(Command):
         draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})
         message = self.files.attached(self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor), files, caller.actor)
         print(f"message {message.id} sent")
+        return 0
+
+    def flowchart(self, args: Namespace, caller: Caller) -> int:
+        message = self.messages.save(Message.flowchart(args.title, FlowchartEdges.read(args.edge)), caller.actor)
+        print(f"flowchart {message.id} drawn")
         return 0
 
     def reply(self, answered: Message, args: Namespace, caller: Caller, files: dict[str, bytes]) -> int:

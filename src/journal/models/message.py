@@ -66,6 +66,10 @@ class Message(Scoped):
         return self.with_(text=f"{labels[0]}, and {len(labels) - 1} more like it").with_merged("data", {"covers": labels, "detail": f"{len(labels)} in all", "lines": labels})
 
     @classmethod
+    def flowchart(cls, title: str, edges: list[list[str]]) -> "Message":
+        return cls(author=Author.SYSTEM, text=title, data={"kind": "flowchart", "edges": edges})
+
+    @classmethod
     def tool_summary(cls, session: str, text: str) -> "Message":
         return cls(author=Author.SYSTEM, session=session, text=text, data={"kind": cls.TOOL_SUMMARY})
 

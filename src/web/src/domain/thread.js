@@ -29,6 +29,7 @@ const SYSTEM_TURNS = {
     whisper: (card, label) => ({kind: "whisper", title: label, data: {row: card.row, words: ""}}),
     skill: (card) => ({kind: "skill", title: card.detail, data: {}}),
     compacted: () => ({kind: "compacted", data: {}}),
+    flowchart: (card, label) => ({kind: "flowchart", title: label, edges: card.edges || [], data: {}}),
     question: (card, label, m) => ({
         kind: "question",
         question: {

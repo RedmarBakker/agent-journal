@@ -90,6 +90,9 @@ SETS = {
         "tests/figurePerches.test.js",
         "tests/figureParcels.test.js",
     ),
+    "flowchart": (
+        "tests/flowchart.test.js",
+    ),
     "worker_cell": (
         "tests/agentCell.test.js",
     ),
