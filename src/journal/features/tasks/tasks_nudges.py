@@ -30,7 +30,7 @@ class TasksNudges:
     WAIT_CHECK = Nudge("tasks", "check_the_wait", "you have waited {{minutes}} minutes on {{what|cap=31}}", "read its latest lines and check it does what you expect", repeat=Timeout.seconds(300), blocks_regardless=True)
     IDLE_CHECK = Nudge("tasks", "check_in_after_quiet", "nothing has happened for half an hour", "carry on, take the next task, or say in one line why not", repeat=Timeout.seconds(1800))
     WAIT_LIFTED = Nudge("tasks", "wait_lifted", "your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`", repeat=Timeout.seconds(0))
-    WAIT_CHECK_PASSED = Nudge("tasks", "wait_check_passed", "{{what|cap=16}} is done: {{lines|cap=94}}", repeat=Timeout.seconds(0))
+    WAIT_CHECK_PASSED = Nudge("tasks", "wait_check_passed", "{{what|cap=30}} is done: {{lines|cap=78}}", repeat=Timeout.seconds(0))
     WAIT_END = Nudge("tasks", "wait_over", "wait over: {{outcome|cap=100}}", repeat=Timeout.seconds(0))
     PRIORITIES_REMINDER = Nudge("tasks", "give_tasks_their_priority", "tasks {{tasks|cap=13}} need a priority: `journal task edit <n> --priority <level>`, or `journal task priorities confirm`", "", repeat=Timeout.seconds(YEAR_SECONDS), blocks_regardless=True)
     PRIORITIES_REFUSAL = Nudge("tasks", "tasks_wait_for_their_priority", "writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`", "", repeat=Timeout.seconds(0), longest_characters=140, longest_reason="a hold that must name both ways out of it")

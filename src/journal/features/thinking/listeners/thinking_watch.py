@@ -4,9 +4,10 @@ from journal.features.thinking.support.thinking_window import ThinkingWindow
 from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
 from journal.support.actor import Actor
+from journal.references import events
 
 # the moves that start or end a quiet spell of the agent's
-MOVES = ("ToolStarting", "ToolFinished", "PromptSubmitted", "Stop")
+MOVES = (events.TOOL_STARTING, events.TOOL_FINISHED, events.PROMPT_SUBMITTED, events.STOP)
 
 
 class ThinkingWatch(AgentListener[Ticked]):

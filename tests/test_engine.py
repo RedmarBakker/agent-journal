@@ -1102,6 +1102,18 @@ def test_every_line_sent_to_the_agent_fits_the_budget_of_how_often_it_is_sent(ap
     assert not loose, "lines declaring a longest with no reason, far above their length, or with more than 400 characters of their own words:\n" + "\n".join(sorted(loose))
 
 
+def test_no_hook_or_agent_event_is_named_by_a_raw_string_outside_the_references():
+    import ast
+    from journal.events.agent.agent_event_type import AgentEventType
+    from journal.support.hook_type import HookType
+    names = {event.value for event in AgentEventType} | {hook.value for hook in HookType}
+    source = Path(__file__).resolve().parents[1] / "src" / "journal"
+    allowed = lambda path: path.name in ("references.py", "hook_type.py", "agent_event_type.py") or "events/agent/" in str(path) or "db/migrations/" in str(path)
+    annotations = lambda tree: {id(part) for node in ast.walk(tree) for marked in (getattr(node, "returns", None), getattr(node, "annotation", None)) if marked is not None for part in ast.walk(marked)}
+    raw = [f"{path.relative_to(source)}:{node.lineno} {node.value}" for path in source.rglob("*.py") if not allowed(path) for tree in [ast.parse(path.read_text())] for skipped in [annotations(tree)] for node in ast.walk(tree) if isinstance(node, ast.Constant) and node.value in names and id(node) not in skipped]
+    assert not raw, "hooks and events named by a raw string; use hooks.<NAME> or events.<NAME> from journal.references:\n" + "\n".join(raw)
+
+
 def test_no_refusal_written_inline_is_longer_than_a_normal_line():
     import ast
     source = Path(__file__).resolve().parents[1] / "src" / "journal"

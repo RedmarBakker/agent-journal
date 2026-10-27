@@ -4,6 +4,7 @@ from journal.support.command_shape import SETUP_COMMANDS
 from journal.support.command_text import CommandText
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.models.entry import Entry
+from journal.references import events
 
 ACTIVITY_ROW_SECONDS = 10.0
 DISPLAY_SECONDS = 0.25
@@ -12,7 +13,7 @@ FILE_SECONDS = 0.5
 FILE_ROLL_SECONDS = 2.5
 LAST_FILE_EXTRA_SECONDS = 1.0
 FILE_STEP_SECONDS = 0.001
-TOOLS = ("ToolStarting", "ToolFinished")
+TOOLS = (events.TOOL_STARTING, events.TOOL_FINISHED)
 PARTS = (PART_START, PART_END)
 
 
@@ -54,7 +55,7 @@ class BarRow:
         call = entry.recorded_call()
         tool, paths = entry.data.get("tool_name", ""), call.edited_paths or call.read_paths or ("",)
         path, (added, removed) = paths[0], call.operation.changed_lines()
-        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), entry.entry_type == "ToolFinished", added, removed)
+        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), entry.entry_type == events.TOOL_FINISHED, added, removed)
 
     def counts(self) -> list[dict]:
         return [{"value": n, "prefix": sign, "color": color, "increments": True} for n, sign, color in ((self.added, "+", "green"), (self.removed, "-", "red")) if n]

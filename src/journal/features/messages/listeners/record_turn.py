@@ -25,6 +25,7 @@ from journal.repositories.messages import Messages
 from journal.support.missing_row import MissingRow
 from journal.supervisor_link import SupervisorLink
 from journal.features.messages.messages_nudges import MessagesNudges
+from journal.references import events
 
 REPLY_TAG = re.compile(r"^[ \t]*(?:>\s?)?(?:\*\*)?\[!reply:(\d+(?:,\d+)*)\](?:\*\*)?[ \t]*", re.MULTILINE)
 STRAY_TAG = re.compile(r"\[!reply:(\d+)\]")
@@ -98,7 +99,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         return bool(repeated)
 
     def turn_prompt(self, event: TurnDisplayed) -> Entry | None:
-        prompts = self.entries.session_kind_entries("PromptSubmitted", event.session)
+        prompts = self.entries.session_kind_entries(events.PROMPT_SUBMITTED, event.session)
         return prompts[0] if prompts else None
 
     def orphan_obligation(self, full: str) -> list[int]:
@@ -131,7 +132,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             return False
         provider = self.providers.lookup(event.provider)
         start = self.entries.recent(entry.row_id)
-        return not any(e.entry_type == "ToolStarting" and e.is_write() for e in start)
+        return not any(e.entry_type == events.TOOL_STARTING and e.is_write() for e in start)
 
     def _chat_answer(self, event: TurnDisplayed, line: str) -> bool:
         line_text = self.entries.line_entries(event.session, line)

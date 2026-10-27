@@ -10722,7 +10722,7 @@ def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_w
     tests = call("cd src && python3 -m pytest -q | tail -3")
     assert tests.test_runs() == ["python3 -m pytest -q | tail -3"] and not tests.writes and tests.work == "running" and tests.table_version == classifier.version, "a test run is a test run by its classification, never a write"
     assert PipedTestRun.piped_filter(tests.parts, {}) == "tail", "and the guard reads it piped into a filter from the part's classification"
-    unknown = call("./scripts/build.sh")
+    unknown = call("./scripts/frobnicate.sh")
     assert not unknown.writes and unknown.parts[0].classification.command_type == "unknown", "a program the table does not know is no write"
     assert not policy.takes_no_reader("./scripts/build.sh") and not labels.is_reading("./scripts/build.sh"), "and under the mark rules it is a run like any other, never a quiet read"
     assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
@@ -13595,7 +13595,7 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing" in line]
+    quiet = lambda: [line for line in keystrokes if "worker 1 silent" in line]
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
     app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
@@ -13610,7 +13610,7 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     workers.save(workers.find(1).with_(silence=restarted.silence), Actor.system())
     tick_after(app, 16 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and has_nudge(quiet()[0], WorkersNudges.SILENT_WORKER, n=1, minutes=15) and "journal task log 3260" in quiet()[0] and workers.find(1).silence.is_split_advised, "at fifteen the agent that sent it is told, with its last tool call and what to do"
+    assert len(quiet()) == 1 and has_nudge(quiet()[0], WorkersNudges.SILENT_WORKER, n=1, minutes=15) and "journal task log" in quiet()[0] and workers.find(1).silence.is_split_advised, "at fifteen the agent that sent it is told, with its last tool call and what to do"
     tick_after(app, 60 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1, "and no more"
@@ -13672,7 +13672,7 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     console, workers, clock = app.console(), app.container.get(Workers), app.container.get(Clock)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing" in line]
+    quiet = lambda: [line for line in keystrokes if "worker 1 silent" in line]
     clock.tick(clock.held_at + 41 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [] and not workers.find(1).silence.is_reported, "a tick runs at the moment it takes its turn, not the one its run began with"
@@ -13681,7 +13681,7 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     tick_after(app, 11 * 60)
     tick_after(app, 16 * 60)
     app.runtime().deferred.drain()
-    assert len(quiet()) == 1 and "last: python3 scripts/suite.py" in quiet()[0], "so the worker is named once it is quiet, with its last call"
+    assert len(quiet()) == 1 and "last: python3 scripts" in quiet()[0], "so the worker is named once it is quiet, with its last call"
 
 
 def test_a_worker_that_logs_nothing_for_fifteen_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
@@ -13693,7 +13693,7 @@ def test_a_worker_that_logs_nothing_for_fifteen_minutes_is_named_to_its_dispatch
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    quiet = lambda: [line for line in keystrokes if "worker 1 logged nothing for 15 min" in line]
+    quiet = lambda: [line for line in keystrokes if "worker 1 silent 15 min" in line]
     tick_after(app, 9 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [], "nine minutes is not yet quiet"
@@ -17696,7 +17696,7 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     assert not named, f"a worker is named by its number alone, never also by its name: {named}"
     titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
     assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
-    short = {"workers.work_ready": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
+    short = {"workers.work_ready": 40, "workers.worker_quiet": 80, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
              "shell.reader_report_raised": 100, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
     values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
     for key, limit in short.items():

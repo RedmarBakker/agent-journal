@@ -8,11 +8,12 @@ from journal.repositories.entries import Entries
 from journal.support.agent_message import AgentMessage
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.task_notification import TaskNotification
+from journal.references import events
 
-ENDS = frozenset({"Stop", "SessionStarted", "SessionEnded"})
-TURN_FAILED = "TurnFailed"
-SUBAGENT_KINDS = ENDS | {"SubagentStarted", "SubagentEnded", TURN_FAILED}
-TOOL_MOMENTS = ("ToolStarting", "ToolFinished", "ToolFailed")
+ENDS = frozenset({events.STOP, events.SESSION_STARTED, events.SESSION_ENDED})
+TURN_FAILED = events.TURN_FAILED
+SUBAGENT_KINDS = ENDS | {events.SUBAGENT_STARTED, events.SUBAGENT_ENDED, TURN_FAILED}
+TOOL_MOMENTS = (events.TOOL_STARTING, events.TOOL_FINISHED, events.TOOL_FAILED)
 
 
 class SubagentEntries:
@@ -50,7 +51,7 @@ class SubagentEntries:
 
     @staticmethod
     def message_receiver(entry: Entry) -> str:
-        if entry.entry_type != "ToolStarting":
+        if entry.entry_type != events.TOOL_STARTING:
             return ""
         operation = entry.recorded_call().operation
         return operation.receiver if isinstance(operation, AgentMessage) else ""
@@ -70,19 +71,19 @@ class SubagentEntries:
                 continue
             if e.entry_type in ENDS:
                 SubagentEntries.stopped(rows, open_, time)
-                if e.entry_type == "SessionEnded" or (e.entry_type == "SessionStarted" and e.data.get("source") != "compact"):
+                if e.entry_type == events.SESSION_ENDED or (e.entry_type == events.SESSION_STARTED and e.data.get("source") != "compact"):
                     SubagentEntries.stopped(rows, background, time)
                     SubagentEntries.stopped(rows, unstarted, time)
                 continue
-            if e.entry_type == "SubagentStarted":
+            if e.entry_type == events.SUBAGENT_STARTED:
                 SubagentEntries.started(rows, background, unstarted, e.data.get("agent_id", ""))
                 continue
-            if e.entry_type == "SubagentEnded":
+            if e.entry_type == events.SUBAGENT_ENDED:
                 i = background.pop(e.data.get("agent_id", ""), None)
                 if i is not None:
                     rows[i] = rows[i].finished(SubagentState.FINISHED, time)
                 continue
-            if e.entry_type == "PromptSubmitted":
+            if e.entry_type == events.PROMPT_SUBMITTED:
                 SubagentEntries.notified(rows, background, str(e.data.get("prompt", "")), time)
                 continue
             operation = e.recorded_call().operation
@@ -92,14 +93,14 @@ class SubagentEntries:
             if not isinstance(operation, SubagentDispatch) or e.data.get("refused"):
                 continue
             use = e.data.get("tool_use_id", "")
-            if e.entry_type == "ToolStarting":
+            if e.entry_type == events.TOOL_STARTING:
                 brief = operation.brief or ""
                 rows.append(Subagent(environment_id=e.environment_id, dispatch=f"sub:{e.id}", dispatcher=e.data.get("session_id", ""), started_at=time, task=operation.title or brief[:80], brief=f"{operation.title} {brief}", agent_type=operation.role or "subagent", model=operation.model))
                 open_[use or f"entry:{e.id}"] = len(rows) - 1
-            elif e.entry_type == "ToolFailed" and open_:
+            elif e.entry_type == events.TOOL_FAILED and open_:
                 i = open_.pop(use) if use in open_ else open_.pop(next(iter(open_)))
                 rows[i] = rows[i].failed(str(e.data.get("error", "")), time)
-            elif e.entry_type == "ToolFinished" and open_:
+            elif e.entry_type == events.TOOL_FINISHED and open_:
                 i = open_.pop(use) if use in open_ else open_.pop(next(iter(open_)))
                 answer = SubagentEntries.answered(e.data.get("tool_response"))
                 rows[i] = rows[i].answered(answer.get("agentId", ""))
@@ -115,14 +116,14 @@ class SubagentEntries:
     @staticmethod
     def moved(row: Subagent, entry: Entry) -> Subagent:
         time, agent_id = entry.created_at.timestamp(), entry.data.get("agent_id", "")
-        operation = entry.recorded_call().operation if entry.entry_type == "ToolStarting" else None
+        operation = entry.recorded_call().operation if entry.entry_type == events.TOOL_STARTING else None
         if isinstance(operation, AgentMessage) and operation.receiver == row.session:
             return row.resumed(time, operation.text)
         if not row.is_running():
             return row
-        if entry.entry_type == "SubagentEnded" and agent_id == row.session:
+        if entry.entry_type == events.SUBAGENT_ENDED and agent_id == row.session:
             return row.finished(SubagentState.FINISHED, time)
-        if entry.entry_type == "SessionEnded" or (entry.entry_type == "SessionStarted" and entry.data.get("source") != "compact"):
+        if entry.entry_type == events.SESSION_ENDED or (entry.entry_type == events.SESSION_STARTED and entry.data.get("source") != "compact"):
             return row.finished(SubagentState.STOPPED, time)
         return row
 
@@ -146,7 +147,7 @@ class SubagentEntries:
 
     @staticmethod
     def resumed(rows: list[Subagent], background: dict[str, int], message: AgentMessage, type_name: str, time: float) -> None:
-        if type_name != "ToolStarting":
+        if type_name != events.TOOL_STARTING:
             return
         for i in [i for i, row in enumerate(rows) if row.session and row.session == message.receiver]:
             rows[i] = rows[i].resumed(time, message.text)

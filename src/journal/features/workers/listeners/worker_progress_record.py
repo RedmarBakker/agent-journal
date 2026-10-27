@@ -20,5 +20,5 @@ class WorkerProgressRecord(Listener[Created]):
     def handle(self, event: Created) -> None:
         if event.actor.actor_type != ActorType.WORKER or not isinstance(event.model, PROGRESS_ROWS):
             return
-        worker = self.workers.find(event.actor.number())
-        self.workers.save(worker.contacted(self.time_source.seconds()), Actor.system())
+        for worker in self.workers.numbered(event.actor.number()):
+            self.workers.save(worker.contacted(self.time_source.seconds()), Actor.system())

@@ -33,6 +33,9 @@ class Workers(ScopedRepository[Worker]):
             if current.is_silent(time):
                 self.save(current.silence_named(time), actor)
 
+    def numbered(self, n: int) -> list[Worker]:
+        return self.selected(self.query().filter(id=n))
+
     def running_workers(self) -> list[Worker]:
         return self.selected(self.dispatched_query().order("id"))
 

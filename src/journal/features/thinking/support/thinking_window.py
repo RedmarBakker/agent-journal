@@ -1,8 +1,9 @@
+from journal.references import events
 # the agent's own states of work, in which a quiet spell is thinking; waiting, asking, idle and ended are not
 WORKING_STATES = frozenset({"working", "following_plan", "delegating", "orchestrating_plan"})
 
 # the moves after which the agent's next step is its own to think out: a tool came back, or the user said something
-THINKING_MOVES = ("ToolFinished", "PromptSubmitted")
+THINKING_MOVES = (events.TOOL_FINISHED, events.PROMPT_SUBMITTED)
 
 # how long the agent at work has been quiet before it counts as thinking, in seconds: the clock ticks every five seconds, so thinking
 # shows five to ten seconds into a quiet spell, about seven and a half on average, past three quarters of this project's gaps between a

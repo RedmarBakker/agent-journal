@@ -9,13 +9,14 @@ from journal.support.actor import Actor
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.agent_message import AgentMessage
 from journal.support.subagent_dispatch import SubagentDispatch
+from journal.references import events
 
 
 ENTRIES = Query.build(Entry)
 DISPATCHES = ENTRIES.filter_alternatives(
-    ENTRIES.filter_listed("entry_type", ("SubagentStarted", "SubagentEnded", "Stop", "SessionStarted", "SessionEnded", "TurnFailed")),
-    ENTRIES.filter_listed("entry_type", ("ToolStarting", "ToolFinished", "ToolFailed")).filter_listed("data->call->operation->kind", (SubagentDispatch.operation_type, AgentMessage.operation_type)),
-    ENTRIES.filter(entry_type="PromptSubmitted").filter_prefix("data->prompt", "<task-notification>"),
+    ENTRIES.filter_listed("entry_type", (events.SUBAGENT_STARTED, events.SUBAGENT_ENDED, events.STOP, events.SESSION_STARTED, events.SESSION_ENDED, events.TURN_FAILED)),
+    ENTRIES.filter_listed("entry_type", (events.TOOL_STARTING, events.TOOL_FINISHED, events.TOOL_FAILED)).filter_listed("data->call->operation->kind", (SubagentDispatch.operation_type, AgentMessage.operation_type)),
+    ENTRIES.filter(entry_type=events.PROMPT_SUBMITTED).filter_prefix("data->prompt", "<task-notification>"),
 ).inlined()
 NUDGE = "nudge"
 CUT_KEY = "cut_from"
@@ -24,7 +25,7 @@ PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "las
 
 
 # the events of an agent's turn that end a run of held stops, the stop among them
-TURN_EVENTS = ("Stop", "ToolStarting", "PromptSubmitted")
+TURN_EVENTS = (events.STOP, events.TOOL_STARTING, events.PROMPT_SUBMITTED)
 
 
 class Entries(ScopedRepository[Entry]):
@@ -46,7 +47,7 @@ class Entries(ScopedRepository[Entry]):
             return prior[0] if prior else self.save(entry, actor)
 
     def last_prompt(self, session: str) -> datetime | None:
-        rows = self.selected(self.query().filter(entry_type="PromptSubmitted", actor=Actor.agent(session)).order_descending("id").limit(1))
+        rows = self.selected(self.query().filter(entry_type=events.PROMPT_SUBMITTED, actor=Actor.agent(session)).order_descending("id").limit(1))
         return rows[0].created_at if rows else None
 
     def agent_lines(self, session: str) -> int:
@@ -66,14 +67,14 @@ class Entries(ScopedRepository[Entry]):
         return float(self.maximum(self.lines(session).filter_json("data->key", key), "data->time", 0))
 
     def tool_starts(self, session: str, last: int = 500) -> list[Entry]:
-        return self.selected(self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
+        return self.selected(self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def last_command_lines(self, session: str, count: int) -> list[str]:
-        starts = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
+        starts = self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
         return [entry.data["call"]["command"] for entry in reversed(self.selected(starts.order_descending("id").limit(count)))]
 
     def recent_commands(self, session: str, window: int, count: int) -> list[str]:
-        starts = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session))
+        starts = self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session))
         oldest = self.selected_ids(starts.order_descending("id").limit(1).offset(window - 1))
         window_starts = starts.filter_greater_equal("id", oldest[0]) if oldest else starts
         commands = window_starts.filter_present("data->call->command").filter_unequal("data->call->command", "")
@@ -84,25 +85,25 @@ class Entries(ScopedRepository[Entry]):
 
     def output_tool_starts(self, session: str, last: int = 500) -> list[Entry]:
         mentions = self.query().filter_alternatives(self.query().filter_containing("data", "outputs/"), self.query().filter_containing("data", "journal output read "))
-        return self.selected(mentions.filter(entry_type="ToolStarting", actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
+        return self.selected(mentions.filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def output_reads(self, session: str, output: int, flag: str) -> int:
-        reads = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_containing("data", f"journal output read {output} ").filter_containing("data", flag)
+        reads = self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).filter_containing("data", f"journal output read {output} ").filter_containing("data", flag)
         return self.counted(reads)
 
     def shape_commands(self, session: str, shape: str, last: int = 200) -> set[str]:
-        rows = self.selected(self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_json("data->call->shape", shape).order_descending("id").limit(last))
+        rows = self.selected(self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).filter_json("data->call->shape", shape).order_descending("id").limit(last))
         return {row.recorded_call().command for row in rows}
 
     def shape_count(self, session: str, shape: str, last: int = 200) -> int:
-        return min(self.counted(self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_json("data->call->shape", shape)), last)
+        return min(self.counted(self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).filter_json("data->call->shape", shape)), last)
 
     def newer_shell_starts(self, session: str, earliest: datetime, last: int = 500) -> list[Entry]:
-        shell = self.query().filter(entry_type="ToolStarting", actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
+        shell = self.query().filter(entry_type=events.TOOL_STARTING, actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
         return self.selected(shell.filter_greater("created_at", earliest).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def newer_tool_ends(self, session: str, earliest: datetime, last: int = 500) -> list[Entry]:
-        return self.selected(self.query().filter_listed("entry_type", ("ToolFinished", "ToolFailed")).filter(actor=Actor.agent(session)).filter_greater("created_at", earliest).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
+        return self.selected(self.query().filter_listed("entry_type", (events.TOOL_FINISHED, events.TOOL_FAILED)).filter(actor=Actor.agent(session)).filter_greater("created_at", earliest).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def newer_kind_entries(self, type_name: str, earliest: datetime, last: int = 50) -> list[Entry]:
         return self.selected(self.query().filter(entry_type=type_name).filter_greater("created_at", earliest).order_descending("id").limit(last))
@@ -131,23 +132,23 @@ class Entries(ScopedRepository[Entry]):
         return [entry for entry in self.kind_entries_scoped(last) if entry.entry_type in kinds and entry.actor and entry.actor.id == session]
 
     def tool_ends(self, session: str, last: int = 500) -> list[Entry]:
-        return self.selected(self.query().filter_listed("entry_type", ("ToolFinished", "ToolFailed")).filter(actor=Actor.agent(session)).order_descending("id").limit(last))
+        return self.selected(self.query().filter_listed("entry_type", (events.TOOL_FINISHED, events.TOOL_FAILED)).filter(actor=Actor.agent(session)).order_descending("id").limit(last))
 
     def last_line_entry(self, session: str, keys: tuple[str, ...]) -> Entry | None:
         rows = self.selected(self.lines(session).filter_listed("data->key", keys).with_columns("data", "created_at").without_keys("data", "line").order_descending("id").limit(1))
         return rows[0] if rows else None
 
     def refused_stops(self, session: str, count: int) -> list[str]:
-        return [entry.data["refused"] for entry in self.selected(self.query().filter(actor=Actor.agent(session), entry_type="Stop").filter_present("data->refused").order_descending("id").limit(count))]
+        return [entry.data["refused"] for entry in self.selected(self.query().filter(actor=Actor.agent(session), entry_type=events.STOP).filter_present("data->refused").order_descending("id").limit(count))]
 
     def turn_events(self, session: str, count: int) -> list[Entry]:
         return self.selected(self.turn_query(session).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(count))
 
     def refusal_run_count(self, session: str, upper_id: int, count_cap: int) -> int:
-        events = self.turn_query(session).filter_less("id", upper_id) if upper_id else self.turn_query(session)
-        unrefused = events.filter_alternatives(self.query().filter_unequal("entry_type", "Stop"), self.query().filter_null("data->refused"))
+        turn_entries = self.turn_query(session).filter_less("id", upper_id) if upper_id else self.turn_query(session)
+        unrefused = turn_entries.filter_alternatives(self.query().filter_unequal("entry_type", events.STOP), self.query().filter_null("data->refused"))
         run_start = self.selected_ids(unrefused.order_descending("id").limit(1))
-        refused = events.filter(entry_type="Stop").filter_present("data->refused")
+        refused = turn_entries.filter(entry_type=events.STOP).filter_present("data->refused")
         return min(self.counted(refused.filter_greater("id", run_start[0]) if run_start else refused), count_cap)
 
     def turn_query(self, session: str) -> Query:
@@ -208,7 +209,7 @@ class Entries(ScopedRepository[Entry]):
         return rows[0] if rows else None
 
     def final_message(self, session: str) -> str:
-        stops = self.selected(self.query().filter(entry_type="Stop", actor=Actor.agent(session)).order_descending("id").limit(1))
+        stops = self.selected(self.query().filter(entry_type=events.STOP, actor=Actor.agent(session)).order_descending("id").limit(1))
         return stops[0].data.get("last_assistant_message", "") if stops else ""
 
     def last_id(self) -> int:
@@ -221,13 +222,13 @@ class Entries(ScopedRepository[Entry]):
         return self.selected(DISPATCHES.filter_json("data->session_id", session).order("id"))
 
     def subagent_ends(self, session: str, subagent: str) -> list[Entry]:
-        return self.selected(ENTRIES.filter(entry_type="SubagentEnded").filter_json("data->session_id", session).filter_json("data->agent_id", subagent).order("id"))
+        return self.selected(ENTRIES.filter(entry_type=events.SUBAGENT_ENDED).filter_json("data->session_id", session).filter_json("data->agent_id", subagent).order("id"))
 
     def global_dispatches(self) -> list[Entry]:
         return self.selected_globally(DISPATCHES.order("id"))
 
     def agent_calls(self, last: int = 500) -> list[Entry]:
-        return self.selected(DISPATCHES.filter(entry_type="ToolStarting").order_descending("id").limit(last))
+        return self.selected(DISPATCHES.filter(entry_type=events.TOOL_STARTING).order_descending("id").limit(last))
 
     def recent_shown(self, id: int, kinds: Sequence[str]) -> list[Entry]:
         return self.with_project(self.shown_query(kinds).filter_greater("id", id).order("id"))

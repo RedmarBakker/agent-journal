@@ -1851,7 +1851,7 @@ tasks.task_points_changed  [tasks]  task {{n}}: brief point {{points|cap=15}} re
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take it up with `journal task start {{n}}`
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
-tasks.wait_check_passed  [tasks]  {{what|cap=16}} is done: {{lines|cap=94}}
+tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
 tasks.wait_over  [tasks]  wait over: {{outcome|cap=100}}
@@ -1924,7 +1924,7 @@ workers.worker_costly_on_shaped_work  [workers]  {{model}} cost ${{dollars}} on 
 workers.worker_has_no_work_left  [workers]  worker {{n}} idle: queue it tasks or `journal worker complete {{n}} --why "<why>"`
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_log_due  [workers]  you logged nothing for {{minutes}} min. log where you stand: `journal todo add "<step>"` or `journal proof <point> "<proof>"`
-workers.worker_quiet  [workers]  worker {{n}} logged nothing for {{minutes}} min; last: {{last|cap=24}}. `journal worker notify {{n}} "<text>"` or stop it
+workers.worker_quiet  [workers]  worker {{n}} silent {{minutes}} min; last: {{last|cap=20}}. notify it or stop it
 workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_runs_no_git  [workers]  never run git; the journal commits at clock-out. on a clash, fix the files, then `journal clock-out "<report>"`
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
