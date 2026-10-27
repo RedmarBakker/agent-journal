@@ -2,6 +2,12 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.6
+
+- An environment has one agent, whichever provider starts its session: a new Claude or Codex session takes over the environment's agent, with its stack and its task in hand, instead of making a second agent beside it. The earlier session takes the agent back when it is continued.
+- The launcher warns when the environment you pick already has an agent, and offers to continue anyway or pick another environment; a launch stops the earlier launch of the same environment it replaces.
+- A mode button's tooltip closes when the button is pressed, so it no longer covers the confirmation.
+
 ## 4.67.5
 
 - After reading a message the agent is told to reply with `journal message send --reply-to N` and then go on. Told to reply with a tag, an agent wrote its reply as closing text, which ended its turn before the work it had promised. The skill no longer teaches the tags.
