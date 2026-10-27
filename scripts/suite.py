@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead, unless JOURNAL_SKIP_UPDATE_MATRIX is set; a run of the simulator's files runs at a lower priority."""
 import json
 import os
 import re
@@ -31,16 +31,20 @@ LOW_PRIORITY = ["nice", "-n", "10"]
 TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
 # a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
 SIMULATION_FILE = "simulation"
+MATRIX_OPTION = "--update-matrix"
+MATRIX_FILE = "tests/update_matrix_run.py"
+MATRIX_SHARDS = 5
+MATRIX_SKIP_VARIABLE = "JOURNAL_SKIP_UPDATE_MATRIX"
 
 
 def shard_count() -> int:
     return max(1, min(MOST_SHARDS, (os.cpu_count() or 2) - SPARE_CORES))
 
 
-def started(index: int, count: int, folder: Path) -> tuple[subprocess.Popen, Path]:
+def started(index: int, count: int, folder: Path, arguments: tuple[str, ...] = ()) -> tuple[subprocess.Popen, Path]:
     output = folder / f"shard-{index}.txt"
     environ = {**os.environ, SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1", DURATIONS_IN_VARIABLE: str(DURATIONS_FILE), DURATIONS_OUT_VARIABLE: str(folder / f"shard-{index}.seconds.json")}
-    process = subprocess.Popen(PYTEST, cwd=ROOT, env=environ, stdout=output.open("w"), stderr=subprocess.STDOUT)
+    process = subprocess.Popen([*PYTEST, *arguments], cwd=ROOT, env=environ, stdout=output.open("w"), stderr=subprocess.STDOUT)
     return process, output
 
 
@@ -104,34 +108,48 @@ def durations_kept(folder: Path) -> None:
 
 
 def whole_suite() -> int:
-    count, began = shard_count(), time.monotonic()
     with tempfile.TemporaryDirectory() as folder:
-        shards = [started(index, count, Path(folder)) for index in range(count)]
         judging = commandments_started(Path(folder))
-        print(f"running the suite in {count} shards side by side", flush=True)
-        progress_shown(shards)
-        totals: dict[str, int] = {}
-        failures: list[str] = []
-        for done, (process, output) in enumerate(shards, start=1):
-            try:
-                process.wait(timeout=SHARD_TIMEOUT_SECONDS)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                failures.append(f"shard {done - 1} ran past {SHARD_TIMEOUT_SECONDS} seconds and was stopped")
-            text = output.read_text()
-            for name, number in outcome(text).items():
-                totals[name] = totals.get(name, 0) + number
-            failures.extend(failure_lines(text))
-            took = next((line.rsplit(" in ", 1)[-1] for line in reversed(text.splitlines()) if COUNTS.search(line) and " in " in line), "")
-            print(f"shards finished {done}/{count} [{round(100 * done / count):3d}%], shard {done - 1} in {took}", flush=True)
-        durations_kept(Path(folder))
-        for line in failures:
-            print(line)
-        summary = ", ".join(f"{totals[name]} {name}" for name in ("failed", "errors", "passed", "skipped") if totals.get(name))
-        print(f"{summary or 'no tests ran'} in {time.monotonic() - began:.2f}s")
+        failed = sharded_run(Path(folder), shard_count(), (), "the suite")
         print("waiting for the test commandments judging tests/", flush=True)
         sinful = commandments_judged(judging)
-        return 1 if sinful or totals.get("failed") or totals.get("errors") or not totals.get("passed") or any(process.returncode not in (0, 5) for process, _ in shards) else 0
+        return 1 if sinful or failed else 0
+
+
+# every pair of releases is a test of its own, so the update matrix splits over a few processes however many cores there are
+def update_matrix() -> int:
+    if os.environ.get(MATRIX_SKIP_VARIABLE):
+        print(f"the update matrix is skipped: {MATRIX_SKIP_VARIABLE} is set", flush=True)
+        return 0
+    with tempfile.TemporaryDirectory() as folder:
+        return 1 if sharded_run(Path(folder), MATRIX_SHARDS, (MATRIX_FILE,), "the update matrix") else 0
+
+
+def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str) -> bool:
+    began = time.monotonic()
+    shards = [started(index, count, folder, arguments) for index in range(count)]
+    print(f"running {name} in {count} shards side by side", flush=True)
+    progress_shown(shards)
+    totals: dict[str, int] = {}
+    failures: list[str] = []
+    for done, (process, output) in enumerate(shards, start=1):
+        try:
+            process.wait(timeout=SHARD_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            failures.append(f"shard {done - 1} ran past {SHARD_TIMEOUT_SECONDS} seconds and was stopped")
+        text = output.read_text()
+        for key, number in outcome(text).items():
+            totals[key] = totals.get(key, 0) + number
+        failures.extend(failure_lines(text))
+        took = next((line.rsplit(" in ", 1)[-1] for line in reversed(text.splitlines()) if COUNTS.search(line) and " in " in line), "")
+        print(f"shards finished {done}/{count} [{round(100 * done / count):3d}%], shard {done - 1} in {took}", flush=True)
+    durations_kept(folder)
+    for line in failures:
+        print(line)
+    summary = ", ".join(f"{totals[key]} {key}" for key in ("failed", "errors", "passed", "skipped") if totals.get(key))
+    print(f"{summary or 'no tests ran'} in {time.monotonic() - began:.2f}s")
+    return bool(totals.get("failed") or totals.get("errors") or any(process.returncode not in (0, 5) for process, _ in shards))
 
 
 def commandments_started(folder: Path) -> tuple[subprocess.Popen, Path] | None:
@@ -180,6 +198,8 @@ def scoped_run(arguments: list[str]) -> int:
 
 
 def main(arguments: list[str]) -> int:
+    if arguments == [MATRIX_OPTION]:
+        return update_matrix()
     if arguments:
         return scoped_run(arguments)
     return whole_suite()

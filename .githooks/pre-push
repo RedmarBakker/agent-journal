@@ -2,6 +2,7 @@
 set -eu
 
 cd "$(git rev-parse --show-toplevel)"
+release_tag=""
 while read -r local_ref local_sha remote_ref remote_sha; do
     # an all-zero local sha means the ref is being deleted, and deleting a badly named tag is the cure, not the disease
     case "$local_sha" in
@@ -13,8 +14,15 @@ while read -r local_ref local_sha remote_ref remote_sha; do
             echo "a release tag is named v<version>, such as v${remote_ref#refs/tags/}: the updater fetches refs/tags/v<version>" >&2
             exit 1
             ;;
+        refs/tags/v*) release_tag="${remote_ref#refs/tags/}" ;;
     esac
 done
+# a release tag runs the update matrix in five processes, testing only the pairs no earlier release passed;
+# JOURNAL_SKIP_UPDATE_MATRIX=1 skips it in a real hurry, and the run says so
+if [ -n "$release_tag" ]; then
+    python3 scripts/suite.py --update-matrix ||
+        { echo "push refused: a release does not update cleanly from an earlier one (python3 scripts/suite.py --update-matrix)" >&2; exit 1; }
+fi
 python3 scripts/checks/viewer_built.py
 # every route and hook kind is timed against the saved full project in one process, and one over its budget, or a run past
 # its time limit, refuses the push; a commit is never refused for it, so no work is lost

@@ -1,5 +1,6 @@
 # Installs released versions with their own install scripts and runs them as processes, so it is not in the default run: python3 -m pytest -q tests/update_matrix_run.py
-"""Every release from 4.60.0 on, installed into a project of its own and given rows the way an agent and the user write them, updates to every later release and to this tree through the update's own install script, and the updated journal boots and reads every row the older one wrote."""
+"""Every release from 4.60.0 on, installed into a project of its own and given rows the way an agent and the user write them, updates to every later release and to this tree through the update's own install script, and the updated journal boots and reads every row the older one wrote; a pair of two tagged releases that passed is kept in update_matrix_passed.json and never tested again, since neither changes."""
+import fcntl
 import json
 import os
 import subprocess
@@ -12,6 +13,7 @@ FIRST_RELEASE = (4, 60, 0)
 TREE = "tree"
 STEP_SECONDS = 300
 SCRATCH_PORT = "8531"
+PASSED_FILE = Path(__file__).with_name("update_matrix_passed.json")
 
 SEED = """
 import json, sys
@@ -48,8 +50,27 @@ def releases() -> list[str]:
 
 
 def pairs() -> list[tuple[str, str]]:
-    versions = [*releases(), TREE]
-    return [(start, target) for at, start in enumerate(versions[:-1]) for target in versions[at + 1:]]
+    versions, passed = [*releases(), TREE], passed_pairs()
+    return [(start, target) for at, start in enumerate(versions[:-1]) for target in versions[at + 1:] if f"{start} {target}" not in passed]
+
+
+def passed_pairs() -> set[str]:
+    return set(json.loads(PASSED_FILE.read_text())) if PASSED_FILE.is_file() else set()
+
+
+def pair_kept(start: str, target: str) -> None:
+    with PASSED_FILE.open("a+") as kept:
+        fcntl.flock(kept, fcntl.LOCK_EX)
+        kept.seek(0)
+        text = kept.read()
+        names = sorted({*(json.loads(text) if text.strip() else []), f"{start} {target}"}, key=pair_order)
+        kept.seek(0)
+        kept.truncate()
+        kept.write(json.dumps(names, indent=1) + "\n")
+
+
+def pair_order(pair: str) -> tuple:
+    return tuple(tuple(int(n) for n in tag[1:].split(".")) for tag in pair.split())
 
 
 def environment(home: Path, ref: str) -> dict[str, str]:
@@ -85,3 +106,5 @@ def test_a_release_updates_to_a_later_one_and_reads_every_row_it_wrote(tmp_path:
     read = json.loads(journal_ran(project, home, READ))
     assert f"written on {start}" in read["task"] and f"planned on {start}" in read["plan"], f"{target} boots on the rows {start} wrote and lists its task and plan"
     assert f"said on {start}" in read["message"], f"{target} reads the message {start} wrote"
+    if target != TREE:
+        pair_kept(start, target)

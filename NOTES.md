@@ -1823,3 +1823,12 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - Marking a message read raises MessageRead; the messages conduct answers it with the reply line for that message, once.
   A hook answer says each line once (Decision). A stopped agent's lines wait delivery.batch_seconds from the first one and
   are typed together on the clock's tick, each once; a working agent's go into its next hook answer as before.
+
+## The update matrix (2026-10-27)
+
+- tests/update_matrix_run.py installs every release from 4.60.0 with its own install.sh into an empty project, writes a
+  task, a message and a plan with that version, updates it to every later release and to this tree the way an update
+  does, and reads the three back. It is outside the default run.
+- `python3 scripts/suite.py --update-matrix` runs it in five processes. A pair of two tagged releases that passed is kept
+  in tests/update_matrix_passed.json and never tested again; the pairs to the tree always run.
+- Pushing a v* release tag runs it from .githooks/pre-push; JOURNAL_SKIP_UPDATE_MATRIX=1 skips it in a real hurry.
