@@ -4,6 +4,8 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.64.0
+
 - Facts are memories: a memory has a weight from 1 to 10 that every compaction lowers by one, and at nought it is no longer shown. `journal memory add`, `weigh`, `list`, `remove` and `skip`; every fact became a memory of weight 5 and the facts table is gone, its cards opening the memories made of them.
 - The context marks are 50, 80 and 90 percent and fire again in every window. At a mark the agent weighs its memories in the state WeighingMemories: writes and stops wait until it weighs, adds or removes one, or skips.
 - After a compaction the overview opens with the memories by weight, a fixed part that the look commands cannot remove.
