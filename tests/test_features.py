@@ -4005,6 +4005,24 @@ def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a
     assert "no journal is running" in console.run(["setup", "restart"], USER).text
 
 
+def test_a_new_session_takes_over_the_environments_one_agent_and_the_earlier_session_takes_it_back(app: App):
+    from journal.repositories.agents import Agents
+    agents = app.container.get(Agents)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    first = agents.session_agent("s1")
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s2"}, {"X-Journal-Env": "main"})
+    app.runtime().deferred.drain()
+    taken = agents.session_agent("s2")
+    assert taken.row_id == first.row_id and not agents.session_rows("s1"), "the new session takes over the same agent row; no second agent is made"
+    assert "working" in [layer["state"] for layer in taken.stack] and taken.last_sessions() == {"claude": "s2"}, "its stack, with the task in hand, is kept"
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1"}, {"X-Journal-Env": "main"})
+    app.runtime().deferred.drain()
+    back = agents.session_agent("s1")
+    assert back.row_id == first.row_id and back.previous_sessions == ("claude:s2",), "the earlier session coming back takes the same row back, the other kept as its last"
+
+
 def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
@@ -9736,16 +9754,15 @@ def test_an_mcp_change_restarts_the_conversation_on_screen_never_an_older_sessio
     assert restarted == [("--resume", "s2")], f"the session the supervisor shows is restarted once; an older one whose row has not ended is never brought back in its place: {restarted}"
 
 
-def test_an_environment_keeps_one_session_for_each_provider(app: App):
-    machine = app.container.get(StateMachine)
+def test_an_environment_keeps_one_agent_whichever_provider_starts_a_session(app: App):
+    from journal.repositories.agents import Agents
     hook(app, "SessionStart")
-    hook(app, "SessionStart", session_id="s2")
-    assert app.container.get(SessionAgents).top("s1").name == "ended" and app.container.get(SessionAgents).top("s2").name != "ended", "a newer session takes the environment's place, and the one before it ends"
     hook(app, "SessionStart", session_id="s2", source="resume")
     assert app.container.get(SessionAgents).top("s2").name != "ended", "a session going on is not ended by itself"
     codex = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/codex", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "c1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
     urlopen(codex, timeout=5).read()
-    assert app.container.get(SessionAgents).top("s2").name != "ended" and app.container.get(SessionAgents).top("c1").name != "ended", "another provider's session in the same environment keeps its own"
+    agent = app.container.get(Agents).session_agent("c1")
+    assert agent.provider == "codex" and agent.last_sessions() == {"claude": "s2", "codex": "c1"}, "another provider's session takes over the same agent, the last session of each provider kept"
 
 
 def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows_stay(app: App):
@@ -20120,7 +20137,7 @@ def test_the_environment_overview_names_the_readers_kept_for_reading_outputs(app
     assert "== journal reader list ==" in text and "failed-lines: the failed tests of a pytest run" in text, "the overview after a start or a compaction lists the readers"
 
 
-def test_a_task_held_by_an_ended_session_is_paused_when_the_next_main_session_starts_and_the_new_one_resumes_it(app: App):
+def test_a_task_held_by_an_ended_session_stays_in_hand_when_the_next_main_session_takes_over_its_agent(app: App):
     from journal.models.task_state import TaskState
     from journal.repositories.tasks import Tasks
     codex = Caller.agent("main", "old-codex", "codex")
@@ -20130,9 +20147,8 @@ def test_a_task_held_by_an_ended_session_is_paused_when_the_next_main_session_st
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(1):
         task = app.container.get(Tasks).find(1)
-    assert task.state == TaskState.PAUSED and "ended" in task.pause_reason, "the ended session's task is let go, paused, never held by nobody who works"
-    resumed = app.console().run(["task", "resume", "1"], AGENT)
-    assert resumed.code == 0, resumed.text + resumed.error
+    assert task.state == TaskState.STARTED, "the agent that held the task is the one taken over, so the task stays in its hand"
+    assert app.container.get(SessionAgents).top("s1").name != "ended", "the new session brings the ended agent back to work"
 
 
 def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_fold_never_misses_a_row(app: App, monkeypatch):

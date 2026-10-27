@@ -75,6 +75,7 @@ const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
         label: one.label,
+        opens: "dialog",
         tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
     }))
 );

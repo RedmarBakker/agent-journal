@@ -13,6 +13,7 @@ const Bar = {
         h("div", [
             withTip(h("button", {id: "one", key: identity.value}, "Builder"), "mode:one", words.value),
             withTip(h("button", {id: "two"}, "Solo"), "mode:two", {title: "Solo", line: "No helpers."}),
+            withTip(h("button", {id: "three", "aria-haspopup": "dialog"}, "Orchestrator"), "mode:three", {title: "Orchestrator", line: "Asks before it switches."}),
             h(Tooltip),
         ]),
 };
@@ -106,6 +107,16 @@ test("Esc closes it and it stays closed until another button is reached", async 
     expect(shown.key).toBeNull();
     point("two");
     expect(shown.key).toBe("mode:two");
+});
+
+test("pressing a button that opens a dialog closes its words, and they stay closed while the pointer stays on it", async () => {
+    point("three");
+    await settle();
+    document.getElementById("three").dispatchEvent(new MouseEvent("click", {bubbles: true}));
+    await settle();
+    expect(bubble().hidden).toBe(true);
+    point("three");
+    expect(shown.key).toBeNull();
 });
 
 test("leaving the button closes it after a short wait", async () => {

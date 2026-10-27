@@ -11,6 +11,8 @@ class EnvironmentRow:
     last_sessions: dict[str, str] = field(default_factory=dict)
     refusal: str = ""
     worktree: bool = False
+    agent: str = ""
+    agent_session: str = ""
 
     @classmethod
     def parsed(cls, data: dict) -> "EnvironmentRow":

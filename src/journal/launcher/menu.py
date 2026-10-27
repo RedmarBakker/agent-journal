@@ -15,6 +15,7 @@ from journal.launcher.support.option import Option
 from journal.launcher.support.foreign_hooks import ForeignHooks
 from journal.launcher.support.launcher_memory import LauncherMemory
 from journal.launcher.support.menu_return import MenuReturn
+from journal.launcher.support.environment_repick import EnvironmentRepick
 from journal.launcher.support.menu_answers import MenuAnswers
 from journal.launcher.support.menu_stage import MenuStage
 from journal.launcher.screen import Screen
@@ -75,7 +76,7 @@ class Menu:
 
     def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
         answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read())
-        steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._prompts_stage, self._hooks_stage, self._trust_stage)
+        steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._takeover_stage, self._prompts_stage, self._hooks_stage, self._trust_stage)
         shown: list[int] = []
         index = 0
         while index < len(steps):
@@ -83,6 +84,9 @@ class Menu:
                 stage = steps[index](answers)
             except MenuReturn:
                 index = shown.pop() if shown else index
+                continue
+            except EnvironmentRepick:
+                index, shown = 0, []
                 continue
             answers = stage.answers
             shown += [index] if stage.is_shown else []
@@ -97,6 +101,15 @@ class Menu:
 
     def _continuation_stage(self, answers: MenuAnswers) -> MenuStage:
         return answers.with_resume(self.environment_rows, self._resume)
+
+    def _takeover_stage(self, answers: MenuAnswers) -> MenuStage:
+        row = next((row for row in answers.rows if row.name == answers.selection), None)
+        if row is None or not row.agent or answers.resume == row.agent_session:
+            return MenuStage(answers, False)
+        state = "at work" if row.working else "not at work"
+        if self.screen.pick(f"{row.name} has an agent, {state}: {row.agent}", ["A new session takes it over, with its task and its record; the earlier session, if it still runs, is stopped."], [Option("Continue anyway"), Option("Pick another environment")], 0) == 1:
+            raise EnvironmentRepick()
+        return MenuStage(answers, True)
 
     def _prompts_stage(self, answers: MenuAnswers) -> MenuStage:
         return answers.with_prompts(self._prompts)

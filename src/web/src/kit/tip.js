@@ -139,7 +139,10 @@ export function listen(doc = document) {
                 e.stopPropagation();
                 return;
             }
-            if (e.target instanceof Element && e.target.closest("[data-tip-key][aria-expanded]")) hide(true);
+            const opener = e.target instanceof Element ? e.target.closest("[data-tip-key][aria-expanded], [data-tip-key][aria-haspopup]") : null;
+            if (!opener) return;
+            hushed = opener.dataset.tipKey;
+            hide(true);
         }, true),
         on("pointerdown", (e) => {
             const key = targetKey(e);

@@ -81,9 +81,9 @@ class EnvironmentCommand(Command):
         for environment in self.environments.all():
             agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
             last = agents[-1] if agents else None
-            resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
+            resumable = {provider: session for item in agents for provider, session in item.last_sessions().items() if session and self.providers.lookup(provider).transcript(self.config.root, session)}
             working = last is not None and not self.states.restored(last.state, last.data).final and not self.launches.is_abandoned(environment.name)
-            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch))
+            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", resumable, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch, f"{last.provider} session {last.session[:8]}" if last else "", last.session if last else ""))
         return rows
 
     def overview(self, args: Namespace, caller: Caller) -> int:
