@@ -27,7 +27,7 @@ test("the Services tab lists every process the supervisor runs, with its state, 
     app.directive("tip", {});
     app.mount(host);
     await flush();
-    const rows = [...host.querySelectorAll("tbody tr")].map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent.trim()));
+    const rows = [...host.querySelectorAll(".table-row:not(.head):not(.empty)")].map((row) => [...row.querySelectorAll(".cell")].map((cell) => cell.textContent.trim()));
     expect(rows.map((row) => row[0])).toEqual(["agent (the agent's terminal)", "journal", "tunnel"]);
     expect(rows.map((row) => row[2])).toEqual(["Running", "Running", "Stopped"]);
     expect(rows.map((row) => row[4])).toEqual(["4101", "4102", ""]);
