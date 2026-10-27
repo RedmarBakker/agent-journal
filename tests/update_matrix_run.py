@@ -57,7 +57,7 @@ def releases() -> list[str]:
 # the tree is windowed as the version it carries
 def pairs(window: UpdateWindow, tags: list[str], tree: str, passed: set[str]) -> list[tuple[str, str]]:
     targets = [*tags, TREE]
-    return [(start, target) for at, start in enumerate(tags) for target in targets[at + 1:] if window.holds(start, tree if target == TREE else target) and f"{start} {target}" not in passed]
+    return [(start, target) for at, start in enumerate(tags) for target in targets[at + 1:] if window.is_allowed(start, tree if target == TREE else target) and f"{start} {target}" not in passed]
 
 
 # the pairs are listed when this file's test is collected, never when another test imports the pair builder

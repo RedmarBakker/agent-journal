@@ -7,7 +7,7 @@ class UpdateWindow:
 
     minors: int
 
-    def holds(self, start: str, target: str) -> bool:
+    def is_allowed(self, start: str, target: str) -> bool:
         (start_major, start_minor), (target_major, target_minor) = self.place(start), self.place(target)
         return start_major == target_major and 0 <= target_minor - start_minor <= self.minors
 
