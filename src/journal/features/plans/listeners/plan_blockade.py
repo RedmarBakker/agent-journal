@@ -9,11 +9,11 @@ from journal.repositories.plans import Plans
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.support.time_source import TimeSource
 
-BLOCKABLE_STATES = (PlanState.STARTED, PlanState.PAUSED)
+BLOCKABLE_STATES = (PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED)
 
 
 class PlanBlockade(Listener[Updated]):
-    """A started or paused plan whose every remaining task is blocked blocks itself, done with all but those, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is informed either way."""
+    """A started, paused or delegated plan whose every remaining task is blocked blocks itself, done with all but those, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is informed either way."""
 
     def __init__(self, plans: Plans, time_source: TimeSource) -> None:
         self.time_source = time_source

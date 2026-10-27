@@ -4,6 +4,7 @@ from journal.features.plans.support.plans_data_reader import PlansDataReader
 from journal.features.plans.support.task_succession_reader import TaskSuccessionReader
 from journal.features.plans.support.plans_data import PlansData
 from journal.features.plans.listeners.plan_blockade import PlanBlockade
+from journal.features.plans.listeners.plan_delegation import PlanDelegation
 from journal.features.plans.listeners.clear_plan_waits import ClearPlanWaits
 from journal.features.plans.listeners.count_plan_reviewers import CountPlanReviewers
 from journal.support.skill import Skill
@@ -39,7 +40,7 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands)
     commands = (PlanCommand,)
-    listeners = (BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart)
+    listeners = (BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
@@ -63,7 +64,9 @@ by you, approved by them, and then followed: finishing one task starts the next 
 - `journal plan ready <n>` when every phase has its tasks. Only the user approves, on the plan page or with
   `journal plan approve <n>`; you are informed, and `journal plan start <n>` begins its first task, and also continues past a checkpoint.
   A builder or a solo agent has one started plan: starting or resuming one pauses the others, and a switch out of the
-  orchestrator's mode keeps the one furthest along. An orchestrator keeps every plan it starts.
+  orchestrator's mode keeps the one furthest along. An orchestrator keeps every plan it starts. A plan one of whose tasks
+  goes to a worker while you hold none of its tasks is delegated: it is no started plan, so you may start another beside
+  it; starting one of its tasks yourself makes it started again, and when its last worker task closes it is paused.
 - Asked for a review of a plan: `journal plan review <n>` before the reviewers go out. In review it cannot be approved,
   and `journal plan ready <n>` waits until every subagent is back. Put what they find straight into the plan as tasks
   under its phases, then mark it ready again with `--changed "<what the round changed, in one line>"`: each round is stored on the

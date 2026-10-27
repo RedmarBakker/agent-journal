@@ -9,6 +9,7 @@ from journal.events.rows.plan_review_started import PlanReviewStarted
 from journal.events.rows.plan_readied import PlanReadied
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_postponed import PlanPostponed
+from journal.events.rows.plan_delegated import PlanDelegated
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_finished import PlanFinished
 from journal.events.rows.plan_started import PlanStarted
@@ -80,6 +81,9 @@ class Plan(Scoped):
 
     def reopened(self, time: float) -> "Plan":
         return self.moved(PlanState.STARTED).with_event(PlanStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id, task_id=0))
+
+    def delegated(self, time: float) -> "Plan":
+        return self.moved(PlanState.DELEGATED).with_event(PlanDelegated(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
     def postponed(self, time: float, user_origin: bool) -> "Plan":
         return self.moved(PlanState.PAUSED).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))

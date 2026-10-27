@@ -8,6 +8,7 @@ class PlanState(StrEnum):
     APPROVED = "approved"
     STARTED = "started"
     PAUSED = "paused"
+    DELEGATED = "delegated"
     BLOCKED = "blocked"
     FINISHED = "done"
     CANCELLED = "cancelled"
@@ -19,7 +20,7 @@ class PlanState(StrEnum):
         return self in (PlanState.DRAFT, PlanState.READY, PlanState.REVIEWING)
 
     def is_startable(self) -> bool:
-        return self in (PlanState.APPROVED, PlanState.PAUSED, PlanState.STARTED)
+        return self in (PlanState.APPROVED, PlanState.PAUSED, PlanState.DELEGATED, PlanState.STARTED)
 
     def can_become(self, state: "PlanState") -> bool:
         return state == self or state in MOVES[self]
@@ -29,10 +30,11 @@ MOVES = {
     PlanState.DRAFT: {PlanState.READY, PlanState.REVIEWING, PlanState.APPROVED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.READY: {PlanState.DRAFT, PlanState.REVIEWING, PlanState.APPROVED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.REVIEWING: {PlanState.READY, PlanState.FINISHED, PlanState.CANCELLED},
-    PlanState.APPROVED: {PlanState.STARTED, PlanState.PAUSED, PlanState.FINISHED, PlanState.CANCELLED},
-    PlanState.STARTED: {PlanState.PAUSED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
+    PlanState.APPROVED: {PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED, PlanState.FINISHED, PlanState.CANCELLED},
+    PlanState.STARTED: {PlanState.PAUSED, PlanState.DELEGATED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
+    PlanState.DELEGATED: {PlanState.STARTED, PlanState.PAUSED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.BLOCKED: {PlanState.STARTED, PlanState.PAUSED, PlanState.FINISHED, PlanState.CANCELLED},
-    PlanState.PAUSED: {PlanState.READY, PlanState.APPROVED, PlanState.STARTED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
+    PlanState.PAUSED: {PlanState.READY, PlanState.APPROVED, PlanState.STARTED, PlanState.DELEGATED, PlanState.BLOCKED, PlanState.FINISHED, PlanState.CANCELLED},
     PlanState.FINISHED: {PlanState.STARTED},
     PlanState.CANCELLED: set(),
 }

@@ -494,6 +494,31 @@ def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked
     assert plans.find(1).state == "started" and any("plan 1 is open again: check" in line for line in keystrokes), "the passing check opens the plan and the agent is told"
 
 
+def test_a_plan_whose_task_goes_to_a_worker_is_delegated_and_no_active_plan_then_paused_when_the_workers_task_closes(app: App, monkeypatch):
+    from journal.repositories.plans import Plans
+    kept_conversation(app, monkeypatch)
+    hook(app, "SessionStart")
+    console, plans = app.console(), app.container.get(Plans)
+    console.run(["environment", "overview"], AGENT)
+    for plan, titles in ((1, ("write the notes", "tag it")), (2, ("draw the page", "ship the page"))):
+        console.run(["plan", "create", f"plan {plan}", "--brief", "b"], USER)
+        for title in titles:
+            console.run(["plan", "add", str(plan), title, "--brief", f"{title} well"], USER)
+        console.run(["plan", "approve", str(plan)], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    assert plans.find(1).state == "started"
+    dispatched_line = console.run(["worker", "dispatch", "Mr. Caxton", "--task", "1", "--changes", "the notes", "--profile", "journal-medior", "--model", "sonnet", "--tests", "Scoped tests"], AGENT)
+    assert dispatched_line.code == 0, dispatched_line.error
+    app.runtime().deferred.drain()
+    assert plans.find(1).state == "delegated", "its task went to a worker and the agent holds none of its tasks: the plan is delegated"
+    console.run(["plan", "start", "2"], AGENT)
+    app.runtime().deferred.drain()
+    assert (plans.find(1).state, plans.find(2).state) == ("delegated", "started"), "a delegated plan is no active plan, so starting another leaves it with its worker"
+    console.run(["task", "cancel", "1", "--why", "the notes are not needed"], USER)
+    app.runtime().deferred.drain()
+    assert plans.find(1).state == "paused", "its last worker task closed: the plan goes back to paused by itself"
+
+
 def test_a_closed_plan_is_outlined_from_its_links_as_it_would_be_from_its_tasks(app: App):
     from journal.http.plans.plan_outline import PlanOutline
     from journal.repositories.plans import Plans
@@ -11848,7 +11873,7 @@ def test_a_worker_in_a_workspace_of_repositories_gets_a_worktree_of_each_and_its
         assert app.container.get(Tasks).find(1).state == TaskState.COMPLETED and "platform" in app.container.get(Tasks).find(1).outcome, "its commit is merged into the inner repository's own branch, and the task closes"
 
 
-def test_the_plan_moves_on_when_a_workers_task_closes_and_its_next_task_goes_to_the_main_agent(app: App, monkeypatch):
+def test_a_builders_plan_with_its_tasks_at_workers_is_delegated_until_the_last_closes_then_paused_and_started_again_by_the_agent(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.support.ref import Ref
     from journal.models.task_state import TaskState
@@ -11882,13 +11907,20 @@ def test_the_plan_moves_on_when_a_workers_task_closes_and_its_next_task_goes_to_
         console.run(["worker", "check", str(n), "1"], AGENT)
         assert console.run(["worker", "merge", str(n)], AGENT).code == 0
         app.runtime().deferred.drain()
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert plans.find(1).state == "delegated", "its tasks went to workers and the agent holds none: the plan is delegated"
     merged(1)
     agent = app.container.get(Agents).session_agent("s1")
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(1).state == TaskState.COMPLETED and tasks.find(3).state == TaskState.STARTED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the merge moves the plan on, its next task to the main agent"
+        assert tasks.find(1).state == TaskState.COMPLETED and tasks.find(3).state == TaskState.OPEN and plans.find(1).state == "delegated", "a worker is still on it, so it stays delegated and nothing is handed to the agent"
     merged(2)
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(2).state == TaskState.COMPLETED and tasks.holder(tasks.find(3)) == Ref.build(agent), "the second merge leaves the main agent on its task"
+        assert tasks.find(2).state == TaskState.COMPLETED and plans.find(1).state == "paused", "its last worker task closed: the plan is paused"
+    console.run(["plan", "start", "1"], AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert plans.find(1).state == "started" and tasks.holder(tasks.find(3)) == Ref.build(agent), "the agent starts it again and takes its next task"
     console.run(["task", "complete", "3", "--how", "done"], AGENT)
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):

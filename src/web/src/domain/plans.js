@@ -11,7 +11,7 @@ export const NOT_STARTED = {
     paused: "paused",
 };
 export const PLANNED = ["draft", "ready", "reviewing"];
-export const PLAN_RUNNING = ["started", "waiting", "blocked", "approved"];
+export const PLAN_RUNNING = ["started", "waiting", "delegated", "blocked", "approved"];
 
 // The plan the agent is working: a builder or a solo agent has one, an orchestrator may have several.
 export const isActivePlan = (p) => p.state === "started";
@@ -23,6 +23,7 @@ export const PLAN_STATES = {
     started: "Being worked on",
     waiting: "Needs you",
     paused: "Paused",
+    delegated: "With workers",
     blocked: "Blocked",
     done: "Closed",
 };

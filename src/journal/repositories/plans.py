@@ -58,7 +58,7 @@ class Plans(ScopedRepository[Plan]):
         return {plan.state for plan in self.containing(task)}
 
     def containing(self, task: Task) -> list[Plan]:
-        return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.APPROVED, PlanState.STARTED, PlanState.PAUSED, PlanState.BLOCKED)]
+        return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.APPROVED, PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED, PlanState.BLOCKED)]
 
     def waiting_plans(self, model) -> list[Plan]:
         return [plan for ref in self.links.sources(model, WAIT_LINK) if ref.type == Plan.table() and (plan := self.find(ref.id)).is_blocked()]
@@ -168,6 +168,9 @@ class Plans(ScopedRepository[Plan]):
         phased = {task.id for phase in self.plan_phases(plan) for task in self.phase_tasks(phase)}
         return [task for task in self.plan_tasks(plan) if task.id not in phased]
 
+    def working_plans(self, task: Task) -> list[Plan]:
+        return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.STARTED, PlanState.PAUSED, PlanState.DELEGATED)]
+
     def started_plans(self, task: Task) -> list[Plan]:
         return [plan for plan in self.containing(task) if plan.state == PlanState.STARTED]
 
@@ -188,6 +191,12 @@ class Plans(ScopedRepository[Plan]):
 
     def finished(self, plan: Plan) -> bool:
         return plan.is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
+
+    def has_agent_task(self, plan: Plan) -> bool:
+        return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False)) > 0
+
+    def has_worker_task(self, plan: Plan) -> bool:
+        return self.tasks.counted(self.plan_task_query(plan).filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))) > 0
 
     def started_task(self, plan: Plan) -> Task | None:
         started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False).order("id").limit(1))
