@@ -13,13 +13,13 @@ class UpdatePath:
 
     @classmethod
     def planned(cls, installed: str, steps_text: str) -> "UpdatePath":
-        steps, here, versions = cls.steps(steps_text), Release(installed), []
-        while reachable := [step for step, oldest in steps.items() if step.is_newer(here) and not oldest.is_newer(here)]:
-            here = max(reachable, key=lambda step: step.numbers)
-            versions.append(here.version)
-        beyond = sorted((step for step in steps if step.is_newer(here)), key=lambda step: step.numbers)
-        if beyond:
-            raise NoUpdatePath(f"no step accepts {here.version}: the next step, {beyond[0].version}, accepts {steps[beyond[0]].version} and newer")
+        steps, current, versions = cls.steps(steps_text), Release(installed), []
+        while reachable := [step for step, oldest in steps.items() if step.is_newer(current) and not oldest.is_newer(current)]:
+            current = max(reachable, key=lambda step: step.numbers)
+            versions.append(current.version)
+        later_steps = sorted((step for step in steps if step.is_newer(current)), key=lambda step: step.numbers)
+        if later_steps:
+            raise NoUpdatePath(f"no step accepts {current.version}: the next step, {later_steps[0].version}, accepts {steps[later_steps[0]].version} and newer")
         return cls(tuple(versions))
 
     @staticmethod
