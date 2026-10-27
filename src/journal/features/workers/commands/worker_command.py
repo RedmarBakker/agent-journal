@@ -205,6 +205,8 @@ class WorkerCommand(Command):
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         for queued_task in planned[1:]:
             self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
+        if planned:
+            self.delegation.handed_over(args.plan, moment, caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)

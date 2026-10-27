@@ -1,12 +1,14 @@
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.models.plan import Plan
+from journal.models.plan_state import PlanState
+from journal.support.actor import Actor
 from journal.models.task import Task
 from journal.repositories.plans import Plans
 from journal.support.rejection import Rejection
 
 
 class PlanDelegation:
-    """The work a worker is given when it is dispatched on a whole plan or on one phase of it: the plan's tasks a worker may take, in the plan's order, phase by phase, and how the plan says its work is tested."""
+    """The work a worker is given when it is dispatched on a whole plan or on one phase of it: the plan's tasks a worker may take, in the plan's order, phase by phase, how the plan says its work is tested, and the plan made delegated, approved or paused before, since a worker now works it."""
 
     def __init__(self, plans: Plans, testing: PlanTesting) -> None:
         self.plans, self.testing = plans, testing
@@ -29,6 +31,11 @@ class PlanDelegation:
         if not 0 < phase_number <= len(phases):
             raise Rejection(f"plan {plan.id} has {len(phases)} phases, so it has no phase {phase_number}")
         return members[phases[phase_number - 1].id]
+
+    def handed_over(self, plan_id: int, time: float, actor: Actor) -> None:
+        plan = self.plans.find(plan_id)
+        if plan.state != PlanState.DELEGATED:
+            self.plans.save(plan.delegated(time), actor)
 
     def testing_brief(self, plan_id: int) -> str:
         templates = self.testing.chosen(self.plans.find(plan_id))

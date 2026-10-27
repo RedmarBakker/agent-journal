@@ -280,6 +280,7 @@ def test_a_plan_phase_goes_to_one_worker_matches_its_record(journal, monkeypatch
     assert steps["moves on to the phase's second task"]["typed"] == [], "a move inside the phase says nothing to the dispatcher"
     assert "[journal] worker 1 ready: task 2" in steps["reports at the phase's end"]["typed"], "the worker reports once, at the phase's end"
     assert "open" in app.console().run(["task", "show", "3"], AGENT).text.split("\n")[1], "the second phase is left for later"
+    assert "delegated" in app.console().run(["plan", "show", "1"], AGENT).text.split("\n")[0], "the plan sent to a worker is delegated"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
