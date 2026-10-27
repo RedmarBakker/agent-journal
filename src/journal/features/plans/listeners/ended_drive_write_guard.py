@@ -9,6 +9,7 @@ from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
 
 GUARDED = (Saving, Deleting)
+REFUSAL = "{name} is driven from here no longer, so it is not written here: journal {noun} drive {n} takes it again once it is free"
 
 
 class EndedDriveWriteGuard(Listener[ModelEvent]):
@@ -23,4 +24,4 @@ class EndedDriveWriteGuard(Listener[ModelEvent]):
         row = event.model
         if isinstance(event, GUARDED) and isinstance(row, (Task, Plan)) and not row.is_new and self.bindings.is_ended(row):
             noun = type(row).__name__.lower()
-            raise Rejection(f"{self.labels.name(noun, row)} is driven from here no longer, so it is not written here: journal {noun} drive {row.row_id} takes it again once it is free")
+            raise Rejection(REFUSAL.format(name=self.labels.name(noun, row), noun=noun, n=row.row_id))

@@ -83,6 +83,10 @@ from journal.features.team.team_nudges import TeamNudges
 from journal.features.usage.usage_nudges import UsageNudges
 from journal.features.client_errors.client_errors_nudges import ClientErrorsNudges
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
+from journal.features.memory.memory_nudges import MemoryNudges
+from journal.features.plans.plans_nudges import PlansNudges
+from journal.features.messages.commands.message_command import REPLIED_ALREADY
+from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as DRIVE_REFUSAL
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -2333,7 +2337,7 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     shown = app.console().run(["message", "unread"], AGENT).text
     after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
     assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert nudge_reached(app, after, MessagesNudges.MESSAGES_READ, tags="[!reply:2], [!reply:3], [!reply:4] and [!reply:5]") and after.count("reply with") == 1, "how to answer them comes after the tool use, in its context, in one line"
+    assert has_nudge(after, MessagesNudges.MESSAGES_READ, tags="[!reply:2], [!reply:3], [!reply:4] and [!reply:5]") and after.count("reply with") == 1, "how to answer them comes after the tool use, in its context, in one line"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
@@ -5603,7 +5607,7 @@ def test_the_edits_since_the_log_are_read_from_the_record_the_task_named_the_log
     status, body = write("a.py")
     assert status == 200 and "since you logged" not in line_text(body) and "in hand" not in line_text(body), "the first write: nothing to say yet"
     status, body = write("b.py")
-    assert status == 200 and nudge_reached(app, line_text(body), TasksNudges.LOG_REQUEST, edits=1, name="task 1"), "the second write reads one edit before it: the log is asked for at the first threshold"
+    assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], TasksNudges.LOG_REQUEST, edits=1, name="task 1"), "the second write reads one edit before it: the log is asked for at the first threshold"
     status, body = write("c.py")
     assert status == 200 and "task 1 in hand, 2 edits" in line_text(body), "the third write reads two: every second edit names the task"
     status, body = write("d.py")
@@ -9346,7 +9350,7 @@ def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, m
     transmitted = console.run(["message", "send", "Not quite: an agent with work is told the next task at each stop, and one at rest is checked in on after thirty quiet minutes.", "--reply-to", "1"], AGENT)
     assert transmitted.code == 0
     repeat = console.run(["message", "send", "Something else entirely.", "--reply-to", "1"], AGENT)
-    assert repeat.code == 1 and has_nudge(repeat.text, MessagesNudges.DUPLICATE_REPLY, reply=2), "a second reply by command is refused, naming the first"
+    assert repeat.code == 1 and REPLIED_ALREADY.format(n=1, reply=2) in repeat.text, "a second reply by command is refused, naming the first"
     hook(app, "MessageDisplay", message="An agent with work is told the next task at each stop, and an agent at rest is checked in on after thirty quiet minutes.")
     app.runtime().deferred.drain()
     hook(app, "Stop")
@@ -15953,7 +15957,7 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
         assert a.container.get(Tasks).find(finished.id).state == TaskState.COMPLETED
         for task in (finished, taken):
             refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
-            assert refused.code == 1 and has_nudge(refused.error, PlansNudges.DRIVE_ENDED), refused.error
+            assert refused.code == 1 and DRIVE_REFUSAL.format(name="", noun="task", n=task.id) in refused.error, refused.error
         assert a.console().run(["task", "rename", str(deleted.id), "Ada's name for it"], USER).code == 1, "a deleted task is not written either"
 
 

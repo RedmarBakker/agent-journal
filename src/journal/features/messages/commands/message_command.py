@@ -25,6 +25,7 @@ from journal.support.rejection import Rejection
 REPLY_TAG_REFUSED = "a [!reply:N] tag answers in your turn's text; a message sent by command answers with --reply-to N, the tag left out"
 
 RECENT_MESSAGES = 20
+REPLIED_ALREADY = "message {n} already has your reply {reply}: not sent. Send it again only if it says something new, with --confirm"
 
 
 class MessageCommand(Command):
@@ -83,7 +84,7 @@ class MessageCommand(Command):
             return 0
         older = self.messages.first_reply(answered)
         if older is not None and not args.confirm:
-            print(f"message {answered.id} already has your reply {older.id}: not sent. Send it again only if it says something new, with --confirm")
+            print(REPLIED_ALREADY.format(n=answered.id, reply=older.id))
             return 1
         message = self.files.attached(self.messages.save(Message.answer(answered, args.text).with_(idempotency=key), caller.actor), files, caller.actor)
         self.messages.read(answered, caller.actor, self._tool_use(caller))
