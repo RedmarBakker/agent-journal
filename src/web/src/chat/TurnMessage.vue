@@ -15,6 +15,7 @@ import TurnBriefMarker from "./TurnBriefMarker.vue";
 import TurnText from "./TurnText.vue";
 import TurnQuestion from "./TurnQuestion.vue";
 import TaskLine from "./TaskLine.vue";
+import GrowIn from "../kit/GrowIn.vue";
 import TurnActions from "./TurnActions.vue";
 import TurnReactions from "./TurnReactions.vue";
 import {useTurnLinks} from "./turnLinks.js";
@@ -202,9 +203,9 @@ async function drop() {
             <TurnReactions :reactions="reactions" @react="react" />
         </template>
         <TurnHeader :turn="turn" />
-        <template v-if="turn.receipt">
+        <GrowIn :shown="Boolean(turn.receipt)">
             <TaskLine :receipt="turn.receipt" />
-        </template>
+        </GrowIn>
     </div>
 </template>
 

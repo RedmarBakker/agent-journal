@@ -63,4 +63,15 @@ describe("the reading place", () => {
         place.hold();
         expect(turns[2].getBoundingClientRect().top).toBe(50);
     });
+
+    it("pushes the rows above a row that grows up, and leaves the rows below it where they were", () => {
+        const {box, turns} = pane([100, 100, 100, 100]);
+        box.scrollTop = 100;
+        const place = useReadingPlace(ref(box));
+        place.mark();
+        turns[2].height = 130;
+        place.hold();
+        expect(turns[3].getBoundingClientRect().top).toBe(200);
+        expect(turns[1].getBoundingClientRect().top).toBe(-30);
+    });
 });
