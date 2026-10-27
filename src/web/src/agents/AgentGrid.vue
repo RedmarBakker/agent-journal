@@ -5,14 +5,17 @@ import Tile from "../kit/Tile.vue";
 import AgentWindow from "./AgentWindow.vue";
 import {hiddenBy, hiddenSummary, orchestraOf, ordered, slotsFor} from "../domain/orchestra.js";
 import {agent} from "../composables/leadAgent.js";
-import {useWorkers} from "../composables/workers.js";
+import {useWorkers, useWorkersShown} from "../composables/workers.js";
 import {store} from "../state/store.js";
 import {peek, route} from "../route.js";
 import {ui} from "../state/ui.js";
 import {rows} from "../sync/rows.js";
 import {useNow} from "../composables/now.js";
 
-const {rows: workers} = useWorkers();
+const {rows: listed} = useWorkers();
+const {rows: shown} = useWorkersShown(computed(() => listed.value.map((w) => w.id)));
+// each worker as read by id once that answer is in, so its cell counts its queue and finished tasks
+const workers = computed(() => listed.value.map((w) => shown.value.find((s) => s.id === w.id) || w));
 const now = useNow();
 const every = computed(() => orchestraOf(store.summary, workers.value, agent.value, route.value.env, rows("agents"), now.value));
 const slots = ref([]);
