@@ -7,7 +7,7 @@ from journal.features.memory.memory_conduct import threshold_check
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.memory.memory_part import MemoryPart
 
-CLOCK_IN = "clock-in"
+ARRIVAL_NOUN = "clock-in"
 
 
 class WorkerMemoryConduct(Conduct):
@@ -17,9 +17,9 @@ class WorkerMemoryConduct(Conduct):
         return threshold_check(self, event, settings)
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
-        if event.subagent or not event.call.is_journal_noun(CLOCK_IN):
+        if event.subagent or not event.call.is_journal_noun(ARRIVAL_NOUN):
             return self.none()
         shown = event.data.part(MemoryPart).shown
         if not shown:
             return self.none()
-        return self.none(MemoryNudges.OWN_MEMORIES.create(memories="; ".join(shown)))
+        return self.none(MemoryNudges.WORKER_MEMORIES.create(memories="; ".join(shown)))

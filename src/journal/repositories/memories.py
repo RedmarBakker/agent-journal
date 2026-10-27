@@ -24,7 +24,7 @@ class Memories(ScopedRepository[Memory]):
         super().__init__(connection, bus, scope, time_source)
         self.links = links
 
-    def kept(self, memory: Memory, owner: Ref | None, actor: Actor) -> Memory:
+    def added(self, memory: Memory, owner: Ref | None, actor: Actor) -> Memory:
         saved = self.save(memory, actor)
         if owner is not None:
             self.links.save(Link(source=Ref.build(saved), target=owner, kind=OWNER_LINK), actor)

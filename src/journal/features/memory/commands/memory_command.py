@@ -33,7 +33,7 @@ class MemoryCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         keywords = tuple(word.strip().lower() for word in args.keywords.split(",") if word.strip())
-        memory = self.memories.kept(Memory(text=args.text, keywords=keywords).weighed(self.weight(str(args.weight))), self.owners.caller_owner(caller), caller.actor)
+        memory = self.memories.added(Memory(text=args.text, keywords=keywords).weighed(self.weight(str(args.weight))), self.owners.caller_owner(caller), caller.actor)
         self.decisions.decided(caller)
         print(f"memory {memory.id} added, weight {memory.weight}: {memory.text}")
         return 0

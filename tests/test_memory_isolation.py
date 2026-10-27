@@ -87,7 +87,7 @@ def test_a_worker_sent_its_next_job_is_shown_its_own_memories_faded_by_its_compa
     assert console.run(["worker", "send", str(lovelace.id), "now the lexer"], AGENT).code == 0, "the worker that reported is sent its next job"
     assert console.run(["clock-in"], as_lovelace).code == 0
     shown = told(worker_hook(app, lovelace, "PostToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"}, tool_response="")[1])
-    assert has_nudge(shown, MemoryNudges.OWN_MEMORIES, memories=f"{own} (weight 5) the parser reads tokens left to right"), "once it has clocked in on the next job it is shown its memories, faded by its compaction"
+    assert has_nudge(shown, MemoryNudges.WORKER_MEMORIES, memories=f"{own} (weight 5) the parser reads tokens left to right"), "once it has clocked in on the next job it is shown its memories, faded by its compaction"
     assert "release notes" not in shown, "and never the main agent's"
 
 

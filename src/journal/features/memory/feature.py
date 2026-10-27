@@ -45,7 +45,7 @@ class Memory(Feature[MemoryData]):
     data = (MemoryDataReader,)
     commands = (RuleCommand, ReminderCommand, MemoryCommand)
 
-    nudges = (MemoryNudges.CONTEXT_DECISION, MemoryNudges.DECISION_EDIT_BLOCK, MemoryNudges.UNDECIDED_STOP, MemoryNudges.CHECK_STALE_MEMORY, MemoryNudges.RULE_SCOPE_QUESTION, MemoryNudges.MEMORY_READ_REQUEST, MemoryNudges.REMINDER_DUE, MemoryNudges.REMINDER_REPEATED, MemoryNudges.MEMORY_TRIGGERED, MemoryNudges.OWN_MEMORIES)
+    nudges = (MemoryNudges.CONTEXT_DECISION, MemoryNudges.DECISION_EDIT_BLOCK, MemoryNudges.UNDECIDED_STOP, MemoryNudges.CHECK_STALE_MEMORY, MemoryNudges.RULE_SCOPE_QUESTION, MemoryNudges.MEMORY_READ_REQUEST, MemoryNudges.REMINDER_DUE, MemoryNudges.REMINDER_REPEATED, MemoryNudges.MEMORY_TRIGGERED, MemoryNudges.WORKER_MEMORIES)
     options = (MemoryOptions.STALENESS_LIMIT,)
 
     skill = Skill("memory", 'Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark', """
