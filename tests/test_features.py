@@ -5810,6 +5810,20 @@ def test_the_edits_since_the_log_are_read_from_the_record_the_task_named_the_log
     assert write("d.py")[0] == 200, "logged, the edits since the log are none and the write goes on"
 
 
+def test_a_message_that_says_flowchart_asks_for_the_flowcharts_skill(skilled):
+    from journal.features.skills.support.requirements import Requirements
+    from journal.repositories.agents import Agents
+    app = skilled
+    agents, needs = app.container.get(Agents), app.container.get(Requirements)
+    hook(app, "SessionStart")
+    read_skill(app, "journal")
+    app.console().run(["environment", "overview"], AGENT)
+    hook(app, "UserPromptSubmit", prompt="please show me a flowchart of how it works")
+    assert needs.obligation_names(agents.session_agent("s1")) == ["flowcharts"], "the word flowchart asks for the skill that says how to draw one and when one fits"
+    read_skill(app, "journal-flowcharts")
+    assert needs.obligation_names(agents.session_agent("s1")) == []
+
+
 def test_what_the_agent_owes_is_a_fact_on_its_row_oriented_the_mark_owed_and_the_skills_owed(skilled):
     from journal.features.skills.support.requirements import Requirements
     from journal.repositories.agents import Agents

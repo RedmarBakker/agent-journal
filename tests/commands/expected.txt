@@ -1629,6 +1629,7 @@ journal-templates    Load it when something is to be made from a template, or a 
 journal-reports      Put what was just checked or researched in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up
 journal-docs         Store lasting knowledge of the project in a document; load it when something should still be known next month
 journal-collections  Gather rows that belong together into a named collection; load it when rows of one subject or one effort are not grouped
+journal-flowcharts   Draw a flowchart in the chat, and know when one fits; load it when the user asks for a flowchart or a diagram, or a process with branches is easier to see than to read
 journal-dumps        File what the user dropped in a dump: sort the material by subject into rows of their own; load it when a dump arrives
 journal-pinned-links Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.
 journal-etiquette    How to behave in the chat with the user, and where the voice stops; load it first in every session, after the journal skill
@@ -1784,6 +1785,7 @@ shell.draft_a_reader  [shell]  no reader reads {{part}} yet. `{{command}}`, fill
 shell.drop_alias_time_limit  [shell]  the journal watches alias {{name}}, so it needs no time limit wrapper. edit it with journal alias edit {{name}} --line and this line: {{line}}
 shell.drop_line_time_limit  [shell]  {{command}} needs no time limit wrapper here
 shell.folder_change_refused  [shell]  cd {{target}} would move your shell for every later command. use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, a path relative to the project)
+shell.give_each_run_its_own_title  [shell]  the runs of `{{first_line}}` and `{{second_line}}` both show the card title "{{card_title}}". give each its own: an alias with `--label "<words>"`, or a reader `--topic` that matches the files or the option it runs
 shell.give_the_reader_a_topic  [shell]  {{command}} has run with {{count}} different arguments. give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names
 shell.journal_command_piped_into_a_filter  [shell]  journal {{command}} piped into {{filter}} hides the lines the journal speaks. run it on its own and read all of its answer
 shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with other commands.
@@ -1799,6 +1801,7 @@ shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines, more than t
 shell.reader_report_dismissal_refuted  [shell]  you dismissed a report and the run's output shows it was wrong, {{verdicts}}. replace the reader with `journal reader add <name> --pattern <regex> --about <what it reads>`; a report found wrong cannot be dismissed again
 shell.reader_report_raised  [shell]  reader report {{n}}: its reader showed a run poorly. `journal reader report {{n}}` shows how to fix it
 shell.run_counts_without_a_total  [shell]  output {{n}} prints as it runs but shows no count of a total, so its card has no bar. run it so it prints how far it has come of its whole, such as through the project's suite alias, or give its reader a --progress pattern for a count of a total, (\d+)/(\d+), or a percentage
+shell.run_stands_at_100_percent  [shell]  output {{n}} has stood at 100% for {{seconds}} seconds and its command still runs: it waits on something its reader does not read. look at what the command does now with `journal output read {{n}}`, and give its reader a pattern for that step
 shell.silent_run_streams  [shell]  output {{n}} has printed nothing for {{seconds}} seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it
 shell.test_run_piped_into_a_filter  [shell]  a test run piped into {{filter}} hides the lines its reader reads, so its mark shows no progress and its output is cut. run it whole with `journal suite <args>`, then read its output by its number with `journal output read <n> --reader pytest` or `--grep "<words>"`
 shell.unread_output  [shell]  {{outputs}}, and you have not read it yet
@@ -1932,7 +1935,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-283 nudges
+285 nudges
 
 $ agent: journal worker list
 exit 0
