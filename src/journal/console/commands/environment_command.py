@@ -77,14 +77,15 @@ class EnvironmentCommand(Command):
         rename.add_argument("new")
 
     def rows(self) -> list[EnvironmentRow]:
-        rows = []
+        used = []
         for environment in self.environments.all():
             agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
             last = agents[-1] if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
             working = last is not None and not self.states.restored(last.state, last.data).final and not self.launches.is_abandoned(environment.name)
-            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch))
-        return rows
+            row = EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch)
+            used.append((last.update_time.timestamp() if last else 0.0, row))
+        return [row for _, row in sorted(used, key=lambda pair: pair[0], reverse=True)]
 
     def overview(self, args: Namespace, caller: Caller) -> int:
         for line in self.current_work(caller):

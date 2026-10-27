@@ -208,6 +208,27 @@ def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists
     assert rows[0]["last_sessions"] == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
 
 
+def test_the_launchers_environments_come_newest_used_first(tmp_path: Path):
+    import json as j
+    from journal.config import Config
+    from journal.support.caller import Caller
+    from tests.main_journal import main_journal
+    from tests.test_features import posted
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    user = Caller.user("main")
+    try:
+        for name in ("second", "third"):
+            app.console().run(["environment", "create", name], user)
+        for environment, session in (("third", "third-session"), ("main", "main-session"), ("second", "second-session")):
+            posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": session}, {"X-Journal-Env": environment, "X-Journal-Launch": f"launch-{environment}"})
+            app.runtime().deferred.drain()
+        rows = j.loads(app.console().run(["environment", "json"], user).text)
+        assert [row["name"] for row in rows] == ["second", "main", "third"], "the environment used last is offered first"
+    finally:
+        app.runtime().stop()
+
+
 def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, monkeypatch, tmp_path):
     from journal.support.caller import Caller
     from journal.support.actor import Actor
