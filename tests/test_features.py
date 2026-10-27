@@ -23142,6 +23142,8 @@ def test_a_check_row_is_updated_twice_by_a_run_once_when_it_starts_and_once_when
 
 
 NUDGE_PLACEHOLDER = re.compile(r"<[^<>]+>|\{\{\w+\}\}")
+# a command run by the project shim, and a name the user gave an alias: neither is a noun of the console
+NUDGE_SHIM_COMMANDS = {"suite"}
 NUDGE_COMMAND = re.compile(r"`(journal [^`]+)`")
 
 
@@ -23156,7 +23158,7 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
     for feature in app.container.get(Registry).features:
         for nudge in feature.nudges:
             for command in NUDGE_COMMAND.findall(f"{nudge.title} {nudge.brief}"):
-                if command.split(" ")[1].startswith("{{"):
+                if command.split(" ")[1].startswith(("{{", "<")) or command.split(" ")[1] in NUDGE_SHIM_COMMANDS:
                     continue
                 words = shlex.split(NUDGE_PLACEHOLDER.sub("1", re.sub(r"\[[^\]]*\]", "", command)).replace("...", ""))[1:]
                 try:
