@@ -236,7 +236,7 @@ test("5. a card the journal docked by itself runs a line down its top edge befor
     await flush();
     expect(act).toHaveBeenCalledWith("messages", 7, "dock");
     expect(docked.data.auto_docked).toBe(false);
-    expect(source("src/chat/DockLeave.vue")).toMatch(/top: -1px;\s*right: 10px;\s*left: 10px;/);
+    expect(source("src/chat/DockLeave.vue")).toMatch(/top: 0;\s*right: 0;\s*left: 0;/);
     expect(source("src/kit/ChatDock.vue")).toMatch(/\.chat-dock\.timed\.dock-leave-to \.chat-dock-card \{\s*transform: translateY\(6px\);/);
 });
 
