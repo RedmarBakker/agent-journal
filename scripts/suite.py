@@ -14,6 +14,10 @@ SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
 TALLY_VARIABLE = "JOURNAL_TEST_TALLY"
 SPARE_CORES = 2
 MOST_SHARDS = 8
+# what one shard holds in memory, measured at about 210 MB a shard process and 150 MB a booted module journal, with room to spare
+SHARD_BYTES = 300 * 2**20
+# the pages macOS can hand a new process without swapping
+RECLAIMABLE_PAGES = ("free", "inactive", "speculative")
 SHARD_TIMEOUT_SECONDS = 600
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
 # the progress line the commandments judge writes at each of its stages
@@ -39,8 +43,30 @@ MATRIX_SHARDS = 5
 MATRIX_SKIP_VARIABLE = "JOURNAL_SKIP_UPDATE_MATRIX"
 
 
-def shard_count() -> int:
+def shard_count(available: int) -> int:
+    return max(1, min(core_shards(), available // SHARD_BYTES))
+
+
+def core_shards() -> int:
     return max(1, min(MOST_SHARDS, (os.cpu_count() or 2) - SPARE_CORES))
+
+
+def available_bytes() -> int:
+    meminfo = Path("/proc/meminfo")
+    return meminfo_available(meminfo.read_text()) if meminfo.is_file() else vm_stat_available(subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=10).stdout)
+
+
+def meminfo_available(text: str) -> int:
+    return int(re.search(r"^MemAvailable:\s+(\d+) kB", text, re.M).group(1)) * 1024
+
+
+def vm_stat_available(text: str) -> int:
+    page = int(re.search(r"page size of (\d+) bytes", text).group(1))
+    return page * sum(int(re.search(rf"^Pages {kind}:\s+(\d+)\.", text, re.M).group(1)) for kind in RECLAIMABLE_PAGES)
+
+
+def memory_line(count: int, available: int) -> str:
+    return f"the suite takes {count} shards, not {core_shards()}: only {available // 2**20} MB of memory is free, and a shard takes about {SHARD_BYTES // 2**20} MB"
 
 
 def started(index: int, count: int, folder: Path, arguments: tuple[str, ...] = ()) -> tuple[subprocess.Popen, Path]:
@@ -112,7 +138,11 @@ def durations_kept(folder: Path) -> None:
 def whole_suite() -> int:
     with tempfile.TemporaryDirectory() as folder:
         judging = commandments_started(Path(folder))
-        failed = sharded_run(Path(folder), shard_count(), (), "the suite")
+        available = available_bytes()
+        count = shard_count(available)
+        if count < core_shards():
+            print(memory_line(count, available), flush=True)
+        failed = sharded_run(Path(folder), count, (), "the suite")
         print("waiting for the test commandments judging tests/", flush=True)
         sinful = commandments_judged(judging)
         return 1 if sinful or failed else 0
