@@ -50,3 +50,11 @@ test("a word with a list of numbers makes each number its own chip of the singul
     expect(chips.map((c) => c.textContent)).toEqual(["Message 62830", "Message 62833", "Message 62837", "task 12", "task 13"]);
     expect(into.textContent).toBe("Message 62830, Message 62833 and Message 62837 hold the same text, as do task 12, task 13");
 });
+
+test("a table whose cells name rows keeps its shape, each name a chip inside its cell", async () => {
+    const {render} = await import("../src/text/index.js");
+    const html = render("| Key | Now |\n|---|---|\n| a | task 3 is open |\n| b | plan 4 is done |");
+    expect(html.startsWith("<table>")).toBe(true);
+    expect((html.match(/<tr>/g) || []).length).toBe(3);
+    expect(html).not.toContain("|");
+});

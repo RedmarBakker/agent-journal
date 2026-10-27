@@ -166,6 +166,32 @@ function markdown(text) {
     return out.join("");
 }
 
+// an html piece a transformer made that sits inside a line, such as a row's chip or a link, and not a block of its own
+const BLOCK_HTML = /^\s*<(div|pre|table|figure|section|details|ul|ol|blockquote|hr|p)\b/i;
+const isInline = (block) => block.kind !== "text" && !BLOCK_HTML.test(block.html);
+
+// the pieces laid out as markdown: inline pieces stay in their text as numbered marks while the markdown is laid out, so a table or a
+// list holding a chip keeps its shape, and are put back after; a block piece stands between the texts around it
+function laidOut(blocks) {
+    const inline = [];
+    const out = [];
+    let text = "";
+    const flush = () => {
+        if (text) out.push(markdown(text).replace(/\u0001(\d+)\u0001/g, (whole, i) => inline[Number(i)]));
+        text = "";
+    };
+    for (const block of blocks) {
+        if (block.kind === "text") text += block.text;
+        else if (isInline(block)) text += `\u0001${inline.push(block.html) - 1}\u0001`;
+        else {
+            flush();
+            out.push(block.html);
+        }
+    }
+    flush();
+    return out.filter(Boolean).join("");
+}
+
 export function render(text, context = {env: ""}) {
     const key = renderKey(text, context);
     const kept = renders.get(key);
@@ -175,10 +201,7 @@ export function render(text, context = {env: ""}) {
         return kept.html;
     }
     const reads = [];
-    const html = transformed(text, {...context, reads})
-        .map((b) => (b.kind === "text" ? markdown(b.text) : b.html))
-        .filter(Boolean)
-        .join("");
+    const html = laidOut(transformed(text, {...context, reads}));
     renders.set(key, {html, reads});
     if (renders.size > RENDERS_KEPT) renders.delete(renders.keys().next().value);
     return html;
