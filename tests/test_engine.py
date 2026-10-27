@@ -2516,7 +2516,8 @@ def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.plans.support.started_plan import StartedPlan
     from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import WorkersConduct, priorities_lines
+    from journal.features.workers.orchestrator_conduct import OrchestratorConduct, priorities_lines
+    from journal.features.workers.states.orchestrating import Orchestrating
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.PRIORITIES_MINUTES.key: 45})
     planned = lambda **facts: FeatureData({"plans": PlansData((), StartedPlan(plan_id=5, next_task=8, started_task=7, started_task_briefing="", recent_tasks=(7,), remaining_tasks=3, checkpoint_pause=False, checkpoint_phase=0, testing="", **facts))})
     asked = lambda data, time, settings=settings: [n.rendered() for n in priorities_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
@@ -2527,10 +2528,10 @@ def test_the_orchestrator_is_asked_for_its_priorities_at_a_phase_start_and_after
     assert asked(answered, 1000.0 + 45 * 60) == [line(1)], "after the interval it asks again"
     assert asked(planned(current_phase=2, priorities_phase=1, priorities_at=1000.0), 1100.0) == [line(2)], "a new phase asks at once, without waiting for the interval"
     assert asked(answered, 1000.0 + 90 * 60, SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.PRIORITIES_MINUTES.key: 0})) == [], "with no interval it asks only at a phase start"
-    assert asked(planned(current_phase=1), 100.0, SettingsValue({WorkersOptions.MODE.key: "builder"})) == [], "only the orchestrator is asked"
+    assert [state for state, conduct in WorkersFeature.mode_conduct if conduct is OrchestratorConduct] == [Orchestrating], "only the orchestrator is asked: its mode state alone brings the conduct that asks"
     assert asked(FeatureData({"plans": PlansData((), None)}), 100.0) == [], "and only with a plan started"
     queued = lambda queues: FeatureData({"workers": WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=Path("."), worktrees=(), queues=queues)})
-    said = lambda event, data: [n.rendered() for n in Ready().respond(event.reaching("s1").with_data(data), settings, (WorkersConduct,)).nudges]
+    said = lambda event, data: [n.rendered() for n in Ready().respond(event.reaching("s1").with_data(data), settings, (OrchestratorConduct,)).nudges]
     unblocking = TaskDelegated(environment_id=1, time=1.0, task_id=9, title="Grant the journal the gh permission", brief="")
     assert said(unblocking, queued({3: (4, 5, 9)})) == ["task 9 unblocks you but is number 3 in worker 3's queue. put it first: journal worker queue 3 9 --first"], "a task that unblocks the orchestrator queued last is named at once"
     assert said(unblocking, queued({3: (9, 4)})) == [], "first in its queue it is not"
@@ -2610,7 +2611,7 @@ def test_every_git_or_github_command_and_every_search_is_given_no_reader_and_a_t
 def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_its_line_budget_is_gone_on_purpose():
     from pathlib import Path
     from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import capability_check
+    from journal.features.workers.builder_conduct import BuilderConduct
     from journal.features.workers.workers_options import WorkersOptions
     def event(line, lines=0):
         from journal.support.command_part import CommandPart
@@ -2618,6 +2619,7 @@ def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allo
         return ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())}))
     allowed = {WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: True, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: True, WorkersOptions.BUILDER_SUBAGENTS_ALLOWED.key: True, WorkersOptions.SOLO_SUBAGENTS_ALLOWED.key: True}
     builder = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder"})
+    capability_check = lambda state, tool, settings: BuilderConduct.on_tool_starting(state, tool, settings)
     assert capability_check(Ready(), event("journal worker dispatch 1"), builder).refusal is None
     off = SettingsValue({**allowed, WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_DISPATCH_ALLOWED.key: False, WorkersOptions.BUILDER_QUEUE_ALLOWED.key: False})
     assert "may not dispatch a worker" in capability_check(Ready(), event("journal worker dispatch 1"), off).refusal.rendered()

@@ -1,4 +1,5 @@
 from journal.engine.base_state import BaseState
+from journal.engine.conduct import Conduct
 from journal.support.agent_role import AgentRole
 from journal.engine.states.compacting import Compacting
 from journal.engine.support.typist import Typist
@@ -56,8 +57,11 @@ class StateMachine:
         return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
-        conduct_sets = [self.features.conducts(role) for role in self.features.roles()]
-        self.listener_index = ListenerIndex.built(list(self.states.classes()), conduct_sets, self.event_kinds(Event))
+        conduct_sets = [self.agent_conducts(role, lowest_state) for role in self.features.roles() for lowest_state in (BaseState, *self.features.mode_states())]
+        self.listener_index = ListenerIndex.built(list(self.states.classes()), list(dict.fromkeys(conduct_sets)), self.event_kinds(Event))
+
+    def agent_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+        return (*self.features.conducts(role), *self.features.mode_conducts(role, lowest_state))
 
     @classmethod
     def event_kinds(cls, kind: type) -> list[type]:
@@ -105,7 +109,7 @@ class StateMachine:
         event = event.with_data(self.readers.agent_data(agent))
         if isinstance(event, ToolStarting):
             self.tracker.count(agent.session, self.features.demands(agent.role), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
-        transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
+        transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.agent_conducts(agent.role, type(stack.states[0])), type(event)))
         machine_answer = self.answer_moves(stack, transition, agent.role, settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())

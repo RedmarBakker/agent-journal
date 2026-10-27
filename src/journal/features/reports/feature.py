@@ -3,6 +3,8 @@ from journal.features.reports.commands.report_command import ReportCommand
 from journal.features.reports.listeners.report_card import ReportCard
 from journal.features.reports.listeners.report_card_status import ReportCardStatus
 from journal.features.reports.reports_conduct import ReportsConduct
+from journal.features.reports.orchestrator_reports_conduct import OrchestratorReportsConduct
+from journal.features.workers.states.orchestrating import Orchestrating
 from journal.features.reports.support.reports_data import ReportsData
 from journal.features.reports.support.reports_data_reader import ReportsDataReader
 from journal.support.skill import Skill
@@ -19,6 +21,7 @@ class ReportsFeature(Feature[ReportsData]):
     listeners = (ReportCard, ReportCardStatus)
     data = (ReportsDataReader,)
     conduct = (ReportsConduct,)
+    mode_conduct = ((Orchestrating, OrchestratorReportsConduct),)
     options = (ReportsOptions.UPDATE_INTERVAL, ReportsOptions.UNACTED_MINUTES)
     nudges = (ReportsNudges.UPDATE_SUGGESTION, ReportsNudges.UNACTED)
 

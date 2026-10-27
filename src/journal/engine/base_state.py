@@ -92,6 +92,9 @@ class BaseState:
     def is_mode_bound(self) -> bool:
         return False
 
+    def targets(self) -> list[str]:
+        return []
+
     def blocks_tools(self) -> bool:
         return False
 

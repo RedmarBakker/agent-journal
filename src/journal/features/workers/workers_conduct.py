@@ -5,14 +5,11 @@ from journal.events.feature_data import FeatureData
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.events.rows.setting_changed import SettingChanged
-from journal.support.timeout import Timeout
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
-from journal.events.agent.turn_displayed import TurnDisplayed
-from journal.features.workers.support.written_wait import WrittenWait
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
@@ -22,27 +19,17 @@ from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.events.rows.waits_missing import WaitsMissing
-from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
-from journal.events.rows.worker_spent import WorkerSpent
-from journal.events.rows.task_delegated import TaskDelegated
-from journal.models.support.model_fit import OVERPOWERED
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_test_failed import WorkerTestFailed
 from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
-from journal.events.rows.worker_mention import WorkerMention
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.features.workers.support.worker_line import WorkerLine
 from journal.features.workers.support.path_mentions import PathMentions
-from journal.features.workers.support.release_lines import ReleaseLines
-from journal.models.command_output import CommandOutput
 from journal.models.subagent import Subagent
 from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker import Worker
 from journal.features.workers.support.workers_data import WorkersData
 from journal.support.subagent_dispatch import SubagentDispatch
-from journal.features.plans.plans_part import PlansPart
-from journal.features.plans.support.plan_status import PlanStatus
-from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.measure_lines import MeasureLines
 from journal.features.workers.fitness_options import FitnessOptions
@@ -69,26 +56,16 @@ class WorkersConduct(Conduct):
         return self.pop() if event.setting == WorkersOptions.MODE.key and self.is_mode_bound() else self.none()
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, release_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, measure_check, capability_check, text_wait_check)
+        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, measure_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        return Transition.merged(self, [crew_stop(self, event, settings), self.none(*stop_lines(event, settings))])
+        return self.none(*report_mentions(event.data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
         silent = [silence_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
-        return self.none(*report_mentions(event.data), *silent, *priorities_lines(event, settings), *unmoved_task_lines(event, settings), *unordered_lines(event, settings))
-
-    def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
-        return self.none(*text_wait_lines(event.content, settings)) if event.final else self.none()
-
-    def on_task_delegated(self, event: TaskDelegated, settings: Settings) -> Transition:
-        if settings.value(WorkersOptions.MODE) != "orchestrator" or not event.is_unblocking():
-            return self.none()
-        queues = event.data.part(WorkersPart).queues
-        queue_places = [(worker, queue.index(event.task_id) + 1) for worker, queue in queues.items() if event.task_id in queue[1:]]
-        return self.none(*(WorkersNudges.UNBLOCKER_QUEUED.create(task=event.task_id, n=worker, place=place) for worker, place in queue_places))
+        return self.none(*report_mentions(event.data), *silent)
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
@@ -128,20 +105,6 @@ class WorkersConduct(Conduct):
         failed = (WorkersNudges.TEST_RUN_FAILED.create(n=event.worker.id, name=name, failed=event.failed),) if settings.value(WorkersOptions.TEST_RUN_LINES) else ()
         failing = (WorkersNudges.WORKER_KEEPS_FAILING.create(n=event.worker.id, name=name, runs=event.runs),) if event.is_streak(settings.integer(WorkersOptions.FAILING_RUNS)) else ()
         return self.none(*failed, *failing)
-
-    def on_worker_spent(self, event: WorkerSpent, settings: Settings) -> Transition:
-        if event.worker.is_other_dispatcher(event.session) or settings.value(WorkersOptions.MODE) != "orchestrator":
-            return self.none()
-        if not event.is_shaped_work_on_strongest() or not event.crossed(settings.decimal(WorkersOptions.COSTLY_SHAPED_WORK)):
-            return self.none()
-        return self.none(WorkersNudges.COSTLY_SHAPED_WORK.create(n=event.worker.id, model=event.model, dollars=f"{event.cost_dollars:.2f}"))
-
-    def on_worker_model_mismatch(self, event: WorkerModelMismatch, settings: Settings) -> Transition:
-        if event.worker.is_other_dispatcher(event.session) or settings.value(WorkersOptions.MODE) != "orchestrator":
-            return self.none()
-        if event.fit == OVERPOWERED:
-            return self.none(WorkersNudges.MODEL_OVERPOWERED.create(n=event.worker.id, model=event.model))
-        return self.none(WorkersNudges.MODEL_UNDERPOWERED.create(n=event.worker.id, model=event.model, send_backs=event.rejections))
 
     def on_waits_missing(self, event: WaitsMissing, settings: Settings) -> Transition:
         if event.agent_session != event.session:
@@ -189,97 +152,27 @@ def silence_line(worker, last: str, time: float) -> Nudge:
     return WorkersNudges.SILENT_WORKER.create(n=worker.id, minutes=worker.silence.minutes(), last=last)
 
 
-def stop_lines(event: Stop, settings: Settings) -> tuple[Nudge, ...]:
-    return (*report_mentions(event.data), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
 
 
-def crew_stop(state: BaseState, event: Stop, settings: Settings) -> Transition:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return state.none()
-    workers = event.data.part(WorkersPart)
-    wait_refs = set(state.targets()) if isinstance(state, ExternalWait) else set()
-    delivered = [worker for worker in workers.delivered_workers if not worker.mention().is_other_dispatcher(event.session) and not is_waited(worker, wait_refs, workers.delivered_runs)]
-    if delivered:
-        return state.refuse(WorkersNudges.DELIVERED_WAITING.create(workers=worker_list(delivered)))
-    active_workers = [worker for worker in workers.dispatched_workers if not worker.mention().is_other_dispatcher(event.session) and worker.mention().ref() not in wait_refs]
-    if active_workers and not event.prior_refusal:
-        return state.refuse(WorkersNudges.ACTIVE_WORKERS.create(workers=worker_list(active_workers), numbers=" ".join(str(worker.id) for worker in active_workers)))
-    return state.none()
 
 
-def is_waited(worker: Worker, waited_refs: set[str], runs: tuple[tuple[int, int], ...]) -> bool:
-    return worker.mention().ref() in waited_refs or any(f"{CommandOutput.table()}:{output}" in waited_refs for output, owner in runs if owner == worker.row_id)
 
 
-def worker_list(workers: list[Worker]) -> str:
-    return ", ".join(f"worker {worker.id} ({worker.name})" for worker in workers)
 
 
-def plan_lines(data: FeatureData, moment: float, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    started = data.part(PlansPart).started_plans
-    if not started:
-        return ()
-    return (WorkersNudges.STARTED_PLANS.create(plans="; ".join(plan.line(moment) for plan in started)), *stalled_lines(started, moment, settings))
 
 
-def suite_lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    check = data.part(WorkersPart).merge_check
-    return (WorkersNudges.SUITE_BROKEN.create(run=check.failed_run, workers=check.workers_line(), n=check.merged[-1].id),) if check.failed_run else ()
 
 
-def stalled_lines(started: tuple[PlanStatus, ...], moment: float, settings: Settings) -> tuple[Nudge, ...]:
-    minutes = settings.value(WorkersOptions.PLAN_STALL_MINUTES)
-    stalled = [plan for plan in started if minutes and plan.is_stalled(moment, minutes * 60)]
-    if len(stalled) == len(started):
-        return ()
-    return tuple(WorkersNudges.PLAN_STALLED.create(n=plan.plan_id, title=plan.title, since=plan.moved_line(), minutes=minutes) for plan in stalled)
 
 
-def priorities_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    started = event.data.part(PlansPart).started
-    if started is None:
-        return ()
-    interval = settings.integer(WorkersOptions.PRIORITIES_MINUTES) * 60
-    if started.priorities_phase == started.current_phase and not (interval and event.time - started.priorities_at >= interval):
-        return ()
-    return (WorkersNudges.PRIORITIES.create(plan=started.plan_id, phase=started.current_phase),)
 
 
-def text_wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    return state.none(*text_wait_lines(WrittenWait.worded(event.call), settings))
 
 
-def text_wait_lines(text: str, settings: Settings) -> tuple[Nudge, ...]:
-    if not WrittenWait.is_written(text) or settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    return (WorkersNudges.WAIT_TEXT.create(),)
 
 
-def unmoved_task_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    tasks = event.data.part(TasksPart)
-    unmoved = tasks.last_moves
-    if not unmoved:
-        return ()
-    long_unmoved = tuple(n for n, last_move in unmoved.items() if Timeout.minutes(settings.integer(WorkersOptions.STALLED_BLOCK_MINUTES)).started(last_move).is_elapsed(event.time))
-    crowded = len(unmoved) > settings.decimal(WorkersOptions.BLOCKED_SHARE) * (tasks.open_count + len(unmoved))
-    listed = tuple(sorted(unmoved)) if crowded else tuple(sorted(long_unmoved))
-    return (WorkersNudges.UNMOVED_TASKS.create(tasks=", ".join(str(n) for n in listed)),) if listed else ()
 
-
-def unordered_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return ()
-    least = settings.integer(WorkersOptions.UNORDERED_PLAN_TASKS)
-    plans = event.data.part(PlansPart).started_plans if least else ()
-    return tuple(WorkersNudges.UNLINKED_TASKS.create(plan=status.plan_id, open=status.total - status.done) for status in plans if status.total - status.done >= least and not status.blocked)
 
 
 def report_mentions(data: FeatureData) -> list[Nudge]:
@@ -335,11 +228,6 @@ def limit_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     return state.refuse(WorkersNudges.SUBAGENT_OVERFLOW.create(running=active)) if maximum and active >= maximum else state.none()
 
 
-def release_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if settings.value(WorkersOptions.MODE) != "orchestrator" or settings.value(WorkersOptions.ORCHESTRATOR_RELEASES):
-        return state.none()
-    releases = ReleaseLines.found(tuple(part.text for part in event.call.parts))
-    return state.refuse(WorkersNudges.RELEASE_REFUSED.create(line=releases[0])) if releases else state.none()
 
 
 def worktrees_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -384,15 +272,6 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
     return state.refuse(WorkersNudges.REUSE_QUESTION.create(n=retirements[0].number, name=idle[retirements[0].number].name)) if retirements else state.none()
 
 
-def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    workers = event.data.part(WorkersPart)
-    if settings.value(WorkersOptions.MODE) != "orchestrator":
-        return state.none()
-    if is_full((*workers.dispatched_workers, *workers.ready_work), settings.integer(WorkersOptions.WORKER_LIMIT)):
-        if not workers.ready_work:
-            return state.none()
-        return state.none(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker))
-    return state.none()
 
 
 def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -406,23 +285,9 @@ def measure_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
     return state.none(*MeasureLines.lines(event.data, settings), *(MeasureLines.handover_lines(event.data) if handover else ()), *(MeasureLines.dispatch_lines(event.data) if dispatch else ()))
 
 
-def is_full(dispatched: tuple, limit: int) -> bool:
-    return limit > 0 and len(dispatched) >= limit
 
 
 DISPATCH_COMMAND = "journal worker dispatch"
 HANDOVERS = {"journal worker dispatch": ("dispatch a worker", WorkersOptions.BUILDER_DISPATCH_ALLOWED), "journal worker queue": ("queue a worker's next task", WorkersOptions.BUILDER_QUEUE_ALLOWED)}
 
 
-def capability_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    mode = settings.value(WorkersOptions.MODE)
-    if isinstance(event.call.operation, SubagentDispatch):
-        allowed = {"builder": WorkersOptions.BUILDER_SUBAGENTS_ALLOWED, "solo": WorkersOptions.SOLO_SUBAGENTS_ALLOWED}.get(mode)
-        return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act="send subagents")) if allowed is not None and not settings.value(allowed) else state.none()
-    if mode != "builder":
-        return state.none()
-    for part in event.call.parts:
-        for command, (act, option) in HANDOVERS.items():
-            if part.text.startswith(command) and not settings.value(option):
-                return state.refuse(WorkersNudges.MODE_REFUSAL.create(mode=mode, act=act))
-    return state.none()

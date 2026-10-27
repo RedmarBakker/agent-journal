@@ -22,7 +22,7 @@ from journal.engine.demand import Demand
 
 
 class Feature[D](DataSource[D]):
-    """One switchable subject. It brings its states, its work modes if it has them, its conduct and the conduct and listeners it gives each helper role whose file turns it on whole, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, the task assigners its states name, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
+    """One switchable subject. It brings its states, its work modes if it has them, its conduct, the conduct it gives a work mode's state for every state above it while that mode holds the bottom of the stack, and the conduct and listeners it gives each helper role whose file turns it on whole, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, the task assigners its states name, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -36,6 +36,7 @@ class Feature[D](DataSource[D]):
     data: ClassVar[tuple[type, ...]] = ()
     conduct: ClassVar[tuple[type[Conduct], ...]] = ()
     helper_conduct: ClassVar[dict[AgentRole, tuple[type[Conduct], ...]]] = {}
+    mode_conduct: ClassVar[tuple[tuple[type[BaseState], type[Conduct]], ...]] = ()
     helper_listeners: ClassVar[dict[AgentRole, tuple[type[Listener], ...]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
     seeds: ClassVar[tuple[type[Seed], ...]] = ()

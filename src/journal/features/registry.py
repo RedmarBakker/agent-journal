@@ -45,7 +45,8 @@ class Registry:
     @staticmethod
     def registered_classes(feature: type[Feature]) -> set[type]:
         helper_conducts = {conduct for conducts in feature.helper_conduct.values() for conduct in conducts}
-        return {*feature.listeners, *feature.conduct, *helper_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
+        mode_conducts = {conduct for mode_state, conduct in feature.mode_conduct}
+        return {*feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
 
     def helper_files(self, helpers: tuple[type[Helper], ...]) -> dict[AgentRole, type[Helper]]:
         for role in AgentRole.helpers():
@@ -111,6 +112,14 @@ class Registry:
         if role.is_helper():
             return (SafetyConduct, DemandConduct, *(conduct for feature in self.helper(role).features for conduct in feature.helper_conduct.get(role, ())))
         return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in feature.conduct))
+
+    def mode_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+        if role.is_helper():
+            return ()
+        return tuple(conduct for feature in self.features for mode_state, conduct in feature.mode_conduct if lowest_state is mode_state)
+
+    def mode_states(self) -> tuple[type[BaseState], ...]:
+        return tuple(dict.fromkeys(mode_state for feature in self.features for mode_state, conduct in feature.mode_conduct))
 
     def demands(self, role: AgentRole) -> tuple[Demand, ...]:
         if role.is_helper():
