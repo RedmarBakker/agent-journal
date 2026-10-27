@@ -95,13 +95,13 @@ class ChainWorker:
             folder.ended_with(i, code)
             return code
         if recorded:
-            self.record.started(folder.folder.name, text, caller)
+            self.record.started(folder.folder.name, folder.command_part(i), caller)
         previous = self.tree(shell, folder, i, "before") if writes else ""
         began = time.monotonic()
         status = self.branch_write(shell, folder, i, text, edges, direct) if branch else self.run_part(shell, folder, i, text, edges, direct)
         following = self.tree(shell, folder, i, "after") if writes else ""
         if recorded:
-            self.record.finish_part(folder.folder.name, text, status, round(time.monotonic() - began, 1), folder.output_text(i), self.changed(previous, following), caller)
+            self.record.finish_part(folder.folder.name, folder.command_part(i), status, round(time.monotonic() - began, 1), folder.output_text(i), self.changed(previous, following), caller)
         return status
 
     def branch_write(self, shell: ShellProcess, folder: OutputFiles, i: int, text: str, edges: bool, direct: bool) -> int:

@@ -10,6 +10,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
 from journal.support.command_lines import CommandLines
+from journal.support.command_part import CommandPart
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.features.shell.shell_nudges import ShellNudges
@@ -38,14 +39,17 @@ class ShellVerbs:
         with self.scope.environment(self.environment_id):
             return str(self.app.container.get(ForegroundLimit).build(line, self.caller.environment, self.caller.session))
 
+    def command_part(self, text: str) -> CommandPart:
+        return CommandPart.plain(text, self.app.container.get(CommandClassifier))
+
     def started(self, part: str, chain: str) -> None:
         with self.scope.environment(self.environment_id):
-            self.record.started(chain, part, self.caller)
+            self.record.started(chain, self.command_part(part), self.caller)
 
     def ran(self, part: str, chain: str, status: int, output: str = "", seconds: float = 0.0, changed: str = "") -> None:
         files = [ChangedFile(int(item), int(r), path) for item, r, path in (line.split("\t", 2) for line in changed.splitlines() if line.count("\t") == 2)]
         with self.scope.environment(self.environment_id):
-            self.record.finish_part(chain, part, status, seconds, output, files, self.caller)
+            self.record.finish_part(chain, self.command_part(part), status, seconds, output, files, self.caller)
 
     def moved(self, chain: str, part: str, file: str) -> str:
         with self.scope.environment(self.environment_id):

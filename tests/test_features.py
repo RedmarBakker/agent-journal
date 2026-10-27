@@ -22421,6 +22421,8 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
     from journal.features.shell.support.shell_record import ShellRecord
     from journal.repositories.scope import Scope
     from journal.support.caller import Caller
+    from journal.support.command_classifier import CommandClassifier
+    from journal.support.command_part import CommandPart
     folder = repository_made(tmp_path / "work", {"a.txt": "one\n"})
     git_run(folder, "checkout", "-q", "-b", "development")
     (folder / "a.txt").write_text("two\n")
@@ -22429,18 +22431,19 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
     git_run(folder, "commit", "-qm", "Two files")
     caller = Caller.agent("main", "s1", "claude")
     record = app.container.get(ShellRecord)
+    part = lambda text: CommandPart.plain(text, app.container.get(CommandClassifier))
     marks = lambda: [m.text for m in app.container.get(Messages).scoped() if m.data.get("shows") in ("commits", "pushes", "branch_switches")]
     with app.container.get(Scope).environment(MAIN):
         record.start("c1", "git add -A && git commit -qm 'Two files'", tmp_path / "out1", caller, str(folder))
-        record.finish_part("c1", "git commit -qm 'Two files'", 0, 0.1, "", [], caller)
-        record.finish_part("c1", "git commit -qm 'Two files'", 0, 0.1, "", [], caller)
+        record.finish_part("c1", part("git commit -qm 'Two files'"), 0, 0.1, "", [], caller)
+        record.finish_part("c1", part("git commit -qm 'Two files'"), 0, 0.1, "", [], caller)
         git_run(folder, "checkout", "-q", "-b", "phone")
         record.start("c2", "git checkout -b phone", tmp_path / "out2", caller, str(folder))
-        record.finish_part("c2", "git checkout -b phone", 0, 0.1, "", [], caller)
-        record.finish_part("c2", "git status", 0, 0.1, "", [], caller)
+        record.finish_part("c2", part("git checkout -b phone"), 0, 0.1, "", [], caller)
+        record.finish_part("c2", part("git status"), 0, 0.1, "", [], caller)
         record.start("c3", "git push origin phone", tmp_path / "out3", caller, str(folder))
-        record.finish_part("c3", "git push origin phone", 0, 0.1, "", [], caller)
-        record.finish_part("c3", "git commit -qm 'Two files'", 1, 0.1, "", [], caller)
+        record.finish_part("c3", part("git push origin phone"), 0, 0.1, "", [], caller)
+        record.finish_part("c3", part("git commit -qm 'Two files'"), 1, 0.1, "", [], caller)
     head = git_run(folder, "rev-parse", "development").stdout.strip()[:8]
     assert marks() == [f"Committed {head} on `development`", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
 
@@ -23324,6 +23327,27 @@ def test_an_output_whose_shell_process_is_gone_is_closed_as_ended_though_its_hea
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
     assert outputs.find(1).ended and outputs.find(1).is_interrupted, "an output with no process left is ended, never left running"
+
+
+def test_the_status_line_names_each_part_of_a_three_part_chain_by_the_classification_stored_with_its_run(app: App, tmp_path):
+    from journal.features.shell.support.output_files import OutputFiles
+    from journal.features.shell.support.shell_record import PART_START, ShellRecord
+    from journal.http.agents.bar_row import BarRow
+    from journal.repositories.entries import Entries
+    from journal.support.command_text import CommandText
+    hook(app, "SessionStart")
+    ShellVerbs(app).split("git add -A && pytest tests/test_a.py && git commit -m done", str(tmp_path / "run"))
+    folder = OutputFiles(tmp_path / "run")
+    parts = [folder.command_part(i) for i in range(3)]
+    assert [part.text for part in parts] == ["git add -A", "pytest tests/test_a.py", "git commit -m done"], "each part's CommandPart is stored with its run"
+    labels = [part.classification.label for part in parts]
+    assert all(labels) and labels[1] == "testing", f"each part's classification names it: {labels}"
+    with app.container.get(Scope).environment(MAIN):
+        for part in parts:
+            app.container.get(ShellRecord).started("c1", part, Caller.agent("main", "s1", "claude"))
+        started = app.container.get(Entries).all_matching(kind=PART_START)
+    shown = [BarRow.build(entry, app.container.get(CommandText)).item()["parts"][0]["value"] for entry in started]
+    assert shown == labels, "the status line names each running part by its classification"
 
 
 def test_a_chain_of_three_parts_is_classified_only_by_its_command_parts_and_no_other_caller_classifies_a_part(app: App):

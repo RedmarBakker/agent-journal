@@ -1,7 +1,9 @@
+import json
 import os
 import re
 import shutil
 import signal
+from dataclasses import asdict
 from itertools import islice
 from pathlib import Path
 
@@ -115,15 +117,17 @@ class OutputFiles:
     def split(self, line: str, parts: list[Part], classifier: CommandClassifier) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         (self.folder / "line").write_text(line)
-        for i, part in enumerate(parts):
+        commands = [CommandPart.plain(part.text, classifier) for part in parts]
+        for i, (part, command) in enumerate(zip(parts, commands)):
             (self.folder / f"{i}.part").write_text(part.uncut().text)
+            (self.folder / f"{i}.command").write_text(json.dumps(asdict(command)))
             if part.cut():
                 (self.folder / f"{i}.cut").write_text(part.cut_command())
-        (self.folder / "parts").write_text("".join(part.part_type() + self.flags(part, classifier) + "\n" for part in parts))
+        (self.folder / "parts").write_text("".join(part.part_type() + self.flags(part, command) + "\n" for part, command in zip(parts, commands)))
 
     @staticmethod
-    def flags(part: Part, classifier: CommandClassifier) -> str:
-        classification = CommandPart.plain(part.text, classifier).classification
+    def flags(part: Part, command: CommandPart) -> str:
+        classification = command.classification
         return ("w" if part.recorded and classification.is_write else "-") + ("b" if classification.changes_version_control else "-")
 
     def kinds(self) -> list[str]:
@@ -131,6 +135,9 @@ class OutputFiles:
 
     def part_text(self, i: int) -> str:
         return (self.folder / f"{i}.part").read_text()
+
+    def command_part(self, i: int) -> CommandPart:
+        return CommandPart.parsed(json.loads((self.folder / f"{i}.command").read_text()))
 
     def cut_command(self, i: int) -> str:
         path = self.folder / f"{i}.cut"

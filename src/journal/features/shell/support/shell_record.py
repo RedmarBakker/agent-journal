@@ -17,6 +17,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
+from journal.support.command_part import CommandPart
 from journal.support.part import Part
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.command_output import CommandOutput
@@ -40,13 +41,13 @@ class ShellRecord:
     def start(self, chain: str, command: str, folder: Path, caller: Caller, ran_in: str = "") -> int:
         return self.log.start(chain, command, folder, caller, ran_in).row_id
 
-    def started(self, chain: str, part: str, caller: Caller) -> None:
-        self.record(caller, PART_START, {"chain": chain, "part": part, "doing": self.labels.build(part)})
+    def started(self, chain: str, part: CommandPart, caller: Caller) -> None:
+        self.record(caller, PART_START, {"chain": chain, "part": part.text, "doing": self.labels.named(part)})
 
-    def finish_part(self, chain: str, part: str, status: int, seconds: float, output: str, changed: list[ChangedFile], caller: Caller) -> None:
-        self.record(caller, PART_END, {"chain": chain, "part": part, "doing": self.labels.build(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
-        if status == 0 and part.startswith("git "):
-            self.git_event(chain, part, caller)
+    def finish_part(self, chain: str, part: CommandPart, status: int, seconds: float, output: str, changed: list[ChangedFile], caller: Caller) -> None:
+        self.record(caller, PART_END, {"chain": chain, "part": part.text, "doing": self.labels.named(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
+        if status == 0 and part.is_git:
+            self.git_event(chain, part.text, caller)
 
     def git_event(self, chain: str, part: str, caller: Caller) -> None:
         rows = self.outputs.matching(chain=chain)

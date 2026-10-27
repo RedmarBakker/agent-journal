@@ -2,9 +2,9 @@ import re
 
 from journal.support.chain import Chain
 from journal.support.command_classifier import CommandClassifier
+from journal.support.command_part import CommandPart
 from journal.support.command_shape import TOKEN_PATTERN, CommandShape
 from journal.support.part import Part
-from journal.support.command_shape import CommandShape
 
 
 # the activities long enough to be watched through a reader as they run
@@ -55,6 +55,9 @@ class ActivityLabel:
         if label != IDLE:
             return label
         return self.build(self.shapes.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
+
+    def named(self, part: CommandPart) -> str:
+        return part.classification.label or self.build(part.text)
 
     def build(self, part: str) -> str:
         shaped = self.shapes.inner(self.shapes.working(part))
