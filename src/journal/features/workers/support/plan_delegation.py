@@ -32,7 +32,7 @@ class PlanDelegation:
             raise Rejection(f"plan {plan.id} has {len(phases)} phases, so it has no phase {phase_number}")
         return members[phases[phase_number - 1].id]
 
-    def handed_over(self, plan_id: int, time: float, actor: Actor) -> None:
+    def delegate(self, plan_id: int, time: float, actor: Actor) -> None:
         plan = self.plans.find(plan_id)
         if plan.state != PlanState.DELEGATED:
             self.plans.save(plan.delegated(time), actor)
