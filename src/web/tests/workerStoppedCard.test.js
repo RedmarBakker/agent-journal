@@ -45,10 +45,10 @@ test("a worker that stopped early opens in place to why it stopped, and its act 
     app.directive("tip", {});
     app.mount(host);
     await flush();
-    expect(host.querySelector(".mark-label")).toBeNull();
+    expect(host.querySelector(".mark-more").classList.contains("open")).toBe(false);
     host.querySelector(".top").click();
     await flush();
-    expect(host.querySelector(".mark").classList.contains("open")).toBe(true);
+    expect(host.querySelector(".mark-more").classList.contains("open")).toBe(true);
     expect(host.querySelector(".mark-label").textContent).toBe("Why it stopped");
     expect(host.querySelector(".mark-summary").textContent).toBe(REASON);
     expect(host.querySelector(".mact").getAttribute("aria-label")).toBe("Open the worker");
