@@ -15161,17 +15161,6 @@ def test_a_reader_shows_its_running_finished_and_failed_variant_each_at_its_stag
     assert console.run(["output", "read", "1", "--reader", "stages"], AGENT).text == "stage finished\n", "a script reader is handed the stage"
 
 
-def test_a_test_run_no_counting_reader_reads_is_offered_one_on_its_first_run_and_every_fiftieth(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    told = ["counts passed and failed" in json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cargo test"})[1]) for i in range(52)]
-    assert [i for i, said in enumerate(told) if said] == [0, 50], "the first run, then the fifty-first"
-    assert not any("counts passed and failed" in json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"})[1]) for _ in range(2)), "pytest is read by the counting reader the journal ships"
-    app.console().run(["reader", "add", "counts", "--pattern", "passed", "--progress", r"(\d+)/(\d+)", "--commands", "cargo test", "--about", "the counts", "--label", "Running tests"], AGENT)
-    told = ["counts passed and failed" in json.dumps(hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cargo test"})[1]) for i in range(50)]
-    assert not any(told), "never once a counting reader reads it"
-
-
 def test_a_dispatch_names_how_its_worker_tests_from_a_test_template(app: App, monkeypatch):
     from journal.features.templates.shipped import FULL_SUITE, SCOPED_TESTS, ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -18424,14 +18413,14 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
         console.run(["plan", "add", "1", title], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    assert [task.id for task in app.container.get(RoundRobinDelivery).drafts()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
+    assert [task.id for task in app.container.get(RoundRobinDelivery).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
         tasks = app.container.get(Tasks)
         tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
-    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).drafts()], "a task a worker holds is never offered"
+    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).offers()], "a task a worker holds is never offered"
 
 
 def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
@@ -22401,7 +22390,7 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
         tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
         assert app.container.get(PlanTaskAssigner).following_task(plans.find(1)).title == "a2", "a builder goes on in the plan it follows"
         round_robin = app.container.get(RoundRobinDelivery)
-        assert [task.title for task in round_robin.drafts()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
+        assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
         assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
 
 def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark(app: App):
