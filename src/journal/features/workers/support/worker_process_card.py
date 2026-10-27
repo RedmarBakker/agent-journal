@@ -36,7 +36,7 @@ class WorkerProcessCard(ProcessCard):
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("outcome") == str(standing.outcome) and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
-        data = {"kind": "card", "outcome": str(standing.outcome), "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
+        data = {"kind": "card", "outcome": str(standing.outcome), "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker)), **self.stop_reason(worker)}
         return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardType.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
 
     @staticmethod
@@ -46,7 +46,11 @@ class WorkerProcessCard(ProcessCard):
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)
         standing = self.standing(worker)
-        return {"outcome": str(standing.outcome), **CardDetail.parts(standing.detail), "active": worker.state == WorkerState.DISPATCHED}
+        return {"outcome": str(standing.outcome), **CardDetail.parts(standing.detail), **self.stop_reason(worker), "active": worker.state == WorkerState.DISPATCHED}
+
+    @staticmethod
+    def stop_reason(worker: Worker) -> dict:
+        return {"reason": worker.run_end} if worker.state == WorkerState.UNFINISHED and worker.run_end else {}
 
     def standing(self, worker: Worker) -> CardStanding:
         if worker.state in STATE_OUTCOMES:

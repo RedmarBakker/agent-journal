@@ -90,6 +90,9 @@ SETS = {
         "tests/figurePerches.test.js",
         "tests/figureParcels.test.js",
     ),
+    "worker_stopped_card": (
+        "tests/workerStoppedCard.test.js",
+    ),
     "flowchart": (
         "tests/flowchart.test.js",
     ),

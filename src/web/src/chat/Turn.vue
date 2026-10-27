@@ -68,7 +68,8 @@ const lines = computed(() => (data.value.lines || []).filter(Boolean));
 const pages = useOutputPages((...page) => scope.api.readOutput(data.value.output, ...page));
 // a memories mark of a compaction holds the round it faded; one written before rounds were kept says so when opened
 const fading = computed(() => data.value.shows === "memories" && (Boolean(data.value.round) || String(data.value.label || "").startsWith("Memories faded")));
-const opens = computed(() => !data.value.go && !data.value.row && Boolean(data.value.output || data.value.summary || lines.value.length || fading.value));
+const reason = computed(() => data.value.reason || "");
+const opens = computed(() => Boolean(reason.value) || (!data.value.go && !data.value.row && Boolean(data.value.output || data.value.summary || lines.value.length || fading.value)));
 
 function toggle() {
     opened.value = !opened.value;
@@ -119,6 +120,10 @@ function markClick(data) {
                                         <p class="mark-label">Summary</p>
                                         <p class="mark-summary">{{ data.summary }}</p>
                                     </template>
+                                    <template v-if="reason">
+                                        <p class="mark-label">Why it stopped</p>
+                                        <p class="mark-summary">{{ reason }}</p>
+                                    </template>
                                     <template v-if="data.output && pages.loaded.value">
                                         <p class="mark-label">Output</p>
                                         <OutputLines class="mark-terminal" :lines="pages.lines.value" @older="pages.older" />
@@ -129,7 +134,7 @@ function markClick(data) {
                                     <template v-if="fading && opened">
                                         <MemoryRound :round="data.round" />
                                     </template>
-                                    <template v-if="!data.output && opened">
+                                    <template v-if="!data.output && !reason && opened">
                                         <ul class="mark-lines">
                                             <template v-for="line in lines" :key="line">
                                                 <li class="mark-line">{{ line }}</li>
