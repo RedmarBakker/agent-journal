@@ -1,0 +1,55 @@
+{
+  "nudges": true,
+  "steps": [
+    {
+      "name": "the plan's first phase dispatched to one worker",
+      "answer": null,
+      "typed": [
+        "[journal] task 1 is open. take it up with `journal task start 1`",
+        "[journal] task 2 is open. take it up with `journal task start 2`",
+        "[journal] task 3 is open. take it up with `journal task start 3`",
+        "[journal] plan 1 approved"
+      ],
+      "nudges": [
+        "briefing.journal_ready",
+        "briefing.handle_the_journal_quietly",
+        "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
+        "voices.how_to_talk_to_the_user",
+        "tasks.task_opened",
+        "tasks.task_opened",
+        "tasks.task_opened",
+        "plans.the_user_approved_the_plan"
+      ],
+      "stack": [
+        "idle",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "moves on to the phase's second task",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "reports at the phase's end",
+      "answer": null,
+      "typed": [
+        "[journal] wait over: worker 1, Lady Lovelace, clocked out",
+        "[journal] worker 1 ready: task 2"
+      ],
+      "nudges": [
+        "tasks.wait_over",
+        "workers.work_ready"
+      ],
+      "stack": [
+        "idle"
+      ]
+    }
+  ]
+}

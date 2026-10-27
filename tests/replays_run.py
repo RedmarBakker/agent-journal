@@ -242,6 +242,47 @@ def test_a_queue_runs_to_merge_matches_its_record(journal, monkeypatch):
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
+def a_plan_phase_goes_to_one_worker(app, replay: Replay, provider: str) -> None:
+    """The steps: a plan of two phases, approved, its first phase dispatched to one worker; the worker moves from the phase's first task to its second in silence and reports at the phase's end, the second phase left open."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    for n in (1, 2, 3):
+        console.run(["plan", "add", "1", f"part {n}", "--brief", f"1. part {n} is written"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "parts 1 and 2 are written"], USER)
+    console.run(["plan", "phase", "1", "two", "--when", "part 3 is written"], USER)
+    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
+    console.run(["plan", "todos", "1", "2", "3"], USER)
+    console.run(["plan", "ready", "1"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--plan", "1", "--phase", "1", "--changes", "the files of its tasks", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"], AGENT)
+    worker = Caller.worker("main", 1, "w1", "claude")
+    console.run(["clock-in"], worker)
+    replay.step("the plan's first phase dispatched to one worker")
+    console.run(["proof", "1", "part1.md:1"], worker)
+    console.run(["clock-out", "part 1 written"], worker)
+    app.runtime().deferred.drain()
+    replay.step("moves on to the phase's second task")
+    console.run(["proof", "1", "part2.md:1"], worker)
+    console.run(["clock-out", "parts 1 and 2 written"], worker)
+    app.runtime().deferred.drain()
+    replay.step("reports at the phase's end")
+
+
+def test_a_plan_phase_goes_to_one_worker_matches_its_record(journal, monkeypatch):
+    from journal.features.workers.support.worker_actions import WorkerActions
+    app, provider = journal
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
+    replay, rows = played(f"a_plan_phase_goes_to_one_worker_{provider}", app, monkeypatch, a_plan_phase_goes_to_one_worker, provider, nudges=True)
+    steps = {s["name"]: s for s in replay.record()}
+    assert steps["moves on to the phase's second task"]["typed"] == [], "a move inside the phase says nothing to the dispatcher"
+    assert "[journal] worker 1 ready: task 2" in steps["reports at the phase's end"]["typed"], "the worker reports once, at the phase's end"
+    assert "open" in app.console().run(["task", "show", "3"], AGENT).text.split("\n")[1], "the second phase is left for later"
+    assert rows == [], "the agent would have seen the same, and the record says the same"
+
+
 def a_question_is_answered(app, replay: Replay, provider: str) -> None:
     """The steps: a question asked and waited on, then answered by the user."""
     hook_as(app, provider, "SessionStart")

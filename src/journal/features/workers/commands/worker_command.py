@@ -34,6 +34,7 @@ from journal.models.worker_state import WorkerState
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
+from journal.features.workers.support.plan_delegation import PlanDelegation
 from journal.repositories.workers import Workers
 from journal.repositories.templates import Templates
 from journal.features.workers.support.worker_actions import WorkerActions
@@ -73,8 +74,8 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, delegation: PlanDelegation) -> None:
+        self.time_source, self.delegation = time_source, delegation
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
@@ -102,7 +103,10 @@ class WorkerCommand(Command):
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
         dispatch.set_defaults(job_text="")
         dispatch.add_argument("--report", nargs="+", action=ReportArgument, help="when it reports on a queue: queue (once its queue is empty, the default), each (after every task) or every <n> (after every n tasks)")
-        dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
+        work = dispatch.add_mutually_exclusive_group(required=True)
+        work.add_argument("--task", type=int, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
+        work.add_argument("--plan", type=int, help="a whole plan it works through: its open tasks go to it one after another in the plan's order, and it tests the way the plan says")
+        dispatch.add_argument("--phase", type=int, default=0, help="with --plan, only this phase of it, numbered from 1")
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
         release.add_argument("n", type=int)
         release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it completed and that wait for the merge; their commits stay on its branch")
@@ -168,6 +172,15 @@ class WorkerCommand(Command):
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
         return matches[0]
 
+    def testing_brief(self, args: Namespace, planned: list[Task]) -> str:
+        plan_testing = self.delegation.testing_brief(args.plan) if planned else ""
+        return plan_testing or self.testing_template(args.tests).brief
+
+    def plan_line(self, args: Namespace, planned: list[Task]) -> str:
+        if not planned:
+            return ""
+        return f"You work {self.delegation.scope_name(args.plan, args.phase)}: tasks {', '.join(str(task.row_id) for task in planned)}, in this order; each next one comes to you when you clock out of the one before."
+
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
@@ -181,15 +194,18 @@ class WorkerCommand(Command):
             raise Rejection((WorkersNudges.PLACES_FULL.create(n=min(waiting, key=lambda worker: worker.silence.timeout.start).id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
         if args.pool and self.pool_refusal(args):
             raise Rejection(self.pool_refusal(args))
-        task = self.assignment(args.task, caller)
+        planned = self.delegation.tasks(args.plan, args.phase) if args.plan else []
+        task = self.assignment(planned[0].row_id if planned else args.task, caller)
         provider = args.provider or self.provider_default(caller)
         moment = self.time_source.moment().timestamp()
         if args.changes.strip().lower() in EMPTY_CHANGES:
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
-        testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        testing = self.testing_brief(args, planned)
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
+        for queued_task in planned[1:]:
+            self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)
