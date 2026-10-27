@@ -2129,3 +2129,43 @@ def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between
     _, older = call(server, "GET", f"/journal/messages?limit=25&before={oldest}")
     older_written = [row for row in older["rows"] if row["author"] != "system"]
     assert len(older_written) == 25 and older_written[-1]["text"] == "written 34", "the next older page holds the 25 written messages before them"
+
+
+def test_a_fault_is_sent_to_the_sentry_the_setting_names_and_to_none_while_it_is_empty(app: App):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from journal.features.faults.jobs.sentry_sender import SentrySender
+    from tests.user_settings import user_set
+    received = []
+
+    class Sentry(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append((self.path, self.headers.get("X-Sentry-Auth", ""), self.rfile.read(int(self.headers["Content-Length"])).decode()))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            return None
+
+    sentry = HTTPServer(("127.0.0.1", 0), Sentry)
+    threading.Thread(target=sentry.serve_forever, daemon=True).start()
+    from journal.support.fault_log import FaultLog
+    sender, faults = app.container.get(SentrySender), app.container.get(FaultLog)
+
+    def fault_met(place: str, fault: Exception) -> None:
+        try:
+            raise fault
+        except Exception as raised:
+            faults.reported(place, raised)
+
+    try:
+        fault_met("deferred work", ZeroDivisionError("division by zero"))
+        sender.tick(time.time())
+        assert received == [], "with no Sentry named nothing leaves the machine"
+        user_set(app, "faults.sentry_dsn", f"http://publickey@127.0.0.1:{sentry.server_address[1]}/42")
+        fault_met("deferred work", KeyError("missing"))
+        sender.tick(time.time())
+        [(path, auth, body)] = received
+        assert path == "/api/42/envelope/" and "sentry_key=publickey" in auth and "KeyError" in body and "deferred work" in body, body
+    finally:
+        sentry.shutdown()

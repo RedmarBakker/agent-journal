@@ -34,7 +34,7 @@ onMounted(start);
                 </div>
             </template>
             <div class="force-line">
-                <span class="hint">GitHub may refuse to list the releases for a while. The install command from the README installs the latest release all the same.</span>
+                <span class="hint">Or try this route instead: it installs the latest release straight from GitHub.</span>
                 <Btn class="force-update" :busy="locked()" @click="forceUpdate()">Install the latest release with the README command</Btn>
             </div>
             <TextDisplay class="changelog" :text="about.changelog" />

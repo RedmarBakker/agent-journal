@@ -2,8 +2,9 @@ import contextvars
 import queue
 import sys
 import threading
-import traceback
 from typing import Callable
+
+from journal.support.fault_log import FaultLog
 
 
 class ListenerQueue:
@@ -13,7 +14,8 @@ class ListenerQueue:
     QUEUE_WARNING_ITEMS = 500
     LOG_SKIPS = 100
 
-    def __init__(self) -> None:
+    def __init__(self, faults: FaultLog) -> None:
+        self.faults = faults
         self._queue: queue.Queue = queue.Queue()
         self._thread: threading.Thread | None = None
         self.skipped = 0
@@ -49,8 +51,8 @@ class ListenerQueue:
         while (work := self._queue.get()) is not self.STOP:
             try:
                 work()
-            except Exception:
-                sys.stderr.write(f"deferred work failed:\n{traceback.format_exc()}")
+            except Exception as fault:
+                self.faults.reported("deferred work", fault)
             finally:
                 self._queue.task_done()
         self._queue.task_done()

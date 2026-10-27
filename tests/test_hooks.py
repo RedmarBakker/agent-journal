@@ -104,10 +104,12 @@ def test_every_hook_kind_translates(app: App):
 
 
 
-def test_the_deferred_worker_survives_a_failing_piece_of_work(capsys):
+def test_the_deferred_worker_survives_a_failing_piece_of_work(capsys, tmp_path):
+    from journal.config import Config
+    from journal.support.fault_log import FaultLog
     from journal.support.listener_queue import ListenerQueue
     completed = []
-    deferred = ListenerQueue()
+    deferred = ListenerQueue(FaultLog(Config(tmp_path)))
     deferred.start()
     deferred.add(lambda: 1 / 0)
     deferred.add(lambda: completed.append("after"))

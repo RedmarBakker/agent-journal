@@ -1,4 +1,3 @@
-import traceback
 from urllib.parse import urlsplit
 
 from journal.http.support.json_out import JsonOut
@@ -10,6 +9,7 @@ from journal.http.support.pooled_handler import PooledHandler
 from journal.http.support.request import Request
 from journal.support.actor import Actor
 from journal.http.support.request_faults import RequestFaults
+from journal.support.fault_log import FaultLog
 from journal.http.support.request_reading import RequestReading
 from journal.support.response import Response
 from journal.http.router import Router
@@ -32,6 +32,7 @@ class Handler(PooledHandler):
     gate: LoginGate
     lifecycle: Lifecycle
     faults: RequestFaults
+    fault_log: FaultLog
 
     def do_GET(self) -> None:
         if urlsplit(self.path).path in UNHELD_PATHS:
@@ -56,13 +57,14 @@ class Handler(PooledHandler):
             return self._request()
         except Exception as fault:
             self.faults.failed(fault)
+            self.fault_log.reported(f"request {self.command} {urlsplit(self.path).path}", fault)
             raise
 
     def _dispatched(self, request: Request):
         try:
             answer = self.router.route(request)
         except Exception as fault:
-            traceback.print_exc()
+            self.fault_log.reported(f"request {request.method} {request.path}", fault)
             self.faults.failed(fault)
             return Response(500, {"error": f"{type(fault).__name__}: {fault}"})
         self.faults.answered()
@@ -110,7 +112,7 @@ class Handler(PooledHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
         except Exception as fault:
-            traceback.print_exc()
+            self.fault_log.reported(f"streamed answer {urlsplit(self.path).path}", fault)
             self.wfile.write(f"the journal failed while answering: {type(fault).__name__}: {fault}\n".encode())
 
     def _reply(self, response: Response) -> None:

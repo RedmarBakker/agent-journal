@@ -1,9 +1,8 @@
-import sys
 import threading
 import time as timing
-import traceback
 
 from journal.engine.clock import Clock
+from journal.support.fault_log import FaultLog
 from journal.engine.job import Job
 from journal.events.bus import Bus
 from journal.events.slow_tick import SlowTick
@@ -16,7 +15,8 @@ IDLE_SECONDS = 60.0
 class JobRunner:
     """The engine's one thread for scheduled work: from each start, every registered job runs once its interval has passed and the thread sleeps until the next is due; a run that raises is logged and the job runs again at its next turn, and a run that takes long is announced on the bus."""
 
-    def __init__(self, clock: Clock, bus: Bus) -> None:
+    def __init__(self, clock: Clock, bus: Bus, faults: FaultLog) -> None:
+        self.faults = faults
         self.clock, self.bus = clock, bus
         self.jobs: list[Job] = []
         self.due_at: dict[Job, float] = {}
@@ -58,8 +58,8 @@ class JobRunner:
         name, began = type(job).__name__, timing.monotonic()
         try:
             job.tick(time)
-        except Exception:
-            sys.stderr.write(f"job {name} failed:\n{traceback.format_exc()}")
+        except Exception as fault:
+            self.faults.reported(f"job {name}", fault)
         seconds = timing.monotonic() - began
         if Timeout.seconds(SLOW_TICK_SECONDS).is_elapsed(seconds):
             self.bus.dispatch(SlowTick(job=name, seconds=round(seconds, 1)))

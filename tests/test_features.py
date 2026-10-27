@@ -9720,9 +9720,11 @@ def test_a_thread_that_ends_without_releasing_gives_its_connection_back(connecti
     assert len(connection._open) == opened, "a check's or a worker's thread that never released its connection gives it back once it is gone, and the next thread takes it"
 
 
-def test_work_that_may_be_left_undone_is_skipped_once_the_deferred_work_is_far_behind():
+def test_work_that_may_be_left_undone_is_skipped_once_the_deferred_work_is_far_behind(tmp_path):
+    from journal.config import Config
+    from journal.support.fault_log import FaultLog
     from journal.support.listener_queue import ListenerQueue
-    deferred, completed = ListenerQueue(), []
+    deferred, completed = ListenerQueue(FaultLog(Config(tmp_path))), []
     for i in range(ListenerQueue.QUEUE_WARNING_ITEMS + 50):
         deferred.add_bounded(lambda i=i: completed.append(i), f"plugin {i}")
     assert deferred.depth() == ListenerQueue.QUEUE_WARNING_ITEMS and deferred.skipped == 50, "a plugin relay past the bound is skipped and counted, so a slow plugin never grows the queue without end"
