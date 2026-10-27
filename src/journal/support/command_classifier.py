@@ -3,7 +3,7 @@ import shlex
 from dataclasses import replace
 
 from journal.support.chain import Chain
-from journal.support.classification import Classification
+from journal.support.classification import FILE_CHANGING_EFFECTS, Classification
 from journal.support.classification_table import ClassificationTable
 from journal.support.command_shape import LOOP_PATTERN, CommandShape
 from journal.support.part import Part
@@ -25,8 +25,8 @@ NETWORK = "reaches_network"
 MARKERS = re.compile(r"write_text|write_bytes|open\([^)]*[\"'][wax]|\.write\(|unlink|os\.remove|shutil\.|os\.rename|\.rename\(|mkdir|writeFileSync|writeFile\(|fs\.write|File\.(write|open|delete)|rm_rf|\.truncate\(")
 WRITES_FILES = "writes_files"
 PRINTS_FILES = "prints_files"
-# the kind whose words name the files it writes, as rm build and sed -i s/a/b/ notes.txt do; a build, an install or a checkout writes files it does not name
-EDIT = "edit"
+# the kinds whose words name the files they write, as rm build, sed -i s/a/b/ notes.txt and git checkout -- a.py do; a build or an install makes files it does not name
+NAMING_KINDS = frozenset({"edit", "version control"})
 # a path written in quotes in code handed to an interpreter, which the code may write
 QUOTED_PATH = re.compile(r"['\"]([^'\"\s]*/[^'\"\s]*)['\"]")
 
@@ -141,6 +141,9 @@ class CommandClassifier:
     def read_paths(self, text: str) -> tuple[str, ...]:
         return tuple(path for piped in Part(text).commands() if PRINTS_FILES in self.row_classification(piped).effects for path in self.arguments(piped))
 
+    def named_words(self, text: str) -> list[str]:
+        return [word for piped in Part(text).commands() for word in self.arguments(piped)]
+
     def arguments(self, text: str) -> list[str]:
         tokens = self.tokens(REDIRECTION.sub(" ", Part(text.split("\n", 1)[0]).blanked()))
         row = self.row(tokens)
@@ -149,7 +152,7 @@ class CommandClassifier:
     def target_arguments(self, text: str) -> list[str]:
         program = self.row_classification(text)
         if program.writes:
-            return self.arguments(text) if program.kind == EDIT else []
+            return self.arguments(text) if program.kind in NAMING_KINDS and FILE_CHANGING_EFFECTS & set(program.effects) else []
         return [*QUOTED_PATH.findall(text), *(word for word in self.arguments(text) if "/" in word)] if self.runs_writing_code(text) else []
 
     def runs_writing_code(self, text: str) -> bool:

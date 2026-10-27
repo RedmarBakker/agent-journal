@@ -4,7 +4,7 @@ from typing import Iterable
 from journal.support.table_row import TableRow
 
 UNKNOWN = "unknown"
-# the journal's own commands, which write through its own funnels and never count as a write of the project
+# the journal's own commands, which write through its own funnels and never count as a write of the project; a build or an install makes files (makes_files) it names nowhere, which is no write either
 JOURNAL = "journal"
 # a chain is named by the kind of its weightiest part: a test run over the tee that keeps its log, an edit over a read, and a journal command or a program the table does not know over a read, so a line holding one is never only a read
 KIND_ORDER = ("test run", "build", "package", "edit", "network", "version control", "check", "process", "journal", UNKNOWN, "search", "read")
@@ -21,6 +21,8 @@ READS = "reads_files"
 VERSION_CONTROL = "version control"
 READ_KINDS = frozenset({READ, VERSION_CONTROL})
 READ_EFFECTS = frozenset({READS, "prints_files"})
+# what a read may do beyond reading and still be shown as one: follow its file as it grows, as tail -f does, whatever the line leaves uncertain, as sqlite3 does
+SHOWN_READ_EFFECTS = READ_EFFECTS | {"runs_long"}
 # a commit, a merge or a pull, which waits for the merger's turn so no two change the branch at once
 VERSION_CONTROL_CHANGE = "changes_version_control"
 
@@ -56,6 +58,10 @@ class Classification:
     @property
     def is_read(self) -> bool:
         return not self.writes and set(self.effects) <= READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
+
+    @property
+    def is_read_by_kind(self) -> bool:
+        return self.kind != JOURNAL and set(self.effects) <= SHOWN_READ_EFFECTS and (self.is_search or self.kind in READ_KINDS and READS in self.effects)
 
     @property
     def is_test_run(self) -> bool:

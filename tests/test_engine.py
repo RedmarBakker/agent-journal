@@ -14,7 +14,7 @@ import pytest
 from journal.providers.claude import Claude
 from journal.support.tool_call import ToolCall
 
-shell = lambda line: Claude().call("Bash", {"command": line}, frozenset())
+shell = lambda line: Claude().call("Bash", {"command": line}, frozenset(), CLASSIFIER)
 
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
@@ -78,6 +78,8 @@ from journal.features.messages.feature import Messages as MessagesFeature
 from journal.features.briefing.feature import Briefing as BriefingFeature
 from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
+from journal.support.classification_table import ClassificationTable
+from journal.support.command_classifier import CommandClassifier
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.support.time_source import TimeSource
 from journal.events.agent.session_started import SessionStarted
@@ -121,6 +123,8 @@ from journal.features.questions.questions_nudges import QuestionsNudges
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
+# the command table read once for the tests that decode a tool call by hand
+CLASSIFIER = CommandClassifier(ClassificationTable())
 
 
 @pytest.fixture(scope="module")
@@ -2630,13 +2634,15 @@ def test_a_watched_progress_that_stands_still_past_twenty_seconds_is_noted_and_o
 
 
 def test_every_git_or_github_command_and_every_search_is_given_no_reader_and_a_test_run_is():
+    from journal.features.shell.support.activity_label import ActivityLabel
     from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
+    policy = CommandMarkPolicy(None, ActivityLabel(CLASSIFIER))
     from journal.features.shell.support.git_commands import GitCommands
     assert all(GitCommands.is_git(command) for command in ("git commit", "git push", "git rebase", "gh run watch", "gh")), "every git and GitHub command"
     assert not any(GitCommands.is_git(command) for command in ("github-sync", "pytest", "ghostscript")), "and nothing else"
     assert GitCommands.is_git_line("git add -A && git commit -m x && git push") and not GitCommands.is_git_line("pytest -q && git push"), "a line is git when every part is"
-    assert all(CommandMarkPolicy.takes_no_reader(command) for command in ("grep", "rg", "find", "git push", "gh pr view")), "a search and a git or GitHub command get no reader"
-    assert not any(CommandMarkPolicy.takes_no_reader(command) for command in ("pytest", "npm run build", "python3 scripts/suite.py")), "a test run and a build do"
+    assert all(policy.takes_no_reader(command) for command in ("grep", "rg", "find", "git push", "gh pr view")), "a search and a git or GitHub command get no reader"
+    assert not any(policy.takes_no_reader(command) for command in ("pytest", "npm run build", "python3 scripts/suite.py")), "a test run and a build do"
 
 
 def test_the_builder_may_dispatch_queue_and_send_subagents_only_as_its_menu_allows_and_its_line_budget_is_gone_on_purpose():
@@ -2852,9 +2858,9 @@ def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command
     from journal.engine.states.void import Void
     from journal.events.agent.tool_starting import ToolStarting
     from journal.providers.claude import Claude
-    read = Void().respond(ToolStarting(call=Claude().call("Read", {"file_path": "a.py"}, frozenset())).with_data(FeatureData(())), SettingsValue({}))
+    read = Void().respond(ToolStarting(call=Claude().call("Read", {"file_path": "a.py"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
     assert read.refusal is not None and "you are not at work" in read.refusal.rendered(), "a read in Void is refused with the line that says the helper has no job"
-    command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset())).with_data(FeatureData(())), SettingsValue({}))
+    command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
     assert command.refusal is None, "a journal command passes, so a worker can clock in"
 
 
@@ -3261,7 +3267,7 @@ def test_a_worker_queue_failing_past_its_block_minutes_blocks_writes_until_the_o
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     on = SettingsValue({FitnessOptions.WARNINGS.key: True, FitnessOptions.WRITE_BLOCK_MINUTES.key: 15})
-    edit = Claude().call("Edit", {"file_path": "/w/a.py", "old_string": "x", "new_string": "y"}, frozenset())
+    edit = Claude().call("Edit", {"file_path": "/w/a.py", "old_string": "x", "new_string": "y"}, frozenset(), CLASSIFIER)
     def answer(call, failing: bool = True, time: float = 1000.0, settings=on):
         state = MeasureState("high_queue_minutes", 20.0, is_measured=True, is_failing=failing, changed_at=0.0, measured_at=time)
         workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=time), measures=MeasureStates("orchestrator", 0.0, (state,)), band=PressureBand.HIGH)
@@ -3499,7 +3505,7 @@ def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
         assert app.container.get(Edits).agent_edits("wd", 0.0, 10), "the edit recorder its file allows runs on the worker's hook"
-    finished = ToolFinished(call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset()), output="").placed("wd", 1, "claude", None, 1.0)
+    finished = ToolFinished(call=Claude().call("Write", {"file_path": str(target), "content": "x"}, frozenset(), CLASSIFIER), output="").placed("wd", 1, "claude", None, 1.0)
     reached = {listener.registered_class().__name__ for listener in app.container.get(HelperListeners).listeners(finished)}
     assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord"}, "while the main agent's deferred recorders never hear it"
 
@@ -3574,7 +3580,7 @@ def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name
     with app.container.get(Scope).environment(1):
         agents.save(Agent(environment_id=1, session="sweep", provider="claude", state=helper.first_state.name, role=role), Actor.system())
     main_uses = agents.session_agent("s1").tool_uses
-    write = Claude().call("Write", {"file_path": str(app.config.root / "a.py"), "content": "x"}, frozenset())
+    write = Claude().call("Write", {"file_path": str(app.config.root / "a.py"), "content": "x"}, frozenset(), CLASSIFIER)
     events = (ToolStarting(call=write), Stop(), PromptSubmitted(prompt="please look at the parser"))
     with app.container.get(Scope).environment(1):
         for event in events:

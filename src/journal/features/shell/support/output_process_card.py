@@ -70,8 +70,7 @@ class OutputProcessCard(ProcessCard):
             return self.auto_dock.dock_fields(output.creation_time.timestamp()) if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
         return self.auto_dock.undock_fields(cards[0]) if output.ended else {}
 
-    @staticmethod
-    def outcome(output: CommandOutput) -> CardOutcome:
+    def outcome(self, output: CommandOutput) -> CardOutcome:
         if self.labels.is_reading(output.command):
             return CardOutcome.NONE
         if not output.ended:

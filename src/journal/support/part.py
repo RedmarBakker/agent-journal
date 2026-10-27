@@ -156,7 +156,7 @@ class Part:
         return [self.text[start + 1:end].lstrip("&").strip() for start, end in zip(cuts, cuts[1:])]
 
     def commands(self) -> list[str]:
-        joints = self.joints(0)
+        joints = [(position, joint) for position, joint in self.joints(0) if self.text[position - 1:position] != ">"]
         starts = [0, *(position + len(joint) for position, joint in joints)]
         ends = [*(position for position, _ in joints), len(self.text)]
         return [self.text[start:end].lstrip("&").strip() for start, end in zip(starts, ends)]
@@ -177,7 +177,7 @@ class Part:
                 depth += 1
             elif c in ")}":
                 depth = max(depth - 1, 0)
-            elif c == "|" and depth == level and self.text[i - 1:i] != ">":
+            elif c == "|" and depth == level:
                 joint = next(symbol for symbol in JOINTS if self.text.startswith(symbol, i))
                 found, passed = [*found, (i, joint)], i + len(joint) - 1
         return found

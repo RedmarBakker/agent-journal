@@ -415,13 +415,15 @@ def test_a_codex_subagent_dispatch_is_paired_and_counted_like_a_claude_one():
 
 def dispatch_entries(provider: str, kept, bodies: list[dict] | None = None) -> list:
     """The entries a provider's captured hooks would leave, as SubagentEntries pairs them: each body with its event's kind and its call's reading."""
+    from journal.support.classification_table import ClassificationTable
+    from journal.support.command_classifier import CommandClassifier
     from datetime import datetime, timezone
     from journal.models.entry import Entry
     from journal.providers.providers import Providers
-    program = Providers().lookup(provider)
+    program, classifier = Providers().lookup(provider), CommandClassifier(ClassificationTable())
     entries = []
     for n, body in enumerate(body for body in (bodies or captured(provider)) if kept(body)):
-        call = {"call": program.call(body["tool_name"], body["tool_input"], frozenset()).as_data()} if "tool_name" in body else {}
+        call = {"call": program.call(body["tool_name"], body["tool_input"], frozenset(), classifier).as_data()} if "tool_name" in body else {}
         entries.append(Entry(id=n + 1, environment_id=1, kind=EVENTS[body["hook_event_name"]], data={**body, **call}, created_at=datetime(2026, 10, 21, 12, 0, n, tzinfo=timezone.utc)))
     return entries
 

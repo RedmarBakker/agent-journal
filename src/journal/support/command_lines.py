@@ -6,14 +6,14 @@ from journal.support.part import Part
 
 
 class CommandLines:
-    """What a whole shell line does, read from its parts' classification, with whether the files it names are the project's code read from the disk after the table: a line that only reads, one that reads the project's code and runs as written, one that writes only the project's code."""
+    """What a whole shell line does, read from its parts' classification, with whether the files it names are the project's code read from the disk after the table: a line whose every part is a read by its kind, shown by its ends, one that reads the project's code and runs as written, one that writes only the project's code."""
 
     def __init__(self, classifier: CommandClassifier) -> None:
         self.classifier = classifier
 
     def is_read(self, line: str) -> bool:
         owned = self.owned(line)
-        return bool(owned) and all(self.classifier.classify(part.text).is_read for part in owned)
+        return bool(owned) and all(self.classifier.classify(part.text).is_read_by_kind for part in owned)
 
     def is_code_read(self, line: str) -> bool:
         owned = self.owned(line)
@@ -35,7 +35,7 @@ class CommandLines:
         return self.classifier.classify(part.text).is_harmless or part.is_project_cd()
 
     def writes_code(self, text: str) -> bool:
-        targets = self.classifier.target_paths(text)
+        targets = self.classifier.target_paths(text) or [word for word in self.classifier.named_words(text) if Part.is_project_path(word)]
         return bool(targets) and all(Part.is_code_target(target) for target in targets)
 
     @staticmethod

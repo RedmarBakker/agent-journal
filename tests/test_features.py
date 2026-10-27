@@ -78,6 +78,8 @@ from journal.features.dumps.dumps_nudges import DumpsNudges
 from journal.features.git.git_nudges import GitNudges
 from journal.features.plugins.plugins_nudges import PluginsNudges
 from journal.features.secrets.secrets_nudges import SecretsNudges
+from journal.support.classification_table import ClassificationTable
+from journal.support.command_classifier import CommandClassifier
 from journal.features.hydration.hydration_nudges import HydrationNudges
 from journal.features.team.team_nudges import TeamNudges
 from journal.features.usage.usage_nudges import UsageNudges
@@ -90,6 +92,8 @@ from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as 
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
+# the command table read once for the tests that decode a tool call by hand
+CLASSIFIER = CommandClassifier(ClassificationTable())
 MAIN = 1
 """The id of main, the environment a fresh journal makes at boot: what a test reads directly, it reads there."""
 
@@ -1411,7 +1415,7 @@ def test_a_run_through_a_plugins_alias_with_no_reader_is_titled_by_the_line_as_t
         expanded = app.container.get(AliasLines).expanded(typed)
         assert expanded.startswith(program), "the line that runs is the program's own"
         folder = OutputFiles(tmp_path / "run")
-        folder.split(expanded, Chain.parts(expanded))
+        folder.split(expanded, Chain.parts(expanded), app.container.get(CommandClassifier))
         record = app.container.get(ShellRecord)
         folder.numbered(record.start(folder.folder.name, "\n".join(Chain.self_parts(typed)), folder.folder, caller))
         record.moved(folder.folder.name, expanded, folder.folder, caller)
@@ -6262,8 +6266,8 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     from journal.models.task import Task
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
-    tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset())).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "unknown", "effects": [], "uncertain": False}}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": 0, "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset(), CLASSIFIER)).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "search", "effects": ["reads_files"], "uncertain": False, "label": "listing"}}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": CLASSIFIER.version, "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -7458,7 +7462,7 @@ def test_output_is_shown_whole_for_journal_commands_by_its_ends_for_a_read_and_i
     assert cap("journal task list") == "whole 0" and cap("cat a.py && git diff") == "ends 8000" and cap("python3 -m pytest -q") == "hint 400"
     assert cap("cat src/journal/app.py") == "direct 0" and cap("grep -rn x src/journal | head -5") == "direct 0" and cap("ls src/journal/engine") == "direct 0", "a read of the project's own code runs in the shell as written, nothing captured"
     assert cap("sed -n 1,3p src/journal/app.py; echo ====; grep -n x src/journal/config.py") == "direct 0" and cap("echo hi; echo there") == "hint 400", "a bare echo between two reads keeps the line a read of code; echoes alone read nothing"
-    assert cap("cat src/journal/app.py 2>/dev/null | head -3; ls src/journal/hooks/ 2>&1") == "direct 0" and cap("cat src/journal/app.py > /tmp/copy.txt") == "ends 8000", "a redirect to /dev/null or to another stream is no write; one into a file outside the project is"
+    assert cap("cat src/journal/app.py 2>/dev/null | head -3; ls src/journal/hooks/ 2>&1") == "direct 0" and cap("cat src/journal/app.py > /tmp/copy.txt") == "hint 400", "a redirect to /dev/null or to another stream is no write; one into a file is a write by its classification, capped as any other command, never a read shoject is"
     assert cap("cat .journal/runtime/server.log") == "ends 8000" and cap("cat /etc/hosts") == "ends 8000" and cap("git diff") == "ends 8000", "a read of the journal's own folder, of a file outside the project or of no named path is shown by its ends and kept"
     script = "python3 - <<'EOF'\nfrom pathlib import Path\nPath(\"src/journal/app.py\").write_text(\"x\")\nEOF"
     assert cap("sed -i '' 's/a/b/' src/journal/app.py") == "direct 0" and cap(script) == "direct 0" and cap(f"{script} && cat src/journal/app.py") == "direct 0", "a line that edits the project's own code runs in the shell as a read of it does"
@@ -10358,7 +10362,7 @@ def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wr
     classify = app.container.get(CommandClassifier).classify_line
     expected = {
         "git log --oneline": ("version control", ("reads_files",), False), "git -C repo branch -D old": ("version control", ("changes_version_control",), False),
-        "CI=1 npm --prefix web run build": ("build", ("reads_files", "runs_long", "writes_files"), False), "sed -ni p notes.txt": ("edit", ("writes_files",), False),
+        "CI=1 npm --prefix web run build": ("build", ("makes_files", "reads_files", "runs_long"), False), "sed -ni p notes.txt": ("edit", ("writes_files",), False),
         "sed --in-place=.bak s/a/b/ notes.txt": ("edit", ("writes_files",), False), "timeout 30 rm -rf build": ("edit", ("deletes_files",), False),
         "uv run pytest -q": ("test run", ("reads_files", "runs_long"), False), "echo hi > /dev/null 2>&1": ("read", (), False), "echo hi >> notes.txt": ("read", ("writes_files",), False),
         "find . -name '*.pyc' -exec rm {} \\;": ("edit", ("deletes_files", "reads_files"), False), "echo $(rm x)": ("edit", ("deletes_files",), False),
@@ -20020,13 +20024,13 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
 
 def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words(app: App):
     from journal.features.shell.support.activity_label import ActivityLabel
-    labels = app.container.get(ActivityLabel)
+    activity = app.container.get(ActivityLabel)
     labels = {"npx jest --ci": "testing", "bundle exec rspec spec/models": "testing", "sudo apt-get install -y curl": "installing", "CI=true npm run build": "building",
               "docker compose run --rm web pytest -n auto": "testing", "docker run --rm -v \"$PWD\":/app -w /app node:20 npm test": "testing", "kubectl exec deploy/api -- pytest tests/smoke": "testing",
               "timeout 300 make test": "testing", "nix develop -c cargo test": "testing", "docker run --rm alpine sh -c 'echo a; echo b'": "running docker", "time (journal todo all)": "journalling",
               "./gradlew assembleDebug": "building", "mvn -pl core test": "testing", "dotnet restore": "installing", "mix deps.get": "installing", "uv sync --frozen": "installing", "docker build -t app .": "building",
               "ruff check src": "checking code", "npx tsc --noEmit": "checking code", "golangci-lint run ./...": "checking code", "npm run test:unit": "testing", "echo x >> .gitignore": "writing a file"}
-    wrong = {line: got for line, label in labels.items() if (got := labels.line_label(line)) != label}
+    wrong = {line: got for line, label in labels.items() if (got := activity.line_label(line)) != label}
     assert not wrong, f"named otherwise than what they do: {wrong}"
 
 
@@ -21985,7 +21989,7 @@ def test_a_message_the_agent_sent_heard_twice_from_its_hook_is_one_row(app: App)
     from journal.features.messages.listeners.outgoing_message_record import OutgoingMessageRecord
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
-    sent = ToolFinished(call=Claude().call("SendMessage", {"to": "code-commandments-12", "message": "thank you"}, frozenset()), output="").placed("s1", MAIN, "claude", None, 0.0)
+    sent = ToolFinished(call=Claude().call("SendMessage", {"to": "code-commandments-12", "message": "thank you"}, frozenset(), CLASSIFIER), output="").placed("s1", MAIN, "claude", None, 0.0)
     record = app.container.get(OutgoingMessageRecord)
     with app.container.get(Scope).environment(MAIN):
         for event in (sent.hooked("hook:s1:PostToolUse:73-1"), sent.hooked("hook:s1:PostToolUse:73-1"), sent.hooked("hook:s1:PostToolUse:74-1")):
@@ -22001,7 +22005,7 @@ def test_a_message_to_a_subagent_heard_twice_from_its_hook_is_one_row_in_its_cha
     hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}, tool_use_id="t-1")
     hook(app, "PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a9"}, tool_use_id="t-1")
     app.runtime().deferred.drain()
-    starting = ToolStarting(call=Claude().call("SendMessage", {"to": "a9", "message": "one more"}, frozenset())).placed("s1", MAIN, "claude", None, 0.0).hooked("hook:s1:PreToolUse:75-1")
+    starting = ToolStarting(call=Claude().call("SendMessage", {"to": "a9", "message": "one more"}, frozenset(), CLASSIFIER)).placed("s1", MAIN, "claude", None, 0.0).hooked("hook:s1:PreToolUse:75-1")
     record = app.container.get(SubagentMessageRecord)
     with app.container.get(Scope).environment(MAIN):
         record.handle(starting)

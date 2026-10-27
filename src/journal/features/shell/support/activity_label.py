@@ -75,7 +75,7 @@ class ActivityLabel:
         arguments = arguments[1:] if is_runner and not label and len(arguments) > 1 else arguments
         if not arguments or SHELL_SYNTAX.match(arguments[0]):
             return IDLE
-        if (redirected := self.classifier.redirected_label(runner)) and self.classifier.redirect_targets(Part(shaped).stages()[0]):
+        if (redirected := self.classifier.redirected_label(runner)) and self.classifier.redirect_targets(Part(shaped).commands()[0]):
             return redirected
         return label or f"running {arguments[0]}"
 

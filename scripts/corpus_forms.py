@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterator
 
 from journal.support.chain import Chain
+from journal.support.classification_table import ClassificationTable
 from journal.support.command_shape import LOOP_PATTERN as LOOP_START, CommandShape
 from journal.support.part import Part
 from scripts.corpus_commands import anonymised, refused_inside_repository
@@ -352,13 +353,25 @@ def stripped(words: list[str]) -> list[str]:
     return words
 
 
-# a command's program, found past what only starts it as CommandShape does and past git's own options, and the words after it: uv run
-# pytest -q is pytest, [-q]; git -C repo log is git, [log]
+# a command's program, found past what only starts it as CommandShape does and past the flags the command table says take a value
+# before its subcommand, and the words after it: uv run pytest -q is pytest, [-q]; git -C repo log is git, [log]
 def program_run(words: list[str]) -> tuple[str, list[str]]:
     start = CommandShape.program_index(words)
     led = Part.leads(words[start if start < len(words) else 0:]) or words
     name = led[0].rsplit("/", 1)[-1]
-    return (name if PROGRAM_NAME.fullmatch(name) else f"({kind(name)})"), led[1:]
+    return (name if PROGRAM_NAME.fullmatch(name) else f"({kind(name)})"), past_value_flags(name, led[1:])
+
+
+def past_value_flags(name: str, words: list[str]) -> list[str]:
+    row = command_table().programs.get(name)
+    while row is not None and words and words[0] in row.value_flags:
+        words = words[2:]
+    return words
+
+
+@lru_cache(maxsize=None)
+def command_table() -> ClassificationTable:
+    return ClassificationTable()
 
 
 # a line read in full: its pieces, each part with its runs and its redirects, and the splitter's faults on it

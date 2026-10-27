@@ -807,9 +807,9 @@
 {"line": "git status 2>&1 | tail -20", "parts": [["git status 2>&1 | tail -20", "R;;", ["git status 2>&1", "tail -20"]]]}
 {"line": "eval 'cat notes.txt && npm test' < /dev/null", "parts": [["cat notes.txt", "R;&", ["cat notes.txt"]], ["npm test", "R&;", ["npm test"]]]}
 {"line": "eval 'pwd && pwd' < /dev/null", "parts": [["pwd", "R;&", ["pwd"]], ["pwd", "R&;", ["pwd"]]]}
-{"line": "eval 'echo '\"'\"'quoted'\"'\"' && ls -la' < /dev/null && pwd -P >| /tmp/cwd", "parts": [["echo 'quoted'", "R;&", ["echo 'quoted'"]], ["ls -la", "R&&", ["ls -la"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >| /tmp/cwd"]]]}
-{"line": "eval 'echo '\"'\"'quoted'\"'\"' && npm test' < /dev/null && pwd -P >| /tmp/cwd", "parts": [["echo 'quoted'", "R;&", ["echo 'quoted'"]], ["npm test", "R&&", ["npm test"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >| /tmp/cwd"]]]}
-{"line": "eval pwd < /dev/null && pwd -P >| /tmp/cwd", "parts": [["pwd", "R;&", ["pwd"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >| /tmp/cwd"]]]}
+{"line": "eval 'echo '\"'\"'quoted'\"'\"' && ls -la' < /dev/null && pwd -P >| /tmp/cwd", "parts": [["echo 'quoted'", "R;&", ["echo 'quoted'"]], ["ls -la", "R&&", ["ls -la"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >", "/tmp/cwd"]]]}
+{"line": "eval 'echo '\"'\"'quoted'\"'\"' && npm test' < /dev/null && pwd -P >| /tmp/cwd", "parts": [["echo 'quoted'", "R;&", ["echo 'quoted'"]], ["npm test", "R&&", ["npm test"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >", "/tmp/cwd"]]]}
+{"line": "eval pwd < /dev/null && pwd -P >| /tmp/cwd", "parts": [["pwd", "R;&", ["pwd"]], ["pwd -P >| /tmp/cwd", "S&;", ["pwd -P >", "/tmp/cwd"]]]}
 {"line": "journal splitter", "parts": [["journal splitter", "R;;", ["journal splitter"]]]}
 {"line": "journal suite tests/test_app.py", "parts": [["journal suite tests/test_app.py", "R;;", ["journal suite tests/test_app.py"]]]}
 {"line": "journal output read 12 --tail 20", "parts": [["journal output read 12 --tail 20", "R;;", ["journal output read 12 --tail 20"]]]}
