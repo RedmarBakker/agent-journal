@@ -419,6 +419,7 @@ def test_the_dashboard_sections_migration_renames_the_heading_column(connection)
 
 def test_the_chart_drop_keeps_only_workflows_a_user_or_an_agent_wrote_as_documents(connection):
     from journal.db.migrations.chart_drop import ChartDrop
+    kind_columns(connection)
     with connection.transaction() as db:
         db.execute("ALTER TABLE docs RENAME COLUMN creator TO created_by")
         db.execute("ALTER TABLE docs RENAME COLUMN updater TO updated_by")
