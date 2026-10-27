@@ -73,7 +73,7 @@ class AgentActivity:
     def work(self, entry, entries) -> str:
         call = entry.recorded_call()
         unended = self.unended_part(entries)
-        labels = [unended.data.get("doing", "")] if unended else [self.labels.named(part) for part in call.parts[:1]]
+        labels = [unended.data.get("doing", "")] if unended else [self.labels.part_label(part) for part in call.parts[:1]]
         return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:

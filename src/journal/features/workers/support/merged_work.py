@@ -28,7 +28,7 @@ class MergedWork:
         edits = self.job_edits(worker)
         paths = {edit.path for edit in edits}
         tool_uses = self.entries.counted(self.entries.query().filter(actor=Actor.agent(session), entry_type="ToolStarting").filter_greater_equal("created_at", self.moment(span.start)).filter_less_equal("created_at", self.moment(span.end))) if session else 0
-        return WorkComplexity(lines=sum(edit.added + edit.removed for edit in edits), files=len(paths), send_backs=span.send_backs, tool_uses=tool_uses,
+        return WorkComplexity(lines=sum(edit.added + edit.removed for edit in edits), files=len(paths), send_backs=span.rejection_count, tool_uses=tool_uses,
                               minutes=round((span.end - span.start) / 60, 1), tests_added=sum(1 for path in paths if self.is_test(path)), brief_named_files=bool(FILE_PATTERN.search(worker.brief)))
 
     def job_edits(self, worker: Worker) -> list[Edit]:

@@ -56,7 +56,7 @@ class ActivityLabel:
             return label
         return self.build(self.shapes.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
 
-    def named(self, part: CommandPart) -> str:
+    def part_label(self, part: CommandPart) -> str:
         return part.classification.label or self.build(part.text)
 
     def build(self, part: str) -> str:

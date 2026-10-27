@@ -42,10 +42,10 @@ class ShellRecord:
         return self.log.start(chain, command, folder, caller, ran_in).row_id
 
     def started(self, chain: str, part: CommandPart, caller: Caller) -> None:
-        self.record(caller, PART_START, {"chain": chain, "part": part.text, "doing": self.labels.named(part)})
+        self.record(caller, PART_START, {"chain": chain, "part": part.text, "doing": self.labels.part_label(part)})
 
     def finish_part(self, chain: str, part: CommandPart, status: int, seconds: float, output: str, changed: list[ChangedFile], caller: Caller) -> None:
-        self.record(caller, PART_END, {"chain": chain, "part": part.text, "doing": self.labels.named(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
+        self.record(caller, PART_END, {"chain": chain, "part": part.text, "doing": self.labels.part_label(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
         if status == 0 and part.is_git:
             self.git_event(chain, part.text, caller)
 

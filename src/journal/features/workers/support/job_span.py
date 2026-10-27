@@ -7,4 +7,4 @@ class JobSpan:
 
     start: float
     end: float
-    send_backs: int
+    rejection_count: int
