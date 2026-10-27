@@ -253,3 +253,14 @@ test("only a run of the main agent's own marks its bar for the avatar; a worker'
     expect((await mounted("worker-session")).querySelector("[data-figure-bar]")).toBeNull();
     expect((await mounted("worker-session")).querySelector(".watch-dock-bar")).not.toBeNull();
 });
+
+test("a run that ended draws its bar whole, whatever its last reading said, and a running one draws its share", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const ended = {...watched, data: {...watched.data, fraction: 0.55, ending: "passed", outcome: "passed"}};
+    app = createApp({render: () => [h(WatchDock, {message: watched}), h(WatchDock, {message: ended})]});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect([...host.querySelectorAll(".watch-dock-fill")].map((fill) => fill.style.width)).toEqual(["40%", "100%"]);
+});
