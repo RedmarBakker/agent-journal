@@ -12,6 +12,7 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.providers.claude import Claude
+from journal.repositories.environments import Environments
 from journal.repositories.memories import Memories
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
@@ -89,6 +90,11 @@ def test_a_worker_sent_its_next_job_is_shown_its_own_memories_faded_by_its_compa
     shown = told(worker_hook(app, lovelace, "PostToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"}, tool_response="")[1])
     assert has_nudge(shown, MemoryNudges.WORKER_MEMORIES, memories=f"{own} (weight 5) the parser reads tokens left to right"), "once it has clocked in on the next job it is shown its memories, faded by its compaction"
     assert "release notes" not in shown, "and never the main agent's"
+    babbage, as_babbage = sent(app, "Mr. Babbage", "w2")
+    theirs = made(console.run(["memory", "add", "the engine turns in decimal"], as_babbage))
+    assert console.run(["clock-in"], as_babbage).code == 0
+    other_shown = told(worker_hook(app, babbage, "PostToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"}, tool_response="")[1])
+    assert has_nudge(other_shown, MemoryNudges.WORKER_MEMORIES, memories=f"{theirs} (weight 5) the engine turns in decimal") and "the parser reads" not in other_shown and "release notes" not in other_shown, "another worker clocking in is shown its own memories and nobody else's"
 
 
 def test_each_agent_lists_weighs_removes_and_fades_only_its_own_memories_and_a_subagent_keeps_none(app: App):
@@ -107,7 +113,8 @@ def test_each_agent_lists_weighs_removes_and_fades_only_its_own_memories_and_a_s
     assert console.run(["memory", "remove", str(lovelace_memory)], as_lovelace).code == 0 and memories.find(lovelace_memory).removed_at is not None, "its owner removes it"
     reviewer = console.run(["memory", "list"], Caller.reviewer("main", 9, "r1", "claude"))
     assert reviewer.code == 0 and "release notes" not in reviewer.text and "the engine turns" not in reviewer.text, "a reviewer lists its own, which are none"
-    assert console.run(["memory", "list"], AGENT.subagent_caller()).code == 1, "a subagent's command names no row of its own, so it reaches no memory at all"
+    for subagent in (AGENT.subagent_caller(), as_babbage.subagent_caller()):
+        assert console.run(["memory", "list"], subagent).code == 1 and console.run(["memory", "weigh", str(main_memory), "3"], subagent).code == 1, "a subagent's command names no row of its own, so it lists and weighs no memory at all, its agent's neither"
     hook(app, "PreCompact", trigger="auto")
     app.runtime().deferred.drain()
     assert memories.find(main_memory).weight == 4 and memories.find(babbage_memory).weight == 5, "the main agent's compaction fades its own memories alone"
@@ -135,3 +142,20 @@ def test_a_worker_weighs_its_own_memories_at_its_own_marks_and_the_main_agents_d
     assert type(sessions.top("s1")) is not WeighingMemories and type(sessions.top("w1")) is WeighingMemories, "the main agent's decision pops its own weighing and leaves the worker's"
     assert console.run(["memory", "skip", "nothing to keep"], as_lovelace).code == 0
     assert type(sessions.top("w1")) is not WeighingMemories and worker_hook(app, lovelace, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "its own skip pops it and its work goes on"
+
+
+def test_two_environments_memories_never_mix_and_a_subagents_compaction_fades_none(app: App):
+    console, memories, scope = app.console(), app.container.get(Memories), app.container.get(Scope)
+    other = Caller.user("other")
+    main_memory = made(console.run(["memory", "add", "the main project ships on fridays"], AGENT))
+    other_memory = made(console.run(["memory", "add", "the other project ships on mondays"], other))
+    assert "mondays" not in console.run(["memory", "list"], AGENT).text and "fridays" not in console.run(["memory", "list"], other).text, "each environment lists its own memories alone"
+    assert console.run(["memory", "weigh", str(other_memory), "3"], AGENT).code == 1, "and refuses a number from another environment"
+    hook(app, "PreCompact", trigger="auto", agent_id="sub-1")
+    app.runtime().deferred.drain()
+    assert memories.find(main_memory).weight == 5, "a subagent's compaction fades no memory, its agent's neither"
+    hook(app, "PreCompact", trigger="auto")
+    app.runtime().deferred.drain()
+    assert memories.find(main_memory).weight == 4, "the main agent's compaction fades its own"
+    with scope.environment(app.container.get(Environments).lookup("other").id):
+        assert memories.find(other_memory).weight == 5, "and leaves another environment's"
