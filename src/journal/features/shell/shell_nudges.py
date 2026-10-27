@@ -12,7 +12,7 @@ class ShellNudges:
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
     OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "{{outputs}}", "`journal output read {{n}} --summary` says how", repeat=Timeout.seconds(0))
-    READER_OFFER = Nudge("shell", "offer_a_reader", "no reader reads {{part}} yet", "`{{command}}`, filled from this run's output and tried on it before it is saved; or name {{part}} in a reader you have with `journal reader add <name> --commands`", repeat=Timeout.seconds(0))
+    READER_DRAFT = Nudge("shell", "draft_a_reader", "no reader reads {{part}} yet", "`{{command}}`, filled from this run's output and tried on it before it is saved; or name {{part}} in a reader you have with `journal reader add <name> --commands`", repeat=Timeout.seconds(0))
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader}} already reads this: {{about}}", "`journal output read N --reader {{reader}}`", repeat=Timeout.seconds(0))
     PARTIAL_FILE_READ = Nudge("shell", "read_the_file_in_parts", "the file has {{lines}} lines, more than the {{cap}} shown at each end", "read it in parts with offset and limit, or grep for the line you need", repeat=Timeout.seconds(0))
     FOLDER_CHANGE_REFUSAL = Nudge("shell", "folder_change_refused", "cd {{target}} would move your shell for every later command", "use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, a path relative to the project)", repeat=Timeout.seconds(0))

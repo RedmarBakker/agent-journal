@@ -4,7 +4,7 @@ from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import Readers
-from journal.features.shell.support.reader_offers import ReaderOffers
+from journal.features.shell.support.reader_drafts import ReaderDrafts
 from journal.features.shell.support.silent_runs import SilentRuns
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
@@ -27,8 +27,8 @@ HISTORY_READS = 26
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, offers: ReaderOffers) -> None:
-        self.offers = offers
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, drafts: ReaderDrafts) -> None:
+        self.drafts = drafts
         self.reports, self.registry, self.silent = reports, registry, silent
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
@@ -47,7 +47,7 @@ class ShellDataReader:
             "silent_runs": lambda: self.silent.running(agent.session) if agent.session else (),
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
-            "reader_offers": lambda: self.offers.offers(agent),
+            "reader_drafts": lambda: self.drafts.drafts(agent),
             "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session) if not self.readers.is_locked(report.reader)),
             "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),
             "refuted_reports": lambda: tuple(report for report in self.reports.refuted(agent.session, self.readers.revisions()) if not self.readers.is_locked(report.reader)),

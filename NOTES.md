@@ -1783,8 +1783,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   install.sh copies whole. The classifier keeps the last 4096 readings. A Codex line handed to a shell carries the shell on
   its ShellLine; a shell that is not POSIX (pwsh, python3 -c) has its line read whole, so its code is never split as a
   shell line.
-- Task 3776: the six reader lines are one, `READER_OFFER`, said by the shell conduct with the line naming ended outputs
-  or the end of a watch, never while a run runs. `ReaderOffers` picks the offers into `ShellData.reader_offers`: a run
+- Task 3776: the six reader lines are one, `READER_DRAFT`, said by the shell conduct with the line naming ended outputs
+  or the end of a watch, never while a run runs. `ReaderDrafts` picks the offers into `ShellData.reader_drafts`: a run
   moved to the background and ended, whose first part earns a reader by its kind (`StartingReaders.starting`: test run,
   build, install or a long process) or by two hand reads, never the journal's own or a plugin alias's, once per project
   and part (the nudge lines said, `Entries.environment_lines`), three per session, none to a worker. It names the part

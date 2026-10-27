@@ -1762,6 +1762,7 @@ sequences.write_held_for_the_step  [sequences]  a write waits for sequence {{n}}
 shell.add_an_alias  [shell]  you ran {{shape}} three times or more. `journal alias add <name> "<the line without the values that change>"{{reader}}`, then `journal <name> <values>`
 shell.aliased_line_refused  [shell]  journal {{name}} runs this line: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with the alias
 shell.check_the_background  [shell]  output {{background_outputs}} still running. look at it; hung or stuck: stop it and say why
+shell.draft_a_reader  [shell]  no reader reads {{part}} yet. `{{command}}`, filled from this run's output and tried on it before it is saved; or name {{part}} in a reader you have with `journal reader add <name> --commands`
 shell.drop_alias_time_limit  [shell]  the journal watches alias {{name}}, so it needs no time limit wrapper. edit it with journal alias edit {{name}} --line and this line: {{line}}
 shell.drop_line_time_limit  [shell]  {{command}} needs no time limit wrapper here
 shell.folder_change_refused  [shell]  cd {{target}} would move your shell for every later command. use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, a path relative to the project)
@@ -1771,7 +1772,6 @@ shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with 
 shell.journal_poll_refused  [shell]  a shell loop that polls journal commands is refused. wait with journal await "<what you wait for>" --output {{n}}, which ends when the output does
 shell.more_specific_alias_refused  [shell]  journal {{name}} runs what this run of journal {{called}} runs: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with that alias
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
-shell.offer_a_reader  [shell]  no reader reads {{part}} yet. `{{command}}`, filled from this run's output and tried on it before it is saved; or name {{part}} in a reader you have with `journal reader add <name> --commands`
 shell.output_kept  [shell]  output {{n}}: {{counts}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts}}
 shell.outputs_ended  [shell]  {{outputs}}. `journal output read {{n}} --summary` says how

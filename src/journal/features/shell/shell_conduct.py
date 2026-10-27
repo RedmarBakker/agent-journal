@@ -36,7 +36,7 @@ ALIAS_RUNS = 3
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, the commands that ended in the background are named once the agent is quiet, with one reader offered for a run of them, or for a watched run at its end, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, the commands that ended in the background are named once the agent is quiet, with one reader said for a run of them, or for a watched run at its end, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings)])
@@ -46,7 +46,7 @@ class ShellConduct(Conduct):
         if not watch.is_watching():
             return unread_check(self, event, settings)
         if watch.ending:
-            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()), *reader_offer(event.data.part(ShellPart), {watch.output}))
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending, lines=watch.text()), *reader_draft(event.data.part(ShellPart), {watch.output}))
         return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
@@ -151,12 +151,12 @@ def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transiti
     ended = event.data.part(ShellPart).unannounced
     if not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds) or not ended:
         return state.none()
-    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id), *reader_offer(event.data.part(ShellPart), {output.id for output in ended}))
+    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id), *reader_draft(event.data.part(ShellPart), {output.id for output in ended}))
 
 
-def reader_offer(shell: ShellData, outputs: set[int]) -> list[Nudge]:
-    offer = next((offer for offer in shell.reader_offers if offer.output in outputs), None)
-    return [ShellNudges.READER_OFFER.create(part=offer.part, command=offer.command)] if offer is not None else []
+def reader_draft(shell: ShellData, outputs: set[int]) -> list[Nudge]:
+    draft = next((draft for draft in shell.reader_drafts if draft.output in outputs), None)
+    return [ShellNudges.READER_DRAFT.create(part=draft.part, command=draft.command)] if draft is not None else []
 
 
 def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

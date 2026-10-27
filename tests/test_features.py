@@ -7581,10 +7581,10 @@ def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_n
     assert plans.find(2).state == "started", "a plan with no task yet is not finished"
 
 
-def test_one_reader_offer_comes_at_a_marked_runs_real_end_naming_its_part_capped_never_for_a_plugin_alias_or_a_worker(app: App):
-    """Task 3776: the six reader lines are one offer of the shell conduct, said when a run moved to the background ends (with the line naming the ended outputs, or the end of a watch), never while it runs; it names the part a reader would read, not the line, is filled from the run's own output, comes once per part, at most one per run and a few per session, and never for a plugin alias nor in a worker's session."""
+def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped_never_for_a_plugin_alias_or_a_worker(app: App):
+    """Task 3776: the six reader lines are one draft of the shell conduct, said when a run moved to the background ends (with the line naming the ended outputs, or the end of a watch), never while it runs; it names the part a reader would read, not the line, is filled from the run's own output, comes once per part, at most one per run and a few per session, and never for a plugin alias nor in a worker's session."""
     from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.reader_offers import OFFERS_PER_SESSION, ReaderOffers
+    from journal.features.shell.support.reader_drafts import SESSION_DRAFTS, ReaderDrafts
     from journal.features.shell.shell_nudges import ShellNudges
     from journal.support.chain import Chain
     from journal.models.entry import Entry
@@ -7595,7 +7595,7 @@ def test_one_reader_offer_comes_at_a_marked_runs_real_end_naming_its_part_capped
     from journal.repositories.command_outputs import CommandOutputs
     from journal.support.agent_role import AgentRole
     hook(app, "SessionStart")
-    outputs, offers = app.container.get(CommandOutputs), app.container.get(ReaderOffers)
+    outputs, drafts = app.container.get(CommandOutputs), app.container.get(ReaderDrafts)
 
     def background_run(name: str, line: str, text: str, ended: bool = True):
         folder = app.config.root / name
@@ -7611,22 +7611,22 @@ def test_one_reader_offer_comes_at_a_marked_runs_real_end_naming_its_part_capped
     main = Agent(environment_id=MAIN, session="s1", role=AgentRole.MAIN)
     with app.container.get(Scope).environment(MAIN):
         running = background_run("running", "make all", "error: x\nbuilt in 1s\n", ended=False)
-        assert not [offer for offer in offers.offers(main) if offer.output == running.id], "nothing is offered while the run still runs"
+        assert not [draft for draft in drafts.drafts(main) if draft.output == running.id], "nothing is offered while the run still runs"
         built = background_run("built", "cd web && make all", "compiling\nerror: missing header\nbuilt in 3.1s\n")
-        [offer] = [offer for offer in offers.offers(main) if offer.output == built.id]
-        assert offer.part == "make all" and "cd web" not in offer.command and "--commands \"make all\"" in offer.command and "--label 'Building'" in offer.command, "it names the part a reader would read, filled from the run's own output"
-        assert offers.offers(Agent(environment_id=MAIN, session="w1", role=AgentRole.WORKER)) == (), "a worker's session is offered none"
+        [draft] = [draft for draft in drafts.drafts(main) if draft.output == built.id]
+        assert draft.part == "make all" and "cd web" not in draft.command and "--commands \"make all\"" in draft.command and "--label 'Building'" in draft.command, "it names the part a reader would read, filled from the run's own output"
+        assert drafts.drafts(Agent(environment_id=MAIN, session="w1", role=AgentRole.WORKER)) == (), "a worker's session is offered none"
         app.container.get(Aliases).save(Alias(name="judge", line="vendor/bin/judge {args}", plugin="commandments"), Actor.system())
         plugin = background_run("plugin", "vendor/bin/judge --changes", "error: one sin\n3 sins in 2.0s\n")
-        assert not [offer for offer in offers.offers(main) if offer.output == plugin.id], "a run a plugin's alias runs is never offered a reader"
+        assert not [draft for draft in drafts.drafts(main) if draft.output == plugin.id], "a run a plugin's alias runs is never offered a reader"
     with app.container.get(Scope).environment(MAIN):
-        for n in range(OFFERS_PER_SESSION + 2):
+        for n in range(SESSION_DRAFTS + 2):
             background_run(f"many-{n}", f"./scripts/job{n}.sh", "error: failed\nstarted\n")
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_OFFER.key, "line": "no reader reads make all yet"}), Actor.system())
-        assert not [offer for offer in offers.offers(main) if offer.part == "make all"], "a part offered once is not offered again"
-        for n in range(OFFERS_PER_SESSION):
-            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_OFFER.key, "line": f"no reader reads job{n} yet"}), Actor.system())
-        assert offers.offers(main) == (), "and once a session has had its few offers, it gets no more"
+        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "line": "no reader reads make all yet"}), Actor.system())
+        assert not [draft for draft in drafts.drafts(main) if draft.part == "make all"], "a part offered once is not offered again"
+        for n in range(SESSION_DRAFTS):
+            app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "line": f"no reader reads job{n} yet"}), Actor.system())
+        assert drafts.drafts(main) == (), "and once a session has had its few drafts, it gets no more"
 
 
 def test_a_hand_read_that_does_a_readers_work_is_pointed_at_the_reader(app: App):
@@ -11184,7 +11184,7 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
         assert any(log.line == "tests passed at clock-out: test 1 = 1" for log in app.container.get(TaskLogs).logs(app.container.get(Tasks).find(1))), "the task records the run that passed, for the agent checking the proofs"
         cards = [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("test-run:")]
     assert [(card.text, card.data["active"], card.session) for card in cards] == [("1 of its tests failed", False, "s1"), ("Its tests passed", False, "s1")], "each run is a card in the chat of the agent that sent the worker, ending failed or passed"
-    assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and offers the worker's task with its proofs"
+    assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and drafts the worker's task with its proofs"
     assert {card.data["shows"] for card in cards} == {"worker_tests"}, "a worker's test run is a kind of mark of its own, which the chat shows until the user hides it"
     from journal.features.workers.feature import Workers as WorkersFeature
     assert next(kind for kind in WorkersFeature.card_types if kind.key == "worker_tests").shown is True
@@ -13556,14 +13556,14 @@ def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variabl
 
 
 def test_a_command_run_in_the_background_that_no_reader_reads_is_offered_one_at_its_end_and_never_held(app: App):
-    from journal.features.shell.support.reader_offers import ReaderOffers
+    from journal.features.shell.support.reader_drafts import ReaderDrafts
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
     from journal.models.agent import Agent
     from journal.repositories.command_outputs import CommandOutputs
     from journal.support.agent_role import AgentRole
     console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
-    outputs, offers = app.container.get(CommandOutputs), app.container.get(ReaderOffers)
+    outputs, drafts = app.container.get(CommandOutputs), app.container.get(ReaderDrafts)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "t", "--start"], AGENT)
@@ -13583,13 +13583,13 @@ def test_a_command_run_in_the_background_that_no_reader_reads_is_offered_one_at_
 
     with app.container.get(Scope).environment(MAIN):
         first = ended("(cd . && sh test_naps.sh)")
-        assert [offer.part for offer in offers.offers(main(first)) if offer.output == first.id] == ["test_naps.sh"], "a test run moved to the background is offered a reader at its end, naming its part"
+        assert [draft.part for draft in drafts.drafts(main(first)) if draft.output == first.id] == ["test_naps.sh"], "a test run moved to the background is offered a reader at its end, naming its part"
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "it never holds a write"
     assert console.run(["reader", "add", "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
         again = ended("sh test_naps.sh")
         assert again.is_watched and again.watch_reader == "naps", "the next run moves at once and is watched through its reader"
-        assert not [offer for offer in offers.offers(main(again)) if offer.output == again.id], "a command a reader reads is never offered one again"
+        assert not [draft for draft in drafts.drafts(main(again)) if draft.output == again.id], "a command a reader reads is never offered one again"
 
 
 def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
@@ -18213,8 +18213,8 @@ def test_a_commit_offers_an_update_at_most_once_an_hour_and_recap_docks_one_over
     with app.container.get(Scope).environment(MAIN):
         first = [m for m in messages.all() if m.data.get("shows") == "commits"][0]
         messages.save(first.with_(created_at=datetime.now(timezone.utc) - timedelta(hours=2)), Actor.system())
-    assert commit("Finish the parser"), "an hour after the clock started, a commit offers an update"
-    assert not commit("Tidy the parser"), "the offer starts the clock again"
+    assert commit("Finish the parser"), "an hour after the clock started, a commit drafts an update"
+    assert not commit("Tidy the parser"), "the draft starts the clock again"
     console.run(["task", "create", "the parser", "--start"], AGENT)
     console.run(["task", "complete", "1", "--how", "it reads the grammar"], AGENT)
     told = console.run(["report", "changes"], AGENT).text
@@ -18418,14 +18418,14 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
         console.run(["plan", "add", "1", title], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    assert [task.id for task in app.container.get(RoundRobinDelivery).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
+    assert [task.id for task in app.container.get(RoundRobinDelivery).drafts()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
         worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
         tasks = app.container.get(Tasks)
         tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
-    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).offers()], "a task a worker holds is never offered"
+    assert 4 not in [task.id for task in app.container.get(RoundRobinDelivery).drafts()], "a task a worker holds is never offered"
 
 
 def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
@@ -22359,7 +22359,7 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
         tasks.save(replace(tasks.find(1), state=TaskState.COMPLETED), Actor.user(1))
         assert app.container.get(PlanTaskAssigner).following_task(plans.find(1)).title == "a2", "a builder goes on in the plan it follows"
         round_robin = app.container.get(RoundRobinDelivery)
-        assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
+        assert [task.title for task in round_robin.drafts()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
         assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
 
 def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark(app: App):
