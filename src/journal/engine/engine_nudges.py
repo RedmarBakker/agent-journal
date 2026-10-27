@@ -10,7 +10,7 @@ class EngineNudges:
     JOBLESS_HELPER = Nudge("engine", "helper_has_no_job", "you are not at work: the journal gives you your job", "wait for it, or run the journal command it gave you", repeat=Timeout.seconds(0))
     GUARD_FAILED = Nudge("engine", "guard_failed", "a guard failed and let this through: {{text}}", "the journal recorded it; tell the user if it happens again", repeat=Timeout.seconds(0))
 
-    LOCKOUT_HELD = Nudge("engine", "journal_answers_again", "your journal did not answer for {{seconds}} seconds and answers again; every tool waits until it has answered for a few seconds", "use the tool again in a few seconds", repeat=Timeout.seconds(0))
-    LOCKOUT_ENDED = Nudge("engine", "journal_gone_past_the_grace", "your journal did not answer for {{seconds}} seconds, longer than the {{grace}} seconds a worker waits, so your work ends here", "stop now; the agent that sent you sends you again", repeat=Timeout.seconds(0))
+    LOCKOUT_WAIT = Nudge("engine", "journal_answers_again", "your journal did not answer for {{seconds}} seconds and answers again; every tool waits until it has answered for a few seconds", "use the tool again in a few seconds", repeat=Timeout.seconds(0))
+    LOCKOUT_END = Nudge("engine", "worker_ends_after_the_grace", "your journal did not answer for {{seconds}} seconds, longer than the {{grace}} seconds a worker waits, so your work ends here", "stop now; the agent that sent you sends you again", repeat=Timeout.seconds(0))
 
-    ALL = (STOP_LOOP, GUARD_FAILED, JOBLESS_HELPER, LOCKOUT_HELD, LOCKOUT_ENDED)
+    ALL = (STOP_LOOP, GUARD_FAILED, JOBLESS_HELPER, LOCKOUT_WAIT, LOCKOUT_END)

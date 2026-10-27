@@ -27,7 +27,7 @@ class HookController:
         self.arrivals.record_arrival(request.environment)
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
-        stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, "")).silenced(float(request.headers.get(SILENCE_HEADER) or 0))
+        stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, "")).silenced(request.headers.get(SILENCE_HEADER, ""))
         hook = self.sender_stamped(stamped, request)
         if hook.subagent and hook.kind == HookType.PRE_TOOL_USE:
             self.announce(hook)

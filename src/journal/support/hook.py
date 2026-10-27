@@ -26,7 +26,7 @@ class Hook:
     actor_token: str | None = None
     boot_wait_seconds: float = 0.0
     firing: str = ""
-    silence_start: float = 0.0
+    silence_start: str = ""
 
     @classmethod
     def parse(cls, body: dict, environment: str, provider: str, launch: str) -> "Hook":
@@ -64,7 +64,7 @@ class Hook:
     def fired(self, firing: str) -> "Hook":
         return replace(self, firing=firing)
 
-    def silenced(self, start: float) -> "Hook":
+    def silenced(self, start: str) -> "Hook":
         return replace(self, silence_start=start)
 
     def key(self) -> str:

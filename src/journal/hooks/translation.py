@@ -51,7 +51,7 @@ class Translation:
         return self.turns.fold(self.uses.counted(placed.boot_delayed(hook.boot_wait_seconds).hooked(hook.key())))
 
     def returned(self, hook: Hook, environment: Environment) -> JournalReturned:
-        return self.placed(JournalReturned(silence_start=hook.silence_start), hook, environment)
+        return self.placed(JournalReturned(silence_start=float(hook.silence_start)), hook, environment)
 
     def placed(self, bare: AgentEvent, hook: Hook, environment: Environment) -> AgentEvent:
         provider = self.providers.lookup(hook.provider)
