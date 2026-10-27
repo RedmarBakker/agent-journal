@@ -10,7 +10,6 @@ class Said:
     # @sin DocstringInMethodDetector
     def about(self, n: int) -> str:
         """Fills the blanks."""
-        # the first blank is the number
         return str(n)
 
 

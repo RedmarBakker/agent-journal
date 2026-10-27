@@ -1,6 +1,9 @@
 {
     "$schema": "../rule.schema.json",
     "engine": "python",
+    "judges": [
+        "tests"
+    ],
     "find": {
         "select": "call",
         "where": [

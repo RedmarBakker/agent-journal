@@ -6,7 +6,7 @@
         "where": [
             {
                 "of": "child:body",
-                "commentMatches": "\\S"
+                "commentMatches": "^\\s*#?\\s*[^@\\s#]"
             }
         ]
     },

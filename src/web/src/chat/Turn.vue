@@ -80,7 +80,7 @@ function markClick(data) {
                 <span class="mark-row">
                     <ChatMark :mark="cardMark" :open="opens ? opened : undefined" v-on="markClick(data)">
                         <template v-if="opens" #default="{shown}">
-                            <div :class="['mark-more', {open: shown}]">
+                            <div :class="['mark-more', {open: shown}]" @click.stop>
                                 <div class="mark-more-inner">
                                     <template v-if="data.line">
                                         <p class="mark-label">Command</p>
