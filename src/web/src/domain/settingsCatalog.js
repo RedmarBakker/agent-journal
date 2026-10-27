@@ -355,8 +355,8 @@ export const TABS = [
     {key: "sharing", title: "Share links", line: "Share links reach this journal through the tunler account below."},
     {key: "team", title: "Team", line: "Connect this journal to a team server, and how its sync with the team stands."},
     {key: "plugins", title: "Plugins", line: "The settings of each installed plugin."},
-    {key: "environments", title: "Environments", line: "The environments of this project. Each has its own to-dos, agent and history."},
     {key: "services", title: "Services", line: "Every process the journal runs, as its supervisor lists it: the agent's terminal, the server, the engines, each plugin's services, the share tunnel and the workers' sessions."},
+    {key: "environments", title: "Environments", line: "The environments of this project. Each has its own to-dos, agent and history."},
     {key: "developer", title: "Developer", line: "How fast the journal answers, and the settings for working on the journal itself."},
 ];
 
