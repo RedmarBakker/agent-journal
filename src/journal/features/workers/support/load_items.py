@@ -71,6 +71,6 @@ class LoadItems:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)
         user_messages = self.messages.selected(self.messages.main_chat().filter(author=Author.USER).filter_greater_equal("created_at", begin).order("created_at").order("id"))
         replied = dict(self.reactions.agent_message_reactions(begin))
-        for reply in self.messages.recent_replies(begin):
-            replied[reply.reply_target] = min(replied.get(reply.reply_target, reply.creation_time.timestamp()), reply.creation_time.timestamp())
+        for target, moment in self.messages.answer_times(begin).items():
+            replied[target] = min(replied.get(target, moment), moment)
         return [LoadItem(str(Ref.build(message)), message.creation_time.timestamp(), weight, replied.get(message.row_id, 0.0)) for message in user_messages]

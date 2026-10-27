@@ -67,14 +67,16 @@ class MessageCommand(Command):
             raise Rejection(REPLY_TAG_REFUSED)
         files = self.files.read(args.file)
         if args.reply_to and author == Author.AGENT:
-            return self.reply(args, caller, files)
+            return self.reply(self.messages.find(args.reply_to), args, caller, files)
+        waiting = self.messages.unanswered() if author == Author.AGENT else []
+        if len(waiting) == 1:
+            return self.reply(waiting[0], args, caller, files)
         draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})
         message = self.files.attached(self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor), files, caller.actor)
         print(f"message {message.id} sent")
         return 0
 
-    def reply(self, args: Namespace, caller: Caller, files: dict[str, bytes]) -> int:
-        answered = self.messages.find(args.reply_to)
+    def reply(self, answered: Message, args: Namespace, caller: Caller, files: dict[str, bytes]) -> int:
         key = VoiceKey.create("reply", str(answered.row_id), args.text.strip())
         if self.messages.sent_with(key):
             print(f"message {answered.id} already has this reply in the chat: not sent again")

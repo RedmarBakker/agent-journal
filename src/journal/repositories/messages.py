@@ -121,7 +121,7 @@ class Messages(ScopedRepository[Message]):
         return self.maximum(self.main_voice().filter(acknowledgement=False).filter_unequal("data->kind", Message.THOUGHT), "created_at", None)
 
     def answered(self, message: Message) -> bool:
-        return bool(self.selected_globally(self.main_voice().filter(reply_target=message.id).limit(1))) or bool(self.links.sources(message, self.ANSWERS))
+        return self.first_reply(message) is not None
 
     def agent_reaction(self, message: Message) -> bool:
         return any(r.author == Author.AGENT for r in self.reactions.reactions(message))
@@ -204,6 +204,15 @@ class Messages(ScopedRepository[Message]):
 
     def recent_replies(self, time: datetime) -> list[Message]:
         return self.selected(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", time).order("created_at").order("id"))
+
+    def answer_times(self, time: datetime) -> dict[int, float]:
+        voiced = self.selected(self.main_voice().filter_greater_equal("created_at", time).order("id"))
+        sent = {message.row_id: message.creation_time.timestamp() for message in voiced}
+        answers = [*((message.reply_target, sent[message.row_id]) for message in voiced if message.reply_target), *((link.target.id, sent[link.source.id]) for link in self.links.model_links("source", voiced, self.ANSWERS))]
+        earliest: dict[int, float] = {}
+        for target, moment in answers:
+            earliest[target] = min(earliest.get(target, moment), moment)
+        return earliest
 
     def recent(self, last: int) -> list[Message]:
         return self.window(self.main_chat(), last)

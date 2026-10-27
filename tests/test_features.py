@@ -2182,6 +2182,38 @@ def test_a_prompt_repeating_an_earlier_one_word_for_word_at_an_interval_is_sched
     assert not {m.row_id for m in checks} & {m.row_id for m in messages.unanswered()}, "and neither is reminded as unanswered"
 
 
+def test_a_reply_tagged_to_several_messages_clears_each_in_the_load_and_an_unlinked_send_answers_the_one_waiting_message(app: App):
+    from datetime import datetime, timedelta, timezone
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.models.author import Author
+    from journal.models.link import Link
+    from journal.models.message import Message
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    since = datetime.now(timezone.utc) - timedelta(minutes=1)
+    messages = app.container.get(Messages)
+
+    def asked(prompt: str) -> Message:
+        hook(app, "UserPromptSubmit", prompt=prompt)
+        app.runtime().deferred.drain()
+        message = next(m for m in messages.selected(messages.main_chat().order_descending("id")) if m.author == Author.USER and m.text == prompt)
+        return messages.read(message, Actor.agent("s1"), 0)
+    first, second = asked("is the parser done?"), asked("and the lexer?")
+    reply = messages.save(Message.answer(first, "both are done"), Actor.agent("s1"))
+    app.container.get(Links).save(Link(source=Ref.build(reply), target=Ref.build(second), kind=Messages.ANSWERS), Actor.agent("s1"))
+    cleared = {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}
+    assert cleared[f"messages:{first.row_id}"] > 0 and cleared[f"messages:{second.row_id}"] > 0, f"a reply tagged to two messages clears both in the load: {cleared}"
+    assert not {first.row_id, second.row_id} & {m.row_id for m in messages.unanswered()}, "and neither is unanswered"
+    waiting = asked("what about the printer?")
+    sent = app.console().run(["message", "send", "the printer is next"], AGENT)
+    assert sent.code == 0, sent.error
+    answer = messages.first_reply(waiting)
+    assert answer is not None and answer.text == "the printer is next", "a send with no --reply-to while one message waits read and unanswered is written as its reply"
+    assert {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}[f"messages:{waiting.row_id}"] > 0, "so it no longer waits in the load"
+
+
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
     """A prompt that is a journal line already says its words, so its hook adds no line it carries."""
     hook(app, "SessionStart")
