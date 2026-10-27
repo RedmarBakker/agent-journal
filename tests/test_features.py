@@ -85,7 +85,7 @@ from journal.features.client_errors.client_errors_nudges import ClientErrorsNudg
 from journal.features.reviewing.reviewing_nudges import ReviewingNudges
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.plans.plans_nudges import PlansNudges
-from journal.features.messages.commands.message_command import REPLIED_ALREADY
+from journal.features.messages.commands.message_command import DUPLICATE_REPLY_LINE
 from journal.features.plans.listeners.ended_drive_write_guard import REFUSAL as DRIVE_REFUSAL
 
 AGENT = Caller.agent("main", "s1", "claude")
@@ -9350,7 +9350,7 @@ def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, m
     transmitted = console.run(["message", "send", "Not quite: an agent with work is told the next task at each stop, and one at rest is checked in on after thirty quiet minutes.", "--reply-to", "1"], AGENT)
     assert transmitted.code == 0
     repeat = console.run(["message", "send", "Something else entirely.", "--reply-to", "1"], AGENT)
-    assert repeat.code == 1 and REPLIED_ALREADY.format(n=1, reply=2) in repeat.text, "a second reply by command is refused, naming the first"
+    assert repeat.code == 1 and DUPLICATE_REPLY_LINE.format(n=1, reply=2) in repeat.text, "a second reply by command is refused, naming the first"
     hook(app, "MessageDisplay", message="An agent with work is told the next task at each stop, and an agent at rest is checked in on after thirty quiet minutes.")
     app.runtime().deferred.drain()
     hook(app, "Stop")
