@@ -18,6 +18,7 @@ from sync_server.admin_request import AdminRequest
 from sync_server.blocks_request import BlocksRequest
 from sync_server.file_answer import FileAnswer
 from sync_server.file_place import FilePlace
+from sync_server.file_store import LIMIT_BYTES
 from sync_server.lease_request import LeaseRequest
 from sync_server.json_reply import JsonReply
 from sync_server.leases import UPGRADE_LEASE
@@ -30,10 +31,16 @@ from sync_server.device_ask_request import DeviceAskRequest
 from sync_server.host_decline import HostDecline
 from sync_server.sync_answer import SyncAnswer
 from sync_server.refusal import Refusal
+from sync_server.missing_item import MissingItem
+from sync_server.library_path import LIBRARY_PATH, LibraryPath
+from sync_server.publish_request import PublishRequest
+from sync_server.item_query import ItemQuery
 from sync_server.upgrade_request import UpgradeRequest
 from sync_server.upload_request import UploadRequest
 
 BEARER = "Bearer "
+# the most a JSON request body may hold; a file is held to the file store's own limit
+JSON_LIMIT_BYTES = 4 * 1024 * 1024
 FILES_PATH = "/files/"
 FORWARDED_HEADER = "X-Forwarded-For"
 # where a browser that is no member is sent: the page claiming a server with no admin yet, else a refusal
@@ -52,6 +59,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         if url.path.startswith(FILES_PATH):
             self.file_answer(lambda: self.server.team.files.get(self.file_place(url.path)))
             return
+        if LibraryPath.is_library(url.path):
+            return self.library_read(url.path, ItemQuery.parsed(url.query))
         query = dict(parse_qsl(url.query))
         team = self.server.team
         routes = {"/pull": lambda: self.current(lambda: team.pulls.answer(self.token(), PullQuery.parsed(query))), "/copy": lambda: team.copies.answer(self.token()), "/devices": lambda: team.admins.listed(self.token()), "/team": lambda: team.details.answer(), "/people": lambda: team.people.answer(self.token()), "/leases": lambda: self.lease_state(query.get("name", "")), "/agent-views": lambda: team.agent_views.listed(self.token(), [key for key in query.get("keys", "").split(",") if key], team.clock.time())}
@@ -66,6 +75,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         if urlsplit(self.path).path.startswith(FILES_PATH):
             self.answered(lambda: FileAnswer(team.files.put(self.file_place(urlsplit(self.path).path), self.raw_body())))
             return
+        if LibraryPath.is_library(urlsplit(self.path).path):
+            return self.answered(lambda: self.library_write(LibraryPath.parsed(urlsplit(self.path).path)))
         routes = {
             "/login": lambda: self.login(self.login_request()),
             "/accept": lambda: team.logins.accepted(self.typed(AcceptRequest), self.address()),
@@ -99,6 +110,40 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             "/leases/release": lambda: team.leases.release(self.typed(LeaseRequest).name, team.devices.device(self.token()), team.clock.time()),
         }
         self.answered(routes.get(urlsplit(self.path).path))
+
+    def do_PUT(self) -> None:
+        if self.is_outdated_client():
+            return
+        path = urlsplit(self.path).path
+        if not LibraryPath.is_library(path):
+            return self.answered(None)
+        self.answered(lambda: self.server.team.library_routes.file_received(self.token(), self.file_path(path), self.raw_body()))
+
+    def library_read(self, path: str, query: ItemQuery) -> None:
+        routes = self.server.team.library_routes
+        if path == LIBRARY_PATH:
+            return self.answered(lambda: routes.member_summary(self.token()) if self.headers.get("Authorization") else routes.summary())
+        parsed = LibraryPath.parsed(path)
+        if parsed.file_name:
+            return self.file_answer(lambda: routes.file(self.token(), parsed))
+        if parsed.number:
+            return self.answered(lambda: routes.version(self.token(), parsed))
+        if parsed.name:
+            return self.answered(lambda: routes.item(self.token(), parsed))
+        self.answered(lambda: routes.listed(self.token(), query))
+
+    def library_write(self, path: LibraryPath):
+        routes = self.server.team.library_routes
+        if path.is_withdrawal:
+            return routes.withdrawn(self.token(), path)
+        return routes.published(self.token(), path, self.typed(PublishRequest), self.headers.get(VERSION_HEADER, ""))
+
+    @staticmethod
+    def file_path(path: str) -> LibraryPath:
+        parsed = LibraryPath.parsed(path)
+        if not parsed.file_name:
+            raise Refusal(f"a file is put at /items/<type>/<name>/<version>/files/<file>, not {path}")
+        return parsed
 
     def departed(self, team) -> DepartureAnswer:
         person = team.devices.person(self.token())
@@ -157,6 +202,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             return
         try:
             JsonReply.send(self, 200, asdict(route()))
+        except MissingItem as missing:
+            JsonReply.send(self, 404, {"error": str(missing)})
         except Refusal as refusal:
             JsonReply.send(self, 403, {"error": str(refusal)})
 
@@ -167,8 +214,11 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
     def file_answer(self, read) -> None:
         try:
             data = read()
+        except MissingItem as missing:
+            JsonReply.send(self, 404, {"error": str(missing)})
+            return
         except Refusal as refusal:
-            JsonReply.send(self, 404, {"error": str(refusal)})
+            JsonReply.send(self, 403, {"error": str(refusal)})
             return
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
@@ -200,12 +250,15 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
 
     def typed(self, kind: Callable):
         try:
-            return kind(**json.loads(self.raw_body() or b"{}"))
+            return kind(**json.loads(self.raw_body(JSON_LIMIT_BYTES) or b"{}"))
         except (TypeError, ValueError) as wrong:
             raise Refusal(f"the body of this request is not what {urlsplit(self.path).path} takes: {wrong}") from wrong
 
-    def raw_body(self) -> bytes:
-        return self.rfile.read(int(self.headers.get("Content-Length", "0")))
+    def raw_body(self, limit_bytes: int = LIMIT_BYTES) -> bytes:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length > limit_bytes:
+            raise Refusal(f"a body of {length} bytes is over this route's limit of {limit_bytes}")
+        return self.rfile.read(length)
 
     def token(self) -> str:
         header = self.headers.get("Authorization", "")
