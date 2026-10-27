@@ -14466,7 +14466,7 @@ def test_a_worker_sent_back_whose_runs_end_twice_without_clocking_out_is_named_t
     first = ended()
     assert first.state == "dispatched" and CLOCK_OUT_REQUEST in first.brief and "Go on with your task" not in first.brief, "a run sent back that ends without moving on in its queue is no turn of the queue: the journal asks it once to clock out"
     second = ended()
-    assert second.state == "unfinished" and CLOCK_OUT_REQUEST in second.brief, "its second run ended the same way, so it is not sent again"
+    assert second.state == WorkerState.UNFINISHED and CLOCK_OUT_REQUEST in second.brief, "its second run ended the same way, so it is not sent again"
     with app.container.get(Scope).environment(MAIN):
         told = [entry.data["values"]["n"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.run_unfinished"]
     assert told == ["1"], "the agent that dispatched it is told once, naming it"
