@@ -8,7 +8,6 @@ from journal.engine.clock import Clock
 from journal.repositories.reader_reports import ReaderReports
 from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
-from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.run_history import RunHistory
 from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
@@ -35,10 +34,9 @@ class ReaderCommand(Command):
 
     noun = "reader"
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, aliases: Aliases, backfill: ReaderBackfill, scope: Scope, history: RunHistory) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory) -> None:
         self.backfill, self.scope, self.history = backfill, scope, history
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
-        self.aliases = aliases
 
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
@@ -136,10 +134,7 @@ class ReaderCommand(Command):
 
     def remove(self, args: Namespace, caller: Caller) -> int:
         unfinished = [output.id for output in self.history.reader_unended(args.name)]
-        self.readers.removed(args.name)
-        aliases = self.aliases.reader_rows(args.name)
-        for alias in aliases:
-            self.aliases.save(alias.with_(reader=""), caller.actor)
+        aliases = self.readers.removed_with_aliases(args.name, caller.actor)
         print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else "") + (f"; outputs {', '.join(map(str, unfinished))} were read through it and now show their last lines" if unfinished else ""))
         return 0
 

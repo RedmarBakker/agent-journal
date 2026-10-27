@@ -9,11 +9,15 @@ from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, JOURNAL, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
+from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.features.plugins.support.plugin_skills import STAMP
 
 # the readers chosen as their commands' defaults, one name a line, beside the readers
 DEFAULTS_FILE = "defaults"
+# the version of the rules the project's readers were written under, beside the readers; a new version clears the readers the project wrote
+RULES_VERSION_FILE = "rules-version"
+RULES_VERSION = 2
 
 KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
@@ -100,6 +104,26 @@ class Readers:
             path.unlink()
         remaining = self.default_names() - {name}
         (self.config.readers / DEFAULTS_FILE).write_text("".join(f"{default}\n" for default in sorted(remaining)))
+
+    def removed_with_aliases(self, name: str, actor: Actor) -> list[Alias]:
+        self.removed(name)
+        return [self.aliases.save(alias.with_(reader=""), actor) for alias in self.aliases.reader_rows(name)]
+
+    def project_readers(self) -> list[Reader]:
+        return [reader for reader in self.all() if not self.is_locked(reader.name)]
+
+    def rules_version(self) -> int:
+        path = self.config.readers / RULES_VERSION_FILE
+        return int(path.read_text()) if path.is_file() else 0
+
+    def rules_updated(self, actor: Actor) -> list[str]:
+        cleared = [reader.name for reader in self.project_readers()]
+        for name in cleared:
+            self.removed_with_aliases(name, actor)
+        self.config.readers.mkdir(parents=True, exist_ok=True)
+        (self.config.readers / DEFAULTS_FILE).unlink(missing_ok=True)
+        (self.config.readers / RULES_VERSION_FILE).write_text(f"{RULES_VERSION}\n")
+        return cleared
 
     def owner(self, name: str) -> str:
         return next((line.removeprefix(STAMP) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(STAMP)), "")

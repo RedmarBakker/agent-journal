@@ -12905,6 +12905,28 @@ def test_a_reader_is_removed_with_its_files_and_an_alias_it_read_for_runs_with_n
     assert "no reader named pushes" in console.run(["reader", "remove", "pushes"], AGENT).error
 
 
+def test_a_change_of_the_reader_rules_clears_the_projects_readers_and_keeps_the_plugins_and_the_shipped(app: App):
+    """Message 70004, task 3786: the release of the reader suggester removes every reader the project wrote, with the defaults file, once, at boot; a plugin's readers and the shipped ones stay, and an alias that named a removed reader runs with none."""
+    from journal.features.plugins.support.plugin_skills import STAMP
+    from journal.features.shell.seeds.project_readers_clear import ProjectReadersClear
+    from journal.features.shell.support.readers import RULES_VERSION_FILE
+    from journal.repositories.aliases import Aliases
+    console = app.console()
+    hook(app, "SessionStart")
+    assert console.run(["reader", "add", "pushes", "--commands", "rsync", "--pattern", "^sent ", "--about", "an upload's totals"], AGENT).code == 0
+    assert console.run(["reader", "default", "pushes"], AGENT).code == 0
+    assert console.run(["alias", "add", "ship", "rsync -a dist/ host:site/", "--reader", "pushes"], AGENT).code == 0
+    (app.config.readers / "sins.pattern").write_text(f"# a plugin's reader\n^x\n{STAMP}code-commandments\ncommands: commandments judge\n")
+    (app.config.readers / RULES_VERSION_FILE).unlink(missing_ok=True)
+    app.container.get(ProjectReadersClear).run()
+    names = {path.stem for path in app.config.readers.glob("*.pattern")}
+    assert "pushes" not in names and {"sins", "pytest", "vitest", "worker-merge"} <= names, names
+    assert not (app.config.readers / "defaults").exists() and app.container.get(Aliases).single(name="ship").reader == "", "the defaults go, and the alias runs with no reader"
+    assert console.run(["reader", "add", "pushes", "--commands", "rsync", "--pattern", "^sent ", "--about", "an upload's totals"], AGENT).code == 0
+    app.container.get(ProjectReadersClear).run()
+    assert (app.config.readers / "pushes.pattern").is_file(), "the clearing runs once, so a reader written after it stays"
+
+
 def test_a_run_reaches_the_chat_only_once_it_is_moved_to_the_background(app: App):
     import threading
     import time
