@@ -100,8 +100,9 @@ class StateMachine:
         return self.agents.find(agent.row_id)
 
     def reply(self, agent: Agent, event: AgentEvent | RowEvent) -> MachineReply:
-        if not isinstance(event, RowEvent):
-            agent = self.assigned(agent, event)
+        return self.stack_reply(agent if isinstance(event, RowEvent) else self.assigned(agent, event), event)
+
+    def stack_reply(self, agent: Agent, event: AgentEvent | RowEvent) -> MachineReply:
         settings = self.top_state()
         stored_stack = self.states.stack(agent)
         stack = self.states.floor(stored_stack, settings, agent.role)
@@ -125,7 +126,7 @@ class StateMachine:
         if machine_answer.refusal and (line := self.nudger.refuse_with(agent, machine_answer.refusal.nudge)):
             return MachineReply(agent, Decision.refuse(line), keystrokes, remarks, tuple(typist.moves))
         answered = MachineReply(agent, Decision.allowed_with("\n".join(lines)), keystrokes, remarks, tuple(typist.moves))
-        return answered.merged(self.reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
+        return answered.merged(self.stack_reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
 
     def push(self, session: str, environment_id: int, destination: BaseState, actor: Actor, text: str) -> MachineReply:
         agent = self.sessions.agent(session, environment_id)
