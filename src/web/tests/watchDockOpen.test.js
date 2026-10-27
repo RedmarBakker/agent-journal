@@ -236,3 +236,20 @@ test("a docked run's Ask about this button starts a question in the composer tha
     host.querySelector(".watch-dock-ask").click();
     expect(store.quoting).toEqual({text: "Running the tests", ref: "", refers: ["command_outputs:12"], label: "Asking about"});
 });
+
+test("only a run of the main agent's own marks its bar for the avatar; a worker's run is shown and left alone", async () => {
+    const {store} = await import("../src/state/store.js");
+    store.agents = [{id: 1, role: "main", session: "main-session", status: "working", heard_at: new Date().toISOString()}];
+    const mounted = async (session) => {
+        const host = document.body.appendChild(document.createElement("div"));
+        app?.unmount();
+        app = createApp({render: () => h(WatchDock, {message: {...watched, session}})});
+        app.directive("tip", {});
+        app.mount(host);
+        await flush();
+        return host;
+    };
+    expect((await mounted("main-session")).querySelector("[data-figure-bar]")).not.toBeNull();
+    expect((await mounted("worker-session")).querySelector("[data-figure-bar]")).toBeNull();
+    expect((await mounted("worker-session")).querySelector(".watch-dock-bar")).not.toBeNull();
+});

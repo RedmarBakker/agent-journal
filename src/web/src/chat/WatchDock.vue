@@ -19,6 +19,7 @@ import {watchLines} from "../domain/watchStatus.js";
 import {useOutputPages} from "../composables/outputPages.js";
 import {useRunStop} from "../composables/runStop.js";
 import {useWatchRun} from "../composables/watchRun.js";
+import {agent} from "../composables/leadAgent.js";
 
 const SHOWN_LINES = 6;
 
@@ -49,6 +50,8 @@ const statuses = computed(() => (card.value.ending || phase.value ? [] : printed
 
 const opened = ref(false);
 const shown = ref(false);
+// only a run of the main agent's own is the avatar's to watch: a worker's or a subagent's run is shown, never acted on
+const leads = computed(() => !props.message.session || props.message.session === agent.value?.session);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
 const takeDown = () => undock(scope, props.message);
@@ -159,8 +162,8 @@ watch(
             </div>
         </div>
         <template v-if="card.fraction > 0">
-            <div class="watch-dock-bar" :data-figure-bar="card.ending ? endedTone : ''" :data-figure-began="createdAt(message)">
-                <div class="watch-dock-fill" :style="{width, background: bar}" :data-figure-progress="card.ending ? null : ''"></div>
+            <div class="watch-dock-bar" :data-figure-bar="leads ? (card.ending ? endedTone : '') : undefined" :data-figure-began="createdAt(message)">
+                <div class="watch-dock-fill" :style="{width, background: bar}" :data-figure-progress="leads && !card.ending ? '' : null"></div>
             </div>
         </template>
     </ChatDock>
