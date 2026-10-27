@@ -466,12 +466,16 @@ def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(kind, **extra):
-        return json.loads(urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read() or b"{}")
+        request = HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+        try:
+            urlopen(request, timeout=5).read()
+            return 200
+        except HTTPError as refusal:
+            return refusal.code
     chained = {"command": "journal task list && ls"}
     try:
         hook("SessionStart")
-        answer = hook("PreToolUse", tool_name="Bash", tool_input=chained, tool_use_id="t-1")
-        assert "deny" in json.dumps(answer) or "block" in json.dumps(answer), answer
+        assert hook("PreToolUse", tool_name="Bash", tool_input=chained, tool_use_id="t-1") == 409, "the chained line is refused before it runs"
         hook("PostToolUseFailure", tool_name="Bash", tool_input=chained, error="refused by a hook", tool_use_id="t-1")
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-2")
         hook("PostToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_response={"stdout": "no task"}, tool_use_id="t-2")
