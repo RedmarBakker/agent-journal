@@ -1,4 +1,5 @@
 from argparse import Namespace
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from journal.console.command import Command
@@ -9,6 +10,8 @@ from journal.models.memory import HEAVIEST, LOWEST_WEIGHT, Memory
 from journal.repositories.memories import Memories
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
+
+ROW_TABLES = {"task": "tasks", "plan": "plans"}
 
 
 class MemoryCommand(Command):
@@ -23,7 +26,7 @@ class MemoryCommand(Command):
         adding = self.verb(verbs, "add", "add something to keep in mind, in one or two plain sentences")
         adding.add_argument("text")
         adding.add_argument("--weight", type=int, default=5, help="how much it matters, 1 to 10; every compaction lowers it by one")
-        adding.add_argument("--keywords", default="", help="words that bring it back when you write one, comma-separated")
+        adding.add_argument("--valid-until", default="", help="when it ends by itself: a row whose close removes it, such as task:3852 or plan:1047, or a moment, such as '2026-10-28 09:00'")
         weighing = self.verb(verbs, "weigh", "give memories new weights: weigh 3,7,9 5,8,2 gives each its own, weigh 3,7,9 5 gives all one")
         weighing.add_argument("numbers")
         weighing.add_argument("weights")
@@ -32,11 +35,22 @@ class MemoryCommand(Command):
         self.verb(verbs, "skip", "say why nothing needs keeping at this mark").add_argument("why")
 
     def add(self, args: Namespace, caller: Caller) -> int:
-        keywords = tuple(word.strip().lower() for word in args.keywords.split(",") if word.strip())
-        memory = self.memories.added(Memory(text=args.text, keywords=keywords).weighed(self.weight(str(args.weight))), self.owners.caller_owner(caller), caller.actor)
+        memory = self.memories.added(self.ending(Memory(text=args.text), args.valid_until).weighed(self.weight(str(args.weight))), self.owners.caller_owner(caller), caller.actor)
         self.decisions.decided(caller)
         print(f"memory {memory.id} added, weight {memory.weight}: {memory.text}")
         return 0
+
+    @staticmethod
+    def ending(memory: Memory, valid_until: str) -> Memory:
+        if not valid_until:
+            return memory
+        kind, colon, number = valid_until.partition(":")
+        if colon and kind in ROW_TABLES and number.isdigit():
+            return replace(memory, expiry_row=f"{ROW_TABLES[kind]}:{number}")
+        try:
+            return replace(memory, expires_at=datetime.fromisoformat(valid_until).astimezone(timezone.utc))
+        except ValueError:
+            raise Rejection(f"--valid-until is a row, such as task:3852 or plan:1047, or a moment, such as '2026-10-28 09:00', not {valid_until}") from None
 
     def weigh(self, args: Namespace, caller: Caller) -> int:
         memories = self.found(args.numbers, caller)

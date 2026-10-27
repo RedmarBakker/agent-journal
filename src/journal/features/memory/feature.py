@@ -3,6 +3,9 @@ from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT, REMINDERS
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
+from journal.features.memory.listeners.memory_moment_end import MemoryMomentEnd
+from journal.features.memory.listeners.memory_plan_end import MemoryPlanEnd
+from journal.features.memory.listeners.memory_task_end import MemoryTaskEnd
 from journal.features.memory.listeners.start_memory import StartMemory
 from journal.features.memory.listeners.memory_hint_card import MemoryHintCard
 from journal.features.memory.listeners.context_threshold_check import ContextThresholdCheck
@@ -40,7 +43,7 @@ class Memory(Feature[MemoryData]):
     conduct = (MemoryConduct,)
     helper_conduct = {AgentRole.WORKER: (WorkerMemoryConduct,)}
     states = (WeighingMemories,)
-    listeners = (ContextThresholdCheck, CompactionMarkClear, MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, StartMemory, DueReminderStrike, SingleUseMemoryStrike)
+    listeners = (ContextThresholdCheck, CompactionMarkClear, MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, StartMemory, DueReminderStrike, SingleUseMemoryStrike, MemoryTaskEnd, MemoryPlanEnd, MemoryMomentEnd)
     helper_listeners = {AgentRole.WORKER: (ContextThresholdCheck, CompactionMarkClear, MemoryFading)}
     data = (MemoryDataReader,)
     commands = (RuleCommand, ReminderCommand, MemoryCommand)

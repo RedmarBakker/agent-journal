@@ -14,7 +14,7 @@ HEAVIEST = 10
 
 @dataclass(frozen=True)
 class Memory(Scoped):
-    """What one agent keeps in mind in an environment, the main agent or a helper its owner by a link, with a weight from 0 to 10 that each of its owner's compactions lowers by one; at nought it is no longer shown, and a removed one stays on its row, never shown again."""
+    """What one agent keeps in mind in an environment, the main agent or a helper its owner by a link, with a weight from 0 to 10 that each of its owner's compactions lowers by one; at nought it is no longer shown, and a removed one stays on its row, never shown again; one may end itself when a row it names closes or a moment it names passes."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)
 
@@ -22,6 +22,8 @@ class Memory(Scoped):
     weight: int = 5
     keywords: tuple[str, ...] = ()
     removed_at: datetime | None = None
+    expiry_row: str = ""
+    expires_at: datetime | None = None
 
     def weighed(self, weight: int) -> "Memory":
         if not LOWEST_WEIGHT <= weight <= HEAVIEST:

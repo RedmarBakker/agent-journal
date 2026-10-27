@@ -265,6 +265,42 @@ def test_after_a_compaction_a_memory_naming_a_closed_or_deleted_row_says_which_s
     assert "check it still holds" not in unmarked, "a memory naming only a live task is not marked"
 
 
+def test_a_memory_valid_until_a_task_or_a_moment_ends_itself_when_the_task_closes_or_the_moment_passes(app: App):
+    from datetime import datetime, timezone
+    from journal.engine.clock import Clock
+    from journal.repositories.memories import Memories
+    console = app.console()
+    run = lambda *words: console.run(list(words), AGENT)
+    hook(app, "SessionStart")
+    run("environment", "overview")
+    task = re.search(r"task (\d+)", run("task", "create", "the updater", "--brief", "b").text).group(1)
+    tied = re.search(r"memory (\d+) added", run("memory", "add", "the updater is in hand", "--valid-until", f"task:{task}").text).group(1)
+    clock = app.container.get(TimeSource)
+    start = clock.seconds()
+    clock.pin(start)
+    soon = datetime.fromtimestamp(start + 60, timezone.utc).isoformat()
+    timed = re.search(r"memory (\d+) added", run("memory", "add", "the release goes out within the minute", "--valid-until", soon).text).group(1)
+    assert "is a row, such as task:3852" in run("memory", "add", "x", "--valid-until", "tomorrow").error, "a value that is neither a row nor a moment is refused"
+    run("task", "start", task)
+    run("task", "pause", task, "later")
+    app.runtime().deferred.drain()
+    memories = app.container.get(Memories)
+    with app.container.get(Scope).environment(MAIN):
+        assert memories.find(int(tied)).removed_at is None, "a task only paused leaves its memory"
+    run("task", "resume", task)
+    run("task", "complete", task, "--how", "done")
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert memories.find(int(tied)).removed_at is not None, "the task done removes the memory that ends with it"
+        assert memories.find(int(timed)).removed_at is None, "a moment not yet passed leaves its memory"
+    clock.pin(start + 120)
+    app.container.get(Clock).tick(start + 120)
+    app.runtime().deferred.drain()
+    clock.unpin()
+    with app.container.get(Scope).environment(MAIN):
+        assert memories.find(int(timed)).removed_at is not None, "once its moment passes the memory ends"
+
+
 def test_the_memories_mark_keeps_its_round_the_memories_still_shown_those_faded_out_and_those_removed(app: App):
     from journal.repositories.messages import Messages
     console = app.console()

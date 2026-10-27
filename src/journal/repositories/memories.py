@@ -37,6 +37,12 @@ class Memories(ScopedRepository[Memory]):
     def shown_count(self, owner: Ref | None = None) -> int:
         return self.counted(self.shown_query(owner))
 
+    def ending_with(self, row: str) -> list[Memory]:
+        return self.selected(self.query().filter(expiry_row=row).filter_null("removed_at").order("id"))
+
+    def expired(self, moment: datetime) -> list[Memory]:
+        return self.selected(self.query().filter_present("expires_at").filter_less_equal("expires_at", moment).filter_null("removed_at").order("id"))
+
     def fade_all(self, owner: Ref | None, actor: Actor) -> list[Memory]:
         return [self.save(memory.faded(), actor) for memory in self.selected(self.shown_query(owner))]
 
