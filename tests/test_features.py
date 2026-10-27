@@ -23272,9 +23272,9 @@ def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_th
 
 
 def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_to_the_agent_and_on_its_card(app: App):
-    from journal.features.shell.jobs.watch_refresh import FULL_BAR_SECONDS, WatchRefresh
+    from journal.features.shell.jobs.watch_refresh import COMPLETE_WAIT_SECONDS, WatchRefresh
     from journal.features.shell.support.output_log import OutputLog
-    from journal.features.shell.support.output_views import STUCK_CARD_LINE
+    from journal.features.shell.support.output_views import COMPLETE_UNENDED_LINE
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.entries import NUDGE, Entries
     from journal.repositories.messages import Messages
@@ -23293,15 +23293,15 @@ def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_
     refresh = app.container.get(WatchRefresh)
     start = timing.time()
     refresh.tick(start)
-    refresh.tick(start + FULL_BAR_SECONDS - 1)
-    assert not outputs.find(1).is_full_named, "a run at its whole bar for less than the set time is not named"
-    for later in (FULL_BAR_SECONDS + 1, FULL_BAR_SECONDS + 5):
+    refresh.tick(start + COMPLETE_WAIT_SECONDS - 1)
+    assert not outputs.find(1).is_complete_reported, "a run at its whole bar for less than the set time is not named"
+    for later in (COMPLETE_WAIT_SECONDS + 1, COMPLETE_WAIT_SECONDS + 5):
         refresh.tick(start + later)
     app.runtime().deferred.drain()
     told = [e.data["line"] for e in app.container.get(Entries).all_matching(kind=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
-    assert len(told) == 1 and has_nudge(told[0], ShellNudges.FULL_BAR_RUN, n=1, seconds=int(FULL_BAR_SECONDS) + 1), f"the agent is told once: {told}"
+    assert len(told) == 1 and has_nudge(told[0], ShellNudges.COMPLETE_PROGRESS_RUN, n=1, seconds=COMPLETE_WAIT_SECONDS + 1), f"the agent is told once: {told}"
     card = messages.with_key("watch:1")[0].data
-    assert STUCK_CARD_LINE in (card.get("detail"), *card.get("lines", ())), "and the card says what the whole bar means"
+    assert COMPLETE_UNENDED_LINE in (card.get("detail"), *card.get("lines", ())), "and the card says what the whole bar means"
 
 
 def test_an_output_whose_shell_process_is_gone_is_closed_as_ended_though_its_heartbeat_beats(app: App):

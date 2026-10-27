@@ -5,7 +5,6 @@ from tests.shard_deal import ShardDeal
 
 
 def suite_script():
-    """scripts/suite.py loaded as a module."""
     spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
     suite = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(suite)

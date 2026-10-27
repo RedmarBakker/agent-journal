@@ -14,8 +14,8 @@ class WorkerMoves:
     def last_time(self) -> float:
         return self.steps[-1][1] if self.steps else 0.0
 
-    def latest(self, words: tuple[str, ...]) -> str:
-        return next((word for word, _ in reversed(self.steps) if word.startswith(words)), "")
+    def latest(self, prefixes: tuple[str, ...]) -> str:
+        return next((word for word, _ in reversed(self.steps) if word.startswith(prefixes)), "")
 
     def added(self, word: str, time: float) -> "WorkerMoves":
         return WorkerMoves((*self.steps, (word, time)))

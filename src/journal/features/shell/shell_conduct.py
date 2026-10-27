@@ -75,7 +75,7 @@ class ShellConduct(Conduct):
         return self.none(ShellNudges.SILENT_RUN_HINT.create(n=event.row_id, seconds=event.quiet_seconds)) if event.run_session == event.session else self.none()
 
     def on_output_full_bar(self, event: OutputFullBar, settings: Settings) -> Transition:
-        return self.none(ShellNudges.FULL_BAR_RUN.create(n=event.row_id, seconds=event.full_seconds)) if event.run_session == event.session else self.none()
+        return self.none(ShellNudges.COMPLETE_PROGRESS_RUN.create(n=event.row_id, seconds=event.full_seconds)) if event.run_session == event.session else self.none()
 
     def on_reader_report_raised(self, event: ReaderReportRaised, settings: Settings) -> Transition:
         return self.none(ShellNudges.REPORT_RAISED.create(n=event.row_id)) if event.run_session == event.session and event.reader not in event.data.part(ShellPart).locked_readers else self.none()

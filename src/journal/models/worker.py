@@ -54,7 +54,7 @@ REJECTION_MOVE, MERGED, DELIVERY_MOVE = "sent back", "merged", "clocked out"
 # the moves that start a job, and the move to the next task of a queue inside it
 JOB_MOVE = "sent a job"
 JOB_STARTS = ("dispatched", JOB_MOVE)
-MOVED_ON = "moved on to task"
+QUEUE_MOVE = "moved on to task"
 
 
 @dataclass(frozen=True)
@@ -215,11 +215,11 @@ class Worker(Helper):
     def moved(self, move: str, time: float) -> "Worker":
         return self.with_(moves=self.moves.added(move, time))
 
-    def moved_on(self, task: int, time: float) -> "Worker":
-        return self.moved(f"{MOVED_ON} {task}", time).with_(began=time)
+    def queue_advanced(self, task: int, time: float) -> "Worker":
+        return self.moved(f"{QUEUE_MOVE} {task}", time).with_(began=time)
 
-    def is_moved_on(self) -> bool:
-        return self.moves.latest((MOVED_ON, *JOB_STARTS, REJECTION_MOVE)).startswith(MOVED_ON)
+    def is_queue_advanced(self) -> bool:
+        return self.moves.latest((QUEUE_MOVE, *JOB_STARTS, REJECTION_MOVE)).startswith(QUEUE_MOVE)
 
     def contacted(self, time: float) -> "Worker":
         return self.with_(silence=self.silence.started(time))

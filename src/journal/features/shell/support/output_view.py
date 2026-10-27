@@ -22,7 +22,7 @@ class OutputView:
     summary_missing: bool = False
     is_counting: bool = False
     command: str = ""
-    stuck: bool = False
+    complete_unended: bool = False
 
     @classmethod
     def empty(cls) -> "OutputView":
@@ -35,7 +35,7 @@ class OutputView:
     @classmethod
     def parsed(cls, card: Message) -> "OutputView":
         lines = card.data.get("lines") or [card.data["detail"]]
-        return cls(card.data["output"], tuple(line for line in lines if line), card.data["figure"], card.data["fraction"], card.data["ending"], card.data.get("reader", ""), card.data.get("poor_line", ""), card.data.get("empty_card", False), card.data.get("silent", False), card.data.get("summary_missing", False), command=CardDetail.shortened(str(card.data.get("line", ""))), stuck=card.data.get("stuck", False))
+        return cls(card.data["output"], tuple(line for line in lines if line), card.data["figure"], card.data["fraction"], card.data["ending"], card.data.get("reader", ""), card.data.get("poor_line", ""), card.data.get("empty_card", False), card.data.get("silent", False), card.data.get("summary_missing", False), command=CardDetail.shortened(str(card.data.get("line", ""))), complete_unended=card.data.get("complete_unended", False))
 
     @staticmethod
     def key(output: int) -> str:
