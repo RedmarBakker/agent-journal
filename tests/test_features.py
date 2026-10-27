@@ -20448,6 +20448,7 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
     from journal.repositories.plugins import Plugins
     sent = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    monkeypatch.setattr(os, "getloadavg", lambda: (0.0, 0.0, 0.0))
     environs = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: sent.append((verb, fields.get("name", ""))) or environs.append(fields.get("env", {})) or SupervisorReply(True))
     run = lambda *words: app.console().run(list(words), AGENT).text
@@ -20498,6 +20499,11 @@ def test_a_plugin_that_declares_a_health_check_is_probed_restarted_on_a_miss_and
         checks.tick(timing.time())
         row = plugins.lookup("echo")
         assert row.failed_at is not None and row.enabled and "health check within 200 ms" in row.last_fault, "the fifth marks it broken, never switched off"
+        test_run = app.config.home / "runtime" / f"tests.running.{os.getpid()}"
+        test_run.write_text("")
+        checks.tick(timing.time())
+        assert plugins.lookup("echo").fault_streak == 5, "a miss while a test suite runs is not counted"
+        test_run.unlink()
         answering.set()
         checks.tick(timing.time())
         assert plugins.lookup("echo").failed_at is None and plugins.lookup("echo").fault_streak == 0, "an answer again clears the broken mark"

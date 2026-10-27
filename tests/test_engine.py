@@ -591,6 +591,15 @@ def test_the_lifecycle_hooks_run_in_order_say_their_lines_refuse_a_push_and_catc
     assert [row["state"] for row in app.container.get(Agents).session_agent("s1").stack] == ["idle"]
 
 
+def test_an_agent_carrying_on_after_a_compaction_reads_busy_and_a_new_session_reads_idle(app: App):
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(AgentActivity).page(app.container.get(Agents).scoped())[0]["status"] == "idle"
+    hook(app, "SessionStart", source="compact")
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(AgentActivity).page(app.container.get(Agents).scoped())[0]["status"] == "busy"
+
+
 def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_top_first(app: App):
     hook(app, "SessionStart")
     app.console().run(["task", "create", "t", "--start"], AGENT)

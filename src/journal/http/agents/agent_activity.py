@@ -2,6 +2,8 @@ import time
 from dataclasses import asdict
 
 from journal.engine.support.stack_history import StackHistory
+from journal.events.agent.agent_event_type import AgentEventType
+from journal.events.agent.session_started import COMPACTION_SOURCE
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.support.run_cards import RUN
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
@@ -41,9 +43,9 @@ from journal.features.workers.support.mode_measures import ModeMeasures
 from journal.models.support.measure_state import MeasureState
 from journal.support.time_source import TimeSource
 
-STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
+STATUS = {AgentEventType.STOP: "idle", AgentEventType.SESSION_STARTED: "idle", AgentEventType.SESSION_ENDED: "stopped", AgentEventType.COMPACTING: "compacting", AgentEventType.PROMPT_SUBMITTED: "busy", AgentEventType.TOOL_STARTING: "busy", AgentEventType.TOOL_FINISHED: "busy", AgentEventType.TOOL_FAILED: "busy", AgentEventType.SUBAGENT_STARTED: "busy", AgentEventType.SUBAGENT_ENDED: "busy"}
 HISTORY_ENTRIES = 5
-TOOL_KINDS = ("ToolStarting", "ToolFinished")
+TOOL_KINDS = (AgentEventType.TOOL_STARTING, AgentEventType.TOOL_FINISHED)
 OPERATION_VERBS = {FileRead.operation_type: "reading a file", FileEdit.operation_type: "editing files", FileWrite.operation_type: "writing a file", SubagentDispatch.operation_type: "waiting for a subagent", SkillLoad.operation_type: "reading a skill", AgentMessage.operation_type: "messaging an agent", UserQuestion.operation_type: "asking you"}
 # how far back the fitness timeline reaches, and the most points it reads
 TIMELINE_HOURS = 6
@@ -66,7 +68,7 @@ class AgentActivity:
 
     def session_entries(self, session: str) -> list:
         newest = [*self.entries.agent_kinds_newest(session, list(STATUS), 1), *self.entries.agent_kinds_newest(session, [*TOOL_KINDS, PART_START, PART_END], 1),
-                  *self.entries.agent_kinds_newest(session, [PART_START, PART_END], 1), *self.entries.agent_kinds_newest(session, ["TurnDisplayed"], 1),
+                  *self.entries.agent_kinds_newest(session, [PART_START, PART_END], 1), *self.entries.agent_kinds_newest(session, [AgentEventType.TURN_DISPLAYED], 1),
                   *self.entries.session_kind_newest(session, StackHistory.KIND, HISTORY_ENTRIES), *self.entries.session_kind_newest(session, RUN, HISTORY_ENTRIES)]
         return sorted({entry.id: entry for entry in newest}.values(), key=lambda entry: entry.id)
 
@@ -87,11 +89,11 @@ class AgentActivity:
         status = provider.status(agent.session, self.config.status_home)
         return {
             **ModelFields.build(agent),
-            "status": "stopped" if state.final else self.status(agent.state, STATUS.get(type_name, "idle")),
+            "status": "stopped" if state.final else self.status(agent.state, self.reported(last)),
             "heard_at": last.created_at if last else agent.updated_at,
             "tool": last.data.get("tool_name", "") if last and type_name in TOOL_KINDS else "",
             "tool_work": self.work(last, entries) if last and type_name in TOOL_KINDS else "",
-            "tool_running": type_name == "ToolStarting" or self.unended_part(entries) is not None,
+            "tool_running": type_name == AgentEventType.TOOL_STARTING or self.unended_part(entries) is not None,
             "part_started_at": self.part_start(entries),
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
@@ -100,7 +102,7 @@ class AgentActivity:
             "doing": self.activity(state, [e for e in entries if e.entry_type in (*TOOL_KINDS, PART_START, PART_END)]),
             "thinking": "" if state.final else self.thinking(agent.session, hooks),
             "thinking_at": 0.0 if state.final else agent.thinking_at,
-            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.entry_type == "TurnDisplayed"), ""),
+            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.entry_type == AgentEventType.TURN_DISPLAYED), ""),
             "stuck": state.impasse_reason(),
             "state_title": self.states.title(agent.state),
             "sequence": self.sequence(agent),
@@ -143,6 +145,12 @@ class AgentActivity:
         return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.has_ended(agent) else []
 
     @staticmethod
+    def reported(last) -> str:
+        if last and last.entry_type == AgentEventType.SESSION_STARTED and last.data.get("source") == COMPACTION_SOURCE:
+            return "busy"
+        return STATUS.get(last.entry_type, "idle") if last else "idle"
+
+    @staticmethod
     def status(state: str, reported: str) -> str:
         return "working" if state in WORKING_STATES and reported == "busy" else reported
 
@@ -150,7 +158,7 @@ class AgentActivity:
         thoughts = self.messages.thoughts(session, 1)
         if not thoughts:
             return ""
-        saved = [e.created_at for e in hooks if e.entry_type == "TurnDisplayed"]
+        saved = [e.created_at for e in hooks if e.entry_type == AgentEventType.TURN_DISPLAYED]
         later = [time for time in (saved[-1] if saved else None, self.entries.last_prompt(session)) if time is not None]
         return "" if any(time > thoughts[-1].creation_time for time in later) else thoughts[-1].text
 
@@ -166,7 +174,7 @@ class AgentActivity:
         last = hooks[-1] if hooks else None
         if last and last.entry_type in (PART_START, PART_END):
             return self.text.shown(last.data["part"])
-        if last and last.entry_type == "ToolStarting":
+        if last and last.entry_type == AgentEventType.TOOL_STARTING:
             return self.tool_activity(last.recorded_call())
         part = self.unended_part(hooks)
         if part is not None:

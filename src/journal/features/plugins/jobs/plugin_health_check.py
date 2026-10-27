@@ -1,4 +1,5 @@
 from journal.engine.job import Job
+from journal.features.faults.support.machine_busy import MachineBusy
 from journal.features.plugins.support.plugin_faults import PluginFaults
 from journal.features.plugins.support.plugin_health import HEALTH_WINDOW_SECONDS, PluginHealth
 from journal.features.plugins.support.plugin_services import PluginServices
@@ -12,15 +13,17 @@ HEALTH_EVENT_NAME = "health"
 
 
 class PluginHealthCheck(Job):
-    """Every minute each plugin that is on and declares a health check is probed in every environment its supervisor runs: a miss is a fault, five in a row mark it broken, and its services are started again; an answer clears the run of faults."""
+    """Every minute, unless the machine is too busy for a missed answer to mean anything, each plugin that is on and declares a health check is probed in every environment its supervisor runs: a miss is a fault, five in a row mark it broken, and its services are started again; an answer clears the run of faults."""
 
     interval_seconds = 60.0
 
-    def __init__(self, plugins: Plugins, environments: Environments, supervisor: SupervisorLink, health: PluginHealth, faults: PluginFaults, services: PluginServices) -> None:
+    def __init__(self, plugins: Plugins, environments: Environments, supervisor: SupervisorLink, health: PluginHealth, faults: PluginFaults, services: PluginServices, machine: MachineBusy) -> None:
         self.plugins, self.environments, self.supervisor = plugins, environments, supervisor
-        self.health, self.faults, self.services = health, faults, services
+        self.health, self.faults, self.services, self.machine = health, faults, services, machine
 
     def tick(self, time: float) -> None:
+        if self.machine.is_busy():
+            return
         for plugin in self.plugins.enabled():
             if plugin.manifest.health.is_declared:
                 self.checked(plugin)

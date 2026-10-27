@@ -1,10 +1,9 @@
 from journal.support.card_outcome import CardOutcome
 from pathlib import Path
-import os
 import re
 import time
 from journal.features.faults.support.request_timer import RequestTimer
-from journal.features.faults.support.test_run_files import TestRunFiles
+from journal.features.faults.support.machine_busy import MachineBusy
 
 from journal.config import Config
 from journal.events.announcer import Announcer
@@ -46,10 +45,10 @@ OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin p
 class SlowRequests:
     """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included but a wait for the journal's boot, and never while it boots, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and counts one over it in memory, each route's worst time and count; once ten have gathered or thirty seconds passed without another, asked at most every five seconds as requests come, and again only once the set minutes have passed since the agent was last informed, it tells the agent in one line how many gathered and the worst, and writes the chat mark with the counts then, never at each slow request."""
 
-    def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, test_runs: TestRunFiles, lifecycle: Lifecycle) -> None:
+    def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, machine: MachineBusy, lifecycle: Lifecycle) -> None:
         self.config, self.settings, self.announcer, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, announcer, agents, environments, scope, nudges, clock, deferred
         self.tally = tally
-        self.test_runs, self.lifecycle = test_runs, lifecycle
+        self.machine, self.lifecycle = machine, lifecycle
         self.measured_routes: set[str] = set()
         self.checked_at = 0.0
         self.slow_tally = SlowRequestTally()
@@ -114,12 +113,8 @@ class SlowRequests:
     def budget(self, method: str) -> int:
         return self.settings.integer(FaultsOptions.EDIT_BUDGET if method == "POST" else FaultsOptions.REQUEST)
 
-    @staticmethod
-    def is_busy() -> bool:
-        return os.getloadavg()[0] > (os.cpu_count() or 1)
-
     def judging(self) -> bool:
-        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not self.is_busy() and not self.test_runs.is_testing()
+        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not self.machine.is_busy()
 
     def environment_id(self) -> int:
         agent = self.agents.all_current()
