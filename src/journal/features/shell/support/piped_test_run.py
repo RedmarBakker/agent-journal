@@ -14,7 +14,7 @@ class PipedTestRun:
 
     @classmethod
     def piped_filter(cls, line: str, aliases: dict[str, Alias]) -> str:
-        for part in Chain.split(line):
+        for part in cls.parts(line):
             stages = cls.stages(part)
             if len(stages) > 1 and cls.is_watched(stages[0], aliases):
                 programs = [stage.split()[0] for stage in stages[1:] if stage.split()]
@@ -22,6 +22,10 @@ class PipedTestRun:
                 if filters:
                     return filters[0]
         return ""
+
+    @classmethod
+    def parts(cls, line: str) -> list[str]:
+        return [inner for part in Chain.split(line) for inner in (cls.parts(part.strip()[1:-1]) if Part(part).is_subshell() else [part])]
 
     @staticmethod
     def is_watched(stage: str, aliases: dict[str, Alias]) -> bool:

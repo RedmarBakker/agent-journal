@@ -1,7 +1,6 @@
 """Splits the lines of the command corpus with the journal's own Chain and lists the lines it may split wrongly, by the check that caught them, leaving out the lines already decided as split right; a full run writes the failing lines' IDs, and a run with --failing checks only those, so the list is drained before the next full run. Builds nothing else. Run from the repository: PYTHONPATH=src python3 -m scripts.splitter_check <corpus> --decided <file> --report <file> [--failing <file>] [--only-failing]."""
 
 import argparse
-import hashlib
 import json
 import re
 import subprocess
@@ -12,7 +11,7 @@ from pathlib import Path
 
 from journal.support.chain import Chain
 from scripts.corpus_commands import refused_inside_repository
-from scripts.corpus_forms import ID_ALPHABET, splitter_faults, staged
+from scripts.corpus_forms import corpus_lines, splitter_faults, staged
 
 WORKERS = 4
 CHUNK_LINES = 500
@@ -31,22 +30,6 @@ JOINED_CHECK = "joined"
 ALLOWED_GAP = re.compile(r"(?:\s|;|&&|&|\\\n|#[^\n]*)*")
 SHLEX_CHECK = "shlex"
 UNCOUNTABLE = re.compile(r"[{}#]|\bcase\b|\(\)")
-
-
-def corpus_lines(corpus: Path, only: set[str] | None):
-    with corpus.open(errors="replace") as lines:
-        for raw in lines:
-            text = json.loads(raw) if raw.startswith('"') else ""
-            line_id = content_id(text) if text else ""
-            if text and (only is None or line_id in only):
-                yield line_id, text
-
-
-# a readable ID drawn from the line itself, the same on every run with no stored map: four groups of four letters
-def content_id(text: str) -> str:
-    digest = int.from_bytes(hashlib.blake2b(text.encode(), digest_size=10).digest())
-    letters = "".join(ID_ALPHABET[(digest >> (5 * index)) & 31] for index in range(16))
-    return "-".join(letters[index:index + 4] for index in range(0, 16, 4))
 
 
 def line_faults(entry: tuple[str, str]) -> tuple[str, str, list[str]]:

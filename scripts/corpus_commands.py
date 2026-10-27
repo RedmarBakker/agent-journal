@@ -1,16 +1,29 @@
-"""Reads every Bash command Claude Code ran from the session transcripts under ~/.claude/projects, leaving out the throwaway folders test runs make, anonymises each (emails, keys, tokens, passwords, addresses, home paths and the private words given made neutral) and writes the unique ones, one command a line as a JSON string, so a typed \\n and a real newline stay apart, grouped by the command they run with a blank line between groups. Run with PYTHONPATH=src."""
+"""Reads every Bash command Claude Code ran from the session transcripts under ~/.claude/projects and every shell command Codex ran from its sessions under ~/.codex/sessions, its bash -lc wrapper taken off, leaving out the throwaway folders test runs make, anonymises each (emails, keys, tokens, passwords, addresses, home paths and the private words given made neutral) and writes the unique ones, one command a line as a JSON string, so a typed \\n and a real newline stay apart, grouped by the command they run with a blank line between groups. Run with PYTHONPATH=src."""
 
 import json
 import re
 import sys
+from collections import Counter, defaultdict
 from pathlib import Path
 
+from journal.providers.codex import Codex
+from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
+from journal.support.part import Part
 
 PROJECTS = Path.home() / ".claude" / "projects"
 HOME = str(Path.home())
 USER = Path.home().name
 THROWAWAY_FOLDERS = ("-private-var", "-var-folders")
+PROJECT_COUNTS = "projects.json"
+SUBCOMMAND_WORD = re.compile(r"[a-z][a-z-]{1,19}")
+CODEX_SESSIONS = Path.home() / ".codex" / "sessions"
+CODEX_THROWAWAY_FOLDERS = ("/private/var", "/var/folders", "/private/tmp", "/tmp")
+# Codex's exec tool runs a script whose tools.exec_command({cmd: "..."}) calls hold the shell lines, as JavaScript string literals
+CODEX_SCRIPT_COMMAND = re.compile(r'exec_command\(\{\s*cmd:\s*("(?:\\.|[^"\\])*")')
+# a JavaScript escape JSON reads too keeps its backslash; any other, such as \$ or \', stands for its character
+ESCAPE = re.compile(r"\\(.)", re.S)
+JSON_ESCAPES = set('"\\/bfnrtu')
 # each pattern of a secret and what stands in for it
 SECRETS = (
     (re.compile(r"\b(gh[pousr]_)[A-Za-z0-9]{20,}"), r"\1EXAMPLE"),
@@ -45,6 +58,31 @@ def commands(transcript: Path) -> list[str]:
     return found
 
 
+# the folder a Codex session ran in and the shell lines it ran; none for a session in a throwaway folder
+def codex_session(session: Path) -> tuple[str, list[str]]:
+    found, folder = [], ""
+    for raw in session.read_text(errors="replace").splitlines():
+        try:
+            payload = json.loads(raw).get("payload") or {}
+        except json.JSONDecodeError:
+            continue
+        folder = str(payload.get("cwd", "")) if payload.get("type") == "session_meta" else folder
+        if folder.startswith(CODEX_THROWAWAY_FOLDERS):
+            return folder, []
+        found += codex_call_commands(payload) if payload.get("type") in ("function_call", "custom_tool_call") else []
+    return folder, found
+
+
+def codex_call_commands(payload: dict) -> list[str]:
+    script = str(payload.get("arguments") or payload.get("input") or "")
+    if payload.get("name") == "exec":
+        return [json.loads(ESCAPE.sub(lambda escape: escape.group(0) if escape.group(1) in JSON_ESCAPES else escape.group(1), literal)) for literal in CODEX_SCRIPT_COMMAND.findall(script)]
+    if payload.get("name") in ("exec_command", "shell"):
+        arguments = json.loads(script)
+        return [Codex.shell_line(arguments.get("cmd", arguments.get("command", "")))]
+    return []
+
+
 def anonymised(line: str, private_words: list[str]) -> str:
     for pattern, stand_in in SECRETS:
         line = pattern.sub(stand_in, line)
@@ -65,12 +103,35 @@ def refused_inside_repository(out: Path) -> None:
 def main(private_words: list[str], out: Path) -> None:
     refused_inside_repository(out)
     folders = [folder for folder in PROJECTS.iterdir() if folder.is_dir() and not folder.name.startswith(THROWAWAY_FOLDERS)]
-    unique = {anonymised(command, private_words) for folder in folders for transcript in folder.rglob("*.jsonl") for command in commands(transcript)} - {""}
+    by_project: dict[str, list[str]] = defaultdict(list)
+    for folder in folders:
+        by_project[folder.name] += [command for transcript in folder.rglob("*.jsonl") for command in commands(transcript)]
+    codex = [codex_session(session) for session in CODEX_SESSIONS.rglob("*.jsonl")]
+    for project, found in codex:
+        by_project[project] += found
+    unique = {anonymised(command, private_words) for found in by_project.values() for command in found} - {""}
     groups: dict[str, list[str]] = {}
     for command in unique:
         groups.setdefault(CommandShape.command_name(command) or command.split()[0], []).append(json.dumps(command, ensure_ascii=False))
     out.write_text("\n\n".join("\n".join(sorted(lines)) for _, lines in sorted(groups.items())) + "\n")
-    print(f"{len(unique)} unique commands in {len(groups)} groups from {len(folders)} project folders written to {out}")
+    out.with_name(PROJECT_COUNTS).write_text(json.dumps(project_counts(by_project), indent=1, sort_keys=True) + "\n")
+    print(f"{len(unique)} unique commands in {len(groups)} groups from {len(folders)} project folders and {sum(len(found) for _, found in codex)} Codex commands written to {out}")
+
+
+# how many projects ran each program, and each program with its first word after it, read from every part of every command; a fixture
+# ships only what several projects ran, since a project's own scripts, make targets and npm script names give the project away
+def project_counts(by_project: dict[str, list[str]]) -> dict[str, int]:
+    counts: Counter = Counter()
+    for found in by_project.values():
+        counts.update({key for command in found for part in Chain.split(command) for key in program_keys(part)})
+    return dict(counts)
+
+
+def program_keys(part: str) -> list[str]:
+    words = Part(part).tokens()
+    program = words[0].rsplit("/", 1)[-1] if words else ""
+    subcommand = words[1] if len(words) > 1 and SUBCOMMAND_WORD.fullmatch(words[1]) else ""
+    return [key for key in (program, f"{program} {subcommand}" if subcommand else "") if key]
 
 
 if __name__ == "__main__":

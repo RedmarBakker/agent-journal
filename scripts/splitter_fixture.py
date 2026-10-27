@@ -1,4 +1,4 @@
-"""Writes the splitter fixture, tests/splitter/lines.jsonl: shell lines rebuilt from the corpus forms of well-known programs, from the corpus's most common chain shapes and from made-up lines of every compound Chain reads (loops, cases, heredocs, groups, comments, continuations, the eval form Claude Code hands the runner, the journal's aliases), every value generated and none taken from the corpus, each line with the parts Chain splits it into, their kind and their pipe stages. Run from the repository: PYTHONPATH=src python3 -m scripts.splitter_fixture <corpus folder>."""
+"""Writes the splitter fixture, tests/splitter/lines.jsonl: shell lines rebuilt from the corpus forms of well-known programs that several projects ran, from the corpus's most common chain shapes and from made-up lines of every compound Chain reads (loops, cases, heredocs, groups, comments, continuations, the eval form Claude Code hands the runner, the journal's aliases), every value generated and none taken from the corpus, each line with the parts Chain splits it into, their kind and their pipe stages. Run from the repository: PYTHONPATH=src python3 -m scripts.splitter_fixture <corpus folder>."""
 
 import argparse
 import hashlib
@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 from journal.support.chain import Chain
-from scripts.corpus_commands import refused_inside_repository
+from scripts.corpus_commands import PROJECT_COUNTS, refused_inside_repository
 from scripts.corpus_forms import PART_ID
 
 FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "splitter" / "lines.jsonl"
@@ -19,7 +19,8 @@ PROGRAMS = {
     "node", "npm", "npx", "perl", "php", "pgrep", "printf", "ps", "pytest", "python", "python3", "rm", "sed", "sleep",
     "sort", "sqlite3", "ssh", "tail", "tee", "touch", "tr", "uniq", "vitest", "wc", "which", "xargs",
 }
-PLAIN_SUBCOMMAND = re.compile(r"[a-z][a-z-]{1,19}")
+# a program or subcommand ships only when this many projects ran it, so no project's own script names reach the fixture
+PROJECTS_SEEN = 3
 SUBCOMMANDS_KEPT = 10
 FORMS_KEPT = 4
 CHAIN_SHAPES_KEPT = 400
@@ -95,14 +96,14 @@ def seeded(text: str) -> random.Random:
     return random.Random(hashlib.blake2b(text.encode(), digest_size=8).hexdigest())
 
 
-def form_lines(forms: Path) -> list[str]:
+def form_lines(forms: Path, projects: dict[str, int]) -> list[str]:
     lines = []
     for program in sorted(PROGRAMS):
         path = forms / f"{program}.json"
-        if not path.exists():
+        if not path.exists() or projects.get(program, 0) < PROJECTS_SEEN:
             continue
         subcommands = json.loads(path.read_text())["subcommands"]
-        kept = sorted((name for name in subcommands if PLAIN_SUBCOMMAND.fullmatch(name) or name.startswith("(")), key=lambda name: -subcommands[name]["parts"])
+        kept = sorted((name for name in subcommands if name.startswith("(") or projects.get(f"{program} {name.split()[0]}", 0) >= PROJECTS_SEEN), key=lambda name: -subcommands[name]["parts"])
         for name in kept[:SUBCOMMANDS_KEPT]:
             lines += [filled(form["form"], seeded(form["form"])) for form in subcommands[name]["forms"][:FORMS_KEPT]]
     return lines
@@ -137,7 +138,7 @@ def row(line: str) -> dict:
 
 def main(corpus: Path) -> None:
     refused_inside_repository(corpus)
-    lines = list(dict.fromkeys(form_lines(corpus / "forms") + chain_lines(corpus / "chains.jsonl") + compound_lines()))
+    lines = list(dict.fromkeys(form_lines(corpus / "forms", json.loads((corpus / PROJECT_COUNTS).read_text())) + chain_lines(corpus / "chains.jsonl") + compound_lines()))
     FIXTURE.parent.mkdir(exist_ok=True)
     FIXTURE.write_text("".join(json.dumps(row(line), ensure_ascii=False) + "\n" for line in lines))
     print(f"{len(lines)} lines written to {FIXTURE}, {FIXTURE.stat().st_size} bytes")

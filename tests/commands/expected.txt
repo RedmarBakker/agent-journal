@@ -1667,7 +1667,7 @@ laws.name_a_profile  [laws]  the dispatch names no profile of this project: {{as
 laws.name_the_model  [laws]  the dispatch names no model. name the least expensive model that reliably fits the work
 mcp.sign_in_to_the_server  [mcp]  sign in to {{server}}. call mcp__{{name}}__authenticate, then complete_authentication once the browser has returned, and say in the chat that {{server}} is signed in
 memory.check_stale_memory  [memory]  {{stale_after}} days old or more, check they still hold: {{stale}}. strike what no longer holds and reword what drifted
-memory.decide_at_the_mark  [memory]  context {{percent}}% full: weigh your memories. {{memories}}. `journal memory weigh <numbers> <weights>`, `journal memory add "<what to keep in mind>" --weight <1 to 10>` or `journal memory skip "<why>"`; writes wait until you do
+memory.decide_at_the_mark  [memory]  context {{percent}}% full: weigh your {{count}} memories (journal memory list shows them). `journal memory weigh <numbers> <weights>`, `journal memory add "<what to keep in mind>" --weight <1 to 10>` or `journal memory skip "<why>"`; writes wait until you do
 memory.does_the_rule_apply_project_wide  [memory]  does rule {{n}} apply to the whole project?. if not, delete it and record a fact or a reminder
 memory.memory_for_this_moment  [memory]  {{noun}} {{n}} is for this moment: journal {{noun}} read {{n}}
 memory.memory_whispered_back  [memory]  {{noun}} {{n}} is about this and not in your context: journal {{noun}} read {{n}}

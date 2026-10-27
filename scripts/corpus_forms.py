@@ -2,9 +2,8 @@
 
 import json
 import multiprocessing
-import os
 import re
-import secrets
+import hashlib
 import shlex
 import shutil
 import subprocess
@@ -12,7 +11,7 @@ import sys
 from collections import Counter, defaultdict
 from functools import lru_cache, partial
 from pathlib import Path
-from typing import Iterator, TextIO
+from typing import Iterator
 
 from journal.support.chain import Chain
 from journal.support.command_shape import LOOP_PATTERN as LOOP_START, CommandShape
@@ -24,7 +23,6 @@ ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz"
 ID_GROUPS = 4
 ID_GROUP_LENGTH = 4
 ID_PATTERN = rf"(?:[{ID_ALPHABET}]{{{ID_GROUP_LENGTH}}}-){{{ID_GROUPS - 1}}}[{ID_ALPHABET}]{{{ID_GROUP_LENGTH}}}"
-LINE_ID = re.compile(rf"^({ID_PATTERN})\t")
 PART_ID = re.compile(ID_PATTERN)
 # a list of IDs, written on one line in a JSON file indented otherwise
 SAMPLE_IDS = 5
@@ -138,33 +136,21 @@ KINDS = (
 FALLBACK_KIND = "string"
 
 
-def new_id(taken: set[str]) -> str:
-    while (found := random_id()) in taken:
-        pass
-    taken.add(found)
-    return found
-
-
-# 80 random bits, five a letter, in groups joined by a dash: 3kq9-x7mb-...
-def random_id() -> str:
-    bits = int.from_bytes(secrets.token_bytes(ID_GROUPS * ID_GROUP_LENGTH * 5 // 8))
+# a readable ID drawn from the text itself, the same on every run with no stored map: 80 bits, five a letter, in groups joined by a dash
+def content_id(text: str) -> str:
+    bits = int.from_bytes(hashlib.blake2b(text.encode(), digest_size=ID_GROUPS * ID_GROUP_LENGTH * 5 // 8).digest())
     letters = "".join(ID_ALPHABET[(bits >> (5 * index)) & 31] for index in range(ID_GROUPS * ID_GROUP_LENGTH))
     return "-".join(letters[index:index + ID_GROUP_LENGTH] for index in range(0, len(letters), ID_GROUP_LENGTH))
 
 
-# the corpus's lines read one by one, each by its ID, a line without one given a new one, copied with its ID into the copy
-def identified(corpus: Path, copy: TextIO, taken: set[str], fresh: list[str]) -> Iterator[tuple[str, str]]:
+# the corpus's commands, each stored as a JSON string on a line of its own, with its ID; only the IDs given, when they are
+def corpus_lines(corpus: Path, only: set[str] | None = None) -> Iterator[tuple[str, str]]:
     with corpus.open(errors="replace") as lines:
         for raw in lines:
-            raw = raw.rstrip("\n")
-            found = LINE_ID.match(raw)
-            kept = bool(found) and found.group(1) not in taken
-            line_id = found.group(1) if kept else new_id(taken)
-            taken.add(line_id)
-            fresh += [] if kept or not raw else [line_id]
-            copy.write(f"{line_id}\t{raw[found.end():] if found else raw}\n" if raw else "\n")
-            if raw:
-                yield line_id, raw[found.end():] if found else raw
+            text = json.loads(raw) if raw.startswith('"') else ""
+            line_id = content_id(text) if text else ""
+            if text and (only is None or line_id in only):
+                yield line_id, text
 
 
 # a line's parts and the operators between them, as the journal's Chain splits it and a subshell, a pipe and a || inside a part split it further
@@ -381,12 +367,11 @@ def program_run(words: list[str]) -> tuple[str, list[str]]:
 
 
 # a line read in full: its pieces, each part with its runs and its redirects, and the splitter's faults on it
-def read_line(entry: tuple[str, str]) -> tuple[str, list[tuple], list[str]]:
-    line_id, line = entry
-    text = line.replace("\\n", "\n")
+def read_line(entry: tuple[str, str]) -> tuple[str, str, list[tuple], list[str]]:
+    line_id, text = entry
     chained = Chain.chained(text)
     stages = staged(chained)
-    return line_id, [piece if piece[0] == "operator" else read_part(piece[1]) for piece in pieces(stages)], splitter_faults(text, chained, stages)
+    return line_id, text, [piece if piece[0] == "operator" else read_part(piece[1]) for piece in pieces(stages)], splitter_faults(text, chained, stages)
 
 
 def read_part(text: str) -> tuple:
@@ -561,13 +546,9 @@ def scrubbed(value: str) -> str:
     return anonymised(value.replace(SUBSTITUTION, "$(...)"), [])
 
 
-def rows(path: Path) -> list[dict]:
-    return [json.loads(row) for row in path.read_text().splitlines() if row] if path.exists() else []
-
-
-# every distinct value, scrubbed, by an ID kept from the last run, with its kind, how often it was given, the slots it filled most and a
+# every distinct value, scrubbed, by an ID drawn from it, with its kind, how often it was given, the slots it filled most and a
 # few of the parts it came from
-def value_rows(runs_by_program: dict[str, dict[tuple[str, ...], list]], known: dict[str, str], taken: set[str]) -> list[dict]:
+def value_rows(runs_by_program: dict[str, dict[tuple[str, ...], list]]) -> list[dict]:
     counts: Counter = Counter()
     slots: dict[str, Counter] = defaultdict(Counter)
     samples: dict[str, set[str]] = defaultdict(set)
@@ -581,17 +562,13 @@ def value_rows(runs_by_program: dict[str, dict[tuple[str, ...], list]], known: d
                     slots[shown_value][" ".join([program, *path, slot])] += 1
                     samples[shown_value].update([part_id] if len(samples[shown_value]) < SAMPLE_IDS else [])
                     kinds.setdefault(shown_value, value_kind)
-    taken.update(known.values())
-    return [{"id": known.get(value) or new_id(taken), "value": value, "kind": kinds[value], "count": count, "slots": dict(slots[value].most_common(SAMPLE_IDS)), "sample_parts": sorted(samples[value])}
+    return [{"id": content_id(value), "value": value, "kind": kinds[value], "count": count, "slots": dict(slots[value].most_common(SAMPLE_IDS)), "sample_parts": sorted(samples[value])}
             for value, count in sorted(counts.items())]
 
 
-# the IDs of a line's parts: the line's own for a line of one part, else those the last run gave it, else new ones
-def part_ids(line_id: str, count: int, known: dict[str, list[str]], taken: set[str]) -> list[str]:
-    if count == 1:
-        return [line_id]
-    kept = known.get(line_id, [])
-    return kept if len(kept) == count else [new_id(taken) for _ in range(count)]
+# the IDs of a line's parts: the line's own for a line of one part, else each drawn from the line and the part's place in it
+def part_ids(line_id: str, line: str, count: int) -> list[str]:
+    return [line_id] if count == 1 else [content_id(f"{line}\n{index}") for index in range(count)]
 
 
 # a line's parts joined as written, each part by its ID followed by its redirects: [a, &&, (, b, 2>&1, |, c, )]
@@ -614,26 +591,20 @@ def file_names(programs: list[str]) -> dict[str, str]:
 
 # the corpus read in one pass: each program's runs, the chain of each line of more than one part, every part, the splitter's faults per
 # line, and the line of each part whose line the splitter split well
-def read_corpus(corpus: Path, known: dict[str, list[str]], taken: set[str], mapper) -> tuple[dict, list, list, dict, dict]:
+def read_corpus(corpus: Path, mapper) -> tuple[dict, list, list, dict, dict]:
     runs: dict[str, list] = defaultdict(list)
-    chains, parts, faults, part_lines, fresh = [], [], {}, {}, []
-    copied = corpus.with_name(corpus.name + ".writing")
-    with copied.open("w") as copy:
-        for line_id, line_pieces, line_faults in mapper(read_line, identified(corpus, copy, taken, fresh)):
-            line_parts = [piece for piece in line_pieces if piece[0] == "part"]
-            ids = part_ids(line_id, len(line_parts), known, taken)
-            chains += [{"line": line_id, "chain": chain(line_pieces, ids)}] if len(line_parts) > 1 else []
-            faults.update({line_id: line_faults} if line_faults else {})
-            read = [] if line_faults else list(zip(ids, line_parts))
-            parts += [(part_id, piece[1]) for part_id, piece in read]
-            part_lines.update({part_id: line_id for part_id, _ in read})
-            for part_id, piece in read:
-                for program, rest in piece[2]:
-                    runs[program].append((part_id, line_id, rest))
-    if fresh:
-        os.replace(copied, corpus)
-    else:
-        copied.unlink()
+    chains, parts, faults, part_lines = [], [], {}, {}
+    for line_id, line, line_pieces, line_faults in mapper(read_line, corpus_lines(corpus)):
+        line_parts = [piece for piece in line_pieces if piece[0] == "part"]
+        ids = part_ids(line_id, line, len(line_parts))
+        chains += [{"line": line_id, "chain": chain(line_pieces, ids)}] if len(line_parts) > 1 else []
+        faults.update({line_id: line_faults} if line_faults else {})
+        read = [] if line_faults else list(zip(ids, line_parts))
+        parts += [(part_id, piece[1]) for part_id, piece in read]
+        part_lines.update({part_id: line_id for part_id, _ in read})
+        for part_id, piece in read:
+            for program, rest in piece[2]:
+                runs[program].append((part_id, line_id, rest))
     return runs, chains, parts, faults, part_lines
 
 
@@ -729,16 +700,13 @@ def write_forms(folder: Path, files: dict[str, dict]) -> None:
 # reads the corpus beside which every output is written, with bash, when it is at hand, checking each part on its own
 def written(corpus: Path, bash: str, line_mapper=map, chunk_mapper=map) -> dict[str, dict]:
     folder = corpus.parent
-    known = {row["line"]: [token for token in row["chain"] if PART_ID.fullmatch(token)] for row in rows(folder / "chains.jsonl")}
-    taken = {part_id for ids in known.values() for part_id in ids}
-    runs, chains, parts, faults, part_lines = read_corpus(corpus, known, taken, line_mapper)
+    runs, chains, parts, faults, part_lines = read_corpus(corpus, line_mapper)
     subcommands = {program: program_runs(runs[program]) for program in sorted(runs)}
     files = {program: program_file(program, subcommands[program]) for program in subcommands}
     for line_id, fault in lone_forms(files, part_lines) + bash_faults(bash, parts, part_lines, chunk_mapper):
         faults[line_id] = [*faults.get(line_id, []), fault]
     write_forms(folder / "forms", files)
-    known_values = {row["value"]: row["id"] for row in rows(folder / "values.jsonl")}
-    write_jsonl(folder / "values.jsonl", scrubbed_data(value_rows(subcommands, known_values, taken)))
+    write_jsonl(folder / "values.jsonl", scrubbed_data(value_rows(subcommands)))
     write_jsonl(folder / "chains.jsonl", chains)
     (folder / "splitter-report.txt").write_text("".join(f"{line_id}\t{scrubbed('; '.join(reasons))}\n" for line_id, reasons in faults.items()))
     (folder / "parts.txt").unlink(missing_ok=True)
