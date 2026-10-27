@@ -46,7 +46,7 @@
       ]
     },
     {
-      "name": "message 2 arrives",
+      "name": "message 3 arrives",
       "answer": null,
       "typed": [],
       "nudges": [
@@ -57,7 +57,7 @@
       ]
     },
     {
-      "name": "message 3 arrives",
+      "name": "message 4 arrives",
       "answer": null,
       "typed": [],
       "nudges": [
@@ -84,7 +84,7 @@
       ]
     },
     {
-      "name": "message 4 arrives",
+      "name": "message 6 arrives",
       "answer": null,
       "typed": [],
       "nudges": [

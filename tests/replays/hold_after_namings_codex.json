@@ -6,11 +6,11 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 0. your next write waits for it"
+          "additionalContext": "read due, message 3: 0. your next write waits for it"
         }
       },
       "typed": [
-        "[journal] new message 2"
+        "[journal] new message 3"
       ],
       "nudges": [
         "briefing.journal_ready",

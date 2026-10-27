@@ -5,7 +5,7 @@
       "name": "the subagent's write 1",
       "answer": {},
       "typed": [
-        "[journal] new message 2"
+        "[journal] new message 3"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -35,7 +35,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 2: 3"
+          "additionalContext": "read due, message 3: 3"
         }
       },
       "typed": [],

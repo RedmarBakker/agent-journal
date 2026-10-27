@@ -905,7 +905,7 @@ def test_a_second_session_in_one_environment_takes_the_first_ones_place_and_a_li
     app, provider = journal
     replay, rows = played(f"two_agents_{provider}", app, monkeypatch, two_agents, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["a message arrives"]["typed"] == [f"[journal] new message {user_message_ids(app)[0]}"], "named once for the environment, whatever marks, cards and the worker's job took the numbers before it"
+    assert name_index["a message arrives"]["typed"] == [f"[journal] new message {user_message_ids(app)[-1]}"], "named once for the environment, whatever marks, cards and the worker's job took the numbers before it"
     reported = name_index["the worker reports"]["typed"]
     assert reported[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and reported[1] == "[journal] worker 1 reported" and len(reported) == 2, "the awaiting agent is told and released, once"
     assert app.container.get(SessionAgents).top("s2").task_id == 1 and app.container.get(SessionAgents).top("s1").name == "ended", "an environment keeps one session: the second took the first one's place"

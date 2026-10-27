@@ -2,11 +2,11 @@
   "nudges": true,
   "steps": [
     {
-      "name": "message 2 read",
+      "name": "message 3 read",
       "answer": null,
       "typed": [
-        "[journal] new message 2",
-        "[journal] reply with [!reply:2] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
+        "[journal] new message 3",
+        "[journal] reply with [!reply:3] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -37,7 +37,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "reply due, message 2: 1"
+          "additionalContext": "reply due, message 3: 1"
         }
       },
       "typed": [],
@@ -54,7 +54,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "reply due, message 2: 0. your next tool call waits for it"
+          "additionalContext": "reply due, message 3: 0. your next tool call waits for it"
         }
       },
       "typed": [],
@@ -69,7 +69,7 @@
     {
       "name": "read 4 while owed",
       "answer": {
-        "error": "answer or react to message 2 first. your tool calls wait until you do"
+        "error": "answer or react to message 3 first. your tool calls wait until you do"
       },
       "typed": [],
       "nudges": [
@@ -84,7 +84,7 @@
     {
       "name": "read 5 while owed",
       "answer": {
-        "error": "answer or react to message 2 first. your tool calls wait until you do"
+        "error": "answer or react to message 3 first. your tool calls wait until you do"
       },
       "typed": [],
       "nudges": [
