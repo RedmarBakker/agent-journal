@@ -7,4 +7,4 @@ class MemoryStrikeCard(MemoryCard, Listener[Deleted]):
     """A rule or a reminder struck is a card in the chat, so the user sees what no longer holds."""
 
     def handle(self, event: Deleted) -> None:
-        self.show(event.model, event.actor, "struck")
+        self.show(event.model, event.actor, "removed")

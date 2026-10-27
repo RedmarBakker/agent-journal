@@ -22,5 +22,5 @@ class RenamedWorktreeFolders(AgentListener[SessionStarted]):
         key = f"moved-aside:{','.join(renamed_folders)}"
         if event.environment_id != main or not renamed_folders or self.cards.is_shown(key, Actor.system()):
             return
-        line = f"Worktree folders an older version moved aside are kept, never deleted, in {place}: {', '.join(renamed_folders)}"
-        self.cards.show(main, event.session, line, actor=Actor.system(), key=key, shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
+        line = "Old copies of the project from an earlier version were kept, not deleted"
+        self.cards.show(main, event.session, line, f"{', '.join(renamed_folders)}, kept in {place}", actor=Actor.system(), key=key, shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)

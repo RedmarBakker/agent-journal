@@ -52,7 +52,7 @@ class TestsCommand(Command):
         line = args.line.strip()
         code, tail = self.turns.proved(f"{line} {args.proof}", str(self.config.root), caller, self.scope.id)
         if code != 0:
-            raise Rejection(f"the test command is not set: {line} {args.proof} failed with code {code}, and a test command is set only once it passes\n{tail}")
+            raise Rejection(f"the test command is not set: {line} {args.proof} failed with code {code}\n{tail}")
         self.settings.set(WorkersOptions.TEST_COMMAND.key, line, caller.actor)
         self.settings.set(WorkersOptions.TEST_COMMAND_PROOF.key, args.proof, caller.actor)
         print(f"test command set: {line}, proved with {args.proof}; each worker's tests now run with it when it clocks out")

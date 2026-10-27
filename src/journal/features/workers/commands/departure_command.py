@@ -60,22 +60,22 @@ class DepartureCommand(Command):
         task = self.tasks.find(holdings[0])
         missing = self.unproved(task)
         if missing:
-            raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof that stands: journal proof <point> \"<file:line, and the test that shows it>\", or journal proof <point> --not-done \"<why>\"")
+            raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof: `journal proof <point> \"<file:line and test>\"`")
         start_heads = self.branch.worktree_heads(worker)
         self.branch.commit_changes(worker, f"Task {task.id}: {task.title}")
         self.plugin_check(WorkerClockingOut, worker, task, TESTING_HELD)
         clashing = self.clashing(worker)
         if clashing:
-            raise Rejection(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}, and it clashes: {clashing}; {REBASE_STEPS}, then clock out again")
+            raise Rejection(f"your work, rebased onto {self.branch.project_heads(worker)}, clashes: {clashing}; {REBASE_STEPS}, then clock out")
         uncommitted = self.branch.uncommitted_files(worker) if worker.worktree else []
         if uncommitted:
-            raise Rejection(f"these files in your task's repositories are still not committed after the journal committed your work: {', '.join(uncommitted)}; run git status there to find why, such as a conflict or a lock file, fix it and clock out again")
+            raise Rejection(f"still not committed after the journal's commit: {', '.join(uncommitted)}; check git status, fix it and clock out")
         strays = self.branch.other_repository_folders(worker) if worker.worktree else []
         if strays:
-            raise Rejection(f"your worktree contains folders outside the repositories of your task, which would be lost: {', '.join(strays)}; move their changes into your task's repositories or remove them")
+            raise Rejection(f"your worktree has folders outside your task's repositories, which would be lost: {', '.join(strays)}; move or remove them")
         lying = self.branch.branch_untracked_files(worker) if worker.worktree else []
         if lying:
-            raise Rejection(f"your branch adds {', '.join(lying)}, which lie untracked in the project's checkout, so the merge would be refused: they are a tool's files, not your task's; take them out of your branch with git rm --cached and commit, then clock out again")
+            raise Rejection(f"your branch adds {', '.join(lying)}, untracked in the project: git rm --cached them, commit, clock out again")
         if self.branch.worktree_heads(worker) != start_heads:
             print(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}")
         if worker.rebase_due:
@@ -111,7 +111,7 @@ class DepartureCommand(Command):
     def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
         folder = self.branch.folder(worker)
         if not TestSelection.parsed(tests).names_tests(folder):
-            raise Rejection(f"name the tests that cover the files you changed, {', '.join(self.branch.touched(worker) or ()) or 'none yet'}, and the tests you wrote, never the whole suite: journal clock-out \"<report>\" --tests \"<the arguments {self.turns.command(str(folder))} takes to run them>\"; the journal runs them in your worktree before your clock-out stands")
+            raise Rejection(f"name the tests for {', '.join(self.branch.touched(worker) or ()) or 'your changes'}: journal clock-out \"<report>\" --tests \"<args>\"")
         turn, run_lines = self.turns.checked(worker, self.with_affected(worker, tests.strip(), folder), caller)
         if turn.outcome != TestOutcome.PASSED:
             raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")

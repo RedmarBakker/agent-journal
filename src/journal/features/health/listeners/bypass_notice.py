@@ -4,7 +4,6 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.listener import Listener
 from journal.features.health.support.bypass import Bypass
 from journal.features.health.support.bypass_log import BypassLog
-from journal.features.health.support.unchecked_work import UncheckedWork
 from journal.support.card_type import CardType
 
 
@@ -22,4 +21,4 @@ class BypassNotice(Listener[AgentEvent]):
 
     @staticmethod
     def label(bypasses: list[Bypass]) -> str:
-        return f"The journal did not answer in time: {UncheckedWork.read(bypasses).kinds_text()}"
+        return "The journal was too slow to check some of the agent's work"

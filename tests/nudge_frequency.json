@@ -1,0 +1,1700 @@
+{
+    "briefing.brief_and_log_after_compaction": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.handle_the_journal_quietly": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.journal_ready": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.look_before_the_first_write": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.memories_here": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.overview_before_anything": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.reminders_here": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.rules_in_force": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.runs_interrupted": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.session_folder_gone": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.session_in_another_folder": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.skills_and_overview_before_anything": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.stopped_unoriented": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.team_chat_history": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.the_laws_apply": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.waiting_for_you": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "briefing.you_took_over": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "checks.check_failed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "checks.check_still_failing": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "client_errors.logged": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "client_errors.unhandled": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.dump_arrived_file_it": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.dump_filed_sum_it_up": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.dump_left_to_you_finish_it": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.dump_still_open_carry_on": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.the_user_answered_on_the_dump": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "dumps.the_user_chose_a_step": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "engine.guard_failed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "engine.helper_has_no_job": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "engine.journal_answers_again": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "engine.stop_held_in_a_loop": {
+        "actions": 4374,
+        "most_in_a_run": 6,
+        "runs": 5,
+        "sent": 14
+    },
+    "engine.worker_ends_after_the_grace": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "etiquette.a_line_is_an_instruction": {
+        "actions": 4374,
+        "most_in_a_run": 1,
+        "runs": 1,
+        "sent": 1
+    },
+    "etiquette.blank_lines_between_paragraphs": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "etiquette.no_em_dashes": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "etiquette.no_shop_talk": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "etiquette.plain_words_in_code": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "etiquette.say_you_not_the_user": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "faults.slow_job_to_fix": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "faults.slow_requests_to_fix": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "git.branch_in_use": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "git.worker_task_refusal": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "health.went_through_unchecked": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "hydration.read_the_hydrated_chat": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "laws.bind_the_job": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "laws.cap_the_output": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "laws.name_a_profile": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "laws.name_the_model": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "mcp.sign_in_to_the_server": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.check_stale_memory": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.decide_at_the_mark": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.does_the_rule_apply_project_wide": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.memories_shown_at_clock_in": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.memory_for_this_moment": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.memory_whispered_back": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.reminder_due": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.reminder_repeated": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.stopped_at_mark": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "memory.write_held_until_decided": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.a_colleague_commented": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.answer_before_anything_else": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.answer_the_message_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.answer_the_other_agent": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.closing_words_kept_out_as_repeated": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.colleague_comments_unread": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.correct_the_row_numbers": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.link_the_row_numbers": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.new_message_to_answer": {
+        "actions": 4374,
+        "most_in_a_run": 61,
+        "runs": 11,
+        "sent": 182
+    },
+    "messages.new_messages_to_answer": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.new_teammate_message_to_answer": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.next_tool_held_until_answered": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.next_write_held_until_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.read_the_words_whole": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.reply_kept_out_as_replied_already": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.reply_tag_opens_a_line": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.reply_was_only_a_face": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.tag_did_not_run": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.the_user_reacted": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.tools_held_soon_until_answered": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.tools_held_until_answered": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.unread_messages_to_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.write_held_until_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "messages.writes_held_soon_until_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "migration.version_3_not_brought_across": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "pausing.paused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "pausing.resumed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "pins.pin_claimed_unmade": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "pins.pin_the_link": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.drive_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.how_the_plan_tests": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.name_the_test_commands": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.next_task_of_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.now_building": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.phase_complete_at_a_checkpoint": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.phase_complete_go_on": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.phase_complete_run_its_tests": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.plan_blocked": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.plan_done": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.plan_not_approved": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.plan_reopened": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.plan_waits_on_its_tasks": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.put_the_review_into_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.tests_wait_for_the_phase_end": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.the_plan_tests_another_way": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.the_user_abandoned_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.the_user_approved_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.the_user_postponed_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plugins.plugin_files_are_the_users": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plugins.plugin_not_working": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "profiles.worker_profile_is_not_a_subagent": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "questions.ask_through_the_journal": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "questions.question_answered": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "questions.question_closed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reports.write_an_update": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reports.written_work_never_acted_on": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reviewing.review_failed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reviewing.reviewer_changes_no_file": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reviewing.reviewer_could_not_decide": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reviewing.reviewer_gives_its_report": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "reviewing.reviews_wait_for_a_reviewer": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "schedules.stop_scheduled_job": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "secrets.secret_allowed_for_programs": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "secrets.secrets_out_of_reach": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.file_edits_wait_for_the_step": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.following_the_step": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.sequence_abandoned": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.sequence_cannot_finish": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.sequence_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.sequence_paused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.step_to_follow": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.the_user_ended_the_sequence": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.the_user_skipped_a_step": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "sequences.write_held_for_the_step": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.add_an_alias": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.aliased_line_refused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.check_the_background": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.draft_a_reader": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.drop_alias_time_limit": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.drop_line_time_limit": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.folder_change_refused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.give_each_run_its_own_title": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.give_the_reader_a_topic": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.journal_command_piped_into_a_filter": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.journal_command_runs_alone": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.journal_poll_refused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.more_specific_alias_refused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.moved_to_the_background": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.name_the_run_in_words": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.output_kept": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.output_part_kept": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.outputs_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.project_path_refused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.read_the_file_in_parts": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.reader_report_dismissal_refuted": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.reader_report_raised": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.run_counts_without_a_total": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.run_stands_at_100_percent": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.silent_run_streams": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.test_run_piped_into_a_filter": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.unread_output": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.use_the_reader": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.watched_output": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "shell.watched_output_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "skills.read_the_skill_first": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "skills.read_the_skill_now": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "skills.stopped_owing": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.await_only_what_ends_soon": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.await_switches_task": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.blocked_task_asked_about": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.carry_on": {
+        "actions": 4374,
+        "most_in_a_run": 11,
+        "runs": 5,
+        "sent": 34
+    },
+    "tasks.check_in_after_quiet": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.check_the_blocked_tasks": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.check_the_wait": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.closed_by_commit": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.deferred_work_is_a_task": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.fix_the_broken_wait": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.give_tasks_their_priority": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.log_first_at_stop": {
+        "actions": 4374,
+        "most_in_a_run": 76,
+        "runs": 4,
+        "sent": 156
+    },
+    "tasks.log_where_it_stands": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.next_task_started": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.next_task_while_waiting": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.no_stop_while_waiting": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.not_stuck_with_work_left": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.park_the_wait": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_task_asked_about": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_task_named_at_close": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_task_while_waiting": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_tasks_still_open": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_wait_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.paused_work_to_choose": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.stop_polling": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_changed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_in_hand_repeated": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_open_with_nothing_logged": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_opened": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_points_changed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_reopened": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.task_still_open": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.tasks_wait_for_their_priority": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.wait_check_passed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.wait_it_out": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.wait_lifted": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.wait_over": {
+        "actions": 4374,
+        "most_in_a_run": 2,
+        "runs": 6,
+        "sent": 7
+    },
+    "tasks.write_held_until_logged": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "team.journal_behind_the_team": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "triggers.denied": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "triggers.instruct": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "triggers.nudge": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "updates.launch_carried_over": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "updates.release_messages": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "usage.limit_check": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "verification.verifier_gives_only_its_verdict": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "voices.how_to_talk_to_the_user": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "voices.introduce_yourself": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "voices.say_you_are_back": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "voices.the_voice_changed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.act_on_the_reports": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.blocked_work_stands_still": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.branch_keeps_clashing": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.builder_clear_oldest": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.builder_take_in_first": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.builder_write_next": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.check_blocked_tasks": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.clock_in_first": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.clocked_out_work_waits": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.could_it_be_reused": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.delegate_the_task": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.file_is_the_workers": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.make_the_wait_a_block": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.mode_may_not": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.model_too_strong": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.model_too_weak": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.no_workers_when_solo": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.now_orchestrating": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.now_solo": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.open_todos": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrate": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrator_check_worker": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrator_clear_oldest": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrator_dispatched_under_load": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrator_hand_out": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.orchestrator_queue_more": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.own_output_ended": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.own_output_running": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.place_closed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.place_opened": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.places_full_check_work": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.plan_order_without_dependencies": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.plan_stalled": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.queue_the_related_tasks": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.release_waits_for_the_user": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.reprioritise": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.run_unfinished": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.send_it_to_an_idle_worker": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.send_it_to_the_worker_that_knows": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.send_the_job_to_the_subagent": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.started_plans": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.suite_failed_after_merges": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.task_closed_by_user": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.task_names_another_without_a_wait": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.tests_are_handed_over": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.tests_go_through_a_turn": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.the_journal_runs_the_tests": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.too_many_subagents": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.too_many_workers": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.unblocking_task_waits_in_a_queue": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.wait_for_running_workers": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.work_ready": {
+        "actions": 4374,
+        "most_in_a_run": 35,
+        "runs": 9,
+        "sent": 103
+    },
+    "workers.worker_costly_on_shaped_work": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_has_no_work_left": {
+        "actions": 4374,
+        "most_in_a_run": 20,
+        "runs": 8,
+        "sent": 69
+    },
+    "workers.worker_keeps_failing": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_quiet": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_quiet_split": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_reported": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_runs_no_git": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_sent_back": {
+        "actions": 4374,
+        "most_in_a_run": 5,
+        "runs": 1,
+        "sent": 5
+    },
+    "workers.worker_sent_back_again": {
+        "actions": 4374,
+        "most_in_a_run": 1,
+        "runs": 1,
+        "sent": 1
+    },
+    "workers.worker_sent_back_repeatedly": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_stopped_unreported": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_test_run_failed": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_uses_much_memory": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worker_waits_for_the_usage_limit": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "workers.worktree_being_rebased": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    }
+}

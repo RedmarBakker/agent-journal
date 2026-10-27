@@ -28,23 +28,23 @@ class VerifierProcessCard(ProcessCard):
 
     def contents(self, verifier: Verifier, row: Scoped, outcome: CardOutcome, text: str, detail: str) -> ProcessCardContents:
         data = {"kind": "card", "outcome": str(outcome), "row": str(Ref.build(row))}
-        return ProcessCardContents(self.name, verifier.environment_id, f"verifier:{verifier.id}", f"Verifier {verifier.id}, {verifier.name}: {text}", data, Actor.system(), CardType.VERIFIERS, verifier.is_verifying(), detail)
+        return ProcessCardContents(self.name, verifier.environment_id, f"verifier:{verifier.id}", f"{verifier.name}: {text}", data, Actor.system(), CardType.VERIFIERS, verifier.is_verifying(), detail)
 
     @staticmethod
     def standing(verifier: Verifier, report: ReaderReport) -> tuple[CardOutcome, str]:
         if verifier.state == VerifierState.VERIFYING:
-            return CardOutcome.RUNNING, f"judging the dismissal of reader report {report.id}"
+            return CardOutcome.RUNNING, "checking whether a dismissed report was right"
         if verifier.state == VerifierState.ENDED:
-            return CardOutcome.FAILED, f"ended without a verdict on reader report {report.id}"
-        return (CardOutcome.FAILED, "the dismissal is refuted") if report.is_refuted else (CardOutcome.PASSED, "the dismissal is sound")
+            return CardOutcome.FAILED, "stopped before reaching a conclusion"
+        return (CardOutcome.FAILED, "the report was right after all") if report.is_refuted else (CardOutcome.PASSED, "the report was rightly dismissed")
 
     @staticmethod
     def fit_standing(verifier: Verifier, worker: Worker) -> tuple[CardOutcome, str]:
         if verifier.state == VerifierState.VERIFYING:
-            return CardOutcome.RUNNING, f"judging whether worker {worker.id}'s model fit its work"
+            return CardOutcome.RUNNING, f"checking whether {worker.name}'s model fit its work"
         if verifier.state == VerifierState.ENDED:
-            return CardOutcome.FAILED, f"ended without a verdict on worker {worker.id}'s model"
-        return (CardOutcome.PASSED, f"worker {worker.id}'s model was right") if worker.model_fit.verdict == RIGHT else (CardOutcome.FAILED, f"worker {worker.id}'s model was {worker.model_fit.verdict}")
+            return CardOutcome.FAILED, "stopped before reaching a conclusion"
+        return (CardOutcome.PASSED, f"{worker.name}'s model was right") if worker.model_fit.verdict == RIGHT else (CardOutcome.FAILED, f"{worker.name}'s model was {worker.model_fit.verdict}")
 
     def refresh(self, message: Message) -> dict:
         return {}

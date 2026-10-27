@@ -18,4 +18,4 @@ class CommitCard(Listener[GitCommitted]):
         key = f"{COMMIT}:{event.sha}"
         if self.cards.is_key_shown(key):
             return
-        self.cards.show(event.environment_id, event.session, f"Committed {event.sha[:8]} on `{event.branch}`", actor=actor, key=key, shows=CardType.COMMITS)
+        self.cards.show(event.environment_id, event.session, f"Committed a change on {event.branch}", event.sha[:8], actor=actor, key=key, shows=CardType.COMMITS)

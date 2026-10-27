@@ -57,7 +57,7 @@ class Messages(ScopedRepository[Message]):
             raise Rejection("a system message has its kind, so the chat knows what it shows")
         roles = self.agents.session_roles(message.session) if message.session else []
         if roles and message.thread != MessageThread.agent_thread(roles[0]):
-            raise Rejection(f"a message of session {message.session} belongs to its agent's own chat, the {roles[0]} one, not the {message.thread} one")
+            raise Rejection(f"a message of session {message.session} goes in the {roles[0]} chat, not the {message.thread} one")
 
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))

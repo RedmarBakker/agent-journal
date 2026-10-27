@@ -46,7 +46,7 @@ class TestTurns:
 
     def run_batches(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
-            raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
+            raise Rejection(f"worker {worker.id}, {worker.name}, runs on another team machine: its tests run there")
         folder, runs = str(self.branch.folder(worker)), []
         for batch in self.batches(ids):
             turn = self.open_turn(worker, batch, f"{self.command(folder)} {batch}", folder)

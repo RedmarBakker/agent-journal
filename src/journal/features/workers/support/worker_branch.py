@@ -68,7 +68,7 @@ class WorkerBranch:
         environment = self.environments.find(worker.environment_id)
         tree = Worktree(self.config.root, environment.name)
         if environment.branch == tree.branch and not tree.path.is_dir():
-            raise Rejection(f"the worktree {tree.path} of environment {environment.name} is gone, so its workers have nowhere to start from and nothing to merge into: launch {environment.name} again, which makes it anew from its saved tip, then dispatch")
+            raise Rejection(f"the worktree of {environment.name} is gone, so workers cannot start: launch {environment.name} again")
         if not self.account.is_joined():
             return self.config.root
         return tree.path if tree.path.is_dir() else self.config.root
@@ -190,7 +190,7 @@ class WorkerBranch:
         pending = self.pending(worker)
         blocked = self.blocking(pending, worker)
         if blocked:
-            raise Rejection(f"worker {worker.id}'s work was not merged: something in the project stands in its way\n{blocked}\nits proofs and its task are as they were")
+            raise Rejection(f"worker {worker.id}'s work was not merged: something in the project is in the way\n{blocked}")
         clashing = self.clash(pending, worker)
         if clashing:
             raise MergeClash(worker.id, clashing)

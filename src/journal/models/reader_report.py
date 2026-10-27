@@ -39,7 +39,7 @@ class ReaderReport(Scoped):
 
     def dismissed(self, reason: str) -> "ReaderReport":
         if self.is_refuted:
-            raise Rejection(f"reader report {self.id} was dismissed once and the dismissal was found wrong: {self.verdict}; it is met only by writing the reader {self.reader} anew with journal reader add {self.reader} ...")
+            raise Rejection(f"report {self.id} was dismissed wrongly: {self.verdict}; rewrite reader {self.reader} with journal reader add")
         return self.with_(dismissal=reason).with_event(ReaderReportDismissed(environment_id=self.environment_id, reason=reason))
 
     def cleared(self, time: datetime) -> "ReaderReport":

@@ -26,7 +26,7 @@ class TestRunProcessCard(ProcessCard):
         worker = self.workers.find(turn.worker)
         active = turn.state != TestTurnState.ENDED
         task_ids = self.tasks.holder_task_ids(Ref(Worker.table(), worker.id))
-        card_fields = {"kind": "card", "turn": turn.id, "worker": f"Worker {worker.id}, {worker.name}", "output": turn.output, "line": turn.command, "summary": self.summary(turn, active), "proof_task": task_ids[0] if task_ids else 0}
+        card_fields = {"kind": "card", "turn": turn.id, "worker": worker.name, "output": turn.output, "line": turn.command, "summary": self.summary(turn, active), "proof_task": task_ids[0] if task_ids else 0}
         return ProcessCardContents(self.name, turn.environment_id, f"test-run:{turn.id}", self.label(turn, active), card_fields, Actor.system(), CardType.WORKER_TESTS, active, turn.command, worker.dispatcher)
 
     @staticmethod

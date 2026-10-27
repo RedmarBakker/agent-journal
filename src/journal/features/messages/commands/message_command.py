@@ -132,7 +132,7 @@ class MessageCommand(Command):
             raise Rejection(f"message {args.n} has no number without its kind before it")
         kinds = args.kinds * len(spans) if len(args.kinds) == 1 else args.kinds
         if len(kinds) != len(spans):
-            raise Rejection(f"message {args.n} has {len(spans)} numbers without a kind, {', '.join(str(number) for number, _ in spans)}, and you named {len(args.kinds)} kinds: name one for each, in order, or one for all")
+            raise Rejection(f"message {args.n}: {len(spans)} numbers lack a kind, you gave {len(args.kinds)}; one each, or one for all")
         missing = [f"{type_name} {number}" for (number, _), type_name in zip(spans, kinds) if type_name != PLAIN and not self.rows.is_row(Ref(ROW_TABLES[type_name], number))]
         if missing:
             raise Rejection(f"no {', no '.join(missing)} exists, so nothing was changed: give the kind each number really is")

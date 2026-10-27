@@ -23,5 +23,5 @@ class AffectedTests:
             return TestSelection(())
         run = subprocess.run([*shlex.split(command), *(self.branch.touched(worker) or ())], cwd=self.branch.folder(worker), capture_output=True, text=True, timeout=AFFECTED_SECONDS)
         if run.returncode != 0:
-            raise Rejection(f"the command that finds the tests your changes touch, {command}, failed with code {run.returncode}: {run.stderr.strip()[-400:]}; the agent that sent you fixes it in {WorkersOptions.AFFECTED_TESTS_COMMAND.key}")
+            raise Rejection(f"{command}, which finds the tests your changes touch, failed with code {run.returncode}: {run.stderr.strip()[-400:]}")
         return TestSelection.listed(run.stdout)

@@ -116,7 +116,7 @@ class SequenceCommand(Command):
     def abandon(self, args: Namespace, caller: Caller) -> int:
         run = self.current_run(caller)
         if not run.adopted_at:
-            raise Rejection(f"step {run.step + 1} of sequence {run.sequence_id} was never taken up: `journal sequence follow` first, then abandon it if it cannot be done")
+            raise Rejection(f"step {run.step + 1} of sequence {run.sequence_id} was never taken up: `journal sequence follow` first")
         skipped = "; ".join(f"{run.step + i + 1}. {step.instructions}" for i, step in enumerate(run.skipped))
         if not args.sure:
             raise Rejection(f"abandoning sequence {run.sequence_id}, {run.title}, leaves undone: {skipped}. again with --sure to go through")

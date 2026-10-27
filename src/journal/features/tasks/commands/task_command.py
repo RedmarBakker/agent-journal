@@ -183,7 +183,7 @@ class TaskCommand(Command):
     def log(self, args: Namespace, caller: Caller) -> int:
         task = self.readable(args.n, caller)
         if caller.is_main_agent() and not task.is_started() and not self.tasks.is_driven(task):
-            raise Rejection(f"{self.labels.name('task', task)} is not in hand, and a log line is read only while a task runs. Put what it has to know in its brief: read it with journal task show {task.id}, then journal task edit {task.id} --brief \"<the whole brief>\"")
+            raise Rejection(f"{self.labels.name('task', task)} is not in hand, so no log line: use `journal task edit {task.id} --brief`")
         self.logs.save(TaskLog.build(task, args.line, self.clock.time()), caller.actor)
         print(f"{self.labels.name('task', task)} logged")
         return 0
@@ -192,7 +192,7 @@ class TaskCommand(Command):
         task = self.tasks.find(args.n)
         holder = self.tasks.holder(task) if task.delegated and not args.force else None
         if holder is not None and holder.type == Worker.table():
-            raise Rejection(f"task {args.n} is worker {holder.id}'s task in hand, mid-task: journal task pause {args.n} \"{args.why}\" --force takes it off the worker, which keeps its commits and goes on with its queue")
+            raise Rejection(f"task {args.n} is worker {holder.id}'s, mid-task: --force takes it from the worker; its commits stay")
         task = self.tasks.save(task.paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
@@ -234,7 +234,7 @@ class TaskCommand(Command):
     def complete(self, args: Namespace, caller: Caller) -> int:
         holdings = self.tasks.task_worker_holdings({args.n})
         if args.n in holdings and not caller.actor.is_user():
-            raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: take its work in with journal worker merge {holdings[args.n]} once its proofs are checked")
+            raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: check its proofs, then `journal worker merge {holdings[args.n]}`")
         task = self.tasks.save(self.tasks.find(args.n).completed(self._time(), args.how), caller.actor)
         print(f"{self.labels.name('task', task)} done")
         self._name_next(task)

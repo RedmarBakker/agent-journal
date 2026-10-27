@@ -122,6 +122,7 @@ from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.briefing.briefing_nudges import BriefingNudges
+from journal.engine.engine_nudges import EngineNudges
 from journal.models.worker import ENDED_UNFINISHED
 from journal.features.questions.questions_nudges import QuestionsNudges
 
@@ -383,7 +384,7 @@ def test_the_menu_watcher_confirms_what_the_journal_caused_closes_what_it_cannot
     assert (line_text or watcher.check(agent)) == "\x1b", "a menu even the asked agent cannot place is closed with Escape"
     from journal.repositories.scope import Scope
     with app.container.get(Scope).environment(1):
-        assert any("closed it with Escape" in m.text for m in app.container.get(Messages).scoped()), "and a card says so"
+        assert any("closed it with Escape" in m.data.get("detail", "") for m in app.container.get(Messages).scoped()), "and a card says so"
     permission = "Bash command\r\nrm -f build/*.log\r\n\r\nDo you want to proceed?\r\n❯ 1. Yes\r\n  2. Yes, and don't ask again for rm commands in build\r\n  3. No, and tell Claude what to do differently (esc)\r\n"
     launches = app.config.home / "runtime" / "launches"
     launches.mkdir(parents=True, exist_ok=True)
@@ -655,7 +656,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     assert write(app)[0] == 409, "the main agent's pause holds its own write"
     assert worker_hook("SessionStart", source="startup") == (200, {}), "a worker owes no overview"
     status, body = worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and "you are not at work" in body["error"] and "paused" not in body["error"], "before it clocks in a worker rests on Void, which holds every tool but a journal command with its own line alone"
+    assert status == 409 and has_nudge(body["error"], EngineNudges.JOBLESS_HELPER) and "paused" not in body["error"], "before it clocks in a worker rests on Void, which holds every tool but a journal command with its own line alone"
     assert worker_hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"})[0] == 200, "the clock-in call itself passes"
     with scope.environment(1):
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
@@ -673,7 +674,7 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
         workers.save(workers.find(worker.id).with_(edit_lock=False), Actor.system())
     for line in ("git commit -qm work", "git -C platform status", "cd platform && git rebase main"):
         status, body = worker_hook("PreToolUse", tool_name="Bash", tool_input={"command": line})
-        assert status == 409 and "you never run git: the journal commits your work" in body["error"], (line, body)
+        assert status == 409 and has_nudge(body["error"], WorkersNudges.WORKER_GIT_REFUSAL), (line, body)
     with scope.environment(1):
         workers.save(workers.find(worker.id).delivered(2.0), Actor.worker(worker.id))
     assert agents.session_agent("w1").stack[-1]["state"] == "void" and "decision" not in worker_hook("Stop")[1], "clocked out, it falls back to Void and may stop"
@@ -832,7 +833,7 @@ def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
     with urlopen(request, timeout=5) as reply:
         answered = reply.read().decode()
-    assert "2 open items: 1. write the grammar; 3. run it" in answered, "the worker's stop is told the items still open"
+    assert "2 to-dos open: 1. write the grammar; 3. run it" in answered, "the worker's stop is told the items still open"
 
 
 def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: App):
@@ -862,7 +863,7 @@ def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: 
         outputs = app.container.get(CommandOutputs)
         output = outputs.save(CommandOutput(environment_id=1, command="pytest -q", session="w1", moved=True), Actor.worker(worker.id))
     held = worker_stop()
-    assert held["decision"] == "block" and f"your output {output.id} still runs" in held["reason"], "its stop is held while its own background output runs"
+    assert held["decision"] == "block" and f"output {output.id} still runs" in held["reason"], "its stop is held while its own background output runs"
     with scope.environment(1):
         ended = outputs.save(output.with_(ended=True, status=0), Actor.system())
         app.container.get(CommandEvents).ended(ended, app.container.get(Agents).session_agent("w1"))
@@ -1084,6 +1085,32 @@ def test_a_row_event_reaches_the_live_agents_top_in_its_environment_and_updated_
     assert [row["state"] for row in agents.session_agent("s2").stack] == ["idle", "following_plan"], "the live agent of the environment follows the plan"
 
 
+def test_every_line_sent_to_the_agent_fits_the_budget_of_how_often_it_is_sent(app: App):
+    from journal.engine.nudge import PLACEHOLDER
+    from tests.nudge_frequency import RARE_CEILING_CHARACTERS, NudgeFrequency
+    numbers = {"n", "count", "task", "percent", "seconds", "ms", "times", "plan", "phase", "run", "worker", "point", "place", "open", "total", "megabytes", "budget", "grace", "dollars", "step", "minutes", "edits", "stale_after", "clashes", "lines", "cap"}
+    typical = lambda found: "x" * int(found.group(2)) if found.group(2) else "9999" if found.group(1) in numbers else "x" * 16
+    written = lambda found: "" if found.group(2) else typical(found)
+    frequency, over, loose = NudgeFrequency.frozen(), [], []
+    for nudge in app.container.get(NudgeRegistry).nudges.values():
+        length, budget = len(PLACEHOLDER.sub(typical, nudge.rendered())), frequency.budget_characters(nudge)
+        if length > budget:
+            over.append(f"{nudge.key}: {length} over {budget} ({frequency.line_class(nudge)})")
+        if nudge.longest_characters > 120 and (not nudge.longest_reason or nudge.longest_characters > length + 20 or len(PLACEHOLDER.sub(written, nudge.rendered())) > RARE_CEILING_CHARACTERS):
+            loose.append(f"{nudge.key}: declares {nudge.longest_characters} for a line of {length}, reason: {nudge.longest_reason or 'none'}")
+    assert not over, "lines longer than the budget of how often they are sent:\n" + "\n".join(sorted(over))
+    assert not loose, "lines declaring a longest with no reason, far above their length, or with more than 400 characters of their own words:\n" + "\n".join(sorted(loose))
+
+
+def test_no_refusal_written_inline_is_longer_than_a_normal_line():
+    import ast
+    source = Path(__file__).resolve().parents[1] / "src" / "journal"
+    measured = lambda text: len(text.value) if isinstance(text, ast.Constant) else sum(len(part.value) if isinstance(part, ast.Constant) else 16 for part in text.values)
+    refusals = [(path, node) for path in source.rglob("*.py") for node in ast.walk(ast.parse(path.read_text())) if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Rejection" and node.args and isinstance(node.args[0], (ast.Constant, ast.JoinedStr))]
+    long = [f"{path.relative_to(source)}:{node.lineno} ({measured(node.args[0])})" for path, node in refusals if measured(node.args[0]) > 120]
+    assert not long, "refusals written inline that pass 120 characters, each value counted as 16; shorten them or register them as lines:\n" + "\n".join(long)
+
+
 def test_the_nudge_registry_hands_back_an_id_lists_every_nudge_and_the_nudger_refuses_one_it_does_not_hold(app: App):
     registry, owned = app.container.get(NudgeRegistry), Nudge("engine", "test_line", "a line of the test")
     assert registry.register(LINE) == "tests.line" and registry.lookup("tests.line") is LINE and registry.register(owned) == "engine.test_line"
@@ -1129,7 +1156,6 @@ def test_a_nudge_is_one_class_whose_create_fills_its_blanks_and_rendered_says_th
     nudge = Nudge("tests", "two_blanks", "{{n}} of {{what}}", "read {{what}}")
     assert nudge.create(n=3, what="them").rendered() == "3 of them. read them"
     assert nudge.create(n=3, what="them").key == "tests.two_blanks" and nudge.create().rendered() == "{{n}} of {{what}}. read {{what}}"
-    assert nudge.text("its own words").rendered() == "its own words"
 
 
 def test_the_data_is_read_per_feature_and_travels_on_the_event_the_machine_asks(app: App):
@@ -1383,7 +1409,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     by_key = {n.key: n.rendered() for n in tick.nudges}
     assert by_key["shell.check_the_background"].startswith("output 12 still running") and sorted(by_key) == ["shell.check_the_background", "workers.act_on_the_reports"], "a tick no longer works out which runs ended"
     ended_line = lambda output, shell_data: {n.key: n.rendered() for n in Ready().respond(CommandEnded(output=output, status=1).with_data(shell_data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges}
-    assert ended_line(4, data)["shell.outputs_ended"].startswith("output 4 failed with code 1"), "a run's end is named from its own event, once, as it ends"
+    assert ended_line(4, data)["shell.outputs_ended"] == "output 4: failed", "a run's end is named from its own event, once, as it ends"
     assert ended_line(77, data) == {}, "an end already reported, such as one a wait took, is named by nothing"
     from journal.features.shell.support.reader_draft import ReaderDraft
     offered = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "reader_drafts": (ReaderDraft(4, "make all", "journal reader add make-all-output --commands \"make all\""), ReaderDraft(99, "pytest", "journal reader add x"))})})
@@ -1600,7 +1626,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     assert stop(working, 1100.0, approved=(9,)).refusal.rendered().startswith("task 7 is in hand"), "an approved plan waits for the assigner; the task in hand is what a stop names"
     assert stop(working, 1100.0, prior_refusal=True).refusal is not None, "with a task in hand there is no escape by stopping twice"
     started = working.respond(SessionStarted(source="compact", time=1100.0).with_data(of()), settings)
-    assert [n.key for n in started.nudges] == ["tasks.carry_on", "briefing.brief_and_log_after_compaction"] and 'last log "the parser reads"; uncommitted files: a.py, b.py' in started.nudges[1].rendered()
+    assert [n.key for n in started.nudges] == ["tasks.carry_on", "briefing.brief_and_log_after_compaction"] and 'last log "the parser reads", uncommitted: a.py, b.py' in started.nudges[1].rendered()
     assert [n.key for n in working.respond(SessionStarted(source="startup", time=1100.0).with_data(of()), settings).nudges] == ["tasks.carry_on"]
     assert [n.key for n in PlansWorking(task_id=7, active_at=0.0).respond(Ticked(silence_seconds=900.0, time=900.0).with_data(of()), settings).nudges] == ["tasks.task_still_open"], "a quarter of an hour of quiet, counted from the agent's last activity, names the open task"
     assert PlansWorking(task_id=7, active_at=0.0).respond(Ticked(silence_seconds=60.0, time=900.0).with_data(of()), settings).nudges == (), "an agent active a minute ago is not nagged, however old its task"
@@ -1639,7 +1665,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     checkpoint_pause = following.respond(TaskClosed(environment_id=1, time=20.0, task_id=7, outcome="completed").with_data(of(replace(plan, checkpoint_pause=True, checkpoint_phase=2))), auto)
     assert checkpoint_pause.target == replace(following, task_id=0, origin_state=7, checkpoint_pause=True, phase=2)
     stopped = checkpoint_pause.target.respond(Stop().with_data(of(replace(plan, passes_checkpoints=True))), auto)
-    assert stopped.refusal.rendered().startswith("plan 5: phase 2 is complete")
+    assert stopped.refusal.rendered().startswith("plan 5: phase 2 done")
     waits = checkpoint_pause.target.respond(Stop().with_data(of(plan)), manual)
     assert waits.refusal is None and has_nudge(waits.nudges[0].rendered(), PlansNudges.CHECKPOINT_PHASE_END, n=5, phase=2)
     assert checkpoint_pause.target.respond(SessionStarted(time=40.0).with_data(of(plan)), auto).nudges[0].key == "plans.phase_complete_at_a_checkpoint"
@@ -1761,14 +1787,14 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     conducted = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.SHORT_WAIT_SECONDS.key: 20, TasksOptions.PRIORITY_REMIND_TASKS.key: 99})
     awaiting = lambda line, progress: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(estimated(progress)), conducted, (TasksConduct,)).refusal
     refused = awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0)})
-    assert refused is not None and has_nudge(refused.rendered(), TasksNudges.WAIT_SWITCH_REFUSAL, what="the merge of worker 3", left="for a time the journal cannot estimate yet", n=9, current=7), "an await on a process that does not end soon is refused while a task is open, and with task 7 in hand the line says to pause it before starting task 9 (seen with task 3642 in hand, told to carry on with task 3658)"
+    assert refused is not None and has_nudge(refused.rendered(), TasksNudges.WAIT_SWITCH_REFUSAL, what="the merge of worker 3", left="for a time the journal cannot estimate yet", n=9), "an await on a process that does not end soon is refused while a task is open, and with task 7 in hand the line says to pause it before starting task 9 (seen with task 3642 in hand, told to carry on with task 3658)"
     assert awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0, last_seconds=10.0)}) is None, "one that ends within the setting's seconds may be awaited"
     assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered() == TasksNudges.WAIT_CHECK.create(minutes=5, what="the build").rendered(), "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"
     printed = lambda moment, at: meanwhile.target.respond(Ticked(silence_seconds=10.0, time=moment).with_data(estimated({"command_outputs:4": WaitProgress(100.0, output_time=at)})), auto)
-    assert printed(410.0, 100.0).nudges[0].rendered().startswith("You have waited 5 minutes on the build."), "a run silent for the last five minutes is asked about after five"
+    assert has_nudge(printed(410.0, 100.0).nudges[0].rendered(), TasksNudges.WAIT_CHECK, minutes=5, what="the build"), "a run silent for the last five minutes is asked about after five"
     assert printed(410.0, 380.0).nudges == () and printed(990.0, 960.0).nudges == (), "a run that printed within the last five minutes is not asked about before fifteen"
     assert printed(1000.0, 980.0).nudges[0].rendered() == TasksNudges.WAIT_CHECK.create(minutes=15, what="the build").rendered(), "a printing run is asked about after fifteen"
     first = waiting.respond(RowResolved(environment_id=1, time=200.0, ref="command_outputs:4", outcome="output 4 finished"), auto)
@@ -1924,22 +1950,22 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     assert isinstance(planned.pushed, OrchestratingPlan) and planned.pushed.plan_id == 2, "a started plan is pushed over the mode state as the orchestrator's plan state"
     assert type(catalogue.apply_mode(Stack((Orchestrating(),)), settings("builder")).states[0]) is PlansReady, "the builder's mode state is Idle with plans"
     stop = Orchestrating().respond(Stop().with_data(of(None)), settings("orchestrator"))
-    assert stop.refusal is not None and "next: 3, 4" in stop.refusal.rendered() and "dispatch a worker" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch, in its assigner's turn"
+    assert stop.refusal is not None and "next: 3, 4" in stop.refusal.rendered() and "dispatch a worker on each you can" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch, in its assigner's turn"
     from dataclasses import replace as replaced
     all_blocked = FeatureData({"plans": PlansData((), None), "tasks": replaced(tasks, open_ids=(), open_next="", blocked=(5, 8)), "workers": workers()})
     held = Orchestrating().respond(Stop().with_data(all_blocked), settings("orchestrator"))
     told = held.refusal.rendered()
-    assert "tasks 5, 8" in told and "truly blocked" in told and "report what you decided" in told and "journal stuck" in told, "an orchestrator whose every task is blocked may not stop: it checks them, decides what it can, waits on its workers or says it is stuck"
+    assert "tasks 5, 8" in told and "journal task unblock" in told and "journal stuck" in told, "an orchestrator whose every task is blocked may not stop: it checks them, decides what it can, waits on its workers or says it is stuck"
     some_blocked = FeatureData({"plans": PlansData((), None), "tasks": replaced(tasks, blocked=(5,)), "workers": workers(3, 4)})
     busy = Orchestrating().respond(Stop().with_data(some_blocked), settings("orchestrator"))
     assert busy.refusal.rendered().startswith("tasks 5 are blocked"), "a stop round asks about the blocked tasks before the open ones"
     again = busy.target.respond(Stop().with_data(some_blocked), settings("orchestrator"))
-    assert "dispatch a worker" in again.refusal.rendered(), "and then holds the stop with the tasks to dispatch"
+    assert "dispatch a worker on each you can" in again.refusal.rendered(), "and then holds the stop with the tasks to dispatch"
     assert WorkersNudges.BLOCKED_CHECK.repeat == Timeout.seconds(300), "and the check comes again every five minutes while it holds"
     assert "dispatch" not in str(PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal), "the builder's next task is started by its assigner before the stop, and the builder is never told to dispatch"
     assert isinstance(Orchestrating().respond(TaskStarted(environment_id=1, time=2.0, task_id=7, title="x", plan_id=0).with_data(of(None)), settings("orchestrator")).pushed, Delegating), "a task started in the orchestrator's mode is delegating, not working"
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(time=2.0).with_data(of(None)), settings("orchestrator"))
-    assert delegating.refusal is not None and "hand it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
+    assert delegating.refusal is not None and "give it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
     assert Soloing().respond(ToolStarting(call=shell("journal worker dispatch 'Mr. Smith' 'the job' --profile journal-medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
     assert Soloing().respond(ToolStarting(call=shell("ls")).with_data(of(None)), settings("solo")).refusal is None
@@ -1984,7 +2010,7 @@ def orchestrated(app: App) -> None:
     assert stack() == ["orchestrating", "orchestrating_plan"] and tasks.find(1).state == "open", "the orchestrator's mode state and its plan state, every piece left open for workers"
     stop = lambda active=False: hook(app, "Stop", stop_hook_active=active)[1]
     first = stop()
-    assert first.get("decision") == "block" and "20 tasks are open" in first["reason"] and "dispatch a worker" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"
+    assert first.get("decision") == "block" and "20 tasks open" in first["reason"] and "dispatch a worker on each you can" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"
     for n, name in ((1, "Ada"), (2, "Florence"), (3, "Babbage")):
         assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
     waiting = stop()
@@ -2197,7 +2223,7 @@ def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_
     keys = watcher.check(agent)
     assert keys == "\x1b[B\r" and transmitted[-1] == {"verb": "keys", "name": "agent", "keys": "\x1b[B\r"}, "the cursor goes down to option 2, Trust all and continue, and takes it"
     with app.container.get(Scope).environment(1):
-        assert any('chose "Trust all and continue"' in m.text for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
+        assert any('chose "Trust all and continue"' in m.data.get("detail", "") for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
 
 
 def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ordinary_stop_or_a_mention_has_nothing(app: App, monkeypatch):
@@ -2390,7 +2416,7 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     at_home = Ready().respond(SessionStarted(source="startup", folder="/projects/app/").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
     assert not has_nudge(lines(at_home), BriefingNudges.FOLDER_MISMATCH), "the launch's own folder is no warning"
     gone = Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing(is_launch_folder_missing=True)), SettingsValue({"tasks.auto": False}), (BriefingConduct,))
-    assert "the folder development was launched in, /projects/app, is gone" in lines(gone) and "`journal message unread`" in lines(gone), "a folder gone is told on the tick, since the session's hooks no longer run"
+    assert has_nudge(lines(gone), BriefingNudges.FOLDER_MISSING, launch_folder="/projects/app", env="development"), "a folder gone is told on the tick, since the session's hooks no longer run"
     assert not Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing()), SettingsValue({"tasks.auto": False}), (BriefingConduct,)).nudges, "a folder still there is no warning"
 
 
@@ -2419,12 +2445,12 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
             return error.code, json.loads(error.read())
     for command in ("pytest tests/test_x.py", "npm test", "npx vitest run", "journal suite"):
         status, body = worker_runs(command)
-        assert status == 409 and "the journal runs your tests" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
+        assert status == 409 and "name the tests: `journal clock-out" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
     assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
     with scope.environment(1):
         user_set(app, "workers.testing", "Hand the tests over")
     status, body = worker_runs("pytest tests/test_x.py")
-    assert status == 409 and "tests are handed over" in body["error"] and "proof" in body["error"], "with Hand the tests over a worker's test command is refused too"
+    assert status == 409 and "the merging agent runs them" in body["error"] and "proof" in body["error"], "with Hand the tests over a worker's test command is refused too"
     with scope.environment(1):
         user_set(app, "workers.testing", "Run the tests it wrote")
     assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"
@@ -2866,7 +2892,7 @@ HELPER_VERBS = {
     "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory add", "memory list", "memory remove", "memory skip", "memory weigh", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
     "reviewer": ["doc show", "memory list", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
     "verifier": ["verdict give", "verdict model"],
-    "subagent": ["doc show", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
+    "subagent": ["doc create", "doc ready", "doc show", "doc update", "output read", "plan add", "plan brief", "plan create", "plan phase", "plan ready", "plan show", "plan todos", "report create", "report ready", "report show", "report update", "rule list", "rule read", "search find", "task list", "task show"],
 }
 HELPER_LISTENERS = {
     "worker": ["CompactionMarkClear", "ContextThresholdCheck", "HookAnswer", "MemoryFading", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
@@ -2938,7 +2964,7 @@ def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command
     from journal.events.agent.tool_starting import ToolStarting
     from journal.providers.claude import Claude
     read = Void().respond(ToolStarting(call=Claude().call("Read", {"file_path": "a.py"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
-    assert read.refusal is not None and "you are not at work" in read.refusal.rendered(), "a read in Void is refused with the line that says the helper has no job"
+    assert read.refusal is not None and has_nudge(read.refusal.rendered(), EngineNudges.JOBLESS_HELPER), "a read in Void is refused with the line that says the helper has no job"
     command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
     assert command.refusal is None, "a journal command passes, so a worker can clock in"
 
@@ -3538,7 +3564,7 @@ def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
         urlopen(hooked, timeout=5)
     answer = refused.value.read().decode()
     assert app.container.get(Agents).session_agent("early-w").role == AgentRole.WORKER, "a worker's hook before its bind is bound as the worker"
-    assert "you are not at work" in answer and "environment overview" not in answer, "and is answered by Void, with no main line"
+    assert has_nudge(answer, EngineNudges.JOBLESS_HELPER) and "environment overview" not in answer, "and is answered by Void, with no main line"
 
 
 def test_a_helpers_command_events_reach_only_the_listeners_its_file_allows(app: App):
@@ -3774,11 +3800,11 @@ def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers
     top = lambda: app.container.get(SessionAgents).top("w1").name
     assert worker_hook(1000.0)[0] == 200, "a worker its journal answers goes on"
     status, body = worker_hook(1020.0, silence="1000")
-    assert status == 409 and "did not answer for 20 seconds" in json.dumps(body) and top() == "locked_out", "a hook answered after a silence locks the worker out"
+    assert status == 409 and has_nudge(body["error"], EngineNudges.LOCKOUT_WAIT, seconds=20) and top() == "locked_out", "a hook answered after a silence locks the worker out"
     assert worker_hook(1022.0, command="journal todo list")[0] == 409 and worker_hook(1023.0, type_name="PreCompact")[0] in (200, 409) and top() == "locked_out", "every tool is held, a journal command too, and nothing else moves it"
     assert worker_hook(1026.0)[0] == 200 and top() != "locked_out", "once the journal has answered for a few seconds the state pops and the tool goes on"
     status, body = worker_hook(2000.0, silence="1950")
-    assert status == 409 and "your work ends here" in json.dumps(body) and top() == "locked_out", "a silence past the grace ends the worker"
+    assert status == 409 and has_nudge(body["error"], EngineNudges.LOCKOUT_END) and top() == "locked_out", "a silence past the grace ends the worker"
     assert worker_hook(2100.0)[0] == 409 and top() == "locked_out", "and it never goes on"
     assert worker_hook(2101.0, type_name="Stop")[1].get("decision") != "block", "its stop goes through"
 
@@ -3795,7 +3821,7 @@ def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_e
     stopped = state.respond(Stop(time=1000.0), settings)
     assert stopped.refusal is None and not any("log" in nudge.rendered() for nudge in stopped.nudges), "a stop with no task in hand names no log"
     held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(time=1000.0), settings)
-    assert held.refusal is not None and "log where it stands" in held.refusal.rendered(), "with a task in hand the stop still asks for a log"
+    assert held.refusal is not None and "log it first" in held.refusal.rendered(), "with a task in hand the stop still asks for a log"
 
 
 

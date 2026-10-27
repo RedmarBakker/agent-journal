@@ -60,12 +60,12 @@ class Plan(Scoped):
 
     def task_startable(self, task_id: int) -> "Plan":
         if self.state.is_unapproved():
-            raise Rejection(f"task {task_id} belongs to plan {self.id}, which is {self.state} and not approved: only the user approves a plan, on its page or with journal plan approve {self.id}, and no instruction stands in for that; until then its tasks are not started or handed to a worker")
+            raise Rejection(f"task {task_id} is in plan {self.id}, which is {self.state}: its tasks wait until the user approves it")
         return self
 
     def startable(self) -> "Plan":
         if self.is_blocked():
-            raise Rejection(f"plan {self.id} is blocked, waiting on: {self.block_reason or 'what it was blocked on'}; `journal plan unblock {self.id}` when it may go on")
+            raise Rejection(f"plan {self.id} is blocked on: {self.block_reason or 'its wait'}; `journal plan unblock {self.id}` to go on")
         if not self.state.is_startable():
             raise Rejection(f"plan {self.id} is {self.state}, not approved: the user approves it first")
         return self

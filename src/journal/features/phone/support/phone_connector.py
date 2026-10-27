@@ -33,7 +33,7 @@ class PhoneConnector:
             raise Rejection(f"a phone stays paired for {', '.join(map(str, DAYS))} days, not {days}")
         address = self.tunnel.address()
         if not address:
-            raise Rejection("a phone pairs through the tunnel's address, and this journal has none yet: log tunler in under Settings, Share links, then try again")
+            raise Rejection("a phone pairs through the tunnel's address, and there is none yet: log in to tunler under Settings, Share links")
         self.refuse_duplicate(time)
         for older in self.codes.open(time):
             self.codes.save(older.closed(time), actor)

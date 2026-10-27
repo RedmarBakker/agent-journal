@@ -135,10 +135,10 @@ class TeamJoin:
         return f"joined the team at {url.address} beside this journal's other teams, as its first journal: its hub {name} uploaded"
 
     def added_beside(self, url: TeamUrl, account: TeamAccount, copy: FullCopy) -> str:
-        taken = self.copy.taken_numbers(copy.rows)
-        if taken:
+        clashing_numbers = self.copy.taken_numbers(copy.rows)
+        if clashing_numbers:
             account.path().unlink()
-            raise Rejection(f"the team at {url.address} holds {len(taken)} rows whose numbers this journal's own rows have, such as {taken[0]}: a journal joins a further team that holds rows once its numbers are its own (task 3158)")
+            raise Rejection(f"the team at {url.address} has {len(clashing_numbers)} rows numbered like this journal's, such as {clashing_numbers[0]}: no join")
         self.copy.laid_beside(copy.rows)
         account.record_sequence(copy.head)
         for environment in self.environments.matching(team_key=account.team_key()):
@@ -186,7 +186,7 @@ class TeamJoin:
         try:
             return self.link.login(url.address, LoginRequest(email, password, socket.gethostname()))
         except TeamRefusal as refused:
-            raise Rejection(f"the team server at {url.address} has its admin already: join with your own account's email and password there, or with the invitation URL an admin shares from the Team tab ({refused})") from refused
+            raise Rejection(f"{url.address} has its admin: join with your own account or an invitation URL ({refused})") from refused
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)

@@ -160,6 +160,19 @@ supervisor. `v3.bak/` is the old tree and is the guide, never imported.
 - Deferred from tasks: work put off in words (needs a text heuristic), closed by commit
   trailer, auto mode's carry-on timing.
 
+## Line budgets (plan 1048, 2026-10-27)
+
+- Every line sent to the agent has a budget by how often it is sent: frequent 80, normal 120, rare up to a
+  `longest_characters` it declares with a `longest_reason`. The class comes from tests/nudge_frequency.json, frozen
+  by the simulator's eleven 180-minute runs (`NUDGE_FREQUENCY_FREEZE=1`, tests/simulation_run.py); a line that may
+  repeat within a minute is frequent, and a line no run sent is normal (decided: calling it frequent would have put
+  two hundred lines under 80 on no evidence).
+- A value from outside is capped in its template, `{{name|cap=N}}`; a list the agent acts on (skills, idle workers,
+  commands to run, the user's own words) gets a wide cap and a declared longest instead of a short cut.
+- The nudger cuts a line over its longest and records `cut_from`; the app fixture fails any test whose run cut one.
+- A tool use's answer takes at most three lines; the rest are queued as remarks for the next hook.
+- Inline refusals stay at 120 characters, each value counted as 16 (a source test checks it).
+
 ## Decisions taken while building the features
 
 - A feature's listeners go on the bus wrapped in `Switched`, which runs the inner listener only

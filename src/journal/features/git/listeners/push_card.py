@@ -13,4 +13,4 @@ class PushCard(Listener[GitPushed]):
 
     def handle(self, event: GitPushed) -> None:
         actor = Actor.agent(event.session) if event.session else Actor.system()
-        self.cards.show(event.environment_id, event.session, f"Pushed {event.branch} to {event.remote}", actor=actor, shows=CardType.PUSHES)
+        self.cards.show(event.environment_id, event.session, f"Pushed {event.branch}", actor=actor, shows=CardType.PUSHES)

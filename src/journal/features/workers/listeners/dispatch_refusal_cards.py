@@ -16,4 +16,4 @@ class DispatchRefusalCards(AgentListener[LineDelivered]):
         if event.nudge not in (WorkersNudges.WORKER_KNOWS_FILES.key, WorkersNudges.IDLE_CAP.key):
             return
         count = int(event.values["count"])
-        self.cards.show(event.environment_id, event.session, f"Dispatch refused, {count} idle {'worker' if count == 1 else 'workers'} could take it", detail=f"idle workers:\n{event.values['workers']}", shows=CardType.WORKERS, outcome=CardOutcome.WARNED)
+        self.cards.show(event.environment_id, event.session, f"Not sent to a new worker: {count} idle {'worker' if count == 1 else 'workers'} can take it", detail=f"Idle workers:\n{event.values['workers']}", shows=CardType.WORKERS, outcome=CardOutcome.WARNED)

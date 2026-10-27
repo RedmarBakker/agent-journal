@@ -5,7 +5,7 @@ from journal.engine.nudge_registry import NudgeRegistry
 from journal.engine.nudger import NUDGE
 from journal.repositories.entries import Entries
 
-ESCAPED_BLANK = re.compile(r"\\\{\\\{\w+\\\}\\\}")
+ESCAPED_BLANK = re.compile(r"\\\{\\\{\w+(?:\\\|cap=\d+)?\\\}\\\}")
 
 
 def nudge_pattern(nudge: Nudge, /, **values) -> re.Pattern:

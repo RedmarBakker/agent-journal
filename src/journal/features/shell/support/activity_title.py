@@ -18,7 +18,7 @@ class ActivityTitle:
     def checked(text: str) -> str:
         title_parts = text.split()
         if text and ActivityTitle.is_one_word(text):
-            raise Rejection(f"a card's title is {TITLE_RULE}, not {text!r}, which is a single word: say what runs, such as 'Running the rename tool', and name it with --topic")
+            raise Rejection(f"a card's title is {TITLE_RULE}, not the single word {text!r}: say what runs, and name it with --topic")
         if title_parts and not title_parts[0].lower().endswith(ACTIVITY_SUFFIX):
             raise Rejection(f"a card's title is {TITLE_RULE}, not {text!r}: open it on what it does")
         if title_parts and title_parts[-1].lower() in CONNECTIVES:

@@ -6,7 +6,7 @@ class PlansNudges:
     """The nudges of the plans feature."""
 
     ALL_BLOCKED = "all its tasks left are blocked"
-    PLAN_TESTING_CHANGED = Nudge("plans", "the_plan_tests_another_way", "plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}", repeat=Timeout.seconds(0), longest_characters=680, longest_reason="it contains the testing instructions the user wrote")
+    PLAN_TESTING_CHANGED = Nudge("plans", "the_plan_tests_another_way", "plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}", repeat=Timeout.seconds(0), longest_characters=660, longest_reason="it contains the testing instructions the user wrote")
     TEST_COMMANDS_NEEDED = Nudge("plans", "name_the_test_commands", "the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through", "", repeat=Timeout.seconds(0))
     MID_PHASE_TESTS = Nudge("plans", "tests_wait_for_the_phase_end", "plan {{n}} runs tests at phase end; phase {{phase}} is still open. write this task's tests now; run them when it ends", repeat=Timeout.seconds(0))
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
@@ -18,7 +18,7 @@ class PlansNudges:
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge("plans", "the_user_approved_the_plan", "plan {{n}} approved", repeat=Timeout.seconds(0))
     CHECKPOINT_PHASE_END = Nudge("plans", "phase_complete_at_a_checkpoint", "plan {{n}}: phase {{phase}} done, a checkpoint", "wait for the user, then `journal plan start {{n}}`", repeat=Timeout.seconds(0))
-    PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} done", "run {{commands|cap=37}} and see each pass, then `journal plan start {{n}}`", repeat=Timeout.seconds(0))
+    PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} done", "run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`", repeat=Timeout.seconds(0), longest_characters=392, longest_reason="it contains the test commands the agent runs")
     PHASE_END = Nudge("plans", "phase_complete_go_on", "plan {{n}}: phase {{phase}} done", "start the next with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     PLAN_BLOCKED = Nudge("plans", "plan_blocked", "plan {{n}} is blocked: {{why|cap=44}}", "unblock it by hand with `journal plan unblock {{n}}`", repeat=Timeout.seconds(0))
     DRIVE_ENDED = Nudge("plans", "drive_ended", "{{name}}: no longer driven ({{why|cap=19}}); writes refused", "retake: `journal {{noun}} drive {{n}}`", repeat=Timeout.seconds(0))

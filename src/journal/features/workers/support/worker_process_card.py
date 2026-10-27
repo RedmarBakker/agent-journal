@@ -41,7 +41,7 @@ class WorkerProcessCard(ProcessCard):
 
     @staticmethod
     def label(worker: Worker, text: str) -> str:
-        return f"Worker {worker.id}, {worker.name}: {text}"
+        return f"{worker.name}: {text}"
 
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)

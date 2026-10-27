@@ -13,15 +13,27 @@ from journal.support.agent_role import AgentRole
 
 
 class ResearcherHelper(Helper):
-    """A subagent of Claude Code, on its own row from its start, researching over Void: it reads and answers, runs the journal's reading commands but for memories, since its command names no row of its own to keep them by, reaches the plugins whose manifests name subagents, and its turns become its messages."""
+    """A subagent of Claude Code, on its own row from its start, researching over Void: it reads and answers, runs the journal's reading commands but for memories and writes documents, reports and plans of its own, since its command names no row of its own to keep them by, reaches the plugins whose manifests name subagents, and its turns become its messages."""
 
     role = AgentRole.SUBAGENT
     first_state = Researching
     features = (PluginsFeature,)
     commands = (
+        (DocCommand, "create"),
+        (DocCommand, "update"),
+        (DocCommand, "ready"),
         (DocCommand, "show"),
         (OutputCommand, "read"),
+        (PlanCommand, "create"),
+        (PlanCommand, "brief"),
+        (PlanCommand, "phase"),
+        (PlanCommand, "add"),
+        (PlanCommand, "todos"),
+        (PlanCommand, "ready"),
         (PlanCommand, "show"),
+        (ReportCommand, "create"),
+        (ReportCommand, "update"),
+        (ReportCommand, "ready"),
         (ReportCommand, "show"),
         (RuleCommand, "list"),
         (RuleCommand, "read"),

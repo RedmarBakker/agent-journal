@@ -87,7 +87,7 @@ class WorkerActions:
         with self.runner.lock(n):
             worker = self.peer(n, sender)
             if worker.is_running():
-                raise Rejection(f"worker {worker.id}, {worker.name}, is out on a job: tell it with `journal worker notify {worker.id} \"<text>\"`, or send it the job once it reports")
+                raise Rejection(f"worker {worker.id}, {worker.name}, is out on a job: `journal worker notify {worker.id} \"<text>\"`")
             return self.relaunch(worker, brief, None, actor, JOB_MOVE)
 
     def peer_notify(self, n: int, text: str, sender: int, actor: Actor) -> Worker:
@@ -102,7 +102,7 @@ class WorkerActions:
         if worker.adopted or worker.state == WorkerState.STOPPED:
             raise Rejection(f"worker {worker.id}, {worker.name}, is retired: only the agent that dispatched you brings it back")
         if worker.dispatcher != writer.dispatcher:
-            raise Rejection(f"worker {worker.id}, {worker.name}, belongs to another agent: you message only the workers of the agent that dispatched you, `journal worker peers` lists them")
+            raise Rejection(f"worker {worker.id}, {worker.name}, is another agent's: `journal worker peers` lists yours")
         if not self.tasks.holder_task_ids(Ref.build(worker)):
             raise Rejection(f"worker {worker.id}, {worker.name}, has no task: you message only a peer that works on one")
         return worker
@@ -115,7 +115,7 @@ class WorkerActions:
 
     def checked_task(self, worker: Worker, task_id: int) -> Task:
         if not task_id and not self.tasks.holder_task_ids(Ref.build(worker)):
-            raise Rejection(f"worker {worker.id} works on no task now: name the one to check with --task <n>; its tasks waiting for the merge are {', '.join(f'task {n}' for n in self.merged_task_ids(worker)) or 'none'}")
+            raise Rejection(f"worker {worker.id} has no task now: add --task <n>; waiting for the merge: {', '.join(f'task {n}' for n in self.merged_task_ids(worker)) or 'none'}")
         if not task_id:
             return self.worker_task(worker)
         if task_id not in self.merged_task_ids(worker):
@@ -215,7 +215,7 @@ class WorkerActions:
     def refuse_unchecked(self, worker: Worker, task: Task, task_option: str) -> None:
         unchecked = self.unchecked_points(task)
         if unchecked:
-            raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked, and the merge takes every completed task in at once: journal worker check {worker.id} <point>{task_option} first")
+            raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} unchecked: `journal worker check {worker.id} <n>{task_option}`")
 
     def merge_commit(self, worker: Worker, task: Task) -> str:
         try:
@@ -255,10 +255,12 @@ class WorkerActions:
         refusals = self.events.worker_merging(event)
         if refusals:
             reasons = "\n".join(refusals)
-            raise Rejection(f"worker {event.worker}'s work was not merged: a plugin held it\n{reasons}\nits proofs and its task are as they were")
+            raise Rejection(f"worker {event.worker}'s work was not merged: a plugin held it\n{reasons}")
 
     def merged_tasks(self, worker: Worker) -> tuple[Task, ...]:
-        owned = tuple(self.tasks.find(task_id) for task_id in self.merged_task_ids(worker))
+        worker_tasks = tuple(self.tasks.find(task_id) for task_id in self.merged_task_ids(worker))
+        proved = tuple(task for task in worker_tasks if self.latest_proofs(task))
+        owned = proved or worker_tasks
         if worker.state != WorkerState.DELIVERED:
             return self.checked_tasks(worker, owned)
         for task in owned:
@@ -268,18 +270,22 @@ class WorkerActions:
     def checked_tasks(self, worker: Worker, owned: tuple[Task, ...]) -> tuple[Task, ...]:
         checked = tuple(task for task in owned if not self.unchecked_points(task))
         if not checked:
-            raise Rejection(f"no task of worker {worker.id} has every point checked: journal worker check {worker.id} <point> --task <task> first; its tasks are {', '.join(f'task {task.id}' for task in owned)}")
+            raise Rejection(f"no task of worker {worker.id} is fully checked: `journal worker check {worker.id} <point> --task <task>` first")
         return checked
 
     def release_rest(self, worker: Worker, actor: Actor) -> None:
-        self.tasks.release(Ref.build(worker), actor)
+        if worker.state != WorkerState.DELIVERED or not self.unproved_task_ids(worker):
+            self.tasks.release(Ref.build(worker), actor)
         if worker.state != WorkerState.DELIVERED:
             self.tasks.unqueued(Ref.build(worker), actor)
+
+    def unproved_task_ids(self, worker: Worker) -> list[int]:
+        return [task_id for task_id in self.tasks.holder_task_ids(Ref.build(worker)) if not self.latest_proofs(self.tasks.find(task_id))]
 
     def mergeable(self, n: int, purpose: str) -> Worker:
         worker = self.local(n)
         if worker.state not in MERGEABLE_STATES:
-            raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that clocked out, stopped or ended unfinished has {purpose}")
+            raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that has ended has {purpose}")
         return worker
 
     def delivered(self, n: int, purpose: str) -> Worker:
@@ -291,7 +297,7 @@ class WorkerActions:
     def local(self, n: int) -> Worker:
         worker = self.workers.find(n)
         if self.account.is_joined() and not worker.is_device(self.account.device()) and not self.moves.is_local_dispatch(worker):
-            raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team ({worker.device}): only that machine starts, stops, messages, checks or merges it")
+            raise Rejection(f"worker {worker.id}, {worker.name}, runs on {worker.device}: only that machine can act on it")
         return worker
 
     def worker_task(self, worker: Worker) -> Task:
@@ -304,7 +310,7 @@ class WorkerActions:
     def release(self, n: int, actor: Actor) -> Worker:
         finished = self.tasks.finished_task_ids(Ref.build(self.local(n)))
         if finished:
-            raise Rejection(f"worker {n} completed {', '.join(f'task {task_id}' for task_id in finished)}, which wait for the merge with the rest of its queue: check and merge them, or release it with --drop, which opens them again and leaves their commits on its branch {self.branch.name(self.local(n))}")
+            raise Rejection(f"worker {n} completed {', '.join(f'task {task_id}' for task_id in finished)}, waiting for the merge: merge them, or release with --drop")
         return self.release_dropping(n, actor)
 
     def release_dropping(self, n: int, actor: Actor) -> Worker:
@@ -341,11 +347,11 @@ class WorkerActions:
 
     def resumable(self, worker: Worker) -> None:
         if worker.is_running():
-            raise Rejection(f"worker {worker.id}, {worker.name}, is still out: tell it with `journal worker notify {worker.id} \"<text>\"`, or wait for its report and send it the job then")
+            raise Rejection(f"worker {worker.id}, {worker.name}, is still out: `journal worker notify {worker.id} \"<text>\"`, or wait")
         if not worker.resume:
             raise Rejection(f"worker {worker.id}, {worker.name}, left no session to resume: dispatch the job again")
         if self.providers.lookup(worker.provider).transcript(self.branch.place(worker), worker.resume) is None:
-            raise Rejection(f"worker {worker.id}, {worker.name}: the conversation of its session {worker.resume} is gone, so it cannot go on with its memory; dispatch the job again")
+            raise Rejection(f"worker {worker.id}, {worker.name}: its session {worker.resume} is gone; dispatch the job again")
 
     def rebase_note(self, worker: Worker) -> str:
         start_heads = self.branch.worktree_heads(worker)
@@ -410,7 +416,7 @@ class WorkerActions:
     def complete(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
         unmerged = self.branch.unmerged_count(self.local(n))
         if unmerged:
-            raise Rejection(f"worker {n} has {unmerged} commits not merged: take them in with journal worker merge {n}, or throw them away on purpose with journal worker discard {n} --why \"<why>\"")
+            raise Rejection(f"worker {n} has {unmerged} unmerged commits: merge them, or `journal worker discard {n}`")
         return self.retired(n, reason, actor)
 
     def discard(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:

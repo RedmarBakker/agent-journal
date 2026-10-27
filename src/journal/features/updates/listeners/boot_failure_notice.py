@@ -19,4 +19,4 @@ class BootFailureNotice(Listener[BootFailed]):
         for environment in self.supervisor.running(self.environments.all()):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
-            self.cards.show(environment.row_id, agent.session if agent else None, event.text, shows=CardType.UPDATES, outcome=CardOutcome.WARNED)
+            self.cards.show(environment.row_id, agent.session if agent else None, "The journal took too long to start and was restarted", event.text, shows=CardType.UPDATES, outcome=CardOutcome.WARNED)

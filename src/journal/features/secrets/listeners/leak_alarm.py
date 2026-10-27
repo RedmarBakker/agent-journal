@@ -25,4 +25,4 @@ class LeakAlarm(AgentListener[Ticked]):
         variables = sorted({variable for variable, _ in self.masks.leaks})
         self.masks.leaks.clear()
         self._said_at = self.time_source.seconds()
-        self.cards.show(event.environment_id, event.session, f"A secret's value was about to be recorded and was masked: {', '.join(variables)}", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
+        self.cards.show(event.environment_id, event.session, "A secret was hidden before it could be saved", ', '.join(variables), shows=CardType.FAULTS, outcome=CardOutcome.WARNED)

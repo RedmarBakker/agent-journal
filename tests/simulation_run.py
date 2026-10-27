@@ -271,3 +271,17 @@ def recorded(folder: Path, monkeypatch, scenario: Scenario, seed: int = SEED) ->
             return run, run.played()
     finally:
         simulator.app.runtime().stop()
+
+
+def test_the_lines_sent_in_the_long_runs_are_counted_per_key_and_frozen_with_their_class(tmp_path, monkeypatch):
+    from collections import Counter
+    from tests.nudge_frequency import FREQUENCY_FILE, NudgeFrequency
+    runs = []
+    for scenario in HISTORY:
+        trace = played(tmp_path / scenario.name.replace(" ", "_"), monkeypatch, scenario, SEED)
+        runs.append((len(trace), dict(Counter(key for entry in trace for key in entry.nudges))))
+    from scripts.nudge_words import registered
+    counted = NudgeFrequency.counted(runs, [nudge.key for nudge in registered()])
+    if os.environ.get("NUDGE_FREQUENCY_FREEZE") == "1":
+        counted.written()
+    assert counted.counts == NudgeFrequency.frozen().counts, f"the long runs send lines at other rates than {FREQUENCY_FILE.name} holds: run again with NUDGE_FREQUENCY_FREEZE=1"

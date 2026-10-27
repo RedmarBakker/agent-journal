@@ -146,7 +146,7 @@ class Tasks(ScopedRepository[Task]):
         return self.actionable(TaskState.BLOCKED)
 
     def paused_tasks(self) -> list[Task]:
-        return self.free_tasks(TaskState.PAUSED, (PlanState.PAUSED.value,))
+        return self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_absent(self.wait_links()))
 
     def holder_paused_task(self, holder: Ref) -> Task | None:
         hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
@@ -238,7 +238,7 @@ class Tasks(ScopedRepository[Task]):
             return
         counterpart = self.holder_task(holder)
         if counterpart is not None and counterpart.id != started.id:
-            raise Rejection(f"task {counterpart.id} is in hand: finish it, or pause it with `journal task pause {counterpart.id} \"<why>\"`, before task {started.id} is started")
+            raise Rejection(f"task {counterpart.id} is in hand: finish or pause it before task {started.id} is started")
         self.handover(started, holder, actor)
 
     def guard_worker_task(self, task: Task, holder: Ref | None, actor: Actor) -> None:
@@ -264,7 +264,7 @@ class Tasks(ScopedRepository[Task]):
 
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
         if not self.is_free(task):
-            raise Rejection(f"task {task.id} is {task.state}: only an open task, or a started or paused one in your own hands, waits in a worker's queue")
+            raise Rejection(f"task {task.id} is {task.state}: only an open task, or one in your hands, goes in a worker's queue")
         if not self.links.all_matching(source=worker, target=Ref.build(task), link_type=QUEUED_LINK):
             self.links.save(Link(source=worker, target=Ref.build(task), link_type=QUEUED_LINK), actor)
         return self.save(task.delegate(self.time_source.moment()), actor)
@@ -272,7 +272,7 @@ class Tasks(ScopedRepository[Task]):
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
         queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
         if not self.is_free(task) and not (task.delegated and queue_links):
-            raise Rejection(f"task {task.id} is {task.state}: only an open task, a started or paused one in your own hands, or one waiting in a worker's queue, goes first in a worker's queue")
+            raise Rejection(f"task {task.id} is {task.state}: only an open task, one in your hands, or a queued one goes first")
         for link in queue_links:
             self.links.delete(link, actor)
         remaining = [queued for queued in self.queue(worker) if queued.id != task.id]

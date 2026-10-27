@@ -15,7 +15,7 @@ class NudgeRegistry:
 
     def lookup(self, nudge_id: str) -> Nudge:
         if nudge_id not in self.nudges:
-            raise Rejection(f"no nudge is registered as {nudge_id}: a line is said only by a nudge the registry holds, journal nudge list names them")
+            raise Rejection(f"no nudge is registered as {nudge_id}: `journal nudge list` shows them")
         return self.nudges[nudge_id]
 
     def all(self) -> list[Nudge]:

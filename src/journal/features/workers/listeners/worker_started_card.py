@@ -16,7 +16,7 @@ class WorkerStartedCard(Listener[WorkerWorkMerged]):
     def handle(self, event: WorkerWorkMerged) -> None:
         if not event.next_task:
             return
-        label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: started on task {event.next_task}")
+        label = CardDetail.shortened(f"{event.name}: started on task {event.next_task}")
         data = {"kind": "card", "row": str(Ref("workers", event.worker)), "command": "", "task": event.next_task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
         self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardType.WORKERS)

@@ -16,11 +16,11 @@ class RunCards:
     def recorded(self, environment_id: int, session: str, sequence_id: int, title: str, subject: str) -> str:
         data = {"session": session, "n": sequence_id, "title": title, "what": subject}
         self.entries.save(Entry(environment_id=environment_id, entry_type=RUN, actor=Actor.system(), data=data), Actor.system())
-        return f"Sequence {sequence_id}, {title}: {subject}"
+        return f"{title}: {subject}"
 
     def step_moved(self, environment_id: int, session: str, run: SequenceRun) -> str:
-        return self.recorded(environment_id, session, run.sequence_id, run.title, "finished" if run.last else f"moved on to step {run.step + 2}")
+        return self.recorded(environment_id, session, run.sequence_id, run.title, "finished" if run.last else f"step {run.step + 2}")
 
     @staticmethod
     def place(run: SequenceRun, step: int) -> RunPlace:
-        return RunPlace(f"{run.sequence_id}@{run.started_at}", step, f"Sequence {run.sequence_id}, {run.title}")
+        return RunPlace(f"{run.sequence_id}@{run.started_at}", step, run.title)

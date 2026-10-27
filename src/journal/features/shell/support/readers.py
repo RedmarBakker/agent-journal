@@ -73,7 +73,7 @@ class Readers:
     def reading_output(self, name: str, output: CommandOutput) -> Reader:
         reader = self.lookup(name)
         if reader.commands.programs and not any(self.read_part(reader, line) for line in self.run_lines(output)):
-            raise Rejection(f"the reader {name} reads {reader.commands.text()}, and output {output.id} is {output.headline()}: check the output's number with journal output list")
+            raise Rejection(f"reader {name} reads {reader.commands.text()}; output {output.id} is {output.headline()}: check `journal output list`")
         return reader
 
     def run_lines(self, output: CommandOutput) -> list[str]:
@@ -116,7 +116,7 @@ class Readers:
     def refuse_locked(self, name: str, does: str) -> None:
         owner = self.owner(name)
         if owner:
-            raise Rejection(f"the reader {name} is the plugin {owner}'s and locked: it is never {does}, and goes when the plugin is removed")
+            raise Rejection(f"reader {name} belongs to the plugin {owner} and is locked: it is never {does}")
         if name in SHIPPED_READERS:
             raise Rejection(f"the reader {name} ships with the journal and is locked: it is never {does}")
 
@@ -166,7 +166,7 @@ class Readers:
     def refuse_plugin_alias_reader(self, reader: Reader) -> None:
         aliases = self.plugin_aliases_read(reader)
         if aliases:
-            raise Rejection(f"the reader {reader.name} reads what journal {', journal '.join(alias.name for alias in aliases)} runs, which its plugin's own reader reads: a reader of the project never reads a plugin's alias")
+            raise Rejection(f"reader {reader.name} would read a plugin's alias, journal {', journal '.join(alias.name for alias in aliases)}, which has its own")
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()
@@ -204,7 +204,7 @@ class Readers:
 
     def stored_file(self, reader: Reader, suffix: str, text: str) -> None:
         if self.reads_journal_output(reader):
-            raise Rejection(f"the reader {reader.name} would read a journal command's output, which the journal writes and shows whole itself: a reader reads a program's own output, such as pytest or go test, or an alias's run of one")
+            raise Rejection(f"reader {reader.name} would read a journal command, which the journal shows whole: read a program's output instead")
         name = reader.name
         self.config.readers.mkdir(parents=True, exist_ok=True)
         for type_name in KINDS:

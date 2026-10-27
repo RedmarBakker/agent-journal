@@ -18,4 +18,4 @@ class WorktreeSessionLink(AgentListener[SessionStarted]):
         tree = Worktree(self.config.root, self.environments.find(event.environment_id).name)
         if not tree.path.is_dir() or self.cards.is_shown(f"worktree:{event.session}", Actor.system()):
             return
-        self.cards.show(event.environment_id, event.session, f"Working in the worktree {tree.name}, on the branch {tree.current_branch()}", key=f"worktree:{event.session}", shows=CardType.WORKTREES)
+        self.cards.show(event.environment_id, event.session, f"Working on a separate copy of the project, branch {tree.current_branch()}", key=f"worktree:{event.session}", shows=CardType.WORKTREES)

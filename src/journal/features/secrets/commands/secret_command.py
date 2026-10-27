@@ -77,7 +77,7 @@ class SecretCommand(Command):
     def request(self, args: Namespace, caller: Caller) -> int:
         reaching = [server.name for server in self.servers.reaching(args.title)]
         if reaching:
-            raise Rejection(f"{args.title} is reached through the MCP server {', '.join(reaching)} already: use its tools, and if they cannot do what you need, say what is missing in the chat")
+            raise Rejection(f"{args.title} is reached through the MCP server {', '.join(reaching)}: use its tools, or say in chat what is missing")
         secret = self.secrets.save(self.file(args.title, "", SecretType.lookup(args.secret_type), caller).with_(url=args.url, questioned_at=self.time_source.moment()), caller.actor)
         asking = f"Please log in to {secret.title} with the Log in button on the Secrets page; a browser opens on your computer, and the login is saved when you close it" if secret.secret_type == SecretType.BROWSER_LOGIN else f"Please fill in the secret {secret.title} on the Secrets page, never in the chat"
         self.messages.save(Message(author=Author.AGENT, text=f"{asking}: I need it {args.why}.\n\nsecret {secret.id}"), caller.actor)
@@ -151,7 +151,7 @@ class SecretCommand(Command):
         if args.wait:
             return self.waited(secret)
         if not secret.auto_login:
-            raise Rejection(f"the user logs in to {secret.title} with the Log in button on the Secrets page; ask for it with `journal secret request {secret.title} --kind 'browser login' --url <address> --why <what for>`")
+            raise Rejection(f"the user logs in to {secret.title}: `journal secret request {secret.title} --kind 'browser login'`")
         self.window.open(secret, self.scope.id, caller.actor)
         print(f"a browser opens on {secret.url} on the user's computer: wait for it with `journal secret login {secret.id} --wait`")
         return 0

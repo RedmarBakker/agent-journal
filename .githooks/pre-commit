@@ -7,6 +7,8 @@ cd "$root"
 python3 scripts/checks/release_tags.py
 # a private word or a real machine's address in a staged line is refused with its file and line, never the word
 python3 scripts/checks/private_data.py
+# a line the frozen frequency file has never counted is named, with the run that counts it; it never stops the commit
+python3 scripts/checks/uncounted_lines.py || true
 git diff --cached --quiet -- VERSION && exit 0
 npm --prefix src/web run build
 git add src/web/dist

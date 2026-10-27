@@ -4,7 +4,7 @@ from journal.support.timeout import Timeout
 
 
 class MessagesNudges:
-    UNLINKED_NUMBERS = Nudge("messages", "link_the_row_numbers", "message {{n}} has {{numbers|cap=18}} with no row kind", "link them: `journal message amend-links {{n}} {{kinds|cap=18}}`", repeat=Timeout.seconds(365 * 86400.0))
+    UNLINKED_NUMBERS = Nudge("messages", "link_the_row_numbers", "message {{n}} has {{numbers|cap=18}} with no row kind", "link them with journal message amend-links {{n}} {{kinds|cap=18}}", repeat=Timeout.seconds(365 * 86400.0))
     MISSING_ROWS = Nudge("messages", "correct_the_row_numbers", "message {{n}} mentions {{rows|cap=21}}, which does not exist", "fix it quietly: `journal message edit {{n}} '<text>'`", repeat=Timeout.seconds(365 * 86400.0))
     NEW_MESSAGE = Nudge("messages", "new_message_to_answer", "new message {{n}}", repeat=Timeout.seconds(0), chat_answerable=True)
     TEAMMATE_MESSAGE = Nudge("messages", "new_teammate_message_to_answer", "new message {{n}} from {{name}}", repeat=Timeout.seconds(0), chat_answerable=True)

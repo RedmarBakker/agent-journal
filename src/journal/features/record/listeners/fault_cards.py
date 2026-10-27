@@ -15,6 +15,6 @@ class FaultCards(Listener[FaultMoment]):
 
     def handle(self, event: FaultMoment) -> None:
         if isinstance(event, SessionUnbound):
-            self.cards.show(event.environment_id, event.session, f"Session {event.session} started without the launch id of {event.environment}: the journal records its hooks and does not take it as this environment's agent", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, event.session, "An agent session started that the journal could not match to this project, so it is not followed", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
         if isinstance(event, GuardFailed):
-            self.cards.show(event.environment_id, event.session, f"A guard failed and let the event through: {event.text}", shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, event.session, "A safety check failed, so the agent was not stopped", detail=event.text, shows=CardType.FAULTS, outcome=CardOutcome.WARNED)

@@ -488,7 +488,7 @@ def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_an
         assert not [agent for agent in agents.all_agents() if agent.session in ("stray", "bare")], "and never taken as the environment's agent"
         with app.container.get(Scope).environment(1):
             assert {entry.data["session_id"] for entry in app.container.get(Entries).kind_entries("unbound_session")} == {"stray", "bare"}, "its hooks are recorded"
-            assert any("stray" in message.text and "launch id" in message.text for message in app.container.get(Messages).all()), "and it is reported in the chat"
+            assert any("could not match to this project" in message.text for message in app.container.get(Messages).all()), "and it is reported in the chat"
         assert started("bound", "launch-main") == 200 and agents.session_agent("bound").environment_id == 1
         from journal.support.agent_role import AgentRole
         from journal.models.worker import Worker

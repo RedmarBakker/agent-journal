@@ -154,7 +154,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
     failed = [e for e in app.container.get(Entries).scoped() if e.entry_type == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
-    assert any("A guard failed and let the event through" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
+    assert any("A safety check failed, so the agent was not stopped" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
     said = [e for e in app.container.get(Entries).scoped() if e.entry_type == "nudge" and e.data.get("key") == "engine.guard_failed"]
     assert said, "the line is the engine's registered nudge, said through the Nudger and recorded"
     from journal.engine.nudge_registry import NudgeRegistry
@@ -173,13 +173,13 @@ def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_
     log.write_text("1761393836 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
     app.container.get(ListenerQueue).drain()
-    marks = [m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]
-    assert len(marks) == 1 and marks[0].text == "The journal did not answer in time: 1 hook let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded", [m.text for m in marks]
+    marks = [m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal was too slow")]
+    assert len(marks) == 1 and marks[0].text == "The journal was too slow to check some of the agent's work", [m.text for m in marks]
     assert marks[0].data["lines"][1].endswith("ran in the shell itself: git status") and marks[0].data["outcome"] == "warned", marks[0].data
     assert not log.exists(), "what was named is cleared"
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
     app.container.get(ListenerQueue).drain()
-    assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]) == 1, "named once: the next answer says nothing more"
+    assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal was too slow")]) == 1, "named once: the next answer says nothing more"
 
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/cli", data=json.dumps({"argv": argv, "env": "main", "session": session, **(body or {})}).encode(), method="POST", headers={"Content-Type": "application/json", **(headers or {})})
@@ -263,6 +263,9 @@ def test_a_command_under_the_sub_agent_actor_runs_only_the_journals_reads(app: A
     subagent = {"X-Journal-Actor": "sub-agent"}
     assert post_command(app, ["task", "show", "1"], subagent)["code"] == 0 and post_command(app, ["task", "list"], subagent)["code"] == 0, "a subagent reads tasks"
     assert "a subagent may not" not in post_command(app, ["doc", "show", "1"], subagent)["error"], "and documents"
+    assert post_command(app, ["doc", "create", "the parser's design", "--abstract", "how the parser reads", "--body", "## Reading\nline by line"], subagent)["code"] == 0, "a subagent files its own document"
+    assert post_command(app, ["report", "create", "what the parser misses", "--abstract", "two gaps", "--body", "## Gaps\nnone yet"], subagent)["code"] == 0, "and its own report"
+    assert post_command(app, ["plan", "create", "the parser", "--brief", "it reads the grammar"], subagent)["code"] == 0 and post_command(app, ["plan", "phase", "1", "reading", "--when", "it reads"], subagent)["code"] == 0, "and builds a plan"
     for argv in (["task", "create", "x"], ["message", "send", "hello"], ["plan", "approve", "1"]):
         refused = post_command(app, argv, subagent)
         assert refused["code"] == 1 and refused["error"].startswith(f"a subagent may not run journal {argv[0]} {argv[1]}: ResearcherHelper names the verbs it runs, ") and "journal task show" in refused["error"] and "journal search find" in refused["error"], f"a subagent writes nothing: {argv}"

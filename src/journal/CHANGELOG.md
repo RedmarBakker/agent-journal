@@ -2,10 +2,25 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
-## Unreleased
+## 4.67.0
 
 - A journal far behind now updates through proven steps: the newest release's install script walks the releases the update matrix proved, one after another, each installed by its own install script so its own migrations run, and stops at the last good one if a step fails. Older journals benefit too, since their updater already starts the newest release's install script. One update card follows the whole path; `journal update retry` and `journal update close` answer a failed step.
 - The update matrix tests each release only from the releases of the five minor versions before it (Settings, Updates: Minor versions one update may cross), and each release publishes update_steps.json beside install.sh, naming it as a step or as no step.
+- Every line the journal sends the agent was rewritten short: 210 of 283 changed, all but the few that carry the user's own words at most 120 characters, and a report lists each before and after. A line is cut to its longest when sent, a value from outside is capped in its template, a tool use's answer takes at most three lines and queues the rest for the next one, and a test fails any line over the budget of how often it is sent, measured by the simulator's long runs (frequent 80, normal 120, rare declared with a reason). Inline refusals are 120 at most too.
+- A watched run speaks only its progress, output N: 19/210, again only after a tenth more, and its end is only output N: completed or failed.
+- The agent's status bar has a dropdown of the latest lines the journal sent it.
+- Starting a task pauses the task in hand and says so, instead of refusing.
+- Subagents write documents, reports and plans themselves with the journal commands (a document takes --body now), and the mark of what a subagent made names it in the chat of the agent that sent it.
+- A paused task whose wait has not come never holds a stop; a merge leaves a worker on the task it went on to.
+- A memory taken out says only taken out, or which task or plan ended.
+- An agent carrying on after a compaction reads busy, not idle, and a plugin's health check counts no miss while the machine is busy or a test suite runs.
+- Cards and marks in the chat say what happens, never ids, hashes, commands or internals; the update card says Updating the journal to the latest version.
+- A builder's plan whose work went to workers is delegated and paused again when its last worker task closes; a stopped worker's checked work can be merged, and a sent-back task stays with its worker.
+- A worker's clock-out runs the tests of the area it touched; a test run whose code changed under it is marked invalid; the suite runs fast under load.
+- Flowcharts lay out without overlap and zoom, pan and fit; a message that says flowchart calls for the flowcharts skill.
+- A chained run's card is titled by its long-running part, and different runs sharing one title are asked for their own; a run at 100% that keeps running is named.
+- A setting that only works behind a switch is hidden while the switch is off; tables holding row names keep their shape; lines under a message grow in.
+- The avatar stands on the chat that is shown and rides a docked bar up instead of bouncing.
 
 ## 4.66.2
 

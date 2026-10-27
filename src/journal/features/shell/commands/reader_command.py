@@ -117,7 +117,7 @@ class ReaderCommand(Command):
     def probed(self, reader: Reader) -> None:
         unfiltered = ReaderProbes.unfiltered_patterns(reader)
         if unfiltered:
-            raise Rejection(f"reader {reader.name} is refused: its {' and '.join(unfiltered)} selects every line of any run, so it filters nothing and its card shows the raw output; give it a pattern for the few lines a person reads, such as the failures, the progress and the summary")
+            raise Rejection(f"reader {reader.name} is refused: its {' and '.join(unfiltered)} matches every line; pick the few lines a person reads")
         misses = self.probes.test_run_misses(reader)
         if misses:
             raise Rejection(f"reader {reader.name} is refused: {'; '.join(misses)}")
@@ -131,10 +131,10 @@ class ReaderCommand(Command):
         target_report = self.reports.find(args.n)
         findings = self.judge.run_findings(target_report)
         if findings:
-            raise Rejection(f"reader report {target_report.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {target_report.reader} ...: {'; '.join(findings)}")
+            raise Rejection(f"reader report {target_report.id} is borne out by the run: rewrite the reader, {'; '.join(findings)}")
         repeated_report = self.judge.unjudged_dismissal(target_report, datetime.fromtimestamp(self.clock.time(), timezone.utc))
         if repeated_report is not None:
-            raise Rejection(f"reader report {target_report.id} is refused a dismissal: report {repeated_report.id} found the same for {self.shapes.command_name(repeated_report.command)} and was dismissed, and its verifier has not judged that dismissal sound, so the cause is still there: fix it, in the reader with journal reader add {target_report.reader} ..., in the command, or in the reader chosen for it")
+            raise Rejection(f"report {target_report.id} cannot be dismissed: report {repeated_report.id} found the same, unjudged; fix the reader")
         report = self.reports.save(target_report.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
         return 0

@@ -27,7 +27,7 @@ class PlanBindings:
         bound = self.environment_id(row)
         if bound and bound != environment_id:
             noun = type(row).__name__.lower()
-            raise Rejection(f"{self.labels.name(noun, row)} is driven by {row.driver} from the environment {self.environments.find(bound).name} on this machine: journal {noun} release {row.row_id} there lets it go")
+            raise Rejection(f"{self.labels.name(noun, row)} is driven from {self.environments.find(bound).name}: `journal {noun} release {row.row_id}` there")
 
     def bind(self, row: Task | Plan, environment_id: int, actor: Actor) -> None:
         self.check(row, environment_id)

@@ -84,7 +84,7 @@ class OutputCommand(Command):
         if args.summary:
             print(self.summary(output, files, lines))
             return 0
-        raise Rejection(f"name the part of output {output.id} to read: --tail 20, --head 20, --grep \"<words>\", --lines 40-80, --reader <name>, --summary for how it ended, or --all for every line")
+        raise Rejection(f"name the part of output {output.id}: --tail 20, --head 20, --grep \"<words>\", --lines 40-80, --summary or --all")
 
     def status(self, args: Namespace, caller: Caller) -> int:
         if args.n is not None:

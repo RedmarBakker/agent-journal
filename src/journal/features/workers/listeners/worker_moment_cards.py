@@ -34,7 +34,7 @@ class WorkerMomentCards(Listener[RowEvent]):
         text, detail = MOMENTS[type(event)]
         worker = event.worker
         actor = Actor.agent(worker.dispatcher) if worker.dispatcher else Actor.system()
-        label = CardDetail.shortened(f"Worker {worker.id}, {worker.name}: {text}")
+        label = CardDetail.shortened(f"{worker.name}: {text}")
         row = Ref("workers", worker.id)
         data = {"kind": "card", "row": str(row), "command": "", "task": self.tasks.last_task_id(row)}
         self.cards.show_fields(event.environment_id, worker.dispatcher, label, data, actor, CardType.WORKER_STEPS, getattr(event, detail) if detail else "")

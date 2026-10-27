@@ -70,7 +70,7 @@ class RunTracker:
     def refuse_open_end(self, run: SequenceRun) -> None:
         state = self.rows.row_state(Ref.parse(run.subject)) if run.last and run.subject and run.end_condition else ""
         if state and state not in run.end_condition:
-            raise Rejection(f"sequence {run.sequence_id} ends when {run.subject} is {' or '.join(run.end_condition)}; it is {state}. finish it first, or `journal sequence abandon --why \"<why>\"`")
+            raise Rejection(f"sequence {run.sequence_id} ends when {run.subject} is {' or '.join(run.end_condition)}, not {state}: finish it first")
 
     def abandon(self, session: str, environment_id: int, reason: str) -> tuple[SequenceRun, str]:
         agent = self.sessions.agent(session, environment_id)

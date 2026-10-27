@@ -20,11 +20,11 @@ class SyncMomentCards(Listener[SyncMoment]):
 
     def handle(self, event: SyncMoment) -> None:
         if isinstance(event, TeamChatClaimed):
-            self.cards.show(event.environment_id, None, f"{event.holder} claimed the Team chat while {event.former} was offline: what {event.former} had not pushed stayed on their machine", actor=Actor.system(), shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"{event.holder} took over the Team chat while {event.former} was offline; {event.former}'s unsent changes stayed on their machine", actor=Actor.system(), shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
         if isinstance(event, TeamChatFilesDiverged):
-            label = f"The Team chat's files on {event.device} have changes of their own, so they stay at {event.local[:8]} and not at the holder's {event.tip[:8]}"
+            label = f"Team chat changes made on {event.device} were kept there and not replaced"
             self.cards.show(event.environment_id, None, label, key=f"team-chat-files:{event.device}", actor=Actor.system(), shows=CardType.WORKTREES, outcome=CardOutcome.WARNED)
         if isinstance(event, EditOverridden):
-            self.cards.show(event.environment_id, None, f"{event.writer}'s edit of {event.noun} {event.row_id}'s {event.field} was kept over yours", detail=f"kept: {event.field_value[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"{event.writer}'s change to this {event.noun} was kept instead of yours", detail=f"kept: {event.field_value[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)
         if isinstance(event, EditDropped):
-            self.cards.show(event.environment_id, None, f"{event.noun.capitalize()} {event.row_id} was deleted by a colleague, so your edit of it was dropped", shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)
+            self.cards.show(event.environment_id, None, f"A colleague deleted this {event.noun}, so your change to it was dropped", shows=CardType.CONFLICTS, outcome=CardOutcome.WARNED)

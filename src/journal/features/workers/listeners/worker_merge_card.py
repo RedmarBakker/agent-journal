@@ -14,7 +14,7 @@ class WorkerMergeCard(Listener[WorkerWorkMerged]):
         self.cards = cards
 
     def handle(self, event: WorkerWorkMerged) -> None:
-        label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: work on task {event.task} merged")
+        label = CardDetail.shortened(f"{event.name}: work on task {event.task} merged")
         row = Ref("workers", event.worker)
         data = {"kind": "card", "row": str(row), "command": "", "task": event.task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()

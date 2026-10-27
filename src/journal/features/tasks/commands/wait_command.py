@@ -50,7 +50,7 @@ class WaitCommand(Command):
         if USER_WAIT_PATTERN.search(args.what):
             raise Rejection(USER_WAIT_REFUSAL)
         if len(args.what.split()) < LEAST_WAIT_TITLE_WORD_COUNT:
-            raise Rejection(f"\"{args.what}\" is too short for the user to read in the top bar: name what you wait for in a few words, such as \"the test run of task 217\" or \"Lady Lovelace's report on the parser\"")
+            raise Rejection(f"\"{args.what}\" is too short to read in the top bar: say what you wait for, such as \"the test run of task 217\"")
         unended = self.running(args.output)
         if args.reader:
             for output in unended:

@@ -12,4 +12,4 @@ class PluginFailing(PluginStanding):
     failures: int
 
     def card_parts(self) -> tuple[str, CardOutcome, str]:
-        return f"Plugin {self.plugin} is failing: it faulted {self.failures} times in a row, and events go through without it", CardOutcome.FAILED, self.fault
+        return f"Plugin {self.plugin} keeps failing, so the journal works without it", CardOutcome.FAILED, self.fault

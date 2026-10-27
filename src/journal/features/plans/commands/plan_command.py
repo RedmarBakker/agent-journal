@@ -178,7 +178,7 @@ class PlanCommand(Command):
             raise Rejection(f"phase {', '.join(str(i) for i in empty)} of plan {plan.id} has no task yet: journal plan todos {plan.id} <phase> <tasks>")
         output = self.subagents.running_mentioning(caller.session, f"plan {plan.id}") if plan.state == PlanState.REVIEWING and caller.session is not None else 0
         if output:
-            raise Rejection(f"plan {plan.id} is in review and {output} of its reviewers are still out: wait for them, put what they found into the plan, then ready it")
+            raise Rejection(f"plan {plan.id} is in review, {output} reviewers still out: wait, add what they found, then ready it")
         if plan.state == PlanState.REVIEWING:
             self.close_round(plan, args.changed, caller)
         plan = self.plans.save(plan.ready(self.time_source.seconds()), caller.actor)
@@ -187,7 +187,7 @@ class PlanCommand(Command):
 
     def close_round(self, plan: Plan, changed: str | None, caller: Caller) -> None:
         if changed is None:
-            raise Rejection(f"plan {plan.id} is in review: say in one line what this round changed, journal plan ready {plan.id} --changed \"<tasks added, merged, moved, reworded>\"")
+            raise Rejection(f"plan {plan.id} is in review: `journal plan ready {plan.id} --changed \"<what this round changed>\"`")
         self.rounds.close(plan, changed, caller)
 
     def review(self, args: Namespace, caller: Caller) -> int:

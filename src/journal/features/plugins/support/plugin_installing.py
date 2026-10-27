@@ -105,7 +105,7 @@ class PluginInstalling:
         except json.JSONDecodeError:
             answer = None
         if completed.returncode != 0 or not isinstance(answer, dict):
-            raise Rejection(f"{plugin.name}'s installed command {command!r} did not answer with its settings as a JSON object, so nothing is installed: {(completed.stderr or completed.stdout).strip()[-300:]}")
+            raise Rejection(f"{plugin.name}'s command {command!r} gave no JSON settings, so nothing is installed: {(completed.stderr or completed.stdout).strip()[-300:]}")
         return answer
 
     def undone(self, plugin: Plugin, prior_data: bool) -> None:
@@ -233,7 +233,7 @@ class PluginInstalling:
     @staticmethod
     def require_user(actor: Actor, does: str) -> None:
         if actor.actor_type != ActorType.USER:
-            raise Rejection(f"only the user {does} a plugin: journal plugin propose <folder or git address> shows them a card to install it themselves")
+            raise Rejection(f"only the user {does} a plugin: `journal plugin propose <folder or git address>` shows them a card")
 
     def free(self, name: str) -> None:
         try:
@@ -252,7 +252,7 @@ class PluginInstalling:
             newest_fit = self.tags.fitting(folder, releases, Release(VERSION))
             if newest_fit is None:
                 newest = releases[-1]
-                raise Rejection(f"none of the {len(releases)} newest releases of {source} runs on journal {VERSION}: the newest, {newest.tag}, needs journal {self.tags.needs(folder, newest) or 'a newer version'}")
+                raise Rejection(f"no recent release of {source} runs on journal {VERSION}: {newest.tag} needs {self.tags.needs(folder, newest) or 'a newer version'}")
             subprocess.run(["git", "-C", str(folder), "checkout", "--quiet", newest_fit.tag], capture_output=True, text=True, timeout=DOWNLOAD_SECONDS)
             commit = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=DOWNLOAD_SECONDS).stdout.strip()
             yield folder, commit, newest_fit.tag

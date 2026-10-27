@@ -37,12 +37,16 @@ class DocCommand(Command):
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
         creation.add_argument("title")
-        creation.add_argument("--file", required=True, help="a markdown file holding its text; ## headings are its sections")
+        creation_text = creation.add_mutually_exclusive_group(required=True)
+        creation_text.add_argument("--file", help="a markdown file holding its text; ## headings are its sections")
+        creation_text.add_argument("--body", help="its text, as markdown; ## headings are its sections")
         creation.add_argument("--abstract", required=True, help=f"one short description of what it says, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
         creation.add_argument("--part", action="store_true", help="this is a part; the document is being written until a write without --part")
         update = self.verb(verbs, "update", "replace a document's text with a markdown file")
         update.add_argument("n", type=int)
-        update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
+        update_text = update.add_mutually_exclusive_group(required=True)
+        update_text.add_argument("--file", help="a markdown file holding its whole new text; ## headings are its sections")
+        update_text.add_argument("--body", help="its whole new text, as markdown; ## headings are its sections")
         update.add_argument("--abstract", default=None, help=f"a new short description, at most {ABSTRACT_LENGTH_CHARACTERS} characters")
         update.add_argument("--part", action="store_true", help="this is a part; a write without --part makes the document ready")
         self.verb(verbs, "ready", "mark a document as ready").add_argument("n", type=int)
@@ -78,13 +82,17 @@ class DocCommand(Command):
         imported.add_argument("folder", help="version 3's project/doc folder")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text(), unfinished=args.part), caller.actor)
+        doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=self.text(args), unfinished=args.part), caller.actor)
         print(f"doc {doc.id}: {doc.title}{self.destination.phrase(doc)}")
         return 0
 
+    @staticmethod
+    def text(args: Namespace) -> str:
+        return Path(args.file).read_text() if args.file else args.body
+
     def update(self, args: Namespace, caller: Caller) -> int:
         data = self.docs.find(args.n)
-        doc = self.docs.save(data.with_(body=Path(args.file).read_text(), abstract=data.abstract if args.abstract is None else args.abstract, unfinished=args.part), caller.actor)
+        doc = self.docs.save(data.with_(body=self.text(args), abstract=data.abstract if args.abstract is None else args.abstract, unfinished=args.part), caller.actor)
         print(f"doc {doc.id} written anew: {doc.title}")
         return 0
 
@@ -143,7 +151,7 @@ class DocCommand(Command):
     def attach(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
         if doc.edit_mode != DocEditMode.FREE:
-            raise Rejection(f"doc {doc.id} is read-only on the hub, so it cannot be edited in place here: journal doc copy {doc.id} saves a copy of it")
+            raise Rejection(f"doc {doc.id} is read-only on the hub: `journal doc copy {doc.id}` saves a copy to edit")
         environment = Ref("environments", self.scope.id)
         if self.links.all_matching(source=Ref.build(doc), target=environment, link_type=ATTACHED):
             raise Rejection(f"doc {doc.id} is attached to this environment already")

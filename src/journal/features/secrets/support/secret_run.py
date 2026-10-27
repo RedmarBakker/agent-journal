@@ -34,7 +34,7 @@ class SecretRun:
         values = self.values.values()
         missing = [f.name for f in fields if f.variable not in values]
         if missing:
-            raise Rejection(f"secret {secret.id}, {secret.title}, has no value for {', '.join(missing)} on this machine: ask the user with `journal secret request`, and they fill it on the Secrets page")
+            raise Rejection(f"secret {secret.id} has no value for {', '.join(missing)} here: ask with `journal secret request`")
         name_index = {f.name: values[f.variable] for f in fields}
         value = PLACEHOLDER.sub(lambda rows: name_index.get(rows[1], rows[0]), template) if template else next((values[f.variable] for f in fields if f.hidden), "")
         mask = OutputMask({values[f.variable]: f.variable for f in fields if f.hidden})
@@ -57,7 +57,7 @@ class SecretRun:
         if Programs.is_withheld(name):
             raise Rejection(f"a secret is never given to {name}: name the program that uses it directly, such as curl or gh")
         if name not in secret.programs:
-            raise Rejection(f"{name} is not among the programs secret {secret.id} may go to ({', '.join(secret.programs) or 'none yet'}): propose it with `journal secret propose {secret.id} {name}`, and the user allows it on the Secrets page")
+            raise Rejection(f"secret {secret.id} may not go to {name}: `journal secret propose {secret.id} {name}`")
         rows = shutil.which(name, path=self.search_path())
         if rows is None:
             raise Rejection(f"no program {name} on this machine")

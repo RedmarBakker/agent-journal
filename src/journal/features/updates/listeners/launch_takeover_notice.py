@@ -8,7 +8,7 @@ from journal.support.actor import Actor
 from journal.support.card_type import CardType
 from journal.supervisor_link import SupervisorLink
 
-NOTICE = "The journal now runs version {version}: a newer launch replaced the journal server on {previous} that this launch had"
+NOTICE = "The journal was updated to version {version}, replacing {previous}"
 
 
 class LaunchTakeoverNotice(Listener[ServerReplaced]):

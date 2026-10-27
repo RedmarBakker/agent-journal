@@ -78,7 +78,7 @@ def stored_run(app: App, command: str, lines: list[str], status: int = 0) -> Com
 @pytest.mark.parametrize("flags", [("--pattern", ".+", "--finished", ".+"), ("--pattern", ".*"), ("--pattern", "^.*$")], ids=["dot-plus with dot-plus finished", "dot-star", "anchored dot-star"])
 def test_a_reader_that_picks_every_line_is_refused(app: App, flags: tuple):
     output = added(app, "ssh-query", *flags, "--about", "what a query on the server prints")
-    assert output.code != 0 and "filters nothing" in output.error, output.error
+    assert output.code != 0 and "matches every line" in output.error, output.error
 
 
 def test_a_test_run_reader_fitted_to_the_image_build_is_refused(app: App):
@@ -142,7 +142,7 @@ def test_a_second_dismissal_of_the_same_finding_waits_for_the_first_to_be_judged
     reports.save(ReaderReport(environment_id=MAIN, reader="test-sh", output=1, command=SUITE, session="s1", findings=finding, fixes=("run it unbuffered",)).dismissed("health checks"), Actor.system())
     second = reports.save(ReaderReport(environment_id=MAIN, reader="test-sh", output=2, command=SUITE, session="s1", findings=finding, fixes=("run it unbuffered",)), Actor.system())
     output = app.console().run(["reader", "dismiss", str(second.id), "--why", "Laravel booting and migrating"], AGENT)
-    assert output.code != 0 and "the cause is still there" in output.error, output.error
+    assert output.code != 0 and "found the same, unjudged" in output.error, output.error
 
 
 def test_a_test_run_watched_through_a_reader_with_no_progress_still_owes_a_reader(app: App):

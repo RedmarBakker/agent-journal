@@ -24,6 +24,10 @@ WRITES = ("You write: change what the job needs and nothing beyond it. Find what
 TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
 TESTS_TURN = "Run tests only with journal tests turn, which gives your run its turn within the test budget; any other test run is refused where you have hooks, and where you have none you keep to this yourself; name each test you ran in its proof."
 JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\", naming the tests that cover the files you changed and the tests you wrote, never the whole suite. The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
+DOCUMENT_WRITER_RULES = ("You change no file and run no tests, and use Bash only for journal commands. Read narrowly: search for the line, read the range you need, "
+                         "never a whole large file. Answer in a short report written to the agent that started you, with the files and lines that show each point "
+                         "and what you could not check. When the job asks for a document, a report or a plan, file it yourself: journal doc create \"<title>\" "
+                         "--abstract \"<one line>\" --body \"<markdown>\", journal report create with the same options, or journal plan create, phase, add and todos.")
 TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 
@@ -31,10 +35,10 @@ class ProfileFiles:
     """Writes the journal's own profiles, each named journal-*, and every saved profile, for every provider that has a folder here, Claude always; at every write the journal's are removed first and written again."""
 
     PROFILES = (
-        Profile("journal-researcher", "Researches a question in the code, the journal's record or on the web and reports what it found, with evidence. Read-only.", "Read, Grep, Glob, WebFetch, WebSearch",
-                f"You research one question. Find what already answers it before you look further: the code, the files the journal stores in .journal and, when the question is about something outside the project, the web. Separate what you found from what you infer. {REPORTS}"),
-        Profile("journal-planner", "Designs how to build a change: the files to touch, what already does part of it, the order of the steps and the risks. Read-only.", "Read, Grep, Glob",
-                f"You plan one change. Find what in the code already does the job or most of it, and plan to extend that rather than write a second way. Name every file to touch and why, the order of the steps, the tests that prove each, and what could go wrong. {REPORTS}"),
+        Profile("journal-researcher", "Researches a question in the code, the journal's record or on the web and reports what it found, with evidence. It reads, and files its findings as a document or report.", "Read, Grep, Glob, WebFetch, WebSearch, Bash",
+                f"You research one question. Find what already answers it before you look further: the code, the files the journal stores in .journal and, when the question is about something outside the project, the web. Separate what you found from what you infer. {DOCUMENT_WRITER_RULES}"),
+        Profile("journal-planner", "Designs how to build a change: the files to touch, what already does part of it, the order of the steps and the risks. It reads, and files its design as a document or a plan.", "Read, Grep, Glob, Bash",
+                f"You plan one change. Find what in the code already does the job or most of it, and plan to extend that rather than write a second way. Name every file to touch and why, the order of the steps, the tests that prove each, and what could go wrong. {DOCUMENT_WRITER_RULES}"),
         Profile("journal-debugger", "Traces a fault to where it starts and states the fix that belongs there. Read-only.", "Read, Grep, Glob",
                 f"You debug one fault. Start from what was observed, then walk back through the code to where the bad value, missing check or wrong shape originates, and name the fix there, never where the fault only shows. Say how to reproduce it and which test would prove the fix. {REPORTS}"),
         Profile("journal-plan-reviewer", "Reviews a plan before it is approved: whether its phases and tasks reach its goal and nothing more, and what must change. Read-only.", "Read, Grep, Glob, Bash",

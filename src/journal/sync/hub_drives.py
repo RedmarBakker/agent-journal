@@ -81,7 +81,7 @@ class HubDrives:
             raise Rejection(f"{self.label(row)} is not the hub's: only a hub plan or task is driven")
         environment = self.environments.find(self.scope.id)
         if not environment.is_personal() and not self.sessions.is_hosted_session(environment):
-            raise Rejection(f"{self.label(row)} is driven from an environment of your own or a session this machine holds, never the hub or the Team chat")
+            raise Rejection(f"{self.label(row)} is driven from your own environment or session, never the hub or the Team chat")
         self.bindings.check(row, environment.row_id)
         return environment
 
@@ -89,8 +89,7 @@ class HubDrives:
         try:
             return lease_request(self.lease_name(Ref.build(row)))
         except TeamRefusal as refused:
-            noun = type(row).__name__.lower()
-            raise Rejection(f"{self.label(row)} is driven from another machine: {refused}; journal {noun} drive {row.row_id} --take-over has it once its lease lapses, {DRIVE_LAPSE_SECONDS // 60} minutes after its last renewal") from refused
+            raise Rejection(f"{self.label(row)} is driven from another machine: {refused}; --take-over works once its lease lapses") from refused
 
     def drive_line(self, row: Task | Plan) -> str:
         return f"{self.label(row)} is driven from here by {row.driver}, {row.driver_agent}; its lease is renewed every minute while this journal runs and lapses {DRIVE_LAPSE_SECONDS // 60} minutes after its last renewal"

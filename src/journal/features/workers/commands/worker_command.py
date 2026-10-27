@@ -185,7 +185,7 @@ class WorkerCommand(Command):
         provider = args.provider or self.provider_default(caller)
         moment = self.time_source.moment().timestamp()
         if args.changes.strip().lower() in EMPTY_CHANGES:
-            raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
+            raise Rejection("a worker writes: name what it changes with --changes; a job that only reads goes to a subagent")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
         worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
@@ -238,7 +238,7 @@ class WorkerCommand(Command):
         if not args.worktree and (links or copies or args.no_libraries):
             raise Rejection("library folders are for a worker with a worktree: add --worktree, or leave them out")
         if args.worktree and not (links or copies or args.no_libraries):
-            raise Rejection("a worker with a worktree names its library folders: --libraries node_modules,.venv links the main checkout's, --copies vendor gives it copies of its own (composer's vendor must be copied, since its autoloader loads classes from where vendor really lives), or --no-libraries for none")
+            raise Rejection("name the worktree's libraries: --libraries node_modules,.venv, --copies vendor, or --no-libraries")
         if args.no_libraries and (links or copies):
             raise Rejection("--no-libraries says none, so name no folders beside it")
         refusal = self.libraries.refusal((*links, *copies))
@@ -262,7 +262,7 @@ class WorkerCommand(Command):
 
     def worker_profile(self, profile: str) -> None:
         if self.profiles.profile_type(profile) != ProfileType.WORKER:
-            raise Rejection(f"{profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
+            raise Rejection(f"{profile} is no worker profile: use --profile journal-senior or journal-medior")
 
     def allowed_model(self, provider: str, profile: str, model: str) -> str:
         moved, note = self.allowed.clamped(provider, profile, model)
@@ -293,9 +293,9 @@ class WorkerCommand(Command):
     def send(self, args: Namespace, caller: Caller) -> int:
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
         if args.task and holdings and args.task not in holdings:
-            raise Rejection(f"worker {args.n} holds task {holdings[0]} until its work is merged or released: send it the next job on that task, or release it first")
+            raise Rejection(f"worker {args.n} holds task {holdings[0]} until it is merged or released: send it that task's next job")
         if not args.task and not holdings and caller.worker_number is None:
-            raise Rejection(f"worker {args.n} holds no task, so it could not read a brief or clock in: name the task its job is on, journal worker send {args.n} --task <task> '<job>'")
+            raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
         if caller.worker_number is not None and (args.model or args.profile):
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
         worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)

@@ -96,7 +96,7 @@ class Updater:
 
     def target(self) -> UpdateTarget:
         if not self.is_published() and self.is_pinned():
-            raise Rejection(f"this journal is in a team, and the team decides its version: it pins {self.account.team_version() or 'none yet'}, and this journal runs {self.label()}; the team's admin moves the pin with journal team upgrade")
+            raise Rejection(f"the team sets this journal's version: it pins {self.account.team_version() or 'none yet'}; the admin runs journal team upgrade")
         if not self.is_published():
             raise Rejection(f"there is nothing newer than {self.label()} to install")
         if self.branch():

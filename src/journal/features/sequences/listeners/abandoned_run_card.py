@@ -13,4 +13,4 @@ class AbandonedRunCard(Listener[SequenceAbandoned]):
         self.cards = cards
 
     def handle(self, event: SequenceAbandoned) -> None:
-        self.cards.show(event.environment_id, event.session, f"Sequence {event.sequence_id}, {event.title}, abandoned at step {event.step + 1}: {event.explanation}", f"left undone: {event.skipped}", Ref("sequences", event.sequence_id), shows=CardType.SEQUENCES, outcome=CardOutcome.WARNED)
+        self.cards.show(event.environment_id, event.session, f"{event.title} was stopped at step {event.step + 1}: {event.explanation}", f"Steps not done: {event.skipped}", Ref("sequences", event.sequence_id), shows=CardType.SEQUENCES, outcome=CardOutcome.WARNED)

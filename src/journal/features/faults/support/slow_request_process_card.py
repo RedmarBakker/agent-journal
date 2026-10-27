@@ -13,7 +13,7 @@ class SlowRequestProcessCard(ProcessCard):
     name = "slow_request"
 
     def card_contents(self, reported: SlowRequestsReported) -> ProcessCardContents:
-        return ProcessCardContents(self.name, reported.environment_id, f"{self.KEY}:{int(reported.moment)}", f"Slow requests report ready: {reported.total} over budget, read it with journal developer slowest", reported.data, Actor.system(), CardType.FAULTS, False, reported.detail)
+        return ProcessCardContents(self.name, reported.environment_id, f"{self.KEY}:{int(reported.moment)}", f"{reported.total} slow responses were recorded", reported.data, Actor.system(), CardType.FAULTS, False, reported.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

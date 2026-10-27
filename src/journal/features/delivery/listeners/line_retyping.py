@@ -31,7 +31,7 @@ class LineRetyping(AgentListener[Ticked]):
             if dropped.tries >= TRY_COUNT:
                 self.typed.abandon(dropped)
                 self.supervisor.release(event.environment_id)
-                self.cards.show(event.environment_id, event.session, f"A line did not reach the agent, typed {TRY_COUNT} times over five minutes", dropped.line, shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
+                self.cards.show(event.environment_id, event.session, f"A message did not reach the agent after {TRY_COUNT} tries over five minutes", dropped.line, shows=CardType.FAULTS, outcome=CardOutcome.WARNED)
             else:
                 repeat = self.typed.retry(dropped, event.time)
                 self.supervisor.retype(event.environment_id, repeat.line)

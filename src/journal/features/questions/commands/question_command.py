@@ -37,7 +37,7 @@ class QuestionCommand(Command):
             raise Rejection("nobody can answer a question asked from here: put it in the worker's report instead")
         options = tuple(o.strip() for o in args.options if o.strip())
         if len(options) == 1 and "," in options[0]:
-            raise Rejection(f"one option holding a comma: give each choice as its own quoted argument, --options \"first\" \"second\", so a comma inside a choice stays in it")
+            raise Rejection("give each choice as its own quoted argument, --options \"first\" \"second\", so a comma stays in it")
         requested = Question(text=args.text, options=options)
         if requested.unclear_options():
             raise Rejection(f"an option says who acts by name, the agent or the user, never I, we or you: {'; '.join(requested.unclear_options())}")

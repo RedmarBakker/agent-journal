@@ -1647,7 +1647,7 @@ options:
 
 $ agent: journal nudge list
 exit 0
-briefing.brief_and_log_after_compaction  [briefing]  compacted. task {{task}}, last log {{last_log}}, uncommitted: {{uncommitted}}. log on the task what the summary missed
+briefing.brief_and_log_after_compaction  [briefing]  compacted. {{task}}, last log {{last_log|cap=18}}, uncommitted: {{uncommitted|cap=18}}; log what the summary missed
 briefing.handle_the_journal_quietly  [briefing]  in chat, talk only of the user's work, never the journal's lines, hooks, skills, replies, or what you read, load or log
 briefing.journal_ready  [briefing]  the journal is ready on {{env}}
 briefing.look_before_the_first_write  [briefing]  run `journal environment overview` before your first write
@@ -1658,7 +1658,7 @@ briefing.rules_in_force  [briefing]  {{count}} rules in force: {{rows|cap=3000}}
 briefing.runs_interrupted  [briefing]  the restart stopped these background runs: {{rows|cap=1500}}. rerun what you still need
 briefing.session_folder_gone  [briefing]  {{launch_folder}} of {{env}} is gone: no lines or messages reach you. tell the user; restart from the root
 briefing.session_in_another_folder  [briefing]  this session is in {{folder}} but {{env}} launched in {{launch_folder}}: restart from there with `journal`
-briefing.skills_and_overview_before_anything  [briefing]  after the compaction, read {{skills|cap=30}} and run `journal environment overview` before anything else
+briefing.skills_and_overview_before_anything  [briefing]  after the compaction, read {{skills|cap=400}} and run `journal environment overview` before anything else
 briefing.stopped_unoriented  [briefing]  you stopped without running `journal environment overview`. run it now
 briefing.team_chat_history  [briefing]  Team chat messages from before you started: {{rows|cap=3000}}. answer only those still unread
 briefing.the_laws_apply  [briefing]  the laws L1 to L10 in AGENTS.md apply to you
@@ -1668,10 +1668,10 @@ checks.check_failed  [checks]  check {{n}} failed. {{tail|cap=800}}
 checks.check_still_failing  [checks]  check {{n}} still failing. {{tail|cap=800}}
 client_errors.logged  [client_errors]  the viewer logged {{errors|cap=51}}. read them with `journal developer client-errors`
 client_errors.unhandled  [client_errors]  {{errors|cap=30}} in the viewer: read `journal developer client-errors`, fix, then run it with `--clear`
-dumps.dump_arrived_file_it  [dumps]  file dump {{n}} ({{count}}): `journal dump items {{n}}`. log with `journal dump log`, ask only with `journal dump ask`
+dumps.dump_arrived_file_it  [dumps]  file dump {{n}} ({{count}}): `journal dump items {{n}}`. log steps with journal dump log; ask with journal dump ask
 dumps.dump_filed_sum_it_up  [dumps]  dump {{n}} filed ({{outcome}}); sum it up, start nothing: `journal dump propose {{n}} '[{"ask": "<question>", "label": "<button>"}]' --summary "<what you filed and where>"`, `'[]'` for no buttons
-dumps.dump_left_to_you_finish_it  [dumps]  the user left dump {{n}} to you. take each next step yourself and log it with `journal dump log`
-dumps.dump_still_open_carry_on  [dumps]  dump {{n}} is not filed; what is left: `journal dump items {{n}}`. ask only what you cannot tell: `journal dump ask`
+dumps.dump_left_to_you_finish_it  [dumps]  the user left dump {{n}} to you. take each next step yourself and log it with `journal dump log {{n}} "<status>"`
+dumps.dump_still_open_carry_on  [dumps]  dump {{n}} is not filed; what is left: `journal dump items {{n}}`. ask only what you cannot tell, with journal dump ask
 dumps.the_user_answered_on_the_dump  [dumps]  dump {{n}}: to "{{question|cap=600}}" the user answered {{answer|cap=600}}. act on it and log it on the dump
 dumps.the_user_chose_a_step  [dumps]  the user chose {{label}} for dump {{n}}. do that step and log it on the dump
 engine.guard_failed  [engine]  a guard failed and let this through: {{text|cap=22}}. the journal recorded it; tell the user if it happens again
@@ -1686,14 +1686,14 @@ etiquette.no_shop_talk  [etiquette]  talk about the work, not the journal's comm
 etiquette.plain_words_in_code  [etiquette]  in code, names and text state literally what a thing is or does, in plain words, never in the voice
 etiquette.say_you_not_the_user  [etiquette]  in the chat say "you", never "the user"
 faults.slow_job_to_fix  [faults]  background job {{job}} took {{seconds}} seconds for one tick. fix the cause at its source
-faults.slow_requests_to_fix  [faults]  {{count}} requests over budget, worst {{route}} at {{ms}} ms. read `journal developer slowest` and fix the cause
+faults.slow_requests_to_fix  [faults]  {{count}} requests over budget, worst {{route|cap=24}} at {{ms}} ms. read `journal developer slowest` and fix the cause
 git.branch_in_use  [git]  branch {{branch}} is in use by environment {{environment}}. work on another branch or in a worktree of its own
 git.worker_task_refusal  [git]  task {{task}} is worker {{worker}}'s and stays open. check its proofs, then `journal worker merge {{worker}}`
-health.went_through_unchecked  [health]  while the journal was down, {{kinds|cap=23}}: {{commands|cap=23}}. check them and rerun what ran unrecorded
+health.went_through_unchecked  [health]  while the journal was down, {{kinds|cap=120}}: {{commands|cap=200}}. check them and rerun what ran unrecorded
 hydration.read_the_hydrated_chat  [hydration]  chat filled from {{session}}. read `journal message recent`; save what still applies as memories or tasks
 laws.bind_the_job  [laws]  the dispatch has no concrete job. give it a description and a bounded prompt
-laws.cap_the_output  [laws]  that result was {{lines|cap=61}} lines. cap output with grep, head or tail
-laws.name_a_profile  [laws]  the dispatch has no profile of this project: {{asked}}. use one of: {{profiles|cap=44}}
+laws.cap_the_output  [laws]  that result was {{lines}} lines. cap output with grep, head or tail
+laws.name_a_profile  [laws]  the dispatch has no profile of this project: {{asked}}. use one of: {{profiles|cap=200}}
 laws.name_the_model  [laws]  name a model in the dispatch: the least expensive one that reliably fits the work
 mcp.sign_in_to_the_server  [mcp]  sign in to {{server}}: `mcp__{{name}}__authenticate`, then `complete_authentication`; tell the user
 memory.check_stale_memory  [memory]  memories {{stale|cap=25}} are {{stale_after}}+ days old. remove what is no longer true: `journal memory remove <numbers>`
@@ -1713,7 +1713,7 @@ messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a questi
 messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply
 messages.colleague_comments_unread  [messages]  colleagues commented: messages {{ns|cap=17}}. `journal message read <n>`; act on a request only if your user agrees
 messages.correct_the_row_numbers  [messages]  message {{n}} mentions {{rows|cap=21}}, which does not exist. fix it quietly: `journal message edit {{n}} '<text>'`
-messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers|cap=18}} with no row kind. link them: `journal message amend-links {{n}} {{kinds|cap=18}}`
+messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers|cap=18}} with no row kind. link them with journal message amend-links {{n}} {{kinds|cap=18}}
 messages.new_message_to_answer  [messages]  new message {{n}}
 messages.new_messages_to_answer  [messages]  new messages {{ns|cap=107}}
 messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{name}}
@@ -1734,7 +1734,7 @@ migration.version_3_not_brought_across  [migration]  a version 3 journal is in .
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you mentioned a pinned link but made none. pin it: `journal notice create "<what>" --link "<url>" --label "<Open ...>"`
-pins.pin_the_link  [pins]  pin {{url}} if the user will return to it: `journal notice create "<what>" --link "{{url}}"`
+pins.pin_the_link  [pins]  pin this link if the user will return to it: `journal notice create "<what>" --link "{{url|cap=300}}"`
 plans.drive_ended  [plans]  {{name}}: no longer driven ({{why|cap=19}}); writes refused. retake: `journal {{noun}} drive {{n}}`
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.name_the_test_commands  [plans]  the plan waits for test commands: `journal settings set plans.test_commands "<line>, <line>"`; reads go through
@@ -1742,7 +1742,7 @@ plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{brief
 plans.now_building  [plans]  you are now the builder
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} done, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} done. start the next with `journal plan start {{n}}`
-plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=37}} and see each pass, then `journal plan start {{n}}`
+plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} done. run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`
 plans.plan_blocked  [plans]  plan {{n}} is blocked: {{why|cap=44}}. unblock it by hand with `journal plan unblock {{n}}`
 plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main and releasing wait for the user's word
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it
@@ -1755,13 +1755,13 @@ plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
-plugins.plugin_not_working  [plugins]  plugin {{plugin}} stopped working: {{fault|cap=24}}. fix it, or `journal plugin disable {{plugin}}`
+plugins.plugin_not_working  [plugins]  plugin {{plugin}} stopped working: {{fault|cap=300}}. fix it, or `journal plugin disable {{plugin}}`
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker: `journal worker dispatch "<Name>" --task <n> --changes <files> --profile {{name}}`
 questions.ask_through_the_journal  [questions]  ask with `journal question ask "<one line>" --options "a" "b"`, not your own question tool
 questions.question_answered  [questions]  question {{n}} is answered. read it with `journal question show {{n}}` and act on it
 questions.question_closed  [questions]  the user closed question {{n}} unanswered. go on without it
 reports.write_an_update  [reports]  after major work, check `journal report changes`, then tell the user: `journal report recap "<one or two sentences>"`
-reports.written_work_never_acted_on  [reports]  act on {{row_type}} {{n}} and link it, or `journal {{row_type}} settle {{n}} --why "<why>"`
+reports.written_work_never_acted_on  [reports]  {{row_type}} {{n}} was never read or linked: act on it, or `journal {{row_type}} settle {{n}} --why "<why>"`
 reviewing.review_failed  [reviewing]  worker {{n}}'s reviewer gave no report. read `journal task show {{task}}`, then `journal worker check {{n}} <point>`
 reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: change and merge nothing. run the proofs' tests, then `journal review "<one line per point>"`
 reviewing.reviewer_could_not_decide  [reviewing]  {{reviewer}} left worker {{n}} undecided: {{report|cap=600}}. check each point: `journal worker check {{n}} <point>`
@@ -1780,10 +1780,10 @@ sequences.step_to_follow  [sequences]  sequence {{n}}, step {{step}}: {{text|cap
 sequences.the_user_ended_the_sequence  [sequences]  the user ended sequence {{n}}
 sequences.the_user_skipped_a_step  [sequences]  the user skipped step {{step}} of sequence {{n}}
 sequences.write_held_for_the_step  [sequences]  sequence {{n}} step {{step}} waits: {{text|cap=19}}. `journal sequence follow` or `journal sequence pause --why "<why>"`
-shell.add_an_alias  [shell]  you ran {{shape}} often. add an alias: `journal alias add <name> "<line less its values>"{{reader}}`
+shell.add_an_alias  [shell]  you ran {{shape|cap=30}} often. add an alias: `journal alias add <name> "<line>"{{reader|cap=20}}`
 shell.aliased_line_refused  [shell]  alias journal {{name}} runs this line: {{line|cap=25}}. run `journal {{name}} [args]` instead
 shell.check_the_background  [shell]  output {{background_outputs|cap=54}} still running. check it; if it hangs, stop it and say why
-shell.draft_a_reader  [shell]  no reader reads {{part}} yet. fill in `{{command}}` from this run's output and run it
+shell.draft_a_reader  [shell]  no reader reads {{part}} yet. fill in `{{command|cap=700}}` from this run's output and run it
 shell.drop_alias_time_limit  [shell]  alias {{name}} needs no time limit: `journal alias edit {{name}} --line "{{line|cap=26}}"`
 shell.drop_line_time_limit  [shell]  remove the time limit wrapper from {{command}}; it needs none here
 shell.folder_change_refused  [shell]  do not `cd {{target}}`: use `( cd {{target}} && … )` or pass the folder, such as `git -C`
@@ -1794,13 +1794,13 @@ shell.journal_command_runs_alone  [shell]  run journal commands alone, not mixed
 shell.journal_poll_refused  [shell]  do not poll journal commands in a shell loop. wait with `journal await "<what you wait for>" --output {{n}}`
 shell.more_specific_alias_refused  [shell]  journal {{name}} already runs this line: {{line|cap=23}}. run `journal {{name}} [args]` instead
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
-shell.name_the_run_in_words  [shell]  output {{n}}'s title {{card_title}} is a flag or path. title it in words: `journal output watch {{n}} --title "<words>"`
+shell.name_the_run_in_words  [shell]  output {{n}}'s title {{card_title|cap=16}} is a flag or path. title it in words: `journal output watch {{n}} --title "<words>"`
 shell.output_kept  [shell]  output {{n}}: {{counts|cap=91}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also contains part {{part}}: {{counts|cap=71}}
 shell.outputs_ended  [shell]  output {{n}}: {{outcome}}
-shell.project_path_refused  [shell]  do not use this project's absolute path; your shell is already in the project. run: {{line|cap=35}}
-shell.read_the_file_in_parts  [shell]  the file has {{lines|cap=12}} lines; {{cap}} show at each end. read it by offset and limit, or grep the line you need
-shell.reader_report_dismissal_refuted  [shell]  you dismissed a report that was right: {{verdicts|cap=17}}. fix the reader: `journal reader add <name> --pattern <regex>`
+shell.project_path_refused  [shell]  do not use this project's absolute path; your shell is already in the project. run: {{line|cap=300}}
+shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines; {{cap}} show at each end. read it by offset and limit, or grep the line you need
+shell.reader_report_dismissal_refuted  [shell]  you dismissed a report that was right: {{verdicts|cap=200}}. fix the reader: `journal reader add <name> --pattern <regex>`
 shell.reader_report_raised  [shell]  reader report {{n}}: a reader showed a run poorly. see the fix with `journal reader report {{n}}`
 shell.run_counts_without_a_total  [shell]  output {{n}} prints no total, so it has no progress bar. give its reader a `--progress` pattern such as `(\d+)/(\d+)`
 shell.run_stands_at_100_percent  [shell]  output {{n}} at 100% for {{seconds}} seconds. read `journal output read {{n}}`; give its reader a pattern for that step
@@ -1810,9 +1810,9 @@ shell.unread_output  [shell]  {{outputs|cap=72}}, unread. read it with `journal 
 shell.use_the_reader  [shell]  reader {{reader}} already reads this: {{about}}. use `journal output read <n> --reader {{reader}}`
 shell.watched_output  [shell]  output {{n}}: {{progress}}
 shell.watched_output_ended  [shell]  output {{n}}: {{outcome}}
-skills.read_the_skill_first  [skills]  read {{skills|cap=55}} first. every other tool waits until you have read them all
+skills.read_the_skill_first  [skills]  read {{skills|cap=400}} first. every other tool waits until you have read them all
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}
-skills.stopped_owing  [skills]  you stopped with skill {{skills|cap=44}} unread. read it now, or run `journal stuck "<why>"`
+skills.stopped_owing  [skills]  you stopped with skill {{skills|cap=400}} unread. read it now, or run `journal stuck "<why>"`
 tasks.await_only_what_ends_soon  [tasks]  {{what}} runs {{left}}, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.await_switches_task  [tasks]  {{what}} runs {{left}}, too long to wait. work on task {{n}} meanwhile: `journal task start {{n}}`
 tasks.blocked_task_asked_about  [tasks]  blocked with nothing to open them: {{tasks|cap=18}}. run `journal task unblock <n>` once what it waits on has arrived
@@ -1824,11 +1824,11 @@ tasks.closed_by_commit  [tasks]  commit {{sha}} closed {{tasks|cap=89}}
 tasks.deferred_work_is_a_task  [tasks]  you deferred work in words. file it with `journal task create "<title>" --brief "<what and where to start>"`
 tasks.fix_the_broken_wait  [tasks]  {{waits}}. fix it with `journal task block <n> --until "<command>"`, or `journal task unblock <n>`
 tasks.give_tasks_their_priority  [tasks]  tasks {{tasks|cap=13}} need a priority: `journal task edit <n> --priority <level>`, or `journal task priorities confirm`
-tasks.log_first_at_stop  [tasks]  {{name}}, {{logged}}. before you stop, log where it stands: {{log_command}} "<where it stands>"
+tasks.log_first_at_stop  [tasks]  {{name}}, {{logged}}. log it first: {{log_command}} "<status>"
 tasks.log_where_it_stands  [tasks]  {{edits}} edits since you logged {{name}}. log where it stands: {{log}} "<where it stands>"
 tasks.next_task_started  [tasks]  task {{n}} started. carry on with it
 tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, work on task {{n}}; you are informed when the wait ends
-tasks.no_stop_while_waiting  [tasks]  {{what}} still runs ({{left}}). do not stop; carry on with task {{n}}; you are informed when it ends
+tasks.no_stop_while_waiting  [tasks]  {{what|cap=24}} still runs ({{left|cap=16}}). do not stop; carry on with task {{n}} until it ends
 tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open: you are not stuck. work on them, or `journal await "<what you wait for>" --output <n>`
 tasks.park_the_wait  [tasks]  {{what}} has about {{seconds}} seconds left, too long to wait. carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why|cap=50}}. `journal task resume {{n}}` if it can go on now
@@ -1837,7 +1837,7 @@ tasks.paused_task_while_waiting  [tasks]  while you wait for {{what}}, resume pa
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks|cap=51}}. resume one that can go on: `journal task resume <n>`
 tasks.paused_wait_ended  [tasks]  task {{n}}'s wait is over: {{reason|cap=61}}. run `journal task resume {{n}}`
 tasks.paused_work_to_choose  [tasks]  paused: {{tasks|cap=15}}{{blocked}}. `journal task resume <n>`, or `journal task skip-paused` to take the open task
-tasks.stop_polling  [tasks]  you ran {{command}} {{times}} times in a row. stop polling; wait for it
+tasks.stop_polling  [tasks]  you ran {{command|cap=50}} {{times}} times in a row. stop polling; wait for it
 tasks.task_changed  [tasks]  task {{n}} changed. read it again with `journal task show {{n}}`
 tasks.task_in_hand_repeated  [tasks]  {{name}} in hand, {{edits}} edits
 tasks.task_open_with_nothing_logged  [tasks]  task {{n}} has nothing logged. log where it stands with `journal task log {{n}} "<where it stands>"`
@@ -1845,13 +1845,13 @@ tasks.task_opened  [tasks]  task {{n}} is open. take it up with `journal task st
 tasks.task_points_changed  [tasks]  task {{n}}: brief point {{points|cap=15}} rewritten. reread it with `journal task show {{n}}` and prove it again if you had
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take it up with `journal task start {{n}}`
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
-tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
+tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
 tasks.wait_check_passed  [tasks]  {{what}} is done: {{lines|cap=94}}
 tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
-tasks.wait_over  [tasks]  wait over: {{outcome}}
+tasks.wait_over  [tasks]  wait over: {{outcome|cap=100}}
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. writes wait for {{log}} "<what was done>"
-team.journal_behind_the_team  [team]  this journal is behind its team: {{line|cap=32}}. its changes wait for an upgrade. tell your user once
+team.journal_behind_the_team  [team]  this journal is behind its team: {{line|cap=200}}. its changes wait for an upgrade. tell your user once
 triggers.denied  [triggers]  a trigger denies this: {{title}}
 triggers.instruct  [triggers]  do this now: {{title}}
 triggers.nudge  [triggers]  {{title}}
@@ -1873,7 +1873,7 @@ workers.check_blocked_tasks  [workers]  tasks {{tasks|cap=15}} are paused or blo
 workers.clock_in_first  [workers]  writes wait until you clock in: run `journal task show <n>`, then `journal clock-in`
 workers.clocked_out_work_waits  [workers]  {{workers|cap=16}} clocked out. check each point with `journal worker check <n> <point>`, then `journal worker merge <n>`
 workers.could_it_be_reused  [workers]  if worker {{n}} can do this, run `journal worker send {{n}} "<job>"`; if not, repeat the command with `--why "<why>"`
-workers.delegate_the_task  [workers]  you orchestrate but do {{name}} yourself. give it to a worker: `journal worker dispatch "<Name>" --task <n>`
+workers.delegate_the_task  [workers]  you orchestrate but do {{name}} yourself. give it to a worker with journal worker dispatch
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
 workers.make_the_wait_a_block  [workers]  block instead of waiting: `journal task block <n> --on task:<m>` or `journal task block <n> --until '<command>'`
 workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}; the user turned it off
@@ -1882,8 +1882,8 @@ workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent ba
 workers.no_workers_when_solo  [workers]  you work solo: dispatch no workers
 workers.now_orchestrating  [workers]  you orchestrate: dispatch tasks, review and merge, run the suite
 workers.now_solo  [workers]  you now work solo: do every job yourself; dispatch no workers
-workers.open_todos  [workers]  your to-do list has {{count}} open items: {{items}}. finish them, or say why in `journal clock-out "<report>"`
-workers.orchestrate  [workers]  {{count}} tasks open; next: {{tasks|cap=26}}. dispatch each you can: `journal worker dispatch "<Name>" --task <n>`
+workers.open_todos  [workers]  {{count}} to-dos open: {{items|cap=34}}. finish them, or say why in `journal clock-out "<report>"`
+workers.orchestrate  [workers]  {{count}} tasks open; next: {{tasks|cap=26}}. dispatch a worker on each you can with journal worker dispatch
 workers.orchestrator_check_worker  [workers]  worker {{n}} has waited {{minutes}} minutes, too long. check it now
 workers.orchestrator_clear_oldest  [workers]  the worker queue has been high for {{minutes}} minutes. clear worker {{n}}, the oldest, first
 workers.orchestrator_dispatched_under_load  [workers]  the worker queue is high and worker {{n}} waits. check and merge it next
@@ -1900,15 +1900,15 @@ workers.queue_the_related_tasks  [workers]  queue tasks {{listed|cap=16}} of tas
 workers.release_waits_for_the_user  [workers]  {{line|cap=37}} waits for the user: "Orchestrator may release" is off. ask the user to release it
 workers.reprioritise  [workers]  plan {{plan}}, phase {{phase}}: order the queues, most unblocking first: `journal plan priorities '<the order and why>'`
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause|cap=82}}
-workers.send_it_to_an_idle_worker  [workers]  {{count}} of {{total}} {{profile}} workers are idle: {{workers|cap=50}}. send the job to one
-workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers worked on this job's files: {{workers|cap=18}}. send the job to one, or add `--fresh` to the dispatch
-workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on this job's files: {{subagents|cap=25}}. send the job to one with SendMessage
-workers.started_plans  [workers]  started plans: {{plans|cap=105}}
+workers.send_it_to_an_idle_worker  [workers]  {{count}} of {{total}} {{profile}} workers are idle: {{workers|cap=400}}. send the job to one
+workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers worked on this job's files: {{workers|cap=400}}. send the job to one, or add `--fresh` to the dispatch
+workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on this job's files: {{subagents|cap=400}}. send the job to one with SendMessage
+workers.started_plans  [workers]  started plans: {{plans|cap=400}}
 workers.suite_failed_after_merges  [workers]  suite output {{run}} failed after merging {{workers|cap=22}}. send it back: `journal worker send {{n}} "<what failed>"`
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
 workers.task_names_another_without_a_wait  [workers]  task {{task}} mentions open task {{other}}: `journal task block {{task}} --on task:{{other}}`
 workers.tests_are_handed_over  [workers]  do not run {{command}}. name each point's test and its command in the proof; the merging agent runs them
-workers.tests_go_through_a_turn  [workers]  do not run {{command}} yourself. run tests with `journal tests turn`
+workers.tests_go_through_a_turn  [workers]  do not run {{command}} yourself. run tests with `journal tests turn <test ids>`
 workers.the_journal_runs_the_tests  [workers]  do not run {{command}}; name the tests: `journal clock-out "<report>" --tests "<test arguments>"`
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most allowed. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most allowed. run `journal worker wait <n>`, or send the job to one that reported
@@ -1916,12 +1916,12 @@ workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you,
 workers.wait_for_running_workers  [workers]  {{workers|cap=19}} are still out and nothing waits to be checked. wait with `journal worker wait {{numbers|cap=19}}`
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
 workers.worker_costly_on_shaped_work  [workers]  {{model}} cost ${{dollars}} on routine work. use a cheaper model: `journal worker send {{n}} --model <model> "<job>"`
-workers.worker_has_no_work_left  [workers]  worker {{n}} is idle: `journal worker queue {{n}} <task> <task>` or `journal worker complete {{n}} --why "<reason>"`
+workers.worker_has_no_work_left  [workers]  worker {{n}} idle: queue it tasks or `journal worker complete {{n}} --why "<why>"`
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}
 workers.worker_quiet_split  [workers]  worker {{n}} quiet {{minutes}} min; split its job?
 workers.worker_reported  [workers]  worker {{n}} reported
-workers.worker_runs_no_git  [workers]  never run git; the journal commits your work at clock-out. on a clash, fix the files and run `journal clock-out`
+workers.worker_runs_no_git  [workers]  never run git; the journal commits at clock-out. on a clash, fix the files, then `journal clock-out "<report>"`
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
 workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} again; earlier: {{earlier|cap=73}}
 workers.worker_sent_back_repeatedly  [workers]  point {{point}} failed {{times}} times on {{model}} ({{earlier|cap=16}}). `journal worker send {{n}} --model <model> "<job>"`

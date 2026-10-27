@@ -15,11 +15,11 @@ class ProgressPattern:
     def checked(cls, pattern: str, owner: str) -> None:
         groups = cls.groups(pattern)
         if len(groups) == 1 and not cls.unspaced(pattern[groups[0][1]:]).startswith(PERCENT_SIGNS):
-            raise Rejection(f"{owner}'s progress pattern {pattern!r} has one group, which is read as a percentage, but no % follows it: a running count or a time would draw past 100 percent. Follow the group with %, or give two groups, a count and its total, such as (\\d+)/(\\d+)")
+            raise Rejection(f"{owner}'s pattern {pattern!r} has one group and no % after it: add %, or use (\\d+)/(\\d+)")
         if len(groups) == 2 and SPACING.sub("", pattern[groups[0][1]:groups[1][0]]) not in COUNT_JOINS:
-            raise Rejection(f"{owner}'s progress pattern {pattern!r} has two groups, which are read as a count and its total, but no / or of joins them: two numbers that are not a count of a total draw nonsense such as 55/121632227066. Join them with / or of")
+            raise Rejection(f"{owner}'s pattern {pattern!r} has two groups not joined by / or of, as in (\\d+)/(\\d+)")
         if len(groups) not in (1, 2):
-            raise Rejection(f"{owner}'s progress pattern {pattern!r} has {len(groups)} groups: give one for a percentage, followed by %, or two for a count of a total, joined by / or of")
+            raise Rejection(f"{owner}'s pattern {pattern!r} has {len(groups)} groups: one for a percent, or two for a count")
 
     @staticmethod
     def unspaced(text: str) -> str:

@@ -67,7 +67,7 @@ class Worktree:
     def renamed(self, name: str) -> "Worktree":
         target = Worktree(self.root, name)
         if target.path.exists() or target.has(f"refs/heads/{target.branch}") or target.has(f"{TIPS_REF}/{name}"):
-            raise Rejection(f"the name {name} still has a worktree, a branch {target.branch} or a kept tip left from earlier: journal worktree remove {name} or git branch -D {target.branch} frees it, or choose another name")
+            raise Rejection(f"the name {name} is still in use: `journal worktree remove {name}`, or choose another name")
         steps = []
         if self.path.is_dir():
             steps.append(("worktree", "move", str(self.path), str(target.path)))

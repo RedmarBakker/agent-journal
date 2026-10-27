@@ -17,5 +17,5 @@ class WorkerMergeRefusalCard(Listener[WorkerMergeRefused]):
     def handle(self, event: WorkerMergeRefused) -> None:
         data = {"kind": "card", "outcome": str(CardOutcome.FAILED), "row": str(Ref("workers", event.worker)), "command": "", "task": event.task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
-        label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: merge of task {event.task} refused, its branch clashes with this one")
+        label = CardDetail.shortened(f"{event.name}: merge of task {event.task} refused, its branch clashes with this one")
         self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardType.WORKERS, detail=f"{event.clashing}\n{event.line}")

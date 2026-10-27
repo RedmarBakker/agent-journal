@@ -14,4 +14,4 @@ class MemoryWeighCard(Listener[MemoryWeighed]):
         self.cards = cards
 
     def handle(self, event: MemoryWeighed) -> None:
-        self.cards.show(event.environment_id, event.session, f"Memory {event.row_id} weighs {event.weight}", "", Ref(MEMORIES, event.row_id), shows=CardType.MEMORIES)
+        self.cards.show(event.environment_id, event.session, f"Memory {event.row_id}: importance set to {event.weight} of 10", "", Ref(MEMORIES, event.row_id), shows=CardType.MEMORIES)

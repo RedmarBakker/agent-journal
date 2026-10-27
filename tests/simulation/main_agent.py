@@ -4,6 +4,8 @@ import random
 
 from journal.features.shell.support.shell_record import ShellRecord
 from journal.support.caller import Caller
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_part import CommandPart
 from tests.observation import Observation
 from tests.simulation.job_lengths import JobLengths
 from tests.simulation.simulator import Simulator
@@ -81,7 +83,7 @@ class MainAgent:
             return held
         record, chain, root = self.simulator.app.container.get(ShellRecord), f"sim-commit-{self.calls}", self.simulator.app.config.root
         record.start(chain, line, root / ".journal" / "runs" / chain, AGENT, ran_in=str(root))
-        record.finish_part(chain, line, 0, 0.1, "", [], AGENT)
+        record.finish_part(chain, CommandPart.plain(line, self.simulator.app.container.get(CommandClassifier)), 0, 0.1, "", [], AGENT)
         record.foreground_end(chain, 0, AGENT)
         return self.simulator.hook("PostToolUse", tool_name="Bash", tool_input=call, tool_response={"stdout": "", "stderr": "", "interrupted": False}, tool_use_id=use)
 
