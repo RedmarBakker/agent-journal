@@ -1,5 +1,5 @@
 # Installs released versions with their own install scripts and runs them as processes, so it is not in the default run: python3 -m pytest -q tests/update_matrix_run.py
-"""Every release from 4.60.0 on, installed into a project of its own and given rows the way an agent and the user write them, updates to every later release and to this tree through the update's own install script, and the updated journal boots and reads every row the older one wrote; a pair of two tagged releases that passed is kept in update_matrix_passed.json and never tested again, since neither changes."""
+"""Every release from 4.60.0 on, installed into a project of its own and given rows the way an agent and the user write them, updates to every later release and to this tree within the update window, the target at most updates.window_minors minor versions on in the same major, through the update's own install script, and the updated journal boots and reads every row the older one wrote; a pair of two tagged releases that passed is kept in update_matrix_passed.json and never tested again, since neither changes."""
 import fcntl
 import json
 import os
@@ -8,12 +8,17 @@ from pathlib import Path
 
 import pytest
 
+from journal.features.updates.support.update_window import UpdateWindow
+from journal.features.updates.updates_options import UpdatesOptions
+from journal.version import VERSION
+
 REPOSITORY = Path(__file__).resolve().parents[1]
 FIRST_RELEASE = (4, 60, 0)
 TREE = "tree"
 STEP_SECONDS = 300
 SCRATCH_PORT = "8531"
 PASSED_FILE = Path(__file__).with_name("update_matrix_passed.json")
+WINDOW = UpdateWindow(UpdatesOptions.WINDOW_MINORS.integer(UpdatesOptions.WINDOW_MINORS.default))
 
 SEED = """
 import json, sys
@@ -49,9 +54,15 @@ def releases() -> list[str]:
     return [tag for number, tag in numbered if number >= FIRST_RELEASE]
 
 
-def pairs() -> list[tuple[str, str]]:
-    versions, passed = [*releases(), TREE], passed_pairs()
-    return [(start, target) for at, start in enumerate(versions[:-1]) for target in versions[at + 1:] if f"{start} {target}" not in passed]
+# the tree is windowed as the version it carries
+def pairs(window: UpdateWindow, tags: list[str], tree: str, passed: set[str]) -> list[tuple[str, str]]:
+    targets = [*tags, TREE]
+    return [(start, target) for at, start in enumerate(tags) for target in targets[at + 1:] if window.holds(start, tree if target == TREE else target) and f"{start} {target}" not in passed]
+
+
+# the pairs are listed when this file's test is collected, never when another test imports the pair builder
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    metafunc.parametrize(("start", "target"), pairs(WINDOW, releases(), VERSION, passed_pairs()))
 
 
 def passed_pairs() -> set[str]:
@@ -94,7 +105,6 @@ def journal_ran(project: Path, home: Path, script: str, *values: str) -> str:
     return ran.stdout.strip().splitlines()[-1]
 
 
-@pytest.mark.parametrize(("start", "target"), pairs())
 def test_a_release_updates_to_a_later_one_and_reads_every_row_it_wrote(tmp_path: Path, start: str, target: str):
     project, home = tmp_path / "project", tmp_path / "home"
     project.mkdir()

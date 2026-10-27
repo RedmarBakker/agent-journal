@@ -1451,6 +1451,7 @@ updates.branch = ''  (the user sets it)
 updates.auto = False  (the user sets it)
 updates.check_minutes = 60
 updates.boot_seconds = 60
+updates.window_minors = 5  (the user sets it)
 suggestions.first_after = 15
 suggestions.every = 60
 record.kept = 10000
