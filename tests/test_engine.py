@@ -3675,7 +3675,7 @@ def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers
 def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_edits():
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.features.tasks.tasks_options import TasksOptions
-    settings = SettingsValue({TasksOptions.LOG_LIMIT.key: 50, TasksOptions.TASK_REMINDER_INTERVAL.key: 99})
+    settings = SettingsValue({TasksOptions.LOG_LIMIT.key: 50, TasksOptions.FIRST_DELAY.key: 5, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.TASK_REMINDER_INTERVAL.key: 99})
     state = FollowingPlan(plan_id=1045, approved=True)
     for n in range(10):
         write = ToolCall(tool="Write", input={"file_path": f"notes{n}.md", "content": "x"}, operation=Claude().operation("Write", {"file_path": f"notes{n}.md", "content": "x"}))
@@ -3684,5 +3684,5 @@ def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_e
     stopped = state.respond(Stop(time=1000.0), settings)
     assert stopped.refusal is None and not any("log" in nudge.rendered() for nudge in stopped.nudges), "a stop with no task in hand names no log"
     held = FollowingPlan(plan_id=1045, approved=True, task_id=7, edits=10).respond(Stop(time=1000.0), settings)
-    assert held.refusal is not None, "with a task in hand the stop still asks"
+    assert held.refusal is not None and "log where it stands" in held.refusal.rendered(), "with a task in hand the stop still asks for a log"
 
