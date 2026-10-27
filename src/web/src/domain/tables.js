@@ -67,7 +67,6 @@ export const TABLES = {
         in_sidebar: true,
         listed_under: "sidebar",
         listed_as_cards: true,
-        takes_comments: true,
         created_in_viewer: true,
         typed_as_title: true,
         labels: {abstract: "What belongs in it"},

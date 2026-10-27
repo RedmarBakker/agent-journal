@@ -20,6 +20,7 @@ import {scopeIn} from "../composables/scope.js";
 import {useKept} from "../composables/kept.js";
 import {usePoll} from "../composables/poll.js";
 import {useWindowEvent} from "../composables/windowEvent.js";
+import {useRowsShown} from "../composables/rowsShown.js";
 
 const props = defineProps({
     table: String,
@@ -33,7 +34,12 @@ const emit = defineEmits(["gone"]);
 const scope = props.env && props.env !== route.value.env ? scopeIn(props.env) : null;
 if (scope) provide("scope", scope);
 const rowsHere = scope ? scope.rows : rows;
-const stored = computed(() => (props.table ? rowsHere(props.table).find((r) => r.id === props.id) : null) || null);
+// the row as read by id, whose relations its list leaves out, under the live row kept in step with the journal
+const {rows: shown} = useRowsShown(() => (scope ? "" : props.table), computed(() => [props.id]));
+const stored = computed(() => {
+    const row = (props.table ? rowsHere(props.table).find((r) => r.id === props.id) : null) || null;
+    return row && shown.value[0] ? {...shown.value[0], ...row} : row;
+});
 const resource = useKept(stored, () => `${props.table}:${props.id}`);
 
 if (scope) usePoll("reader.elsewhere", {params: () => ({scope, table: props.table, id: props.id})});

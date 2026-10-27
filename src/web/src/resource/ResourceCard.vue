@@ -10,6 +10,8 @@ import {planProgress, standingOf} from "../domain/plans.js";
 import {bodyOf, isClosed, sectionsOf, titleOf, updatedAt} from "../domain/row.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {rows} from "../sync/rows.js";
+import {refParts} from "../domain/records.js";
+import {pluralTitle} from "../domain/navigation.js";
 
 const props = defineProps({resource: Object});
 const plan = computed(() => planProgress(props.resource));
@@ -17,6 +19,14 @@ const plan = computed(() => planProgress(props.resource));
 usePlanRows(() => (plan.value ? [props.resource] : []));
 const standing = computed(() => (plan.value ? standingOf(props.resource, rows("tasks")) : null));
 const parts = computed(() => (props.resource.table === "sequences" ? props.resource.steps.length : sectionsOf(props.resource.body).length));
+// a collection's members counted by kind, such as 14 members: 11 reports, 3 plans
+const members = computed(() => {
+    const refs = props.resource.members || [];
+    if (!refs.length) return "";
+    const counts = refs.reduce((tally, ref) => tally.set(refParts(ref).table, (tally.get(refParts(ref).table) || 0) + 1), new Map());
+    const kinds = [...counts].map(([table, n]) => `${n} ${n > 1 ? pluralTitle(meta(table).title) : meta(table).title}`.toLowerCase());
+    return `${refs.length} member${refs.length > 1 ? "s" : ""}: ${kinds.join(", ")}`;
+});
 const partWord = computed(() => (props.resource.table === "sequences" ? "step" : "part"));
 </script>
 
@@ -34,6 +44,9 @@ const partWord = computed(() => (props.resource.table === "sequences" ? "step" :
         </template>
         <template v-else>
             <TextDisplay inline class="abstract" :text="resource.abstract || bodyOf(resource).slice(0, 300)" />
+        </template>
+        <template v-if="members">
+            <span class="parts">{{ members }}</span>
         </template>
         <template v-if="parts && !plan">
             <span class="parts">

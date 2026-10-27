@@ -125,6 +125,7 @@ export const POLLERS = Object.freeze({
     "reviewers.every": {read: () => api.list("reviewers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},
     "tests.turns": {read: () => api.list("test_turns", {limit: pageOf("test_turns")}).then((got) => got.rows || []), every: 3000},
+    "rows.shown": {read: ({table, ids}) => api.list(table, {ids}).then((got) => got.rows || []), every: 10000, by: ({table, ids}) => `${table}:${ids.join(",")}`},
     "workers.shown": {read: ({ids}) => (ids.length ? api.list("workers", {ids}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({ids}) => ids.join(",")},
     "workers.holding": {read: ({tasks}) => (tasks.length ? api.list("workers", {tasks}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({tasks}) => tasks.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
