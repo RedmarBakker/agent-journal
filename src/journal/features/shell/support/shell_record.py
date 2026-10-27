@@ -1,4 +1,3 @@
-import re
 import shutil
 from dataclasses import asdict
 from pathlib import Path
@@ -18,13 +17,13 @@ from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
+from journal.support.part import Part
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.models.command_output import CommandOutput
 from journal.features.shell.shell_options import ShellOptions
 from journal.support.time_source import TimeSource
 
 TAIL_CHARACTERS = 2000
-PIPED = re.compile(r"(?<!\|)\|(?!\|)")
 PART_START, PART_END, MOVED, ENDED = "running", "ran", "background", "ended"
 
 
@@ -80,7 +79,7 @@ class ShellRecord:
         return top is not None and f"{output.table()}:{output.id}" in top.wait_description()[1].split(",")
 
     def is_stored(self, chain: str, line: str, size: int, cut: bool) -> bool:
-        return size >= self.settings.integer(ShellOptions.SHORT) or bool(PIPED.search(line)) or cut
+        return size >= self.settings.integer(ShellOptions.SHORT) or bool(Part(line).pipe_positions(0)) or cut
 
     def delete_output(self, chain: str, caller: Caller) -> None:
         output = self.outputs.chain_output(chain)

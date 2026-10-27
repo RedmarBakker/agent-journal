@@ -1,3 +1,4 @@
+from journal.support.part import Part
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.models.alias import Alias
 from journal.support.alias_call import AliasCall
@@ -29,15 +30,4 @@ class PipedTestRun:
 
     @staticmethod
     def stages(part: str) -> list[str]:
-        stages, current, quote = [], "", ""
-        for character in part:
-            if quote:
-                quote = "" if character == quote else quote
-            elif character in "'\"":
-                quote = character
-            elif character == "|":
-                stages.append(current)
-                current = ""
-                continue
-            current += character
-        return [stage.strip() for stage in [*stages, current]]
+        return Part(part).stages()

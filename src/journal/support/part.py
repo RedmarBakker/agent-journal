@@ -166,9 +166,15 @@ class Part:
                     return i
         return -1
 
+    def stages(self) -> list[str]:
+        cuts = [-1, *self.pipe_positions(0), len(self.text)]
+        return [self.text[start + 1:end].lstrip("&").strip() for start, end in zip(cuts, cuts[1:])]
+
     def pipe_positions(self, level: int) -> list[int]:
         positions, quote, depth = [], "", 0
         for i, c in enumerate(self.text):
+            if self.text[i - 1:i] == "\\" and quote != "'":
+                continue
             if quote:
                 quote = "" if c == quote else quote
             elif c in "'\"`":

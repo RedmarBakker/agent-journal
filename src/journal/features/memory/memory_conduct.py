@@ -66,7 +66,7 @@ def threshold_check(state: BaseState, event: AgentEvent, settings: Settings) -> 
     percent = reached or memory.threshold_due
     if not percent or not state.takes_pushes():
         return state.none()
-    return state.push(WeighingMemories(percent=percent), MemoryNudges.CONTEXT_DECISION.create(percent=percent, memories=memory.shown_memories))
+    return state.push(WeighingMemories(percent=percent), MemoryNudges.CONTEXT_DECISION.create(percent=percent, count=memory.shown_count))
 
 
 def hint_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

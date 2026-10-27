@@ -235,7 +235,7 @@ def marks(text: str) -> Iterator[tuple[int, str, str, int]]:
 def splitter_faults(text: str, chained: list[tuple[str, str]], stages: list[tuple[str, list[tuple[str, str]]]]) -> list[str]:
     faults = [fault for number, (_, part) in enumerate(chained, 1) for fault in part_faults(number, part)]
     joined = "".join(("" if separator == "&" else separator) + part for separator, part in chained)
-    faults += [] if re.sub(r"\s+", "", joined) == re.sub(r"(?<!\\);$", "", re.sub(r"\s+", "", text)) else ["joined: its parts joined with their operators are not the line"]
+    faults += [] if re.sub(r"\s+", "", joined.replace("\\\n", "")) == re.sub(r"(?<!\\);$", "", re.sub(r"\s+", "", text.replace("\\\n", ""))) else ["joined: its parts joined with their operators are not the line"]
     commands = sum(1 + sum(operator == "||" for operator, _ in pipeline) for _, pipeline in stages)
     pipes = sum(operator in PIPE_STAGES for _, pipeline in stages for operator, _ in pipeline)
     read = shlex_counts(text)

@@ -1,4 +1,4 @@
-"""Reads every Bash command Claude Code ran from the session transcripts under ~/.claude/projects, leaving out the throwaway folders test runs make, anonymises each (emails, keys, tokens, passwords, addresses, home paths and the private words given made neutral) and writes the unique ones, one command a line, grouped by the command they run with a blank line between groups. Run with PYTHONPATH=src."""
+"""Reads every Bash command Claude Code ran from the session transcripts under ~/.claude/projects, leaving out the throwaway folders test runs make, anonymises each (emails, keys, tokens, passwords, addresses, home paths and the private words given made neutral) and writes the unique ones, one command a line as a JSON string, so a typed \\n and a real newline stay apart, grouped by the command they run with a blank line between groups. Run with PYTHONPATH=src."""
 
 import json
 import re
@@ -55,12 +55,20 @@ def anonymised(line: str, private_words: list[str]) -> str:
     return line.strip()
 
 
+def refused_inside_repository(out: Path) -> None:
+    repository, journal = Path(__file__).resolve().parents[1], Path(__file__).resolve().parents[1] / ".journal"
+    target = out.resolve()
+    if target.is_relative_to(repository) and not target.is_relative_to(journal):
+        raise SystemExit(f"the corpus holds commands from every project on this machine and never enters the repository: write it under {journal}, not {target}")
+
+
 def main(private_words: list[str], out: Path) -> None:
+    refused_inside_repository(out)
     folders = [folder for folder in PROJECTS.iterdir() if folder.is_dir() and not folder.name.startswith(THROWAWAY_FOLDERS)]
     unique = {anonymised(command, private_words) for folder in folders for transcript in folder.rglob("*.jsonl") for command in commands(transcript)} - {""}
     groups: dict[str, list[str]] = {}
     for command in unique:
-        groups.setdefault(CommandShape.command_name(command) or command.split()[0], []).append(command.replace("\n", "\\n"))
+        groups.setdefault(CommandShape.command_name(command) or command.split()[0], []).append(json.dumps(command, ensure_ascii=False))
     out.write_text("\n\n".join("\n".join(sorted(lines)) for _, lines in sorted(groups.items())) + "\n")
     print(f"{len(unique)} unique commands in {len(groups)} groups from {len(folders)} project folders written to {out}")
 

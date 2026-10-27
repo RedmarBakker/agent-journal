@@ -14,8 +14,9 @@ BODY = {"for": "do", "while": "do", "until": "do", "select": "do", "repeat": "do
 CONTROL_KEYWORDS = {"do", "then", "else", "time", "!"}
 
 
+GROUPS = ("(", "{")
 COMPOUND = {"if", "elif", "else", "then", "for", "while", "until", "do", "case", "select", "{", "("}
-HEREDOC_WORD = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+HEREDOC_WORD = re.compile(r"(?<!<)<<-?\s*\\?(['\"]?)([A-Za-z_][\w.-]*)\1(?!<)")
 # a comment at a line's end, outside quotes: git commit -m x # && git push runs only the commit
 COMMENT = re.compile(r"\s+#[^'\"]*$")
 # commands that only wait or print, which choose a line's reader only when no other part does work
@@ -120,8 +121,15 @@ class Chain:
         current, separator, i, start = "", "", 0, 0
         while i < len(line):
             c, inner = line[i], stack[-1] if stack else ""
+            if line.startswith("\\\n", i) and not current.strip():
+                start, i = i + 2, i + 2
+                continue
             if c == "\\" and inner != "'" and i + 1 < len(line):
                 current, i = current + line[i:i + 2], i + 2
+                continue
+            if inner in GROUPS and Chain.is_heredoc(line, i):
+                end = Chain.heredoc_end(line, i)
+                current, i = current + line[i:end], end
                 continue
             if inner in ("'", "`"):
                 if c == inner:
@@ -158,10 +166,14 @@ class Chain:
                 if c == "#" and (i == 0 or line[i - 1] in " \t\n;&|"):
                     end = line.find("\n", i)
                     end = len(line) if end < 0 else end
-                    current, i = current + line[i:end], end
+                    current, i = (current + line[i:end], end) if current.strip() else ("", end)
+                    start = start if current.strip() else end
                     continue
-                if line.startswith("<<", i) and not line.startswith("<<<", i) and line[i - 1:i] != "<":
-                    end = Chain.heredoc_end(line, i, current)
+                if Chain.is_heredoc(line, i):
+                    end = Chain.heredoc_end(line, i)
+                    if Chain.is_compound(current):
+                        current, i = current + line[i:end], end
+                        continue
                     parts.append((separator, (current + line[i:end]).strip(), start, end))
                     current, separator, i, start = "", "", end, end
                     continue
@@ -181,11 +193,10 @@ class Chain:
         return [(s, p, item, b) for s, p, item, b in parts if p]
 
     @staticmethod
-    def heredoc_end(line: str, start: int, current: str) -> int:
+    def heredoc_end(line: str, start: int) -> int:
         opening = HEREDOC_WORD.match(line, start)
         body_start = line.find("\n", start)
-        compound = current.split()[:1] and current.split()[0] in COMPOUND
-        if not opening or body_start < 0 or compound or "<<" in line[opening.end():body_start]:
+        if not opening or body_start < 0 or "<<" in line[opening.end():body_start]:
             return len(line)
         word, position = opening.group(2), body_start + 1
         while position <= len(line):
@@ -195,6 +206,14 @@ class Chain:
                 return line_end
             position = line_end + 1
         return len(line)
+
+    @staticmethod
+    def is_heredoc(line: str, i: int) -> bool:
+        return bool(HEREDOC_WORD.match(line, i))
+
+    @staticmethod
+    def is_compound(current: str) -> bool:
+        return bool(current.split()[:1]) and current.split()[0] in COMPOUND
 
     @staticmethod
     def continued(part: str) -> str:
@@ -208,7 +227,7 @@ class Chain:
 
     @staticmethod
     def semicolon_index(line: str, i: int) -> str:
-        solitary = line[i:i + 1] == ";" and line[i + 1:i + 2] not in (";", "&", "|") and line[i - 1:i] != ";"
+        solitary = line[i:i + 1] == ";" and line[i + 1:i + 2] not in (";", "&", "|") and (line[i - 1:i] != ";" or line[i - 2:i - 1] == "\\")
         return ";" if solitary else ""
 
     @staticmethod
@@ -222,12 +241,25 @@ class Chain:
     @staticmethod
     def segments(part: str) -> list[list[str]]:
         rows: list[list[str]] = [[]]
-        for word in Chain.uncommented(part).split():
+        for word in Chain.without_bodies(Chain.uncommented(part)).split():
             if word in ("|", "||", "|&", "&"):
                 rows.append([])
                 continue
             rows[-1].append(word)
         return [Chain.leads(text) for text in rows]
+
+    @staticmethod
+    def without_bodies(text: str) -> str:
+        command_rows: list[str] = []
+        terminator = ""
+        for row in text.split("\n"):
+            if terminator:
+                terminator = "" if row.strip() == terminator else terminator
+                continue
+            opening = HEREDOC_WORD.search(row)
+            terminator = opening.group(2) if opening else ""
+            command_rows.append(row)
+        return "\n".join(command_rows)
 
     @staticmethod
     def uncommented(part: str) -> str:
@@ -245,7 +277,12 @@ class Chain:
     @staticmethod
     def openings(segments: list[list[str]]) -> list[list[str]]:
         ends = [segments[0]] if len(segments) == 1 else [segments[0], segments[-1]]
-        return [text for text in ends if Chain.is_opening(text)]
+        return [text for text in ends if Chain.is_opening(text) and not Chain.has_closer(text, segments)]
+
+    @staticmethod
+    def has_closer(text: list[str], segments: list[list[str]]) -> bool:
+        pipe_words = [word for segment in segments[segments.index(text) + 1:] for word in segment]
+        return any(word == OPENS[text[0]] and pipe_words[index - 1].endswith(";") for index, word in enumerate(pipe_words) if index)
 
     @staticmethod
     def closes(part: str, segments: list[list[str]], closer: str) -> bool:

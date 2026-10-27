@@ -37,15 +37,11 @@ class MemoryDataReader:
             "triggered": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.triggered_memories()),
             "rows": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.keyword_memories()),
             "stale": lambda: self.stale([(noun, memory) for noun, memory, _ in facts.memories], self.settings.integer(MemoryOptions.STALENESS_LIMIT)),
-            "shown_memories": self.shown_memories,
+            "shown_count": self.weighted.shown_count,
             "repeating": lambda: tuple(RepeatingReminder(r.row_id, r.text, r.every_minutes, r.every_tool_uses, r.said_at, r.said_tool_use) for r in self.reminders.repeating()),
             "timed": lambda: tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
-
-    def shown_memories(self) -> str:
-        shown = self.weighted.shown()
-        return "; ".join(f"{memory.id} (weight {memory.weight}): {memory.summary_line()}" for memory in shown) if shown else "you have no memories yet"
 
     def triggered_memories(self) -> list[tuple]:
         return [*(("rule", rule, CardType.RULES) for rule in self.rules.filled_rows("trigger")), *(("reminder", reminder, CardType.REMINDERS) for reminder in self.reminders.triggered())]

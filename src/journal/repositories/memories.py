@@ -15,6 +15,9 @@ class Memories(ScopedRepository[Memory]):
     def shown(self) -> list[Memory]:
         return self.selected(self.shown_query().without(*UNSHOWN_COLUMNS).order_descending("weight").limit(PAGE_ROWS))
 
+    def shown_count(self) -> int:
+        return self.counted(self.shown_query())
+
     def fade_all(self, actor: Actor) -> list[Memory]:
         return [self.save(memory.faded(), actor) for memory in self.selected(self.shown_query())]
 

@@ -159,7 +159,7 @@ def test_at_a_context_mark_the_agent_weighs_its_memories_before_it_writes_or_sto
     assert "hookSpecificOutput" not in hook(app, "PreToolUse", tool_name="Read", tool_input={})[1], "30 percent is under the first mark"
     context(app, 55)
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert has_nudge(body["hookSpecificOutput"]["additionalContext"], MemoryNudges.CONTEXT_DECISION, percent=50) and "(weight 7): the suite runs in shards" in body["hookSpecificOutput"]["additionalContext"], "the mark asks with the memories by weight"
+    assert has_nudge(body["hookSpecificOutput"]["additionalContext"], MemoryNudges.CONTEXT_DECISION, percent=50, count=1) and "the suite runs in shards" not in body["hookSpecificOutput"]["additionalContext"], "the mark names how many memories there are, not each one (message 70151)"
     assert type(top()) is WeighingMemories and top().percent == 50, "the mark pushes WeighingMemories over the work"
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={})
     assert status == 409 and has_nudge(body["error"], MemoryNudges.DECISION_EDIT_BLOCK), "a write waits"
@@ -3420,12 +3420,19 @@ def test_every_sample_of_the_hydration_corpus_fills_the_chat_it_should(tmp_path)
     assert not [text for author, text in said if author == "agent" and any(line.startswith("[!") for line in text.splitlines())], "no marker or reply tag is left in the agent's chat"
 
 
+FIXTURE_BYTES = 8_000_000
+
+
 def test_every_line_of_the_shell_corpus_is_cut_into_its_parts():
     """tests/shell_corpus.jsonl holds over 4,000 commands in many styles with the parts each is cut into; one marked shell is cut differently by a real shell, and is kept whole here, which runs the same."""
     from journal.support.chain import Chain
-    cases = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    fixture = Path(__file__).parent / "shell_corpus.jsonl"
+    cases = [json.loads(line) for line in fixture.read_text().splitlines()]
+    if os.environ.get("SPLIT_FREEZE") == "1":
+        fixture.write_text("".join(json.dumps({**case, "parts": Chain.split(case["line"])}, ensure_ascii=False) + "\n" for case in cases))
     wrong = [case["line"] for case in cases if Chain.split(case["line"]) != case["parts"]]
-    assert not wrong, f"{len(wrong)} of {len(cases)} lines cut differently, the first: {wrong[:3]}"
+    assert not wrong or os.environ.get("SPLIT_FREEZE") == "1", f"{len(wrong)} of {len(cases)} lines cut differently, the first: {wrong[:3]} (re-freeze with SPLIT_FREEZE=1 when the splitter changed on purpose, after reading each changed line)"
+    assert fixture.stat().st_size < FIXTURE_BYTES, "the splitter fixture stays small enough for the suite"
 
 
 def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
@@ -3440,6 +3447,18 @@ def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
     assert Chain.split(f'files=$(git grep -l "x y" -- src tests); echo "$files"; {loop}; sed -n 1,2p notes.md') == ['files=$(git grep -l "x y" -- src tests)', 'echo "$files"', loop, "sed -n 1,2p notes.md"], "a loop over a list, with ; inside its quotes and its body, is one part"
     assert Chain.split("for x in a b; echo $x && echo y; echo z; repeat 2 echo r && echo s; echo t") == ["for x in a b; echo $x && echo y", "echo z", "repeat 2 echo r && echo s", "echo t"]
     assert Chain.split("seq 2 | while read -r n; do echo $n; done; echo after") == ["seq 2 | while read -r n; do echo $n; done", "echo after"]
+    assert Chain.split('J=x; $J a | head -3; \\\nfor t in "a b" "c d"; do echo "$t"; done') == ["J=x", "$J a | head -3", 'for t in "a b" "c d"; do echo "$t"; done'], "a line continuation before a loop leaves the loop one part (task 3747)"
+    assert Chain.split("for L in en nl; do python3 - \"$L\" <<'PY'\nprint(1); x = 2\nPY\ndone; php -l a.php | tail -1; php -l b.php") == ["for L in en nl; do python3 - \"$L\" <<'PY'\nprint(1); x = 2\nPY\ndone", "php -l a.php | tail -1", "php -l b.php"], "a heredoc inside a loop ends at its terminator, and the commands after the loop are parts of their own (task 3747)"
+    assert Chain.split("cd x\n# drop blank lines; keep ## tables\nawk '{print}' a\npython3 - <<'P'\nimport re\nP\nwc -l a") == ["cd x", "awk '{print}' a", "python3 - <<'P'\nimport re\nP", "wc -l a"], "a comment on a line of its own is no part and glues no lines together (task 3747)"
+    assert Chain.split("(cd t && python3 - <<'EOF'\nprint(\"}\\n)\")\nEOF\n) && echo ok; B=$(cat <<EOF\none; two (three)\nEOF\n); echo \"$B\"") == ["(cd t && python3 - <<'EOF'\nprint(\"}\\n)\")\nEOF\n)", "echo ok", "B=$(cat <<EOF\none; two (three)\nEOF\n)", 'echo "$B"'], "a heredoc inside a subshell or a $( ) is skipped whole (task 3747)"
+    assert Chain.split("find . -exec cat {} \\;; echo ---") == ["find . -exec cat {} \\;", "echo ---"], "a ; after find's escaped \\; still ends the part (task 3747)"
+    assert Chain.split('for n in 1 2; do case "$n" in 1) echo one | tail -1;; esac; done; echo after') == ['for n in 1 2; do case "$n" in 1) echo one | tail -1;; esac; done', "echo after"], "a case whose arm pipes into another command still closes at its esac (task 3747)"
+    assert Chain.split("until [ -s a ] || ls b | grep -q done; do sleep 2; done; sleep 2; ls b") == ["until [ -s a ] || ls b | grep -q done; do sleep 2; done", "sleep 2", "ls b"], "a closer word given to a command as its argument closes nothing (task 3747)"
+    assert Chain.split("python3 - <<'EOF'\n    | until the move is verified; set true\nEOF\ntail -4 r; head -8 r") == ["python3 - <<'EOF'\n    | until the move is verified; set true\nEOF", "tail -4 r", "head -8 r"], "words in a heredoc's body open no loop (task 3747)"
+    from journal.support.part import Part
+    from journal.features.shell.support.piped_test_run import PipedTestRun
+    for line, stages in (("a || b", ["a || b"]), ("echo $(a | b) | c", ["echo $(a | b)", "c"]), ('echo "a | b" | c', ['echo "a | b"', "c"]), ("python3 -m pytest -q | tail -3", ["python3 -m pytest -q", "tail -3"]), ("grep a\\|b x | head", ["grep a\\|b x", "head"])):
+        assert Part(line).stages() == PipedTestRun.stages(line) == stages and bool(Part(line).pipe_positions(0)) == (len(stages) > 1), line
     assert Chain.split("for i in 1; do echo done; done; echo fi && case a in a) echo one;& b) echo two;; esac") == ["for i in 1; do echo done; done", "echo fi", "case a in a) echo one;& b) echo two;; esac"]
     assert Chain.split("echo a # not && split; here\necho b && echo '#not a comment' && echo c#neither") == ["echo a # not && split; here", "echo b", "echo '#not a comment'", "echo c#neither"], "a newline ends a command, a comment runs to it"
     wrapped = "source /s 2>/dev/null || true && { \\builtin unalias -- 'x'; } >/dev/null 2>&1 || true && eval 'cd src && git commit -m '\"'\"'a; b'\"'\"'' < /dev/null && pwd -P >| /tmp/cwd"

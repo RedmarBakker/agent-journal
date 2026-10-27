@@ -411,10 +411,10 @@
 {"line": "echo a # comment", "parts": ["echo a # comment"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a # not && split; here", "parts": ["echo a # not && split; here"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "ls -l # list && count; done", "parts": ["ls -l # list && count; done"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "# just a comment && stuff", "parts": ["# just a comment && stuff"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
-{"line": "# comment\nls && pwd", "parts": ["# comment\nls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
+{"line": "# just a comment && stuff", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# comment\nls && pwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
 {"line": "ls && pwd # trailing", "parts": ["ls", "pwd # trailing"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "echo a;# c ; echo b", "parts": ["echo a", "# c ; echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a;# c ; echo b", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a #c\necho b && echo c", "parts": ["echo a #c", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a # b\" && echo c # d", "parts": ["echo \"a # b\"", "echo c # d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a #b \"c && d", "parts": ["echo a #b \"c && d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -423,14 +423,14 @@
 {"line": "echo '#' && echo \"#\" && echo \\#", "parts": ["echo '#'", "echo \"#\"", "echo \\#"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a  #  spaced  &&  comment", "parts": ["echo a  #  spaced  &&  comment"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "ls #; pwd\npwd; echo end", "parts": ["ls #; pwd", "pwd", "echo end"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "echo a && # comment && echo b", "parts": ["echo a", "# comment && echo b"], "shell": "a real shell waits for a command after the && and runs none from the comment", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "ls # x\n# y\nls && pwd # z", "parts": ["ls # x", "# y\nls", "pwd # z"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
+{"line": "echo a && # comment && echo b", "parts": ["echo a"], "shell": "a real shell waits for a command after the && and runs none from the comment", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "ls # x\n# y\nls && pwd # z", "parts": ["ls # x", "ls", "pwd # z"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo ${x#prefix} && echo ${x##*/} ; echo done", "parts": ["echo ${x#prefix}", "echo ${x##*/}", "echo done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a#b#c && echo $((1#10))", "parts": ["echo a#b#c", "echo $((1#10))"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "#!/bin/bash\necho hi; echo there", "parts": ["#!/bin/bash\necho hi", "echo there"], "shell": "a newline ends a command in a real shell; the splitter keeps the comment line and echo hi in one part", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "#!/bin/bash\necho hi; echo there", "parts": ["echo hi", "echo there"], "shell": "a newline ends a command in a real shell; the splitter keeps the comment line and echo hi in one part", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo done # &&", "parts": ["echo done # &&"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a ## double && hash", "parts": ["echo a ## double && hash"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a; # then; more", "parts": ["echo a", "# then; more"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a; # then; more", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "ls -a # hidden && files\nwc -l f; echo end", "parts": ["ls -a # hidden && files", "wc -l f", "echo end"], "reading": {"work": "wc", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo \"# not\" # but this is", "parts": ["echo \"# not\" # but this is"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo 'x' #'y' && z", "parts": ["echo 'x' #'y' && z"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -1165,13 +1165,13 @@
 {"line": "cat <<EOF\n", "parts": ["cat <<EOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "cat <<EOF\nbody\nEOF\n", "parts": ["cat <<EOF\nbody\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "cat <<EOF >out.txt; echo $?\nbody\nEOF", "parts": ["cat <<EOF >out.txt; echo $?\nbody\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
-{"line": "# build the project\nnpm run build", "parts": ["# build the project\nnpm run build"], "reading": {"work": "npm run build", "reader": "build", "needs": "", "cut": "", "label": "running"}}
+{"line": "# build the project\nnpm run build", "parts": ["npm run build"], "reading": {"work": "npm run build", "reader": "build", "needs": "", "cut": "", "label": "running"}}
 {"line": "npm run build # production build; slow", "parts": ["npm run build # production build; slow"], "reading": {"work": "npm run build", "reader": "build", "needs": "", "cut": "", "label": "building"}}
 {"line": "git status && ls # list files", "parts": ["git status", "ls # list files"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "checking git"}}
-{"line": "ls; # trailing", "parts": ["ls", "# trailing"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
+{"line": "ls; # trailing", "parts": ["ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo a # && echo b", "parts": ["echo a # && echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a #comment\necho b && echo c", "parts": ["echo a #comment", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# one\n# two\nmake && make test", "parts": ["# one\n# two\nmake", "make test"], "reading": {"work": "make test", "reader": "build", "needs": "test run", "cut": "", "label": "testing"}}
+{"line": "# one\n# two\nmake && make test", "parts": ["make", "make test"], "reading": {"work": "make test", "reader": "build", "needs": "test run", "cut": "", "label": "testing"}}
 {"line": "echo \"a # b\" && echo 'c # d'", "parts": ["echo \"a # b\"", "echo 'c # d'"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "curl http://x.com/page#anchor && echo done", "parts": ["curl http://x.com/page#anchor", "echo done"], "reading": {"work": "curl", "reader": "", "needs": "", "cut": "", "label": "fetching"}}
 {"line": "git log --oneline # last commits; recent\ngit status", "parts": ["git log --oneline # last commits; recent", "git status"], "reading": {"work": "git status", "reader": "git-log", "needs": "", "cut": "", "label": "reading history"}}
@@ -1181,14 +1181,14 @@
 {"line": "git commit -m \"fix #123; closes #124\" && git push", "parts": ["git commit -m \"fix #123; closes #124\"", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "echo foo#bar && echo baz", "parts": ["echo foo#bar", "echo baz"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "ls -la   # list", "parts": ["ls -la   # list"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "  # indented\nls && pwd", "parts": ["# indented\nls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
+{"line": "  # indented\nls && pwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
 {"line": "make test # run tests\nmake lint", "parts": ["make test # run tests", "make lint"], "reading": {"work": "make lint", "reader": "build", "needs": "scan", "cut": "", "label": "testing"}}
 {"line": "echo 'it''s' # c; d", "parts": ["echo 'it''s' # c; d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "cd /tmp # go; there\ncd -", "parts": ["cd /tmp # go; there", "cd -"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "moving"}}
 {"line": "echo a; echo b # c; d", "parts": ["echo a", "echo b # c; d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# only a comment", "parts": ["# only a comment"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
-{"line": "# a && b; c", "parts": ["# a && b; c"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
-{"line": "echo a && # comment\necho b", "parts": ["echo a", "# comment\necho b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "# only a comment", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# a && b; c", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "echo a && # comment\necho b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "exit 0 # done", "parts": ["exit 0 # done"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running exit"}}
 {"line": "(cd src; make) ; echo done", "parts": ["(cd src; make)", "echo done"], "reading": {"work": "make", "reader": "build", "needs": "", "cut": "", "label": "building"}}
 {"line": "{ echo a; echo b; } > out.txt && cat out.txt", "parts": ["{ echo a; echo b; } > out.txt", "cat out.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -1335,8 +1335,8 @@
 {"line": "case $x in a) echo a;; esac;echo b", "parts": ["case $x in a) echo a;; esac", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "f(){ echo a;};f", "parts": ["f(){ echo a;}", "f"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running f(){"}}
 {"line": "for i in 1 2;do for j in 3;do echo $i$j;done;done", "parts": ["for i in 1 2;do for j in 3;do echo $i$j;done;done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "for i in 1; do echo $i; done; # trailing comment", "parts": ["for i in 1; do echo $i; done", "# trailing comment"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a && # comment\n echo b", "parts": ["echo a", "# comment\n echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "for i in 1; do echo $i; done; # trailing comment", "parts": ["for i in 1; do echo $i; done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a && # comment\n echo b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a && echo \"$(date)\" | cat; echo b", "parts": ["echo a", "echo \"$(date)\" | cat", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "curl -s localhost:8420/api | jq -r '.[] | .id' | while read id; do curl -s localhost:8420/api/$id; done", "parts": ["curl -s localhost:8420/api | jq -r '.[] | .id' | while read id; do curl -s localhost:8420/api/$id; done"], "reading": {"work": "curl", "reader": "", "needs": "", "cut": "", "label": "fetching"}}
 {"line": "curl -s localhost:8420/api | jq -r '.[].id' | while read id; do echo $id; done && echo ok", "parts": ["curl -s localhost:8420/api | jq -r '.[].id' | while read id; do echo $id; done", "echo ok"], "reading": {"work": "curl", "reader": "", "needs": "", "cut": "", "label": "fetching"}}
@@ -1508,7 +1508,7 @@
 {"line": "cd src\nfor f in *.py; do echo $f; done", "parts": ["cd src", "for f in *.py; do echo $f; done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "set -e\nif [ -f a ]; then echo y; fi", "parts": ["set -e", "if [ -f a ]; then echo y; fi"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running set"}}
 {"line": "echo start\nwhile read l; do echo $l; done < f", "parts": ["echo start", "while read l; do echo $l; done < f"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# list files\nfor f in *; do echo $f; done", "parts": ["# list files\nfor f in *; do echo $f; done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
+{"line": "# list files\nfor f in *; do echo $f; done", "parts": ["for f in *; do echo $f; done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
 {"line": "for f in *; do echo $f; done\necho end", "parts": ["for f in *; do echo $f; done", "echo end"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for f in *; do echo $f; done\nfor g in *; do echo $g; done", "parts": ["for f in *; do echo $f; done", "for g in *; do echo $g; done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for f in *; do echo $f; done\necho end; echo more", "parts": ["for f in *; do echo $f; done", "echo end", "echo more"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -1546,7 +1546,7 @@
 {"line": "cat <<-EOF\n\tx; y\nEOF", "parts": ["cat <<-EOF\n\tx; y\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "cat > f.sh <<'EOF' && chmod +x f.sh\necho hi\nEOF", "parts": ["cat > f.sh <<'EOF' && chmod +x f.sh\necho hi\nEOF"], "shell": "the heredoc takes the rest of the line, so && chmod +x f.sh, which the shell runs after it, is not cut off", "reading": {"work": "chmod", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "mkdir d && cat > d/a.sh <<'EOF'\necho a; echo b\nEOF", "parts": ["mkdir d", "cat > d/a.sh <<'EOF'\necho a; echo b\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "running mkdir"}}
-{"line": "for f in a b; do cat <<EOF\n$f\nEOF\ndone && echo after", "parts": ["for f in a b; do cat <<EOF\n$f\nEOF\ndone && echo after"], "shell": "the heredoc takes the rest of the line, so && echo after, a separate command to the shell, stays in the loop's part", "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
+{"line": "for f in a b; do cat <<EOF\n$f\nEOF\ndone && echo after", "parts": ["for f in a b; do cat <<EOF\n$f\nEOF\ndone", "echo after"], "shell": "the heredoc takes the rest of the line, so && echo after, a separate command to the shell, stays in the loop's part", "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "for f in a b; do cat <<EOF\n$f\nEOF\ndone", "parts": ["for f in a b; do cat <<EOF\n$f\nEOF\ndone"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "while read l; do echo $l; done <<EOF\na\nEOF\necho after; echo z", "parts": ["while read l; do echo $l; done <<EOF\na\nEOF", "echo after", "echo z"], "shell": "the heredoc takes the rest of the line, so the commands after it, which the shell runs separately, are not cut off", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "read a <<< 'x y'; echo $a", "parts": ["read a <<< 'x y'", "echo $a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running read"}}
@@ -1561,12 +1561,12 @@
 {"line": "python3 - <<'PY'\nfor i in range(3):\n    print(i)\nPY", "parts": ["python3 - <<'PY'\nfor i in range(3):\n    print(i)\nPY"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "echo a # comment; with && stuff", "parts": ["echo a # comment; with && stuff"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a # comment\necho b && echo c", "parts": ["echo a # comment", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# note; stuff\necho a; echo b", "parts": ["# note; stuff\necho a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "# note; stuff\necho a; echo b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for i in 1 2; do echo $i; done # run twice; ok", "parts": ["for i in 1 2; do echo $i; done # run twice; ok"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo $#; echo ${#}", "parts": ["echo $#", "echo ${#}"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a#b; echo c", "parts": ["echo a#b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a;# c; d", "parts": ["echo a", "# c; d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a; # c; d", "parts": ["echo a", "# c; d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a;# c; d", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a; # c; d", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "ls # list\nfor f in a; do echo $f; done", "parts": ["ls # list", "for f in a; do echo $f; done"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo \"a # b; c\"", "parts": ["echo \"a # b; c\""], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo 'it'\"'\"'s; fine'; echo x", "parts": ["echo 'it'\"'\"'s; fine'", "echo x"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -1763,12 +1763,12 @@
 {"line": "case $x in a) make && echo ok;; esac; echo end", "parts": ["case $x in a) make && echo ok;; esac", "echo end"], "reading": {"work": "make", "reader": "build", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for f in *; do case $f in a) echo a; echo b;; esac; done; echo end", "parts": ["for f in *; do case $f in a) echo a; echo b;; esac; done", "echo end"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "set -e\nfor f in a b; do echo $f; done && echo ok", "parts": ["set -e", "for f in a b; do echo $f; done", "echo ok"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running set"}}
-{"line": "#!/bin/bash\nset -e\necho hi", "parts": ["#!/bin/bash\nset -e\necho hi"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running set"}}
+{"line": "#!/bin/bash\nset -e\necho hi", "parts": ["set -e", "echo hi"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running set"}}
 {"line": "cd src\nls\ngit status", "parts": ["cd src", "ls", "git status"], "reading": {"work": "git status", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "cd src &&\n ls &&\n git status", "parts": ["cd src", "ls", "git status"], "reading": {"work": "git status", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "cd src; \\\n ls", "parts": ["cd src", "\\\n ls"], "shell": "the backslash-newline joins the lines, so the shell runs ls; the splitter keeps the backslash on the second part", "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running \\"}}
+{"line": "cd src; \\\n ls", "parts": ["cd src", "ls"], "shell": "the backslash-newline joins the lines, so the shell runs ls; the splitter keeps the backslash on the second part", "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running \\"}}
 {"line": "echo a\necho b; echo c", "parts": ["echo a", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a # one\n# two\necho b; echo c", "parts": ["echo a # one", "# two\necho b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a # one\n# two\necho b; echo c", "parts": ["echo a # one", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "if [ -f a ]; then # check\n echo y\nfi", "parts": ["if [ -f a ]; then # check\n echo y\nfi"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
 {"line": "if [ -f a ]; then # check\n echo y\nfi; echo end", "parts": ["if [ -f a ]; then # check\n echo y\nfi", "echo end"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for f in a b; do # each\n echo $f\ndone", "parts": ["for f in a b; do # each\n echo $f\ndone"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
@@ -1951,7 +1951,7 @@
 {"line": "cd \"$DIR\" && python3 -c \"import os; print(os.getcwd())\"", "parts": ["cd \"$DIR\"", "python3 -c \"import os; print(os.getcwd())\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "cd 'my dir; x' && python3 -c \"print(1)\"", "parts": ["cd 'my dir; x'", "python3 -c \"print(1)\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "python3 -c \"print('a')\" # comment; with semicolon", "parts": ["python3 -c \"print('a')\" # comment; with semicolon"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
-{"line": "python3 -c \"print('a')\"; # comment && more\npython3 -c \"print('b')\"", "parts": ["python3 -c \"print('a')\"", "# comment && more\npython3 -c \"print('b')\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
+{"line": "python3 -c \"print('a')\"; # comment && more\npython3 -c \"print('b')\"", "parts": ["python3 -c \"print('a')\"", "python3 -c \"print('b')\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "python3 -c 'import os; print(os.getpid())' > /tmp/pid.txt; cat /tmp/pid.txt", "parts": ["python3 -c 'import os; print(os.getpid())' > /tmp/pid.txt", "cat /tmp/pid.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "python3 -c \"import sys; print(sys.stdin.read().upper())\" <<< \"abc; def\"", "parts": ["python3 -c \"import sys; print(sys.stdin.read().upper())\" <<< \"abc; def\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "printf 'a;b\\n' | python3 -c \"import sys; print(sys.stdin.read())\" && echo done", "parts": ["printf 'a;b\\n' | python3 -c \"import sys; print(sys.stdin.read())\"", "echo done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running printf"}}
@@ -2002,8 +2002,8 @@
 {"line": "true && python3 - <<'EOF'\nprint(1)\nEOF", "parts": ["true", "python3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running true"}}
 {"line": "false || python3 - <<'EOF'\nprint(1)\nEOF", "parts": ["false || python3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running false"}}
 {"line": "mkdir -p out; cd out; python3 - <<'EOF'\nopen('a','w').write('x')\nEOF", "parts": ["mkdir -p out", "cd out", "python3 - <<'EOF'\nopen('a','w').write('x')\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running mkdir"}}
-{"line": "# run script\npython3 - <<'EOF'\nprint(1)\nEOF", "parts": ["# run script\npython3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running"}}
-{"line": "cd a && # go\npython3 - <<'EOF'\nprint(1)\nEOF", "parts": ["cd a", "# go\npython3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "moving"}}
+{"line": "# run script\npython3 - <<'EOF'\nprint(1)\nEOF", "parts": ["python3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running"}}
+{"line": "cd a && # go\npython3 - <<'EOF'\nprint(1)\nEOF", "parts": ["cd a", "python3 - <<'EOF'\nprint(1)\nEOF"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "moving"}}
 {"line": "(cd src && python3 - <<'EOF'\nprint(1)\nEOF\n)", "parts": ["(cd src && python3 - <<'EOF'\nprint(1)\nEOF\n)"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "(cd src; python3 -c \"print(1)\") && echo ok", "parts": ["(cd src; python3 -c \"print(1)\")", "echo ok"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "{ python3 - <<'EOF'\nprint(1)\nEOF\n} > out.txt", "parts": ["{ python3 - <<'EOF'\nprint(1)\nEOF\n} > out.txt"], "reading": {"work": "out.txt", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
@@ -2043,7 +2043,7 @@
 {"line": "git add -A && cat > MSG <<'EOF'\nfix\nEOF", "parts": ["git add -A", "cat > MSG <<'EOF'\nfix\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "staging"}}
 {"line": "cat > a.txt <<EOF\nx\nEOF\ncat a.txt", "parts": ["cat > a.txt <<EOF\nx\nEOF", "cat a.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "cat > a.txt <<EOF\nx\nEOF\ncat a.txt && rm a.txt", "parts": ["cat > a.txt <<EOF\nx\nEOF", "cat a.txt", "rm a.txt"], "shell": "the shell runs cat a.txt and rm a.txt as two chained commands after the heredoc", "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
-{"line": "cat > a.txt <<EOF\nx\nEOF\n# done; cleanup && more\nrm a.txt", "parts": ["cat > a.txt <<EOF\nx\nEOF", "# done; cleanup && more\nrm a.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
+{"line": "cat > a.txt <<EOF\nx\nEOF\n# done; cleanup && more\nrm a.txt", "parts": ["cat > a.txt <<EOF\nx\nEOF", "rm a.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "cat <<EOF >> ~/.zshrc\nalias a='b; c'\nEOF", "parts": ["cat <<EOF >> ~/.zshrc\nalias a='b; c'\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "cat > t.py <<'EOF'\nimport os; print(os.name)\nEOF\npython3 t.py; rm t.py", "parts": ["cat > t.py <<'EOF'\nimport os; print(os.name)\nEOF", "python3 t.py", "rm t.py"], "shell": "the shell runs python3 t.py and rm t.py as separate commands after the heredoc", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "printf '%s\\n' a b > f; cat > g <<EOF\nx\nEOF", "parts": ["printf '%s\\n' a b > f", "cat > g <<EOF\nx\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
@@ -2084,7 +2084,7 @@
 {"line": "git add -A && git commit -m \"$(cat <<'EOF'\nA && B\nEOF\n)\" && git push -u origin HEAD", "parts": ["git add -A", "git commit -m \"$(cat <<'EOF'\nA && B\nEOF\n)\"", "git push -u origin HEAD"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git commit -m \"$(cat <<'EOF'\nline1\n\nline2; line3\nEOF\n)\"; echo $?", "parts": ["git commit -m \"$(cat <<'EOF'\nline1\n\nline2; line3\nEOF\n)\"", "echo $?"], "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "x=$(cat <<EOF\nhi\nEOF\n) && echo $x", "parts": ["x=$(cat <<EOF\nhi\nEOF\n)", "echo $x"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "x=$(cat <<EOF\nit's\nEOF\n) && echo $x", "parts": ["x=$(cat <<EOF\nit's\nEOF\n) && echo $x"], "shell": "the apostrophe in the heredoc body inside $( ) opens a quote the splitter never sees closed, so the && is not split; the shell splits it", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
+{"line": "x=$(cat <<EOF\nit's\nEOF\n) && echo $x", "parts": ["x=$(cat <<EOF\nit's\nEOF\n)", "echo $x"], "shell": "the apostrophe in the heredoc body inside $( ) opens a quote the splitter never sees closed, so the && is not split; the shell splits it", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
 {"line": "cat > f <<'EOF'\nx\nEOF\ngit add f && git commit -m f", "parts": ["cat > f <<'EOF'\nx\nEOF", "git add f", "git commit -m f"], "shell": "the shell runs git add f and git commit as two chained commands after the heredoc", "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "git commit -F - <<'EOF'\nmsg\nEOF\ngit push", "parts": ["git commit -F - <<'EOF'\nmsg\nEOF", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git commit -F - <<'EOF'\nmsg\nEOF\ngit push && git status", "parts": ["git commit -F - <<'EOF'\nmsg\nEOF", "git push", "git status"], "shell": "the shell runs git push and git status as two chained commands after the heredoc", "reading": {"work": "git status", "reader": "", "needs": "", "cut": "", "label": "committing"}}
@@ -2361,9 +2361,9 @@
 {"line": "cat <<EOF\nx\nEOF\n\n", "parts": ["cat <<EOF\nx\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "echo a # b && c", "parts": ["echo a # b && c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a && echo b # c; d", "parts": ["echo a", "echo b # c; d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# whole line comment; with && stuff", "parts": ["# whole line comment; with && stuff"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
-{"line": "# comment\necho a && echo b", "parts": ["# comment\necho a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a; # c\necho b", "parts": ["echo a", "# c\necho b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "# whole line comment; with && stuff", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# comment\necho a && echo b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a; # c\necho b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a#b && echo c#d", "parts": ["echo a#b", "echo c#d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a # b; c\" && echo d", "parts": ["echo \"a # b; c\"", "echo d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo 'x # y' ; echo z", "parts": ["echo 'x # y'", "echo z"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -2409,7 +2409,7 @@
 {"line": "select x in a b; do echo $x; break; done; echo z", "parts": ["select x in a b; do echo $x; break; done", "echo z"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for f in a b; do python3 -c \"print('$f'); print(1)\"; done", "parts": ["for f in a b; do python3 -c \"print('$f'); print(1)\"; done"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone", "parts": ["for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
-{"line": "for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone && echo ok", "parts": ["for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone && echo ok"], "shell": "the shell runs echo ok as a separate command after the loop; the splitter keeps it in the heredoc part", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
+{"line": "for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone && echo ok", "parts": ["for f in a b; do python3 - <<EOF\nprint('$f')\nEOF\ndone", "echo ok"], "shell": "the shell runs echo ok as a separate command after the loop; the splitter keeps it in the heredoc part", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "for i in 1 2; do echo $i; done && python3 -c \"print(1); print(2)\"", "parts": ["for i in 1 2; do echo $i; done", "python3 -c \"print(1); print(2)\""], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "while read l; do echo $l; done < f.txt && echo done", "parts": ["while read l; do echo $l; done < f.txt", "echo done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "while read l; do python3 -c \"print('$l'); print(1)\"; done < f", "parts": ["while read l; do python3 -c \"print('$l'); print(1)\"; done < f"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
@@ -2481,7 +2481,7 @@
 {"line": "python3 a.py ;; echo x", "parts": ["python3 a.py ;; echo x"], "shell": ";; is a syntax error outside a case; the splitter just does not split at it", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
 {"line": "echo a;;echo b", "parts": ["echo a;;echo b"], "shell": ";; is a syntax error outside a case; the splitter just does not split at it", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a;&echo b", "parts": ["echo a;&echo b"], "shell": ";& is only valid inside a case; the splitter does not split at it", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "python3 a.py && \\\npython3 b.py", "parts": ["python3 a.py", "\\\npython3 b.py"], "shell": "the shell joins the backslash-newline continuation, so the second command has no leading backslash; the splitter leaves it in the part", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
+{"line": "python3 a.py && \\\npython3 b.py", "parts": ["python3 a.py", "python3 b.py"], "shell": "the shell joins the backslash-newline continuation, so the second command has no leading backslash; the splitter leaves it in the part", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
 {"line": "python3 a.py \\\n  --flag && echo ok", "parts": ["python3 a.py \\\n  --flag", "echo ok"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
 {"line": "python3 a.py \\\n  && python3 b.py", "parts": ["python3 a.py", "python3 b.py"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
 {"line": "python3 a.py || python3 b.py || python3 c.py", "parts": ["python3 a.py || python3 b.py || python3 c.py"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
@@ -2846,7 +2846,7 @@
 {"line": "echo '<<EOF'; echo b", "parts": ["echo '<<EOF'", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \\<\\<EOF && echo b", "parts": ["echo \\<\\<EOF", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "python3 -c 'print(1 << 2)'; echo ok", "parts": ["python3 -c 'print(1 << 2)'", "echo ok"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
-{"line": "let x=1<<3; echo $x", "parts": ["let x=1<<3; echo $x"], "shell": "here << is a bit shift, not a heredoc; a shell runs two commands, the splitter keeps one part", "reading": {"work": "let", "reader": "", "needs": "", "cut": "", "label": "running let"}}
+{"line": "let x=1<<3; echo $x", "parts": ["let x=1<<3", "echo $x"], "shell": "here << is a bit shift, not a heredoc; a shell runs two commands, the splitter keeps one part", "reading": {"work": "let", "reader": "", "needs": "", "cut": "", "label": "running let"}}
 {"line": "let \"x = 1 << 3\"; echo $x", "parts": ["let \"x = 1 << 3\"", "echo $x"], "reading": {"work": "let", "reader": "", "needs": "", "cut": "", "label": "running let"}}
 {"line": "cat > file.txt <<EOF\nhello\nEOF", "parts": ["cat > file.txt <<EOF\nhello\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "cat > file.txt <<'EOF'\nhello; world && x\nEOF", "parts": ["cat > file.txt <<'EOF'\nhello; world && x\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
@@ -2859,7 +2859,7 @@
 {"line": "git commit -F - <<EOF\nFix a thing; and another\n\nBody && more\nEOF", "parts": ["git commit -F - <<EOF\nFix a thing; and another\n\nBody && more\nEOF"], "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git add -A && git commit -F - <<'EOF'\nFix; things\nEOF", "parts": ["git add -A", "git commit -F - <<'EOF'\nFix; things\nEOF"], "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git add . && git commit -m \"$(cat <<'EOF'\nFix: a; b\n\nMore text\nEOF\n)\" && git push", "parts": ["git add .", "git commit -m \"$(cat <<'EOF'\nFix: a; b\n\nMore text\nEOF\n)\"", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
-{"line": "git commit -m \"$(cat <<'EOF'\nDon't break; ok\nEOF\n)\" && git push", "parts": ["git commit -m \"$(cat <<'EOF'\nDon't break; ok\nEOF\n)\" && git push"], "shell": "the apostrophe in Don't opens a quote inside the $( ), so && git push stays in one part; a shell runs two commands", "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
+{"line": "git commit -m \"$(cat <<'EOF'\nDon't break; ok\nEOF\n)\" && git push", "parts": ["git commit -m \"$(cat <<'EOF'\nDon't break; ok\nEOF\n)\"", "git push"], "shell": "the apostrophe in Don't opens a quote inside the $( ), so && git push stays in one part; a shell runs two commands", "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git commit -am \"msg\" && git push origin HEAD", "parts": ["git commit -am \"msg\"", "git push origin HEAD"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git commit -m \"a; b\" && git push", "parts": ["git commit -m \"a; b\"", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "git commit -m 'it'\\''s done' && git push", "parts": ["git commit -m 'it'\\''s done'", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
@@ -2917,8 +2917,8 @@
 {"line": "{ cat <<EOF\nx\nEOF\n} && echo ok", "parts": ["{ cat <<EOF\nx\nEOF\n}", "echo ok"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "(cat <<EOF\nx\nEOF\n) && echo ok", "parts": ["(cat <<EOF\nx\nEOF\n)", "echo ok"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "if true; then cat <<EOF\nx\nEOF\nfi", "parts": ["if true; then cat <<EOF\nx\nEOF\nfi"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
-{"line": "if grep -q a f; then cat <<EOF\nfound\nEOF\nfi && echo done", "parts": ["if grep -q a f; then cat <<EOF\nfound\nEOF\nfi && echo done"], "shell": "&& echo done after fi is a real chain; the splitter keeps it in the heredoc part", "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
-{"line": "cat <<EOF\nx\nEOF\n\n# trailing comment", "parts": ["cat <<EOF\nx\nEOF", "# trailing comment"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
+{"line": "if grep -q a f; then cat <<EOF\nfound\nEOF\nfi && echo done", "parts": ["if grep -q a f; then cat <<EOF\nfound\nEOF\nfi", "echo done"], "shell": "&& echo done after fi is a real chain; the splitter keeps it in the heredoc part", "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
+{"line": "cat <<EOF\nx\nEOF\n\n# trailing comment", "parts": ["cat <<EOF\nx\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "cat < a.txt > b.txt && cat b.txt", "parts": ["cat < a.txt > b.txt", "cat b.txt"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "cat a.txt >> b.txt << EOF\nx\nEOF", "parts": ["cat a.txt >> b.txt << EOF\nx\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "writing a file"}}
 {"line": "wc -l < a.txt && echo ok", "parts": ["wc -l < a.txt", "echo ok"], "reading": {"work": "wc", "reader": "", "needs": "", "cut": "", "label": "running wc"}}
@@ -3003,7 +3003,7 @@
 {"line": "for i in 1 2; do echo $i; done; echo 'done'; echo end", "parts": ["for i in 1 2; do echo $i; done", "echo 'done'", "echo end"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for i in 1 2; do echo done; done && echo fi", "parts": ["for i in 1 2; do echo done; done", "echo fi"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "for i in 1 2; do echo $i; done # loop; comment", "parts": ["for i in 1 2; do echo $i; done # loop; comment"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "for i in a b; do echo $i; done; # comment\necho z", "parts": ["for i in a b; do echo $i; done", "# comment\necho z"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "for i in a b; do echo $i; done; # comment\necho z", "parts": ["for i in a b; do echo $i; done", "echo z"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo start && python3 - <<'EOF'\nprint(1)\nEOF\nfor i in 1 2; do echo $i; done", "parts": ["echo start", "python3 - <<'EOF'\nprint(1)\nEOF", "for i in 1 2; do echo $i; done"], "shell": "the for loop is a separate command after the heredoc; the splitter keeps it in the heredoc part", "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a\" && echo 'b' ; echo `c`; echo $(d)", "parts": ["echo \"a\"", "echo 'b'", "echo `c`", "echo $(d)"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "xargs -I{} sh -c 'echo {}; echo {}' <<< \"a b\" && echo ok", "parts": ["xargs -I{} sh -c 'echo {}; echo {}' <<< \"a b\"", "echo ok"], "shell": "code check: the second < of <<< may read as a heredoc start and keep && echo ok in one part, against the stated here-string rule", "reading": {"work": "xargs", "reader": "", "needs": "", "cut": "", "label": "running xargs"}}
@@ -3039,15 +3039,15 @@
 {"line": "sleep 1 & echo a && echo b", "parts": ["sleep 1 &", "echo a", "echo b"], "shell": "a shell backgrounds sleep 1 at & and chains echo a && echo b separately; the splitter does not split at a single &", "reading": {"work": "sleep", "reader": "pause", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "cmd 2>&1 | tee log; echo $?", "parts": ["cmd 2>&1 | tee log", "echo $?"], "reading": {"work": "cmd", "reader": "", "needs": "", "cut": "", "label": "running cmd"}}
 {"line": "cmd &> out && echo ok", "parts": ["cmd &> out", "echo ok"], "reading": {"work": "cmd", "reader": "", "needs": "", "cut": "", "label": "running cmd"}}
-{"line": "# just a comment; with && stuff", "parts": ["# just a comment; with && stuff"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# just a comment; with && stuff", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
 {"line": "echo a # c1 && c2; c3", "parts": ["echo a # c1 && c2; c3"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a ; # c\necho b ; echo c", "parts": ["echo a", "# c\necho b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a ; # c\necho b ; echo c", "parts": ["echo a", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo $# && echo ${#PATH}", "parts": ["echo $#", "echo ${#PATH}"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo '# a' # b; c", "parts": ["echo '# a' # b; c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "git commit -m \"fix #12; close\" && git push", "parts": ["git commit -m \"fix #12; close\"", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
 {"line": "echo a\t# tab comment; x", "parts": ["echo a\t# tab comment; x"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a # comment\necho b; echo c", "parts": ["echo a # comment", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# c1\n# c2\necho a && echo b", "parts": ["# c1\n# c2\necho a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "# c1\n# c2\necho a && echo b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a\\\"; echo b\" && echo c", "parts": ["echo \"a\\\"; echo b\"", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \\\"; echo b\\\"", "parts": ["echo \\\"", "echo b\\\""], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a\" \"b;c\" 'd;e' f;g", "parts": ["echo \"a\" \"b;c\" 'd;e' f", "g"], "reading": {"work": "g", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -3200,7 +3200,7 @@
 {"line": "git log --format=%h#%s -3", "parts": ["git log --format=%h#%s -3"], "reading": {"work": "git log", "reader": "git-log", "needs": "", "cut": "", "label": "reading history"}}
 {"line": "echo a#b", "parts": ["echo a#b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a\" # trailing note", "parts": ["echo \"a\" # trailing note"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# just a comment", "parts": ["# just a comment"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# just a comment", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
 {"line": "docker exec -it web sh -c \"ls; pwd\"", "parts": ["docker exec -it web sh -c \"ls; pwd\""], "reading": {"work": "docker exec", "reader": "", "needs": "", "cut": "", "label": "running sh"}}
 {"line": "kubectl exec pod -- sh -c 'cd /app && ls'", "parts": ["kubectl exec pod -- sh -c 'cd /app && ls'"], "reading": {"work": "kubectl exec", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "ps aux | grep '[n]ode'", "parts": ["ps aux | grep '[n]ode'"], "reading": {"work": "ps", "reader": "", "needs": "", "cut": "grep '[n]ode'", "label": "running ps"}}
@@ -3421,7 +3421,7 @@
 {"line": "cat << EOF\nhi\nEOF", "parts": ["cat << EOF\nhi\nEOF"], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
 {"line": "read -r a <<< \"x\" && echo $a", "parts": ["read -r a <<< \"x\"", "echo $a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running read"}}
 {"line": "cat <<< 'a;b'; cat <<< \"c\"", "parts": ["cat <<< 'a;b'", "cat <<< \"c\""], "reading": {"work": "cat", "reader": "", "needs": "", "cut": "", "label": "reading"}}
-{"line": "echo $[1<<3]; echo ok", "parts": ["echo $[1<<3]; echo ok"], "shell": "the << of the old $[...] arithmetic outside any bracket the splitter tracks reads as a heredoc and ends the splitting; a real shell runs two commands", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo $[1<<3]; echo ok", "parts": ["echo $[1<<3]", "echo ok"], "shell": "the << of the old $[...] arithmetic outside any bracket the splitter tracks reads as a heredoc and ends the splitting; a real shell runs two commands", "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "sed 's/<</[/' f && echo ok", "parts": ["sed 's/<</[/' f", "echo ok"], "reading": {"work": "sed", "reader": "", "needs": "", "cut": "", "label": "running sed"}}
 {"line": "grep -c '<<' f; echo $?", "parts": ["grep -c '<<' f", "echo $?"], "reading": {"work": "grep", "reader": "", "needs": "", "cut": "", "label": "searching"}}
 {"line": "grep \"<<EOF\" script.sh && echo has", "parts": ["grep \"<<EOF\" script.sh", "echo has"], "reading": {"work": "grep", "reader": "", "needs": "", "cut": "", "label": "searching"}}
@@ -3438,17 +3438,17 @@
 {"line": "diff - file <<EOF\nx\nEOF", "parts": ["diff - file <<EOF\nx\nEOF"], "reading": {"work": "diff", "reader": "", "needs": "", "cut": "", "label": "running diff"}}
 {"line": "tr a-z A-Z <<<\"hello; world\" && echo ok", "parts": ["tr a-z A-Z <<<\"hello; world\"", "echo ok"], "reading": {"work": "tr", "reader": "", "needs": "", "cut": "", "label": "running tr"}}
 {"line": "echo a # c1 && c2", "parts": ["echo a # c1 && c2"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a; # note", "parts": ["echo a", "# note"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a && # why\necho b", "parts": ["echo a", "# why\necho b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# comment; echo hidden\necho shown", "parts": ["# comment; echo hidden\necho shown"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
-{"line": "# first\necho a && echo b", "parts": ["# first\necho a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a\n# c; d\necho b", "parts": ["echo a", "# c; d\necho b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a; # note", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a && # why\necho b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "# comment; echo hidden\necho shown", "parts": ["echo shown"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
+{"line": "# first\necho a && echo b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a\n# c; d\necho b", "parts": ["echo a", "echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo $# && echo ok", "parts": ["echo $#", "echo ok"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo ${#arr[@]}; echo ok", "parts": ["echo ${#arr[@]}", "echo ok"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a # b\" && echo c", "parts": ["echo \"a # b\"", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo 'a # b; c' ; echo d", "parts": ["echo 'a # b; c'", "echo d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a;#c; echo b", "parts": ["echo a", "#c; echo b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "echo a ;#c", "parts": ["echo a", "#c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a;#c; echo b", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a ;#c", "parts": ["echo a"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "git log --oneline # last commits && more", "parts": ["git log --oneline # last commits && more"], "reading": {"work": "git log", "reader": "git-log", "needs": "", "cut": "", "label": "reading history"}}
 {"line": "ls -la # list; and more\nls", "parts": ["ls -la # list; and more", "ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "gh issue view 12 && echo '#12 done'", "parts": ["gh issue view 12", "echo '#12 done'"], "reading": {"work": "gh issue view", "reader": "", "needs": "", "cut": "", "label": "on github"}}
@@ -3457,13 +3457,13 @@
 {"line": "echo a   # it's fine && b", "parts": ["echo a   # it's fine && b"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a # it's; fine\necho b && echo c", "parts": ["echo a # it's; fine", "echo b", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "make # build && test\nmake test", "parts": ["make # build && test", "make test"], "reading": {"work": "make test", "reader": "build", "needs": "test run", "cut": "", "label": "building"}}
-{"line": "true;# x", "parts": ["true", "# x"], "reading": {"work": "true", "reader": "", "needs": "", "cut": "", "label": "running true"}}
+{"line": "true;# x", "parts": ["true"], "reading": {"work": "true", "reader": "", "needs": "", "cut": "", "label": "running true"}}
 {"line": "git commit -m \"x\" # && git push", "parts": ["git commit -m \"x\" # && git push"], "reading": {"work": "git commit", "reader": "", "needs": "", "cut": "", "label": "committing"}}
-{"line": "echo a #b\n#c\necho d; echo e", "parts": ["echo a #b", "#c\necho d", "echo e"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
+{"line": "echo a #b\n#c\necho d; echo e", "parts": ["echo a #b", "echo d", "echo e"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "( # comment\n echo a; echo b )", "parts": ["( # comment\n echo a; echo b )"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running"}}
 {"line": "echo $((1 + 2)) # sum && ok", "parts": ["echo $((1 + 2)) # sum && ok"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo a && echo b # c && d", "parts": ["echo a", "echo b # c && d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# only a comment && stuff", "parts": ["# only a comment && stuff"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# only a comment && stuff", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
 {"line": "python3 -c \"print(1)\" && for f in a b; do echo $f; done", "parts": ["python3 -c \"print(1)\"", "for f in a b; do echo $f; done"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "python3 -c 'import os; print(os.getcwd())' ; for f in a b; do echo $f; done; echo end", "parts": ["python3 -c 'import os; print(os.getcwd())'", "for f in a b; do echo $f; done", "echo end"], "reading": {"work": "python3", "reader": "", "needs": "", "cut": "", "label": "running python3"}}
 {"line": "git commit -m \"$(case $x in a) echo A;; *) echo B;; esac)\" && git push", "parts": ["git commit -m \"$(case $x in a) echo A;; *) echo B;; esac)\"", "git push"], "reading": {"work": "git push", "reader": "", "needs": "", "cut": "", "label": "committing"}}
@@ -3868,7 +3868,7 @@
 {"line": "ls\n; pwd", "parts": ["ls", "pwd"], "shell": "a ; alone on a line is a syntax error in bash", "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "ls &&\n pwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "ls;\npwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "ls &&\n  # comment\n  pwd", "parts": ["ls", "# comment\n  pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
+{"line": "ls &&\n  # comment\n  pwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo $(date; pwd) && ls", "parts": ["echo $(date; pwd)", "ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo $(ls && pwd); echo done", "parts": ["echo $(ls && pwd)", "echo done"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "x=$(git rev-parse HEAD) && echo $x", "parts": ["x=$(git rev-parse HEAD)", "echo $x"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "checking git"}}
@@ -3976,11 +3976,11 @@
 {"line": "cd \"$(dirname \"$0\")\" && pwd", "parts": ["cd \"$(dirname \"$0\")\"", "pwd"], "reading": {"work": "pwd", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
 {"line": "echo \"$(echo \"a && b\")\" ; echo c", "parts": ["echo \"$(echo \"a && b\")\"", "echo c"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"a $(echo \"b $(echo \"c; d\")\")\" && echo e", "parts": ["echo \"a $(echo \"b $(echo \"c; d\")\")\"", "echo e"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "# whole line && comment", "parts": ["# whole line && comment"], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
-{"line": "# c\nls && pwd", "parts": ["# c\nls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
+{"line": "# whole line && comment", "parts": [], "reading": {"work": "", "reader": "", "needs": "download", "cut": "", "label": "running"}}
+{"line": "# c\nls && pwd", "parts": ["ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running pwd"}}
 {"line": "ls # one\npwd # two\nwhoami", "parts": ["ls # one", "pwd # two", "whoami"], "reading": {"work": "whoami", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "ls; # c", "parts": ["ls", "# c"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
-{"line": "ls ;# c && pwd", "parts": ["ls", "# c && pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
+{"line": "ls; # c", "parts": ["ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
+{"line": "ls ;# c && pwd", "parts": ["ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo $#; echo c#d", "parts": ["echo $#", "echo c#d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo \"# not comment && x\" && ls", "parts": ["echo \"# not comment && x\"", "ls"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": "echo '#a' ; echo \"#b\"", "parts": ["echo '#a'", "echo \"#b\""], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
@@ -3990,7 +3990,7 @@
 {"line": "ls #comment with 'apostrophe && more", "parts": ["ls #comment with 'apostrophe && more"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "ls # it's ok\npwd && echo done", "parts": ["ls # it's ok", "pwd", "echo done"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "listing"}}
 {"line": "echo hi #\"quote\necho x; echo y", "parts": ["echo hi #\"quote", "echo x", "echo y"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
-{"line": "#!/bin/bash\nset -e\nls && pwd", "parts": ["#!/bin/bash\nset -e\nls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running set"}}
+{"line": "#!/bin/bash\nset -e\nls && pwd", "parts": ["set -e", "ls", "pwd"], "reading": {"work": "ls", "reader": "", "needs": "", "cut": "", "label": "running set"}}
 {"line": "echo a\t# c && d", "parts": ["echo a\t# c && d"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running echo"}}
 {"line": ": # nothing ; echo x", "parts": [": # nothing ; echo x"], "reading": {"work": ":", "reader": "", "needs": "", "cut": "", "label": "running :"}}
 {"line": "true # c\n&& echo x", "parts": ["true # c", "echo x"], "reading": {"work": "echo", "reader": "", "needs": "", "cut": "", "label": "running true"}}
