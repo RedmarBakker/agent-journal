@@ -2,6 +2,7 @@ import threading
 
 from journal.engine.job import Job
 from journal.events.agent.ticked import Ticked
+from journal.support.fault_log import FaultLog
 from journal.events.clock_ticked import ClockTicked
 from journal.events.bus import Bus
 from journal.support.decision import Decision
@@ -13,11 +14,12 @@ from journal.support.time_source import TimeSource
 
 
 class Clock(Job):
-    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment, each listener heard on its own so one that fails stops no other, and one tick at a time, each at the moment it takes its turn, so what a tick decides and records is settled before the next reads it and no tick carries a moment older than one already heard; what the machine says to a tick is typed in through the supervisor."""
+    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment, each listener heard on its own so one that fails stops no other, and one agent's tick that fails stops no other agent's, and one tick at a time, each at the moment it takes its turn, so what a tick decides and records is settled before the next reads it and no tick carries a moment older than one already heard; what the machine says to a tick is typed in through the supervisor."""
 
     interval_seconds = 5.0
 
-    def __init__(self, agents: Agents, bus: Bus, supervisor: SupervisorLink, scope: Scope, time_source: TimeSource) -> None:
+    def __init__(self, agents: Agents, bus: Bus, supervisor: SupervisorLink, scope: Scope, time_source: TimeSource, faults: FaultLog) -> None:
+        self.faults = faults
         self.agents, self.bus, self.supervisor, self.scope, self.time_source = agents, bus, supervisor, scope, time_source
         self.tick_lock = threading.RLock()
 
@@ -28,7 +30,13 @@ class Clock(Job):
         self.bus.dispatch_guarded(ClockTicked(time=time))
         for agent in self.agents.active_main_agents():
             with self.scope.environment(agent.environment_id):
-                self._tick(agent)
+                self.agent_tick(agent)
+
+    def agent_tick(self, agent: Agent) -> None:
+        try:
+            self._tick(agent)
+        except Exception as fault:
+            self.faults.reported(f"clock tick of agent {agent.row_id}", fault)
 
     def _tick(self, agent: Agent) -> None:
         with self.tick_lock:
