@@ -31,7 +31,7 @@ class Question:
 
 
 class RepeatedFieldChecks:
-    """Finds a missing funnel: one field of the project's own data classes compared with the same value, the same way, in three or more functions across two or more files, and the method on the field's class that already asks it, when one does."""
+    """Finds a missing funnel: one field of the project's own data classes compared with the same value, the same way, in three or more functions across two or more files, and the method on the field's class that already asks it, when one does; a comparison counts only when it names whose field it is, by an enum member such as TaskState.STARTED, or by a field only one data class declares."""
 
     def __init__(self, source: Path) -> None:
         self.source = source
@@ -39,9 +39,15 @@ class RepeatedFieldChecks:
         self.fields = self.data_fields()
         self.named = self.named_questions()
 
-    def data_fields(self) -> set[str]:
-        return {target.id for tree in self.trees.values() for node in ast.walk(tree) if isinstance(node, ast.ClassDef) and self.is_dataclass(node)
-                for statement in node.body if isinstance(statement, ast.AnnAssign) and isinstance(target := statement.target, ast.Name)}
+    def data_fields(self) -> dict[str, set[str]]:
+        owners: dict[str, set[str]] = defaultdict(set)
+        for tree in self.trees.values():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef) and self.is_dataclass(node):
+                    for statement in node.body:
+                        if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+                            owners[statement.target.id].add(node.name)
+        return owners
 
     @staticmethod
     def is_dataclass(node: ast.ClassDef) -> bool:
@@ -55,7 +61,7 @@ class RepeatedFieldChecks:
                     continue
                 for method in node.body:
                     question = self.method_question(method)
-                    if question:
+                    if question and node.name in self.fields.get(question[0], set()):
                         named[question] = f"{node.name}.{method.name}"
         return named
 
@@ -69,9 +75,14 @@ class RepeatedFieldChecks:
         if len(node.ops) != 1 or not isinstance(node.left, ast.Attribute) or node.left.attr not in self.fields:
             return None
         value = node.comparators[0]
-        if not isinstance(value, (ast.Constant, ast.Attribute)):
+        if not self.names_its_owner(node.left.attr, value):
             return None
         return node.left.attr, SAME_QUESTION.get(type(node.ops[0]).__name__, ""), ast.unparse(value)
+
+    def names_its_owner(self, field_name: str, value: ast.expr) -> bool:
+        if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name) and value.value.id[:1].isupper():
+            return True
+        return isinstance(value, ast.Constant) and len(self.fields[field_name]) == 1
 
     def questions(self) -> list[Question]:
         found: dict[tuple[str, str, str], Question] = {}
