@@ -45,7 +45,7 @@ UNREACHABLE = "not_connected"
 
 
 class Updater:
-    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again. The sync service has drained when it has sent the whole queue and pulled the team to its head, under the team's upgrade lease; a journal is pinned when it has joined a team and is not the hosted journal that leads the team onto a release."""
+    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release and pins the team to it once it runs it, after the last step of a path, never at a step; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again. The sync service has drained when it has sent the whole queue and pulled the team to its head, under the team's upgrade lease; a journal is pinned when it has joined a team and is not the hosted journal that leads the team onto a release."""
 
     def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus, time_source: TimeSource, paths: UpdatePathFile) -> None:
         self.time_source, self.paths = time_source, paths
@@ -163,7 +163,11 @@ class Updater:
         if blocked.is_pending(VERSION, os.getpid(), time):
             return
         self.card.clear()
-        self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
+        if blocked.target != self.label():
+            self.problem = f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
+            return
+        self.problem = ""
+        self.separate(lambda: self.lead(VERSION))
 
     def walked(self, blocked: UpdatePause, time: float) -> None:
         line = self.paths.step_line(VERSION)
@@ -224,6 +228,8 @@ class Updater:
             self._working.release()
 
     def checked(self) -> None:
+        if self.paths.is_walking_at(VERSION, self.time_source.seconds()):
+            return
         self.lead(VERSION)
         self.read()
         if not self.automatic():
@@ -290,7 +296,6 @@ class Updater:
     def recorded(self, target: UpdateTarget) -> None:
         self.log_reason(target)
         self.problem = ""
-        self.lead(target.label)
 
     def refused_install(self, target: UpdateTarget, drained: bool, reason: str) -> None:
         self.log_reason(target)

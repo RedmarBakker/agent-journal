@@ -9906,7 +9906,6 @@ def failed_path(app: App, version: str) -> dict:
 
 
 def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_until_retried(app: App):
-    import threading
     import time as timing
     from journal.features.updates.support.update_card import UpdateCard
     from journal.features.updates.support.update_path_file import UpdatePathFile
@@ -9930,9 +9929,7 @@ def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_unt
     updating.checked()
     assert installer.ran == [], "a path closed by stay is not tried again on its own"
     updating.retry(Actor.user(1))
-    for thread in threading.enumerate():
-        if thread.name == "updates":
-            thread.join(10)
+    updates_joined()
     assert installer.ran == ["v4.99.0"] and paths.record() == {}, "retry installs the newest release again from the version still running, so its path starts at the step that failed"
 
 
@@ -18179,6 +18176,24 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
         team.close(server)
 
 
+def updates_joined() -> None:
+    import threading
+    for thread in threading.enumerate():
+        if thread.name == "updates":
+            thread.join(10)
+
+
+def came_back(updater: Updater, monkeypatch, version: str) -> None:
+    """The journal booted on the version an update went to: the version it runs and the card the update left."""
+    import time as timing
+    from journal.features.updates.support import updater as updater_module
+    from journal.features.updates.support.update_pause import UpdatePause
+    monkeypatch.setattr(updater_module, "VERSION", version)
+    updater.card.write(UpdatePause("4.0.0", version, "Restarting the journal", timing.time(), -1))
+    updater.reconcile(timing.time())
+    updates_joined()
+
+
 def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_installs_each_release_and_pins_the_team_to_it(app: App, monkeypatch):
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
@@ -18211,12 +18226,77 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
         user_set(app, "updates.auto", True)
         updater.card.clear()
         updater.checked()
-        assert installed[-1] == f"v{beyond}" and pins == [beyond], "with it on a hosted journal installs the newest release and pins the team to it"
+        assert installed[-1] == f"v{beyond}" and pins == [], "with it on a hosted journal installs the newest release, and pins the team to it only once it runs it"
         assert ended[-1] == (os.getpid(), signal.SIGTERM), "and ends its own process, which the team image starts again on the new code"
+        came_back(updater, monkeypatch, beyond)
+        assert pins == [beyond], "the journal that came back on the new release pins the team to it"
         app.container.get(TeamAccount).record_pull(0, f"{major}.{minor + 3}.0")
         updater.card.clear()
         updater.checked()
         assert pins == [beyond], "and never pins the team back to an older version than it is pinned to"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+
+
+def test_a_pinned_member_walks_the_steps_up_to_its_pin_and_never_past_it(app: App):
+    from journal.features.updates.support.update_path import UpdatePath
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.version import VERSION
+    major, minor, _ = (int(n) for n in VERSION.split("."))
+    version = lambda step: f"{major}.{minor + step}.0"
+    steps = json.dumps({version(3): {"step": True, "oldest": VERSION}, version(4): {"step": True, "oldest": VERSION}, version(8): {"step": True, "oldest": version(3)}, version(12): {"step": True, "oldest": version(8)}})
+    tags = [f"v{version(step)}" for step in (3, 4, 8, 10, 12)]
+    app.container.get(IdBlocks).add("settings", 800000, 800100)
+    try:
+        for pin, path in ((version(4), (version(4),)), (version(10), (version(4), version(8)))):
+            app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pin})
+            updating = updating_with(app, Source(*tags), Installer(), auto=False)
+            updating.read()
+            assert updating.target().ref == f"v{pin}", f"a member pinned to {pin} installs the pin and no newer release"
+            assert UpdatePath.planned(VERSION, pin, steps).versions == path, f"and its install walks the steps up to {pin}, never past it"
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+
+
+def test_a_hosted_leaders_path_takes_the_teams_lease_once_and_pins_the_team_once_its_last_step_is_in(app: App, monkeypatch):
+    import time as timing
+    from journal.features.updates.support.release_installer import ReleaseInstaller
+    from journal.features.updates.support.update_path_file import UpdatePathFile
+    from journal.features.updates.support.update_pause import UpdatePause
+    from journal.features.updates.support.updater import Updater
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.team_server_link import TeamServerLink
+    from journal.version import VERSION
+    from sync_server.team_summary import TeamSummary
+    major, minor, _ = (int(n) for n in VERSION.split("."))
+    final = f"{major}.{minor + 9}.0"
+    installed, pins = [], []
+    monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
+    monkeypatch.setattr(TeamServerLink, "summary", lambda self, address: TeamSummary("", True, app.container.get(TeamAccount).team_version()))
+    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: installed.append(ref))
+    monkeypatch.setattr(Updater, "is_drained", lambda self: installed.append("the team's upgrade lease") or True)
+    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": "4.0.0"})
+    try:
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        updater = app.container.get(Updater)
+        updater.source = Source(f"v{VERSION}", f"v{final}")
+        user_set(app, "updates.auto", True)
+        paths = app.container.get(UpdatePathFile)
+        paths.path.parent.mkdir(parents=True, exist_ok=True)
+        paths.path.write_text(json.dumps({"from": "4.0.0", "to": final, "steps": [VERSION], "reached": "4.0.0", "failed": ""}))
+        updater.card.write(UpdatePause("4.0.0", final, "Installing the new version", timing.time(), -1))
+        updater.reconcile(timing.time())
+        updater.checked()
+        updates_joined()
+        assert installed == [] and pins == [], "a boot on a step of the path neither pins the team nor takes its lease or starts another install"
+        came_back(updater, monkeypatch, final)
+        updater.reconcile(timing.time())
+        updates_joined()
+        assert pins == [final], "the team is pinned once, to the path's final version, once the last step is in"
     finally:
         (app.config.home / "hosted").unlink(missing_ok=True)
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)

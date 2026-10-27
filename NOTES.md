@@ -1869,3 +1869,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   `journal update retry` installs the newest release again from there, so its path starts at the failed step;
   `journal update stay` closes the path (stayed in the file) and the failed step is still not tried on its own. Any
   update a person starts clears the record.
+- Teams on a path: a pinned member's target is its pin exactly, and the walk ignores steps newer than its target, so it
+  goes up to the pin and never past it. A boot on a step of a walk runs no check: no pin, no sync drain, no upgrade
+  lease, no second install, so the drain and the lease run once per path, in the journal that started it. A hosted
+  leader no longer pins the team when its install starts (recorded): the journal that boots on the version the update
+  went to pins it, once, when its card comes down (Updater.reconcile), so a path pins only once its last step is in.
