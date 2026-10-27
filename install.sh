@@ -60,10 +60,10 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 HERE="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 TMP=""
+REPO="${AGENT_JOURNAL_REPO:-https://github.com/jessegall/agent-journal}"
 if [ -d "$HERE/src/journal" ]; then
   SRC="$HERE/src"
 else
-  REPO="${AGENT_JOURNAL_REPO:-https://github.com/jessegall/agent-journal}"
   REF="${AGENT_JOURNAL_REF:-main}"
   TMP="$(mktemp -d)"
   git clone --quiet --depth 1 --branch "$REF" "$REPO" "$TMP/pkg"
@@ -138,6 +138,44 @@ if [ -n "$installed" ] && [ -n "$bringing" ] && "$PY" -c 'import sys; v = lambda
     case "$answer" in y|Y|yes|Yes) ;; *) echo "Nothing changed: $installed stays."; exit 0 ;; esac
   fi
 fi
+# A journal further behind than one update reaches goes through the steps the update matrix proved, planned from
+# update_steps.json beside this script by the journal's own planner: each step is cloned and installed by its own
+# install.sh, so its own code runs its migrations, and this release is installed last. Where the walk stands is kept in
+# .journal/runtime/update-path.json; a step that fails stops it there, on the last good step. No path installs directly.
+PLAN='import sys
+from pathlib import Path
+from journal.features.updates.support.no_update_path import NoUpdatePath
+from journal.features.updates.support.update_path import UpdatePath
+installed, bringing, steps = sys.argv[1:]
+try:
+    print(*(version for version in UpdatePath.planned(installed, bringing, Path(steps).read_text()).versions if version != bringing))
+except NoUpdatePath as reason:
+    sys.exit(f"no path of steps leads from {installed} to {bringing} ({reason}), so {bringing} is installed directly")'
+path_written() {
+  printf '{"from": "%s", "to": "%s", "steps": [%s], "reached": "%s", "failed": "%s"}\n' "$installed" "$bringing" "$(printf '"%s", ' $path | sed 's/, $//')" "$1" "$2" > .journal/runtime/update-path.json
+}
+path=""
+if [ -n "$installed" ] && [ -n "$bringing" ] && [ -f "$SRC/../update_steps.json" ]; then
+  path=$(PYTHONPATH="$SRC" "$PY" -c "$PLAN" "$installed" "$bringing" "$SRC/../update_steps.json") || path=""
+fi
+if [ -n "$path" ]; then
+  mkdir -p .journal/runtime
+  reached="$installed"
+  echo "updating from $installed to $bringing through $path"
+  for step in $path; do
+    path_written "$reached" ""
+    step_tmp="$(mktemp -d)"
+    if ! { git clone --quiet --depth 1 --branch "v$step" "$REPO" "$step_tmp/pkg" && sh "$step_tmp/pkg/install.sh"; }; then
+      rm -rf "$step_tmp"
+      path_written "$reached" "$step"
+      echo "the update stopped at $reached: the step to $step failed, and $reached stays installed" >&2
+      exit 1
+    fi
+    rm -rf "$step_tmp"
+    reached="$step"
+  done
+  path_written "$reached" ""
+fi
 mkdir -p .journal/src
 printf '%s\n' "$PY" > .journal/python
 # While the code is copied and set up, the running journal is told it is starting, so it does not take the copying
@@ -165,3 +203,4 @@ printf '%s\n' "$commit" > .journal/src/commit
 echo "installed commit $commit from $SRC"
 [ -z "$TMP" ] || rm -rf "$TMP"
 JOURNAL_ROOT="$PWD" "$PY" .journal/src/journal.py setup
+[ -z "$path" ] || path_written "$bringing" ""

@@ -1855,3 +1855,10 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   update_steps.json from the tag's tree at the same raw address as install.sh (release_installer.py), never as a
   release asset. .githooks/pre-push refuses a v* tag whose own update_steps.json does not name its version as a step or
   as no step. JOURNAL_SKIP_UPDATE_MATRIX=1 skips the matrix in a real hurry and makes that release no step.
+- The path is walked by install.sh itself, so a journal of any age benefits: an old updater already starts the newest
+  release's install.sh. It plans with UpdatePath (features/updates/support/update_path.py) from the installed version
+  to its own, over the update_steps.json of its own tree, steps newer than its own ignored. Each step before its own is
+  cloned by tag and installed by that tag's install.sh, so the step's code runs its migrations; then it installs itself.
+  A failed step stops the walk with the step before it installed. .journal/runtime/update-path.json holds from, to,
+  steps, reached and failed; the walk writes it and nothing clears it. No path (no file, a gap, a malformed file)
+  installs directly, as before.

@@ -7,13 +7,13 @@ from journal.support.release import Release
 
 @dataclass(frozen=True)
 class UpdatePath:
-    """The releases an update installs one after another to reach the newest step of update_steps.json, each the newest step that accepts the version before it."""
+    """The releases an update installs one after another to reach the newest step of update_steps.json up to the version it installs, each the newest step that accepts the version before it."""
 
     versions: tuple[str, ...]
 
     @classmethod
-    def planned(cls, installed: str, steps_text: str) -> "UpdatePath":
-        steps, current, versions = cls.steps(steps_text), Release(installed), []
+    def planned(cls, installed: str, target: str, steps_text: str) -> "UpdatePath":
+        steps, current, versions = {step: oldest for step, oldest in cls.steps(steps_text).items() if not step.is_newer(Release(target))}, Release(installed), []
         while reachable := [step for step, oldest in steps.items() if step.is_newer(current) and not oldest.is_newer(current)]:
             current = max(reachable, key=lambda step: step.numbers)
             versions.append(current.version)
