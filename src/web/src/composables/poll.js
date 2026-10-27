@@ -8,7 +8,6 @@ const STATUS_CAP_MS = 3000;
 const SLOW_FACTOR = 4;
 const WAKE_SPREAD_MS = 300;
 const POKE_GAP_MS = 1000;
-const UNSEEN_FACTOR = 10;
 const FALLBACK_EVERY_MS = 5000;
 // The least time between two reads of one on-demand poller's run, unless the poller declares its own `least`.
 const LEAST_MS = 1000;
@@ -37,17 +36,18 @@ const newest = (run) => [...run.users.values()].pop();
 const kept = (run) => runs.get(run.place) === run;
 const staggered = () => Math.random() * WAKE_SPREAD_MS;
 
-export const unseen = () => document.hidden || !document.hasFocus();
+// a tab in front keeps asking, on any monitor; one hidden asks nothing until it is shown again
+export const unseen = () => document.hidden;
 
 function pause(run) {
-    const every = interval(run) * (unseen() ? UNSEEN_FACTOR : 1);
+    const every = interval(run);
     if (run.failures) return jittered(Math.min(run.key === STATUS_POLL ? STATUS_CAP_MS : BACKOFF_CAP_MS, every * 2 ** run.failures));
     return Math.max(every, SLOW_FACTOR * run.took);
 }
 
 function later(run, ms) {
     clearTimeout(run.timer);
-    if (!kept(run) || run.paused) return;
+    if (!kept(run) || run.paused || unseen()) return;
     run.timer = setTimeout(() => round(run), ms);
 }
 
@@ -61,7 +61,7 @@ function round(run) {
     return run.running;
 }
 
-const asked = (run) => !run.paused && (entryOf(run.key).active?.() ?? true) && newest(run).active() && (!covered() || run.key === STATUS_POLL);
+const asked = (run) => !run.paused && !unseen() && (entryOf(run.key).active?.() ?? true) && newest(run).active() && (!covered() || run.key === STATUS_POLL);
 
 async function answer(run) {
     const started = performance.now();
@@ -156,11 +156,9 @@ export function wakePolls() {
     });
 }
 
-const seen = () => runs.forEach((run) => later(run, unseen() ? pause(run) : staggered()));
+const seen = () => unseen() || runs.forEach((run) => later(run, staggered()));
 
 document.addEventListener("visibilitychange", seen);
-window.addEventListener("focus", seen);
-window.addEventListener("blur", seen);
 
 function leave(place, token) {
     const run = runs.get(place);

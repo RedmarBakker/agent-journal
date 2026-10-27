@@ -101,28 +101,23 @@ describe("a poll", () => {
         expect(healthy.mock.calls.length).toBe(h);
     });
 
-    test("a page out of view or out of focus asks ten times less often and a shown one asks at its pace again", async () => {
+    test("a hidden tab asks nothing, a shown one asks once at once and then at its pace again, and focus makes no difference to a shown one", async () => {
         const ask = vi.fn().mockResolvedValue("ok");
         begin(ask, 1000);
         await passed(0);
+        expect(ask).toHaveBeenCalledTimes(1);
         Object.defineProperty(document, "hidden", {configurable: true, value: true});
         document.dispatchEvent(new Event("visibilitychange"));
-        await passed(5000);
+        await passed(60000);
         expect(ask).toHaveBeenCalledTimes(1);
-        await passed(5000);
-        expect(ask).toHaveBeenCalledTimes(2);
         Object.defineProperty(document, "hidden", {configurable: true, value: false});
         document.dispatchEvent(new Event("visibilitychange"));
         await passed(500);
-        expect(ask).toHaveBeenCalledTimes(3);
+        expect(ask).toHaveBeenCalledTimes(2);
         document.hasFocus.mockReturnValue(false);
         window.dispatchEvent(new Event("blur"));
-        await passed(5000);
+        await passed(1000);
         expect(ask).toHaveBeenCalledTimes(3);
-        document.hasFocus.mockReturnValue(true);
-        window.dispatchEvent(new Event("focus"));
-        await passed(500);
-        expect(ask).toHaveBeenCalledTimes(4);
     });
 
     test("an inactive poll asks nothing and a stopped one stays stopped", async () => {

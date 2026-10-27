@@ -81,11 +81,24 @@ function poll() {
     clearInterval(asking);
     startOutbox(route.value.env);
     store.streamOpen = false;
+    askAgain();
     asking = setInterval(askAgain, ASK_EVERY);
 }
 
+// A hidden tab holds no stream and asks for no entries; shown again it opens the stream after the newest entry it holds.
+function hush() {
+    clearInterval(watching);
+    clearInterval(asking);
+    if (source) source.close();
+    source = null;
+    store.streamOpen = false;
+}
+
+document.addEventListener("visibilitychange", () => listen());
+
 // The stream starts after the newest entry the page holds, so a change made while it was away or reconnecting is sent, not skipped.
 export function listen() {
+    if (document.hidden) return hush();
     if (onPhone) return poll();
     if (source) source.close();
     store.streamOpen = false;

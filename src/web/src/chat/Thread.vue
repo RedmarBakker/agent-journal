@@ -14,6 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
+import {useTabReturn} from "../composables/tabReturn.js";
 import {POINTER_GONE_MS, usePointerPresence} from "../composables/pointerPresence.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
@@ -194,6 +195,7 @@ const thread = computed(() =>
 );
 watch(thread, (made) => made.keys.forEach((placeholder, ref) => link(ref, placeholder)), {immediate: true});
 const turns = computed(() => withDayLines(thread.value.turns));
+const tab = useTabReturn(() => turns.value.length);
 const turnsLoaded = computed(() => scope.loaded("messages"));
 watch(turns, keep);
 
@@ -482,6 +484,7 @@ watch(
             laidOut.value += 1;
         }
         if (loadingOlder.value) return;
+        if (tab.caughtUp(n)) return toBottom(false);
         if (!away.value && settledOnce.value) glidedAt = Date.now();
         arrived(n - (before || 0), settledOnce.value);
         if (n && !settledOnce.value) setTimeout(() => (settledOnce.value = true), 300);
@@ -489,6 +492,7 @@ watch(
     {immediate: true}
 );
 const {colleague, me} = useColleague();
+
 </script>
 
 <template>

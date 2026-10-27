@@ -93,6 +93,10 @@ SETS = {
     "worker_stopped_card": (
         "tests/workerStoppedCard.test.js",
     ),
+    "hidden_tab": (
+        "tests/poll.test.js",
+        "tests/hiddenTab.test.js",
+    ),
     "flowchart": (
         "tests/flowchart.test.js",
     ),
