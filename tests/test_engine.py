@@ -1490,9 +1490,9 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     from journal.events.rows.task_started import TaskStarted
     from journal.features.tasks.states.choosing_paused_work import ChoosingPausedWork
     from journal.features.workers.states.orchestrating import Orchestrating
-    choosing = replace(paused, choosable=(2,), choosable_summary="task 2 (the parser), paused because: a review first", free_open=True, agent_tasks=(2, 4))
+    choosing = replace(paused, choosable=(2,), choosable_summary="task 2", free_open=True, agent_tasks=(2, 4))
     pushed = stop(of(choosing))
-    assert pushed.pushed == ChoosingPausedWork(refusals=1) and pushed.refusal.key == TasksNudges.PAUSED_CHOICE.key and pushed.refusal.values["tasks"].startswith("task 2 (the parser)"), "a stop with paused work beside an open task pushes the choice with its one line"
+    assert pushed.pushed == ChoosingPausedWork(refusals=1) and pushed.refusal.key == TasksNudges.PAUSED_CHOICE.key and pushed.refusal.values["tasks"] == "task 2", "a stop with paused work beside an open task pushes the choice with its one line"
     assert stop(of(replace(choosing, paused_declined=True))).pushed is None and stop(of(replace(choosing, free_open=False))).pushed is None, "a declined choice, or no open task to weigh against, pushes no choice"
     assert stop(of(replace(choosing, choosable=())), manual).pushed is None and Orchestrating().choice_state() is None, "off auto mode the reader names no choosable work, and on the orchestrator's floor there is no choice"
     choice = ChoosingPausedWork()
@@ -2199,6 +2199,19 @@ def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_
     assert Compacting().respond(TurnDisplayed(text="Done."), settings).popped, "and so do the agent's words shown"
     resumed = Compacting().on_resume(FeatureData({}), settings)
     assert resumed.popped, "a state pushed over it popping leaves it no longer compacting, so typing comes back"
+
+
+def test_a_compaction_start_is_handed_down_whole_so_the_start_block_comes_once_and_the_overview_state_is_pushed(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    hook(app, "PreCompact", trigger="auto")
+    status, answer = hook(app, "SessionStart", source="compact")
+    context = json.dumps(answer)
+    assert status == 200 and context.count("the journal is ready on") == 1, "the state beneath hears the start once, so the start block is not sent twice: " + context[:400]
+    assert app.container.get(Agents).session_agent("s1").stack[-1]["state"] == "reading_overview", "and the push of the overview state is taken, not dropped on the compacting state"
+    with app.container.get(Scope).environment(1):
+        moves = app.container.get(Entries).selected(app.container.get(Entries).query().filter(kind="state"))
+    assert not any(entry.data.get("dropped") for entry in moves), "no listener answered the start while the compacting state was still on top"
 
 
 def compaction_that_never_started(app: App, monkeypatch, between) -> list:

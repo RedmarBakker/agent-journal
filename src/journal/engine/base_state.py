@@ -36,7 +36,7 @@ class BaseState:
         event.propagation.reset()
         for listener in listeners:
             answers.append(listener(self, event, settings))
-            if not event.propagation.ongoing:
+            if answers[-1].handed_down or not event.propagation.ongoing:
                 break
         return Transition.merged(self, answers)
 

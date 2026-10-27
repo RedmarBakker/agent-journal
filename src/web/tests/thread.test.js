@@ -104,11 +104,11 @@ describe("marks of one family", () => {
     const memory = (id, seconds) => card(id, seconds, {kind: "card", shows: "memories"}, `Fact ${id} saved`);
     const said = (id, seconds) => message(id, seconds, {text: "go on"});
 
-    test("three of one family standing together fold into one group mark naming the family and the count, and one worker's marks fold by the worker", async () => {
+    test("three of one family standing together fold into one group mark naming the family and its count of updates, never a count of rows made, and one worker's marks fold by the worker", async () => {
         const {store} = await import("../src/state/store.js");
         store.spec = {marks: registry};
         const [group] = turns([move(1, 1, "Task 1 started"), move(2, 2, "Task 2 completed"), move(3, 3, "Task 3 paused")]);
-        expect([group.kind, group.title, group.turns.map((t) => t.id)]).toEqual(["group", "3 task moves", [1, 2, 3]]);
+        expect([group.kind, group.title, group.turns.map((t) => t.id)]).toEqual(["group", "Task moves: 3 updates", [1, 2, 3]]);
         const worker = (id, seconds) => card(id, seconds, {kind: "card", worker: "Mr. Eames", shows: "task_moves"}, `step ${id}`);
         expect(turns([worker(4, 4), worker(5, 5), worker(6, 6)])[0].title).toBe("Mr. Eames: 3 events");
         store.spec = null;
@@ -118,7 +118,7 @@ describe("marks of one family", () => {
         const {store} = await import("../src/state/store.js");
         store.spec = {marks: registry};
         const got = turns([move(1, 1), move(2, 2), move(3, 3), said(4, 4), memory(5, 5), move(6, 6)]);
-        expect(got.map((t) => (t.kind === "group" ? t.title : t.id))).toEqual(["3 task moves", 4, 5, 6]);
+        expect(got.map((t) => (t.kind === "group" ? t.title : t.id))).toEqual(["Task moves: 3 updates", 4, 5, 6]);
         store.spec = null;
     });
 });

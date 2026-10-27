@@ -195,12 +195,13 @@ const settledWords = (run) => {
     return settled.length ? `, ${settled.length} ${settled[0].data.settled}` : "";
 };
 
-// what a card's marks fold by: one worker's own marks, else the family its kind belongs to, else the very same mark repeated
+// what a card's marks fold by: one worker's own marks, else the family its kind belongs to, named with its count of updates so
+// "Tasks: 3 updates" never reads as three tasks made, else the very same mark repeated
 function cardGroup(t) {
     const look = {icon: t.data.icon, tone: t.data.tone, color: t.data.color, group: t.data.group, markIcon: t.data.markIcon};
     if (t.data.worker) return {...look, key: `worker:${t.data.worker}`, label: (n) => `${t.data.worker}: ${n} events`};
     const family = familyOf(t.data.shows);
-    if (family) return {...look, key: `family:${family.key}`, label: (n, run) => `${n} ${family.title.toLowerCase()}${settledWords(run)}`};
+    if (family) return {...look, key: `family:${family.key}`, label: (n, run) => `${family.title}: ${n} updates${settledWords(run)}`};
     return {...look, key: `card:${t.data.icon}:${t.data.label}`, label: (n, run) => `${n} × ${t.data.label}${settledWords(run)}`};
 }
 
