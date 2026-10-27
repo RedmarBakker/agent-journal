@@ -10705,7 +10705,7 @@ def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wr
     assert classify("sh -c 'rm -rf x'").is_write and classify("ssh host 'rm -rf /tmp/x'").effects == ("deletes_files", "reaches_network"), "a line handed to a shell or a host is read too"
     assert classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").uncertain and "writes_files" in classify("python3 -c 'open(\"f\", \"w\").write(\"x\")'").effects, "interpreter code is uncertain, its writes read by content"
     assert not classify("./scripts/x.sh").is_write and classify("git checkout main").is_write and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
-    assert classify("cd x && make test").command_type == "test run" and classify("Get-ChildItem -Recurse").command_type == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
+    assert classify("cd x && make test").command_type == "test run" and classify("Get-ChildItem -Recurse").command_type == "read" and classify("Frobnicate-Thing -Now").command_type == "unknown", "a chain takes its weightiest part; a PowerShell cmdlet the table knows is read, another unknown"
     assert app.container.get(CommandClassifier) is app.container.get(CommandClassifier), "the table is read once"
 
 

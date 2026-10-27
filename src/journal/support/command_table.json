@@ -2539,9 +2539,7 @@
   },
   "jq": {
    "kind": "read",
-   "effects": [
-    "reads_files"
-   ]
+   "effects": []
   },
   "just": {
    "base": {
@@ -4515,17 +4513,7 @@
   },
   "yq": {
    "kind": "read",
-   "effects": [
-    "reads_files"
-   ],
-   "modifiers": {
-    "-i": {
-     "kind": "edit",
-     "effects": [
-      "writes_files"
-     ]
-    }
-   }
+   "effects": []
   },
   "yum": {
    "base": {
@@ -4585,6 +4573,705 @@
    "interpreted": true,
    "runs_script_file": true,
    "starts_processes": true
+  },
+  "exit": {
+   "kind": "read",
+   "effects": []
+  },
+  "local": {
+   "kind": "read",
+   "effects": []
+  },
+  "trap": {
+   "kind": "read",
+   "effects": []
+  },
+  "break": {
+   "kind": "read",
+   "effects": []
+  },
+  "continue": {
+   "kind": "read",
+   "effects": []
+  },
+  "return": {
+   "kind": "read",
+   "effects": []
+  },
+  "shift": {
+   "kind": "read",
+   "effects": []
+  },
+  "readonly": {
+   "kind": "read",
+   "effects": []
+  },
+  "declare": {
+   "kind": "read",
+   "effects": []
+  },
+  "typeset": {
+   "kind": "read",
+   "effects": []
+  },
+  "alias": {
+   "kind": "read",
+   "effects": []
+  },
+  "umask": {
+   "kind": "read",
+   "effects": []
+  },
+  "getopts": {
+   "kind": "read",
+   "effects": []
+  },
+  "shopt": {
+   "kind": "read",
+   "effects": []
+  },
+  "let": {
+   "kind": "read",
+   "effects": []
+  },
+  "Write-Host": {
+   "kind": "read",
+   "effects": []
+  },
+  "Write-Output": {
+   "kind": "read",
+   "effects": []
+  },
+  "Write-Error": {
+   "kind": "read",
+   "effects": []
+  },
+  "Write-Verbose": {
+   "kind": "read",
+   "effects": []
+  },
+  "throw": {
+   "kind": "read",
+   "effects": []
+  },
+  "foreach": {
+   "kind": "read",
+   "effects": []
+  },
+  "Set-Location": {
+   "kind": "read",
+   "effects": []
+  },
+  "Get-ChildItem": {
+   "kind": "read",
+   "effects": []
+  },
+  "Get-Content": {
+   "kind": "read",
+   "effects": []
+  },
+  "Test-Path": {
+   "kind": "read",
+   "effects": []
+  },
+  "Get-Command": {
+   "kind": "read",
+   "effects": []
+  },
+  "Select-String": {
+   "kind": "read",
+   "effects": []
+  },
+  "$env:PATH": {
+   "kind": "read",
+   "effects": []
+  },
+  "apk": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "choco": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "pacman": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "pixi": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "mise": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "ghcup": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "winget": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "scoop": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "snap": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "zypper": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "conda": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "mamba": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "melos": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "opam": {
+   "base": {
+    "kind": "package",
+    "effects": [
+     "reaches_network",
+     "makes_files",
+     "runs_long"
+    ],
+    "label": "installing"
+   }
+  },
+  "rustup": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running rustup"
+   }
+  },
+  "cabal": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "stack": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "dune": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "meson": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "mill": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "bake": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "mvnw": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "./mvnw": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "./gradlew": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "$(MAKE)": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "$(CC)": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "$(CXX)": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "msbuild": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "bb": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "clojure": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "lein": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "elm": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "nim": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "odin": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building"
+  },
+  "$(INSTALL)": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "$(INSTALL_DATA)": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "$(INSTALL_PROGRAM)": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Copy-Item": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "New-Item": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Remove-Item": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Move-Item": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Compress-Archive": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Expand-Archive": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "7z": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "useradd": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "adduser": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "groupadd": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "usermod": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "setfacl": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "codesign": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "security": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "PlistBuddy": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "reg": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "gpg": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "cosign": {
+   "kind": "edit",
+   "effects": [
+    "writes_files"
+   ]
+  },
+  "Invoke-WebRequest": {
+   "kind": "network",
+   "effects": [
+    "reaches_network"
+   ]
+  },
+  "Invoke-RestMethod": {
+   "kind": "network",
+   "effects": [
+    "reaches_network"
+   ]
+  },
+  "kubectl": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running kubectl"
+   }
+  },
+  "helm": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running helm"
+   }
+  },
+  "adb": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running adb"
+   }
+  },
+  "xcrun": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running xcrun"
+   }
+  },
+  "julia": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running julia"
+   }
+  },
+  "Rscript": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running Rscript"
+   }
+  },
+  "nvim": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running nvim"
+   }
+  },
+  "java": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running java"
+   }
+  },
+  "losetup": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running losetup"
+   }
+  },
+  "bc": {
+   "kind": "read",
+   "effects": []
+  },
+  "az": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running az"
+   }
+  },
+  "gcloud": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running gcloud"
+   }
+  },
+  "ansible-playbook": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running ansible-playbook"
+   }
+  },
+  "packer": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running packer"
+   }
+  },
+  "vagrant": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running vagrant"
+   }
   }
  }
 }

@@ -1146,6 +1146,49 @@ def test_a_line_longer_than_its_longest_is_cut_when_sent_and_the_cut_recorded(jo
     journal.reset()
 
 
+@pytest.mark.parametrize(("template", "values", "longest", "expected"), [
+    ("the files: {{files}}", {"files": "a" * 109}, 120, "the files: " + "a" * 109),
+    ("the files: {{files}}", {"files": "a" * 110}, 120, "the files: " + "a" * 48 + "…" + "a" * 60),
+    ("{{command}} share a title: give each a label", {"command": "ssh " + "x" * 300}, 120, ("ssh " + "x" * 300)[:59] + "…" + ("x" * 300 + " share a title: give each a label")[-60:]),
+    ("run `{{command|cap=20}}` again", {"command": "y" * 50}, 120, "run `" + "y" * 19 + "…` again"),
+    ("run `{{command|cap=20}}` again", {"command": "short"}, 120, "run `short` again"),
+    ("the voice: {{voice}}", {"voice": "v" * 300}, 400, "the voice: " + "v" * 300),
+    ("the voice: {{voice}}", {"voice": "v" * 500}, 400, "the voice: " + "v" * 328 + "…" + "v" * 60),
+    ("a line with no values at all", {}, 120, "a line with no values at all"),
+    ("the name: {{name}}", {"name": "é" * 130}, 120, "the name: " + "é" * 49 + "…" + "é" * 60),
+    ("the name: {{name}}", {"name": ""}, 120, "the name: "),
+    ("{{first}} and {{second}}: keep this end", {"first": "f" * 80, "second": "s" * 80}, 120, ("f" * 80 + " and " + "s" * 80 + ": keep this end")[:59] + "…" + ("s" * 80 + ": keep this end")[-60:]),
+])
+def test_a_long_line_is_cut_in_its_middle_so_its_end_stays_and_a_capped_value_never_crowds_it(journal: SharedJournal, template, values, longest, expected):
+    app = journal.app
+    nudge = Nudge("engine", "test_edge_line", template, longest_characters=longest, longest_reason="a test of the cut" if longest > 120 else "")
+    app.container.get(NudgeRegistry).register(nudge)
+    hook(app, "SessionStart")
+    sent = app.container.get(Nudger).answer(app.container.get(Agents).session_agent("s1"), nudge.create(**values))
+    assert sent == expected and len(sent) <= longest, (len(sent), sent)
+    with app.container.get(Scope).environment(1):
+        cut = [entry.data["cut_from"] for entry in app.container.get(Entries).cut_lines()]
+    assert cut == ([len(nudge.create(**values).rendered())] if len(nudge.create(**values).rendered()) > longest else []), "a cut is recorded with the length it was cut from, and only a cut"
+    journal.reset()
+
+
+def test_a_cut_line_repeats_on_its_own_schedule_never_at_every_tool_use(journal: SharedJournal):
+    app = journal.app
+    nudge = Nudge("engine", "test_repeated_edge_line", "{{command}} share a title: give each a label", repeat=Timeout.seconds(60))
+    app.container.get(NudgeRegistry).register(nudge)
+    hook(app, "SessionStart")
+    agent, nudger, clock = app.container.get(Agents).session_agent("s1"), app.container.get(Nudger), app.container.get(TimeSource)
+    line = nudge.create(command="gh run watch " + "z" * 300)
+    start = clock.seconds()
+    clock.pin(start)
+    first, again = nudger.deliver(agent, line), nudger.deliver(agent, line)
+    clock.pin(start + 61)
+    later = nudger.deliver(agent, line)
+    clock.unpin()
+    assert first and first.endswith("share a title: give each a label") and again is None and later == first, "sent, dropped within its minute, sent again after it, the instruction kept each time"
+    journal.reset()
+
+
 def test_the_engines_own_states_wait_compacting_and_ended_answer_hand_built_events():
     settings, owned = SettingsValue({}), ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {})))
     assert Wait().respond(PromptSubmitted(prompt="go on"), settings).popped
