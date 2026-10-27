@@ -235,7 +235,7 @@ class Routes:
         self.listed(router, "messages", messages)
         router.post(f"{API}/messages", messages.store)
         router.post(f"{API}/messages/{{id}}", messages.update)
-        self.acts(router, "messages", messages, "read", "reply", "delete", "react", "press", "dock", "undock")
+        self.acts(router, "messages", messages, "read", "reply", "delete", "react", "press", "dock", "unpin", "undock")
         router.post(f"{API}/messages/{{id}}/files", messages.attach)
         router.get(f"{API}/chats/{{session}}", messages.agent_chat)
         router.get(f"{API}/reactions", get(ReactionController).index)

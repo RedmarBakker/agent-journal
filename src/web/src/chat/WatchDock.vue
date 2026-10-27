@@ -11,7 +11,7 @@ import OutputLines from "../kit/OutputLines.vue";
 import DockLeave from "./DockLeave.vue";
 import RunStop from "./RunStop.vue";
 import {useScope} from "../composables/scope.js";
-import {holdDock, keepDocked, releaseDock, undock} from "../actions/docking.js";
+import {holdDock, pinDock, releaseDock, undock, unpinDock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
 import {isLeaving} from "../domain/docks.js";
 import {createdAt} from "../domain/row.js";
@@ -60,10 +60,10 @@ async function read() {
     if (!colleague.value && card.value.output) await pages.poll();
 }
 
-// a card the journal docked by itself is kept once the user opens or folds it, or presses Keep; while it closes by itself, pointing at
-// it holds it in place
+// a card leaves once its run ends unless the user pinned it; while it closes by itself, pointing at it holds it in place
 const leaving = computed(() => isLeaving(props.message));
-const keep = () => card.value.auto_docked && keepDocked(scope, props.message);
+const pinned = computed(() => Boolean(card.value.pinned));
+const togglePin = () => (pinned.value ? unpinDock : pinDock)(scope, props.message);
 const pointed = () => leaving.value && !card.value.held_at && holdDock(props.message);
 const left = () => card.value.held_at && releaseDock(props.message);
 // a card taken away under the pointer, as when docked runs fold into their row, hears no pointer leave: it lets its hold go as it goes
@@ -75,7 +75,6 @@ function toggle() {
         shown.value = true;
         read();
     }
-    keep();
 }
 
 watch(
@@ -117,9 +116,16 @@ watch(
             <template v-if="ranFor">
                 <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
-            <template v-if="leaving">
-                <button type="button" class="watch-dock-keep" data-tip="Keep this card here until you close it" @click="keep">Keep</button>
-            </template>
+            <Btn
+                kind="icon"
+                :class="['watch-dock-pin', {pinned}]"
+                :aria-pressed="pinned"
+                :title="pinned ? 'Unpin: the card leaves once its run ends' : 'Pin: the card stays after its run ends, until you close it'"
+                :aria-label="pinned ? 'Unpin the card' : 'Pin the card'"
+                @click="togglePin"
+            >
+                <Icon name="pin" />
+            </Btn>
             <Btn kind="icon" class="watch-dock-ask" title="Ask about this" aria-label="Ask about this" @click="askAbout">
                 <Icon name="bubble" />
             </Btn>
@@ -246,55 +252,9 @@ watch(
     opacity: 1;
 }
 
-/* a quiet word that keeps a card the journal would close by itself */
-.watch-dock-keep {
-    position: relative;
-    flex: none;
-    padding: 2px 6px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--text-3);
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-    animation: keep-in 0.3s ease;
-}
-
-.watch-dock-keep:hover {
-    background: var(--hover);
-    color: var(--text);
-}
-
-.watch-dock-keep::after {
-    content: attr(data-tip);
-    position: absolute;
-    right: -2px;
-    bottom: calc(100% + 7px);
-    z-index: 20;
-    padding: 4px 9px 5px;
-    border: 1px solid var(--tip-edge);
-    border-radius: 7px;
-    background: var(--tip-bg);
-    box-shadow: var(--tip-shadow);
-    color: var(--text);
-    font-size: 12px;
-    line-height: 1.4;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s ease;
-}
-
-.watch-dock-keep:hover::after {
-    opacity: 1;
-    transition-delay: 0.45s;
-}
-
-@keyframes keep-in {
-    from {
-        opacity: 0;
-    }
+/* the pin turns the accent colour while the card is pinned */
+.watch-dock-pin.pinned {
+    color: var(--accent);
 }
 
 .leave-fade-leave-active {

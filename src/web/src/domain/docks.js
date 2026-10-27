@@ -28,7 +28,7 @@ export function keptRuns(runs, most = MOST_DOCKED_RUNS) {
 }
 
 // Whether a docked card closes by itself: one the journal docked, once its run ended, until the user keeps it
-export const isLeaving = (m) => Boolean(m.data.auto_docked && m.data.undock_at);
+export const isLeaving = (m) => Boolean(!m.data.pinned && m.data.undock_at);
 
 // Every row docked above the chat, in the order each docked: a system message whose data carries docked and the row's card. The
 // newest sits at the bottom, nearest the composer, pushing the earlier ones up, and none changes place as it updates.

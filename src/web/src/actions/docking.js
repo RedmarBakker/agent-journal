@@ -9,17 +9,25 @@ export function undock(scope, message) {
     );
 }
 
-// Keeps a card the journal docked by itself above the chat once the user has opened it: it no longer leaves when its run ends,
-// only when the user closes it.
-export function keepDocked(scope, message) {
+// Pins a run's card above the chat: it no longer leaves when its run ends, only when the user closes it.
+export function pinDock(scope, message) {
     patched(
         message,
-        (row) => (row.data = {...row.data, auto_docked: false, undock_at: null}),
+        (row) => (row.data = {...row.data, pinned: true, undock_at: null}),
         () => scope.api.act("messages", message.id, "dock")
     );
 }
 
-// Holds a card the journal docked by itself in place while the user points at it, in this viewer alone: its time to close waits
+// Unpins a run's card: it leaves a few seconds after its run ends, or then from now when the run has already ended.
+export function unpinDock(scope, message) {
+    patched(
+        message,
+        (row) => (row.data = {...row.data, pinned: false}),
+        () => scope.api.act("messages", message.id, "unpin")
+    );
+}
+
+// Holds a card that is leaving in place while the user points at it, in this viewer alone: its time to close waits
 // until the pointer leaves, and then goes on for as long as it had left.
 export function holdDock(message) {
     message.data = {...message.data, held_at: Date.now() / 1000};

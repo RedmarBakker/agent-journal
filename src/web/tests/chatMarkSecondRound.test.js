@@ -209,16 +209,16 @@ test("4. the chevron points down while folded and turns 180 degrees once open, o
 });
 
 test("5a. the closing line lies inside the docked card along its top edge, its full width", async () => {
-    const docked = reactive(watched(8, {auto_docked: true, undock_at: now() + 3, ending: "finished", outcome: "passed"}));
+    const docked = reactive(watched(8, {undock_at: now() + 3, ending: "finished", outcome: "passed"}));
     const host = await mounted(WatchDock, {message: docked});
     expect(host.querySelector(".chat-dock-card > .dock-leave")).not.toBeNull();
     expect(source("src/chat/DockLeave.vue")).toMatch(/\.dock-leave \{\s*position: absolute;\s*top: 0;\s*right: 0;\s*left: 0;/);
 });
 
-test("5. a card the journal docked by itself runs a line down its top edge before it closes, held while pointed at, and kept by Keep", async () => {
+test("5. a docked run not pinned runs a line down its top edge before it closes, held while pointed at; its pin keeps it and a second press lets it go", async () => {
     const act = vi.spyOn(api, "act").mockResolvedValue({});
     const ends = now() + 3;
-    const docked = reactive(watched(7, {auto_docked: true, undock_at: ends, ending: "finished", outcome: "passed"}));
+    const docked = reactive(watched(7, {undock_at: ends, ending: "finished", outcome: "passed"}));
     const host = await mounted(WatchDock, {message: docked});
     const line = host.querySelector(".dock-leave i");
     expect(Number.parseFloat(line.style.animationDelay)).toBeCloseTo(-2, 0);
@@ -230,12 +230,17 @@ test("5. a card the journal docked by itself runs a line down its top edge befor
     expect(docked.data.held_at).toBeUndefined();
     expect(docked.data.undock_at).toBeGreaterThanOrEqual(ends);
     expect(isDocked(docked, ends + 60)).toBe(false);
-    const keep = host.querySelector(".watch-dock-keep");
-    expect([keep.textContent.trim(), keep.dataset.tip]).toEqual(["Keep", "Keep this card here until you close it"]);
-    keep.click();
+    const pin = host.querySelector(".watch-dock-pin");
+    expect([pin.getAttribute("aria-label"), pin.getAttribute("aria-pressed")]).toEqual(["Pin the card", "false"]);
+    pin.click();
     await flush();
     expect(act).toHaveBeenCalledWith("messages", 7, "dock");
-    expect(docked.data.auto_docked).toBe(false);
+    expect([docked.data.pinned, docked.data.undock_at]).toEqual([true, null]);
+    expect(isDocked(docked, ends + 60)).toBe(true);
+    host.querySelector(".watch-dock-pin").click();
+    await flush();
+    expect(act).toHaveBeenCalledWith("messages", 7, "unpin");
+    expect(docked.data.pinned).toBe(false);
     expect(source("src/chat/DockLeave.vue")).toMatch(/top: 0;\s*right: 0;\s*left: 0;/);
     expect(source("src/kit/ChatDock.vue")).toMatch(/\.chat-dock\.timed\.dock-leave-to \.chat-dock-card \{\s*transform: translateY\(6px\);/);
 });
@@ -251,7 +256,7 @@ test("6. from three docked runs they share one row of chips until one is left; i
     }
     expect(seen).toEqual([false, false, true, true, false]);
     const act = vi.spyOn(api, "act").mockResolvedValue({});
-    const three = [watched(1), watched(2, {auto_docked: true}), watched(3)];
+    const three = [watched(1), watched(2), watched(3)];
     const host = await mounted(DockGroup, {runs: three, grouped: true});
     expect(host.querySelector(".dock-group-toggle").textContent.trim()).toBe("3 runs");
     expect(host.querySelectorAll(".run-chip").length).toBe(3);
@@ -260,7 +265,7 @@ test("6. from three docked runs they share one row of chips until one is left; i
     await folds();
     const folded = [...host.querySelectorAll(".chat-dock-body")].map((body) => body.classList.contains("folded"));
     expect(folded).toEqual([true, false, true]);
-    expect(act).toHaveBeenCalledWith("messages", 2, "dock");
+    expect(act).not.toHaveBeenCalled();
     expect(host.querySelector(".dock-group-head").textContent.trim()).toBe("3 runs");
     host.querySelector(".dock-group-head .dock-group-toggle").click();
     await folds();
@@ -321,7 +326,7 @@ test("8. docked runs fold into their row and out of it with a transition, the do
 test("9. three runs the journal docked by itself, grouped and all ended, undock as a single run does, even with the pointer on a card as they fold", async () => {
     const {dockedRows} = await import("../src/domain/docks.js");
     const ends = now() + 3;
-    const ended = (id) => reactive(watched(id, {auto_docked: true, ending: "finished", outcome: "passed", undock_at: ends}));
+    const ended = (id) => reactive(watched(id, {ending: "finished", outcome: "passed", undock_at: ends}));
     const runs = [ended(1), ended(2), ended(3)];
     const props = reactive({runs: dockedRows(runs, now()), grouped: false});
     const host = await mounted(DockGroup, props);

@@ -1365,7 +1365,7 @@ def test_a_running_check_is_a_docked_card_with_its_progress_that_becomes_its_res
             return app.container.get(Messages).with_key(f"check-run:1:{run_start}")[0]
 
     running = card()
-    assert running.text == "the suite: running" and running.data["active"] and running.data["docked"] and running.data["auto_docked"], "a check that starts is a live card, docked at the bottom of the chat"
+    assert running.text == "the suite: running" and running.data["active"] and running.data["docked"] and not running.data.get("pinned"), "a check that starts is a live card, docked at the bottom of the chat and not pinned"
     checks.touch(checks.find(1), Actor.user(1), progress=CheckProgress(run_start, "...F\n", 3, 10, 30.0))
     fields = app.container.get(CheckRunProcessCard).refresh(running)
     assert fields["count"] == "3/10" and fields["fraction"] == 0.3 and fields["active"], "its card shows the progress the Checks page reads"
@@ -12608,17 +12608,21 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
         app.container.get(Messages).save(message.with_(data={**message.data, "dock_at": timing.time() - 1}), Actor.system())
     end(auto)
     ended = card(auto).data
-    assert ended["docked"] is True and ended["auto_docked"] is True and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
+    assert ended["docked"] is True and not ended.get("pinned") and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Docking).pin_message(card(auto), Actor.user(1))
     end(auto)
     opened = card(auto).data
-    assert opened["docked"] is True and not opened["auto_docked"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
+    assert opened["docked"] is True and opened["pinned"] and opened.get("undock_at") is None, "a card the user pinned in those five seconds stays until the user closes it"
     kept = run("kept")
     with app.container.get(Scope).environment(MAIN):
         app.container.get(Docking).pin_message(card(kept), Actor.user(1))
     end(kept)
     assert card(kept).data["docked"] is True, "a card the user docked stays after the end"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Docking).unpin_message(card(kept), Actor.user(1))
+    unpinned = card(kept).data
+    assert not unpinned["pinned"] and 0 < unpinned["undock_at"] - timing.time() <= 5, "a card unpinned once its run has ended leaves a few seconds later"
     user_set(app, "shell.dock_live_outputs", False)
     plain = run("plain")
     assert not card(plain).data.get("docked"), "with the setting off, nothing docks"

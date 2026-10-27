@@ -134,6 +134,9 @@ class MessageController(Controller[Message]):
     def dock(self, request: Request) -> Response:
         return Response.json(self.shown(self.docking.pin_message(self.repository.find(request.number("id")), request.actor)))
 
+    def unpin(self, request: Request) -> Response:
+        return Response.json(self.shown(self.docking.unpin_message(self.repository.find(request.number("id")), request.actor)))
+
     def undock(self, request: Request) -> Response:
         return Response.json(self.shown(self.docking.release(self.repository.find(request.number("id")), request.actor)))
 

@@ -20,7 +20,8 @@ from journal.repositories.templates import Templates
 from journal.repositories.triggers import Triggers
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
-from journal.chat.process_cards import AUTO_DOCKED, DOCKED, UNDOCK_TIME_KEY
+from journal.chat.auto_dock import AutoDock
+from journal.chat.process_cards import DOCKED, PINNED, UNDOCK_TIME_KEY
 from journal.chat.row_process_card import RowProcessCard
 from journal.events.announcer import Announcer
 from journal.events.moments.row_docked import RowDocked
@@ -38,8 +39,8 @@ class Docking:
     """The rows pinned above the chat: each is a keyed system message whose data records that it is docked and the row's card, the card already made for the row if there is one, else a card written for it; undocking leaves the message in place with docked set to false."""
 
     def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, memories: Memories, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
-                 templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, announcer: Announcer, scope: Scope) -> None:
-        self.messages, self.announcer, self.scope = messages, announcer, scope
+                 templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, announcer: Announcer, scope: Scope, auto_dock: AutoDock) -> None:
+        self.messages, self.announcer, self.scope, self.auto_dock = messages, announcer, scope, auto_dock
         self.kinds: dict[str, Repository] = {type_name.model.noun(): type_name for type_name in (tasks, plans, docs, reports, memories, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
         self.tables: dict[str, Repository] = {type_name.model.table(): type_name for type_name in self.kinds.values()}
 
@@ -78,10 +79,14 @@ class Docking:
         return self.saved_with(message, {**RowCard.build(row).as_data(), DOCKED: True}, actor)
 
     def pin_message(self, message: Message, actor: Actor) -> Message:
-        return self.saved_with(message, {DOCKED: True, AUTO_DOCKED: False, UNDOCK_TIME_KEY: None}, actor)
+        return self.saved_with(message, {DOCKED: True, PINNED: True, UNDOCK_TIME_KEY: None}, actor)
+
+    def unpin_message(self, message: Message, actor: Actor) -> Message:
+        unpinned = message.with_merged("data", {PINNED: False})
+        return self.saved_with(unpinned, {} if unpinned.data.get("active") else self.auto_dock.undock_fields(unpinned), actor)
 
     def release(self, message: Message, actor: Actor) -> Message:
-        return self.saved_with(message, {DOCKED: False, AUTO_DOCKED: False}, actor)
+        return self.saved_with(message, {DOCKED: False, PINNED: False}, actor)
 
     def saved_with(self, message: Message, data: dict, actor: Actor) -> Message:
         return self.messages.save(message.with_merged("data", data), actor)

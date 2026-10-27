@@ -201,11 +201,11 @@ test("a docked merge says what is happening now, one line for the journal and on
     expect(host.querySelector(".watch-dock-statuses")).toBeNull();
 });
 
-test("a card the journal docked by itself stays docked once the user opened it, collapsed again, its run ended and a newer dock came, until the user closes it", async () => {
+test("opening a docked run pins nothing; its pin keeps it docked after its run ended and a newer dock came, until the user closes it", async () => {
     const {dockedRows} = await import("../src/domain/docks.js");
     vi.spyOn(api, "readOutput").mockResolvedValue({lines: [], start: 0, next: 0});
     const act = vi.spyOn(api, "act").mockResolvedValue({});
-    const docked = reactive({...watched, data: {...watched.data, auto_docked: true, dock_at: 100}});
+    const docked = reactive({...watched, data: {...watched.data, dock_at: 100}});
     const host = document.body.appendChild(document.createElement("div"));
     app = createApp({render: () => h(WatchDock, {message: docked})});
     app.directive("tip", {});
@@ -215,8 +215,12 @@ test("a card the journal docked by itself stays docked once the user opened it, 
     await flush();
     host.querySelector(".watch-dock-label").click();
     await flush();
+    expect(act).not.toHaveBeenCalled();
+    host.querySelector(".watch-dock-pin").click();
+    await flush();
     expect(act).toHaveBeenCalledTimes(1);
     expect(act).toHaveBeenCalledWith("messages", 7, "dock");
+    expect(host.querySelector(".watch-dock-pin").getAttribute("aria-pressed")).toBe("true");
     const ended = {...docked, data: {...docked.data, ending: "finished", outcome: "passed"}};
     const newer = {...watched, id: 9, created_at: "2030-01-01T00:00:00Z", data: {...watched.data, output: 13}};
     expect(dockedRows([ended, newer], 10 ** 10).map((m) => m.id)).toEqual([7, 9]);
