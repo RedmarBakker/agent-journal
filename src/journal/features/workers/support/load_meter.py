@@ -17,7 +17,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 
-LOAD_INPUTS = "load_inputs"
+WORKLOAD_INPUTS = "load_inputs"
 WORKER_REF = "workers:"
 LARGEST_ITEM_COUNT = 400
 
@@ -45,7 +45,7 @@ class LoadMeter:
         work_series = self.series(self.work_level())
         items, dispatches = self.items.read(time - (work_series.window_minutes + HALF_LIVES * work_series.half_life_minutes) * 60)
         work_queue, message_queue = self.queues(items, dispatches, time)
-        self.entries.save(Entry(environment_id=agent.environment_id, entry_type=LOAD_INPUTS, actor=Actor.agent(agent.session), data={"time": time, "dispatches": dispatches, "items": [asdict(item) for item in items[-LARGEST_ITEM_COUNT:]]}), Actor.system())
+        self.entries.save(Entry(environment_id=agent.environment_id, entry_type=WORKLOAD_INPUTS, actor=Actor.agent(agent.session), data={"time": time, "dispatches": dispatches, "items": [asdict(item) for item in items[-LARGEST_ITEM_COUNT:]]}), Actor.system())
         self.agents.rewritten(agent, Actor.system(), lambda current: self.measured(current, work_queue, message_queue, items, time))
 
     def measured(self, agent: Agent, work_queue: AgentLoad, message_queue: AgentLoad, items: list[LoadItem], time: float) -> Agent:

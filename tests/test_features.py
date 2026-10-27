@@ -22637,7 +22637,7 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
     from journal.events.agent.ticked import Ticked
     from journal.events.bus import Bus
     from journal.features.workers.support.load_item import LoadItem
-    from journal.features.workers.support.load_meter import LOAD_INPUTS, LoadMeter
+    from journal.features.workers.support.load_meter import WORKLOAD_INPUTS, LoadMeter
     from journal.repositories.agents import Agents
     from journal.repositories.entries import Entries
     source = app.container.get(TimeSource)
@@ -22653,7 +22653,7 @@ def test_the_load_is_measured_on_the_clock_through_an_idle_stretch_and_rebuilt_f
             app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             agent = app.container.get(Agents).session_agent("s1")
-            stored = [entry for entry in app.container.get(Entries).kind_entries(LOAD_INPUTS, 10)]
+            stored = [entry for entry in app.container.get(Entries).kind_entries(WORKLOAD_INPUTS, 10)]
         assert agent.work_queue.measured_at == start + 20 * 60, "twenty idle minutes later the load was measured again by the clock, with no tool use"
         newest = max(stored, key=lambda entry: entry.data["time"])
         items = [LoadItem(**item) for item in newest.data["items"]]

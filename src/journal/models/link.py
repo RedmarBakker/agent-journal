@@ -12,8 +12,8 @@ class Link(Model):
     column_renames: ClassVar[dict[str, str]] = {"kind": "link_type"}
 
     COPY_SOURCE: ClassVar[str] = "copied_from"
-    ATTACHED_TO: ClassVar[str] = "attached_to"
-    SURVIVING_SOURCE: ClassVar[tuple[str, ...]] = (ATTACHED_TO,)
+    ATTACHMENT: ClassVar[str] = "attached_to"
+    SURVIVING_SOURCE: ClassVar[tuple[str, ...]] = (ATTACHMENT,)
     SURVIVING_TARGET: ClassVar[tuple[str, ...]] = (COPY_SOURCE,)
 
     source: Ref

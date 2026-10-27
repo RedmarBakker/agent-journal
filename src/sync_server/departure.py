@@ -35,8 +35,8 @@ class Departure:
 
     @staticmethod
     def shared_rows(rows: list[CopiedRow], account_id: int) -> list[tuple[str, int]]:
-        owned = {int(row.field_text("target").rpartition(":")[2]) for row in rows if row.row_table == "links" and row.row_type("link_type") == OWNER and row.field_text("source") == f"users:{account_id}" and row.field_text("target").startswith("environments:")}
-        shared = {row.row for row in rows if row.row_table == "environments" and row.row in owned and row.row_type("environment_type", "local") == "local" and row.field_text("team_key")}
+        owned = {int(str(row.field("target")).rpartition(":")[2]) for row in rows if row.row_table == "links" and row.row_type("link_type") == OWNER and row.field("source") == f"users:{account_id}" and str(row.field("target")).startswith("environments:")}
+        shared = {row.row for row in rows if row.row_table == "environments" and row.row in owned and row.row_type("environment_type", "local") == "local" and row.field("team_key")}
         contents = [(row.row_table, row.row) for row in rows if row.row_table != "environments" and row.fields.get("environment_id") in shared]
         refs = {f"environments:{number}" for number in shared} | {f"{table}:{number}" for table, number in contents}
         links = [("links", row.row) for row in rows if row.row_table == "links" and (row.fields.get("source") in refs or row.fields.get("target") in refs)]

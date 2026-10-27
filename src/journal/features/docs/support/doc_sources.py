@@ -6,7 +6,7 @@ from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 
 COPY_SOURCE = Link.COPY_SOURCE
-ATTACHED = Link.ATTACHED_TO
+ATTACHED = Link.ATTACHMENT
 
 
 class DocSources:
