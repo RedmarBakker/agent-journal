@@ -1,5 +1,6 @@
 # The replays boot a journal each and run for minutes, so they are not in the default run: python3 -m pytest tests/replays_run.py, before any commit that touches a state or a conduct; REPLAY_FREEZE=1 writes the records anew where the conduct changed on purpose.
 
+import re
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,18 @@ from journal.features.workers.workers_nudges import WorkersNudges
 from tests.nudge_lines import nudge_reached
 
 
+# the line a message send prints, with the number the message got
+SEND_LINE = re.compile(r"message (\d+) sent")
+
+
+def send_message(app, text: str) -> int:
+    return int(SEND_LINE.search(app.console().run(["message", "send", text], USER).text).group(1))
+
+
+def user_message_ids(app) -> list[int]:
+    return sorted(message.id for message in app.container.get(Messages).all_matching(author=Author.USER))
+
+
 @pytest.fixture(params=PROVIDERS)
 def journal(tmp_path: Path, monkeypatch, request):
     """One fresh journal and the provider whose agent the steps play; it starts and stops with the test."""
@@ -57,8 +70,7 @@ def prompts_with_unread(app, replay: Replay, provider: str) -> None:
     app.console().run(["environment", "overview"], AGENT)
     replay.step("session starts")
     for n, text in ((1, "one"), (2, "two"), (3, "three"), (4, "four")):
-        app.console().run(["message", "send", text], USER)
-        replay.step(f"message {n} arrives")
+        replay.step(f"message {send_message(app, text)} arrives")
         if n in (1, 3, 4):
             replay.step(f"a prompt after {n}", hook_as(app, provider, "UserPromptSubmit", prompt="working")[1])
     replay.step("a prompt again after 4", hook_as(app, provider, "UserPromptSubmit", prompt="still working")[1])
@@ -67,8 +79,8 @@ def prompts_with_unread(app, replay: Replay, provider: str) -> None:
 def test_prompt_sent_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"prompt_sent_{provider}", app, monkeypatch, prompts_with_unread, provider, nudges=True)
-    answers = [s["answer"] for s in replay.record() if s["answer"] is not None]
-    assert "new message 1" in str(answers[0]) and "new messages 1, 3, 4" in str(answers[1]) and "4 messages unread" in str(answers[2]) and "unread" not in str(answers[3]), "the listener names one, a few, many, and not again inside the window"
+    answers, ids = [s["answer"] for s in replay.record() if s["answer"] is not None], user_message_ids(app)
+    assert f"new message {ids[0]}" in str(answers[0]) and f"new messages {ids[0]}, {ids[2]}, {ids[3]}" in str(answers[1]) and "4 messages unread" in str(answers[2]) and "unread" not in str(answers[3]), "the listener names one, a few, many, and not again inside the window"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -79,17 +91,17 @@ def tool_uses_with_the_inbox(app, replay: Replay, provider: str) -> None:
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the footer", "--start"], AGENT)
     replay.step("a task in hand")
-    console.run(["message", "send", "one"], USER)
-    replay.step("message 2 arrives")
+    number = send_message(app, "one")
+    replay.step(f"message {number} arrives")
     for i in range(1, 17):
         replay.step(f"read {i}", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
     replay.step("a write at 17", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1])
-    console.run(["message", "read", "2"], AGENT)
-    replay.step("message 2 read")
+    console.run(["message", "read", str(number)], AGENT)
+    replay.step(f"message {number} read")
     replay.step("a read while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
     replay.step("a journal command while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": "journal task list"})[1])
-    replay.step("a look at its files", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": str(app.config.home / "files" / "message" / "2" / "a.png")})[1])
-    console.run(["message", "send", "here", "--reply-to", "2"], AGENT)
+    replay.step("a look at its files", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": str(app.config.home / "files" / "message" / str(number) / "a.png")})[1])
+    console.run(["message", "send", "here", "--reply-to", str(number)], AGENT)
     replay.step("the reply")
     replay.step("a read after the reply", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
 
@@ -99,9 +111,9 @@ def tool_uses_across_events(app, replay: Replay, provider: str) -> None:
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    console.run(["message", "send", "one"], USER)
+    number = send_message(app, "one")
     app.runtime().deferred.drain()
-    replay.step("message 1 arrives")
+    replay.step(f"message {number} arrives")
     read = lambda: hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1]
     replay.step("read 1", read())
     replay.step("read 2", read())
@@ -269,8 +281,7 @@ def stops_with_unread(app, replay: Replay, provider: str) -> None:
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    console.run(["message", "send", "one"], USER)
-    replay.step("message 1 arrives")
+    replay.step(f"message {send_message(app, 'one')} arrives")
     replay.step("a stop with one unread", hook_as(app, provider, "Stop")[1])
     for text in ("two", "three", "four"):
         console.run(["message", "send", text], USER)
@@ -292,14 +303,14 @@ def test_the_stop_workflow_carries_the_inbox_matches_its_record(journal, monkeyp
     app, provider = journal
     replay, rows = played(f"stops_with_unread_{provider}", app, monkeypatch, stops_with_unread, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert "new message 1" in str(name_index["a stop with one unread"]["answer"]) and "4 messages unread" in str(name_index["a stop with four unread"]["answer"])
+    assert f"new message {user_message_ids(app)[0]}" in str(name_index["a stop with one unread"]["answer"]) and "4 messages unread" in str(name_index["a stop with four unread"]["answer"])
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
 def test_the_start_workflow_carries_the_inbox_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"starts_with_unread_{provider}", app, monkeypatch, starts_with_unread, provider, nudges=True)
-    assert "new messages 1, 2" in str(replay.record()[-1]["answer"]), "the listener names the inbox at a start"
+    assert "new messages {}, {}".format(*user_message_ids(app)) in str(replay.record()[-1]["answer"]), "the listener names the inbox at a start"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -315,12 +326,12 @@ def tool_uses_with_changed_settings(app, replay: Replay, provider: str) -> None:
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["message", "send", "one"], USER)
-    console.run(["message", "read", "2"], AGENT)
-    replay.step("message 2 read")
+    number = send_message(app, "one")
+    console.run(["message", "read", str(number)], AGENT)
+    replay.step(f"message {number} read")
     for i in range(1, 6):
         replay.step(f"read {i} while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
-    console.run(["message", "send", "here", "--reply-to", "2"], AGENT)
+    console.run(["message", "send", "here", "--reply-to", str(number)], AGENT)
     replay.step("the reply")
     for i in range(1, 8):
         replay.step(f"write {i}", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1])
@@ -329,8 +340,8 @@ def tool_uses_with_changed_settings(app, replay: Replay, provider: str) -> None:
 def test_changed_settings_keep_their_meaning_in_the_tool_workflow(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"tool_uses_with_changed_settings_{provider}", app, monkeypatch, tool_uses_with_changed_settings, provider, nudges=True)
-    name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["read 1 while owed"]["answer"] == {} and "reply due, message 2: 1" in str(name_index["read 2 while owed"]["answer"]) and "reply due, message 2: 0" in str(name_index["read 3 while owed"]["answer"]), "with the setting changed, the countdown starts later and still ends on the last use"
+    name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
+    assert name_index["read 1 while owed"]["answer"] == {} and f"reply due, message {number}: 1" in str(name_index["read 2 while owed"]["answer"]) and f"reply due, message {number}: 0" in str(name_index["read 3 while owed"]["answer"]), "with the setting changed, the countdown starts later and still ends on the last use"
     assert "error" in name_index["read 4 while owed"]["answer"] and "error" in name_index["read 5 while owed"]["answer"], "and holds after four"
     assert "in hand, 2 edits" in str(name_index["write 3"]["answer"]) and nudge_reached(app, str(name_index["write 4"]["answer"]), TasksNudges.LOG_REQUEST, edits=3, name="task 1") and "in hand, 4 edits" in str(name_index["write 5"]["answer"]) and name_index["write 6"]["answer"] == {} and "error" in name_index["write 7"]["answer"], "the task is named every two edits, the log asked at three and held at six"
     assert rows == [], "the agent would have seen the same, and the record says the same"
@@ -339,10 +350,10 @@ def test_changed_settings_keep_their_meaning_in_the_tool_workflow(journal, monke
 def test_tool_about_to_run_matches_its_record_on_the_inbox(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"tool_uses_with_the_inbox_{provider}", app, monkeypatch, tool_uses_with_the_inbox, provider, nudges=True)
-    name_index = {s["name"]: s for s in replay.record()}
-    assert "read due, message 2: 3" in str(name_index["read 1"]["answer"]) and "read due, message 2: 1" in str(name_index["read 3"]["answer"]) and "read due, message 2: 0" in str(name_index["read 4"]["answer"]), "each tool use counts down the uses left before the writes wait, then names the hold"
+    name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
+    assert f"read due, message {number}: 3" in str(name_index["read 1"]["answer"]) and f"read due, message {number}: 1" in str(name_index["read 3"]["answer"]) and f"read due, message {number}: 0" in str(name_index["read 4"]["answer"]), "each tool use counts down the uses left before the writes wait, then names the hold"
     assert "you have 1 unread messages" in str(name_index["a write at 17"]["answer"]), "and holds the write after five namings"
-    assert "[!reply:2]" in str(name_index["a read while owed"]["answer"]) and "unread" not in str(name_index["a read while owed"]["answer"]), "the read message's reply line comes with the next tool use, and no word is asked for yet"
+    assert f"[!reply:{number}]" in str(name_index["a read while owed"]["answer"]) and "unread" not in str(name_index["a read while owed"]["answer"]), "the read message's reply line comes with the next tool use, and no word is asked for yet"
     assert name_index["a journal command while owed"]["answer"] == {} and name_index["a look at its files"]["answer"] == {} and name_index["a read after the reply"]["answer"] == {}, "a read message has its grace of five uses before a word is asked for"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
@@ -368,7 +379,7 @@ def message_arrives(app, replay: Replay, provider: str) -> None:
 def test_message_arrives_matches_its_record(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"message_arrives_{provider}", app, monkeypatch, message_arrives, provider, nudges=True)
-    assert replay.record()[-1]["typed"] == ["[journal] new message 1"], "the listener names the message"
+    assert replay.record()[-1]["typed"] == [f"[journal] new message {user_message_ids(app)[0]}"], "the listener names the message"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -394,7 +405,7 @@ def test_the_phone_is_heard_as_the_user_is(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"the_phone_talks_{provider}", app, monkeypatch, the_phone_talks, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["the phone leaves a message"]["typed"] == ["[journal] new message 1"], "a message from the phone is named as the user's is"
+    assert name_index["the phone leaves a message"]["typed"] == [f"[journal] new message {user_message_ids(app)[0]}"], "a message from the phone is named as the user's is"
     assert "question 1 is answered" in str(name_index["the phone answers"]["typed"]), "and an answer from the phone releases the wait"
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "the agent is working its task again"
     assert rows == [], "the agent would have seen the same, and the record says the same"
@@ -523,8 +534,7 @@ def loading_skill_rules(app, replay: Replay, provider: str) -> None:
     replay.step("a write before the look", write())
     app.console().run(["environment", "overview"], AGENT)
     replay.step("looked at what is in flight")
-    app.console().run(["message", "send", "one"], USER)
-    replay.step("message 1 arrives")
+    replay.step(f"message {send_message(app, 'one')} arrives")
     replay.step("a prompt naming plans", hook_as(app, provider, "UserPromptSubmit", prompt="make me a plan for the release")[1])
     replay.step("a write before the plans skill is read", write())
     replay.step("the plans skill read", read_skill(app, provider, "journal-plans"))
@@ -817,8 +827,7 @@ def line_reminder(app, replay: Replay, provider: str) -> None:
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     for n in range(1, 5):
-        console.run(["message", "send", f"note {n}"], USER)
-        replay.step(f"message {n}", hook_as(app, provider, "PostToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py"})[1])
+        replay.step(f"message {send_message(app, f'note {n}')}", hook_as(app, provider, "PostToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py"})[1])
 
 
 def hold_after_namings(app, replay: Replay, provider: str) -> None:
@@ -887,8 +896,7 @@ def two_lines_on_one_write(app, replay: Replay, provider: str) -> None:
     console.run(["task", "create", "the footer", "--start"], AGENT)
     for i in (1, 2):
         replay.step(f"write {i}", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1])
-    console.run(["message", "send", "how is it going?"], USER)
-    console.run(["message", "read", "2"], AGENT)
+    console.run(["message", "read", str(send_message(app, "how is it going?"))], AGENT)
     replay.step("a message read and owed")
     replay.step("a write held twice over", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1])
 
@@ -897,7 +905,7 @@ def test_a_second_session_in_one_environment_takes_the_first_ones_place_and_a_li
     app, provider = journal
     replay, rows = played(f"two_agents_{provider}", app, monkeypatch, two_agents, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
-    assert name_index["a message arrives"]["typed"] == ["[journal] new message 4"], "named once for the environment; messages 1 to 3 are the task's mark, the worker's card and the job in the worker's own chat"
+    assert name_index["a message arrives"]["typed"] == [f"[journal] new message {user_message_ids(app)[0]}"], "named once for the environment, whatever marks, cards and the worker's job took the numbers before it"
     reported = name_index["the worker reports"]["typed"]
     assert reported[0].startswith("[journal] wait over: worker 1, Lady Lovelace, reported") and reported[1] == "[journal] worker 1 reported" and len(reported) == 2, "the awaiting agent is told and released, once"
     assert app.container.get(SessionAgents).top("s2").task_id == 1 and app.container.get(SessionAgents).top("s1").name == "ended", "an environment keeps one session: the second took the first one's place"
@@ -908,15 +916,15 @@ def test_two_lines_on_one_write_the_first_hold_wins(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"two_lines_on_one_write_{provider}", app, monkeypatch, two_lines_on_one_write, provider, nudges=True)
     blocked = replay.record()[-1]["answer"]["error"]
-    assert nudge_reached(app, blocked, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=2), "the hold over the unanswered message runs first in the order and wins the write"
+    assert nudge_reached(app, blocked, MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=user_message_ids(app)[0]), "the hold over the unanswered message runs first in the order and wins the write"
     assert rows == [], "the agent would have seen the same, in the same order"
 
 
 def test_the_inbox_is_named_on_the_third_tool_use_across_a_stop_a_prompt_and_a_start(journal, monkeypatch):
     app, provider = journal
     replay, rows = played(f"count_survives_events_{provider}", app, monkeypatch, tool_uses_across_events, provider, nudges=True)
-    name_index = {s["name"]: s for s in replay.record()}
-    assert "read due, message 1: 1" in str(name_index["read 3, the third use since the message"]["answer"]) and "read due, message 1: 0" in str(name_index["read 4"]["answer"]), "the uses since the message are counted across the stop, the prompt and the session start: the third is the last left, the fourth names the hold"
+    name_index, number = {s["name"]: s for s in replay.record()}, user_message_ids(app)[0]
+    assert f"read due, message {number}: 1" in str(name_index["read 3, the third use since the message"]["answer"]) and f"read due, message {number}: 0" in str(name_index["read 4"]["answer"]), "the uses since the message are counted across the stop, the prompt and the session start: the third is the last left, the fourth names the hold"
     assert rows == [], "the record says the same"
 
 
