@@ -169,7 +169,6 @@ class CommandShape:
     def programs(part: str) -> set[str]:
         return {tokens[0].rsplit("/", 1)[-1] for command in CommandShape.commands(part) if not HEADER_PATTERN.match(command) and (tokens := CONTROL_PATTERN.sub("", command, count=1).split())}
 
-    # a loop whose every command is a sleep or the shell's own words and tests, so all it does is wait
     @staticmethod
     def is_waiting_loop(part: str) -> bool:
         if not LOOP_PATTERN.match(part) or part.strip().startswith(("case", "select")):
