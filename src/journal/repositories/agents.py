@@ -106,6 +106,10 @@ class Agents(ScopedRepository[Agent]):
     def session_rows(self, session: str) -> list[Agent]:
         return self.selected_globally(self.session_query(session))
 
+    def environment_main_agent(self, environment_id: int) -> Agent | None:
+        rows = self.selected_globally(self.query().filter(environment_id=environment_id, role=AgentRole.MAIN).order_descending("updated_at").limit(1))
+        return rows[0] if rows else None
+
     def main_row(self, session: str) -> Agent | None:
         rows = self.session_rows(session)
         return rows[0] if rows and rows[0].is_main() else None

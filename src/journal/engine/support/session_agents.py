@@ -6,7 +6,6 @@ from journal.repositories.agents import Agents
 from journal.providers.providers import Providers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
-from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 
 
@@ -28,11 +27,14 @@ class SessionAgents:
     def row(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
         if not session:
             raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
-        try:
-            return self.agents.session_agent(session)
-        except MissingRow:
-            bottom = self.states.first() if role == AgentRole.MAIN else self.states.sent_first(role)
-            return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
+        rows = self.agents.session_rows(session)
+        if rows:
+            return rows[0]
+        current = self.agents.environment_main_agent(environment_id) if role == AgentRole.MAIN else None
+        if current is not None:
+            return self.agents.save(current.with_session(session, provider or current.provider), Actor.system())
+        bottom = self.states.first() if role == AgentRole.MAIN else self.states.sent_first(role)
+        return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
 
     def top(self, session: str) -> BaseState:
         agent = self.agents.session_agent(session)

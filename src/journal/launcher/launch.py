@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import signal
 import re
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from datetime import datetime
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from journal.support.process_check import ProcessCheck
 from journal.support.choice import Choice
 from journal.launcher.menu import Menu
 from journal.launcher.support.foreign_hooks import ForeignHooks
@@ -217,6 +219,7 @@ class Launch:
         launch = self.launch_file(choice, status)
         path = self.runtime / "launches" / f"{choice.environment}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
+        self.stop_earlier_launch(path)
         path.touch(mode=0o600)
         path.chmod(0o600)
         path.write_text(json.dumps(launch))
@@ -224,7 +227,19 @@ class Launch:
         try:
             return subprocess.run(["sh", str(self.package / "supervisor" / "launcher.sh"), sys.executable, str(path)], cwd=self.root).returncode
         finally:
-            path.unlink(missing_ok=True)
+            if path.is_file() and json.loads(path.read_text()).get("launch") == launch["launch"]:
+                path.unlink()
+
+    def stop_earlier_launch(self, path: Path) -> None:
+        owner = int(json.loads(path.read_text()).get("owner", 0)) if path.is_file() else 0
+        if not owner or owner == os.getpid() or not ProcessCheck.is_running(owner):
+            return
+        group = os.getpgid(owner)
+        if group == os.getpgid(0):
+            os.kill(owner, signal.SIGTERM)
+        else:
+            os.killpg(group, signal.SIGTERM)
+        self.log(f"stopped: the earlier launch of this environment, process {owner} and its agent, which this session takes over")
 
     def health_numbers(self) -> dict:
         answer = Menu(self.root, self.package / "journal.sh").journal("supervision", "health").strip()

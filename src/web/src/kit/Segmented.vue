@@ -13,6 +13,7 @@ const id = useId();
                 type="button"
                 role="radio"
                 :aria-checked="o.key === value"
+                :aria-haspopup="o.opens"
                 v-tip:[`${id}-${o.key}`]="o.tip || o.title"
                 :class="['segmented-option', {on: o.key === value}]"
                 @click="emit('pick', o.key)"

@@ -719,6 +719,28 @@ def test_the_left_arrow_in_the_boot_menu_asks_the_question_before_again(tmp_path
     assert "← to go back" in printed.getvalue()
 
 
+def test_the_boot_menu_warns_that_a_new_session_takes_over_the_environments_agent_and_lets_another_be_picked(tmp_path: Path):
+    from journal.launcher.support.keys import Keys
+    enter, down = Keys.ENTER[0], Keys.DOWN[0]
+    rows = [EnvironmentRow("main", True, "2 hours ago", {"claude": "abc"}, agent="claude session abc", agent_session="abc"), EnvironmentRow("spike")]
+
+    def chosen(*keys: str) -> tuple[object, str]:
+        printed = io.StringIO()
+        screen = Screen(printed, PressedKeys(*keys))
+        screen.interactive = True
+        screen._pick_with_keys = screen.key_choice
+        menu = Menu(tmp_path, tmp_path / "journal.sh", screen)
+        menu.environments = lambda: rows
+        return menu.choose("claude"), printed.getvalue()
+
+    taken, printed = chosen(enter, down, enter, enter, enter, enter, enter, enter)
+    assert taken.environment == "main" and taken.resume == "" and "main has an agent, at work: claude session abc" in printed, printed
+    moved, printed = chosen(enter, down, enter, down, enter, down, enter, enter, enter, enter, enter)
+    assert moved.environment == "spike" and printed.count("Which environment") >= 2, "Pick another environment asks the environments again"
+    carried, printed = chosen(enter, enter, enter, enter, enter, enter)
+    assert carried.resume == "abc" and "has an agent" not in printed, "carrying on the agent's own session takes nothing over"
+
+
 def test_a_health_url_must_answer_200_in_time_a_health_file_must_be_fresh_and_the_launch_file_carries_both_checks(tmp_path: Path):
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
