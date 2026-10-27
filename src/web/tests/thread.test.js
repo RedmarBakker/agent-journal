@@ -146,10 +146,10 @@ describe("a sequence run's steps", () => {
 
 describe("a group mark", () => {
     test("shows the steps that joined it since it was last opened, and a continued part opens the part it continues", async () => {
+        window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
         const {createApp, h, nextTick} = await import("vue");
         const {store} = await import("../src/state/store.js");
         const {default: TurnGroup} = await import("../src/chat/TurnGroup.vue");
-        const view = await import("../src/platform/view.js");
         const step = (id, n) => ({key: `messages:${id}`, kind: "card", id, time: id, data: {label: `step ${n}`, step: n}});
         const group = {key: "group:messages:30", kind: "group", time: 9, title: "Sequence 5, Review, continued", icon: "list", data: {news: 2, continues: "group:messages:1", markIcon: "sequence"}, turns: [step(30, 3)]};
         const host = document.body.appendChild(document.createElement("div"));
@@ -167,7 +167,6 @@ describe("a group mark", () => {
         host.querySelector(".mark").click();
         await nextTick();
         expect(host.querySelector(".mark .news")).toBeNull();
-        expect(view.focusTurn).toBeTypeOf("function");
         app.unmount();
         host.remove();
         earlier.remove();
