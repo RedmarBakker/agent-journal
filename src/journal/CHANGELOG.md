@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.67.1
+
+- A line too long for its budget is cut in its middle, so the instruction at its end stays, and a cut line repeats on its normal schedule instead of at every tool use; command values in lines are capped so they cannot crowd the instruction out.
+- An await sent back to other work twice is accepted the third time with its reason, said back to the agent; a third look in a row at one running output is sent to await.
+
 ## 4.67.0
 
 - A journal far behind now updates through proven steps: the newest release's install script walks the releases the update matrix proved, one after another, each installed by its own install script so its own migrations run, and stops at the last good one if a step fails. Older journals benefit too, since their updater already starts the newest release's install script. One update card follows the whole path; `journal update retry` and `journal update close` answer a failed step.

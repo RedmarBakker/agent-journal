@@ -51,5 +51,5 @@ class Nudger:
     def _repeat(self, agent: Agent, nudge: Nudge) -> bool:
         if not nudge.repeat.amount:
             return False
-        last = self.entries.last_key_moment(agent.session, nudge.key) if nudge.blocks_regardless else self.entries.last_line_moment(agent.session, nudge.key, nudge.rendered())
+        last = self.entries.last_key_moment(agent.session, nudge.key) if nudge.blocks_regardless else self.entries.last_line_moment(agent.session, nudge.key, nudge.cut(nudge.rendered()))
         return last is not None and not nudge.repeat.reset(last).has_passed(Moment(seconds=self.clock.time(), tool_uses=agent.tool_uses))

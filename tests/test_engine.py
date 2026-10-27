@@ -1131,9 +1131,13 @@ def test_a_line_longer_than_its_longest_is_cut_when_sent_and_the_cut_recorded(jo
     hook(app, "SessionStart")
     agent = app.container.get(Agents).session_agent("s1")
     sent = app.container.get(Nudger).answer(agent, wide.create(files="a.py " * 40))
-    assert len(sent) == 120 and sent.endswith("…"), "cut to the 120 characters a line may have"
+    assert len(sent) == 120 and "…" in sent and sent.endswith(("a.py " * 40)[-60:]), "cut in its middle to the 120 characters a line may have, its end kept"
     with app.container.get(Scope).environment(1):
         assert [(entry.data["key"], entry.data["cut_from"]) for entry in app.container.get(Entries).cut_lines()] == [("engine.test_wide_line", 211)], "the cut is recorded with the length it was cut from, which fails the test that sent it"
+    repeated = Nudge("engine", "test_repeated_wide_line", "the files: {{files}}")
+    registry.register(repeated)
+    nudger = app.container.get(Nudger)
+    assert nudger.deliver(agent, repeated.create(files="b.py " * 40)) and nudger.deliver(agent, repeated.create(files="b.py " * 40)) is None, "a cut line sent again within its repeat span is dropped like any other"
     capped = Nudge("engine", "test_capped_line", "the files: {{files|cap=20}}")
     registry.register(capped)
     assert app.container.get(Nudger).answer(agent, capped.create(files="a.py " * 40)) == "the files: " + ("a.py " * 4)[:19] + "…", "a value written with a cap is cut to it, so the line stays whole"

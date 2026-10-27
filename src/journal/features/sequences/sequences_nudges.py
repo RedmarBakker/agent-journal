@@ -8,7 +8,7 @@ class SequencesNudges:
     PENDING_STEP = Nudge("sequences", "step_to_follow", "sequence {{n}}, step {{step}}: {{text|cap=600}}", "run `journal sequence follow`, then `journal sequence next` when done", repeat=Timeout.seconds(0), longest_characters=700, longest_reason="it contains the step the user wrote")
     CURRENT_STEP = Nudge("sequences", "following_the_step", "sequence {{n}}, step {{step}}: {{text|cap=600}}", "run `journal sequence next` when done", repeat=Timeout.seconds(0), longest_characters=670, longest_reason="it contains the step the user wrote")
     STEP_EDIT_BLOCK = Nudge("sequences", "write_held_for_the_step", "sequence {{n}} step {{step}} waits: {{text|cap=19}}", "`journal sequence follow` or `journal sequence pause --why \"<why>\"`", repeat=Timeout.seconds(0))
-    STEP_EDITS_WAIT = Nudge("sequences", "file_edits_wait_for_the_step", "sequence {{n}}, step {{step}} ({{heading}}): no edits", "`journal sequence next` when done{{allowed}}", repeat=Timeout.seconds(0))
+    STEP_EDITS_WAIT = Nudge("sequences", "file_edits_wait_for_the_step", "sequence {{n}}, step {{step}} ({{heading|cap=32}}): no edits", "`journal sequence next` when done{{allowed}}", repeat=Timeout.seconds(0))
     SEQUENCE_PAUSED = Nudge("sequences", "sequence_paused", "sequence {{n}} paused at step {{step}}: {{why|cap=45}}", "resume with `journal sequence follow`", repeat=Timeout.seconds(0))
     SEQUENCE_ENDED = Nudge("sequences", "sequence_ended", "sequence {{n}} ran its last step", repeat=Timeout.seconds(0))
     SEQUENCE_ABANDONED = Nudge("sequences", "sequence_abandoned", "sequence {{n}} abandoned", repeat=Timeout.seconds(0))

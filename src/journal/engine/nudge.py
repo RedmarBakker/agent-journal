@@ -5,12 +5,13 @@ from journal.support.timeout import Timeout
 
 NORMAL_LONGEST_CHARACTERS = 120
 CUT_MARK = "…"
+CUT_END_CHARACTERS = 60
 PLACEHOLDER = re.compile(r"\{\{(\w+)(?:\|cap=(\d+))?\}\}")
 
 
 @dataclass(frozen=True)
 class Nudge:
-    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. A value written {{name|cap=N}} is cut to N characters. A line longer than its longest, 120 unless it declares more with a reason, is cut to it when sent. It is not said again within its repeat span of the last time it was said, in seconds or tool uses. A remark asks for nothing now, so it is never typed to an idle agent: it waits for the agent's next hook."""
+    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. A value written {{name|cap=N}} is cut to N characters. A line longer than its longest, 120 unless it declares more with a reason, is cut to it when sent, in its middle, so the instruction at its end stays. It is not said again within its repeat span of the last time it was said, in seconds or tool uses. A remark asks for nothing now, so it is never typed to an idle agent: it waits for the agent's next hook."""
 
     feature: str
     name: str
@@ -37,7 +38,10 @@ class Nudge:
         return len(line) > self.longest_characters
 
     def cut(self, line: str) -> str:
-        return line if not self.is_too_long(line) else line[: self.longest_characters - len(CUT_MARK)] + CUT_MARK
+        if not self.is_too_long(line):
+            return line
+        end_length = min(CUT_END_CHARACTERS, self.longest_characters // 2)
+        return line[: self.longest_characters - len(CUT_MARK) - end_length] + CUT_MARK + line[-end_length:]
 
     def _fill(self, template: str) -> str:
         return PLACEHOLDER.sub(self._value, template)

@@ -17,6 +17,6 @@ class BriefingNudges:
     OVERVIEW_REQUEST = Nudge("briefing", "look_before_the_first_write", "run `journal environment overview` before your first write", repeat=Timeout.seconds(0))
     OVERVIEW_FIRST = Nudge("briefing", "overview_before_anything", "after the compaction, run `journal environment overview` first", repeat=Timeout.seconds(0))
     SKILLS_AND_OVERVIEW_REQUEST = Nudge("briefing", "skills_and_overview_before_anything", "after the compaction, read {{skills|cap=400}} and run `journal environment overview` before anything else", "", repeat=Timeout.seconds(0), longest_characters=497, longest_reason="it lists every skill still to read, each with its path")
-    FOLDER_MISMATCH = Nudge("briefing", "session_in_another_folder", "this session is in {{folder}} but {{env}} launched in {{launch_folder}}: restart from there with `journal`", "", repeat=Timeout.seconds(0))
+    FOLDER_MISMATCH = Nudge("briefing", "session_in_another_folder", "this session is in {{folder|cap=16}} but {{env}} launched in {{launch_folder}}: restart from there with `journal`", "", repeat=Timeout.seconds(0))
     FOLDER_MISSING = Nudge("briefing", "session_folder_gone", "{{launch_folder}} of {{env}} is gone: no lines or messages reach you", "tell the user; restart from the root", repeat=Timeout.minutes(10))
     OVERVIEW_STOP = Nudge("briefing", "stopped_unoriented", "you stopped without running `journal environment overview`", "run it now", repeat=Timeout.seconds(0))

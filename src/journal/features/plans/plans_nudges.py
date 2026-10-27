@@ -21,7 +21,7 @@ class PlansNudges:
     PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} done", "run {{commands|cap=300}} and see each pass, then `journal plan start {{n}}`", repeat=Timeout.seconds(0), longest_characters=392, longest_reason="it contains the test commands the agent runs")
     PHASE_END = Nudge("plans", "phase_complete_go_on", "plan {{n}}: phase {{phase}} done", "start the next with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     PLAN_BLOCKED = Nudge("plans", "plan_blocked", "plan {{n}} is blocked: {{why|cap=44}}", "unblock it by hand with `journal plan unblock {{n}}`", repeat=Timeout.seconds(0))
-    DRIVE_ENDED = Nudge("plans", "drive_ended", "{{name}}: no longer driven ({{why|cap=19}}); writes refused", "retake: `journal {{noun}} drive {{n}}`", repeat=Timeout.seconds(0))
+    DRIVE_ENDED = Nudge("plans", "drive_ended", "{{name|cap=17}}: no longer driven ({{why|cap=19}}); writes refused", "retake: `journal {{noun}} drive {{n}}`", repeat=Timeout.seconds(0))
     PLAN_REOPENED = Nudge("plans", "plan_reopened", "plan {{n}} is open again: {{why|cap=53}}", "continue with `journal plan start {{n}}`", repeat=Timeout.seconds(0))
     UNAPPROVED_PLAN = Nudge("plans", "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat=Timeout.seconds(0))
     REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan", repeat=Timeout.seconds(0))

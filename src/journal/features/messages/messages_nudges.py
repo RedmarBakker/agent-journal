@@ -23,7 +23,7 @@ class MessagesNudges:
     UNANSWERED_MESSAGES = Nudge("messages", "answer_before_anything_else", "answer or react to message {{messages|cap=73}} before you go on", "", repeat=Timeout.seconds(300), chat_answerable=True)
     UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages|cap=60}}; tool calls wait until you do", "", repeat=Timeout.seconds(0), chat_answerable=True)
     FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "run `journal message read <n>` and `journal question show <n>` alone, without a pipe", "", repeat=Timeout.seconds(0))
-    TAG_FAILURE = Nudge("messages", "tag_did_not_run", "the [!{{name}}] tag did not run: {{reason|cap=79}}", repeat=Timeout.seconds(0))
+    TAG_FAILURE = Nudge("messages", "tag_did_not_run", "the [!{{name|cap=16}}] tag did not run: {{reason|cap=79}}", repeat=Timeout.seconds(0))
     REPLY_TAG_PLACE = Nudge("messages", "reply_tag_opens_a_line", "start a line with [!reply:{{n}}]; message {{n}} is still unanswered", "", repeat=Timeout.seconds(0))
     DUPLICATE_REPLY = Nudge("messages", "reply_kept_out_as_replied_already", "not posted: message {{n}} has reply {{reply}}", "to add: `journal message send \"<text>\" --reply-to {{n}} --confirm`", repeat=Timeout.seconds(0))
     REPEATED_CLOSING_TEXT = Nudge("messages", "closing_words_kept_out_as_repeated", "your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply", repeat=Timeout.seconds(0), is_remark=True)
