@@ -22,7 +22,7 @@ class MessagesNudges:
     INBOX_EDIT_BLOCK = Nudge("messages", "write_held_until_read", "you have {{count}} unread messages", "`journal message unread` before any other write", repeat=Timeout.seconds(0))
     UNANSWERED_MESSAGES = Nudge("messages", "answer_before_anything_else", "message {{messages}} is not answered yet", "answer or react to it before you go on", repeat=Timeout.seconds(300), chat_answerable=True)
     UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages}} first", "your tool calls wait until you do", repeat=Timeout.seconds(0), chat_answerable=True)
-    FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "no pipe after `journal message read` or `journal question show`", "run it on its own", repeat=Timeout.seconds(0))
+    FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "no pipe after `journal message read <n>` or `journal question show <n>`", "run it on its own", repeat=Timeout.seconds(0))
     TAG_FAILURE = Nudge("messages", "tag_did_not_run", "the [!{{name}}] tag did not run: {{reason}}", repeat=Timeout.seconds(0))
     REPLY_TAG_PLACE = Nudge("messages", "reply_tag_opens_a_line", "the [!reply:{{n}}] tag must open a line of your turn", "message {{n}} is still unanswered", repeat=Timeout.seconds(0))
     DUPLICATE_REPLY = Nudge("messages", "reply_kept_out_as_replied_already", "message {{n}} already has your reply {{reply}}, so this one was not posted", "only for something new: `journal message send \"<text>\" --reply-to {{n}} --confirm`", repeat=Timeout.seconds(0))

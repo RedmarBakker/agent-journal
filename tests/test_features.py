@@ -23139,3 +23139,31 @@ def test_a_check_row_is_updated_twice_by_a_run_once_when_it_starts_and_once_when
     app.container.get(Bus).listen(Updated, Saves())
     app.container.get(CheckRunner).run(check, Actor.system())
     assert saved == [True, False], "one save marks the run started with its process, one records its result; none in between for a quick run"
+
+
+NUDGE_PLACEHOLDER = re.compile(r"<[^<>]+>|\{\{\w+\}\}")
+NUDGE_COMMAND = re.compile(r"`(journal [^`]+)`")
+
+
+def test_every_journal_command_a_nudge_names_in_backticks_is_written_whole_as_the_console_parses_it(app: App):
+    import argparse
+    import shlex
+    from journal.console.console import Console
+    from journal.features.registry import Registry
+    from journal.support.agent_role import AgentRole
+    console = app.container.get(Console)
+    refused = []
+    for feature in app.container.get(Registry).features:
+        for nudge in feature.nudges:
+            for command in NUDGE_COMMAND.findall(f"{nudge.title} {nudge.brief}"):
+                if command.split(" ")[1].startswith("{{"):
+                    continue
+                words = shlex.split(NUDGE_PLACEHOLDER.sub("1", re.sub(r"\[[^\]]*\]", "", command)).replace("...", ""))[1:]
+                try:
+                    args = console.parser(AgentRole.MAIN).parse_args(console.with_verb(console.switched(words)))
+                except (SystemExit, argparse.ArgumentError) as error:
+                    refused.append(f"{nudge.key}: {command} ({error})")
+                    continue
+                if args.noun == "await" and args.verb == "begin" and not (args.output or args.until):
+                    refused.append(f"{nudge.key}: {command} (journal await needs --output or --until)")
+    assert refused == [], "a command a nudge names would be refused as written:\n" + "\n".join(refused)
