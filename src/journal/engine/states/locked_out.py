@@ -5,6 +5,7 @@ from journal.engine.engine_nudges import EngineNudges
 from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.compacting import Compacting
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.support.lockout_option import LOCKOUT_OPTION
@@ -16,7 +17,7 @@ STEADY = Timeout.seconds(5)
 
 @dataclass(frozen=True)
 class LockedOut(BaseState):
-    """A worker whose journal stopped answering at silence_start and answered again at return_time: every tool is held and nothing is pushed over it, and it pops once the journal has answered for STEADY, or, when the silence outlasted the grace the Settings page sets, it ends the worker, every tool held and its stop let through."""
+    """A worker whose journal stopped answering at silence_start and answered again at return_time: every tool is held and nothing is pushed over it, a compaction of its context included, and it pops once the journal has answered for STEADY, or, when the silence outlasted the grace the Settings page sets, it ends the worker, every tool held and its stop let through."""
 
     name = "locked_out"
     assigner = NoTaskAssigner
@@ -43,6 +44,10 @@ class LockedOut(BaseState):
         if self.is_steady(event.time):
             return self.forward()
         return self.refuse(EngineNudges.LOCKOUT_WAIT.create(seconds=self.silence_seconds()))
+
+    def on_compacting(self, event: Compacting, settings: Settings) -> Transition:
+        event.stop_propagation()
+        return self.none()
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return self.pop() if self.is_steady(event.time) and not self.is_expired(settings) else self.none()

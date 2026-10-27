@@ -6235,7 +6235,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     protocol = app.container.get(Protocol)
     from journal.providers.claude import Claude
     tool = json.loads(protocol.event_line(ToolStarting(call=Claude().call("Bash", {"command": "ls"}, frozenset())).placed("s1", 1, "claude", 0.2, 0.0), "main", "working"))
-    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls"}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
+    assert (tool["v"], tool["event"], tool["session"], tool["state"], tool["data"]) == (1, "tool_starting", "s1", "working", {"boot_wait_seconds": 0.0, "tool_use": 0, "hook_key": "", "tool": "Bash", "input": {"command": "ls"}, "operation": {"kind": "shell line", "command": "ls"}, "command": "ls", "parts": [{"text": "ls", "is_journal": False, "writes": False, "files": [], "reads_output": False, "read_shape": "ls", "classification": {"kind": "unknown", "effects": [], "uncertain": False}}], "is_journal": False, "writes": False, "written_paths": [], "read_paths": [], "file_lines": 0, "skill_loaded": "", "work": "searching", "table_version": 0, "shape_runs": 0, "folder": ""}), "an agent event: its name, where it happened and the call's one reading, flat, as a plugin reads it, with the folder it runs in"
     row = json.loads(protocol.event_line(Created(model=Task(id=7, environment_id=1, title="t"), actor=Actor.plugin("echo")), "main"))
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
@@ -13174,7 +13174,7 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     from journal.repositories.messages import Messages
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key(f"watch:{number}")[0]
-    assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
+    assert card.data["line"] == "journal nap 2", "the card names the alias line as typed, never the path it resolves to (task 3732)"
 
 
 def test_a_reader_is_removed_with_its_files_and_an_alias_it_read_for_runs_with_no_reader(app: App):
@@ -21400,10 +21400,9 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
 
     own = drafted(AGENT, "the orchestrator's plan")
     user_set(app, "workers.orchestrator_writes_plans", False)
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal plan create another --brief 'the goal'"})
-    assert status == 409 and "Orchestrator may write plans is off" in body["error"], "with May write plans off the orchestrator's conduct refuses its plan"
+    assert "Orchestrator may write plans is off" in console.run(["plan", "create", "another", "--brief", "the goal"], AGENT).error, "with May write plans off the orchestrator writes no plan"
     user_set(app, "workers.mode", "builder")
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal plan create another --brief 'the goal'"})[0] == 200, "the toggle counts in orchestrator mode only"
+    assert console.run(["plan", "create", "a builder's plan", "--brief", "the goal"], AGENT).code == 0, "the toggle counts in orchestrator mode only"
     user_set(app, "workers.mode", "orchestrator")
     users = drafted(USER, "the user's plan")
     user_set(app, "workers.orchestrator_approves_plans", True)
@@ -22193,7 +22192,7 @@ def test_a_reader_written_anew_takes_effect_on_the_card_of_a_run_already_going(a
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     console = app.console()
-    assert console.run(["reader", "add", "tests", "--pattern", "PASS|FAIL", "--about", "a go test run", "--commands", "go test", "--progress", r"=== RUN\s+\S+\s+(\d+)"], AGENT).code == 0
+    (app.config.readers / "tests.pattern").write_text("# a go test run, written before a one-group progress was refused at the add\nPASS|FAIL\nprogress: === RUN\\s+\\S+\\s+(\\d+)\ncommands: go test\n")
     folder = app.config.root / "go-run"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")

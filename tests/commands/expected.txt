@@ -1415,6 +1415,7 @@ plugins.hold_window_ms = 2000
 plugins.clock_out_window_seconds = 180
 plugins.holds_in_a_row = 5
 plugins.passed_over_minutes = 3
+faults.developer = False
 faults.report = False
 faults.budget.request = 50
 faults.budget.write = 50
@@ -1736,6 +1737,7 @@ plugins.plugin_not_working  [plugins]  the plugin {{plugin}} was on and no longe
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker profile. `journal worker dispatch "<Name>" --task <n> --profile {{name}}`
 questions.ask_through_the_journal  [questions]  ask through the journal, not your own question tool. `journal question ask "<one line>" --options "a" "b"`
 questions.question_answered  [questions]  question {{n}} is answered. `journal question show {{n}}`, then act on it
+questions.question_closed  [questions]  the user closed question {{n}} without an answer: it is no longer needed. go on without it
 reports.write_an_update  [reports]  you committed work: if a meaningful piece landed, write the user an update. journal report changes shows what it covers, then journal report recap "<one or two sentences>" writes it, docked at the bottom of the chat; skip it when the work is small
 reports.written_work_never_acted_on  [reports]  {{kind}} {{n}} has not been read, linked or mentioned since it was written. read it and act on it, linking it to the task or plan it feeds, or sign it off with journal {{kind}} settle {{n}} --why "<why it needs no action>"
 reviewing.review_failed  [reviewing]  the reviewer of worker {{n}} ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
@@ -1914,7 +1916,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-284 nudges
+285 nudges
 
 $ agent: journal worker list
 exit 0

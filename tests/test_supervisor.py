@@ -768,3 +768,16 @@ def test_a_health_url_must_answer_200_in_time_a_health_file_must_be_fresh_and_th
     path.write_text(json.dumps(launch))
     supervisor = LaunchFile.read(path).supervisor()
     assert supervisor.services.service("journal").health == HealthCheck(**journal_health) and supervisor.front_health is None, "the supervisor takes both checks as the launch file says them, knowing nothing of what they check"
+
+
+def test_the_supervisor_raises_the_open_file_limit_a_login_shell_starts_it_with():
+    import resource
+    from supervisor.__main__ import OPEN_FILES, raise_open_file_limit
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (256, hard))
+        raise_open_file_limit()
+        raised, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
+        assert raised >= min(OPEN_FILES, hard if hard != resource.RLIM_INFINITY else OPEN_FILES), "a supervisor started from a terminal's 256 open files runs the journal and its test runs with room for more"
+    finally:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))

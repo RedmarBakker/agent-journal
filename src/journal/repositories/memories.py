@@ -46,7 +46,7 @@ class Memories(ScopedRepository[Memory]):
     def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[Memory]:
         return self.search_rows(self.owned_query(None).filter_null("removed_at"), terms, limit)
 
-    def shown_query(self, owner: Ref | None) -> Query:
+    def shown_query(self, owner: Ref | None = None) -> Query:
         return self.owned_query(owner).filter_greater("weight", LIGHTEST).filter_null("removed_at")
 
     def owned_query(self, owner: Ref | None) -> Query:

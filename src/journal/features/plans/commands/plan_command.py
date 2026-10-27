@@ -105,6 +105,8 @@ class PlanCommand(Command):
         testing.add_argument("title")
 
     def create(self, args: Namespace, caller: Caller) -> int:
+        if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
+            raise Rejection("the user writes the plans here: Orchestrator may write plans is off, so ask them for one")
         with self.hub.writing_in(args.team):
             plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
         print(f"{self.labels.name('plan', plan)} {plan.state}")

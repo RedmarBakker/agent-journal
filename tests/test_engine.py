@@ -461,7 +461,7 @@ def test_every_listener_whose_event_matches_runs_the_most_specific_first_and_the
     assert state.respond(SessionEnded(), settings, safety).pushed == Ended()
     assert Ended().respond(SessionEnded(), settings, safety).pushed is None, "a session already over is not ended again"
     assert [method.__name__ for _, method in Listening.listeners()] == ["on_tool_starting", "on_agent_event"]
-    assert [method.__name__ for _, method in Listening.listeners(safety)][-4:] == ["on_compacting", "on_session_ended", "on_session_retired", "on_stop"]
+    assert [method.__name__ for _, method in Listening.listeners(safety)][-5:] == ["on_compacting", "on_journal_returned", "on_session_ended", "on_session_retired", "on_stop"]
 
 
 def test_settings_is_a_frozen_value_of_the_options_read_by_option():

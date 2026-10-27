@@ -1689,13 +1689,13 @@ def test_the_load_dispatch_counts_migration_renames_the_keys_of_every_stored_loa
 def test_a_memory_fades_by_one_at_a_time_and_at_nought_is_stored_but_no_longer_shown(connection, bus, scope):
     from journal.models.memory import Memory
     from journal.repositories.memories import Memories
-    memories = Memories(connection, bus, scope, TimeSource())
+    memories = Memories(connection, bus, scope, Links(connection, bus, TimeSource()), TimeSource())
     with scope.environment(1):
         light = memories.save(Memory(text="the port is fixed", weight=1), USER)
         heavy = memories.save(Memory(text="the suite runs in shards", weight=7), USER)
         removed = memories.save(Memory(text="an old truth", weight=9).removed(datetime.now(timezone.utc)), USER)
         assert [m.id for m in memories.shown()] == [heavy.id, light.id], "the shown memories, heaviest first, never a removed one"
-        memories.fade_all(Actor.system())
+        memories.fade_all(None, Actor.system())
         assert [(m.id, m.weight) for m in memories.shown()] == [(heavy.id, 6)], "a compaction lowers every weight by one, and one at nought leaves what is shown"
         assert memories.find(light.id).weight == 0 and memories.find(removed.id).weight == 9, "it stays on its row, and a removed one is not faded"
         assert memories.find(light.id).weighed(4).is_visible(), "weighing a faded memory above nought shows it again"
