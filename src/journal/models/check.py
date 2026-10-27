@@ -39,8 +39,8 @@ class Check(Model):
     def edited(self, title: str, brief: str, command: str, interval_minutes: float) -> "Check":
         return self.with_(title=title, brief=brief, command=command, interval=interval_minutes)
 
-    def started(self, time: float) -> "Check":
-        return self.with_(progress=CheckProgress(time)).with_event(self.run_changed(time, time))
+    def started(self, time: float, process: int = 0) -> "Check":
+        return self.with_(progress=CheckProgress(time, process=process)).with_event(self.run_changed(time, time))
 
     def run_changed(self, time: float, run_start: float) -> CheckRunChanged:
         return CheckRunChanged(environment_id=0, time=time, check_id=self.row_id, run_start=run_start, wait_target=self.wait_target)

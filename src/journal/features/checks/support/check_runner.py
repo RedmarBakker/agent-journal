@@ -33,7 +33,9 @@ class CheckRunner:
 
     def run(self, check: Check, actor: Actor) -> Check:
         started = self.time_source.seconds()
-        return self.finished(self.checks.rewritten(check, actor, lambda current: current.started(started)), started, actor)
+        report = self.report_path(check)
+        process = self.launched(check, report)
+        return self.finished(self.checks.rewritten(check, actor, lambda current: current.started(started, process.pid)), started, actor, process, report)
 
     def start(self, check: Check, actor: Actor) -> Check:
         with self.checks.writing():
@@ -41,8 +43,10 @@ class CheckRunner:
             if current.is_running(self.time_source.seconds()):
                 return current
             started = self.time_source.seconds()
-            commenced = self.checks.rewritten(current, actor, lambda row: row.started(started))
-        threading.Thread(target=self.finished, args=(commenced, started, actor), name=f"check-{commenced.id}", daemon=True).start()
+            report = self.report_path(current)
+            process = self.launched(current, report)
+            commenced = self.checks.rewritten(current, actor, lambda row: row.started(started, process.pid))
+        threading.Thread(target=self.finished, args=(commenced, started, actor, process, report), name=f"check-{commenced.id}", daemon=True).start()
         return commenced
 
     def stop(self, check: Check, actor: Actor) -> Check:
@@ -53,11 +57,14 @@ class CheckRunner:
             self.ended(current_check.progress.process)
         return stopped_check
 
-    def finished(self, check: Check, started: float, actor: Actor) -> Check:
+    def report_path(self, check: Check) -> Path:
         report = self.config.home / "runtime" / "check-reports" / f"{check.id}.json"
         report.parent.mkdir(parents=True, exist_ok=True)
         report.unlink(missing_ok=True)
-        ended = self.executed(check, report, started, actor)
+        return report
+
+    def finished(self, check: Check, started: float, actor: Actor, process: subprocess.Popen, report: Path) -> Check:
+        ended = self.executed(check, process, started, actor)
         elapsed = self.time_source.seconds() - started
         with self.checks.writing():
             current = self.checks.find(check.row_id)
@@ -65,14 +72,16 @@ class CheckRunner:
                 return current
             return self.checks.rewritten(current, actor, lambda row: row.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], self.time_source.moment(), elapsed, self.report(report), ended.fault, started))
 
-    def executed(self, check: Check, report: Path, started: float, actor: Actor) -> FinishedRun:
+    def launched(self, check: Check, report: Path) -> subprocess.Popen:
         process = subprocess.Popen(check.command, shell=True, cwd=self.config.root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
                                    env={**os.environ, "JOURNAL_REPORT": str(report)}, start_new_session=True)
         if process.stdout is None:
             raise OSError(f"check {check.row_id} started without its output pipe")
+        return process
+
+    def executed(self, check: Check, process: subprocess.Popen, started: float, actor: Actor) -> FinishedRun:
         late = threading.Timer(RUN_LIMIT_SECONDS, os.killpg, (process.pid, signal.SIGKILL))
         late.start()
-        self.progressed(check, started, CheckProgress(started, process=process.pid), actor)
         output_text, saved = [], self.time_source.seconds()
         for line in process.stdout:
             output_text.append(line)

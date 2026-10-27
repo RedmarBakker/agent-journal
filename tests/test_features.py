@@ -23119,3 +23119,23 @@ def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_i
     outputs.watch(outputs.find(1), "", "Running the performance tests", Actor.system())
     tick()
     assert len(told()) == 1, "a card titled in words adds no line"
+
+
+def test_a_check_row_is_updated_twice_by_a_run_once_when_it_starts_and_once_when_it_ends(app: App):
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.models.updated import Updated
+    from journal.features.checks.support.check_runner import CheckRunner
+    from journal.models.check import Check
+    from journal.repositories.checks import Checks
+    saved = []
+
+    class Saves(Listener[Updated]):
+        def handle(self, event: Updated) -> None:
+            if isinstance(event.model, Check):
+                saved.append(event.model.progress is not None)
+
+    check = app.container.get(Checks).save(Check(title="quick", command="true", interval=60), Actor.system())
+    app.container.get(Bus).listen(Updated, Saves())
+    app.container.get(CheckRunner).run(check, Actor.system())
+    assert saved == [True, False], "one save marks the run started with its process, one records its result; none in between for a quick run"
