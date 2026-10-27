@@ -83,3 +83,7 @@ is kept in `.journal/journal.db`, a SQLite database beside your code.
 - [The cycle](docs/the-cycle.md): how the journal speaks to the agent, hook by hook.
 - [Plugins](docs/plugins.md): how to write a plugin that hears the journal's events and answers them.
 - [The shared journal](docs/shared-journal.md): hosting a team server and joining one.
+
+## License
+
+The journal is free to use for any noncommercial purpose under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): personal use, study, research, hobby projects, and use by charities, schools and public bodies. Commercial use needs a separate license from the author.

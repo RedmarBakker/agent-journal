@@ -65,6 +65,35 @@
    ],
    "label": "testing",
    "note": "a script whose name says it runs the tests, run alone or handed to an interpreter"
+  },
+  "(^|/)(build|compile)[\\w.-]*\\.(sh|ps1|bat|cmd)$": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "building",
+   "note": "a script whose name says it builds"
+  },
+  "(^|/)configure$": {
+   "kind": "build",
+   "effects": [
+    "reads_files",
+    "makes_files"
+   ],
+   "label": "configuring the build",
+   "note": "an autotools configure script"
+  },
+  "(^|/)(install|setup|bootstrap)[\\w.-]*\\.(sh|ps1|bat|cmd)$": {
+   "kind": "package",
+   "effects": [
+    "reaches_network",
+    "makes_files",
+    "runs_long"
+   ],
+   "label": "installing",
+   "note": "a script whose name says it installs or sets up"
   }
  },
  "wrappers": {
