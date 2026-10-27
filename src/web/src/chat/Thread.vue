@@ -39,7 +39,7 @@ import ChatDock from "./ChatDock.vue";
 import DockGroup from "./DockGroup.vue";
 import DumpDock from "./DumpDock.vue";
 import {withDayLines} from "../domain/dayLines.js";
-import {dockedDump, dockedRows, isRun, streamRows} from "../domain/docks.js";
+import {dockedDump, dockedRows, isRun, keptRuns, streamRows} from "../domain/docks.js";
 import {useRunGroup} from "../composables/runGroup.js";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
@@ -129,10 +129,10 @@ const dockNow = useSharedNow();
 const rowDocks = computed(() => dockedRows(chat.value, dockNow.value));
 // the runs docked are drawn together (chat/DockGroup.vue), as cards or, from three at once, folded into one compact row; the rows docked
 // from their inspectors are drawn alone
-const runDocks = computed(() => rowDocks.value.filter(isRun));
+const runDocks = computed(() => keptRuns(rowDocks.value.filter(isRun)));
 const grouped = useRunGroup(runDocks);
 const aloneDocks = computed(() => rowDocks.value.filter((m) => !isRun(m)));
-const dockCount = computed(() => rowDocks.value.length + [dumpDock.value, planCard.value].filter(Boolean).length);
+const dockCount = computed(() => aloneDocks.value.length + runDocks.value.length + [dumpDock.value, planCard.value].filter(Boolean).length);
 const helping = computed(() =>
     subagentsOf(owner.value)
         .filter((sub) => sub.running)

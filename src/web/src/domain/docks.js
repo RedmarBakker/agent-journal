@@ -16,6 +16,17 @@ export const isDocked = (m, now) =>
 // Whether a docked message stands for a run, an output it watches or a check it runs, and not a row docked from its inspector
 export const isRun = (m) => Boolean(m.data.output || m.data.check);
 
+// The most runs the docks hold at once: past it, the runs that finished are cleared, the oldest first, and a run still going always stays
+export const MOST_DOCKED_RUNS = 6;
+
+// The runs docked, in the order each docked, with the finished ones past MOST_DOCKED_RUNS cleared oldest first
+export function keptRuns(runs, most = MOST_DOCKED_RUNS) {
+    const over = runs.length - most;
+    if (over <= 0) return runs;
+    const cleared = new Set(runs.filter((m) => m.data.ending).slice(0, over).map((m) => m.id));
+    return runs.filter((m) => !cleared.has(m.id));
+}
+
 // Whether a docked card closes by itself: one the journal docked, once its run ended, until the user keeps it
 export const isLeaving = (m) => Boolean(m.data.auto_docked && m.data.undock_at);
 

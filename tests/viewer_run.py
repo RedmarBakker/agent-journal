@@ -63,6 +63,11 @@ SETS = {
         "tests/chatMarkSecondRound.test.js",
         "tests/chatMarkDesign.test.js",
     ),
+    "dock_runs": (
+        "tests/docks.test.js",
+        "tests/docksDelay.test.js",
+        "tests/chatMarkSecondRound.test.js",
+    ),
     "figure_sleep": (
         "tests/figureState.test.js",
         "tests/figureVisible.test.js",

@@ -76,3 +76,22 @@ test("a plan not started counts nothing finished and strikes nothing out", async
     expect(PLANNED).toContain("ready");
     expect(PLANNED).not.toContain("started");
 });
+
+describe("the runs docked at once", () => {
+    test("past MOST_DOCKED_RUNS the finished runs are cleared oldest first, and every run still going stays", async () => {
+        const {MOST_DOCKED_RUNS, keptRuns} = await import("../src/domain/docks.js");
+        const {readFileSync} = await import("node:fs");
+        const run = (id, ending = "") => ({table: "messages", id, created_at: at(id), author: "system", text: `Run ${id}`, data: {kind: "card", output: id, docked: true, ending}});
+        expect(MOST_DOCKED_RUNS).toBe(6);
+        const runs = [run(1, "finished"), run(2), run(3, "failed with code 1"), run(4, "finished"), run(5), run(6, "finished"), run(7), run(8), run(9, "finished")];
+        const kept = keptRuns(runs);
+        expect(kept.map((m) => m.id)).toEqual([2, 5, 6, 7, 8, 9]);
+        expect(kept).toHaveLength(MOST_DOCKED_RUNS);
+        expect(runs.filter((m) => !m.data.ending).every((m) => kept.includes(m))).toBe(true);
+        expect(keptRuns(runs.slice(0, 5))).toHaveLength(5);
+        const going = Array.from({length: 8}, (_, i) => run(20 + i));
+        expect(keptRuns([run(10, "finished"), ...going]).map((m) => m.id)).toEqual(going.map((m) => m.id));
+        const thread = readFileSync("src/chat/Thread.vue", "utf8");
+        expect(thread).toContain("const runDocks = computed(() => keptRuns(rowDocks.value.filter(isRun)));");
+    });
+});
