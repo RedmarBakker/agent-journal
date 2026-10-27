@@ -73,7 +73,6 @@ class Menu:
         last = next((row.last_session(agent) for row in rows if row.name == selection), "")
         return Choice(selection, "" if new else last, stashed or self.remembered.read().stashed_hooks, True)
 
-    # the questions in order, each skipped where it does not apply; the left arrow asks again the last one that was asked before it
     def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
         answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read())
         steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._prompts_stage, self._hooks_stage, self._trust_stage)

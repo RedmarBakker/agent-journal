@@ -88,12 +88,10 @@ class Codex(Provider):
     def config_folder() -> Path:
         return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
-    # a worktree reads the main checkout's hooks file through a link, so its hooks name the main root and nothing is written inside it
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         hooks = self.wire_hooks(root, script, command)
         Worktree.linked(folder / self.home / self.settings_file, hooks)
 
-    # Codex trusts hooks per project path: the main checkout's trust is given to the worktree's path too, as the same hooks
     def folder_trusted(self, root: Path, folder: Path) -> None:
         settings = self.config_folder() / "config.toml"
         states = tomllib.loads(settings.read_text()).get("hooks", {}).get("state", {}) if settings.is_file() else {}

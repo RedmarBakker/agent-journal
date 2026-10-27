@@ -27,7 +27,6 @@ class WorktreeNames:
         folder = self.root / ".claude" / "worktrees"
         return {path.name for path in folder.iterdir()} if folder.is_dir() else set()
 
-    # a branch worktree-<name> or a kept tip that outlived its worktree would hand a new launch the old work
     def ref_names(self) -> set[str]:
         listed = subprocess.run(["git", "-C", str(self.root), "for-each-ref", "--format=%(refname)", "refs/heads/worktree-*", f"{TIPS_REF}/"], capture_output=True, text=True, timeout=GIT_SECONDS)
         return {line.removeprefix("refs/heads/worktree-").removeprefix(f"{TIPS_REF}/") for line in listed.stdout.splitlines()}

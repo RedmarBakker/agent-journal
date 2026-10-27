@@ -28,7 +28,6 @@ class PluginAliases:
             if not copy.exists() or self.is_stamped(copy, plugin):
                 copy.write_text(reader.read_text().rstrip("\n") + f"\n{STAMP}{plugin.name}\n")
 
-    # a plugin installed inside the project is named relative to it, so its alias line runs and shows without where the project lives
     def line_folder(self, folder: Path) -> Path:
         return folder.relative_to(self.config.root) if folder.is_relative_to(self.config.root) else folder
 

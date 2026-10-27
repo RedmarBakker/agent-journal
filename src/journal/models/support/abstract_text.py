@@ -17,7 +17,6 @@ class AbstractText:
             return f"the abstract is {len(text)} characters, longer than {ABSTRACT_LENGTH_CHARACTERS}: say it in one short description"
         return ""
 
-    # the abstract a row arrives with when it is fit, else its body's first sentence: for rows written before abstracts were required
     @classmethod
     def fitted(cls, abstract: str, body: str, title: str) -> str:
         return cls.body_abstract(body, title) if cls.refusal(abstract) else abstract

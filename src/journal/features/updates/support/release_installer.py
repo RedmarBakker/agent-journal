@@ -24,7 +24,6 @@ class ReleaseInstaller:
         self.config = config
         self.log = config.home / "runtime" / "update.log"
 
-    # an updater from before 2026-10-24 calls this with the ref and the repository alone, so the reason has a plain default
     def run(self, ref: str, repository: str, reason: str = UPDATE_REASON) -> None:
         self.log.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="journal-install-") as folder, self.log.open("w") as log:

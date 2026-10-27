@@ -46,7 +46,6 @@ class PlanTaskAssigner:
             return ()
         return tuple(queued.row_id for queued in self.plans.queued_tasks(plan))[:quantity - 1]
 
-    # a close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused
     @staticmethod
     def actor(event: AgentEvent | RowEvent) -> Actor:
         return Actor.parse(event.actor) if isinstance(event, TaskClosed) and event.actor else Actor.system()

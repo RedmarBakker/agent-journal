@@ -37,8 +37,6 @@ class VerifierDispatch:
             return None
         return self.judging(Verifier(environment_id=target.environment_id, name=DIOGENES, brief=brief, provider=self.providers.default().name, model=model), target, "")
 
-    # a judgement still waiting is sent once a verifier is free; one whose row no longer waits for a verdict, judged meanwhile or its
-    # dismissal taken back, is dropped
     def released(self) -> None:
         while self.waiting:
             target, brief, model, pending = self.waiting[0]

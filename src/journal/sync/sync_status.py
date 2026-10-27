@@ -25,14 +25,11 @@ class SyncStatus:
     def failed(self, fault: str) -> None:
         self.fault = fault
 
-    # the sync service's own word on how it stands: the fault it meets, and whether it has reached the team server
     def reported(self, fault: str, reached: bool) -> None:
         self.fault = fault
         self.reached = self.reached or reached
         self.reported_at = time.monotonic()
 
-    # the fault the sync service last reported, or that it is gone when it has reported and then said nothing for a while; before
-    # its first report the journal is still connecting
     def current_fault(self) -> str:
         if self.reported_at is not None and time.monotonic() - self.reported_at > STALE_SECONDS:
             return "the sync service is not running"

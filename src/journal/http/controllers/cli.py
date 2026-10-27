@@ -59,7 +59,6 @@ class CliController:
     def ending(text: str, code: int) -> bytes:
         return f"{text}{'' if not text or text.endswith(chr(10)) else chr(10)}{EXIT} {code}\n".encode()
 
-    # a background command's printed lines go out as they are printed, into the output its shell line writes, its errors and exit line once it ends
     def streamed(self, variables: CallerVariables, argv: list[str], request: Request) -> Iterator[bytes]:
         lines: queue.Queue = queue.Queue()
         outcomes: list[Outcome] = []

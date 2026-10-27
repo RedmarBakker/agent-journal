@@ -20,7 +20,6 @@ class LaunchFiles:
         current = self.launch(environment).get("launch", "")
         return not current or launch_id == current
 
-    # a launch whose launcher process has gone, as after a crash, holds its environment no more
     def is_abandoned(self, environment: str) -> bool:
         owner = int(self.launch(environment).get("owner", 0))
         return owner > 0 and not ProcessCheck.is_running(owner)

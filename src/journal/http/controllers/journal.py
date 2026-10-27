@@ -49,8 +49,6 @@ class JournalController:
         return Response.json({"project": self.config.root.name, "color": COLOR, "root": str(self.config.home), "version": VERSION, "pid": os.getpid(), "parent": os.getppid(),
                               "environments": [e.name for e in self.environments.all()] or ["main"]})
 
-    # the server answers, and answers unwell while an environment's hooks fire without reaching it or while it cannot open a file or read
-    # its database, as when it has run out of descriptors, so its supervisor starts it again
     def health(self, request: Request) -> Response:
         self.config.port_file.read_text()
         self.environments.total()

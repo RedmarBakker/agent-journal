@@ -23,7 +23,6 @@ class Bus:
     def dispatch(self, event: Event) -> list[object]:
         return [listener.handle(event) for listener in self.listeners(type(event))]
 
-    # every listener hears the event, one that raises logged and passed over, so the others still run, as a tick of the clock does
     def dispatch_guarded(self, event: Event) -> list[object]:
         answers = []
         for listener in self.listeners(type(event)):

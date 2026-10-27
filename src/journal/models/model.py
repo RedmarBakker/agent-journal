@@ -32,15 +32,12 @@ class Model:
     def local_ready(self) -> "Model":
         return self
 
-    # why this row cannot be written as it stands, said before anything is written; empty when it can
     def refusal(self) -> str:
         return ""
 
-    # a row that arrived from the team as this journal stores it, for a sender on an older version whose row lacks what this one requires
     def pulled_row(self) -> "Model":
         return self
 
-    # the fields of an update from the team that this journal takes in
     @classmethod
     def pulled_fields(cls, fields: dict) -> dict:
         return fields
@@ -57,7 +54,6 @@ class Model:
             return singular + "es"
         return singular + "s"
 
-    # the SQL table its rows are stored in; models that share one table tell their rows apart by kind_filter
     @classmethod
     def storage(cls) -> str:
         return cls.table()
@@ -66,7 +62,6 @@ class Model:
     def kind_filter(cls) -> dict[str, str]:
         return {}
 
-    # the team's block of row numbers a new row takes its number from, when it takes one
     @classmethod
     def number_pool(cls) -> str | None:
         return cls.table() if cls.shared else None

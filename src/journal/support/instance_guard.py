@@ -33,7 +33,6 @@ class InstanceGuard:
         self.lock_file = handle
         return True
 
-    # waits on the project's lock itself, so the moment the journal that holds it is gone, this one has it
     def blocking_claim(self) -> None:
         handle = self.lock_handle()
         fcntl.flock(handle, fcntl.LOCK_EX)

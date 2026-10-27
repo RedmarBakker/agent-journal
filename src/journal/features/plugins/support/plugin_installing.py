@@ -240,7 +240,6 @@ class PluginInstalling:
             return
         raise Rejection(f"a plugin named {name} is installed already: journal plugin upgrade {name}")
 
-    # a git address is taken at the newest release tag that runs on this journal, else at its head when it has no release tags; a folder as it lies
     @contextmanager
     def staged_release(self, source: str) -> Iterator[tuple[Path, str, str]]:
         if Path(source).is_dir() or not (releases := self.tags.listed(source)):

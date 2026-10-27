@@ -109,13 +109,11 @@ class Launch:
             os.execv(sys.executable, [sys.executable, *sys.argv])
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
 
-    # a bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds
     def unused_name(self, menu: Menu) -> str:
         if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
             return ""
         return WorktreeNames(self.root).unused({row.name for row in menu.environments()})
 
-    # a worktree launch never shares an environment a live session holds: it takes name-2, name-3 and so on, a worktree of its own
     def unheld(self, menu: Menu, name: str) -> str:
         if not (self.worktree_launch and name):
             return name
@@ -126,7 +124,6 @@ class Launch:
             candidate = f"{name}-{number}"
         return candidate
 
-    # the worktree a launch named follows its environment when that was renamed for a live session holding it
     def chosen(self, choice: Choice) -> "Launch":
         return replace(self, worktree=choice.environment) if self.worktree and not self.environment else self
 
@@ -138,7 +135,6 @@ class Launch:
         print(line, file=sys.stderr)
         return False
 
-    # an environment that records a worktree works in one however it is launched, its folder made again from the kept tip when lost
     def is_worktree_launch(self, worktree: Worktree) -> bool:
         if self.worktree_launch:
             return True
@@ -230,7 +226,6 @@ class Launch:
         finally:
             path.unlink(missing_ok=True)
 
-    # the numbers the Health and backups settings give the supervisor's check of the journal, or none when the journal cannot say them
     def health_numbers(self) -> dict:
         answer = Menu(self.root, self.package / "journal.sh").journal("supervision", "health").strip()
         return json.loads(answer) if answer.startswith("{") else {}

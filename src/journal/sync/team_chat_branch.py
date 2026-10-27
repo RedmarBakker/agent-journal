@@ -67,7 +67,6 @@ class TeamChatBranch:
             return
         self.remote_head = head
 
-    # this machine claims the Team chat: its worktree is made now, never on joining, and brought to the holder's last push
     def claim(self) -> None:
         self.worktree.created()
         self.pull()

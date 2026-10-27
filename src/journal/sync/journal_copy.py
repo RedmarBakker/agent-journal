@@ -100,7 +100,6 @@ class JournalCopy:
     def local_values(self) -> dict[tuple[str, int], dict]:
         return {(table, row.row_id): values for table in self.tables.names() for row in self.tables.rows(table).rows() if (values := {name: value for name, value in Schema.stored_values(row, None).items() if name in row.local_fields})}
 
-    # this machine's waiting writes laid on the rows about to be written, a row the copy lacks taken as this machine holds it, so none goes through the events of a pulled row
     def laid(self, table: str, table_rows: dict[int, dict], changes: list[OutgoingChange]) -> None:
         rows = self.tables.rows(table)
         table_rows.update({row.row_id: Schema.stored_values(row, None) for row in rows.numbered({change.row for change in changes} - set(table_rows))})

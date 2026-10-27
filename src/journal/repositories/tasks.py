@@ -307,7 +307,6 @@ class Tasks(ScopedRepository[Task]):
         self.release_task(holder, task_id, actor)
         self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
 
-    # a completed task sent back short: it is the one in hand again, and the task the worker reported on waits for the merge in its place
     def reopen_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         for current in self.holder_task_ids(holder):
             self.finish_holder_task(current, holder, actor)
@@ -365,12 +364,10 @@ class Tasks(ScopedRepository[Task]):
     def worker_holdings(self) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.selected(self.links.query().filter(kind=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").order("id"))}
 
-    # the task each of the workers worked on before the one it holds, read from their own links alone
     def earlier_tasks(self, workers: list[Model], holdings: dict[int, int]) -> dict[int, int]:
         worker_tasks = {worker: task for task, worker in holdings.items()}
         return {link.source.id: link.target.id for link in self.links.model_links("source", workers, WORKED_LINK) if worker_tasks.get(link.source.id) != link.target.id}
 
-    # every task each of the workers ever held, in the order it took them up
     def worked_tasks(self, workers: list[Model]) -> dict[int, list[Task]]:
         links = sorted(self.links.model_links("source", workers, WORKED_LINK), key=lambda link: link.row_id)
         tasks = {task.row_id: task for task in self.numbered({link.target.id for link in links})}
@@ -379,14 +376,12 @@ class Tasks(ScopedRepository[Task]):
             worked.setdefault(link.source.id, []).append(tasks[link.target.id])
         return worked
 
-    # the numbers of the tasks each of the workers completed on its queue, in the order it completed them
     def finished_ids(self, workers: list[Model]) -> dict[int, list[int]]:
         finished: dict[int, list[int]] = {}
         for link in sorted(self.links.model_links("source", workers, FINISHED_LINK), key=lambda link: link.row_id):
             finished.setdefault(link.source.id, []).append(link.target.id)
         return finished
 
-    # the tasks queued for each of the workers, in the order they were queued
     def queues(self, workers: list[Model]) -> dict[int, list[Task]]:
         links = self.links.model_links("source", workers, QUEUED_LINK)
         tasks = {task.row_id: task for task in self.numbered({link.target.id for link in links})}

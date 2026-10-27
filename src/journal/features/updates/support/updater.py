@@ -101,11 +101,9 @@ class Updater:
         newest = self.newer()[-1]
         return UpdateTarget(newest.tag, newest.version)
 
-    # a journal in a team installs the version its team pins by itself, whatever the setting says; any other updates on its own when set to
     def automatic(self) -> bool:
         return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published()
 
-    # whether the team decides this journal's version: joined, and not the hosted journal that leads the team onto a release
     def is_pinned(self) -> bool:
         return self.account.is_joined() and not self.leads_team()
 
@@ -265,7 +263,6 @@ class Updater:
             with log.open("a") as log_file:
                 log_file.write(f"installing {target.label}: {target.reason}\n")
 
-    # the sync service has sent the whole queue and pulled the team to its head, under the team's upgrade lease
     def is_drained(self) -> bool:
         return self.hooks.succeeded(ServiceEvent(UPGRADE_PREPARING), DRAIN_SECONDS)
 

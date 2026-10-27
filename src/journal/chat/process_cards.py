@@ -29,7 +29,6 @@ class ProcessCards:
                 return older[0]
             return self.save_card(contents, older)
 
-    # a finished card read again by a reader written anew, while the output it shows is still kept
     def reread(self, contents: ProcessCardContents) -> Message:
         with self.messages.writing():
             return self.save_card(contents, self.messages.keyed(contents.key, contents.actor))

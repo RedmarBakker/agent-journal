@@ -41,7 +41,6 @@ class BriefingConduct(Conduct):
 
 
 
-# a session started in another folder than its launch named works in one checkout while the journal looks at another
 def folder_check(event: SessionStarted) -> list[Nudge]:
     briefing = event.data.part(BriefingPart)
     if not event.folder or not briefing.launch_folder or event.folder.rstrip("/") == briefing.launch_folder.rstrip("/"):

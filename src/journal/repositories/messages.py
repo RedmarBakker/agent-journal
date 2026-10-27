@@ -142,8 +142,6 @@ class Messages(ScopedRepository[Message]):
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:
         return self.latest_rows(self.bounded(chat, previous, following), last)
 
-    # a page of the chat: its newest messages down to the count-th a person or an agent wrote, every mark between them with them, and
-    # whether a written message older than those is left
     def message_page(self, chat: Query, count: int, previous: int = 0, following: int = 0) -> tuple[list[Message], bool]:
         query = self.bounded(chat, previous, following)
         person_messages = self.latest_rows(query.filter_unequal("author", Author.SYSTEM.value), count + 1)
@@ -175,7 +173,6 @@ class Messages(ScopedRepository[Message]):
     def recent_commits(self, start: datetime, end: datetime, last: int) -> list[Message]:
         return list(reversed(self.selected(self.query().filter_prefix("data->key", "commit:").filter_greater_equal("created_at", start).filter_less("created_at", end).order_descending("id").limit(last))))
 
-    # the messages a person or an agent wrote, in every environment, leaving out the journal's own marks and cards
     def message_count(self) -> int:
         return self.stored_matching_count(self.query().filter_listed("author", [Author.USER.value, Author.AGENT.value, Author.COLLEAGUE.value]))
 

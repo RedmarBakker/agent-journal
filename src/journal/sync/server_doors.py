@@ -32,7 +32,6 @@ class ServerDoors:
     def batch_answered(self, ids: tuple[int, ...], answer: SyncAnswer) -> DeskAnswer:
         return self.desk.outgoing_reply(list(ids), answer)
 
-    # a push's pull handed again once the team's full copy is laid in
     def delivered(self, answer: SyncAnswer) -> DeskAnswer:
         return self.desk.delivery_reply(answer.delivery)
 

@@ -90,7 +90,6 @@ class SyncDesk:
     def batch(self, rows: int) -> list:
         return self.outgoing.sending_batch(rows, ("", self.account.team_key(), UNKNOWN_TEAM_KEY))
 
-    # what a push of these changes sends the team server, with the clock offset measured so far and the query it pulls with
     def request_body(self, changes: list) -> dict:
         return TeamServerLink.push_body([change.payload() for change in changes], self.offset.seconds, self.query(0))
 
@@ -108,13 +107,11 @@ class SyncDesk:
             if upload.id in ids:
                 self.file_sent(upload)
 
-    # a push's result taken for the batch it names: its changes off the queue and the rejected edits put right, then its answer as taken
     def outgoing_reply(self, ids: list[int], answer: SyncAnswer) -> DeskAnswer:
         self.outgoing.sent(self.outgoing.sending_rows(ids))
         self.rejected.apply(answer.settlement.rejected)
         return self.delivery_reply(answer.delivery)
 
-    # an answer applied, or, when it asks for the team's full copy first, left for the sync service to hand again once the copy is laid in
     def delivery_reply(self, answer: PullAnswer) -> DeskAnswer:
         self.offset.measured(answer.server_time)
         if self.needs_copy(answer):

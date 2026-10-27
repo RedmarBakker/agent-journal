@@ -292,7 +292,6 @@ class Provider(ABC):
         path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": {k: v for k, v in hooks.items() if v}}, indent=2) + "\n")
         return path
 
-    # a worktree's hooks: where its program reads them, written once from the main checkout, never inside the worktree
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         self.wire_hooks(folder, script, command)
 

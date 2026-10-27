@@ -76,7 +76,6 @@ class Plans(ScopedRepository[Plan]):
     def task_count(self, plan: Plan) -> int:
         return self.tasks.counted(self.plan_task_query(plan))
 
-    # the work open for workers: the open tasks of the approved and started plans, neither blocked, paused, delegated, queued nor in hand
     def open_work_count(self) -> int:
         return sum(self.unassigned_count(plan) for plan in (*self.approved(), *self.running_plans()))
 
@@ -206,18 +205,13 @@ class Plans(ScopedRepository[Plan]):
             queued.append(task)
         return queued
 
-    # the task a plan takes up next: the first in the plan's order, phase by phase, a paused task whose waits are over and an open one alike;
-    # a blocked task, or a paused one still waiting, never stops the plan
     def following_task(self, plan: Plan) -> Task | None:
         return self.first_planned(plan, self.takeable_tasks(plan))
 
-    # the plan's tasks it may take up next, open or paused alike, so the first in the plan's order comes first whichever it is
     def takeable_tasks(self, plan: Plan) -> Query:
         takeable = self.tasks.query().filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False)
         return takeable.filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
 
-    # the plan's first task in its order that matches: its phases' tasks phase by phase, each in the order
-    # it joined its phase, then its tasks under no phase in the order they joined the plan; the first phase holding one is found in one read
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
         return self.first_planned(plan, candidates.filter(state=state))
 

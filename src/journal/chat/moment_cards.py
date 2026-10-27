@@ -37,7 +37,6 @@ class MomentCards:
         roles = self.agents.session_roles(session) if session else []
         return self.show_role_card(roles[0] if roles else AgentRole.MAIN, environment_id, session, label, data, actor, shows, detail, key)
 
-    # a card in the chat of a session whose agent may not have hooked in yet, such as a reviewer's, which names its role itself
     def show_role_card(self, role: AgentRole, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardType, detail: str = "", key: str = "") -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
         card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, thread=MessageThread.agent_thread(role), text=label, data=data)

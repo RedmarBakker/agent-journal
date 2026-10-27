@@ -31,7 +31,6 @@ class ServiceHooks:
         for registration in self.wanting(event):
             threading.Thread(target=self.sent, args=(registration, event, POST_SECONDS), name=f"post {event.name} to {registration.name}", daemon=True).start()
 
-    # whether every service registered for the event has done what it asks, as its 200 says
     def succeeded(self, event: ServiceEvent, seconds: float) -> bool:
         return all([self.sent(registration, event, seconds) for registration in self.wanting(event)])
 

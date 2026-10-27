@@ -71,7 +71,6 @@ class Console:
     def run(self, argv: list[str], caller: Caller) -> Outcome:
         return self.run_into(argv, caller, io.StringIO())
 
-    # a command whose printed lines a reply streams as they are printed, such as a merge that waits on the plugins
     def run_streamed(self, argv: list[str], caller: Caller, pieces: queue.Queue) -> Outcome:
         return self.run_into(argv, caller, StreamedOutput(pieces))
 

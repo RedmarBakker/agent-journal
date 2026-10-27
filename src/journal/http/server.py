@@ -44,7 +44,6 @@ class Server:
         if self._bound and self.is_port_file_owned():
             self.config.port_file.unlink(missing_ok=True)
 
-    # the port file names whichever journal serves the project now; a server stopping after another took over leaves it alone
     def is_port_file_owned(self) -> bool:
         return self.config.port_file.is_file() and self.config.port_file.read_text().strip() == str(self.port)
 

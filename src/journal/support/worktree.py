@@ -57,7 +57,6 @@ class Worktree:
             self.record_tip()
         return self.path
 
-    # the kept tip only moves forward: a lost folder, or a branch moved back, never takes the last real tip away
     def record_tip(self) -> None:
         tip = self.local_branch() if self.path.is_dir() else ""
         tip_ref = f"{TIPS_REF}/{self.name}"
@@ -65,7 +64,6 @@ class Worktree:
             return
         self.git("update-ref", tip_ref, tip)
 
-    # the folder, the branch and the kept tip move to the new name together, whichever of them is still there
     def renamed(self, name: str) -> "Worktree":
         target = Worktree(self.root, name)
         if target.path.exists() or target.has(f"refs/heads/{target.branch}") or target.has(f"{TIPS_REF}/{name}"):
@@ -86,7 +84,6 @@ class Worktree:
     def local_branch(self) -> str:
         return self.run_git("rev-parse", "HEAD").stdout.strip()
 
-    # what must hold before git is asked for a worktree, each refused with its cause and what to do
     def project_check(self) -> None:
         if self.git("rev-parse", "--git-dir").returncode != 0:
             raise WorktreeFailure(self.name, f"{self.root} is neither a git repository nor a folder holding git repositories, so there is no branch to work on: run git init and make a first commit, or launch without --worktree")
@@ -112,7 +109,6 @@ class Worktree:
             return f"its branch {self.branch} is checked out in another folder (git worktree list names it): switch that folder to another branch, or launch with another --worktree name"
         return error.splitlines()[-1] if error else "git refused it without saying why"
 
-    # git's record of this worktree alone, when its folder is gone; a prune would drop every other launch's whose folder is briefly away
     def registration_dropped(self) -> None:
         if self.is_registered():
             self.git("worktree", "remove", "--force", str(self.path))
@@ -126,7 +122,6 @@ class Worktree:
         if removal.returncode != 0:
             raise Rejection(f"the worktree {self.name} could not be removed: {removal.stderr.strip()}")
 
-    # a worktree outlives its environment: deleting the environment keeps it, and only the person removes it
     def worktree_note(self) -> str:
         if not self.path.is_dir():
             return ""

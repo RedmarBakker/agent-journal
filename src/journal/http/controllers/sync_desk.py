@@ -41,7 +41,6 @@ class SyncDeskController:
             return Response.busy("the journal is starting: try again in a moment")
         return door(request)
 
-    # whether this journal is in a team, and how the sync service reaches its server: the address, the headers each request carries, the certificate authority it trusts and the least protocol it takes an answer in
     def team(self, request: Request) -> Response:
         further = self.further(request)
         account, link = (self.desks.desk(further).account, self.desks.desk(further).link) if further else (self.account, self.link)

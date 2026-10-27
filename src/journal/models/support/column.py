@@ -24,7 +24,6 @@ class Column:
     def build(cls, name: str, annotation, characters: tuple[int, ...] = ()) -> "Column":
         return cls(name, cls._plain_type(annotation), characters, cls._item_type(annotation))
 
-    # the column as a table is made with it: its type, and for a text the database bounds, its length checked
     @property
     def definition(self) -> str:
         if not self.characters:
@@ -98,7 +97,6 @@ class Column:
             return origin
         return annotation if isinstance(annotation, type) else object
 
-    # the type of a tuple's items, such as SequenceStep in tuple[SequenceStep, ...], so a stored tuple of records is read back as records
     @staticmethod
     def _item_type(annotation) -> type:
         arguments = get_args(annotation)

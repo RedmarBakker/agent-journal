@@ -107,7 +107,6 @@ class Claude(Provider):
     def config_folder() -> Path:
         return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 
-    # Claude Code keeps its state beside its config folder when one is named, else in the home folder
     @staticmethod
     def state_file() -> Path:
         configured = os.environ.get("CLAUDE_CONFIG_DIR")
@@ -260,8 +259,6 @@ class Claude(Provider):
     def is_background_shell_call(hook: Hook) -> bool:
         return hook.kind == HookType.PRE_TOOL_USE and hook.tool == SHELL_TOOL and bool(hook.input.get("run_in_background"))
 
-    # the journal moves a long command to the background itself, with its output number and card, so a shell call
-    # Claude Code would run in its own background runs in the foreground through the journal's runner instead
     @staticmethod
     def foreground_run(hook: Hook, decision: Decision) -> Response:
         answer = {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": {**hook.input, "run_in_background": False}}
@@ -284,8 +281,6 @@ class Claude(Provider):
     def output_session(self, output: str, err: str) -> str:
         return next((row.session for row in ClaudeStreamRow.lines(output) if row.session), "")
 
-    # the worktree reads its local settings through a link to a file the main checkout's journal writes: the person's own local
-    # settings with the journal's hooks added, unless the worktree's checked-in settings carry the hooks already
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         if self.has_journal_hooks(folder / self.home / self.settings_file):
             return

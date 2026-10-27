@@ -98,8 +98,6 @@ class TeamAccount:
         (self.config.home / ROOT_FILE).unlink(missing_ok=True)
         return backup
 
-    # a change of some fields, read and written under one lock that every writer on this machine takes, so a writer of other
-    # fields at the same moment never puts back the old ones
     def merged(self, fields: dict) -> None:
         lock_path = self.config.home / ACCOUNT_LOCK_FILE
         with lock_path.open("a") as lock:
