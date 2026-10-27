@@ -1,7 +1,7 @@
 <script setup>
 import MenuItem from "../kit/MenuItem.vue";
 import MenuLabel from "../kit/MenuLabel.vue";
-import {STATUS_ORDER, STATUS_WORDS} from "../domain/taskBoard.js";
+import {STATUS_ORDER, STATUS_LEADS} from "../domain/taskBoard.js";
 import {taskBoard} from "../state/taskBoard.js";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
 
@@ -23,7 +23,7 @@ function clear() {
     <template v-for="s in STATUS_ORDER" :key="s">
         <MenuItem :on="taskBoard.statuses.includes(s)" @click="tick(s)">
             <TaskStatusIcon :status="s" />
-            {{ STATUS_WORDS[s] }}
+            {{ STATUS_LEADS[s] }}
             <span class="count">{{ counts[s] }}</span>
         </MenuItem>
     </template>

@@ -15,8 +15,8 @@ export const heldTask = (summary, env) => (summary?.environments || []).find((e)
 export const silentIn = (summary, env) => Boolean((summary?.environments || []).find((e) => e.environment.name === env)?.silent);
 
 const WORKER = "workers:";
-const STATUS_WORDS = {worker: "At work", question: "Waiting on you"};
-const statusOf = (item) => (item.reported ? WORKER_WORDS.reported : STATUS_WORDS[item.kind] || "At work");
+const STATUS_LEADS = {worker: "At work", question: "Waiting on you"};
+const statusOf = (item) => (item.reported ? WORKER_WORDS.reported : STATUS_LEADS[item.kind] || "At work");
 const countOf = (n) => `${n} ${n === 1 ? "worker" : "workers"}`;
 
 function workerItem(workers, ref) {

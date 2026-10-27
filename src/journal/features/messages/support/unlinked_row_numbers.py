@@ -15,9 +15,9 @@ COUNT_UNITS = frozenset({
     "of", "more", "deselected", "skipped", "items", "places", "workers", "tasks", "sins", "commits", "messages", "per", "percent", "cent",
 })
 # the words before a number that make it a count or a position, such as case 121, at 100, clamped to 100 or 1324 of 1324
-COUNT_WORDS = frozenset({"case", "cases", "at", "of", "to", "from", "number", "count", "total"})
+COUNT_LEADS = frozenset({"case", "cases", "at", "of", "to", "from", "number", "count", "total"})
 # the words before a number that make it a status a program answered, such as the server answered 200 or HTTP 404
-STATUS_WORDS = frozenset({"status", "http", "https", "answered", "answers", "returned", "returns", "code", "responded", "got"})
+STATUS_LEADS = frozenset({"status", "http", "https", "answered", "answers", "returned", "returns", "code", "responded", "got"})
 # the words after a number that make it a status, such as 200 OK
 STATUS_FOLLOWERS = frozenset({"ok", "not", "created", "found", "forbidden", "unauthorized"})
 # the kind amend-links takes for a number that names no row, so it stays as written
@@ -57,9 +57,9 @@ class UnlinkedRowNumbers:
         if not candidate.isdigit() or int(candidate) < LEAST_ROW_NUMBER:
             return False
         next_token = tokens[i + 1].lower() if i + 1 < len(tokens) else ""
-        inside_quotes = i > 0 and tokens[i - 1] in QUOTE_CHARACTERS and next_token in QUOTE_CHARACTERS
+        quoted = i > 0 and tokens[i - 1] in QUOTE_CHARACTERS and next_token in QUOTE_CHARACTERS
         preceding = cls.preceding_word(tokens, i)
-        return not inside_quotes and next_token not in COUNT_UNITS | STATUS_FOLLOWERS and preceding not in ROW_KINDS | COUNT_WORDS | STATUS_WORDS and not cls.is_timed(tokens, i)
+        return not quoted and next_token not in COUNT_UNITS | STATUS_FOLLOWERS and preceding not in ROW_KINDS | COUNT_LEADS | STATUS_LEADS and not cls.is_timed(tokens, i)
 
     @staticmethod
     def is_timed(tokens: list[str], i: int) -> bool:

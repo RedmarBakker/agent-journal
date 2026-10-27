@@ -1,7 +1,7 @@
 <script setup>
 import {computed} from "vue";
 import {updatedAt} from "../domain/row.js";
-import {STATUS_WORDS, statusOf, waitOf} from "../domain/taskBoard.js";
+import {STATUS_LEADS, statusOf, waitOf} from "../domain/taskBoard.js";
 import {ago} from "../format/time.js";
 import TaskChain from "./TaskChain.vue";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
@@ -17,7 +17,7 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
     <div :class="['state-line', status]">
         <button type="button" class="state" title="Change the status (S)" @click="emit('status', $event.currentTarget)">
             <TaskStatusIcon :status="status" />
-            {{ STATUS_WORDS[status] }}
+            {{ STATUS_LEADS[status] }}
         </button>
         <template v-if="task.delegated">
             <TaskWorker :task="task" />

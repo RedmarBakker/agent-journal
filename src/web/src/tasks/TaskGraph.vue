@@ -3,7 +3,7 @@ import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import {byRef} from "../domain/records.js";
 import {chainOf, NODE, taskGraph} from "../domain/taskGraph.js";
-import {STATUS_WORDS, statusOf, waitOf} from "../domain/taskBoard.js";
+import {STATUS_LEADS, statusOf, waitOf} from "../domain/taskBoard.js";
 import {narrow} from "../platform/view.js";
 import {taskBoard} from "../state/taskBoard.js";
 import SwitchCase from "../kit/SwitchCase.vue";
@@ -30,7 +30,7 @@ const NODES = {
     task: ({task: t}) => ({
         status: statusOf(t),
         number: String(t.id),
-        word: STATUS_WORDS[statusOf(t)],
+        word: STATUS_LEADS[statusOf(t)],
         text: t.title,
         why: reason(t),
         selected: taskBoard.selected === t.id,
