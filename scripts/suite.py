@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead, unless JOURNAL_SKIP_UPDATE_MATRIX is set; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead, unless JOURNAL_SKIP_UPDATE_MATRIX is set; --coverage-map runs the whole suite noting which source files each test runs, for scripts/affected_tests.py; a run of the simulator's files runs at a lower priority."""
 import json
 import os
 import re
@@ -38,6 +38,10 @@ TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests
 # a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
 SIMULATION_FILE = "simulation"
 MATRIX_OPTION = "--update-matrix"
+COVERAGE_OPTION = "--coverage-map"
+# which source files each test runs, read by scripts/affected_tests.py
+COVERAGE_MAP_FILE = ROOT / ".journal" / "runtime" / "test-coverage.json"
+COVERAGE_OUT_VARIABLE = "JOURNAL_COVERAGE_OUT"
 MATRIX_FILE = "tests/update_matrix_run.py"
 MATRIX_SHARDS = 5
 MATRIX_SKIP_VARIABLE = "JOURNAL_SKIP_UPDATE_MATRIX"
@@ -229,6 +233,17 @@ def judge_progress(text: str) -> str:
     return f"judging tests/: {stage} {done}/{total} [{round(100 * int(done) / max(int(total), 1)):3d}%]"
 
 
+def coverage_map() -> int:
+    with tempfile.TemporaryDirectory() as folder:
+        os.environ[COVERAGE_OUT_VARIABLE] = folder
+        failed = sharded_run(Path(folder), shard_count(available_bytes()), (), "the suite, noting which source files each test runs")
+        covered = {node: files for path in Path(folder).glob("shard-*.coverage.json") for node, files in json.loads(path.read_text()).items()}
+        COVERAGE_MAP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        COVERAGE_MAP_FILE.write_text(json.dumps(covered))
+        print(f"the source files of {len(covered)} tests are written to {COVERAGE_MAP_FILE}", flush=True)
+        return 1 if failed else 0
+
+
 def scoped_command(arguments: list[str]) -> list[str]:
     return [*(LOW_PRIORITY if any(SIMULATION_FILE in argument for argument in arguments) else []), *PYTEST, *arguments]
 
@@ -251,6 +266,8 @@ def scoped_run(arguments: list[str]) -> int:
 def main(arguments: list[str]) -> int:
     if arguments == [MATRIX_OPTION]:
         return update_matrix()
+    if arguments == [COVERAGE_OPTION]:
+        return coverage_map()
     if arguments:
         return scoped_run(arguments)
     return whole_suite()

@@ -11391,6 +11391,28 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
     assert all(isinstance(moved.events[-1], type_name) and moved.state == state for moved, type_name, state in moves), "each state change of a worker carries its event"
 
 
+def test_a_clock_out_naming_no_test_is_refused_with_the_changed_files_and_the_tests_its_change_touches_run_too(app: App, monkeypatch):
+    from journal.repositories.task_logs import TaskLogs
+    from journal.repositories.tasks import Tasks
+    console = app.console()
+    user_set(app, "workers.testing", "The journal runs them")
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
+    hook(app, "SessionStart")
+    assert console.run(["tests", "command", "test", "--proof", "1 = 1"], AGENT).code == 0
+    _, folder, caller = worktree_worker(app, monkeypatch, "the job")
+    committed(folder, "notes.md", "note\n")
+    assert console.run(["proof", "1", "notes.md:1, test 1 = 1 passes"], caller).code == 0
+    bare = console.run(["clock-out", "done", "--tests", "-q"], caller)
+    assert bare.code != 0 and "never the whole suite" in bare.error and "notes.md" in bare.error, f"a --tests naming no test is refused, naming the files changed: {bare.error}"
+    user_set(app, "workers.affected_tests_command", "sh -c 'echo 2 = 2' affected")
+    out = console.run(["clock-out", "done", "--tests", "1 = 1"], caller)
+    assert out.code == 0 and "you did not name too: 2 = 2" in out.text, out.error
+    with app.container.get(Scope).environment(MAIN):
+        logs = [log.line for log in app.container.get(TaskLogs).logs(app.container.get(Tasks).find(1))]
+    assert "tests passed at clock-out: test 1 = 1 && test '2 = 2'" in logs, f"the tests the change touches run beside the worker's own: {logs}"
+
+
 def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_run_lets_it_stand(app: App, monkeypatch):
     from journal.models.worker_state import WorkerState
     from journal.repositories.messages import Messages

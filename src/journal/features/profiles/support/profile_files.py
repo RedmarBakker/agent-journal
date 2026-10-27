@@ -23,7 +23,7 @@ WRITES = ("You write: change what the job needs and nothing beyond it. Find what
           "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
 TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
 TESTS_TURN = "Run tests only with journal tests turn, which gives your run its turn within the test budget; any other test run is refused where you have hooks, and where you have none you keep to this yourself; name each test you ran in its proof."
-JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\". The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
+JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\", naming the tests that cover the files you changed and the tests you wrote, never the whole suite. The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
 TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 

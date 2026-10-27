@@ -48,7 +48,7 @@ JOURNAL_TESTS = Template(
     title="The journal tests",
     targets=("worker",),
     purpose=TESTING,
-    brief="Run no tests yourself. Write the tests that prove your change, and name them when you clock out with --tests, as the arguments the project's test command takes: the journal runs them in your worktree, and your clock-out stands only once they pass.",
+    brief="Run no tests yourself. Write the tests that prove your change, and when you clock out name with --tests, as the arguments the project's test command takes, the tests that cover the files you changed and the tests you wrote, never the whole suite: the journal runs them in your worktree, and your clock-out stands only once they pass.",
 )
 SCOPED_TESTS = Template(
     title="Scoped tests",

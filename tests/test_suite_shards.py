@@ -4,8 +4,8 @@ from pathlib import Path
 from tests.shard_deal import ShardDeal
 
 
-def suite_script():
-    spec = importlib.util.spec_from_file_location("suite", Path(__file__).resolve().parents[1] / "scripts" / "suite.py")
+def suite_script(name: str = "suite"):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[1] / "scripts" / f"{name}.py")
     suite = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(suite)
     return suite
@@ -55,3 +55,12 @@ def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_
     assert suite.vm_stat_available(vm_stat) == 16384 * 32, "macOS: the free, inactive and speculative pages"
     assert suite.meminfo_available("MemTotal:  1000 kB\nMemAvailable:   512 kB\n") == 512 * 1024, "Linux: MemAvailable"
     assert "only 600 MB of memory is free" in suite.memory_line(2, 600 * 2**20), "the run says why it took fewer"
+
+
+def test_the_tests_a_change_touches_are_its_own_test_files_and_the_quickest_tests_that_ran_its_source_files():
+    script = suite_script("affected_tests")
+    covered = {"tests/test_a.py::test_slow": ["src/journal/a.py"], "tests/test_a.py::test_quick": ["src/journal/a.py", "src/journal/b.py"], "tests/test_b.py::test_other": ["src/journal/b.py"], "tests/test_c.py::test_c": ["src/journal/a.py"]}
+    seconds = {"tests/test_a.py::test_slow": 9.0, "tests/test_a.py::test_quick": 0.1}
+    assert script.affected(["src/journal/a.py", "tests/test_c.py"], covered, seconds) == ["tests/test_c.py", "tests/test_a.py::test_quick", "tests/test_a.py::test_slow"], "a changed test file runs whole; the tests that ran a changed source file follow, quickest first, without repeating the test file"
+    many = {f"tests/test_a.py::test_{n}": ["src/journal/a.py"] for n in range(100)}
+    assert len(script.affected(["src/journal/a.py"], many, {})) == script.MOST_TESTS, "a file every test runs never turns the clock-out into the whole suite"

@@ -1,4 +1,6 @@
+import shlex
 from argparse import Namespace
+from pathlib import Path
 
 from journal.console.command import Command
 from journal.engine.command_events import CommandEvents
@@ -9,6 +11,8 @@ from journal.features.plugins.plugins_options import PluginsOptions
 from journal.support.time_source import TimeSource
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
+from journal.features.workers.support.affected_tests import AffectedTests
+from journal.features.workers.support.test_selection import TestSelection
 from journal.features.workers.support.test_turns import TestTurns
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.workers_options import JOURNAL_TESTING, WorkersOptions
@@ -37,14 +41,14 @@ class DepartureCommand(Command):
     noun = "clock-out"
     default_verb = "record"
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents, time_source: TimeSource, affected: AffectedTests) -> None:
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
-        self.turns, self.settings, self.logs, self.events, self.time_source = turns, settings, logs, events, time_source
+        self.turns, self.settings, self.logs, self.events, self.time_source, self.affected = turns, settings, logs, events, time_source, affected
 
     def arguments(self, verbs) -> None:
         record = self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof")
         record.add_argument("report")
-        record.add_argument("--tests", default="", help="the arguments the project's test command takes to run the tests that prove your work; the journal runs them before your clock-out stands")
+        record.add_argument("--tests", default="", help="the arguments the project's test command takes to run the tests that cover the files you changed and the tests you wrote, never the whole suite; the journal runs them before your clock-out stands")
 
     def record(self, args: Namespace, caller: Caller) -> int:
         if caller.worker_number is None:
@@ -105,12 +109,20 @@ class DepartureCommand(Command):
         return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
 
     def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
-        if not tests.strip():
-            raise Rejection(f"name the tests that prove your work: journal clock-out \"<report>\" --tests \"<the arguments {self.turns.command(str(self.branch.folder(worker)))} takes to run them>\"; the journal runs them in your worktree before your clock-out stands")
-        turn, run_lines = self.turns.checked(worker, tests.strip(), caller)
+        folder = self.branch.folder(worker)
+        if not TestSelection.parsed(tests).names_tests(folder):
+            raise Rejection(f"name the tests that cover the files you changed, {', '.join(self.branch.touched(worker) or ()) or 'none yet'}, and the tests you wrote, never the whole suite: journal clock-out \"<report>\" --tests \"<the arguments {self.turns.command(str(folder))} takes to run them>\"; the journal runs them in your worktree before your clock-out stands")
+        turn, run_lines = self.turns.checked(worker, self.with_affected(worker, tests.strip(), folder), caller)
         if turn.outcome != TestOutcome.PASSED:
             raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")
         self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", self.time_source.moment().timestamp()), caller.actor)
+
+    def with_affected(self, worker: Worker, tests: str, folder: Path) -> str:
+        missing = TestSelection.parsed(tests).missing(self.affected.selection(worker))
+        if not missing:
+            return tests
+        print(f"the journal runs the tests that cover your changes and that you did not name too: {' '.join(missing)}")
+        return f"{tests} && {self.turns.command(str(folder))} {shlex.join(missing)}"
 
     def continues_queue(self, worker: Worker, task: Task, waiting: list[Task]) -> bool:
         finished = len(self.tasks.finished_task_ids(Ref(Worker.table(), worker.id)))

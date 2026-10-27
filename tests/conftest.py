@@ -54,6 +54,9 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     out = os.environ.get(DURATIONS_OUT_VARIABLE, "")
     if out:
         Path(out).write_text(json.dumps(seconds_taken))
+    if os.environ.get(COVERAGE_OUT_VARIABLE):
+        shard = os.environ.get(SHARD_VARIABLE, "0/1").split("/")[0]
+        (Path(os.environ[COVERAGE_OUT_VARIABLE]) / f"shard-{shard}.coverage.json").write_text(json.dumps(source_files))
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -161,6 +164,38 @@ def pytest_collection_finish(session) -> None:
     if os.environ.get(SHARD_VARIABLE) or os.environ.get(TALLY_VARIABLE):
         sys.__stdout__.write(f"collected {len(session.items)} items\n")
         sys.__stdout__.flush()
+
+
+# set by scripts/suite.py --coverage-map: the folder each shard writes which source files its tests ran to
+COVERAGE_OUT_VARIABLE = "JOURNAL_COVERAGE_OUT"
+SOURCE_FOLDER = str(Path(__file__).resolve().parent.parent / "src") + os.sep
+source_files: dict[str, list[str]] = {}
+files_run: set[str] = set()
+
+
+def code_started(code, offset: int) -> object:
+    if code.co_filename.startswith(SOURCE_FOLDER):
+        files_run.add("src/" + code.co_filename[len(SOURCE_FOLDER):])
+    return sys.monitoring.DISABLE
+
+
+def pytest_configure(config) -> None:
+    if os.environ.get(COVERAGE_OUT_VARIABLE):
+        sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "journal coverage map")
+        sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START, code_started)
+        sys.monitoring.set_events(sys.monitoring.COVERAGE_ID, sys.monitoring.events.PY_START)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    """With the coverage map asked for, each test notes the source files whose code it ran."""
+    if not os.environ.get(COVERAGE_OUT_VARIABLE):
+        return (yield)
+    files_run.clear()
+    sys.monitoring.restart_events()
+    outcome = yield
+    source_files[item.nodeid] = sorted(files_run)
+    return outcome
 
 
 def pytest_runtest_logreport(report) -> None:
