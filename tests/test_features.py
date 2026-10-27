@@ -23300,7 +23300,8 @@ def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_
     app.runtime().deferred.drain()
     told = [e.data["line"] for e in app.container.get(Entries).all_matching(kind=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
     assert len(told) == 1 and has_nudge(told[0], ShellNudges.FULL_BAR_RUN, n=1, seconds=int(FULL_BAR_SECONDS) + 1), f"the agent is told once: {told}"
-    assert STUCK_CARD_LINE in messages.with_key("watch:1")[0].text, "and the card says what the whole bar means"
+    card = messages.with_key("watch:1")[0].data
+    assert STUCK_CARD_LINE in (card.get("detail"), *card.get("lines", ())), "and the card says what the whole bar means"
 
 
 def test_an_output_whose_shell_process_is_gone_is_closed_as_ended_though_its_heartbeat_beats(app: App):
