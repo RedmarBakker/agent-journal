@@ -1845,4 +1845,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - `python3 scripts/suite.py --update-matrix` runs it in five processes. A pair of two tagged releases that passed is kept
   in tests/update_matrix_passed.json and never tested again; the pairs to the tree always run. Passed pairs outside the
   window, such as v4.60.0 v4.66.0, stay recorded and are never needed again.
+- The release run is for the version the tree is about to become: a run whose src/journal/version.py is tagged already is
+  refused. When its five shards return, tests/update_release.py keeps the tree's pairs under that version and writes it
+  to update_steps.json (beside install.sh) as a step, accepting from the oldest release of its window, or as no step when
+  a pair failed or JOURNAL_SKIP_UPDATE_MATRIX skipped the run. The first file lists every release from 4.60.0 as a step
+  from the passed pairs between tags, 4.60.0 accepting only itself, and says no tree pair was asserted for them.
 - Pushing a v* release tag runs it from .githooks/pre-push; JOURNAL_SKIP_UPDATE_MATRIX=1 skips it in a real hurry.

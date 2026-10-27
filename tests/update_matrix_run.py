@@ -18,6 +18,7 @@ TREE = "tree"
 STEP_SECONDS = 300
 SCRATCH_PORT = "8531"
 PASSED_FILE = Path(__file__).with_name("update_matrix_passed.json")
+STEPS_FILE = REPOSITORY / "update_steps.json"
 WINDOW = UpdateWindow(UpdatesOptions.WINDOW_MINORS.integer(UpdatesOptions.WINDOW_MINORS.default))
 
 SEED = """
@@ -62,15 +63,24 @@ def pairs(window: UpdateWindow, tags: list[str], tree: str, passed: set[str]) ->
 
 # the pairs are listed when this file's test is collected, never when another test imports the pair builder
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    metafunc.parametrize(("start", "target"), pairs(WINDOW, releases(), VERSION, passed_pairs()))
+    metafunc.parametrize(("start", "target"), pairs(WINDOW, releases(), VERSION, passed_pairs(PASSED_FILE)))
 
 
-def passed_pairs() -> set[str]:
-    return set(json.loads(PASSED_FILE.read_text())) if PASSED_FILE.is_file() else set()
+# a version is a step when every release of its window updated to it, and it accepts an update from the oldest of them
+def step(window: UpdateWindow, tags: list[str], version: str, passed: set[str], reason: str) -> dict[str, object]:
+    starts = window.starts(tags, version)
+    missing = [start for start in starts if f"{start} v{version}" not in passed]
+    if missing:
+        return {"step": False, "reason": f"the update from {missing[0]} to it never passed"}
+    return {"step": True, "oldest": (starts[0] if starts else version).removeprefix("v"), "reason": reason}
 
 
-def pair_kept(start: str, target: str) -> None:
-    with PASSED_FILE.open("a+") as kept:
+def passed_pairs(path: Path) -> set[str]:
+    return set(json.loads(path.read_text())) if path.is_file() else set()
+
+
+def pair_kept(path: Path, start: str, target: str) -> None:
+    with path.open("a+") as kept:
         fcntl.flock(kept, fcntl.LOCK_EX)
         kept.seek(0)
         text = kept.read()
@@ -117,4 +127,4 @@ def test_a_release_updates_to_a_later_one_and_reads_every_row_it_wrote(tmp_path:
     assert f"written on {start}" in read["task"] and f"planned on {start}" in read["plan"], f"{target} boots on the rows {start} wrote and lists its task and plan"
     assert f"said on {start}" in read["message"], f"{target} reads the message {start} wrote"
     if target != TREE:
-        pair_kept(start, target)
+        pair_kept(PASSED_FILE, start, target)

@@ -1,4 +1,5 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead, unless JOURNAL_SKIP_UPDATE_MATRIX is set; --coverage-map runs the whole suite noting which source files each test runs, for scripts/affected_tests.py; a run of the simulator's files runs at a lower priority."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; --update-matrix runs the update matrix in five shards instead and writes the version the tree is about to become to update_steps.json as a step or as no step, unless JOURNAL_SKIP_UPDATE_MATRIX is set, which writes it as no step, or that version is tagged already, which refuses the run; --coverage-map runs the whole suite noting which source files each test runs, for scripts/affected_tests.py; a run of the simulator's files runs at a lower priority."""
+import importlib
 import json
 import os
 import re
@@ -153,12 +154,27 @@ def whole_suite() -> int:
 
 
 # every pair of releases is a test of its own, so the update matrix splits over a few processes however many cores there are
-def update_matrix() -> int:
+def update_matrix(release) -> int:
     if os.environ.get(MATRIX_SKIP_VARIABLE):
-        print(f"the update matrix is skipped: {MATRIX_SKIP_VARIABLE} is set", flush=True)
+        print(f"the update matrix is skipped: {MATRIX_SKIP_VARIABLE} is set, so {release.version} is written as no step", flush=True)
+        release.skipped()
         return 0
+    if release.is_tagged():
+        print(f"the update matrix is refused: v{release.version} is tagged already, so this tree is not the release it would record; raise the version in src/journal/version.py first", flush=True)
+        return 1
     with tempfile.TemporaryDirectory() as folder:
-        return 1 if sharded_run(Path(folder), MATRIX_SHARDS, (MATRIX_FILE,), "the update matrix") else 0
+        failed = sharded_run(Path(folder), MATRIX_SHARDS, (MATRIX_FILE,), "the update matrix")
+    if failed:
+        release.failed()
+        return 1
+    release.passed()
+    return 0
+
+
+# the release's record lives beside the matrix in tests/, which reads the journal's own source
+def update_release():
+    sys.path[:0] = [str(ROOT), str(ROOT / "src")]
+    return importlib.import_module("tests.update_release").UpdateRelease.current()
 
 
 def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str) -> bool:
@@ -265,7 +281,7 @@ def scoped_run(arguments: list[str]) -> int:
 
 def main(arguments: list[str]) -> int:
     if arguments == [MATRIX_OPTION]:
-        return update_matrix()
+        return update_matrix(update_release())
     if arguments == [COVERAGE_OPTION]:
         return coverage_map()
     if arguments:
