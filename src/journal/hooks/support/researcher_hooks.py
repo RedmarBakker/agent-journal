@@ -19,13 +19,13 @@ class ResearcherHooks:
 
     def bind(self, hook: Hook, environment: Environment) -> None:
         self.sessions.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
-        self.put_to_work(hook.session, environment, hook.provider)
+        self.assign_work(hook.session, environment, hook.provider)
 
     def started(self, hook: Hook, environment: Environment) -> None:
         self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
-        self.put_to_work(hook.researcher_session, environment, hook.provider)
+        self.assign_work(hook.researcher_session, environment, hook.provider)
 
-    def put_to_work(self, session: str, environment: Environment, provider: str) -> None:
+    def assign_work(self, session: str, environment: Environment, provider: str) -> None:
         assignment = HelperAssignment(state=self.states.sent_first(AgentRole.SUBAGENT))
         self.listeners.dispatch(assignment.placed(session, environment.row_id, provider, None, self.time_source.seconds()))
 
