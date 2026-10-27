@@ -1913,15 +1913,17 @@ def test_a_listener_may_stop_an_events_propagation_and_the_compacting_state_swit
     assert transmitted == ["[journal] first", "[journal] a wait ended"], "and enabled again once the state left"
 
 
-def test_a_task_started_outside_the_plan_is_the_task_in_hand_of_the_plan_state_and_its_nudges_name_it():
+def test_a_task_started_outside_the_plan_is_worked_on_top_of_the_plan_state_and_its_nudges_name_it():
     from journal.features.plans.states.following_plan import FollowingPlan
+    from journal.features.plans.support.plans_data import PlansData
+    from journal.features.tasks.states.working import Working
     from journal.features.tasks.support.tasks_data import TasksData
     settings = SettingsValue({})
     following = FollowingPlan(plan_id=19, approved=True)
     assert following.label() == "plan 19, with no task in hand"
     held = TasksData(current_task=1141, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(1141,))
-    started = following.respond(TaskStarted(environment_id=1, time=5.0, task_id=1141, title="the developer tab", plan_id=0).with_data(FeatureData({"tasks": held})), settings)
-    assert started.target.task_id == 1141 and started.target.label() == "task 1141" and started.target.logged_at == 5.0, "one task is in hand at a time, so the task started is the plan state's task whether the plan holds it or not"
+    started = following.respond(TaskStarted(environment_id=1, time=5.0, task_id=1141, title="the developer tab", plan_id=0).with_data(FeatureData({"tasks": held, "plans": PlansData((), None)})), settings)
+    assert started.pushed == Working(task_id=1141, logged_at=5.0) and started.pushed.label() == "task 1141", "a task outside the plan is worked on top of the plan state, which is back once it ends"
 
 
 def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_builder_carries_on_and_the_solo_mode_keeps_workers_out():

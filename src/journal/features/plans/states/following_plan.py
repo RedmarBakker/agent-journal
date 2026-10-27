@@ -24,7 +24,7 @@ from journal.features.tasks.states.working import Working
 
 @dataclass(frozen=True)
 class FollowingPlan(PlanWork):
-    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task, also when the next one was started before the close reached the state; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, leaving a task in hand as the task worked on rather than dropping it, and on resume when the plan is no longer the one started here."""
+    """Working with a current plan, for the plan's whole life. A completed task starts the next: the plans feature writes it and the state keeps the top as that task, also when the next one was started before the close reached the state; a task started outside the plan is worked on top of this state, which is back once that task ends. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and at one that is no checkpoint, once they pass, the agent is instructed to begin the next phase; a checkpoint keeps its own line. Popped when the plan is done, postponed or abandoned, leaving a task in hand as the task worked on rather than dropping it, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
     assigner = PlanTaskAssigner
@@ -70,6 +70,9 @@ class FollowingPlan(PlanWork):
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
+        started = event.data.part(PlansPart).started
+        if started is None or event.task_id not in started.recent_tasks:
+            return self.push(Working(task_id=event.task_id, logged_at=event.time, task_noun=self.task_noun))
         return self.swap(replace(self, task_id=event.task_id, checkpoint_pause=False, phase=0, phase_held=False, logged_at=event.time, edits=0))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
@@ -103,6 +106,6 @@ class FollowingPlan(PlanWork):
         started = data.part(PlansPart).started
         if started is None or started.plan_id != self.plan_id:
             return self.pop()
-        if started.started_task and started.started_task != self.task_id:
+        if started.started_task != self.task_id:
             return self.swap(replace(self, task_id=started.started_task, checkpoint_pause=False, phase=0, edits=0))
         return super().on_resume(data, settings)

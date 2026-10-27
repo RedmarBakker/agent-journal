@@ -730,7 +730,36 @@ def silent_session_ends(app, replay: Replay, provider: str) -> None:
     replay.step("the session starts again", hook_as(app, provider, "SessionStart")[1])
 
 
-STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules}
+def outside_task_rules(app, replay: Replay, provider: str) -> None:
+    """The steps: a plan started, its task paused, a task outside the plan started and done, another started, the plan paused by the user, a stop with that task in hand, and the task done."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first"], USER)
+    console.run(["plan", "ready", "1"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["task", "pause", "1", "something else first"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("the plan's task is paused")
+    console.run(["task", "create", "outside", "--start"], AGENT)
+    replay.step("a task outside the plan is started")
+    console.run(["task", "complete", "2", "--how", "done"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("the task outside the plan is done")
+    console.run(["task", "pause", "1", "something else first"], AGENT)
+    console.run(["task", "create", "second outside", "--start"], AGENT)
+    console.run(["plan", "pause", "1"], USER)
+    app.runtime().deferred.drain()
+    replay.step("the plan is paused by the user")
+    replay.step("a stop with the task outside the plan in hand", hook_as(app, provider, "Stop")[1])
+    console.run(["task", "complete", "3", "--how", "done"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("the task outside the plan is done")
+
+
+STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules}
 
 
 @pytest.mark.parametrize("name", sorted(STATE_RULES))

@@ -1,0 +1,90 @@
+{
+  "nudges": true,
+  "steps": [
+    {
+      "name": "the plan's task is paused",
+      "answer": null,
+      "typed": [
+        "[journal] task 1 is open. take it up with `journal task start 1`",
+        "[journal] plan 1 approved",
+        "[journal] the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through"
+      ],
+      "nudges": [
+        "briefing.journal_ready",
+        "briefing.handle_the_journal_quietly",
+        "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
+        "voices.how_to_talk_to_the_user",
+        "tasks.task_opened",
+        "plans.the_user_approved_the_plan",
+        "plans.name_the_test_commands"
+      ],
+      "stack": [
+        "idle",
+        "following_plan"
+      ]
+    },
+    {
+      "name": "a task outside the plan is started",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "following_plan",
+        "working"
+      ]
+    },
+    {
+      "name": "the task outside the plan is done",
+      "answer": null,
+      "typed": [
+        "[journal] the plan waits for test commands: `journal settings set plans.test_commands \"<line>, <line>\"`; reads go through"
+      ],
+      "nudges": [
+        "plans.name_the_test_commands"
+      ],
+      "stack": [
+        "idle",
+        "following_plan",
+        "naming_test_commands"
+      ]
+    },
+    {
+      "name": "the plan is paused by the user",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "following_plan",
+        "working"
+      ]
+    },
+    {
+      "name": "a stop with the task outside the plan in hand",
+      "answer": {
+        "decision": "block",
+        "reason": "task 3 is in hand, last logged just now: carry on"
+      },
+      "typed": [],
+      "nudges": [
+        "tasks.carry_on"
+      ],
+      "stack": [
+        "idle",
+        "following_plan",
+        "working"
+      ]
+    },
+    {
+      "name": "the task outside the plan is done",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle"
+      ]
+    }
+  ]
+}

@@ -39,6 +39,7 @@ CLOSED = (TaskState.COMPLETED, TaskState.CANCELLED)
 
 
 UNAPPROVED_PLAN_STATES = tuple(state.value for state in PlanState if state.is_unapproved())
+INACTIVE_PLAN_STATES = UNAPPROVED_PLAN_STATES + (PlanState.PAUSED.value,)
 
 CLOSED_STATES = (TaskState.COMPLETED, TaskState.CANCELLED)
 
@@ -87,7 +88,7 @@ class Tasks(ScopedRepository[Task]):
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
         agent_query = Query.build(Agent).filter_unequal("state", "ended").filter_unequal("id", holder.id)
         claimed_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agent_query.filter_named(self.links.query(), "source"))
-        return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(claimed_links).filter_absent(self.wait_links()))
+        return self.selected(self.free_query(TaskState.PAUSED, INACTIVE_PLAN_STATES).filter_absent(claimed_links).filter_absent(self.wait_links()))
 
     def wait_links(self) -> Query:
         return self.links.query().filter(link_type=WAIT_LINK).filter_ref("source", self.query())
@@ -162,7 +163,7 @@ class Tasks(ScopedRepository[Task]):
         return next(iter(self.next_open_tasks(1)), None)
 
     def next_open_tasks(self, count: int) -> list[Task]:
-        return self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(count))
+        return self.selected(self.free_query(TaskState.OPEN, INACTIVE_PLAN_STATES).limit(count))
 
     def open_page_ids(self, rows: int) -> list[int]:
         return self.selected_ids(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
