@@ -121,7 +121,7 @@ class WorkersConduct(Conduct):
     def on_worker_memory_warning(self, event: WorkerMemoryWarning, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(WorkersNudges.WORKER_OVER_MEMORY.create(n=event.worker.id, megabytes=event.megabytes, budget=event.budget_megabytes))
+        return self.none(WorkersNudges.MEMORY_WARNING.create(n=event.worker.id, megabytes=event.megabytes, budget=event.budget_megabytes))
 
     def on_worker_stopped(self, event: WorkerStopped, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
