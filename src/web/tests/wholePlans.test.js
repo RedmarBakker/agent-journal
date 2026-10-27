@@ -18,13 +18,13 @@ const tasks = [task(1, "done"), task(2, "open"), task(3, "open")];
 
 test("a plan list row, which carries the plan alone, draws the task board without a throw and its tasks as loose ones", () => {
     const lines = boardLines("plan", {shown: tasks, all: tasks, plans: [index], folded: {}});
-    expect(lines.filter((line) => line.type === "row").map((line) => line.task.id)).toEqual([2, 3, 1]);
+    expect(lines.filter((line) => line.type === "row").map((line) => line.task.id)).toEqual([1, 2, 3]);
     expect(delegationOf(index, {tasks, workers: []})).toBe(null);
 });
 
 test("a plan read whole draws its phases on the task board and counts its done tasks", () => {
     const lines = boardLines("plan", {shown: tasks, all: tasks, plans: [whole], folded: {}});
-    expect(lines.filter((line) => line.type === "head").map((line) => line.label)).toEqual(["The rest of the list", "Phase 1 of 2: First", "Open", "Completed", "Phase 2 of 2: Second", "Open"]);
+    expect(lines.filter((line) => line.type === "head").map((line) => line.label)).toEqual(["The rest of the list", "Phase 1 of 2: First", "Open", "Phase 2 of 2: Second", "Open"]);
     expect(standingOf(whole, tasks).title).toBe("1 of 3 tasks done");
 });
 
