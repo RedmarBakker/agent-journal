@@ -13,33 +13,19 @@
 {"line": "chmod build/out", "parts": [["chmod build/out", "R;;", ["chmod build/out"]]]}
 {"line": "composer test", "parts": [["composer test", "R;;", ["composer test"]]]}
 {"line": "composer test tests/test_app.py", "parts": [["composer test tests/test_app.py", "R;;", ["composer test tests/test_app.py"]]]}
-{"line": "composer sins", "parts": [["composer sins", "R;;", ["composer sins"]]]}
 {"line": "composer install", "parts": [["composer install", "R;;", ["composer install"]]]}
 {"line": "composer install --no-interaction", "parts": [["composer install --no-interaction", "R;;", ["composer install --no-interaction"]]]}
 {"line": "composer install --no-scripts -q", "parts": [["composer install --no-scripts -q", "R;;", ["composer install --no-scripts -q"]]]}
 {"line": "composer install --no-interaction --no-progress", "parts": [["composer install --no-interaction --no-progress", "R;;", ["composer install --no-interaction --no-progress"]]]}
-{"line": "composer update docs/notes.md --no-scripts --no-plugins --no-interaction", "parts": [["composer update docs/notes.md --no-scripts --no-plugins --no-interaction", "R;;", ["composer update docs/notes.md --no-scripts --no-plugins --no-interaction"]]]}
-{"line": "composer update --no-interaction", "parts": [["composer update --no-interaction", "R;;", ["composer update --no-interaction"]]]}
-{"line": "composer update tests/test_app.py", "parts": [["composer update tests/test_app.py", "R;;", ["composer update tests/test_app.py"]]]}
-{"line": "composer update --no-scripts --no-interaction", "parts": [["composer update --no-scripts --no-interaction", "R;;", ["composer update --no-scripts --no-interaction"]]]}
 {"line": "composer dump-autoload", "parts": [["composer dump-autoload", "R;;", ["composer dump-autoload"]]]}
 {"line": "composer dump-autoload --no-interaction", "parts": [["composer dump-autoload --no-interaction", "R;;", ["composer dump-autoload --no-interaction"]]]}
 {"line": "composer dump-autoload -q", "parts": [["composer dump-autoload -q", "R;;", ["composer dump-autoload -q"]]]}
-{"line": "composer show", "parts": [["composer show", "R;;", ["composer show"]]]}
-{"line": "composer show docs/notes.md 1.2.3 --all", "parts": [["composer show docs/notes.md 1.2.3 --all", "R;;", ["composer show docs/notes.md 1.2.3 --all"]]]}
-{"line": "composer show docs/notes.md", "parts": [["composer show docs/notes.md", "R;;", ["composer show docs/notes.md"]]]}
-{"line": "composer show \"$HOME\"... --all", "parts": [["composer show \"$HOME\"... --all", "R;;", ["composer show \"$HOME\"... --all"]]]}
 {"line": "composer", "parts": [["composer", "R;;", ["composer"]]]}
 {"line": "composer -q", "parts": [["composer -q", "R;;", ["composer -q"]]]}
 {"line": "composer --version", "parts": [["composer --version", "R;;", ["composer --version"]]]}
 {"line": "composer --no-scripts", "parts": [["composer --no-scripts", "R;;", ["composer --no-scripts"]]]}
-{"line": "composer readme", "parts": [["composer readme", "R;;", ["composer readme"]]]}
-{"line": "composer readme -q", "parts": [["composer readme -q", "R;;", ["composer readme -q"]]]}
-{"line": "composer require --dev '^import' -W", "parts": [["composer require --dev '^import' -W", "R;;", ["composer require --dev '^import' -W"]]]}
-{"line": "composer require --dev '^import' 'TODO'... --no-update --no-interaction", "parts": [["composer require --dev '^import' 'TODO'... --no-update --no-interaction", "R;;", ["composer require --dev '^import' 'TODO'... --no-update --no-interaction"]]]}
-{"line": "composer require src/app/main.py --no-interaction", "parts": [["composer require src/app/main.py --no-interaction", "R;;", ["composer require src/app/main.py --no-interaction"]]]}
-{"line": "composer require '^import'... --no-update --no-interaction", "parts": [["composer require '^import'... --no-update --no-interaction", "R;;", ["composer require '^import'... --no-update --no-interaction"]]]}
 {"line": "composer types", "parts": [["composer types", "R;;", ["composer types"]]]}
+{"line": "composer dev", "parts": [["composer dev", "R;;", ["composer dev"]]]}
 {"line": "cp", "parts": [["cp", "R;;", ["cp"]]]}
 {"line": "cp -R docs/notes.md src/app/main.py", "parts": [["cp -R docs/notes.md src/app/main.py", "R;;", ["cp -R docs/notes.md src/app/main.py"]]]}
 {"line": "cp tests/test_app.py error", "parts": [["cp tests/test_app.py error", "R;;", ["cp tests/test_app.py error"]]]}
@@ -61,6 +47,10 @@
 {"line": "docker exec -c 'a short note'", "parts": [["docker exec -c 'a short note'", "R;;", ["docker exec -c 'a short note'"]]]}
 {"line": "docker exec alpha -c 'a short note'", "parts": [["docker exec alpha -c 'a short note'", "R;;", ["docker exec alpha -c 'a short note'"]]]}
 {"line": "docker exec -lc \"import sys; print(sys.path)\"", "parts": [["docker exec -lc \"import sys; print(sys.path)\"", "R;;", ["docker exec -lc \"import sys; print(sys.path)\""]]]}
+{"line": "docker compose exec alpha -l docs/notes.md", "parts": [["docker compose exec alpha -l docs/notes.md", "R;;", ["docker compose exec alpha -l docs/notes.md"]]]}
+{"line": "docker compose exec -T beta", "parts": [["docker compose exec -T beta", "R;;", ["docker compose exec -T beta"]]]}
+{"line": "docker compose exec -T beta --compact docs/notes.md", "parts": [["docker compose exec -T beta --compact docs/notes.md", "R;;", ["docker compose exec -T beta --compact docs/notes.md"]]]}
+{"line": "docker compose exec -T main", "parts": [["docker compose exec -T main", "R;;", ["docker compose exec -T main"]]]}
 {"line": "docker ps --format 'print(1)'", "parts": [["docker ps --format 'print(1)'", "R;;", ["docker ps --format 'print(1)'"]]]}
 {"line": "docker ps --filter NAME=value --format \"import sys; print(sys.path)\"", "parts": [["docker ps --filter NAME=value --format \"import sys; print(sys.path)\"", "R;;", ["docker ps --filter NAME=value --format \"import sys; print(sys.path)\""]]]}
 {"line": "docker ps", "parts": [["docker ps", "R;;", ["docker ps"]]]}
@@ -89,9 +79,6 @@
 {"line": "docker build -t", "parts": [["docker build -t", "R;;", ["docker build -t"]]]}
 {"line": "docker info", "parts": [["docker info", "R;;", ["docker info"]]]}
 {"line": "docker info --format 'print(1)'", "parts": [["docker info --format 'print(1)'", "R;;", ["docker info --format 'print(1)'"]]]}
-{"line": "docker cp", "parts": [["docker cp", "R;;", ["docker cp"]]]}
-{"line": "docker cp 'TODO' docs/notes.md", "parts": [["docker cp 'TODO' docs/notes.md", "R;;", ["docker cp 'TODO' docs/notes.md"]]]}
-{"line": "docker cp '^import'...", "parts": [["docker cp '^import'...", "R;;", ["docker cp '^import'..."]]]}
 {"line": "du -sh docs/notes.md", "parts": [["du -sh docs/notes.md", "R;;", ["du -sh docs/notes.md"]]]}
 {"line": "du src/*.js", "parts": [["du src/*.js", "R;;", ["du src/*.js"]]]}
 {"line": "du -sh 'TODO'", "parts": [["du -sh 'TODO'", "R;;", ["du -sh 'TODO'"]]]}
@@ -111,22 +98,42 @@
 {"line": "gh api \"import sys; print(sys.path)\" --jq", "parts": [["gh api \"import sys; print(sys.path)\" --jq", "R;;", ["gh api \"import sys; print(sys.path)\" --jq"]]]}
 {"line": "gh api 'TODO'", "parts": [["gh api 'TODO'", "R;;", ["gh api 'TODO'"]]]}
 {"line": "gh api '^import'", "parts": [["gh api '^import'", "R;;", ["gh api '^import'"]]]}
-{"line": "gh secret EXAMPLE", "parts": [["gh secret EXAMPLE", "R;;", ["gh secret EXAMPLE"]]]}
-{"line": "gh secret EXAMPLE $NAME", "parts": [["gh secret EXAMPLE $NAME", "R;;", ["gh secret EXAMPLE $NAME"]]]}
-{"line": "gh search beta --repo src/app/main.py \"value\" --limit 100 --jq \"def run\"", "parts": [["gh search beta --repo src/app/main.py \"value\" --limit 100 --jq \"def run\"", "R;;", ["gh search beta --repo src/app/main.py \"value\" --limit 100 --jq \"def run\""]]]}
-{"line": "gh search main --repo docs/notes.md 1.2.3 --limit 20 --json \"value\"", "parts": [["gh search main --repo docs/notes.md 1.2.3 --limit 20 --json \"value\"", "R;;", ["gh search main --repo docs/notes.md 1.2.3 --limit 20 --json \"value\""]]]}
-{"line": "gh search --sort main --limit 20 --json \"value\" 'TODO'", "parts": [["gh search --sort main --limit 20 --json \"value\" 'TODO'", "R;;", ["gh search --sort main --limit 20 --json \"value\" 'TODO'"]]]}
-{"line": "gh workflow -R tests/test_app.py", "parts": [["gh workflow -R tests/test_app.py", "R;;", ["gh workflow -R tests/test_app.py"]]]}
-{"line": "gh workflow status", "parts": [["gh workflow status", "R;;", ["gh workflow status"]]]}
-{"line": "gh issue alpha 3 --body-file", "parts": [["gh issue alpha 3 --body-file", "R;;", ["gh issue alpha 3 --body-file"]]]}
-{"line": "gh issue alpha --body-file \"def run\"", "parts": [["gh issue alpha --body-file \"def run\"", "R;;", ["gh issue alpha --body-file \"def run\""]]]}
-{"line": "gh pr main 100", "parts": [["gh pr main 100", "R;;", ["gh pr main 100"]]]}
-{"line": "gh release alpha --cleanup-tag", "parts": [["gh release alpha --cleanup-tag", "R;;", ["gh release alpha --cleanup-tag"]]]}
-{"line": "gh release -R build/out --notes 'a short note'", "parts": [["gh release -R build/out --notes 'a short note'", "R;;", ["gh release -R build/out --notes 'a short note'"]]]}
-{"line": "gh repo build/out \"value\"", "parts": [["gh repo build/out \"value\"", "R;;", ["gh repo build/out \"value\""]]]}
-{"line": "gh repo main tests/test_app.py 'hello'", "parts": [["gh repo main tests/test_app.py 'hello'", "R;;", ["gh repo main tests/test_app.py 'hello'"]]]}
-{"line": "gh --version", "parts": [["gh --version", "R;;", ["gh --version"]]]}
-{"line": "gh auth status", "parts": [["gh auth status", "R;;", ["gh auth status"]]]}
+{"line": "gh run view 3 --repo src/app/main.py --json \"value\" --jq '^import'", "parts": [["gh run view 3 --repo src/app/main.py --json \"value\" --jq '^import'", "R;;", ["gh run view 3 --repo src/app/main.py --json \"value\" --jq '^import'"]]]}
+{"line": "gh run view 3 --json \"value\" -q \"two words\"", "parts": [["gh run view 3 --json \"value\" -q \"two words\"", "R;;", ["gh run view 3 --json \"value\" -q \"two words\""]]]}
+{"line": "gh run view 3", "parts": [["gh run view 3", "R;;", ["gh run view 3"]]]}
+{"line": "gh run view 20 --json main -q", "parts": [["gh run view 20 --json main -q", "R;;", ["gh run view 20 --json main -q"]]]}
+{"line": "gh run list --workflow notes.txt --limit 100", "parts": [["gh run list --workflow notes.txt --limit 100", "R;;", ["gh run list --workflow notes.txt --limit 100"]]]}
+{"line": "gh run list --limit 20", "parts": [["gh run list --limit 20", "R;;", ["gh run list --limit 20"]]]}
+{"line": "gh run list --workflow \"two words\" --limit 3 --jq \"def run\"", "parts": [["gh run list --workflow \"two words\" --limit 3 --jq \"def run\"", "R;;", ["gh run list --workflow \"two words\" --limit 3 --jq \"def run\""]]]}
+{"line": "gh run list --limit 3", "parts": [["gh run list --limit 3", "R;;", ["gh run list --limit 3"]]]}
+{"line": "gh release create 1.2.3 --target feature-x --title 1.2.3 --notes-file docs/notes.md", "parts": [["gh release create 1.2.3 --target feature-x --title 1.2.3 --notes-file docs/notes.md", "R;;", ["gh release create 1.2.3 --target feature-x --title 1.2.3 --notes-file docs/notes.md"]]]}
+{"line": "gh release create 1.2.3 --title", "parts": [["gh release create 1.2.3 --title", "R;;", ["gh release create 1.2.3 --title"]]]}
+{"line": "gh release create 1.2.3 --title 1.2.3 --notes-file '^import'", "parts": [["gh release create 1.2.3 --title 1.2.3 --notes-file '^import'", "R;;", ["gh release create 1.2.3 --title 1.2.3 --notes-file '^import'"]]]}
+{"line": "gh release create --notes-file tests/test_app.py", "parts": [["gh release create --notes-file tests/test_app.py", "R;;", ["gh release create --notes-file tests/test_app.py"]]]}
+{"line": "gh pr view 100 --jq", "parts": [["gh pr view 100 --jq", "R;;", ["gh pr view 100 --jq"]]]}
+{"line": "gh pr view 20 -q 'a short note'", "parts": [["gh pr view 20 -q 'a short note'", "R;;", ["gh pr view 20 -q 'a short note'"]]]}
+{"line": "gh pr view --json \"value\"", "parts": [["gh pr view --json \"value\"", "R;;", ["gh pr view --json \"value\""]]]}
+{"line": "gh pr view --json main", "parts": [["gh pr view --json main", "R;;", ["gh pr view --json main"]]]}
+{"line": "gh issue view 20 --json beta src/app/main.py", "parts": [["gh issue view 20 --json beta src/app/main.py", "R;;", ["gh issue view 20 --json beta src/app/main.py"]]]}
+{"line": "gh issue view 100 --comments", "parts": [["gh issue view 100 --comments", "R;;", ["gh issue view 100 --comments"]]]}
+{"line": "gh issue view 3 --json main", "parts": [["gh issue view 3 --json main", "R;;", ["gh issue view 3 --json main"]]]}
+{"line": "gh issue view \"$HOME\" --json beta --jq src/app/main.py", "parts": [["gh issue view \"$HOME\" --json beta --jq src/app/main.py", "R;;", ["gh issue view \"$HOME\" --json beta --jq src/app/main.py"]]]}
+{"line": "gh pr create --title \"two words\" --body $(pwd)", "parts": [["gh pr create --title \"two words\" --body $(pwd)", "R;;", ["gh pr create --title \"two words\" --body $(pwd)"]]]}
+{"line": "gh pr create --title \"two words\" --body", "parts": [["gh pr create --title \"two words\" --body", "R;;", ["gh pr create --title \"two words\" --body"]]]}
+{"line": "gh pr create --head alpha --title \"two words\"", "parts": [["gh pr create --head alpha --title \"two words\"", "R;;", ["gh pr create --head alpha --title \"two words\""]]]}
+{"line": "gh pr create --repo src/app/main.py --base main --head main --body-file", "parts": [["gh pr create --repo src/app/main.py --base main --head main --body-file", "R;;", ["gh pr create --repo src/app/main.py --base main --head main --body-file"]]]}
+{"line": "gh pr merge", "parts": [["gh pr merge", "R;;", ["gh pr merge"]]]}
+{"line": "gh pr merge 100 --delete-branch", "parts": [["gh pr merge 100 --delete-branch", "R;;", ["gh pr merge 100 --delete-branch"]]]}
+{"line": "gh pr merge 3 --merge", "parts": [["gh pr merge 3 --merge", "R;;", ["gh pr merge 3 --merge"]]]}
+{"line": "gh pr merge 3 -R docs/notes.md", "parts": [["gh pr merge 3 -R docs/notes.md", "R;;", ["gh pr merge 3 -R docs/notes.md"]]]}
+{"line": "gh release view --jq \"two words\"", "parts": [["gh release view --jq \"two words\"", "R;;", ["gh release view --jq \"two words\""]]]}
+{"line": "gh release view --jq", "parts": [["gh release view --jq", "R;;", ["gh release view --jq"]]]}
+{"line": "gh release view 1.2.3 --json \"value\" --jq", "parts": [["gh release view 1.2.3 --json \"value\" --jq", "R;;", ["gh release view 1.2.3 --json \"value\" --jq"]]]}
+{"line": "gh release view 1.2.3", "parts": [["gh release view 1.2.3", "R;;", ["gh release view 1.2.3"]]]}
+{"line": "gh run watch $NAME --exit-status", "parts": [["gh run watch $NAME --exit-status", "R;;", ["gh run watch $NAME --exit-status"]]]}
+{"line": "gh run watch", "parts": [["gh run watch", "R;;", ["gh run watch"]]]}
+{"line": "gh run watch 3 --exit-status", "parts": [["gh run watch 3 --exit-status", "R;;", ["gh run watch 3 --exit-status"]]]}
+{"line": "gh run watch --interval", "parts": [["gh run watch --interval", "R;;", ["gh run watch --interval"]]]}
 {"line": "git log --oneline -20", "parts": [["git log --oneline -20", "R;;", ["git log --oneline -20"]]]}
 {"line": "git log 1,20p", "parts": [["git log 1,20p", "R;;", ["git log 1,20p"]]]}
 {"line": "git log --oneline -100 feature-x", "parts": [["git log --oneline -100 feature-x", "R;;", ["git log --oneline -100 feature-x"]]]}
@@ -170,14 +177,10 @@
 {"line": "go vet", "parts": [["go vet", "R;;", ["go vet"]]]}
 {"line": "go vet -p 3", "parts": [["go vet -p 3", "R;;", ["go vet -p 3"]]]}
 {"line": "go vet -p 100", "parts": [["go vet -p 100", "R;;", ["go vet -p 100"]]]}
-{"line": "go build docs/notes.md", "parts": [["go build docs/notes.md", "R;;", ["go build docs/notes.md"]]]}
-{"line": "go build -o \"def run\" tests/test_app.py", "parts": [["go build -o \"def run\" tests/test_app.py", "R;;", ["go build -o \"def run\" tests/test_app.py"]]]}
-{"line": "go build", "parts": [["go build", "R;;", ["go build"]]]}
 {"line": "go run status...", "parts": [["go run status...", "R;;", ["go run status..."]]]}
 {"line": "go run out.log", "parts": [["go run out.log", "R;;", ["go run out.log"]]]}
 {"line": "go run ${COUNT}", "parts": [["go run ${COUNT}", "R;;", ["go run ${COUNT}"]]]}
 {"line": "go run $NAME", "parts": [["go run $NAME", "R;;", ["go run $NAME"]]]}
-{"line": "go generate", "parts": [["go generate", "R;;", ["go generate"]]]}
 {"line": "go beta...", "parts": [["go beta...", "R;;", ["go beta..."]]]}
 {"line": "go docs/notes.md", "parts": [["go docs/notes.md", "R;;", ["go docs/notes.md"]]]}
 {"line": "grep -n 'TODO'", "parts": [["grep -n 'TODO'", "R;;", ["grep -n 'TODO'"]]]}
@@ -186,40 +189,39 @@
 {"line": "grep -n \"import sys; print(sys.path)\" tests/test_app.py", "parts": [["grep -n \"import sys; print(sys.path)\" tests/test_app.py", "R;;", ["grep -n \"import sys; print(sys.path)\" tests/test_app.py"]]]}
 {"line": "head -100", "parts": [["head -100", "R;;", ["head -100"]]]}
 {"line": "head", "parts": [["head", "R;;", ["head"]]]}
+{"line": "journal message read 3", "parts": [["journal message read 3", "R;;", ["journal message read 3"]]]}
+{"line": "journal message read", "parts": [["journal message read", "R;;", ["journal message read"]]]}
+{"line": "journal message read $NAME", "parts": [["journal message read $NAME", "R;;", ["journal message read $NAME"]]]}
+{"line": "journal output read 100", "parts": [["journal output read 100", "R;;", ["journal output read 100"]]]}
+{"line": "journal output read 20 --reader beta", "parts": [["journal output read 20 --reader beta", "R;;", ["journal output read 20 --reader beta"]]]}
+{"line": "journal output read --tail 20", "parts": [["journal output read --tail 20", "R;;", ["journal output read --tail 20"]]]}
+{"line": "journal output read --grep error", "parts": [["journal output read --grep error", "R;;", ["journal output read --grep error"]]]}
+{"line": "journal work log 20 'a short note'", "parts": [["journal work log 20 'a short note'", "R;;", ["journal work log 20 'a short note'"]]]}
+{"line": "journal work log", "parts": [["journal work log", "R;;", ["journal work log"]]]}
+{"line": "journal work log 100", "parts": [["journal work log 100", "R;;", ["journal work log 100"]]]}
+{"line": "journal work log --n", "parts": [["journal work log --n", "R;;", ["journal work log --n"]]]}
 {"line": "journal await", "parts": [["journal await", "R;;", ["journal await"]]]}
 {"line": "journal await 'a short note' --output 100 --reader beta", "parts": [["journal await 'a short note' --output 100 --reader beta", "R;;", ["journal await 'a short note' --output 100 --reader beta"]]]}
 {"line": "journal await --until 'a short note'", "parts": [["journal await --until 'a short note'", "R;;", ["journal await --until 'a short note'"]]]}
-{"line": "journal alpha... 100", "parts": [["journal alpha... 100", "R;;", ["journal alpha... 100"]]]}
-{"line": "journal beta... 100", "parts": [["journal beta... 100", "R;;", ["journal beta... 100"]]]}
-{"line": "journal --env alpha main...", "parts": [["journal --env alpha main...", "R;;", ["journal --env alpha main..."]]]}
-{"line": "journal --set COUNT=2", "parts": [["journal --set COUNT=2", "R;;", ["journal --set COUNT=2"]]]}
-{"line": "journal suite docs/notes.md -k status", "parts": [["journal suite docs/notes.md -k status", "R;;", ["journal suite docs/notes.md -k status"]]]}
-{"line": "journal suite -k 'a short note'", "parts": [["journal suite -k 'a short note'", "R;;", ["journal suite -k 'a short note'"]]]}
-{"line": "journal suite src/app/main.py... -k \"two words\"", "parts": [["journal suite src/app/main.py... -k \"two words\"", "R;;", ["journal suite src/app/main.py... -k \"two words\""]]]}
-{"line": "journal suite build/out", "parts": [["journal suite build/out", "R;;", ["journal suite build/out"]]]}
-{"line": "journal clock-out", "parts": [["journal clock-out", "R;;", ["journal clock-out"]]]}
-{"line": "journal clock-out \"import sys; print(sys.path)\"", "parts": [["journal clock-out \"import sys; print(sys.path)\"", "R;;", ["journal clock-out \"import sys; print(sys.path)\""]]]}
-{"line": "journal clock-out --tests \"two words\"", "parts": [["journal clock-out --tests \"two words\"", "R;;", ["journal clock-out --tests \"two words\""]]]}
-{"line": "journal clock-out main", "parts": [["journal clock-out main", "R;;", ["journal clock-out main"]]]}
-{"line": "journal proof 20 \"two words\"", "parts": [["journal proof 20 \"two words\"", "R;;", ["journal proof 20 \"two words\""]]]}
-{"line": "journal proof beta 3", "parts": [["journal proof beta 3", "R;;", ["journal proof beta 3"]]]}
-{"line": "journal proof 3 'print(1)'", "parts": [["journal proof 3 'print(1)'", "R;;", ["journal proof 3 'print(1)'"]]]}
-{"line": "journal proof main 3 \"import sys; print(sys.path)\"", "parts": [["journal proof main 3 \"import sys; print(sys.path)\"", "R;;", ["journal proof main 3 \"import sys; print(sys.path)\""]]]}
-{"line": "journal clock-in", "parts": [["journal clock-in", "R;;", ["journal clock-in"]]]}
-{"line": "journal clock-in status", "parts": [["journal clock-in status", "R;;", ["journal clock-in status"]]]}
-{"line": "journal clock-in 3", "parts": [["journal clock-in 3", "R;;", ["journal clock-in 3"]]]}
-{"line": "journal clock-in --help", "parts": [["journal clock-in --help", "R;;", ["journal clock-in --help"]]]}
-{"line": "journal search 'a short note'", "parts": [["journal search 'a short note'", "R;;", ["journal search 'a short note'"]]]}
-{"line": "journal search status", "parts": [["journal search status", "R;;", ["journal search status"]]]}
-{"line": "journal search alpha \"two words\"", "parts": [["journal search alpha \"two words\"", "R;;", ["journal search alpha \"two words\""]]]}
-{"line": "journal search beta --resources 'hello'", "parts": [["journal search beta --resources 'hello'", "R;;", ["journal search beta --resources 'hello'"]]]}
-{"line": "journal sins", "parts": [["journal sins", "R;;", ["journal sins"]]]}
-{"line": "journal sins docs/notes.md", "parts": [["journal sins docs/notes.md", "R;;", ["journal sins docs/notes.md"]]]}
-{"line": "journal tests build/out...", "parts": [["journal tests build/out...", "R;;", ["journal tests build/out..."]]]}
-{"line": "journal tests", "parts": [["journal tests", "R;;", ["journal tests"]]]}
-{"line": "journal tests build/out -run alpha", "parts": [["journal tests build/out -run alpha", "R;;", ["journal tests build/out -run alpha"]]]}
-{"line": "journal tests tests/test_app.py -run status -v", "parts": [["journal tests tests/test_app.py -run status -v", "R;;", ["journal tests tests/test_app.py -run status -v"]]]}
-{"line": "journal open", "parts": [["journal open", "R;;", ["journal open"]]]}
+{"line": "journal message send \"two words\"", "parts": [["journal message send \"two words\"", "R;;", ["journal message send \"two words\""]]]}
+{"line": "journal message send --reply 3", "parts": [["journal message send --reply 3", "R;;", ["journal message send --reply 3"]]]}
+{"line": "journal todo start 3", "parts": [["journal todo start 3", "R;;", ["journal todo start 3"]]]}
+{"line": "journal todo start", "parts": [["journal todo start", "R;;", ["journal todo start"]]]}
+{"line": "journal todo start \"$HOME\"", "parts": [["journal todo start \"$HOME\"", "R;;", ["journal todo start \"$HOME\""]]]}
+{"line": "journal work end 100 --how \"two words\"", "parts": [["journal work end 100 --how \"two words\"", "R;;", ["journal work end 100 --how \"two words\""]]]}
+{"line": "journal work end --how 'a short note'", "parts": [["journal work end --how 'a short note'", "R;;", ["journal work end --how 'a short note'"]]]}
+{"line": "journal work end 20", "parts": [["journal work end 20", "R;;", ["journal work end 20"]]]}
+{"line": "journal todo create 'a short note' --brief \"two words\"", "parts": [["journal todo create 'a short note' --brief \"two words\"", "R;;", ["journal todo create 'a short note' --brief \"two words\""]]]}
+{"line": "journal todo create \"two words\" --brief \"import sys; print(sys.path)\"", "parts": [["journal todo create \"two words\" --brief \"import sys; print(sys.path)\"", "R;;", ["journal todo create \"two words\" --brief \"import sys; print(sys.path)\""]]]}
+{"line": "journal todo create 'a short note' --brief \"import sys; print(sys.path)\" --set NAME=value", "parts": [["journal todo create 'a short note' --brief \"import sys; print(sys.path)\" --set NAME=value", "R;;", ["journal todo create 'a short note' --brief \"import sys; print(sys.path)\" --set NAME=value"]]]}
+{"line": "journal message reply \"two words\"", "parts": [["journal message reply \"two words\"", "R;;", ["journal message reply \"two words\""]]]}
+{"line": "journal message reply \"import sys; print(sys.path)\"", "parts": [["journal message reply \"import sys; print(sys.path)\"", "R;;", ["journal message reply \"import sys; print(sys.path)\""]]]}
+{"line": "journal message reply 1-5 \"two words\"", "parts": [["journal message reply 1-5 \"two words\"", "R;;", ["journal message reply 1-5 \"two words\""]]]}
+{"line": "journal message reply 100 'a short note' --file tests/test_app.py", "parts": [["journal message reply 100 'a short note' --file tests/test_app.py", "R;;", ["journal message reply 100 'a short note' --file tests/test_app.py"]]]}
+{"line": "journal work await --on alpha", "parts": [["journal work await --on alpha", "R;;", ["journal work await --on alpha"]]]}
+{"line": "journal work await 'a short note'", "parts": [["journal work await 'a short note'", "R;;", ["journal work await 'a short note'"]]]}
+{"line": "journal work await --on 'hello'", "parts": [["journal work await --on 'hello'", "R;;", ["journal work await --on 'hello'"]]]}
+{"line": "journal work await --on HEAD~1", "parts": [["journal work await --on HEAD~1", "R;;", ["journal work await --on HEAD~1"]]]}
 {"line": "jq 'TODO'", "parts": [["jq 'TODO'", "R;;", ["jq 'TODO'"]]]}
 {"line": "jq -r $NAME", "parts": [["jq -r $NAME", "R;;", ["jq -r $NAME"]]]}
 {"line": "jq -c \"two words\"", "parts": [["jq -c \"two words\"", "R;;", ["jq -c \"two words\""]]]}
@@ -238,15 +240,27 @@
 {"line": "lsof tests/test_app.py", "parts": [["lsof tests/test_app.py", "R;;", ["lsof tests/test_app.py"]]]}
 {"line": "lsof -nP -iTCP 'hello'", "parts": [["lsof -nP -iTCP 'hello'", "R;;", ["lsof -nP -iTCP 'hello'"]]]}
 {"line": "lsof -p 100", "parts": [["lsof -p 100", "R;;", ["lsof -p 100"]]]}
+{"line": "make ws test trackmijn NAME=value", "parts": [["make ws test trackmijn NAME=value", "R;;", ["make ws test trackmijn NAME=value"]]]}
+{"line": "make ws test trackmijn", "parts": [["make ws test trackmijn", "R;;", ["make ws test trackmijn"]]]}
+{"line": "make ws test trackmijn status", "parts": [["make ws test trackmijn status", "R;;", ["make ws test trackmijn status"]]]}
+{"line": "make env commit", "parts": [["make env commit", "R;;", ["make env commit"]]]}
+{"line": "make env commit NAME=value...", "parts": [["make env commit NAME=value...", "R;;", ["make env commit NAME=value..."]]]}
+{"line": "make env commit --help", "parts": [["make env commit --help", "R;;", ["make env commit --help"]]]}
+{"line": "make env push", "parts": [["make env push", "R;;", ["make env push"]]]}
+{"line": "make ws test platform NAME=value", "parts": [["make ws test platform NAME=value", "R;;", ["make ws test platform NAME=value"]]]}
+{"line": "make ws test platform main", "parts": [["make ws test platform main", "R;;", ["make ws test platform main"]]]}
+{"line": "make ws test platform", "parts": [["make ws test platform", "R;;", ["make ws test platform"]]]}
+{"line": "make env status", "parts": [["make env status", "R;;", ["make env status"]]]}
 {"line": "make env alpha", "parts": [["make env alpha", "R;;", ["make env alpha"]]]}
 {"line": "make env", "parts": [["make env", "R;;", ["make env"]]]}
-{"line": "make install", "parts": [["make install", "R;;", ["make install"]]]}
-{"line": "make beta", "parts": [["make beta", "R;;", ["make beta"]]]}
-{"line": "make -C docs/notes.md alpha...", "parts": [["make -C docs/notes.md alpha...", "R;;", ["make -C docs/notes.md alpha..."]]]}
-{"line": "make -n alpha", "parts": [["make -n alpha", "R;;", ["make -n alpha"]]]}
-{"line": "make \"value\" --scenario alpha", "parts": [["make \"value\" --scenario alpha", "R;;", ["make \"value\" --scenario alpha"]]]}
-{"line": "make ws", "parts": [["make ws", "R;;", ["make ws"]]]}
-{"line": "make ws status... NAME=value", "parts": [["make ws status... NAME=value", "R;;", ["make ws status... NAME=value"]]]}
+{"line": "make env fetch", "parts": [["make env fetch", "R;;", ["make env fetch"]]]}
+{"line": "make ws test mytimeflow COUNT=2", "parts": [["make ws test mytimeflow COUNT=2", "R;;", ["make ws test mytimeflow COUNT=2"]]]}
+{"line": "make ws test mytimeflow", "parts": [["make ws test mytimeflow", "R;;", ["make ws test mytimeflow"]]]}
+{"line": "make ws test mytimeflow status", "parts": [["make ws test mytimeflow status", "R;;", ["make ws test mytimeflow status"]]]}
+{"line": "make env help", "parts": [["make env help", "R;;", ["make env help"]]]}
+{"line": "make ws lab", "parts": [["make ws lab", "R;;", ["make ws lab"]]]}
+{"line": "make ws lab alpha...", "parts": [["make ws lab alpha...", "R;;", ["make ws lab alpha..."]]]}
+{"line": "make ws lab status... COUNT=2", "parts": [["make ws lab status... COUNT=2", "R;;", ["make ws lab status... COUNT=2"]]]}
 {"line": "mkdir", "parts": [["mkdir", "R;;", ["mkdir"]]]}
 {"line": "mkdir '^import'", "parts": [["mkdir '^import'", "R;;", ["mkdir '^import'"]]]}
 {"line": "mkdir -p ${COUNT}", "parts": [["mkdir -p ${COUNT}", "R;;", ["mkdir -p ${COUNT}"]]]}
@@ -315,10 +329,6 @@
 {"line": "tail -20", "parts": [["tail -20", "R;;", ["tail -20"]]]}
 {"line": "tail", "parts": [["tail", "R;;", ["tail"]]]}
 {"line": "tail build/out", "parts": [["tail build/out", "R;;", ["tail build/out"]]]}
-{"line": "tee 'TODO'", "parts": [["tee 'TODO'", "R;;", ["tee 'TODO'"]]]}
-{"line": "tee src/app/main.py", "parts": [["tee src/app/main.py", "R;;", ["tee src/app/main.py"]]]}
-{"line": "tee -a \"$HOME\"", "parts": [["tee -a \"$HOME\"", "R;;", ["tee -a \"$HOME\""]]]}
-{"line": "tee $(pwd)", "parts": [["tee $(pwd)", "R;;", ["tee $(pwd)"]]]}
 {"line": "touch", "parts": [["touch", "R;;", ["touch"]]]}
 {"line": "touch src/app/main.py...", "parts": [["touch src/app/main.py...", "R;;", ["touch src/app/main.py..."]]]}
 {"line": "touch notes.txt", "parts": [["touch notes.txt", "R;;", ["touch notes.txt"]]]}
@@ -326,11 +336,6 @@
 {"line": "tr -d 'hello'", "parts": [["tr -d 'hello'", "R;;", ["tr -d 'hello'"]]]}
 {"line": "tr", "parts": [["tr", "R;;", ["tr"]]]}
 {"line": "tr 'hello' 'a short note'", "parts": [["tr 'hello' 'a short note'", "R;;", ["tr 'hello' 'a short note'"]]]}
-{"line": "uniq", "parts": [["uniq", "R;;", ["uniq"]]]}
-{"line": "vitest run docs/notes.md", "parts": [["vitest run docs/notes.md", "R;;", ["vitest run docs/notes.md"]]]}
-{"line": "vitest run", "parts": [["vitest run", "R;;", ["vitest run"]]]}
-{"line": "vitest run src/app/main.py...", "parts": [["vitest run src/app/main.py...", "R;;", ["vitest run src/app/main.py..."]]]}
-{"line": "vitest run --reporter status", "parts": [["vitest run --reporter status", "R;;", ["vitest run --reporter status"]]]}
 {"line": "wc -l", "parts": [["wc -l", "R;;", ["wc -l"]]]}
 {"line": "wc -l src/app/main.py", "parts": [["wc -l src/app/main.py", "R;;", ["wc -l src/app/main.py"]]]}
 {"line": "wc -l tests/test_app.py...", "parts": [["wc -l tests/test_app.py...", "R;;", ["wc -l tests/test_app.py..."]]]}
