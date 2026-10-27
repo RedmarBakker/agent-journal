@@ -19,6 +19,8 @@ class UpdateCommand(Command):
         self.verb(verbs, "apply", "install the newest release of this major version and restart the journal on it")
         self.verb(verbs, "install", "install the newest release of this major version at once, in this process: what journal update does in a project whose journal is not running")
         self.verb(verbs, "check", "say whether a newer release of this major version is out")
+        self.verb(verbs, "retry", "install the newest release again after a step of its path failed, starting at that step")
+        self.verb(verbs, "stay", "keep the version a failed step left running and close the path; it is not tried again on its own")
         follow = self.verb(verbs, "follow", "follow a branch: install its newest commit instead of the releases")
         follow.add_argument("branch", help="the branch's name")
         self.verb(verbs, "unfollow", "follow the releases of this major version again")
@@ -36,6 +38,17 @@ class UpdateCommand(Command):
         previous, target = self.updating.label(), self.updating.target()
         self.updating.install(caller.actor)
         print(f"updated from {previous} to {target.label}: no journal was running, so it was installed here; the next journal command runs on it")
+        return 0
+
+    def retry(self, args: Namespace, caller: Caller) -> int:
+        self.updating.read()
+        self.updating.retry(caller.actor)
+        print(f"retrying the update from {self.updating.label()} to {self.updating.target().label}, starting at the step that failed: the journal restarts on each step")
+        return 0
+
+    def stay(self, args: Namespace, caller: Caller) -> int:
+        self.updating.stay()
+        print(f"staying on {self.updating.label()}: the path is closed, and the failed step is not tried again until journal update retry")
         return 0
 
     def messages(self, args: Namespace, caller: Caller) -> int:

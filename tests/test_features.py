@@ -9896,6 +9896,62 @@ def test_an_update_holds_its_mark_until_the_journal_runs_the_version_it_went_to(
     assert threshold.paused().pid == os.getpid(), "and a new update goes ahead over it, rather than waiting out the quarter hour"
 
 
+def failed_path(app: App, version: str) -> dict:
+    from journal.features.updates.support.update_path_file import UpdatePathFile
+    record = {"from": version, "to": "4.99.0", "steps": ["4.98.0"], "reached": version, "failed": "4.98.0"}
+    paths = app.container.get(UpdatePathFile)
+    paths.path.parent.mkdir(parents=True, exist_ok=True)
+    paths.path.write_text(json.dumps(record))
+    return record
+
+
+def test_a_failed_step_takes_the_card_down_names_the_step_and_starts_nothing_until_retried(app: App):
+    import threading
+    import time as timing
+    from journal.features.updates.support.update_card import UpdateCard
+    from journal.features.updates.support.update_path_file import UpdatePathFile
+    from journal.features.updates.support.update_pause import UpdatePause
+    from journal.support.rejection import Rejection
+    from journal.version import VERSION
+    card, paths = app.container.get(UpdateCard), app.container.get(UpdatePathFile)
+    installer = Installer()
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), installer, auto=True)
+    with pytest.raises(Rejection, match="nothing to retry"):
+        updating.retry(Actor.user(1))
+    record = failed_path(app, VERSION)
+    card.write(UpdatePause(VERSION, "4.99.0", "Installing the new version", timing.time(), os.getpid()))
+    updating.reconcile(timing.time())
+    assert card.paused() is None and f"stopped at {VERSION}: the step to 4.98.0 failed, and {VERSION} keeps running" in updating.data().problem, "the card comes down and names the failed step and the version still running"
+    assert paths.record() == record, "a boot reads the path and never clears it"
+    updating.checked()
+    assert installer.ran == [] and card.paused() is None, "with automatic updates on, a boot after a failed step starts nothing"
+    updating.stay()
+    assert updating.data().problem == "" and paths.is_failed_at(VERSION), "stay closes the path and keeps the failed step from being tried on its own"
+    updating.checked()
+    assert installer.ran == [], "a path closed by stay is not tried again on its own"
+    updating.retry(Actor.user(1))
+    for thread in threading.enumerate():
+        if thread.name == "updates":
+            thread.join(10)
+    assert installer.ran == ["v4.99.0"] and paths.record() == {}, "retry installs the newest release again from the version still running, so its path starts at the step that failed"
+
+
+def test_a_boot_on_a_step_of_a_path_keeps_the_card_and_says_the_step(app: App):
+    import time as timing
+    from journal.features.updates.support.update_card import UpdateCard
+    from journal.features.updates.support.update_path_file import UpdatePathFile
+    from journal.features.updates.support.update_pause import UpdatePause
+    from journal.version import VERSION
+    card, paths = app.container.get(UpdateCard), app.container.get(UpdatePathFile)
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=False)
+    paths.path.parent.mkdir(parents=True, exist_ok=True)
+    paths.path.write_text(json.dumps({"from": "4.0.0", "to": "4.99.0", "steps": [VERSION], "reached": "4.0.0", "failed": ""}))
+    card.write(UpdatePause("4.0.0", "4.99.0", "Installing the new version", timing.time(), -1))
+    updating.reconcile(timing.time())
+    assert card.paused().pid == os.getpid() and card.paused().step == f"Installed {VERSION}, step 1 of 2 to 4.99.0; the next step is installing", "the journal booted on a step takes the card over"
+    assert updating.problem == "", "a boot on a recorded step is no update that did not finish"
+
+
 def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
     from journal.support.typed_lines import TypedLines
     lines = app.container.get(TypedLines)

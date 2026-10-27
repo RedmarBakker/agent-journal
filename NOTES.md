@@ -1860,5 +1860,12 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   to its own, over the update_steps.json of its own tree, steps newer than its own ignored. Each step before its own is
   cloned by tag and installed by that tag's install.sh, so the step's code runs its migrations; then it installs itself.
   A failed step stops the walk with the step before it installed. .journal/runtime/update-path.json holds from, to,
-  steps, reached and failed; the walk writes it and nothing clears it. No path (no file, a gap, a malformed file)
+  steps, reached and failed; the walk writes it and a boot never clears it. No path (no file, a gap, a malformed file)
   installs directly, as before.
+- The one update card follows the path: a journal that boots on a step of an unfailed walk takes the card over with
+  "Installed 4.98.0, step 1 of 2 to 4.99.0" instead of saying the update did not finish (Updater.reconcile, read
+  through UpdatePathFile). A failed step takes the card down, and the problem names the failed step and the version
+  still running, read from the file, so it survives restarts; automatic updates start nothing while it stands.
+  `journal update retry` installs the newest release again from there, so its path starts at the failed step;
+  `journal update stay` closes the path (stayed in the file) and the failed step is still not tried on its own. Any
+  update a person starts clears the record.

@@ -2532,6 +2532,20 @@ usage: journal update unfollow [-h]
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal update retry --help
+exit 0
+usage: journal update retry [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal update stay --help
+exit 0
+usage: journal update stay [-h]
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal team chat --help
 exit 0
 usage: journal team chat [-h]

@@ -21,3 +21,6 @@ class UpdatePause:
 
     def is_pending(self, version: str, pid: int, time: float) -> bool:
         return self.target != version and self.pid == pid and not self.is_stale(time)
+
+    def taken(self, pid: int, time: float, step: str) -> "UpdatePause":
+        return replace(self, pid=pid, time=time, step=step)

@@ -15,6 +15,7 @@ from journal.sync.sync_status import SyncStatus
 from journal.features.updates.support.release_refusal import ReleaseRefusal
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
+from journal.features.updates.support.update_path_file import UpdatePathFile
 from journal.features.updates.support.update_data import UpdateData
 from journal.features.updates.support.update_target import UpdateTarget
 from journal.features.shell.support.restart_queue import RestartQueue
@@ -45,8 +46,8 @@ UNREACHABLE = "not_connected"
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again. The sync service has drained when it has sent the whole queue and pulled the team to its head, under the team's upgrade lease; a journal is pinned when it has joined a team and is not the hosted journal that leads the team onto a release."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus, time_source: TimeSource, paths: UpdatePathFile) -> None:
+        self.time_source, self.paths = time_source, paths
         self.official, self.sync = official, sync
         self.ancestry = ancestry
         self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
@@ -102,7 +103,7 @@ class Updater:
         return UpdateTarget(newest.tag, newest.version)
 
     def automatic(self) -> bool:
-        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published()
+        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published() and not self.paths.is_failed_at(VERSION)
 
     def is_pinned(self) -> bool:
         return self.account.is_joined() and not self.leads_team()
@@ -125,7 +126,7 @@ class Updater:
     def data(self) -> UpdateData:
         blocked = self.card.running()
         return UpdateData(installed=self.label(), latest=self.latest(), newer=self.is_published(), branch=self.branch(), versions=[release.version for release in self.newer()],
-                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.problem, started_at=self.started_at)
+                              updating=blocked.target if blocked else "", step=blocked.step if blocked else "", problem=self.shown_problem(), started_at=self.started_at)
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
@@ -136,16 +137,27 @@ class Updater:
             self._next_check_at = time + self.check_interval_seconds()
             self.separate(self.checked)
 
+    def shown_problem(self) -> str:
+        return self.problem or self.paths.problem(VERSION)
+
     def line(self) -> str:
-        if self.problem:
-            return self.problem
+        if self.shown_problem():
+            return self.shown_problem()
         if self.is_published():
             return f"{self.target().label} is out; {self.label()} is installed. journal update installs it"
         return f"{self.label()} is the newest commit of the branch" if self.branch() else f"{VERSION} is the newest release of version {self.running().major}"
 
     def reconcile(self, time: float) -> None:
         blocked = self.card.paused()
-        if blocked is None or blocked.is_pending(VERSION, os.getpid(), time):
+        if blocked is None:
+            return
+        if self.paths.is_failed_at(VERSION):
+            self.card.clear()
+            return
+        if blocked.is_pending(VERSION, os.getpid(), time):
+            return
+        if self.paths.is_walking_at(VERSION):
+            self.card.write(blocked.taken(os.getpid(), time, self.paths.step_line(VERSION)))
             return
         self.card.clear()
         self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
@@ -153,6 +165,7 @@ class Updater:
     def update_immediately(self, actor: Actor) -> None:
         self.read()
         self.card.begin(self.label(), self.target().label)
+        self.paths.cleared()
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
 
@@ -168,9 +181,20 @@ class Updater:
             self.problem = f"The install command from the README failed: {(installed.stderr or installed.stdout).strip()[-300:]}"
             self.card.clear()
 
+    def retry(self, actor: Actor) -> None:
+        if not self.paths.is_failed_at(VERSION):
+            raise Rejection(f"no step of an update failed on {VERSION}: there is nothing to retry")
+        self.update_immediately(actor)
+
+    def stay(self) -> None:
+        if not self.paths.is_failed_at(VERSION):
+            raise Rejection(f"no step of an update failed on {VERSION}: there is no path to close")
+        self.paths.stayed()
+
     def install(self, actor: Actor) -> None:
         self.read()
         self.card.begin(self.label(), self.target().label)
+        self.paths.cleared()
         self.install_newest(actor)
         if self.problem:
             raise Rejection(self.problem)
