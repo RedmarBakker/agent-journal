@@ -49,7 +49,8 @@ Every point passed signs the work off and merges it; a point short goes back to 
 """
 
     def test_output(self, worker: Worker, folder: Path) -> str:
-        runs = [output for output in self.outputs.creator_outputs(Actor.worker(worker.id)) if self.labels.test_runs((output.command,))]
+        outputs = self.outputs.creator_outputs(Actor.worker(worker.id))
+        runs = [output for output in outputs if self.labels.test_runs((output.command,))]
         if not runs:
             return f"the worker ran no test: run the tests its proofs name, by the commands they give, in {folder}"
         return "\n\n".join(self.run_text(run) for run in runs)

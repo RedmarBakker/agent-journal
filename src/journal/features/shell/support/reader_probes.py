@@ -14,7 +14,7 @@ TESTING = "testing"
 
 
 class ReaderProbes:
-    """What a reader picks of fixed sample lines, so a reader that filters nothing, or a test run's reader that would miss both the summary and the failures of a real run, is refused when it is added, whatever the stored run it was tried on happened to print."""
+    """What a reader picks of fixed sample lines, so a reader that filters nothing, or a test run's reader that would miss both the summary and the failures of a real run, is refused when it is added, whatever the stored run it was tried on happened to print; a test run's reader must select its summary or its failures, and progress is asked of it only once a run prints a count, since a runner that prints none would bring a progress that lies."""
 
     def __init__(self, labels: ActivityLabel) -> None:
         self.labels = labels
@@ -27,8 +27,6 @@ class ReaderProbes:
     def is_test_reader(self, reader: Reader) -> bool:
         return any(self.labels.line_label(program) == TESTING for program in reader.commands.programs)
 
-    # a test run's reader selects what a person needs at its end, its summary or its failures; progress is asked of it only once a
-    # run prints a count, while it runs, since demanding it of a runner that prints none would bring a progress that lies
     def test_run_misses(self, reader: Reader) -> list[str]:
         if reader.script or not self.is_test_reader(reader):
             return []
