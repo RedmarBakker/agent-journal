@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
 import json
 from argparse import Namespace
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from journal.console.support.chained_line import ChainedLine
 
@@ -37,6 +37,7 @@ from journal.features.team.support.start_rule import StartRule
 from journal.features.hydration.support.session_hydration import SessionHydration
 from journal.features.team.support.environment_sharing import EnvironmentSharing
 from journal.engine.support.launch_files import LaunchFiles
+from journal.engine.states_catalogue import StatesCatalogue
 from journal.support.time_source import TimeSource
 
 TAKEOVER_WINDOW = timedelta(hours=12)
@@ -46,8 +47,8 @@ class EnvironmentCommand(Command):
     noun = "environment"
     uncut_verbs = frozenset({"overview"})
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource) -> None:
+        self.time_source, self.states = time_source, states
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
@@ -79,7 +80,7 @@ class EnvironmentCommand(Command):
             agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
             last = agents[-1] if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
-            working = last is not None and last.state != "ended" and not self.launches.is_abandoned(environment.name)
+            working = last is not None and not self.states.restored(last.state, last.data).final and not self.launches.is_abandoned(environment.name)
             rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch))
         return rows
 

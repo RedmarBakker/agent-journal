@@ -19,6 +19,9 @@ class Impasse(Wait):
     def wait_description(self) -> tuple[str, str]:
         return self.reason, ""
 
+    def impasse_reason(self) -> str:
+        return self.reason
+
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
         return self.pop()
 

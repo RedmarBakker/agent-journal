@@ -95,6 +95,25 @@ class BaseState:
     def targets(self) -> list[str]:
         return []
 
+    def wait_description(self) -> tuple[str, str]:
+        return "", ""
+
+    def activity_text(self) -> str:
+        return self.wait_description()[0]
+
+    def task_number(self) -> int:
+        return 0
+
+    def question_number(self) -> int:
+        return 0
+
+    def impasse_reason(self) -> str:
+        return ""
+
+    @classmethod
+    def delegates_work(cls) -> bool:
+        return False
+
     def blocks_tools(self) -> bool:
         return False
 

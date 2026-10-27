@@ -35,7 +35,8 @@ class ShellNudges:
     READER_TOPIC = Nudge("shell", "give_the_reader_a_topic", "{{command}} has run with {{count}} different arguments", "give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names", repeat=Timeout.seconds(0))
     READER_WATCH = Nudge("shell", "watched_reader_output", "output {{n}} ({{command}}) is in the background, watched through {{reader}}", repeat=Timeout.seconds(0))
     ALIAS_WATCH = Nudge("shell", "watched_alias_output", "output {{n}}, the run of journal {{name}}, is watched{{reader}}", repeat=Timeout.seconds(0))
-    ALIAS_HINT = Nudge("shell", "use_the_alias", "journal {{name}} runs this line: {{line}}", "use `journal {{name}} [args]` next time", repeat=Timeout.seconds(0))
+    ALIASED_LINE = Nudge("shell", "aliased_line_refused", "journal {{name}} runs this line: {{line}}", "run `journal {{name}} [args]` instead: its reader and its card come with the alias", repeat=Timeout.seconds(0))
+    MORE_SPECIFIC_ALIAS = Nudge("shell", "more_specific_alias_refused", "journal {{name}} runs what this run of journal {{called}} runs: {{line}}", "run `journal {{name}} [args]` instead: its reader and its card come with that alias", repeat=Timeout.seconds(0))
     ALIAS_SUGGESTION = Nudge("shell", "add_an_alias", "you ran {{shape}} three times or more", "`journal alias add <name> \"<the line without the values that change>\"{{reader}}`, then `journal <name> <values>`", repeat=Timeout.seconds(0))
 
     @staticmethod

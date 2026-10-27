@@ -1745,6 +1745,7 @@ sequences.the_user_skipped_a_step  [sequences]  the user skipped step {{step}} o
 sequences.write_held_for_the_step  [sequences]  a write waits for sequence {{n}}, step {{step}}: {{text}}. `journal sequence follow`, or `journal sequence pause --why "<why>"`
 shell.add_a_reader  [shell]  you read outputs this way again: {{command}}. `journal reader add <name> --pattern <regex> --about "<what it picks>"`, then `journal output read N --reader <name>`
 shell.add_an_alias  [shell]  you ran {{shape}} three times or more. `journal alias add <name> "<the line without the values that change>"{{reader}}`, then `journal <name> <values>`
+shell.aliased_line_refused  [shell]  journal {{name}} runs this line: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with the alias
 shell.check_the_background  [shell]  output {{background_outputs}} still running. look at it; hung or stuck: stop it and say why
 shell.counting_reader_suggestion  [shell]  optional: no reader counts passed and failed for {{command}}. `journal reader add <name> --commands "{{command}}" --pattern '<failures>' --progress '<count of a total>' --finished '<summary>' --failed '<failures>' --label 'Running tests'`
 shell.drop_alias_time_limit  [shell]  the journal watches alias {{name}}, so it needs no time limit wrapper. edit it with journal alias edit {{name}} --line and this line: {{line}}
@@ -1755,6 +1756,7 @@ shell.guessed_a_reader  [shell]  reading it with {{reader}}: {{about}}. it stays
 shell.journal_command_piped_into_a_filter  [shell]  journal {{command}} piped into {{filter}} hides the lines the journal speaks. run it on its own and read all of its answer
 shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with other commands.
 shell.make_its_reader  [shell]  no reader reads {{command}} yet. `journal reader add <name> --commands "{{command}}" --pattern '<failures and summary>' --progress '<percent or count of a total>' --label 'Running tests'`
+shell.more_specific_alias_refused  [shell]  journal {{name}} runs what this run of journal {{called}} runs: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with that alias
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
 shell.output_kept  [shell]  output {{n}}: {{counts}}{{part}}
 shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts}}
@@ -1767,7 +1769,6 @@ shell.reader_report_raised  [shell]  reader report {{n}}: its reader showed a ru
 shell.silent_run_streams  [shell]  output {{n}} has printed nothing for {{seconds}} seconds while it runs: the command buffers its output, which no reader can show. run it so it prints as it goes: stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, go test -json in place of -v, or the flag of its own that streams; a reader change cannot fix it
 shell.test_run_piped_into_a_filter  [shell]  a test run piped into {{filter}} hides the lines its reader reads, so its mark shows no progress and its output is cut. run it whole with `journal suite <args>`, then read its output by its number with `journal output read N --reader pytest` or `--grep "<words>"`
 shell.unread_output  [shell]  {{outputs}}, and you have not read it yet
-shell.use_the_alias  [shell]  journal {{name}} runs this line: {{line}}. use `journal {{name}} [args]` next time
 shell.use_the_reader  [shell]  reader {{reader}} already reads this: {{about}}. `journal output read N --reader {{reader}}`
 shell.watch_it_live  [shell]  watch it: `journal output watch {{n}}{{reader}} --title "<what it is doing>"`. or `journal await "<what>" --output {{n}}{{reader}}` to wait on it
 shell.watched_alias_output  [shell]  output {{n}}, the run of journal {{name}}, is watched{{reader}}
@@ -1896,7 +1897,7 @@ workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it rep
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-276 nudges
+277 nudges
 
 $ agent: journal worker list
 exit 0

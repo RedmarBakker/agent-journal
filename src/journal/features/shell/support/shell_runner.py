@@ -108,6 +108,7 @@ class ShellRunner:
 
     def foreground(self, folder: OutputFiles, request: ShellRequest, caller: Caller, cap: Cap, environment: int, faults: list[Exception]) -> Iterator[bytes]:
         display = OutputShow(folder, cap)
+        self.remove_plugin_alias_readers(request.line)
         limit = self.limits.build(request.line, caller.environment, caller.session)
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
@@ -159,6 +160,11 @@ class ShellRunner:
         for line in lines:
             self.supervisor.remark(environment, line)
         return ""
+
+    def remove_plugin_alias_readers(self, line: str) -> None:
+        alias = self.aliases.line_alias(line)
+        for reader in self.readers.alias_readers(alias) if alias is not None and alias.plugin else []:
+            self.readers.removed(reader.name)
 
     def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | None, caller: Caller) -> list[Nudge]:
         if GitCommands.is_git_line(part):

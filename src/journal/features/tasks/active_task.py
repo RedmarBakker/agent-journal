@@ -1,9 +1,7 @@
-from datetime import datetime, timezone
 
 from journal.support.caller import Caller
 from journal.engine.clock import Clock
 from journal.engine.support.session_agents import SessionAgents
-from journal.features.tasks.states.working import Working
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.support.rejection import Rejection
@@ -11,7 +9,6 @@ from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
-from journal.support.missing_row import MissingRow
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
 from journal.support.time_source import TimeSource
@@ -23,15 +20,6 @@ class ActiveTask:
     def __init__(self, tasks: Tasks, sessions: SessionAgents, agents: Agents, scope: Scope, clock: Clock, plans: Plans, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.tasks, self.sessions, self.agents, self.scope, self.clock, self.plans = tasks, sessions, agents, scope, clock, plans
-
-    def current(self, caller: Caller) -> Working | None:
-        if caller.session is None:
-            return None
-        try:
-            current = self.sessions.top(caller.session)
-        except MissingRow:
-            return None
-        return current if isinstance(current, Working) else None
 
     def start(self, task: Task, caller: Caller) -> Task:
         for plan in self.plans.unapproved(task):

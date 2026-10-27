@@ -25,6 +25,10 @@ class Orchestrating(PlansReady):
     assigner = OrchestratorTaskAssigner
     title = "Orchestrating"
 
+    @classmethod
+    def delegates_work(cls) -> bool:
+        return True
+
     def mode_lines(self) -> tuple[Nudge, ...]:
             return (WorkersNudges.ORCHESTRATOR_MODE.create(),)
 

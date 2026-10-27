@@ -2,6 +2,7 @@ from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
 from datetime import datetime, timezone
 from pathlib import Path
 from journal.config import Config
+from journal.models.alias import Alias
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
 from journal.features.shell.support.reader import Reader
@@ -105,6 +106,17 @@ class Readers:
 
     def journal_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
+
+    def plugin_aliases_read(self, reader: Reader) -> list[Alias]:
+        return reader.commands.read_aliases(self.aliases.plugin_aliases())
+
+    def alias_readers(self, alias: Alias) -> list[Reader]:
+        return [reader for reader in self.all() if not self.is_locked(reader.name) and reader.commands.reads(alias.expanded(""))]
+
+    def refuse_plugin_alias_reader(self, reader: Reader) -> None:
+        aliases = self.plugin_aliases_read(reader)
+        if aliases:
+            raise Rejection(f"the reader {reader.name} reads what journal {', journal '.join(alias.name for alias in aliases)} runs, which its plugin's own reader reads: a reader of the project never reads a plugin's alias")
 
     def stray_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if reader.commands.programs and all(CommandMarkPolicy.takes_no_reader(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]

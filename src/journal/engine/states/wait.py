@@ -17,9 +17,6 @@ class Wait(BaseState):
     def takes_pushes(self) -> bool:
         return False
 
-    def wait_description(self) -> tuple[str, str]:
-        return "", ""
-
     def is_waiting(self) -> bool:
         return True
 

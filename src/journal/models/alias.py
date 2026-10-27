@@ -25,8 +25,13 @@ class Alias(Model):
 
     def command(self, args: str) -> str:
         assignments = " ".join(f"{key}={shlex.quote(str(value))}" for key, value in self.variables.items())
-        line = self.line.replace(ARGS, args) if ARGS in self.line else f"{self.line} {args}"
-        return f"{assignments} {line}".strip()
+        return f"{assignments} {self.expanded(args)}".strip()
+
+    def expanded(self, args: str) -> str:
+        return self.line.replace(ARGS, args) if ARGS in self.line else f"{self.line} {args}"
+
+    def head_size(self) -> int:
+        return len(Part(self.line.split(ARGS)[0]).tokens())
 
     def terminal_line(self, argv: list[str]) -> str:
         return self.command(" ".join(shlex.quote(word) for word in argv))

@@ -1,4 +1,4 @@
-from journal.features.workers.support.orchestrator_mode import OrchestratorMode
+from journal.features.workers.support.work_mode import WorkMode
 from journal.models.plan import Plan
 from journal.repositories.plans import Plans
 from journal.support.actor import Actor
@@ -8,18 +8,18 @@ from journal.support.time_source import TimeSource
 class PlanFocus:
     """A builder or a solo agent follows one started plan at a time: starting or resuming one pauses every other started plan, and a switch out of the orchestrator mode keeps the plan furthest along, the oldest when two are even, and pauses the rest; an orchestrator keeps all its started plans."""
 
-    def __init__(self, plans: Plans, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, orchestrator: WorkMode, time_source: TimeSource) -> None:
         self.plans, self.orchestrator, self.time_source = plans, orchestrator, time_source
 
     def pause_rest(self, plan_id: int, actor: Actor) -> None:
-        if self.orchestrator.is_set():
+        if self.orchestrator.delegates_work():
             return
         for started in self.plans.running_plans_beside(plan_id):
             self.plans.save(started.postponed(self.time_source.seconds(), False), actor)
 
     def keep_furthest(self, actor: Actor) -> None:
         started_plans = self.plans.running_plans()
-        if self.orchestrator.is_set() or len(started_plans) < 2:
+        if self.orchestrator.delegates_work() or len(started_plans) < 2:
             return
         self.pause_rest(max(started_plans, key=lambda plan: (self.completed_share(plan), -plan.row_id)).row_id, actor)
 

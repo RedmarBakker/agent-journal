@@ -1,5 +1,5 @@
 from journal.features.plans.support.phase_testing import PhaseTesting
-from journal.features.workers.support.orchestrator_mode import OrchestratorMode
+from journal.features.workers.support.work_mode import WorkMode
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
@@ -13,14 +13,14 @@ from journal.support.actor import Actor
 class ApprovedPlanStart:
     """Starts the oldest approved plan for the agent here, in the orchestrator's mode without a task and otherwise with its first task in hand, when no plan is started, its testing allows it and the agent has no task in progress; with no agent here it starts none."""
 
-    def __init__(self, plans: Plans, agents: Agents, tasks: Tasks, orchestrator: OrchestratorMode, testing: PhaseTesting) -> None:
+    def __init__(self, plans: Plans, agents: Agents, tasks: Tasks, orchestrator: WorkMode, testing: PhaseTesting) -> None:
         self.plans, self.agents, self.tasks, self.orchestrator, self.testing = plans, agents, tasks, orchestrator, testing
 
     def run(self) -> None:
         present = self.agents.current()
         if present is None:
             return
-        if self.orchestrator.is_set():
+        if self.orchestrator.delegates_work():
             self.opened()
         else:
             self.started(present)

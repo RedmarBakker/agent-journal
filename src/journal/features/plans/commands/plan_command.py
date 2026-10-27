@@ -1,7 +1,5 @@
-import time
 from argparse import Namespace
 from dataclasses import replace
-from datetime import datetime, timezone
 
 from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
@@ -31,7 +29,7 @@ from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.support.orchestrator_mode import OrchestratorMode
+from journal.features.workers.support.work_mode import WorkMode
 from journal.support.time_source import TimeSource
 CURRENT = "current"
 
@@ -42,7 +40,7 @@ class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: OrchestratorMode, time_source: TimeSource) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
@@ -211,13 +209,13 @@ class PlanCommand(Command):
         return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
 
     def is_orchestrator(self, caller: Caller) -> bool:
-        return caller.is_main_agent() and self.settings.option(WorkersOptions.MODE) == "orchestrator"
+        return caller.is_main_agent() and self.orchestrator.delegates_work()
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
         if refusal := self.phase_testing.refusal(plan):
             raise Rejection(refusal)
-        plan = self.plans.opened(plan, caller.actor) if self.orchestrator.is_set() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
+        plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0

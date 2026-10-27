@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 
-from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
-from journal.features.tasks.states.working import Working
 from journal.models.agent import Agent
 from journal.models.task import Task
 from journal.support.missing_row import MissingRow
@@ -25,14 +23,14 @@ class CurrentWork:
         self.states, self.tasks = states, tasks
 
     def work(self, agent: Agent) -> AgentWork | None:
-        working = next((layer for layer in reversed(self.states.stack(agent).states) if isinstance(layer, Working)), None)
-        if working is None:
+        task_id = next((layer.task_number() for layer in reversed(self.states.stack(agent).states) if layer.task_number()), 0)
+        if not task_id:
             return None
         try:
-            return AgentWork(self.tasks.find(working.task_id), *self.wait_text(agent))
+            return AgentWork(self.tasks.find(task_id), *self.wait_text(agent))
         except MissingRow:
             return None
 
     def wait_text(self, agent: Agent) -> tuple[str, str]:
         layers = self.states.stack(agent).states
-        return next((layer.wait_description() for layer in reversed(layers) if isinstance(layer, Wait) and layer.wait_description()[0]), ("", ""))
+        return next((layer.wait_description() for layer in reversed(layers) if layer.wait_description()[0]), ("", ""))

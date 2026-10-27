@@ -12928,6 +12928,8 @@ def test_an_alias_name_that_is_a_journal_command_or_another_alias_is_refused(app
 
 def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_both_go_with_it(app: App, tmp_path):
     from journal.repositories.aliases import Aliases
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
     folder = tmp_path / "judging"
     (folder / ".journal-plugin" / "readers").mkdir(parents=True)
     (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.0", "program": "run.py", "aliases": [
@@ -12944,6 +12946,11 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     refused = console.run(["reader", "remove", "verdicts"], AGENT)
     assert refused.code != 0 and "the plugin judging's" in refused.error and (app.config.readers / "verdicts.pattern").exists(), "a reader a plugin ships goes only with its plugin"
     assert judge.background, "a plugin's alias declares that a run moves to the background at once"
+    refused = console.run(["reader", "add", "judge-lines", "--commands", "judge", "--pattern", "^judged", "--about", "the judge's lines"], AGENT)
+    assert refused.code != 0 and "journal judge" in refused.error, "a reader of the project may not read a plugin's alias (message 69349)"
+    (app.config.readers / "own-verdicts.pattern").write_text("# the verdicts\n^verdict\ncommands: judge\n")
+    b"".join(app.container.get(ShellRunner).run(ShellRequest(line=wrapped_line("journal judge --changes"), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ)), AGENT, MAIN))
+    assert not (app.config.readers / "own-verdicts.pattern").exists(), "a reader of the project that reads a plugin's alias is deleted when the alias runs (message 69440)"
     (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.1", "program": "run.py", "aliases": [{"name": "judge", "line": "bin/judge --strict {args}"}]}))
     (folder / ".journal-plugin" / "readers" / "verdicts.pattern").write_text("# the verdict\n^judged\n")
     upgraded = console.run(["plugin", "upgrade", "judging", "--yes"], USER)
@@ -12995,11 +13002,18 @@ def test_a_cd_that_would_move_the_shell_away_is_refused_and_a_subshell_or_a_fold
     assert bash("cd")[0] == 409, "a bare cd goes to the home folder"
 
 
-def test_a_line_an_alias_runs_is_pointed_at_it_and_a_line_run_three_times_is_asked_to_become_one(app: App):
+def test_a_line_an_alias_runs_is_refused_with_the_alias_and_a_line_run_three_times_is_asked_to_become_one(app: App):
+    from journal.features.shell.shell_nudges import ShellNudges
+    from nudge_lines import has_nudge
     hook(app, "SessionStart")
     app.console().run(["alias", "add", "unit", "pytest -q"], USER)
+    app.console().run(["alias", "add", "unit-first", "pytest -q -x {args}"], USER)
     said = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})[1].get("hookSpecificOutput", {})
-    assert "journal unit runs this line: pytest -q tests" in said("pytest -q tests").get("additionalContext", "")
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls src && pytest -q tests"})
+    assert status == 409 and has_nudge(body["error"], ShellNudges.ALIASED_LINE, name="unit", line="pytest -q tests"), "a line an alias runs, typed by hand, refuses the whole tool use with the alias (message 69349)"
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit -x tests"})
+    assert status == 409 and has_nudge(body["error"], ShellNudges.MORE_SPECIFIC_ALIAS, name="unit-first", called="unit"), "an alias run whose line a more specific alias runs is refused with that alias (message 69436)"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit-first tests"})[0] == 200 and hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal unit tests"})[0] == 200, "the alias itself runs"
     chained = said("ls src && journal unit")
     assert chained.get("permissionDecision") != "deny" and "runs on its own" not in chained.get("additionalContext", ""), "an alias chains like any command"
     assert "three times" not in said("make build -j1").get("additionalContext", "") + said("make build -j2").get("additionalContext", "")

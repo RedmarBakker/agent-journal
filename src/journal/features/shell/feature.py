@@ -52,7 +52,7 @@ class Shell(Feature[ShellData]):
     data = (ShellDataReader,)
     conduct = (ShellConduct,)
 
-    nudges = (ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.READER_GUESSED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.READER_NEEDED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIAS_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.WATCH_SUGGESTION, ShellNudges.COUNTING_READER_SUGGESTION, ShellNudges.PIPED_TEST_RUN, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.PARTIAL_FILE_READ)
+    nudges = (ShellNudges.PIPED_JOURNAL_COMMAND, ShellNudges.REPORT_REFUTED, ShellNudges.READER_GUESSED, ShellNudges.REPORT_RAISED, ShellNudges.OUTPUT_STORED, ShellNudges.OUTPUT_PART_STORED, ShellNudges.READER_NEEDED, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIASED_LINE, ShellNudges.MORE_SPECIFIC_ALIAS, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.WATCH_SUGGESTION, ShellNudges.COUNTING_READER_SUGGESTION, ShellNudges.PIPED_TEST_RUN, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.PROJECT_PATH_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.SILENT_RUN_HINT, ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.PARTIAL_FILE_READ)
 
     skill = Skill("shell", 'How the journal runs your shell commands: in parts, timed, and in the background past the limit', """
 # Shell commands
@@ -106,8 +106,10 @@ Every shell command you run goes through the journal's runner.
   progress. `journal alias list` names them, `journal alias edit <name> [--line] [--reader] [--about]` changes one and
   `journal alias remove <name>` removes it; a name that is a journal command or an alias already is refused. The
   user types the same `journal <name>` in a terminal, and a plugin may ship aliases with their readers. An alias chains
-  with other commands like any command. A line an alias runs, typed by hand, is pointed at the alias; a line you run
-  three times or more with no alias for it is asked once to become one, with the reader that reads it.
+  with other commands like any command. A line an alias runs, typed by hand, refuses the whole tool use with the alias,
+  and so does an alias run whose line a more specific alias runs; a reader of the project never reads a plugin's alias,
+  and one that would is deleted when the alias runs. A line you run three times or more with no alias for it is asked
+  once to become one, with the reader that reads it.
 - A test suite is a long runner: run it on its own and chain the commit after its result in a second call.
 - A journal command runs on its own, or chained only with other journal commands; chained with anything else it is
   refused, since it would move to the background with the rest and its answer would be lost. A journal command stays in

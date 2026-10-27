@@ -2,14 +2,11 @@ import time
 from dataclasses import asdict
 
 from journal.engine.support.stack_history import StackHistory
-from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.support.run_cards import RUN
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.features.shell.support.activity_label import LONG_RUNS
-from journal.features.tasks.states.working import Working
-from journal.support.chain import Chain
 from journal.config import Config
 from journal.features.faults.feature import Faults
 from journal.features.faults.faults_options import FaultsOptions
@@ -49,7 +46,6 @@ STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "
 HISTORY_ENTRIES = 5
 TOOL_KINDS = ("ToolStarting", "ToolFinished")
 OPERATION_VERBS = {FileRead.kind: "reading a file", FileEdit.kind: "editing files", FileWrite.kind: "writing a file", SubagentDispatch.kind: "waiting for a subagent", SkillLoad.kind: "reading a skill", AgentMessage.kind: "messaging an agent", UserQuestion.kind: "asking you"}
-ENDED = "ended"
 # how far back the fitness timeline reaches, and the most points it reads
 TIMELINE_HOURS = 6
 TIMELINE_POINTS = 200
@@ -64,7 +60,10 @@ class AgentActivity:
         self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
 
     def page(self, agents: list[Agent]) -> list[dict]:
-        return [self.row(item, [] if item.state == ENDED else self.session_entries(item.session)) for item in agents]
+        return [self.row(item, [] if self.has_ended(item) else self.session_entries(item.session)) for item in agents]
+
+    def has_ended(self, agent: Agent) -> bool:
+        return self.states.restored(agent.state, agent.data).final
 
     def session_entries(self, session: str) -> list:
         newest = [*self.entries.agent_kinds_newest(session, list(STATUS), 1), *self.entries.agent_kinds_newest(session, [*TOOL_KINDS, PART_START, PART_END], 1),
@@ -89,7 +88,7 @@ class AgentActivity:
         status = provider.status(agent.session, self.config.status_home)
         return {
             **ModelFields.build(agent),
-            "status": "stopped" if agent.state == ENDED else self.status(agent.state, STATUS.get(kind, "idle")),
+            "status": "stopped" if state.final else self.status(agent.state, STATUS.get(kind, "idle")),
             "heard_at": last.created_at if last else agent.updated_at,
             "tool": last.data.get("tool_name", "") if last and kind in TOOL_KINDS else "",
             "tool_work": self.work(last, entries) if last and kind in TOOL_KINDS else "",
@@ -98,12 +97,12 @@ class AgentActivity:
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
             "branch": self.files.branch(), "context": round(status.context * 100) if status.context is not None else None,
-            "question_id": agent.data.get("question_id", 0) if agent.state == "waiting" else 0,
+            "question_id": state.question_number(),
             "doing": self.activity(state, [e for e in entries if e.kind in (*TOOL_KINDS, PART_START, PART_END)]),
-            "thinking": self.thinking(agent.session, hooks) if agent.state != ENDED else "",
-            "thinking_at": agent.thinking_at if agent.state != ENDED else 0.0,
+            "thinking": "" if state.final else self.thinking(agent.session, hooks),
+            "thinking_at": 0.0 if state.final else agent.thinking_at,
             "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.kind == "TurnDisplayed"), ""),
-            "stuck": agent.data.get("why", "") if agent.state == "stuck" else "",
+            "stuck": state.impasse_reason(),
             "state_title": self.states.title(agent.state),
             "sequence": self.sequence(agent),
             "stack": self.stack(agent),
@@ -142,7 +141,7 @@ class AgentActivity:
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = self.time_source.seconds()
-        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if agent.state != ENDED else []
+        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if not self.has_ended(agent) else []
 
     @staticmethod
     def status(state: str, reported: str) -> str:
@@ -193,14 +192,12 @@ class AgentActivity:
         return OPERATION_VERBS.get(call.operation.kind, "working")
 
     def described(self, state) -> str:
-        if isinstance(state, Wait):
-            return state.wait_description()[0]
-        return state.focus if isinstance(state, Working) else ""
+        return state.activity_text()
 
     def stack(self, agent: Agent) -> list[dict]:
         shown = []
         for state in reversed(self.states.stack(agent).states):
-            awaits = state.wait_description()[0] if isinstance(state, Wait) else ""
+            awaits = state.wait_description()[0]
             shown.append({"name": state.name, "title": self.states.title(state.name), "values": state.serialized(), "awaits": awaits})
         return shown
 

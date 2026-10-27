@@ -1,7 +1,6 @@
 import re
 import shutil
 from dataclasses import asdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 from journal.engine.command_events import CommandEvents
@@ -20,7 +19,6 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.engine.states_catalogue import StatesCatalogue
-from journal.engine.states.wait import Wait
 from journal.models.command_output import CommandOutput
 from journal.features.shell.shell_options import ShellOptions
 from journal.support.time_source import TimeSource
@@ -79,7 +77,7 @@ class ShellRecord:
 
     def wait_covers(self, output: CommandOutput, agent: Agent) -> bool:
         top = self.states.stack(agent).top() if agent.session == output.session else None
-        return isinstance(top, Wait) and f"{output.table()}:{output.id}" in top.wait_description()[1].split(",")
+        return top is not None and f"{output.table()}:{output.id}" in top.wait_description()[1].split(",")
 
     def is_stored(self, chain: str, line: str, size: int, cut: bool) -> bool:
         return size >= self.settings.integer(ShellOptions.SHORT) or bool(PIPED.search(line)) or cut

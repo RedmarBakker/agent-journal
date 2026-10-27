@@ -2544,16 +2544,18 @@ def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_sta
     from journal.features.plans.support.plan_status import PlanStatus
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
-    from journal.features.workers.workers_conduct import unmoved_task_lines, unordered_lines, text_wait_check, text_wait_lines
+    from journal.features.workers.orchestrator_conduct import unmoved_task_lines, unordered_lines, text_wait_check, text_wait_lines
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.STALLED_BLOCK_MINUTES.key: 60, WorkersOptions.BLOCKED_SHARE.key: 0.4, WorkersOptions.UNORDERED_PLAN_TASKS.key: 10})
-    builder = SettingsValue({WorkersOptions.MODE.key: "builder"})
     worded = lambda line, settings=settings: [n.rendered() for n in text_wait_check(Ready(), ToolStarting(call=shell(line)), settings).nudges]
     block_line = "you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else"
     assert worded("journal task log 5 'waiting for the API key from the user'") == [block_line], "a log line that says it waits is told to be a block"
     assert worded("journal message send 'task 7 waits on task 4 to merge'") == [block_line], "and a message"
     assert worded("journal task block 7 'waits on the lexer' --on task:4") == [], "a block with --on is the wait itself"
     assert worded("journal task log 5 'the parser reads every rule'") == [], "a log line with no wait in it is not"
-    assert worded("journal task log 5 'waiting for the API key'", builder) == [], "only the orchestrator is told"
+    from journal.features.workers.feature import Workers
+    from journal.features.workers.orchestrator_conduct import OrchestratorConduct
+    from journal.features.workers.states.orchestrating import Orchestrating
+    assert (Orchestrating, OrchestratorConduct) in Workers.mode_conduct, "only the orchestrator is told: the check is the Orchestrating state's conduct"
     assert [n.key for n in text_wait_lines("I am blocked on the deploy until it lands", settings)] == ["workers.make_the_wait_a_block"], "a reply that says it waits is told the same"
     tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, last_moves=held)})
     held = lambda data, time: [n.rendered() for n in unmoved_task_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]

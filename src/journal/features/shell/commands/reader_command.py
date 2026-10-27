@@ -84,6 +84,7 @@ class ReaderCommand(Command):
         if unread_commands:
             raise Rejection(f"{', '.join(unread_commands)} gets no reader: a search, a read and a git or GitHub command show no card in the chat")
         reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed, summary_pattern=args.summary)
+        self.readers.refuse_plugin_alias_reader(reader)
         for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern, reader.summary_pattern):
             re.compile(pattern)
         if args.script:

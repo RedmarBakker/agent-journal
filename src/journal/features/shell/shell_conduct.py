@@ -14,6 +14,8 @@ from journal.features.shell.support.project_paths import ProjectPaths
 from journal.features.shell.support.piped_journal_command import PipedJournalCommand
 from journal.features.shell.support.piped_test_run import PipedTestRun
 from journal.features.shell.support.activity_label import LONG_RUNS
+from journal.models.alias import Alias
+from journal.support.alias_call import AliasCall
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 from journal.support.foreground_option import FOREGROUND_OPTION
@@ -36,7 +38,7 @@ TESTING = "testing"
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs is pointed at the alias and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
@@ -97,6 +99,21 @@ def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Set
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
 
 
+def alias_refusals(text: str, aliases: tuple[Alias, ...]) -> list[Nudge]:
+    call = AliasCall.parsed(text)
+    called = [alias for alias in aliases if alias.name == call.name]
+    if called:
+        line = called[0].expanded(call.args)
+        return [ShellNudges.MORE_SPECIFIC_ALIAS.create(name=alias.name, called=called[0].name, line=line) for alias in covering_aliases(line, aliases, called[0].head_size())]
+    if Chain.is_journal(text):
+        return []
+    return [ShellNudges.ALIASED_LINE.create(name=alias.name, line=text) for alias in covering_aliases(text, aliases, -1)]
+
+
+def covering_aliases(line: str, aliases: tuple[Alias, ...], head_size: int) -> list[Alias]:
+    return sorted((alias for alias in aliases if alias.matches(line) and alias.head_size() > head_size), key=lambda alias: -alias.head_size())
+
+
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     program = PipedTestRun.piped_filter(event.call.command, {alias.name: alias for alias in event.data.part(ShellPart).aliases})
     return state.refuse(ShellNudges.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
@@ -118,9 +135,9 @@ def counting_reader_check(state: BaseState, event: ToolStarting, settings: Setti
 
 def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
-    hints = [ShellNudges.ALIAS_HINT.create(name=alias.name, line=part.text) for part in event.call.parts for alias in shell.aliases if alias.matches(part.text)]
-    if hints:
-        return state.none(hints[0])
+    refusals = [refusal for part in event.call.parts for refusal in alias_refusals(part.text, shell.aliases)]
+    if refusals:
+        return state.refuse(refusals[0])
     command, shape = event.call.command, event.call.recorded().shape
     if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or Chain.is_read_line(command) or " " not in shape:
         return state.none()

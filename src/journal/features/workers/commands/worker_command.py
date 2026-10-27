@@ -1,6 +1,4 @@
 from journal.features.workers.support.allowed_models import AllowedModels
-import time
-from datetime import datetime, timezone
 from journal.features.team.support.start_rule import StartRule
 from journal.providers.support.profile_type import ProfileType
 from journal.chat.card_detail import CardDetail
@@ -44,6 +42,7 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.support.work_mode import WorkMode
 from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
 from journal.support.time_source import TimeSource
@@ -71,14 +70,14 @@ class WorkerCommand(Command):
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, time_source: TimeSource) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource) -> None:
         self.time_source = time_source
         self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
-        self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
+        self.branch, self.settings, self.actions, self.subagents, self.work_mode = branch, settings, actions, subagents, work_mode
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
         self.pool, self.account = pool, account
 
@@ -341,7 +340,7 @@ class WorkerCommand(Command):
             print(f"closed with it, from its queue: {', '.join(f'task {task.id}' for task in outcome.finished)}")
         if outcome.next_task:
             print(outcome.next_task)
-        if self.settings.option(WorkersOptions.MODE) == "orchestrator":
+        if self.work_mode.delegates_work():
             print(f"run the whole suite now: it has not passed since the merges of {self.checks.check().workers_line()}")
         return 0
 

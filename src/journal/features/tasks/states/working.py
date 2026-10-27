@@ -41,6 +41,12 @@ class Working(BaseState):
     reminder_edits: int = 0
     task_noun: str = "task"
 
+    def activity_text(self) -> str:
+        return self.focus
+
+    def task_number(self) -> int:
+        return self.task_id
+
     def label(self) -> str:
         if self.task_id and self.focus:
             return f"{self.task_noun} {self.task_id}, {self.focus}"

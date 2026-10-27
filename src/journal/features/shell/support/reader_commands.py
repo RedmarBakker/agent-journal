@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 
+from journal.models.alias import Alias
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 
@@ -35,6 +36,9 @@ class ReaderCommands:
 
     def reads(self, part: str) -> bool:
         return any(re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", CommandShape.build(part)) for program in self.programs)
+
+    def read_aliases(self, aliases: list[Alias]) -> list[Alias]:
+        return [alias for alias in aliases if self.reads(alias.expanded(""))]
 
     def is_shown_run(self, line: str) -> bool:
         part = self.read_part(line)
