@@ -144,7 +144,7 @@ def test_no_corpus_file_is_written_inside_the_repository():
     refused_inside_repository(REPOSITORY / ".journal" / "corpus" / "commands.txt")
 
 
-FIXTURES = ["splitter/*", "shell_corpus.jsonl", "hydration_corpus.jsonl", "commands/*", "shell_corpus_reading/*"]
+FIXTURES = ["splitter/*", "shell_corpus.jsonl", "hydration_corpus.jsonl", "commands/*", "shell_corpus_reading/*", "generated/*"]
 HOME_FOLDER = re.compile(r"[/-](?:Users|home)[/-](?!(?:me|user)\b)[A-Za-z0-9_.]+")
 EMAIL = re.compile(r"[\w.%+-]+@((?:[\w-]+\.)+[A-Za-z]{2,})\b")
 STAND_IN_DOMAINS = re.compile(r"(?:^|\.)example\.(?:com|org|net)$|^github\.com$|\.(?:forest|turtle|valley)$", re.I)
@@ -194,3 +194,18 @@ def test_a_generated_line_holds_only_generated_values_and_a_program_one_project_
     assert form_lines(tmp_path, {"git": 1, "git log": 1}) == [], "a program one project ran never ships"
     assert form_lines(tmp_path, {"git": 3, "git log": 1}) == [], "a subcommand one project ran never ships"
     assert len(form_lines(tmp_path, {"git": 3, "git log": 3})) == 1
+
+
+def test_the_generated_forms_fixture_keeps_only_forms_several_projects_ran_and_chains_of_plain_operators(tmp_path, monkeypatch):
+    import scripts.generated_forms as generated_forms
+    corpus_folder = tmp_path / "corpus"
+    (corpus_folder / "forms").mkdir(parents=True)
+    form = "git log [--oneline] [-n <number>]"
+    (corpus_folder / "forms" / "git.json").write_text(json.dumps({"program": "git", "subcommands": {"log": {"parts": 3, "forms": [{"form": form, "seen": 3}]}, "secret": {"parts": 9, "forms": [{"form": "git secret", "seen": 9}]}}}))
+    (corpus_folder / "projects.json").write_text(json.dumps({"git": 3, "git log": 3, "git secret": 1}))
+    (corpus_folder / "chains.jsonl").write_text("".join(json.dumps({"chain": chain}) + "\n" for chain in (["abcd-efgh-ijkm-npqr", "&&", "stuv-wxyz-2345-6789"], ["abcd-efgh-ijkm-npqr", ">", "out"])))
+    monkeypatch.setattr(generated_forms, "FIXTURE", tmp_path / "forms.json")
+    generated_forms.main(corpus_folder)
+    written = json.loads((tmp_path / "forms.json").read_text())
+    assert written["forms"] == [{"program": "git", "subcommand": "log", "form": form}], "a subcommand one project ran never ships"
+    assert written["chains"] == [["PART", "&&", "PART"]], "a chain joined by anything but &&, ;, |, || or 2>&1 is left out"

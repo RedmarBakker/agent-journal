@@ -96,17 +96,21 @@ def seeded(text: str) -> random.Random:
     return random.Random(hashlib.blake2b(text.encode(), digest_size=8).hexdigest())
 
 
-def form_lines(forms: Path, projects: dict[str, int]) -> list[str]:
-    lines = []
+# the forms of the well-known programs several projects ran, each with its program and the subcommand it was read under
+def kept_forms(forms: Path, projects: dict[str, int]) -> list[tuple[str, str, str]]:
+    kept_rows = []
     for program in sorted(PROGRAMS):
         path = forms / f"{program}.json"
         if not path.exists() or projects.get(program, 0) < PROJECTS_SEEN:
             continue
         subcommands = json.loads(path.read_text())["subcommands"]
         kept = sorted((name for name in subcommands if name.startswith("(") or projects.get(f"{program} {name.split()[0]}", 0) >= PROJECTS_SEEN), key=lambda name: -subcommands[name]["parts"])
-        for name in kept[:SUBCOMMANDS_KEPT]:
-            lines += [filled(form["form"], seeded(form["form"])) for form in subcommands[name]["forms"][:FORMS_KEPT]]
-    return lines
+        kept_rows += [(program, name, form["form"]) for name in kept[:SUBCOMMANDS_KEPT] for form in subcommands[name]["forms"][:FORMS_KEPT]]
+    return kept_rows
+
+
+def form_lines(forms: Path, projects: dict[str, int]) -> list[str]:
+    return [filled(form, seeded(form)) for _, _, form in kept_forms(forms, projects)]
 
 
 def rendered(shape: tuple[str, ...], rng: random.Random) -> str:
@@ -122,9 +126,14 @@ def rendered(shape: tuple[str, ...], rng: random.Random) -> str:
     return " ".join(words).replace(" \n", "\n").replace("\n ", "\n") + body
 
 
-def chain_lines(chains: Path) -> list[str]:
+# the chain shapes of the corpus, most common first, each part a PART between its operators
+def chain_shapes(chains: Path) -> list[tuple[str, ...]]:
     shapes = Counter(tuple("PART" if PART_ID.fullmatch(token) else token for token in json.loads(row)["chain"]) for row in chains.read_text().splitlines())
-    return [rendered(shape, seeded(" ".join(shape))) for shape, _ in shapes.most_common(CHAIN_SHAPES_KEPT)]
+    return [shape for shape, _ in shapes.most_common(CHAIN_SHAPES_KEPT)]
+
+
+def chain_lines(chains: Path) -> list[str]:
+    return [rendered(shape, seeded(" ".join(shape))) for shape in chain_shapes(chains)]
 
 
 def compound_lines() -> list[str]:

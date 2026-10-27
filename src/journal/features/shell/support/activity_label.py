@@ -66,7 +66,7 @@ class ActivityLabel:
         arguments = [word for word in tokens if not word.startswith("-") and "=" not in word]
         runner = tokens[0].rsplit("/", 1)[-1] if tokens else ""
         is_runner = self.classifier.runs_script_file(runner)
-        if is_runner and len(tokens) > 1 and tokens[1] in ("-c", "-"):
+        if is_runner and len(tokens) > 1 and (tokens[1] == "-" or CommandShape.is_inline_code(tokens[1:])):
             return f"running {runner}"
         label = self.classifier.row_classification(" ".join(tokens)).label
         if is_runner and len(arguments) > 1 and SCRIPT_FILE.search(arguments[1]):

@@ -3613,6 +3613,9 @@ def test_every_line_of_the_shell_corpus_is_cut_into_its_parts():
 
 
 SPLITTER_FOLDER_BYTES = 420_000
+# how many commands the generated sample draws, and how long reading them all may take
+GENERATED_COMMANDS = 500
+GENERATED_SECONDS = 20
 SPLITTER_SAMPLE_SECONDS = 10
 
 
@@ -10397,6 +10400,40 @@ def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_w
     assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
     old = RecordedCall.parsed({"command": "rm x", "parts": [{"text": "rm x", "is_journal": False, "writes": True, "files": ["x"], "reads_output": False, "read_shape": "rm x"}], "writes": True, "written_paths": ["x"]})
     assert old.writes and old.parts[0].writes and old.parts[0].files == ("x",) and old.parts[0].classification == Classification() and old.table_version == 0, "an entry stored before the classifier reads back with its own write flag and files"
+
+
+def test_generated_commands_are_read_by_every_command_reader_as_their_forms_say(app: App):
+    """Task 3774: a seeded sample of commands built from the forms and chain shapes in tests/generated/forms.json, each with the classification, label and program its forms give it read from the command table; the classifier, the write gate, the splitter, the activity label, the shape, reader matching and alias matching must agree with them, and where one does not the line is frozen in tests/generated/differences.json, a file that only shrinks; CORPUS_FREEZE=1 writes it anew after review."""
+    from tests.generated_commands import Generator
+    from journal.features.aliases.support.alias_lines import AliasLines
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    from journal.models.alias import Alias
+    from journal.support.chain import Chain
+    from scripts.classification_coverage import labelled
+    classifier, labels, shapes, alias_lines = app.container.get(CommandClassifier), app.container.get(ActivityLabel), app.container.get(CommandShape), app.container.get(AliasLines)
+    began, generator, found = timing.monotonic(), Generator(seed=7), {}
+    for n, command in enumerate(generator.commands(GENERATED_COMMANDS)):
+        classification = classifier.classify_line(command.text)
+        readings = {"classifier": (classification.kind, classification.effects, classification.uncertain) == (command.expected.kind, command.expected.effects, command.expected.uncertain),
+                    "writes": Claude().call("Bash", {"command": command.text}, frozenset(), classifier).writes == command.expected.is_write,
+                    "splitter": len([part for part in Chain.parts(command.text) if part.recorded]) == command.parts}
+        for form, text in command.forms:
+            shape = shapes.build(text)
+            readings |= {"label": readings.get("label", True) and labels.build(text) == labelled(generator.table, form["program"], form["form"]),
+                         "shape": readings.get("shape", True) and (shape.split() or [""])[0].rsplit("/", 1)[-1] == form["program"],
+                         "reader": readings.get("reader", True) and ReaderCommands((form["program"],)).reads(shape),
+                         "alias": readings.get("alias", True) and alias_lines.matches(Alias(name="generated", line=text), text)}
+        found |= {f"{reader}:{n}": command.text for reader, agrees in readings.items() if not agrees}
+    assert timing.monotonic() - began < GENERATED_SECONDS, "the generated sample stays quick enough for the suite"
+    frozen = Path(__file__).parent / "generated" / "differences.json"
+    if os.environ.get("CORPUS_FREEZE"):
+        frozen.write_text(json.dumps(found, indent=0, sort_keys=True, ensure_ascii=False) + "\n")
+    known = json.loads(frozen.read_text())
+    new = {key: found[key] for key in found.keys() - known.keys()}
+    assert not new, f"{len(new)} generated commands are read otherwise than their forms say, the first: {list(new.items())[:3]}"
+    fixed = sorted(known.keys() - found.keys())
+    assert not fixed, f"{len(fixed)} known differences are fixed: write the file anew with CORPUS_FREEZE=1 so it shrinks, the first: {fixed[:5]}"
 
 
 def test_every_shape_of_the_command_corpus_is_the_one_stored_before_the_table_held_the_wrappers_and_a_stored_shape_still_counts(app: App):
