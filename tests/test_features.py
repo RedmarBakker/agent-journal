@@ -12669,6 +12669,22 @@ def queue_lines_said(app: App, command: str) -> list[str]:
     return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
 
 
+def test_the_job_text_after_report_queue_or_every_n_is_the_dispatchs_job(app: App, monkeypatch):
+    from journal.features.workers.support.worker_line import WorkerLine
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    hook(app, "SessionStart")
+    console = app.console()
+    for n, report in enumerate((["queue"], ["every", "2"]), 1):
+        console.run(["task", "create", f"the parser {n}", "--brief", "reads the grammar"], AGENT)
+        out = console.run(["worker", "dispatch", f"Lady Lovelace {n}", "--report", *report, "write the lexer first", "--task", str(n), "--changes", "src/lexer.py", "--tests", "Scoped tests", "--profile", "journal-medior"], AGENT)
+        assert out.code == 0, out.error
+        worker = app.container.get(Workers).find(n)
+        assert "write the lexer first" in worker.brief and worker.report_choice.label() == " ".join(report), f"--report {' '.join(report)} takes its own words and the job text after it is the job: {worker.brief!r}"
+    line = WorkerLine.parsed("journal worker dispatch 'Ada' --report every 3 'tidy src/a.py' --profile journal-medior")
+    assert line.brief == "tidy src/a.py" and line.options["--report"] == "every 3", "the conduct reads the job text past --report's words too"
+
+
 def test_a_builder_dispatching_one_task_while_others_of_its_plan_wait_is_told_once_to_queue_them_on_that_worker(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)

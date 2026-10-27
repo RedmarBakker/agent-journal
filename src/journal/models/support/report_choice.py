@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from journal.support.rejection import Rejection
 
 CHOICES = "each, queue or every <n> of two or more"
+# the choice whose number follows it as a second word
+EVERY = "every"
 
 
 @dataclass(frozen=True)
@@ -15,13 +17,17 @@ class ReportChoice:
     def parsed(cls, data: dict) -> "ReportChoice":
         return cls(int(data["tasks"]))
 
+    @staticmethod
+    def word_count(first: str) -> int:
+        return 2 if first == EVERY else 1
+
     @classmethod
     def argument(cls, values: list[str]) -> "ReportChoice":
         if values == ["each"]:
             return cls(1)
         if values == ["queue"]:
             return cls(0)
-        if len(values) == 2 and values[0] == "every" and values[1].isdigit() and int(values[1]) >= 2:
+        if len(values) == 2 and values[0] == EVERY and values[1].isdigit() and int(values[1]) >= 2:
             return cls(int(values[1]))
         raise Rejection(f"--report takes {CHOICES}, not '{' '.join(values)}'")
 
