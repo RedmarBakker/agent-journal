@@ -41,10 +41,10 @@ test("an agent's flowchart message shows in the chat as a flowchart mark and its
     await flush();
     expect(host.querySelector(".mark").textContent).toContain("How a request is handled");
     expect(host.querySelector(".mact").getAttribute("aria-label")).toBe("Open the flowchart");
-    expect(document.querySelector(".flowchart")).toBeNull();
+    expect(document.querySelector("svg.flowchart")).toBeNull();
     host.querySelector(".mact").click();
     await flush();
-    const chart = document.querySelector(".flowchart");
+    const chart = document.querySelector("svg.flowchart");
     expect(chart.querySelectorAll(".flowchart-node").length).toBe(4);
     expect(chart.querySelectorAll(".flowchart-arrow").length).toBe(3);
     expect([...chart.querySelectorAll(".flowchart-label")].map((label) => label.textContent)).toEqual(["yes", "no"]);
