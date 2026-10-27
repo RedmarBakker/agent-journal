@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from journal.support.actor import Actor
@@ -70,6 +71,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def unended(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).order("id"))
+
+    def unended_accepted(self, accepts: Callable[[CommandOutput], bool]) -> list[CommandOutput]:
+        return [output for output in self.unended() if accepts(output)]
 
     def watch(self, output: CommandOutput, reader: str, title: str, actor: Actor) -> CommandOutput:
         for watched in self.watched(output.session):

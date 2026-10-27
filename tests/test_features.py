@@ -23298,7 +23298,7 @@ def test_a_watched_run_that_stands_at_its_whole_bar_while_it_runs_is_named_once_
     for later in (COMPLETE_WAIT_SECONDS + 1, COMPLETE_WAIT_SECONDS + 5):
         refresh.tick(start + later)
     app.runtime().deferred.drain()
-    told = [e.data["line"] for e in app.container.get(Entries).all_matching(kind=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
+    told = [e.data["line"] for e in app.container.get(Entries).all_matching(entry_type=NUDGE) if e.data.get("key") == "shell.run_stands_at_100_percent"]
     assert len(told) == 1 and has_nudge(told[0], ShellNudges.COMPLETE_PROGRESS_RUN, n=1, seconds=COMPLETE_WAIT_SECONDS + 1), f"the agent is told once: {told}"
     card = messages.with_key("watch:1")[0].data
     assert COMPLETE_UNENDED_LINE in (card.get("detail"), *card.get("lines", ())), "and the card says what the whole bar means"
