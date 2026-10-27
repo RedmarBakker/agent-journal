@@ -1304,6 +1304,9 @@ plans.test_commands = 'pytest, journal suite'
 sequences.say_every = 10
 usage.check_minutes = 15
 workers.lockout_seconds = 30
+workers.memory_warning_megabytes = 4096
+workers.memory_limit_megabytes = 8192
+workers.memory_total_megabytes = 16384
 workers.write_block_minutes = 15
 workers.builder_active_workers = 2
 workers.score_warmup_minutes = 30
@@ -1907,6 +1910,7 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}. change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> "<job>"
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
+workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
 278 nudges

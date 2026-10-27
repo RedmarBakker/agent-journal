@@ -1,10 +1,11 @@
 import signal
 
+from supervisor.group_memory import GroupMemory
 from supervisor.service import Service
 
 
 class Services:
-    """The named processes a supervisor runs beside the agent, each running until it is stopped, and the process groups it is handed to end when it exits."""
+    """The named processes a supervisor runs beside the agent, each running until it is stopped, and the process groups it is handed, whose memory it reads and which it ends when it exits."""
 
     def __init__(self, *services: Service) -> None:
         self._table = {service.name: service for service in services}
@@ -12,6 +13,9 @@ class Services:
 
     def group(self, pid: int) -> None:
         self._groups.add(pid)
+
+    def memory(self) -> dict[int, int]:
+        return GroupMemory.resident(self._groups)
 
     def service(self, name: str) -> Service:
         if name not in self._table:

@@ -13,7 +13,7 @@ from supervisor.service import Service
 if TYPE_CHECKING:
     from supervisor.supervisor import Supervisor
 
-VERBS = ("hello", "start", "stop", "restart", "list", "keys", "type", "send", "band", "group")
+VERBS = ("hello", "start", "stop", "restart", "list", "keys", "type", "send", "band", "group", "memory")
 
 
 class Verbs:
@@ -61,6 +61,9 @@ class Verbs:
     def group(self, request: Request) -> Reply:
         self.supervisor.services.group(request.needs("pid").pid)
         return Reply.success()
+
+    def memory(self, request: Request) -> Reply:
+        return Reply.success(groups={str(pid): size for pid, size in self.supervisor.services.memory().items()})
 
     def band(self, request: Request) -> Reply:
         request.needs("left", "middle", "right")

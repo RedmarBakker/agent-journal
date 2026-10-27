@@ -16,6 +16,7 @@ from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.models.support.model_fit import ModelFit
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.events.rows.worker_stopped import WorkerStopped
+from journal.events.rows.worker_over_memory import WorkerOverMemory
 from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_failed import WorkerReviewFailed
@@ -217,6 +218,9 @@ class Worker(Helper):
 
     def notified(self, text: str, time: float, sender: str) -> "Worker":
         return self.contacted(time).with_event(WorkerNotified(environment_id=self.environment_id, time=time, worker=self.mention(), text=text, sender=sender))
+
+    def over_memory(self, time: float, megabytes: int, budget_megabytes: int) -> "Worker":
+        return self.with_event(WorkerOverMemory(environment_id=self.environment_id, time=time, worker=self.mention(), megabytes=megabytes, budget_megabytes=budget_megabytes))
 
     def stopped(self, time: float, reason: str) -> "Worker":
         return self.moved("stopped", time).with_(state=WorkerState.STOPPED, adopted=True, retire_reason=reason, token_hash="").with_event(WorkerStopped(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, stopped before it reported", is_run_limit=reason == RUN_LIMIT_REASON))

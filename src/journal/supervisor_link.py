@@ -158,6 +158,9 @@ class SupervisorLink:
     def group(self, environment_id: int, pid: int) -> None:
         self._send(environment_id, "group", {"pid": pid})
 
+    def memory(self, environment_id: int) -> dict[int, int]:
+        return self._send(environment_id, "memory", {}).groups
+
     def stop_service(self, environment_id: int, name: str) -> None:
         self._send(environment_id, "stop", {"name": name})
 

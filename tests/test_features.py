@@ -12669,6 +12669,34 @@ def queue_lines_said(app: App, command: str) -> list[str]:
     return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
 
 
+def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_past_the_limit_is_stopped_with_the_reason(app: App, monkeypatch):
+    from journal.features.workers.jobs.worker_memory_watch import MEGABYTE, WorkerMemoryWatch
+    from journal.models.worker import Worker
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    monkeypatch.setattr(WorkerRunner, "stop", lambda self, worker: None)
+    reading: dict[int, int] = {}
+    monkeypatch.setattr(SupervisorLink, "memory", lambda self, environment_id: dict(reading))
+    workers = app.container.get(Workers)
+    with app.container.get(Scope).environment(MAIN):
+        worker = workers.save(Worker(environment_id=MAIN, name="Mr. Babbage", brief="b", state=WorkerState.DISPATCHED, pid=424242, dispatcher="s1"), Actor.system())
+    watch = app.container.get(WorkerMemoryWatch)
+    warned = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_uses_much_memory"]
+
+    def measured(megabytes: int) -> Worker:
+        reading[424242] = megabytes * MEGABYTE
+        watch.tick(1000.0)
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            return workers.find(worker.id)
+    assert measured(1000).state == WorkerState.DISPATCHED and warned() == [], "a tree inside its budget is left alone"
+    assert measured(5000).state == WorkerState.DISPATCHED and measured(6000).state == WorkerState.DISPATCHED
+    assert warned() == [f"worker {worker.id}'s processes use 5000 MB, more than the 4096 MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page"], f"past the warning the agent that sent it is told once: {warned()}"
+    stopped = measured(9000)
+    assert stopped.state == WorkerState.STOPPED and "its processes used 9000 MB, past the limit of 8192 MB" in stopped.retire_reason, "past the limit it is stopped, the reason written on it"
+
+
 def test_the_job_text_after_report_queue_or_every_n_is_the_dispatchs_job(app: App, monkeypatch):
     from journal.features.workers.support.worker_line import WorkerLine
     from journal.repositories.workers import Workers

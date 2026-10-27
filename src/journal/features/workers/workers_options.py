@@ -10,6 +10,9 @@ JOURNAL_TESTING = "The journal runs them"
 
 
 class WorkersOptions:
+    MEMORY_WARNING_MEGABYTES = Option("workers.memory_warning_megabytes", "Memory a worker's processes may use before you are warned", "The resident memory, in megabytes, of a worker's whole process tree past which the agent that sent it is warned once", 4096, unit="MB")
+    MEMORY_LIMIT_MEGABYTES = Option("workers.memory_limit_megabytes", "Memory a worker's processes may use before it is stopped", "The resident memory, in megabytes, of a worker's whole process tree past which the worker is stopped, the reason written on it", 8192, unit="MB")
+    MEMORY_TOTAL_MEGABYTES = Option("workers.memory_total_megabytes", "Memory all workers' processes may use together", "The resident memory, in megabytes, of every worker's process tree added up, past which the worker using the most is stopped; 0 for no limit", 16384, unit="MB")
     TIMEOUT = Option("workers.timeout_minutes", "Time limit of a worker run", "Minutes a worker may run before it is stopped and its report states that it was; 0 sets no limit", 60, unit="min")
     MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", "builder", kind="choice", choices=("builder", "orchestrator", "solo"), scope=OptionScope.PERSON, setter=USER)
     REVIEWER_LIMIT = Option("workers.reviewers_most", "Reviewers: most out", "The most reviewers out at once, apart from the workers: the review queue adds a reviewer while reviews wait and fewer than this are out; they do not count toward the worker limits", 2, unit="reviewers")
