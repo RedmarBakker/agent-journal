@@ -14,7 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
-import {usePointerPresence} from "../composables/pointerPresence.js";
+import {POINTER_GONE_MS, usePointerPresence} from "../composables/pointerPresence.js";
 import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
@@ -153,9 +153,9 @@ const AT_BOTTOM = 2;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
-// a reader who scrolled up and has the pointer over the chat is reading it: nothing scrolls it for them until the pointer has been
-// outside it for a minute, and then a reader still away is taken back to the foot
-const presence = usePointerPresence(() => away.value && toBottom(true));
+// a reader who scrolled up and has the pointer anywhere over the chat, its pane, its docks or its composer, is reading it: nothing
+// scrolls it for them until the pointer has been outside it for a minute, and then a reader still away is taken back to the foot
+const presence = usePointerPresence(() => away.value && toBottom(true), POINTER_GONE_MS, threadRoot);
 const {
     away,
     missed,
@@ -555,8 +555,6 @@ const {colleague, me} = useColleague();
                     @touchmove.passive="scrolledByHand"
                     @keydown="scrolledByHand"
                     @pointerdown="pressed"
-                    @pointerenter="presence.entered"
-                    @pointerleave="presence.left"
                 >
                     <template v-if="rendering">
                         <div ref="topMark" class="thread-top" />
