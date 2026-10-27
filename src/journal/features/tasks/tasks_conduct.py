@@ -80,10 +80,10 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     if estimate.is_short(settings):
         return state.none()
     arguments = shlex.split(wait_line)
-    what = arguments[2] if len(arguments) > 2 else "the process"
+    awaited = arguments[2] if len(arguments) > 2 else "the process"
     if tasks.current_task:
-        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=what, left=estimate.seconds_text(), n=tasks.next_open.id, current=tasks.current_task))
-    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=what, left=estimate.seconds_text(), n=tasks.next_open.id))
+        return state.refuse(TasksNudges.WAIT_SWITCH_REFUSAL.create(what=awaited, left=estimate.seconds_text(), n=tasks.next_open.id))
+    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=awaited, left=estimate.seconds_text(), n=tasks.next_open.id))
 
 
 def impasse_check(state: BaseState, event: ToolStarting) -> Transition:

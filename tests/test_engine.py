@@ -281,14 +281,16 @@ def test_one_task_in_hand_pause_resume_and_await(app: App):
     console = app.console()
     console.run(["task", "create", "first", "--start"], AGENT)
     console.run(["task", "create", "second"], AGENT)
-    refused = console.run(["task", "start", "2"], AGENT)
-    assert refused.code == 1 and "task 1 is in hand" in refused.error
-    console.run(["task", "pause", "1", "waiting for the designer"], AGENT)
+    switched = console.run(["task", "start", "2"], AGENT)
+    assert switched.code == 0 and switched.text.startswith("task 1 paused\ntask 2 started"), "starting another task pauses the one in hand"
+    assert app.container.get(Tasks).find(1).state == TaskState.PAUSED and app.container.get(SessionAgents).top("s1").task_id == 2
+    console.run(["task", "pause", "2", "waiting for the designer"], AGENT)
     assert isinstance(app.container.get(SessionAgents).top("s1"), Ready), "paused: nothing in hand"
     assert console.run(["task", "resume", "1"], AGENT).code == 0 and app.container.get(SessionAgents).top("s1").task_id == 1
+    console.run(["task", "create", "third"], AGENT)
     assert console.run(["await", "the deploy to finish", "--until", "false"], AGENT).code == 0
     stopped = hook(app, "Stop")[1]
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and "task 2 is open" in stopped["reason"], "a stop while waiting on what it cannot estimate is refused while task 2 is open"
+    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and "task 3 is open" in stopped["reason"], "a stop while waiting on what it cannot estimate is refused while task 3 is open"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "working again lifts the wait"
 

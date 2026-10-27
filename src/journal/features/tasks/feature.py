@@ -77,7 +77,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - `journal task log <n> "<where it stands>"` after each step that matters; before a compaction, always. Only the task in
   hand takes a log line: a task not running is changed with `journal task edit`.
 - `journal task complete <n> --how "<outcome>"` finishes it. In auto mode the journal starts your next task and the output names it.
-- One task in hand at a time: a second start is refused until the first is done or paused. `journal task pause <n> "<why>"`
+- One task in hand at a time: starting another pauses the one in hand, and the output says so. `journal task pause <n> "<why>"`
   sets a started task aside for something else first; `journal task resume <n>` picks it up. Pause for choice, never for being stuck.
 - A wait is a block the journal can see, never words: a task that waits on another task is blocked with
   `journal task block <n> --on task:<m>`, one that waits on anything else with `--until '<command>'`, so it opens by

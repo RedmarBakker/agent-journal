@@ -203,8 +203,10 @@ class TaskCommand(Command):
         return self.claimed_task(args.n, caller, "resumed")
 
     def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
+        previous = self.taking.paused_current(self.tasks.find(n), caller)
         task = self.taking.start(self.tasks.find(n), caller)
-        print("\n".join([f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
+        paused = [f"{self.labels.name('task', previous)} paused"] if previous is not None else []
+        print("\n".join([*paused, f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
         return 0
 
     def drive(self, args: Namespace, caller: Caller) -> int:
