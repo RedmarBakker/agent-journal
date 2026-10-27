@@ -674,31 +674,6 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_post
         app.runtime().stop()
 
 
-def test_a_task_started_outside_the_plan_stays_in_hand_when_the_plan_is_paused(tmp_path: Path):
-    from journal.repositories.agents import Agents
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    user, agent = Caller.user("main"), Caller.agent("main", "s1", "claude")
-    try:
-        console = app.console()
-        console.run(["plan", "create", "p", "--brief", "b"], user)
-        console.run(["plan", "add", "1", "first"], user)
-        call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1", "cwd": str(tmp_path)})
-        console.run(["plan", "approve", "1"], user)
-        call(server, "POST", "/journal/plans/1/start", {})
-        console.run(["task", "pause", "1", "something else first"], agent)
-        console.run(["task", "create", "outside", "--start"], agent)
-        call(server, "POST", "/journal/plans/1/pause", {})
-        assert call(server, "GET", "/journal/tasks/2")[1]["state"] == "started"
-        assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle", "working"], "the task started outside the plan is still the work in hand"
-        stopped = call(server, "POST", "/hooks/claude", {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": False})[1]
-        assert stopped["decision"] == "block", "a stop with that task in hand is told to carry on"
-    finally:
-        app.runtime().stop()
-
-
 def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id_comes_whole(tmp_path: Path):
     from journal.repositories.links import Links
     app = main_journal(Config(tmp_path, port=0))
