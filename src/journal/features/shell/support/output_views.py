@@ -134,7 +134,11 @@ class OutputViews:
         return " / ".join(ending[-SUMMARY_LINES:]) or None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
-        return "\n".join([*(self.card_lines(output, view) or self.ending_lines(output) or self.silent_lines(view)), *self.complete_unended_lines(view)])
+        return "\n".join([*(self.card_lines(output, view) or self.ending_lines(output) or self.silent_lines(view)), *self.complete_unended_lines(view), *self.invalid_lines(output)])
+
+    @staticmethod
+    def invalid_lines(output: CommandOutput) -> tuple[str, ...]:
+        return (output.ending(),) if output.invalid_reason else ()
 
     @staticmethod
     def complete_unended_lines(view: OutputView) -> tuple[str, ...]:

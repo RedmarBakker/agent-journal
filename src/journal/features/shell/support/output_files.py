@@ -136,6 +136,9 @@ class OutputFiles:
     def part_text(self, i: int) -> str:
         return (self.folder / f"{i}.part").read_text()
 
+    def has_test_run(self) -> bool:
+        return any(self.command_part(i).classification.is_test_run for i in self.recorded() if (self.folder / f"{i}.command").is_file())
+
     def command_part(self, i: int) -> CommandPart:
         return CommandPart.parsed(json.loads((self.folder / f"{i}.command").read_text()))
 

@@ -14451,6 +14451,29 @@ def test_a_stopped_workers_checked_task_is_merged_and_closed_while_its_unproved_
     assert (app.config.root / "notes1.md").read_text() == "note 1\n", "the checked task's commit is merged from its branch"
 
 
+def test_a_test_run_going_in_the_checkout_a_merge_lands_in_is_stopped_and_marked_invalid_counting_neither_passed_nor_failed(app: App, monkeypatch, tmp_path):
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.card_outcome import CardOutcome
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    committed(worktree, "notes1.md", "note 1\n")
+    assert proved_and_out(app, caller, "notes1.md:1").code == 0
+    ShellVerbs(app).split("pytest tests", str(tmp_path / "suite"))
+    with app.container.get(Scope).environment(MAIN):
+        outputs = app.container.get(CommandOutputs)
+        checkout = app.container.get(WorkerBranch).checkout(worker_row(app))
+        running = outputs.save(outputs.chain_output("suite").with_(ran_in=str(checkout)), Actor.system())
+    assert checked_and_merged(app).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        run = outputs.find(running.id)
+        assert run.ended and run.invalid_reason == "worker 1's merge of task 1", "the run going when the merge landed is stopped and names the merge"
+        assert not run.is_success() and app.container.get(OutputProcessCard).outcome(run) == CardOutcome.WARNED, "it counts as neither passed nor failed"
+        assert "the code changed under it" in run.ending(), "its card says why"
+
+
 def queue_sent_back_short(app: App, monkeypatch):
     """A worker that went through a queue of two tasks, the first checked and the second sent back short; its caller."""
     repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})

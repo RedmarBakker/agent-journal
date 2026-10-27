@@ -76,6 +76,8 @@ class OutputProcessCard(ProcessCard):
             return CardOutcome.NONE
         if not output.ended:
             return CardOutcome.RUNNING
+        if output.invalid_reason:
+            return CardOutcome.WARNED
         return CardOutcome.PASSED if output.is_success() else CardOutcome.FAILED
 
     def title(self, output: CommandOutput, part: str) -> str:
