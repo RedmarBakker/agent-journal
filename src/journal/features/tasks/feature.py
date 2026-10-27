@@ -96,7 +96,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the current work is named
   again so drift is visible, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
   tasks.name_every and tasks.log_after). A log line starts a new version.
-- A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
+- A stop with current work names it again, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own completes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: at a stop, or when your task closes, with no task
   in hand the journal starts the next one for you: your own paused task whose wait ended first, then the next task of your plan or

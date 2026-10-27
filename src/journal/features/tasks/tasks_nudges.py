@@ -10,7 +10,7 @@ class TasksNudges:
     TASK_POINTS_CHANGED = Nudge("tasks", "task_points_changed", "task {{n}}: brief point {{points|cap=15}} rewritten", "reread it with `journal task show {{n}}` and prove it again if you had", repeat=Timeout.seconds(0))
     TASK_CHANGED = Nudge("tasks", "task_changed", "task {{n}} changed", "read it again with `journal task show {{n}}`", repeat=Timeout.seconds(0))
 
-    TASK_CONTINUATION = Nudge("tasks", "carry_on", "{{name}} is in hand, {{logged}}: carry on", repeat=Timeout.seconds(0))
+    TASK_CONTINUATION = Nudge("tasks", "carry_on", "{{name}} is in hand: carry on", repeat=Timeout.seconds(0))
     STOP_LOG_REQUEST = Nudge("tasks", "log_first_at_stop", "{{name}}, {{logged}}", "log it first: {{log_command}} \"<status>\"", repeat=Timeout.seconds(0))
     STOPPED_WITH_WORK = Nudge("tasks", "woken_with_work_in_hand", "your turn ended and nothing has arrived since; the stop check, run again, answers:", "", repeat=Timeout.seconds(300))
     OPEN_TASK = Nudge("tasks", "task_still_open", "{{name}} is still open: log where it stands or finish it", repeat=Timeout.seconds(900))

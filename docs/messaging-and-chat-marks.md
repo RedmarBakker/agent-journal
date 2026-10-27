@@ -26,7 +26,7 @@ does not.
    waiting: `[journal] 7 messages unread: journal message unread`. The same three forms at session start, at a
    prompt and at a stop. Never the words.
 6. The words reach the agent once, when it opens the message: `journal message read 4` prints it with
-   `reply with [!reply:4] in your turn` under it and marks it read; `journal message unread` does the same for
+   how to reply by command under it and marks it read; `journal message unread` does the same for
    every unread one.
 7. Version 3's pacing, to keep as settings: while more than five wait unread, or once the agent is idle, the
    inbox is named again at the next tool use and every third after; after five reminders its writes are held.
@@ -55,26 +55,13 @@ does not.
     or a reply that asks you something always reaches the chat.
 16. Under a sequence step that talks in the sequence, the turn goes to the sequence, not the chat.
 17. The agent's live thinking stands in the working bubble while it works, each thought replacing the last; a
-    visible message or the next turn clears it. Thinking never becomes a message, with one exception ruled on
-    2026-10-15: a thought that opens with a reply tag for a message still unanswered is the reply the agent meant
-    to say and is posted as such, since the user never sees thinking.
+    visible message or the next turn clears it. Thinking never becomes a message.
 
 ## 4. Tags
 
-18. A tag opens a line: `[!name]`, `[!name:N]`, `[!name:N,M]` or `[!name="text"]`, with named arguments after it
-    such as `about=("doc:80")` or `todos=(7, 8)`. Optional `> ` or `**` may precede it. A tag anywhere else in a
-    line is text, not a tag. Each tag runs once per turn, keyed to the turn; several run in the order written;
-    a refusal comes back as a nudge on the next turn.
-19. Tags and what they run: `reply` runs `journal message reply N` with the turn as the reply (`N,M` answers both
-    with one reply); `log` runs `work log`; `end` runs `work end N --how`; `todo`, `fact` and `rule` create that
-    row with the turn as its brief; `await` runs `journal await` with the rest of the turn.
-20. The tag is stripped from what the chat shows. A `reply`, `log` or `await` turn is not also posted as a
-    message, since the reply is the chat and the others are shown where they belong; a `todo`, `fact`, `rule` or
-    `end` turn is posted as well, without its tag.
-21. `reply` refuses: a message the agent has not read; a reply that is only an emoji (react instead); a picture
-    not yet opened; a second reply to a message it already answered (add to that comment instead); a message
-    written in a window (answer it there).
-22. When the agent runs the command a tag stands for, the journal shows it the tag once in a while.
+18. The agent writes no tags. A reply goes by `journal message send '<text>' --reply-to N`, and every other action by its
+    command. A tag an older agent still writes opening a line is stripped from the chat text and
+    runs nothing.
 
 ## 5. Replies, reactions, buttons
 
@@ -125,9 +112,6 @@ Stands: 5, 6, 13, 36, the commit card of 26, a status bar from tool entries, rep
 
 Missing or wrong:
 
-- The reply tag is read anywhere in the text and makes a message with `reply_to`; by 18 and 20 it must open a
-  line and the turn must become a comment on the message, not a message. Claude put the tag at the end of its
-  turn in the dogfood run and the journal accepted it.
 - 7, 8 (reactions, processing), 9, 10, 11, 12 (transcript fallback and the fault), 14, 15, 16, 19 beyond
   `reply`, 21, 22, 24, 25, 27 beyond commits, 28, 29, 30, 33, 34: not built.
 - Found behind the dogfood run of 2026-10-15 12:24: one failing piece of deferred work killed the server's

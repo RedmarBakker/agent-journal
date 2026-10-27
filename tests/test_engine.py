@@ -168,7 +168,7 @@ def test_task_start_moves_the_agent_to_working_and_every_stop_says_carry_on(app:
     assert app.container.get(SessionAgents).top("s1").task_id == 1
     assert write(app)[0] == 200
     status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1 is in hand, last logged just now: carry on" in body["reason"], "a stop with work in hand is held, which is how Claude is told to go on"
+    assert body.get("decision") == "block" and "task 1 is in hand: carry on" in body["reason"], "a stop with work in hand is held, which is how Claude is told to go on"
     assert hook(app, "Stop")[1].get("decision") == "block", "every fresh stop with work in hand is held, until a stuck"
     assert hook(app, "PreCompact")[1] == {}, "a compaction hook carries nothing to the agent; the marks said it"
 
@@ -320,7 +320,7 @@ def test_every_stop_with_a_task_in_hand_says_carry_on_and_stuck_is_the_way_out(a
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
     answers = [hook(app, "Stop", stop_hook_active=i > 0) for i in range(4)]
-    assert all(item[1].get("decision") == "block" and "task 1 is in hand, last logged just now: carry on" in item[1]["reason"] for item in answers), "there is no repeated-stop escape"
+    assert all(item[1].get("decision") == "block" and "task 1 is in hand: carry on" in item[1]["reason"] for item in answers), "there is no repeated-stop escape"
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal stuck 'I cannot reach the service'"})
     app.console().run(["stuck", "I cannot reach the service"], AGENT)
     assert hook(app, "Stop")[1] == {}, "stuck lets the agent stop"
@@ -1680,7 +1680,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     assert logged.target == PlansWorking(task_id=7, logged_at=1500.0, edits=0, active_at=1001.0)
     assert fourth.target.respond(TaskLogged(environment_id=1, time=1500.0, task_id=8).with_data(of()), settings).target == fourth.target
     stop = lambda state, time, approved=(), prior_refusal=False: state.respond(Stop(prior_refusal=prior_refusal, time=time).with_data(of(approved=approved)), settings)
-    assert stop(working, 1100.0).refusal.rendered().startswith("task 7 is in hand, last logged 1 min ago: carry on")
+    assert stop(working, 1100.0).refusal.rendered().startswith("task 7 is in hand: carry on")
     assert has_nudge(stop(working, 1700.0).refusal.rendered(), TasksNudges.STOP_LOG_REQUEST, name="task 7", logged="last logged 11 min ago")
     assert stop(working, 1100.0, approved=(9,)).refusal.rendered().startswith("task 7 is in hand"), "an approved plan waits for the assigner; the task in hand is what a stop names"
     assert stop(working, 1100.0, prior_refusal=True).refusal is not None, "with a task in hand there is no escape by stopping twice"

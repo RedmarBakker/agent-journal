@@ -678,15 +678,15 @@ def test_a_plan_does_not_hand_out_a_task_whose_wait_is_open(app: App):
     assert plans.next_task(plans.find(1)).id == 1
 
 
-def test_messages_are_put_before_the_agent_and_a_reply_tag_answers_them(app: App):
+def test_messages_are_put_before_the_agent_and_a_reply_by_command_answers_them(app: App):
     from journal.repositories.messages import Messages
     console = app.console()
     console.run(["message", "send", "can you look at the login?"], USER)
     status, body = hook(app, "UserPromptSubmit", prompt="hi")
     assert "new message 1" in body["hookSpecificOutput"]["additionalContext"]
     shown = console.run(["message", "read", "1"], AGENT).text
-    assert "can you look at the login?" in shown and "[!reply:1]" not in shown, "the read prints the message alone; how to answer it comes after the tool use"
-    hook(app, "MessageDisplay", message="[!reply:1] On it, the login is next.")
+    assert "can you look at the login?" in shown and "--reply-to" not in shown, "the read prints the message alone; how to answer it comes after the tool use"
+    console.run(["message", "send", "On it, the login is next.", "--reply-to", "1"], AGENT)
     app.runtime().deferred.drain()
     messages = app.container.get(Messages).scoped()
     assert [m.author for m in messages] == ["user", "user", "agent"] and messages[1].text == "hi", "the line typed in the terminal is the user's message too"
@@ -698,28 +698,21 @@ def test_messages_are_put_before_the_agent_and_a_reply_tag_answers_them(app: App
     assert "message 4 from the user, a reply to message 3: Good, and the logout too." in shown and "On it" not in shown, "a reply names what it answers by number and never repeats its words"
 
 
-def test_a_reply_tag_counts_only_at_the_start_of_a_line(app: App, monkeypatch):
+def test_an_old_tag_in_a_turn_is_stripped_runs_nothing_and_tells_the_agent_once(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["message", "send", "first"], USER)
-    app.console().run(["message", "send", "second"], USER)
-    hook(app, "MessageDisplay", message="Good evening. At your service.\n\n[!reply:1]")
+    hook(app, "MessageDisplay", message="[!reply:1]\nGood evening. At your service.")
     app.runtime().deferred.drain()
     messages = app.container.get(Messages).scoped()
-    assert messages[-1].author == "agent" and messages[-1].reply_target == 1 and messages[-1].text == "Good evening. At your service."
-    hook(app, "MessageDisplay", message="Both done, see below [!reply:2]")
+    assert messages[-1].author == "agent" and messages[-1].text == "Good evening. At your service." and messages[-1].reply_target is None, "the turn reaches the chat without its tag, and the tag answers nothing"
+    assert nudge_reached(app, keystrokes[-1], MessagesNudges.RETIRED_TAGS)
+    hook(app, "MessageDisplay", message='[!todo="Fix the footer"]\nThe footer overlaps the form.')
     app.runtime().deferred.drain()
-    messages = app.container.get(Messages).scoped()
-    assert messages[-1].reply_target is None and "[!reply:2]" in messages[-1].text, "a tag inside a line is text"
-    assert nudge_reached(app, keystrokes[-1], MessagesNudges.REPLY_TAG_PLACE, n=2)
-    assert "new message 2" in hook(app, "Stop")[1]["reason"]
-    notified = len(keystrokes)
-    hook(app, "MessageDisplay", message="His screenshot shows a reply opening with `[!reply:8544]` that never arrived.")
-    app.runtime().deferred.drain()
-    assert len(keystrokes) == notified, "a tag quoted about a message that is not owed is only text"
+    assert app.console().run(["task", "show", "1"], AGENT).code != 0, "a todo tag files nothing"
 
 
 def test_a_question_pauses_the_agent_and_the_answer_brings_it_back(app: App):
@@ -2515,7 +2508,7 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     hook(app, "PreToolUse", **looking)
     app.console().run(["environment", "overview"], AGENT)
     app.runtime().deferred.drain()
-    assert "[!reply:1]" in json.dumps(hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})[1]), "the overview read message 1, so how to answer it comes with that tool use"
+    assert "--reply-to 1" in json.dumps(hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})[1]), "the overview read message 1, so how to answer it comes with that tool use"
     hook(app, "Stop")
     app.console().run(["message", "send", "are you there?"], USER)
     app.console().run(["message", "send", "hello?"], USER)
@@ -2531,8 +2524,8 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     hook(app, "PreToolUse", **reading)
     shown = app.console().run(["message", "unread"], AGENT).text
     after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
-    assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert nudge_reached(app, after, MessagesNudges.MESSAGE_READ, n=2) and all(after.count(f"[!reply:{n}]") == 1 for n in range(2, 6)) and "[!reply:1]" not in after, "how to answer each comes after the tool use, in its context, once; message 1 was answered for at the overview"
+    assert "--reply-to" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
+    assert nudge_reached(app, after, MessagesNudges.MESSAGE_READ, n=2) and all(after.count(f"--reply-to {n}`") == 1 for n in range(2, 6)) and "--reply-to 1" not in after, "how to answer each comes after the tool use, in its context, once; message 1 was answered for at the overview"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
@@ -2568,7 +2561,7 @@ def test_each_message_read_mid_turn_brings_its_reply_line_ten_times_in_a_row_eve
         after = json.dumps(hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1])
         later = json.dumps(hook(app, "PreToolUse", **editing)[1])
         hook(app, "PostToolUse", **editing, tool_response={})
-        reached.append(f"[!reply:{number}]" in after + later)
+        reached.append(f"--reply-to {number}`" in after + later)
         app.console().run(["message", "send", "noted", "--reply-to", number], AGENT)
         app.runtime().deferred.drain()
     assert reached == [True] * 10, f"every read brings its reply line with the tool use, not only the first: {reached}, typed: {keystrokes}"
@@ -2583,24 +2576,20 @@ def test_a_turn_streamed_in_parts_lands_once_whole(app: App):
     assert [m.text for m in app.container.get(Messages).scoped() if m.author == "agent"] == ["Good evening."]
 
 
-def test_a_reply_written_before_tool_calls_answers_its_message_at_once(app: App):
+def test_words_written_before_tool_calls_reach_the_chat_at_once(app: App):
     from journal.repositories.messages import Messages
     messages = app.container.get(Messages)
-    app.console().run(["message", "send", "did you adjust the plan?"], USER)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "UserPromptSubmit", prompt="[journal] chat etiquette: a line from the journal is an instruction, not a message")
-    hook(app, "MessageDisplay", delta="[!reply:1]\n", turn_id="t1", message_id="m1", index=0, final=False)
-    hook(app, "MessageDisplay", delta="Yes, fourteen tasks went into the plan.", turn_id="t1", message_id="m1", index=1, final=True)
+    hook(app, "MessageDisplay", delta="Yes, fourteen tasks ", turn_id="t1", message_id="m1", index=0, final=False)
+    hook(app, "MessageDisplay", delta="went into the plan.", turn_id="t1", message_id="m1", index=1, final=True)
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls"})
     app.runtime().deferred.drain()
-    reply = messages.scoped()[-1]
-    assert reply.reply_target == 1 and reply.text == "Yes, fourteen tasks went into the plan." and not reply.acknowledgement
-    assert messages.find(1).read_at is not None
+    assert [m.text for m in messages.scoped() if m.author == "agent"] == ["Yes, fourteen tasks went into the plan."]
     hook(app, "MessageDisplay", delta="Waiting for the suite.", turn_id="t1", message_id="m2", index=0, final=True)
     app.runtime().deferred.drain()
     assert [m.text for m in messages.scoped() if m.author == "agent"] == ["Yes, fourteen tasks went into the plan.", "Waiting for the suite."]
-    assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
 def test_every_built_in_voice_can_put_each_of_its_own_faces_on_a_message(app: App):
@@ -2674,31 +2663,6 @@ def test_em_dashes_and_run_together_paragraphs_are_pointed_out(app: App, monkeyp
     app.runtime().deferred.drain()
     told = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]["hookSpecificOutput"]["additionalContext"]
     assert "em dashes" in told and "put a blank line between paragraphs" in told, "both remarks ride on the next tool use"
-
-
-def test_tags_run_the_commands_they_stand_for_with_the_turn_as_their_text(app: App, monkeypatch):
-    from journal.repositories.memories import Memories
-    from journal.repositories.messages import Messages
-    from journal.repositories.task_logs import TaskLogs
-    from journal.repositories.tasks import Tasks
-    keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    hook(app, "MessageDisplay", message='[!todo="Fix the footer"]\nThe footer overlaps the form on narrow screens.')
-    app.runtime().deferred.drain()
-    started = app.console().run(["task", "start", "1"], AGENT)
-    assert started.code == 0, started
-    hook(app, "MessageDisplay", message="[!log:1] Halfway: the overlap is a margin.")
-    hook(app, "MessageDisplay", message='**[!memory="The footer is 64px tall"]**\nMeasured in the browser.')
-    hook(app, "MessageDisplay", message="[!end:1]\nThe footer sits below the form now.")
-    hook(app, "MessageDisplay", message="[!end:99]\nNo such task.")
-    app.runtime().deferred.drain()
-    tasks, messages = app.container.get(Tasks), app.container.get(Messages)
-    assert tasks.find(1).title == "Fix the footer" and "overlaps" in tasks.find(1).brief and tasks.find(1).state == "completed"
-    assert [log.line for log in app.container.get(TaskLogs).all()][-2:] == ["Halfway: the overlap is a margin.", "The footer sits below the form now."] or any("Halfway" in log.line for log in app.container.get(TaskLogs).all())
-    assert [(memory.text, memory.weight) for memory in app.container.get(Memories).all()] == [("The footer is 64px tall", 5)]
-    assert [m.text for m in messages.scoped() if m.author == "agent"] == ["The footer overlaps the form on narrow screens.", "Measured in the browser.", "The footer sits below the form now.", "No such task."], "a log turn stays out of the chat; the others post without their tag"
-    assert nudge_reached(app, keystrokes[-1], MessagesNudges.TAG_FAILURE, name="end")
 
 
 def test_notable_moments_are_cards_in_the_chat(app: App):
@@ -3439,7 +3403,7 @@ def test_codex_words_for_the_user_are_read_from_its_transcript(monkeypatch, tmp_
     assert Codex().worker_outcome(answered, "a long log of the run\n" * 500) == WorkerOutcome("the tests pass", "01a1549d-a1ac-75c3"), "a Codex worker's report is its answer, not its log"
 
 
-def test_a_reply_written_before_a_tool_call_reaches_the_chat_at_that_call_and_the_display_hook_adds_no_second(app: App, monkeypatch, tmp_path):
+def test_words_written_before_a_tool_call_reach_the_chat_at_that_call_and_the_display_hook_adds_no_second(app: App, monkeypatch, tmp_path):
     user_set(app, "messages.hold_after", 0)
     import json as j
     from journal.providers.claude import Claude
@@ -3454,17 +3418,13 @@ def test_a_reply_written_before_a_tool_call_reaches_the_chat_at_that_call_and_th
     texts = [m.text for m in messages.scoped() if m.author == "agent"]
     assert "Starting up." in texts and "Long ago." not in texts, "the first look reads the turn in hand, the last line, and not the session's past"
     app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["message", "send", "are you there?"], USER)
-    app.console().run(["message", "read", "2"], AGENT)
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
-    assert status == 409 and nudge_reached(app, body["error"], MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=2), "the message is read and unanswered: the write is held"
-    row = {"type": "assistant", "message": {"content": [{"type": "text", "text": "[!reply:2]\nHere, Sir Jesse, and writing."}, {"type": "tool_use", "name": "Write"}]}}
+    row = {"type": "assistant", "message": {"content": [{"type": "text", "text": "Here, Sir Jesse, and writing."}, {"type": "tool_use", "name": "Write"}]}}
     with transcript.open("a") as file:
         file.write(j.dumps(row) + "\n")
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "the reply in the transcript answered the message before the call was judged"
-    replies = [m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]
-    assert len(replies) == 1 and replies[0].reply_target == 2
-    hook(app, "MessageDisplay", message="[!reply:2]\nHere, Sir Jesse, and writing.")
+    hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
+    app.runtime().deferred.drain()
+    assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the words before the call reach the chat at that call"
+    hook(app, "MessageDisplay", message="Here, Sir Jesse, and writing.")
     app.runtime().deferred.drain()
     assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the display hook's copy of the same block is no second message"
 
@@ -3645,7 +3605,7 @@ def test_a_task_named_in_a_reply_is_linked_to_the_message_it_answers(app: App):
     hook(app, "SessionStart")
     app.console().run(["message", "send", "the footer is broken"], USER)
     app.console().run(["task", "create", "Fix the footer"], AGENT)
-    hook(app, "MessageDisplay", message="[!reply:1]\nFiled task 1 for it.")
+    app.console().run(["message", "send", "Filed task 1 for it.", "--reply-to", "1"], AGENT)
     app.runtime().deferred.drain()
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages/1", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
         assert json.loads(reply.read())["filed"] == [1]
@@ -3697,20 +3657,21 @@ def test_a_message_waiting_at_session_start_is_named_in_the_start_block(app: App
     assert "new message 1" in notified
 
 
-def test_a_reply_naming_several_messages_answers_each_and_a_journal_command_after_a_cd_passes_the_hold(app: App):
+def test_replies_by_command_answer_each_message_and_a_journal_command_chained_after_the_hold_passes(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     for text in ("one", "two"):
         app.console().run(["message", "send", text], USER)
     app.console().run(["message", "unread"], AGENT)
-    hook(app, "MessageDisplay", message="[!reply:1,2]\nBoth seen.")
+    for n in ("1", "2"):
+        app.console().run(["message", "send", "Seen.", "--reply-to", n], AGENT)
     app.runtime().deferred.drain()
     assert app.container.get(Messages).unanswered() == []
     app.console().run(["message", "send", "three"], USER)
-    app.console().run(["message", "read", "4"], AGENT)
+    app.console().run(["message", "read", "5"], AGENT)
     for _ in range(15):
         hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message react 4 \"👍\"; journal task list"})[0] == 200
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message react 5 \"👍\"; journal task list"})[0] == 200
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls"})[0] == 409
 
 
@@ -4009,14 +3970,14 @@ def test_a_file_edit_in_the_bar_says_editing_and_counts_the_lines_it_added_and_r
     assert row["hold"] == 1.0, "a change to files stays on the line for at least a second"
 
 
-def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a_reply_in_thinking_is_posted(app: App, monkeypatch, tmp_path):
+def test_each_thought_is_a_message_and_the_latest_stands_in_the_working_bubble(app: App, monkeypatch, tmp_path):
     import json as j
     from urllib.request import urlopen
     from journal.providers.claude import Claude
     from journal.repositories.messages import Messages
     transcript = tmp_path / "s1.jsonl"
     rows = [{"type": "user", "message": {"content": "hello?"}},
-            {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "[!reply:1]\nYes, hello."}]}},
+            {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "Yes, hello."}]}},
             {"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}},
             {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "Now the next step."}]}}]
     transcript.write_text("\n".join(j.dumps(r) for r in rows) + "\n")
@@ -4029,12 +3990,10 @@ def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a
     app.runtime().deferred.drain()
     agent = agent_rows(app)[-1]
     assert agent["thinking"] == "Now the next step."
-    reply = app.container.get(Messages).all()[-1]
-    assert reply.reply_target == 1 and reply.text == "Yes, hello." and app.container.get(Messages).unanswered() == []
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     app.runtime().deferred.drain()
     thoughts = [m for m in app.container.get(Messages).all() if m.is_thought]
-    assert [m.text for m in thoughts] == ["[!reply:1]\nYes, hello.", "Now the next step."], "each thought is a message in the chat, marked a thought, and kept once"
+    assert [m.text for m in thoughts] == ["Yes, hello.", "Now the next step."], "each thought is a message in the chat, marked a thought, and kept once"
     assert all(m.creator.id == "s1" for m in thoughts)
     hook(app, "MessageDisplay", message="Done.")
     app.runtime().deferred.drain()
@@ -4045,15 +4004,12 @@ def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a
 def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
-    app.console().run(["message", "send", "is it fixed?"], USER)
-    app.console().run(["message", "read", "1"], AGENT)
-    hook(app, "MessageDisplay", delta="It is.", turn_id="t9", index=1, final=True)
+    hook(app, "MessageDisplay", delta="fixed.", turn_id="t9", index=1, final=True)
     app.runtime().deferred.drain()
-    assert app.container.get(Messages).unanswered(), "the final part alone is not the turn"
-    hook(app, "MessageDisplay", delta="[!reply:1]\n", turn_id="t9", index=0, final=False)
+    assert not [m for m in app.container.get(Messages).scoped() if m.author == "agent"], "the final part alone is not the turn"
+    hook(app, "MessageDisplay", delta="It is ", turn_id="t9", index=0, final=False)
     app.runtime().deferred.drain()
-    reply = app.container.get(Messages).all()[-1]
-    assert reply.reply_target == 1 and reply.text == "It is."
+    assert app.container.get(Messages).all()[-1].text == "It is fixed."
 
 
 def test_a_stop_takes_up_the_agents_paused_task_in_auto_mode_and_off_auto_mode_is_handed_no_task(app: App):
@@ -4553,19 +4509,6 @@ def test_a_report_is_written_from_a_file_and_linked_to_what_it_is_about(app: App
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/reports/1", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
         report = json.loads(reply.read())
     assert "## Phase 1" in report["body"] and "## Phase 2" in report["body"] and report["links"] == ["plans:1"], "a report names each row it is about once, though its title mentions it too"
-
-
-def test_a_turn_with_several_reply_tags_answers_each_message_with_its_own_part(app: App):
-    from journal.repositories.messages import Messages
-    console = app.console()
-    console.run(["message", "send", "first?"], USER)
-    console.run(["message", "send", "second?"], USER)
-    console.run(["message", "read", "1"], AGENT)
-    console.run(["message", "read", "2"], AGENT)
-    hook(app, "MessageDisplay", message="Two answers.\n\n[!reply:1]\nThe first is fine.\n\n[!reply:2]\nThe second waits.")
-    app.runtime().deferred.drain()
-    replies = [m for m in app.container.get(Messages).scoped() if m.author == "agent"]
-    assert [(m.reply_target, m.text) for m in replies] == [(1, "Two answers.\n\nThe first is fine."), (2, "The second waits.")]
 
 
 def test_a_subagent_launched_in_the_background_runs_until_its_own_stop_hook(app: App):
@@ -6673,7 +6616,7 @@ def test_a_plugin_holds_a_stop_once_a_turn(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     status, body = hook(app, "Stop")
-    assert status == 200 and body["decision"] == "block" and "[plugin echo] echo holds the stop" in body["reason"]
+    assert status == 200 and body.get("decision") == "block" and "[plugin echo] echo holds the stop" in body["reason"], body
     status, body = hook(app, "Stop", stop_hook_active=True)
     assert status == 200 and "decision" not in body, "a stop held once already goes through"
     assert [e.data["reason"] for e in app.container.get(Entries).matching(entry_type="plugin_unanswered")] == ["echo holds the stop"], "the second refusal is recorded unanswered"
@@ -9688,11 +9631,6 @@ def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, m
     hook(app, "Stop")
     assert len([m for m in app.container.get(Messages).scoped() if m.author == "agent"]) == 1, "closing words saying the reply again stay out of the chat"
     assert any("repeated reply 2 to message 1" in line for line in keystrokes), "and the agent is told why"
-    hook(app, "MessageDisplay", message="[!reply:1] One more thing about the wait.")
-    app.runtime().deferred.drain()
-    hook(app, "Stop")
-    assert len([m for m in app.container.get(Messages).scoped() if m.author == "agent"]) == 1, "a typed tag on a message already answered is kept out too"
-    assert any(nudge_reached(app, line, MessagesNudges.DUPLICATE_REPLY, n=1, reply=2) for line in keystrokes)
     assert console.run(["message", "send", "Something new after all.", "--reply-to", "1", "--confirm"], AGENT).code == 0, "confirmed, a second reply goes out"
 
 
@@ -9862,6 +9800,30 @@ def test_a_task_closed_by_a_commit_names_a_paused_task_at_once(app: App, monkeyp
 def test_the_database_gives_deleted_rows_space_back_by_itself(app: App):
     from journal.db.connection import Connection
     assert app.container.get(Connection).one("PRAGMA auto_vacuum")[0] == 1, "auto-vacuum is on, so a trimmed record shrinks the file"
+
+
+def test_every_start_writes_the_journals_skills_afresh_in_both_skill_folders_and_removes_retired_ones(tmp_path: Path):
+    def planted(root: Path) -> dict[str, Path]:
+        paths = {}
+        for home in (".claude/skills", ".agents/skills"):
+            for name, text in (("journal-tasks", "---\nname: journal-tasks\n---\nan old text"), ("journal-retired", "---\nname: journal-retired\n---\nretired"), ("journal-lint", "---\nplugin: lint\nname: journal-lint\n---\nthe plugin's"), ("deploy", "---\nname: deploy\n---\nmine")):
+                path = root / home / name / "SKILL.md"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text)
+                paths[f"{home}/{name}"] = path
+        return paths
+
+    for start in ("first start", "restart"):
+        paths = planted(tmp_path)
+        app = main_journal(Config(tmp_path, port=0))
+        app.runtime().start()
+        try:
+            for home in (".claude/skills", ".agents/skills"):
+                assert "an old text" not in paths[f"{home}/journal-tasks"].read_text(), f"{start}: a journal skill changed on disk is written afresh in {home}"
+                assert not paths[f"{home}/journal-retired"].parent.exists(), f"{start}: a journal skill no longer shipped is removed from {home}"
+                assert paths[f"{home}/journal-lint"].read_text().endswith("the plugin's") and paths[f"{home}/deploy"].read_text().endswith("mine"), f"{start}: a plugin's skill and the project's own stay in {home}"
+        finally:
+            app.runtime().stop()
 
 
 def test_the_journals_skills_and_profiles_are_written_fresh_and_a_projects_own_are_left_alone(app: App):
@@ -20024,19 +19986,6 @@ def test_draining_a_worker_queue_writes_one_mark_and_no_unblocked_mark_per_task(
     assert not [text for text in texts if text.startswith("Unblocked task")], "a task given back was never blocked, so no Unblocked mark"
 
 
-def test_a_message_sent_by_command_with_a_reply_tag_is_refused_and_nothing_is_posted(app: App):
-    from journal.repositories.messages import Messages
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["message", "send", "a question"], USER)
-    with app.container.get(Scope).environment(MAIN):
-        [asked] = [m.id for m in app.container.get(Messages).all() if m.text == "a question"]
-    sent = console.run(["message", "send", f"[!reply:{asked}]\nAnswered."], AGENT)
-    assert sent.code != 0 and "--reply-to" in sent.error, sent.text
-    with app.container.get(Scope).environment(MAIN):
-        assert not [m for m in app.container.get(Messages).all() if "Answered." in m.text], "nothing is posted"
-
-
 def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
     user_set(app, "faults.developer", True)
     from journal.features.faults.support.slow_requests import SlowRequests
@@ -20367,9 +20316,9 @@ def test_each_message_read_brings_its_reply_line_once_from_its_read_event_and_ne
         return json.dumps(hook(app, "PostToolUse", **command, tool_response={"stdout": ""})[1])
 
     first, second, again = read_in_a_tool_use("1"), read_in_a_tool_use("2"), read_in_a_tool_use("1")
-    assert first.count("[!reply:1]") == 1 and "[!reply:2]" not in first, "the first read brings its own line, once: " + first
-    assert second.count("[!reply:2]") == 1 and "[!reply:1]" not in second, "the second read brings only its own"
-    assert "[!reply:" not in again, "a message read before brings no line again"
+    assert first.count("--reply-to 1") == 1 and "--reply-to 2" not in first, "the first read brings its own line, once: " + first
+    assert second.count("--reply-to 2") == 1 and "--reply-to 1" not in second, "the second read brings only its own"
+    assert "--reply-to " not in again, "a message read before brings no line again"
 
 
 def test_a_comment_on_a_document_read_brings_the_line_to_answer_it_in_the_document_and_no_task_line(app: App):

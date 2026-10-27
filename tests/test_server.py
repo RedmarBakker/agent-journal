@@ -891,7 +891,7 @@ def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_wha
         urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         assert call(server, "POST", "/journal/agents/1/control", {"action": "effort", "value": "max"})[1]["queued"] is True and keystrokes[-1] == "/effort max"
         assert call(server, "POST", "/journal/agents/1/control", {"action": "model", "value": "gpt"})[0] == 409
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": "MessageDisplay", "session_id": "s1", "message": f"[!reply:{n}]\nBoth are."}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        app.console().run(["message", "send", "Both are.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
         app.runtime().deferred.drain()
         reply = call(server, "GET", "/journal/messages")[1]["rows"][-1]
         assert reply["text"] == "Both are." and reply["reply_target"] == n
@@ -908,8 +908,9 @@ def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_pat
     server = app.server()
     try:
         n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
+        for type_name, extra in (("SessionStart", {}),):
             urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        app.console().run(["message", "send", "Hello back.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
         app.runtime().deferred.drain()
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if n in (r["id"], r["reply_target"])]
         assert [(r["author"], r["reply_target"], r["text"]) for r in rows] == [("user", None, "hello"), ("agent", n, "Hello back.")]
@@ -1002,8 +1003,9 @@ def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_car
     server = app.server()
     try:
         n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
+        for type_name, extra in (("SessionStart", {}),):
             urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        app.console().run(["message", "send", "Hello back.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
         app.runtime().deferred.drain()
         app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardType.CHECKS, outcome=CardOutcome.PASSED)
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if r["id"] >= n]
@@ -1042,7 +1044,7 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
         manifest = call(server, "GET", "/journal/manifest")[1]
         matched = [f["name"] for f in manifest["features"]]
         tasks = next(f for f in manifest["features"] if f["name"] == "tasks")
-        assert [s["name"] for s in tasks["options"]] == ["auto", "wait_out_seconds", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
+        assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
         assert all(f in matched for f in ("messages", "shell", "voices")) and "kanban" not in matched, "version 3's leftovers are gone"
         assert "faults" in matched, "slow requests are a setting in every project, off by default and switched on where the journal develops itself"
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"

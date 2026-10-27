@@ -18,12 +18,10 @@ from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
-from journal.features.messages.support.tags import Tags
 from journal.features.messages.support.unlinked_row_numbers import PLAIN, ROW_TABLES, UnlinkedRowNumbers
 from journal.repositories.rows import Rows
 from journal.support.rejection import Rejection
 
-REPLY_TAG_REFUSED = "a [!reply:N] tag answers in your turn's text; a message sent by command answers with --reply-to N, the tag left out"
 
 RECENT_MESSAGES = 20
 DUPLICATE_REPLY_LINE = "message {n} already has your reply {reply}: not sent. Send it again only if it says something new, with --confirm"
@@ -67,8 +65,6 @@ class MessageCommand(Command):
 
     def send(self, args: Namespace, caller: Caller) -> int:
         author = Author.build(caller.actor)
-        if Tags.replies(args.text):
-            raise Rejection(REPLY_TAG_REFUSED)
         files = self.files.read(args.file)
         if args.reply_to and author == Author.AGENT:
             return self.reply(self.messages.find(args.reply_to), args, caller, files)

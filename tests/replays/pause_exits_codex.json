@@ -39,7 +39,7 @@
       "name": "a stop back at work",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [],
       "nudges": [
@@ -86,7 +86,7 @@
       "name": "the answer releases the wait",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on"
+        "reason": "task 1 is in hand: carry on"
       },
       "typed": [
         "[journal] question 1 is answered. `journal question show 1`, then act on it"
@@ -115,7 +115,7 @@
       "name": "the report releases the wait",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\nworker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
+        "reason": "task 1 is in hand: carry on\nworker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
       },
       "typed": [
         "[journal] wait over: worker 1, Lady Lovelace, reported",

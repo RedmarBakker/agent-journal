@@ -70,8 +70,8 @@ class Working(BaseState):
         minutes = int((time - self.logged_at) // 60)
         return "last logged just now" if minutes < 1 else f"last logged {minutes} min ago"
 
-    def continue_nudge(self, time: float) -> Nudge:
-        return TasksNudges.TASK_CONTINUATION.create(name=self.label(), logged=self.logged_words(time))
+    def continue_nudge(self) -> Nudge:
+        return TasksNudges.TASK_CONTINUATION.create(name=self.label())
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         active = replace(self, active_at=event.time)
@@ -95,10 +95,10 @@ class Working(BaseState):
             return self.none()
         if self.is_log_due(event.time, settings):
             return self.refuse(TasksNudges.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command()))
-        return self.refuse(self.continue_nudge(event.time))
+        return self.refuse(self.continue_nudge())
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        nudges = [self.continue_nudge(event.time)]
+        nudges = [self.continue_nudge()]
         if event.source == COMPACT:
             nudges.append(BriefingNudges.COMPACTION_SUMMARY.create(task=self.label(), last_log=event.data.part(TasksPart).last_log_line, uncommitted=event.data.part(Git).uncommitted))
         return self.swap(replace(self, active_at=event.time), *nudges)

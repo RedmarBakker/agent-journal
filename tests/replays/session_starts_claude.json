@@ -87,7 +87,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "task 1 is in hand, last logged just now: carry on"
+          "additionalContext": "task 1 is in hand: carry on"
         }
       },
       "typed": [

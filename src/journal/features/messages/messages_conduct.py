@@ -23,7 +23,7 @@ TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread
 
 
 class MessagesConduct(Conduct):
-    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, the reply tag hinted after a message sent by command, and after a tool use that read a message how to answer it, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
+    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         comments = event.data.part(MessagesPart).unread_comments
