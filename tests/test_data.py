@@ -1538,9 +1538,9 @@ def test_a_setting_is_the_projects_read_the_same_in_every_environment_and_one_st
     ProjectWideSettings().apply(connection)
     rows = {(row["environment_id"], row["key"]): json.loads(row["value"]) for row in connection.all("SELECT environment_id, key, value FROM settings")}
     assert rows == {(0, "workers.mode"): "builder", (0, "faults.developer"): False}, "a key held only for environments moves to the project, its newest row kept, and the project's own value stands"
-    settings.clear_cache()
+    booted = SettingRows(connection, bus, scope, TimeSource())
     with scope.environment(3):
-        assert settings.project("faults.developer") is False
+        assert booted.project("faults.developer") is False and booted.project("workers.mode") == "builder", "after the move every environment reads the project's values"
 
 
 def test_the_settings_page_has_no_applies_to_environment_tag():
