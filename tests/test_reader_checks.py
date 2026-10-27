@@ -29,6 +29,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.chain import Chain
+from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import CommandShape
 from journal.supervisor_link import SupervisorLink
 from tests.test_features import booted, hook
@@ -157,7 +158,7 @@ def test_the_release_chain_is_read_as_its_work_and_owes_no_git_checkout_reader()
 def test_a_reader_for_git_checkout_is_tried_on_the_git_checkout_part_alone(app: App, tmp_path: Path):
     line = "git checkout -q main && git push origin main"
     files = OutputFiles(tmp_path)
-    files.split(line, Chain.parts(line))
+    files.split(line, Chain.parts(line), app.container.get(CommandClassifier))
     (tmp_path / "0.out").write_text("Switched to branch 'main'\n")
     (tmp_path / "1.out").write_text("....................\n")
     reader = Reader("branch-switch", "the branch switched to", pattern="^Switched", commands=ReaderCommands.parsed("git checkout"))

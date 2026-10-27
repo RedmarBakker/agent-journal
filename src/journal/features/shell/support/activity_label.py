@@ -1,49 +1,15 @@
 import re
 
 from journal.support.chain import Chain
-from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
-from journal.features.shell.support.command_wrappers import CommandWrappers
-
-
-# the activity of a linter, a formatter's check or a type checker
-CHECKING = "checking code"
-VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing to origin", "pull": "pulling", "add": "staging", "checkout": "switching branch", "merge": "merging", "rebase": "rebasing", "status": "checking git", "diff": "reading a diff", "show": "reading a diff", "log": "reading history", "rev-list": "reading history", "grep": "searching", "ls-files": "listing", "switch": "switching branch", "tag": "tagging", "branch": "listing", "fetch": "fetching", "ls-remote": "checking git", "rev-parse": "checking git"},
-         "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}, "phpunit": "testing", "pest": "testing"}, "npm": {"test": "testing", "run": {"build": "building", "test": "testing", "lint": CHECKING, "typecheck": CHECKING, "": "running a script"}, "install": "installing", "ci": "installing"}, "vitest": "testing", "vite": {"build": "building", "": "running vite"},
-         "pip": "installing", "pip3": "installing", "make": {"test": "testing", "check": "testing", "lint": CHECKING, "install": "installing", "": "building"},
-         "cargo": {"build": "building", "check": "building", "test": "testing", "nextest": "testing", "clippy": CHECKING, "fmt": CHECKING, "fetch": "installing", "run": "running cargo"}, "go": {"test": "testing", "build": "building", "vet": CHECKING, "mod": {"tidy": "installing", "download": "installing", "": "running go"}, "": "running go"}, "pnpm": {"test": "testing", "build": "building", "install": "installing", "i": "installing", "add": "installing", "run": {"build": "building", "test": "testing", "lint": CHECKING, "": "running a script"}, "vitest": "testing", "jest": "testing", "eslint": CHECKING, "lint": CHECKING, "": "running a script"}, "yarn": {"test": "testing", "build": "building", "install": "installing", "add": "installing", "lint": CHECKING, "tsc": CHECKING, "": "running a script"}, "docker": {"build": "building", "compose": {"build": "building", "": "running docker"}, "": "running docker"}, "gh": "on github", "journal": {"suite": "testing", "": "journalling"}, "cd": "moving", "ls": "listing", "cat": "reading", "cut": "reading", "less": "reading", "more": "reading", "sed": "reading", "head": "reading", "tail": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching",
-         "wget": "fetching", "gotestsum": "testing", "tox": "testing", "nox": "testing", "jest": "testing", "mocha": "testing", "ava": "testing", "karma": {"start": "testing", "": "running karma"},
-         "cypress": {"run": "testing", "": "running cypress"}, "playwright": {"test": "testing", "": "running playwright"}, "rspec": "testing", "unittest": "testing", "ctest": "testing",
-         "cmake": "building", "ninja": "building", "webpack": "building", "esbuild": "building", "rollup": "building", "tsup": "building", "gcc": "building", "g++": "building", "clang": "building", "javac": "building",
-         "gradle": {"test": "testing", "check": "testing", "build": "building", "assemble": "building", "assembleDebug": "building", "assembleRelease": "building", "": "running gradle"},
-         "gradlew": {"test": "testing", "check": "testing", "build": "building", "assemble": "building", "assembleDebug": "building", "assembleRelease": "building", "": "running gradle"},
-         "mvn": {"test": "testing", "verify": "testing", "package": "building", "compile": "building", "install": "building", "clean": {"test": "testing", "verify": "testing", "": "building"}, "dependency:resolve": "installing", "": "running mvn"},
-         "sbt": {"test": "testing", "testOnly": "testing", "compile": "building", "": "running sbt"}, "bazel": {"test": "testing", "build": "building", "": "running bazel"},
-         "dotnet": {"build": "building", "publish": "building", "test": "testing", "restore": "installing", "format": CHECKING, "": "running dotnet"},
-         "mix": {"test": "testing", "compile": "building", "deps.get": "installing", "format": CHECKING, "": "running mix"}, "rebar3": {"compile": "building", "eunit": "testing", "ct": "testing", "": "running rebar3"},
-         "rake": {"test": "testing", "spec": "testing", "": "running rake"}, "rails": {"test": "testing", "test:system": "testing", "": "running rails"}, "bundle": {"install": "installing", "": "running bundle"},
-         "composer": {"install": "installing", "require": "installing", "update": "installing", "": "running composer"}, "pipx": "installing", "gem": {"install": "installing", "": "running gem"},
-         "uv": {"sync": "installing", "add": "installing", "lock": "installing", "pip": {"install": "installing", "": "running uv"}, "": "running uv"}, "poetry": {"install": "installing", "add": "installing", "": "running poetry"},
-         "swift": {"build": "building", "test": "testing", "": "running swift"}, "xcodebuild": {"test": "testing", "": "building"},
-         "flutter": {"build": "building", "test": "testing", "pub": {"get": "installing", "": "running flutter"}, "": "running flutter"}, "dart": {"compile": "building", "test": "testing", "analyze": CHECKING, "pub": {"get": "installing", "": "running dart"}, "": "running dart"},
-         "deno": {"test": "testing", "compile": "building", "": "running deno"}, "bun": {"test": "testing", "install": "installing", "add": "installing", "build": "building", "run": {"build": "building", "test": "testing", "": "running a script"}, "": "running bun"},
-         "zig": {"build": "building", "": "running zig"}, "nix": {"build": "building", "": "running nix"}, "just": {"test": "testing", "lint": CHECKING, "build": "building", "": "running just"}, "task": {"test": "testing", "lint": CHECKING, "build": "building", "": "running task"},
-         "brew": {"install": "installing", "": "running brew"}, "apt-get": {"install": "installing", "update": "installing", "": "running apt-get"}, "apt": {"install": "installing", "update": "installing", "": "running apt"},
-         "dnf": {"install": "installing", "": "running dnf"}, "yum": {"install": "installing", "": "running yum"},
-         "ruff": CHECKING, "mypy": CHECKING, "pyright": CHECKING, "flake8": CHECKING, "pylint": CHECKING, "black": CHECKING, "isort": CHECKING, "bandit": CHECKING, "eslint": CHECKING, "prettier": CHECKING,
-         "stylelint": CHECKING, "biome": CHECKING, "tsc": CHECKING, "shellcheck": CHECKING, "hadolint": CHECKING, "golangci-lint": CHECKING, "gofmt": CHECKING, "rubocop": CHECKING, "phpstan": CHECKING, "psalm": CHECKING,
-         "php-cs-fixer": CHECKING, "swiftlint": CHECKING, "ktlint": CHECKING, "detekt": CHECKING, "yamllint": CHECKING, "markdownlint": CHECKING}
-
-
-# the flags that take the word after them as their value, as npm --prefix src/web, so that word is no part of what the command does
-VALUED_FLAGS = frozenset({"--prefix", "-C", "--cwd", "-pl", "--filter"})
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_shape import TOKEN_PATTERN, CommandShape
+from journal.support.part import Part
 
 
 # the activities long enough to be watched through a reader as they run
 LONG_RUNS = ("testing", "building")
 # the activities that only read, search or list, which show no card of their own and are never owed a reader
 READ_LABELS = frozenset({"searching", "reading", "listing", "reading history", "reading a diff", "checking git"})
-
-
 
 # what a part that runs no command of its own is doing, as a loop's do or done is
 IDLE = "running"
@@ -57,83 +23,64 @@ BODY = re.compile(r"^\s*(?:time\s+)?(?:for|while|until|if)\s+(.*?);\s*(?:do|then
 # a loop body that only waits, whose loop is named for what it waits on
 WAITING = re.compile(r"^\s*(sleep\b.*|true|:)\s*$")
 
-# a script whose name says it runs the tests
-TEST_SCRIPT = re.compile(r"(^|/)(tests?|suite)[\w.-]*\.(sh|py)$")
-
 # a script file a runner such as python3 or node is handed
 SCRIPT_FILE = re.compile(r"\.(py|js|mjs|ts|sh|rb|pl|php)$")
 
-# a sed that changes its files in place, and a cat that writes a file, which neither read
-EDITING = re.compile(r"^\s*(sed\b.*\s-i\b|perl\b.*\s-\w*i)")
-
-# a sed that only prints chosen lines, which reads its file; any other sed transforms what it is given
-PRINTING_SED = re.compile(r"^\s*sed\b.*\s-n\b")
-WRITING = re.compile(r"^\s*(?:(?:cat|echo|printf)\b[^|]*(?<![0-9&])>(?!&|\s*/dev/null)|tee\s+(?!-)\S)")
-
 # the activity of a command that runs tests
 TESTING = "testing"
-# a program that does a job of its own when it is given no word after it
-BARE_RUNS = {"yarn": "installing"}
+
 
 class ActivityLabel:
-    """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""
+    """What one command is doing, in a word or two, as the bar and the chat show it, read from the label its classification carries: git commit is committing, pytest and php artisan test are testing; a wrapper is seen through, a loop is named for its body, a script by its runner."""
 
-    @classmethod
-    def test_runs(cls, parts: tuple[str, ...]) -> list[str]:
-        return [part for part in parts if cls.build(part) == TESTING]
+    def __init__(self, classifier: CommandClassifier) -> None:
+        self.classifier = classifier
 
-    @classmethod
-    def is_reading(cls, line: str) -> bool:
+    def test_runs(self, parts: tuple[str, ...]) -> list[str]:
+        return [part for part in parts if self.build(part) == TESTING]
+
+    def is_reading(self, line: str) -> bool:
         parts = [part.text for part in Chain.parts(line)]
-        return bool(parts) and all(cls.build(part) in READ_LABELS or cls.build(part) in (IDLE, "moving") for part in parts) and cls.line_label(line) in READ_LABELS
+        return bool(parts) and all(self.build(part) in READ_LABELS or self.build(part) in (IDLE, "moving") for part in parts) and self.line_label(line) in READ_LABELS
 
-    @classmethod
-    def line_label(cls, line: str) -> str:
-        labels = [label for label in (cls.build(part.text) for part in Chain.parts(line)) if label not in (IDLE, "moving", "running sleep")]
+    def line_label(self, line: str) -> str:
+        labels = [label for label in (self.build(part.text) for part in Chain.parts(line)) if label not in (IDLE, "moving", "running sleep")]
         if labels[:2] == ["staging", "committing"]:
             return "committing"
-        return labels[0] if labels else cls.build(line)
+        return labels[0] if labels else self.build(line)
 
-    @classmethod
-    def chain_label(cls, part: str, line: str) -> str:
-        label = cls.build(part)
+    def chain_label(self, part: str, line: str) -> str:
+        label = self.build(part)
         if label != IDLE:
             return label
-        return cls.build(CommandShape.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
+        return self.build(CommandShape.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
 
-    @classmethod
-    def build(cls, part: str) -> str:
+    def build(self, part: str) -> str:
         shaped = CommandShape.inner(CommandShape.working(part))
-        if (inner := CommandWrappers.inner(shaped)) != shaped:
-            return cls.build(inner)
-        tokens = TOKEN_PATTERN.findall(shaped.split("<<", 1)[0])
-        arguments = [w for index, w in enumerate(tokens) if not w.startswith("-") and "=" not in w and (index == 0 or tokens[index - 1] not in VALUED_FLAGS)]
+        if (inner := self.classifier.unwrapped(shaped)) != shaped:
+            script = self.unshelled(inner)
+            return self.build(script) if script else self.classifier.row_classification(shaped).label or f"running {shaped.split()[0].rsplit('/', 1)[-1]}"
+        command = shaped.split("<<", 1)[0]
+        tokens = TOKEN_PATTERN.findall(command)
+        arguments = [word for word in tokens if not word.startswith("-") and "=" not in word]
         runner = tokens[0].rsplit("/", 1)[-1] if tokens else ""
-        if runner in RUNNERS and len(tokens) > 1 and tokens[1] in ("-c", "-"):
+        is_runner = self.classifier.runs_script_file(runner)
+        if is_runner and len(tokens) > 1 and tokens[1] in ("-c", "-"):
             return f"running {runner}"
-        if runner in RUNNERS and len(arguments) > 1 and SCRIPT_FILE.search(arguments[1]):
-            return TESTING if TEST_SCRIPT.search(arguments[1]) else "running a script"
-        arguments = arguments[1:] if arguments and arguments[0].rsplit("/", 1)[-1] in RUNNERS and len(arguments) > 1 else arguments
-        if arguments and TEST_SCRIPT.search(arguments[0]):
-            return TESTING
+        label = self.classifier.row_classification(" ".join(tokens)).label
+        if is_runner and len(arguments) > 1 and SCRIPT_FILE.search(arguments[1]):
+            return label or "running a script"
         if (body := BODY.match(part)):
-            return cls.build(body[1]) if WAITING.match(body[2]) else cls.build(body[2])
+            return self.build(body[1]) if WAITING.match(body[2]) else self.build(body[2])
+        arguments = arguments[1:] if is_runner and not label and len(arguments) > 1 else arguments
         if not arguments or SHELL_SYNTAX.match(arguments[0]):
             return IDLE
-        if EDITING.match(part):
-            return "editing"
-        if arguments[0] == "sed" and not PRINTING_SED.match(part):
-            return "running sed"
-        if WRITING.match(part):
-            return "writing a file"
-        if len(arguments) == 1 and arguments[0] in BARE_RUNS:
-            return BARE_RUNS[arguments[0]]
-        fallback = f"running {arguments[0]}"
-        verb = VERBS.get(arguments[0].rsplit("/", 1)[-1])
-        for word in arguments[1:]:
-            if not isinstance(verb, dict):
-                break
-            verb = verb.get(word.strip("'\""), verb.get(word.rsplit("/", 1)[-1], verb.get(word.split(":")[0], verb.get("", fallback))))
-        if isinstance(verb, dict):
-            verb = verb.get("", fallback)
-        return verb or fallback
+        if (redirected := self.classifier.redirected_label(runner)) and self.classifier.redirect_targets(Part(shaped).stages()[0]):
+            return redirected
+        return label or f"running {arguments[0]}"
+
+    def unshelled(self, line: str) -> str:
+        script = self.classifier.shell_script(line)
+        if not script:
+            return line
+        return "" if ";" in script else script.split("&&")[-1].strip()

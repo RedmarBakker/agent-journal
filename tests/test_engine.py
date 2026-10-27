@@ -2699,7 +2699,9 @@ def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
     import threading
     import time as timing
     from journal.support.merger import Merger
-    from journal.support.part import Part
+    from journal.support.classification_table import ClassificationTable
+    from journal.support.command_classifier import CommandClassifier
+    classify = CommandClassifier(ClassificationTable()).classify
     merger, spans, lock = Merger(), [], threading.Lock()
     def merge(name: str) -> None:
         with merger.turn():
@@ -2717,8 +2719,8 @@ def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
     assert [name for name, _, _ in spans] == ["first", "second", "third"], "turns are served in the order asked for"
     assert all(spans[i][2] <= spans[i + 1][1] for i in range(len(spans) - 1)), "no two turns overlap"
     assert merger.queued() == 0
-    assert Part("git merge feature").is_branch_write() and Part("git -C x pull").is_branch_write() and Part("git commit -qm x").is_branch_write(), "a command that writes the branch goes through the merger"
-    assert not Part("git status").is_branch_write() and not Part("git log -3").is_branch_write() and not Part("ls").is_branch_write(), "a read of git does not wait"
+    assert all(classify(command).changes_version_control for command in ("git merge feature", "git -C x pull", "git commit -qm x")), "a command that writes the branch goes through the merger"
+    assert not any(classify(command).changes_version_control for command in ("git status", "git log -3", "ls")), "a read of git does not wait"
 
 
 
@@ -3657,12 +3659,12 @@ def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that
     for step, fraction in enumerate((63 / 252, 126 / 252, 189 / 252, 200 / 252, 220 / 252, 240 / 252)):
         stalls.seen(4, fraction, step * 5.0)
     stalls.seen(4, 240 / 252, 25.0 + 39.0)
-    judge = ReaderJudge(None, None, stalls, None, None, None, None, None, None)
+    judge = ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None)
     assert judge.stalled_progress(SimpleNamespace(row_id=4)) == [], "a phpunit run that printed its count every 63 tests and sat 39 seconds over slow tests once is no finding"
     lonely = ProgressStalls()
     lonely.seen(5, 0.1, 0.0)
     lonely.seen(5, 0.1, 40.0)
-    assert ReaderJudge(None, None, lonely, None, None, None, None, None, None).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
+    assert ReaderJudge(None, None, lonely, None, None, None, None, None, None, None, None).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
 
 
 def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers_steadily_and_ended_past_the_grace(app: App):

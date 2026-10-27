@@ -1,7 +1,6 @@
 from journal.events.agent.tool_failed import ToolFailed
 from journal.events.agent_listener import AgentListener
 from journal.features.reviewing.support.review_steps import ReviewSteps
-from journal.features.shell.support.activity_label import ActivityLabel
 from journal.repositories.reviewers import Reviewers
 
 
@@ -14,5 +13,5 @@ class ReviewerTestFailed(AgentListener[ToolFailed]):
 
     def handle(self, event: ToolFailed) -> None:
         for reviewer in self.reviewers.session_checkers(event.session):
-            for command in ActivityLabel.test_runs(tuple(part.text for part in event.call.parts)):
+            for command in event.call.test_runs():
                 self.steps.test_failed(reviewer, command)

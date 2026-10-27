@@ -4,9 +4,8 @@ from dataclasses import asdict
 from journal.engine.support.stack_history import StackHistory
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.support.run_cards import RUN
-from journal.features.shell.support.activity_label import ActivityLabel
+from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
-from journal.features.shell.support.activity_label import LONG_RUNS
 from journal.config import Config
 from journal.features.faults.feature import Faults
 from journal.features.faults.faults_options import FaultsOptions
@@ -54,8 +53,8 @@ TIMELINE_POINTS = 200
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring, measures: ModeMeasures, time_source: TimeSource, labels: ActivityLabel) -> None:
+        self.time_source, self.labels = time_source, labels
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
         self.jobs, self.numbers, self.registry, self.settings, self.scoring, self.measures = jobs, numbers, registry, settings, scoring, measures
 
@@ -74,7 +73,7 @@ class AgentActivity:
     def work(self, entry, entries) -> str:
         call = entry.recorded_call()
         unended = self.unended_part(entries)
-        labels = [unended.data.get("doing", "")] if unended else [ActivityLabel.build(part.text) for part in call.parts[:1]]
+        labels = [unended.data.get("doing", "")] if unended else [self.labels.build(part.text) for part in call.parts[:1]]
         return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:

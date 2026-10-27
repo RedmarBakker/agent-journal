@@ -75,26 +75,9 @@ class Chain:
         return [part.text for part in cls.parts(line) if part.recorded]
 
     @classmethod
-    def work(cls, line: str) -> str:
-        owned = [part for part in cls.parts(line) if part.recorded]
-        if not owned or not all(part.is_read() or part.is_search() for part in owned):
-            return "running"
-        return "searching" if any(part.is_search() for part in owned) else "reading"
-
-    @classmethod
     def is_journal_line(cls, line: str) -> bool:
         journal, parts = cls.journal_parts(line)
         return parts > 0 and journal == parts
-
-    @classmethod
-    def is_read_line(cls, line: str) -> bool:
-        owned = [p for p in cls.parts(line) if p.recorded]
-        return bool(owned) and all(p.is_read() for p in owned)
-
-    @classmethod
-    def is_reading_code_line(cls, line: str) -> bool:
-        owned = [p for p in cls.parts(line) if p.recorded]
-        return any(p.is_reading_code() for p in owned) and all(p.is_reading_code() or p.is_harmless() or p.is_project_cd() for p in owned)
 
     @classmethod
     def is_journal_poll(cls, parts: list[str]) -> bool:

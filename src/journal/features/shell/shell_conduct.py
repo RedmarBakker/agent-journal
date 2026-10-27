@@ -9,13 +9,11 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
-from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.folder_change import FolderChange
 from journal.features.shell.support.project_paths import ProjectPaths
 from journal.features.shell.support.piped_journal_command import PipedJournalCommand
 from journal.features.shell.support.piped_test_run import PipedTestRun
-from journal.features.shell.support.activity_label import LONG_RUNS
 from journal.models.alias import Alias
 from journal.support.alias_call import AliasCall
 from journal.support.chain import Chain
@@ -38,7 +36,6 @@ BACKGROUND_CHECK_DELAY_SECONDS = 300.0
 ALIAS_RUNS = 3
 READER_RUNS = 5
 COUNTING_SUGGESTION_RUNS = 50
-TESTING = "testing"
 
 
 class ShellConduct(Conduct):
@@ -104,7 +101,7 @@ def project_path_check(state: BaseState, event: ToolStarting, settings: Settings
 def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     shell = event.data.part(ShellPart)
     shape = event.call.recorded().shape
-    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or ActivityLabel.build(shape) not in LONG_RUNS or any(r.commands.is_read(event.call.command) for r in shell.readers):
+    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or not any(part.classification.is_long_run for part in event.call.parts) or any(r.commands.is_read(event.call.command) for r in shell.readers):
         return state.none()
     tip = ShellNudges.NEW_READER_SUGGESTION.create(command=shape)
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
@@ -126,7 +123,7 @@ def covering_aliases(line: str, aliases: tuple[Alias, ...], head_size: int) -> l
 
 
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    program = PipedTestRun.piped_filter(event.call.command, {alias.name: alias for alias in event.data.part(ShellPart).aliases})
+    program = PipedTestRun.piped_filter(event.call.parts, {alias.name: alias for alias in event.data.part(ShellPart).aliases})
     return state.refuse(ShellNudges.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
 
 
@@ -136,8 +133,7 @@ def piped_journal_check(state: BaseState, event: ToolStarting, settings: Setting
 
 
 def counting_reader_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    shape = event.call.recorded().shape
-    if ActivityLabel.build(shape) != TESTING or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
+    if not event.call.test_runs() or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
         return state.none()
     if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(ShellPart).readers):
         return state.none()
@@ -150,7 +146,7 @@ def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     if refusals:
         return state.refuse(refusals[0])
     command, shape = event.call.command, event.call.recorded().shape
-    if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or Chain.is_read_line(command) or " " not in shape:
+    if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or event.call.is_read() or " " not in shape:
         return state.none()
     reader = next((r.name for r in shell.readers if r.commands.is_read(command)), "<the reader that reads its output>")
     tip = ShellNudges.ALIAS_SUGGESTION.create(shape=shape, reader=f" --reader {reader}")

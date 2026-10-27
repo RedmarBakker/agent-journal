@@ -12,6 +12,7 @@ from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.run_processes import RunProcesses
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.scope import Scope
+from journal.support.command_classifier import CommandClassifier
 
 
 class WatchRefresh(Job):
@@ -19,9 +20,9 @@ class WatchRefresh(Job):
 
     interval_seconds = 1.0
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, announcer: Announcer, scope: Scope, stalls: ProgressStalls, processes: RunProcesses, silences: OutputSilences) -> None:
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, announcer: Announcer, scope: Scope, stalls: ProgressStalls, processes: RunProcesses, silences: OutputSilences, classifier: CommandClassifier) -> None:
         self.outputs, self.views, self.card, self.announcer, self.scope, self.stalls, self.processes = outputs, views, card, announcer, scope, stalls, processes
-        self.silences = silences
+        self.silences, self.classifier = silences, classifier
 
     def tick(self, time: float) -> None:
         carded = self.outputs.all_carded()
@@ -29,7 +30,7 @@ class WatchRefresh(Job):
         tree = ProcessTree.read() if any(shells.values()) else ProcessTree([])
         for output in carded:
             if shells[output.row_id]:
-                self.processes.sampled(output.row_id, tree.descendants(shells[output.row_id]))
+                self.processes.sampled(output.row_id, tree.descendants(shells[output.row_id]), self.classifier)
             with self.scope.environment(output.environment_id):
                 view = self.views.view(output)
                 self.stalls.seen(output.row_id, view.fraction, time)

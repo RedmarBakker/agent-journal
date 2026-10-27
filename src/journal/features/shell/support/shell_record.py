@@ -30,7 +30,8 @@ PART_START, PART_END, MOVED, ENDED = "running", "ran", "background", "ended"
 class ShellRecord:
     """What the runner records as a chain runs: each of the agent's own parts as it starts and ends with its status, time, output tail and the files it changed (the edits feature stores the changed lines from the tool's end), the move to the background with its card and event, the end of a moved chain, and whether an ended output is stored under its number or discarded."""
 
-    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue, announcer: Announcer, time_source: TimeSource) -> None:
+    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue, announcer: Announcer, time_source: TimeSource, labels: ActivityLabel) -> None:
+        self.labels = labels
         self.time_source = time_source
         self.announcer = announcer
         self.entries, self.log, self.outputs, self.views = entries, log, outputs, views
@@ -40,10 +41,10 @@ class ShellRecord:
         return self.log.start(chain, command, folder, caller, ran_in).row_id
 
     def started(self, chain: str, part: str, caller: Caller) -> None:
-        self.record(caller, PART_START, {"chain": chain, "part": part, "doing": ActivityLabel.build(part)})
+        self.record(caller, PART_START, {"chain": chain, "part": part, "doing": self.labels.build(part)})
 
     def finish_part(self, chain: str, part: str, status: int, seconds: float, output: str, changed: list[ChangedFile], caller: Caller) -> None:
-        self.record(caller, PART_END, {"chain": chain, "part": part, "doing": ActivityLabel.build(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
+        self.record(caller, PART_END, {"chain": chain, "part": part, "doing": self.labels.build(part), "status": status, "seconds": seconds, "output": output[-TAIL_CHARACTERS:], "changed": [asdict(c) for c in changed]})
         if status == 0 and part.startswith("git "):
             self.git_event(chain, part, caller)
 
@@ -54,7 +55,7 @@ class ShellRecord:
             self.announcer.announce(event)
 
     def moved(self, chain: str, part: str, folder: Path, caller: Caller) -> int:
-        self.record(caller, MOVED, {"chain": chain, "part": part, "doing": ActivityLabel.build(part), "file": str(folder)})
+        self.record(caller, MOVED, {"chain": chain, "part": part, "doing": self.labels.build(part), "file": str(folder)})
         output = self.outputs.save(self.outputs.chain_output(chain).backgrounded(), caller.actor)
         if caller.session is not None:
             self.events.moved(output, caller.session)

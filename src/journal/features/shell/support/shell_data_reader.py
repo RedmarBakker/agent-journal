@@ -32,7 +32,8 @@ RECENT_MOVES = 10
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns) -> None:
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry, silent: SilentRuns, labels: ActivityLabel, probes: ReaderProbes) -> None:
+        self.labels, self.probes = labels, probes
         self.reports, self.registry, self.silent = reports, registry, silent
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
@@ -62,16 +63,16 @@ class ShellDataReader:
     # the test runs and builds the agent moved to the background that no reader reads well, by name: only a run a reader can show is owed one
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
         moves = self.outputs.recent_moves(agent.session, RECENT_MOVES)
-        lines = [output.command for output in moves if ActivityLabel.line_label(output.command) in LONG_RUNS and (not output.watch_reader or ActivityLabel.line_label(output.command) == TESTING)]
+        lines = [output.command for output in moves if self.labels.line_label(output.command) in LONG_RUNS and (not output.watch_reader or self.labels.line_label(output.command) == TESTING)]
         unread = [line for line in lines if not Chain.is_journal_line(line) and not self.is_read_well(line.replace("\n", " && "))]
         return tuple(dict.fromkeys(command for line in unread if (command := CommandShape.command_name(line.replace("\n", " && ")))))
 
     # a test run is read well only by a reader that shows its progress, its failures and its summary, or by one the journal ships
     def is_read_well(self, command: str) -> bool:
         reader = self.readers.reading(command)
-        if reader is None or ActivityLabel.line_label(command) != TESTING:
+        if reader is None or self.labels.line_label(command) != TESTING:
             return reader is not None
-        return reader.name in SHIPPED_READERS or ReaderProbes.reads_test_runs(reader)
+        return reader.name in SHIPPED_READERS or self.probes.reads_test_runs(reader)
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]

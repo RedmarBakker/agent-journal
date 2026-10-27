@@ -14,7 +14,6 @@ from journal.support.heartbeat import HEARTBEAT_INTERVAL_SECONDS, Heartbeat
 from journal.support.process_check import ProcessCheck
 from journal.support.time_source import TimeSource
 from journal.support.merger import Merger
-from journal.support.part import Part
 
 SHELL_SETUP = """
 ulimit -n 65536 2>/dev/null || ulimit -n 10240 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null
@@ -90,7 +89,7 @@ class ChainWorker:
         return shell, pump
 
     def part(self, shell: ShellProcess, folder: OutputFiles, i: int, kind: str, code: int, direct: bool, caller: Caller) -> int:
-        recorded, tail_edges, edges, writes = kind[0] == "R", kind[1] == "&", kind[2] == "&", kind.endswith("w")
+        recorded, tail_edges, edges, writes, branch = kind[0] == "R", kind[1] == "&", kind[2] == "&", kind[3:4] == "w", kind[4:5] == "b"
         text = folder.part_text(i)
         if tail_edges and code != 0:
             folder.ended_with(i, code)
@@ -99,7 +98,7 @@ class ChainWorker:
             self.record.started(folder.folder.name, text, caller)
         previous = self.tree(shell, folder, i, "before") if writes else ""
         began = time.monotonic()
-        status = self.branch_write(shell, folder, i, text, edges, direct) if Part(text).is_branch_write() else self.run_part(shell, folder, i, text, edges, direct)
+        status = self.branch_write(shell, folder, i, text, edges, direct) if branch else self.run_part(shell, folder, i, text, edges, direct)
         following = self.tree(shell, folder, i, "after") if writes else ""
         if recorded:
             self.record.finish_part(folder.folder.name, text, status, round(time.monotonic() - began, 1), folder.output_text(i), self.changed(previous, following), caller)

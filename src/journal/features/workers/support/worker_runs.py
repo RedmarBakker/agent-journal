@@ -11,13 +11,14 @@ MERGE_LINE = "journal worker merge"
 class WorkerRuns:
     """What a worker's commands are doing now, for the viewer: the labels of the runs going on in its session, such as testing or building, and the workers whose work a merge going on now takes in, by number or as one of the checked workers a merge of all takes."""
 
-    def __init__(self, outputs: CommandOutputs) -> None:
+    def __init__(self, outputs: CommandOutputs, labels: ActivityLabel) -> None:
+        self.labels = labels
         self.outputs = outputs
 
     def labels(self, workers: list[Worker]) -> dict[str | None, list[str]]:
         labels: dict[str | None, list[str]] = {}
         for output in self.outputs.session_runs([worker.session for worker in workers if worker.session is not None]):
-            labels.setdefault(output.session, []).append(ActivityLabel.build(output.command))
+            labels.setdefault(output.session, []).append(self.labels.build(output.command))
         return labels
 
     def merging(self, workers: list[Worker]) -> set[int]:

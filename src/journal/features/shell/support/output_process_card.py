@@ -36,8 +36,8 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines) -> None:
-        self.auto_dock, self.git_titles, self.aliases = auto_dock, git_titles, aliases
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, mark_policy: CommandMarkPolicy, auto_dock: AutoDock, git_titles: GitTitles, aliases: AliasLines, labels: ActivityLabel) -> None:
+        self.auto_dock, self.git_titles, self.aliases, self.labels = auto_dock, git_titles, aliases, labels
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.mark_policy = outputs, views, readers, messages, settings, docking, mark_policy
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
@@ -72,7 +72,7 @@ class OutputProcessCard(ProcessCard):
 
     @staticmethod
     def outcome(output: CommandOutput) -> CardOutcome:
-        if ActivityLabel.is_reading(output.command):
+        if self.labels.is_reading(output.command):
             return CardOutcome.NONE
         if not output.ended:
             return CardOutcome.RUNNING
@@ -82,7 +82,7 @@ class OutputProcessCard(ProcessCard):
         reader = self.readers.found(output.watch_reader)
         if GitCommands.is_git_line(output.command) and (plain := self.git_titles.title(output.command, output.ran_in)):
             return plain[:HEADLINE_CHARACTERS]
-        heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or ActivityLabel.chain_label(part, output.command)
+        heading = output.watch_title or (reader.label if reader is not None else "") or self.alias_heading(output, part) or self.labels.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
         full = reader.topic_label.replace("{topic}", topic) if topic and reader.topic_label and not output.watch_title else (f"{heading}: {topic}" if topic else heading)
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]

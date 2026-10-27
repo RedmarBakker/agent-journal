@@ -10,33 +10,29 @@ FILTERS = {"tail", "head", "grep", "egrep", "fgrep", "rg", "ag", "ack", "cut", "
 # a filter that writes the file in place is a command of its own, never a shaping of the output
 IN_PLACE_FILTERS = {"sed", "perl", "awk", "gawk"}
 IN_PLACE = re.compile(r"\s(-[a-zA-Z]*i|--in-place)")
-READERS = {"cat", "sed", "grep", "egrep", "fgrep", "rg", "ag", "head", "tail", "less", "more", "bat", "awk", "jq", "wc", "ls", "find", "tree", "diff", "stat", "file", "nl", "sqlite3"}
-SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "find", "ls", "tree"}
-GIT_READS = {"show", "diff", "log", "status", "blame", "grep", "ls-files"}
-GIT_BRANCH_WRITES = {"merge", "pull", "rebase", "cherry-pick", "revert", "am", "commit"}
-GIT_OPTIONS = {"--no-pager", "-c", "-C", "--git-dir", "--work-tree", "-p", "-P"}
 CODE = re.compile(r"\.(py|pyi|vue|js|mjs|cjs|jsx|ts|tsx|cs|go|rs|swift|kt|kts|java|scala|php|rb|ex|exs|erl|hs|ml|clj|c|h|cc|cpp|hpp|m|mm|lua|dart|r|jl|sh|bash|zsh|fish|ps1|sql|css|scss|sass|less|html|htm|svelte|astro|json|jsonl|yaml|yml|toml|ini|cfg|xml|gradle|tf|proto|graphql|md|txt)\b")
-WRITING = re.compile(r">>?(?!\s*/dev/null|&[0-9])|\btee\b")
-INPLACE_EDITORS = {"sed", "perl"}
 VENDOR_FOLDERS = {"node_modules", "dist", "build", ".venv", "venv", "__pycache__", ".git", ".journal"}
 JOURNAL_OWNED = (".claude/skills", ".agents/skills", ".journal")
 WORKTREES = ".journal/worktrees"
 LOCKS = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "Cargo.lock", "uv.lock", "Pipfile.lock", "composer.lock"}
-HARMLESS = {"echo", "printf", "test", "[", "[[", "true", ":", "pwd", "set"}
+# a quoted word, in single quotes or in double quotes with its escapes
+QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+# a word in single quotes, which the shell runs nothing inside
+SINGLE_QUOTED = re.compile(r"'[^']*'")
 # the operators that join the commands of one part: a pipe, a pipe of both outputs, and an or
 JOINTS = ("||", "|&", "|")
 SEPARATOR = re.compile(r"&&|\|\||;")
-PREFIXES = {"sudo", "env", "nohup", "time", "nice", "command", "exec"}
 
 
 @dataclass(frozen=True)
 class Part:
-    """One command of a chain: whether it is the agent's own, recorded, or the shell's own wrapping, run silently; whether it runs whatever the part before it returned (after a ;) or only after a success (after a &&); and whether a && follows it, so that its failure must not end a shell under set -e. It reads its own tokens as the shell would: quotes removed, a leading comment, env assignments, prefixes and git's own options skipped."""
+    """One command of a chain: whether it is the agent's own, recorded, or the shell's own wrapping, run silently; whether it runs whatever the part before it returned (after a ;) or only after a success (after a &&); whether a && follows it, so that its failure must not end a shell under set -e; and whether it is a read of the project's code that runs whole, its tail never cut. It reads its own tokens as the shell would: quotes removed, a leading comment and env assignments skipped."""
 
     text: str
     recorded: bool = True
     unconditional: bool = True
     guarded: bool = False
+    reads_code: bool = False
 
     def kind(self) -> str:
         return ("R" if self.recorded else "S") + (";" if self.unconditional else "&") + ("&" if self.guarded else ";")
@@ -53,49 +49,31 @@ class Part:
         return "\n".join(lines[next((i for i, line in enumerate(lines) if not line.lstrip().startswith("#")), len(lines)):])
 
     def unquoted(self) -> str:
-        return re.sub(r"'[^']*'|\"(?:\\.|[^\"\\])*\"", " ", self.command_text())
+        return QUOTED.sub(" ", self.command_text())
+
+    def blanked(self) -> str:
+        return QUOTED.sub(" '' ", self.command_text())
+
+    def unexpanded(self) -> str:
+        return SINGLE_QUOTED.sub(" ", self.text)
 
     @staticmethod
     def leads(tokens: list[str]) -> list[str]:
-        while tokens and ("=" in tokens[0] and not tokens[0].startswith("-") or tokens[0] in PREFIXES):
+        while tokens and "=" in tokens[0] and not tokens[0].startswith("-"):
             tokens = tokens[1:]
-        if tokens and tokens[0].rsplit("/", 1)[-1] == "git":
-            remainder = tokens[1:]
-            while remainder and (remainder[0] in GIT_OPTIONS or remainder[0].startswith(("--git-dir=", "--work-tree="))):
-                remainder = remainder[2:] if remainder[0] in ("-c", "-C", "--git-dir", "--work-tree") else remainder[1:]
-            return ["git", *remainder]
         return tokens
 
     def program(self) -> str:
         tokens = self.tokens()
         return tokens[0].rsplit("/", 1)[-1] if tokens else ""
 
-    def is_read(self) -> bool:
-        tokens = self.tokens()
-        return (len(tokens) > 1 and tokens[1] in GIT_READS if self.program() == "git" else self.program() in READERS) and not self.edits_files()
-
-    def is_branch_write(self) -> bool:
-        return self.program() == "git" and self.tokens()[1:2] != [] and self.tokens()[1] in GIT_BRANCH_WRITES
-
-    def is_harmless(self) -> bool:
-        return self.program() in HARMLESS and not WRITING.search(self.unquoted()) and "$(" not in self.text and "`" not in self.text
-
     def is_project_cd(self) -> bool:
         tokens = self.tokens()
         return len(tokens) == 2 and tokens[0] == "cd" and self.is_project_file(tokens[1])
 
-    def is_search(self) -> bool:
-        return self.program() in SEARCHERS or self.program() == "git" and self.tokens()[1:2] == ["grep"] or self.program() == "journal" and self.tokens()[1:2] == ["search"]
-
-    def edits_files(self) -> bool:
-        return self.program() in INPLACE_EDITORS and any(w.startswith(("-i", "-pi")) for w in self.tokens()[1:])
-
-    def is_reading_code(self) -> bool:
-        tokens = self.tokens()
-        if not self.is_read() or self.program() == "sqlite3" or WRITING.search(self.unquoted()) or self.edits_files() or self.tails_forever():
-            return False
-        paths = [word for word in tokens[1:] if CODE.search(word) or self.is_project_path(word) or self.is_journal_owned(word)]
-        return all(self.is_project_file(word) for word in paths) and (bool(paths) or self.is_search() and not self.touches_foreign_folder())
+    def names_project_code(self, is_search: bool) -> bool:
+        paths = [word for word in self.tokens()[1:] if CODE.search(word) or self.is_project_path(word) or self.is_journal_owned(word)]
+        return all(self.is_project_file(word) for word in paths) and (bool(paths) or is_search and not self.touches_foreign_folder())
 
     def touches_foreign_folder(self) -> bool:
         return any(word.startswith(("/", "~", "..", "$")) for word in self.tokens()[1:] if not word.startswith("-"))
@@ -109,6 +87,11 @@ class Part:
             return False
         expanded = os.path.expanduser(word)
         return Path(expanded).exists() or any(ch in word for ch in "*?{") and bool(glob.glob(expanded))
+
+    @classmethod
+    def is_code_target(cls, target: str) -> bool:
+        name = os.path.basename(target.rstrip("/"))
+        return cls.is_project_file(target) and (bool(CODE.search(target)) or "." not in name.lstrip("."))
 
     @staticmethod
     def is_journal_owned(path: str) -> bool:
@@ -134,7 +117,7 @@ class Part:
         return not any(part in VENDOR_FOLDERS for part in parts) and not (parts and parts[-1] in LOCKS)
 
     def cut(self) -> str:
-        if not self.recorded or "<<" in self.text or self.is_reading_code() or self.tails_forever():
+        if not self.recorded or self.reads_code or "<<" in self.text or self.tails_forever():
             return ""
         level, end = (1, self.text.rstrip().rindex(")")) if self.is_subshell() else (0, len(self.text))
         pipes = self.pipe_positions(level)
@@ -172,6 +155,12 @@ class Part:
         cuts = [-1, *self.pipe_positions(0), len(self.text)]
         return [self.text[start + 1:end].lstrip("&").strip() for start, end in zip(cuts, cuts[1:])]
 
+    def commands(self) -> list[str]:
+        joints = self.joints(0)
+        starts = [0, *(position + len(joint) for position, joint in joints)]
+        ends = [*(position for position, _ in joints), len(self.text)]
+        return [self.text[start:end].lstrip("&").strip() for start, end in zip(starts, ends)]
+
     def pipe_positions(self, level: int) -> list[int]:
         return [position for position, joint in self.joints(level) if joint != "||"]
 
@@ -188,7 +177,7 @@ class Part:
                 depth += 1
             elif c in ")}":
                 depth = max(depth - 1, 0)
-            elif c == "|" and depth == level:
+            elif c == "|" and depth == level and self.text[i - 1:i] != ">":
                 joint = next(symbol for symbol in JOINTS if self.text.startswith(symbol, i))
                 found, passed = [*found, (i, joint)], i + len(joint) - 1
         return found

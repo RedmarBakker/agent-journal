@@ -9,6 +9,8 @@ from journal.engine.nudger import Nudger
 from journal.engine.nudge import Nudge
 from journal.repositories.entries import Entries
 from journal.supervisor_link import SupervisorLink
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_lines import CommandLines
 from journal.support.command_shape import CommandShape
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_guess import ReaderGuess
@@ -16,7 +18,6 @@ from journal.features.shell.support.readers import Readers
 from journal.config import Config
 from journal.features.aliases.support.alias_lines import AliasLines
 from journal.features.shell.support.watch_suggestions import WatchSuggestions
-from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
 from journal.models.alias import Alias
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
@@ -53,8 +54,8 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel) -> None:
+        self.time_source, self.classifier, self.lines, self.labels = time_source, classifier, lines, labels
         self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
@@ -67,7 +68,7 @@ class ShellRunner:
         with self.scope.environment(environment), self.stages.timed("shell setup"):
             cap = self.caps.build(request.line)
             folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
-            folder.split(request.line, Chain.parts(request.line))
+            folder.split(request.line, [self.lines.part_with_code_read(part) for part in Chain.parts(request.line)], self.classifier)
             if not cap.is_whole() and not cap.is_direct():
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller, request.cwd))
         self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
@@ -148,7 +149,7 @@ class ShellRunner:
     # any other runs in the foreground until it passes the limit
     def is_long_run(self, part: str, limit: int) -> bool:
         last = self.outputs.last_run(part)
-        return ActivityLabel.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
+        return self.labels.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
 
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
         if caller.session is None:
@@ -180,14 +181,14 @@ class ShellRunner:
         return [*self.suggestions.lines(number, part), *wrapper]
 
     def alias_wrapper_lines(self, alias: Alias) -> list[Nudge]:
-        unwrapped = TimeLimitWrapper.unwrapped(alias.line)
+        unwrapped = self.classifier.time_unlimited(alias.line)
         if unwrapped == alias.line or alias.name in self.wrappers_told:
             return []
         self.wrappers_told.add(alias.name)
         return [ShellNudges.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped)]
 
     def line_wrapper_lines(self, part: str) -> list[Nudge]:
-        unwrapped = TimeLimitWrapper.unwrapped(part)
+        unwrapped = self.classifier.time_unlimited(part)
         shape = CommandShape.build(unwrapped)
         if unwrapped == part or shape in self.wrappers_told:
             return []

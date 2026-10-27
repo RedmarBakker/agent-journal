@@ -8,6 +8,8 @@ from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.shell_record import ShellRecord
 from journal.repositories.command_outputs import CommandOutputs
 from journal.support.chain import Chain
+from journal.support.command_classifier import CommandClassifier
+from journal.support.command_lines import CommandLines
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.features.shell.shell_nudges import ShellNudges
@@ -21,7 +23,8 @@ class ShellVerbs:
     def split(self, line: str, target: str) -> str:
         folder = OutputFiles(Path(target))
         parts = Chain.parts(line)
-        folder.split(line, parts)
+        lines = self.app.container.get(CommandLines)
+        folder.split(line, [lines.part_with_code_read(part) for part in parts], self.app.container.get(CommandClassifier))
         if not Chain.is_journal_line(line):
             with self.scope.environment(self.environment_id):
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(p.text for p in parts if p.recorded), folder.folder, self.caller))

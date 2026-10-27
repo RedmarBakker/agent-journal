@@ -1,6 +1,6 @@
 {
  "about": "What a single shell command is and does: each program's base, the subcommands and options that change it, the wrappers that run another command, and the forms whose meaning the line cannot tell. A concrete command is its base with every modifier it carries; a chain is the union of its parts.",
- "version": 1,
+ "version": 2,
  "kinds": [
   "search",
   "read",
@@ -17,12 +17,14 @@
  ],
  "effects": [
   "reads_files",
+  "prints_files",
   "writes_files",
   "deletes_files",
   "reaches_network",
   "writes_network",
   "changes_version_control",
-  "runs_long"
+  "runs_long",
+  "changes_folder"
  ],
  "redirects": {
   "writes": [
@@ -43,25 +45,82 @@
   ]
  },
  "interpreted": {
-  "note": "code handed to an interpreter (python -c, node -e, a heredoc body, sh -c) cannot be judged from the table; the write check's content markers read it, and the result is uncertain"
+  "note": "code handed to an interpreter (python -c, node -e, a heredoc body, sh -c) cannot be judged from the table: a row marked interpreted is a write, and uncertain, only when its line carries the write check's content markers"
  },
  "unknown": {
   "kind": "unknown",
   "effects": [],
   "note": "a program not in the table: no write for the write gate, recorded so the next round adds it"
  },
+ "scripts": {
+  "(^|/)(tests?|suite)[\\w.-]*\\.(sh|py)$": {
+   "kind": "test run",
+   "effects": [
+    "reads_files",
+    "runs_long"
+   ],
+   "label": "testing",
+   "note": "a script whose name says it runs the tests, run alone or handed to an interpreter"
+  }
+ },
  "wrappers": {
-  "timeout": {
+  "builtin": {
+   "lookup_flags": [
+    "-v",
+    "-V"
+   ]
+  },
+  "bundle": {
+   "subcommands": [
+    "exec"
+   ]
+  },
+  "bunx": {
+   "same_as": "npx"
+  },
+  "caffeinate": {
    "value_flags": [
-    "-s",
-    "--signal",
-    "-k",
-    "--kill-after"
+    "-t",
+    "-w"
+   ]
+  },
+  "command": {
+   "lookup_flags": [
+    "-v",
+    "-V"
+   ]
+  },
+  "docker": {
+   "subcommands": [
+    "exec",
+    "run",
+    "compose run",
+    "compose exec"
+   ],
+   "value_flags": [
+    "-w",
+    "--workdir",
+    "-e",
+    "--env",
+    "--env-file",
+    "-u",
+    "--user",
+    "-v",
+    "--volume",
+    "--name",
+    "--network",
+    "--entrypoint",
+    "--platform",
+    "-p",
+    "--publish",
+    "--mount",
+    "--label",
+    "-f",
+    "--file",
+    "-H",
+    "--host"
    ],
    "leading_values": 1
-  },
-  "gtimeout": {
-   "same_as": "timeout"
   },
   "env": {
    "value_flags": [
@@ -73,39 +132,107 @@
    ],
    "assignments": true
   },
-  "sudo": {
+  "exec": {},
+  "flock": {
    "value_flags": [
-    "-u",
-    "-g",
-    "-C"
-   ]
+    "-w",
+    "-E"
+   ],
+   "leading_values": 1
+  },
+  "gtimeout": {
+   "same_as": "timeout"
+  },
+  "kubectl": {
+   "subcommands": [
+    "exec"
+   ],
+   "value_flags": [
+    "-n",
+    "--namespace",
+    "-c",
+    "--container"
+   ],
+   "until": "--"
+  },
+  "lockf": {
+   "value_flags": [
+    "-t"
+   ],
+   "leading_values": 1
   },
   "nice": {
    "value_flags": [
     "-n"
    ]
   },
+  "nix": {
+   "subcommands": [
+    "develop",
+    "shell"
+   ],
+   "until": "-c"
+  },
   "nohup": {},
-  "time": {
+  "npm": {
+   "subcommands": [
+    "exec"
+   ],
    "value_flags": [
-    "-f",
-    "-o"
+    "--prefix",
+    "-C",
+    "-w",
+    "--workspace"
+   ],
+   "until": "--"
+  },
+  "npx": {
+   "value_flags": [
+    "-p",
+    "--package",
+    "--prefix"
    ]
   },
-  "command": {},
-  "exec": {},
-  "builtin": {},
-  "xargs": {
-   "value_flags": [
-    "-n",
-    "-I",
-    "-J",
-    "-P",
-    "-L",
-    "-d",
-    "-s",
-    "-E"
+  "perl": {
+   "subcommands": [
+    "-e"
+   ],
+   "leading_values": 1,
+   "code_contains": "exec @ARGV",
+   "limits_time": true
+  },
+  "pipenv": {
+   "subcommands": [
+    "run"
    ]
+  },
+  "pnpm": {
+   "subcommands": [
+    "exec",
+    "dlx"
+   ],
+   "value_flags": [
+    "--filter",
+    "-F",
+    "-C",
+    "--dir"
+   ]
+  },
+  "pnpx": {
+   "same_as": "npx"
+  },
+  "poetry": {
+   "subcommands": [
+    "run"
+   ]
+  },
+  "python": {
+   "subcommands": [
+    "-m"
+   ]
+  },
+  "python3": {
+   "same_as": "python"
   },
   "stdbuf": {
    "value_flags": [
@@ -114,85 +241,77 @@
     "-e"
    ]
   },
-  "caffeinate": {
+  "sudo": {
    "value_flags": [
-    "-t",
-    "-w"
+    "-u",
+    "-g",
+    "-C"
    ]
   },
-  "lockf": {
+  "time": {
    "value_flags": [
-    "-t"
-   ],
-   "leading_values": 1
+    "-f",
+    "-o"
+   ]
   },
-  "flock": {
+  "timeout": {
    "value_flags": [
-    "-w",
-    "-E"
+    "-s",
+    "--signal",
+    "-k",
+    "--kill-after"
    ],
-   "leading_values": 1
-  },
-  "npx": {
-   "value_flags": [
-    "-p",
-    "--package"
-   ],
-   "options_first": true
+   "leading_values": 1,
+   "limits_time": true
   },
   "uv": {
-   "subcommand": "run",
    "value_flags": [
     "--with",
     "--python",
     "-p",
     "--project",
     "--directory"
+   ],
+   "subcommands": [
+    "run"
    ]
   },
-  "poetry": {
-   "subcommand": "run"
-  },
-  "pipenv": {
-   "subcommand": "run"
-  },
-  "bundle": {
-   "subcommand": "exec"
-  },
-  "pnpm": {
-   "subcommand": "exec"
-  },
-  "yarn": {
-   "subcommand": "exec"
-  },
-  "docker": {
-   "subcommand": "exec",
+  "xargs": {
    "value_flags": [
-    "-w",
-    "--workdir",
-    "-e",
-    "--env",
-    "-u",
-    "--user"
-   ],
-   "leading_values": 1
+    "--arg-file",
+    "-E",
+    "-I",
+    "-J",
+    "-L",
+    "-P",
+    "-a",
+    "-d",
+    "-n",
+    "-s"
+   ]
   },
-  "kubectl": {
-   "subcommand": "exec",
+  "xvfb-run": {
    "value_flags": [
     "-n",
-    "--namespace",
-    "-c",
-    "--container"
-   ],
-   "until": "--"
+    "-s",
+    "-e",
+    "-f",
+    "-p",
+    "-w"
+   ]
+  },
+  "yarn": {
+   "subcommands": [
+    "exec",
+    "dlx"
+   ]
   }
  },
  "programs": {
   ".": {
    "kind": "process",
    "effects": [],
-   "uncertain": true
+   "interpreted": true
   },
   ":": {
    "kind": "read",
@@ -222,7 +341,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running apt"
    },
    "subcommands": {
     "install": {
@@ -231,7 +351,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "update": {
      "kind": "package",
@@ -239,7 +360,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -247,7 +369,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running apt-get"
    },
    "subcommands": {
     "install": {
@@ -256,7 +379,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "update": {
      "kind": "package",
@@ -264,7 +388,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -274,7 +399,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "awk": {
@@ -304,7 +430,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "base64": {
@@ -320,20 +447,24 @@
   "bash": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
-   "runs": "the script after -c"
+   "runs": "the script after -c",
+   "interpreted": true,
+   "runs_script_file": true,
+   "starts_processes": true
   },
   "bat": {
    "kind": "read",
    "effects": [
-    "reads_files"
+    "reads_files",
+    "prints_files"
    ]
   },
   "bazel": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running bazel"
    },
    "subcommands": {
     "test": {
@@ -341,7 +472,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -349,7 +481,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -358,7 +491,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "black": {
@@ -379,7 +513,8 @@
       "reads_files"
      ]
     }
-   }
+   },
+   "label": "checking code"
   },
   "blender": {
    "kind": "process",
@@ -392,7 +527,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running brew"
    },
    "subcommands": {
     "install": {
@@ -401,7 +537,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "list": {
      "kind": "package",
@@ -433,7 +570,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running bun"
    },
    "subcommands": {
     "test": {
@@ -441,7 +579,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "install": {
      "kind": "package",
@@ -449,7 +588,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "add": {
      "kind": "package",
@@ -457,7 +597,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "build": {
      "kind": "build",
@@ -465,7 +606,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "run": {
      "kind": "process",
@@ -478,24 +620,31 @@
         "reads_files",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "building"
       },
       "test": {
        "kind": "test run",
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       }
-     }
+     },
+     "label": "running a script"
     }
-   }
+   },
+   "value_flags": [
+    "--cwd"
+   ]
   },
   "bundle": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running bundle"
    },
    "subcommands": {
     "install": {
@@ -504,7 +653,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -521,7 +671,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "check": {
      "kind": "build",
@@ -529,33 +680,38 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "test": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "nextest": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "clippy": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "fmt": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "fetch": {
      "kind": "package",
@@ -563,24 +719,32 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "run": {
      "kind": "process",
      "effects": [],
-     "uncertain": true
+     "uncertain": true,
+     "label": "running cargo"
     }
    }
   },
   "cat": {
    "kind": "read",
    "effects": [
-    "reads_files"
-   ]
+    "reads_files",
+    "prints_files"
+   ],
+   "label": "reading",
+   "redirected_label": "writing a file"
   },
   "cd": {
    "kind": "read",
-   "effects": []
+   "effects": [
+    "changes_folder"
+   ],
+   "label": "moving"
   },
   "chmod": {
    "kind": "edit",
@@ -601,7 +765,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "claude": {
@@ -619,7 +784,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "cmp": {
@@ -650,7 +816,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running composer"
    },
    "subcommands": {
     "install": {
@@ -659,7 +826,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "require": {
      "kind": "package",
@@ -667,7 +835,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "update": {
      "kind": "package",
@@ -675,7 +844,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    },
    "value_flags": [
@@ -696,7 +866,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "curl": {
@@ -766,19 +937,22 @@
       "writes_files"
      ]
     }
-   }
+   },
+   "label": "fetching"
   },
   "cut": {
    "kind": "read",
    "effects": [
     "reads_files"
-   ]
+   ],
+   "label": "reading"
   },
   "cypress": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running cypress"
    },
    "subcommands": {
     "run": {
@@ -786,7 +960,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -794,7 +969,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running dart"
    },
    "subcommands": {
     "compile": {
@@ -803,20 +979,23 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "test": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "analyze": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "pub": {
      "kind": "process",
@@ -829,11 +1008,16 @@
         "reaches_network",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "installing"
       }
-     }
+     },
+     "label": "running dart"
     }
    }
+  },
+  "dash": {
+   "same_as": "sh"
   },
   "date": {
    "kind": "read",
@@ -843,7 +1027,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running deno"
    },
    "subcommands": {
     "test": {
@@ -851,7 +1036,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "compile": {
      "kind": "build",
@@ -859,7 +1045,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -868,7 +1055,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "df": {
@@ -897,7 +1085,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running dnf"
    },
    "subcommands": {
     "install": {
@@ -906,7 +1095,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -944,7 +1134,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "pull": {
      "kind": "package",
@@ -973,7 +1164,13 @@
      "effects": [
       "runs_long"
      ],
-     "uncertain": true
+     "uncertain": true,
+     "label": "running docker",
+     "subcommands": {
+      "build": {
+       "label": "building"
+      }
+     }
     },
     "rm": {
      "kind": "process",
@@ -1010,13 +1207,15 @@
      "effects": [],
      "uncertain": true
     }
-   }
+   },
+   "label": "running docker"
   },
   "dotnet": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running dotnet"
    },
    "subcommands": {
     "build": {
@@ -1025,7 +1224,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "publish": {
      "kind": "build",
@@ -1033,14 +1233,16 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "test": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "restore": {
      "kind": "package",
@@ -1048,13 +1250,15 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "format": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     }
    }
   },
@@ -1066,7 +1270,8 @@
   },
   "echo": {
    "kind": "read",
-   "effects": []
+   "effects": [],
+   "redirected_label": "writing a file"
   },
   "egrep": {
    "kind": "search",
@@ -1085,7 +1290,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "eslint": {
@@ -1100,7 +1306,8 @@
       "writes_files"
      ]
     }
-   }
+   },
+   "label": "checking code"
   },
   "eval": {
    "kind": "process",
@@ -1159,21 +1366,24 @@
      ],
      "runs": "until ;"
     }
-   }
+   },
+   "label": "searching"
   },
   "flake8": {
    "base": {
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "flutter": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running flutter"
    },
    "subcommands": {
     "build": {
@@ -1182,14 +1392,16 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "test": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "pub": {
      "kind": "process",
@@ -1202,9 +1414,11 @@
         "reaches_network",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "installing"
       }
-     }
+     },
+     "label": "running flutter"
     }
    }
   },
@@ -1223,7 +1437,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "gawk": {
@@ -1247,14 +1462,16 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "gem": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running gem"
    },
    "subcommands": {
     "install": {
@@ -1263,7 +1480,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -1516,7 +1734,8 @@
      ],
      "uncertain": true
     }
-   }
+   },
+   "label": "on github"
   },
   "git": {
    "base": {
@@ -1530,7 +1749,8 @@
      "kind": "version control",
      "effects": [
       "changes_version_control"
-     ]
+     ],
+     "label": "committing"
     },
     "push": {
      "kind": "version control",
@@ -1551,7 +1771,8 @@
         "reaches_network"
        ]
       }
-     }
+     },
+     "label": "pushing to origin"
     },
     "pull": {
      "kind": "version control",
@@ -1559,13 +1780,15 @@
       "changes_version_control",
       "reaches_network",
       "writes_files"
-     ]
+     ],
+     "label": "pulling"
     },
     "add": {
      "kind": "version control",
      "effects": [
       "changes_version_control"
-     ]
+     ],
+     "label": "staging"
     },
     "checkout": {
      "kind": "version control",
@@ -1573,76 +1796,88 @@
       "changes_version_control",
       "writes_files"
      ],
-     "uncertain": true
+     "uncertain": true,
+     "label": "switching branch"
     },
     "merge": {
      "kind": "version control",
      "effects": [
       "changes_version_control",
       "writes_files"
-     ]
+     ],
+     "label": "merging"
     },
     "rebase": {
      "kind": "version control",
      "effects": [
       "changes_version_control",
       "writes_files"
-     ]
+     ],
+     "label": "rebasing"
     },
     "status": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking git"
     },
     "diff": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "reading a diff"
     },
     "show": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "reading a diff"
     },
     "log": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "reading history"
     },
     "rev-list": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "reading history"
     },
     "grep": {
      "kind": "search",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "searching"
     },
     "ls-files": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "listing"
     },
     "switch": {
      "kind": "version control",
      "effects": [
       "changes_version_control",
       "writes_files"
-     ]
+     ],
+     "label": "switching branch"
     },
     "tag": {
      "kind": "version control",
      "effects": [
       "changes_version_control"
-     ]
+     ],
+     "label": "tagging"
     },
     "branch": {
      "kind": "version control",
@@ -1680,26 +1915,30 @@
         "changes_version_control"
        ]
       }
-     }
+     },
+     "label": "listing"
     },
     "fetch": {
      "kind": "version control",
      "effects": [
       "changes_version_control",
       "reaches_network"
-     ]
+     ],
+     "label": "fetching"
     },
     "ls-remote": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking git"
     },
     "rev-parse": {
      "kind": "version control",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking git"
     },
     "stash": {
      "kind": "version control",
@@ -1940,7 +2179,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running go"
    },
    "subcommands": {
     "test": {
@@ -1948,7 +2188,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -1956,13 +2197,15 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "vet": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "mod": {
      "kind": "process",
@@ -1975,7 +2218,8 @@
         "reaches_network",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "installing"
       },
       "download": {
        "kind": "package",
@@ -1983,9 +2227,11 @@
         "reaches_network",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "installing"
       }
-     }
+     },
+     "label": "running go"
     }
    }
   },
@@ -2001,14 +2247,16 @@
       "writes_files"
      ]
     }
-   }
+   },
+   "label": "checking code"
   },
   "golangci-lint": {
    "base": {
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "gotestsum": {
@@ -2017,14 +2265,16 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "gradle": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running gradle"
    },
    "subcommands": {
     "test": {
@@ -2032,14 +2282,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "check": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -2047,7 +2299,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assemble": {
      "kind": "build",
@@ -2055,7 +2308,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assembleDebug": {
      "kind": "build",
@@ -2063,7 +2317,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assembleRelease": {
      "kind": "build",
@@ -2071,7 +2326,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -2079,7 +2335,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running gradle"
    },
    "subcommands": {
     "test": {
@@ -2087,14 +2344,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "check": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -2102,7 +2361,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assemble": {
      "kind": "build",
@@ -2110,7 +2370,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assembleDebug": {
      "kind": "build",
@@ -2118,7 +2379,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "assembleRelease": {
      "kind": "build",
@@ -2126,7 +2388,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -2134,7 +2397,8 @@
    "kind": "search",
    "effects": [
     "reads_files"
-   ]
+   ],
+   "label": "searching"
   },
   "gunzip": {
    "kind": "edit",
@@ -2159,14 +2423,17 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "head": {
    "kind": "read",
    "effects": [
-    "reads_files"
-   ]
+    "reads_files",
+    "prints_files"
+   ],
+   "label": "reading"
   },
   "hexdump": {
    "kind": "read",
@@ -2199,7 +2466,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "javac": {
@@ -2209,7 +2477,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "jest": {
@@ -2218,7 +2487,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "jobs": {
@@ -2227,7 +2497,18 @@
   },
   "journal": {
    "kind": "journal",
-   "effects": []
+   "effects": [],
+   "subcommands": {
+    "search": {
+     "kind": "search",
+     "effects": []
+    },
+    "suite": {
+     "label": "testing"
+    }
+   },
+   "label": "journalling",
+   "starts_processes": true
   },
   "jq": {
    "kind": "read",
@@ -2239,7 +2520,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running just"
    },
    "subcommands": {
     "test": {
@@ -2247,13 +2529,15 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "lint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "build": {
      "kind": "build",
@@ -2261,7 +2545,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -2269,7 +2554,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running karma"
    },
    "subcommands": {
     "start": {
@@ -2277,7 +2563,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -2294,7 +2581,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "launchctl": {
@@ -2305,8 +2593,10 @@
   "less": {
    "kind": "read",
    "effects": [
-    "reads_files"
-   ]
+    "reads_files",
+    "prints_files"
+   ],
+   "label": "reading"
   },
   "ln": {
    "kind": "edit",
@@ -2321,10 +2611,11 @@
    ]
   },
   "ls": {
-   "kind": "read",
+   "kind": "search",
    "effects": [
     "reads_files"
-   ]
+   ],
+   "label": "listing"
   },
   "lsof": {
    "kind": "process",
@@ -2337,7 +2628,9 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building",
+    "starts_processes": true
    },
    "subcommands": {
     "test": {
@@ -2345,20 +2638,23 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "check": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "lint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "install": {
      "kind": "package",
@@ -2366,16 +2662,24 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
-   }
+   },
+   "value_flags": [
+    "--directory",
+    "--file",
+    "-C",
+    "-f"
+   ]
   },
   "markdownlint": {
    "base": {
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "md5": {
@@ -2398,7 +2702,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running mix"
    },
    "subcommands": {
     "test": {
@@ -2406,7 +2711,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "compile": {
      "kind": "build",
@@ -2414,7 +2720,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "deps.get": {
      "kind": "package",
@@ -2422,13 +2729,15 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "format": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     }
    }
   },
@@ -2444,14 +2753,17 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "more": {
    "kind": "read",
    "effects": [
-    "reads_files"
-   ]
+    "reads_files",
+    "prints_files"
+   ],
+   "label": "reading"
   },
   "mv": {
    "kind": "edit",
@@ -2463,7 +2775,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running mvn"
    },
    "subcommands": {
     "test": {
@@ -2471,14 +2784,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "verify": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "package": {
      "kind": "build",
@@ -2486,7 +2801,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "compile": {
      "kind": "build",
@@ -2494,7 +2810,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "install": {
      "kind": "build",
@@ -2502,7 +2819,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "clean": {
      "kind": "build",
@@ -2517,16 +2835,19 @@
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       },
       "verify": {
        "kind": "test run",
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       }
-     }
+     },
+     "label": "building"
     },
     "dependency:resolve": {
      "kind": "package",
@@ -2534,16 +2855,26 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
-   }
+   },
+   "value_flags": [
+    "--file",
+    "--projects",
+    "--settings",
+    "-f",
+    "-pl",
+    "-s"
+   ]
   },
   "mypy": {
    "base": {
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "nc": {
@@ -2559,14 +2890,16 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "nix": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running nix"
    },
    "subcommands": {
     "build": {
@@ -2575,7 +2908,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -2588,14 +2922,8 @@
   "node": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
-   "modifiers": {
-    "-e": {
-     "kind": "process",
-     "effects": [],
-     "uncertain": true
-    }
-   }
+   "interpreted": true,
+   "runs_script_file": true
   },
   "nox": {
    "base": {
@@ -2603,7 +2931,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "npm": {
@@ -2618,7 +2947,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "run": {
      "kind": "process",
@@ -2631,28 +2961,33 @@
         "reads_files",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "building"
       },
       "test": {
        "kind": "test run",
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       },
       "lint": {
        "kind": "check",
        "effects": [
         "reads_files"
-       ]
+       ],
+       "label": "checking code"
       },
       "typecheck": {
        "kind": "check",
        "effects": [
         "reads_files"
-       ]
+       ],
+       "label": "checking code"
       }
-     }
+     },
+     "label": "running a script"
     },
     "install": {
      "kind": "package",
@@ -2660,7 +2995,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "ci": {
      "kind": "package",
@@ -2668,7 +3004,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "ls": {
      "kind": "package",
@@ -2721,6 +3058,7 @@
    },
    "value_flags": [
     "--prefix",
+    "-C",
     "-w",
     "--workspace"
    ]
@@ -2758,21 +3096,21 @@
    "effects": [
     "reads_files"
    ],
-   "uncertain": true,
    "modifiers": {
     "-i": {
      "kind": "edit",
      "effects": [
       "writes_files"
      ],
-     "dialects": "-pi and -i.bak cluster the flag with others"
-    },
-    "-e": {
-     "kind": "process",
-     "effects": [],
-     "uncertain": true
+     "dialects": "-pi and -i.bak cluster the flag with others",
+     "label": "editing"
     }
-   }
+   },
+   "interpreted": true,
+   "value_flags": [
+    "-e",
+    "-E"
+   ]
   },
   "pest": {
    "base": {
@@ -2780,7 +3118,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "pgrep": {
@@ -2791,7 +3130,7 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "interpreted": true
    },
    "subcommands": {
     "artisan": {
@@ -2804,23 +3143,27 @@
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       }
-     }
+     },
+     "label": "running artisan"
     },
     "phpunit": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "pest": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    },
    "modifiers": {
@@ -2829,11 +3172,6 @@
      "effects": [
       "reads_files"
      ]
-    },
-    "-r": {
-     "kind": "process",
-     "effects": [],
-     "uncertain": true
     }
    }
   },
@@ -2842,7 +3180,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "phpstan": {
@@ -2850,7 +3189,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "phpunit": {
@@ -2858,7 +3198,8 @@
    "effects": [
     "reads_files",
     "runs_long"
-   ]
+   ],
+   "label": "testing"
   },
   "ping": {
    "kind": "network",
@@ -2888,7 +3229,8 @@
      "reaches_network",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "installing"
    }
   },
   "pip3": {
@@ -2898,7 +3240,8 @@
      "reaches_network",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "installing"
    }
   },
   "pipx": {
@@ -2908,7 +3251,8 @@
      "reaches_network",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "installing"
    }
   },
   "pkill": {
@@ -2919,7 +3263,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running playwright"
    },
    "subcommands": {
     "test": {
@@ -2927,7 +3272,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -2935,7 +3281,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running a script"
    },
    "subcommands": {
     "test": {
@@ -2943,7 +3290,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -2951,7 +3299,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "install": {
      "kind": "package",
@@ -2959,7 +3308,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "i": {
      "kind": "package",
@@ -2967,7 +3317,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "add": {
      "kind": "package",
@@ -2975,7 +3326,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "run": {
      "kind": "process",
@@ -2988,56 +3340,71 @@
         "reads_files",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "building"
       },
       "test": {
        "kind": "test run",
        "effects": [
         "reads_files",
         "runs_long"
-       ]
+       ],
+       "label": "testing"
       },
       "lint": {
        "kind": "check",
        "effects": [
         "reads_files"
-       ]
+       ],
+       "label": "checking code"
       }
-     }
+     },
+     "label": "running a script"
     },
     "vitest": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "jest": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "eslint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "lint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     }
-   }
+   },
+   "value_flags": [
+    "--filter",
+    "-F",
+    "-C",
+    "--dir"
+   ]
   },
   "poetry": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running poetry"
    },
    "subcommands": {
     "install": {
@@ -3046,7 +3413,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "add": {
      "kind": "package",
@@ -3054,9 +3422,13 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
+  },
+  "popd": {
+   "same_as": "cd"
   },
   "prettier": {
    "kind": "check",
@@ -3076,7 +3448,8 @@
       "writes_files"
      ]
     }
-   }
+   },
+   "label": "checking code"
   },
   "printenv": {
    "kind": "read",
@@ -3084,7 +3457,8 @@
   },
   "printf": {
    "kind": "read",
-   "effects": []
+   "effects": [],
+   "redirected_label": "writing a file"
   },
   "ps": {
    "kind": "process",
@@ -3095,8 +3469,12 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
+  },
+  "pushd": {
+   "same_as": "cd"
   },
   "pwd": {
    "kind": "read",
@@ -3119,7 +3497,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "pyright": {
@@ -3127,7 +3506,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "pytest": {
@@ -3136,25 +3516,15 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "python": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
-   "modifiers": {
-    "-c": {
-     "kind": "process",
-     "effects": [],
-     "uncertain": true
-    },
-    "-m": {
-     "kind": "process",
-     "effects": [],
-     "uncertain": true
-    }
-   }
+   "interpreted": true,
+   "runs_script_file": true
   },
   "python3": {
    "same_as": "python"
@@ -3163,7 +3533,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running rails"
    },
    "subcommands": {
     "test": {
@@ -3171,14 +3542,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "test:system": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -3186,7 +3559,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running rake"
    },
    "subcommands": {
     "test": {
@@ -3194,14 +3568,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "spec": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -3225,7 +3601,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running rebar3"
    },
    "subcommands": {
     "compile": {
@@ -3234,21 +3611,24 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "eunit": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "ct": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -3260,7 +3640,8 @@
    "kind": "search",
    "effects": [
     "reads_files"
-   ]
+   ],
+   "label": "searching"
   },
   "rm": {
    "kind": "edit",
@@ -3281,7 +3662,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "rspec": {
@@ -3290,7 +3672,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "rsync": {
@@ -3305,13 +3688,14 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "ruby": {
    "kind": "process",
    "effects": [],
-   "uncertain": true
+   "interpreted": true
   },
   "ruff": {
    "kind": "check",
@@ -3353,7 +3737,8 @@
       }
      }
     }
-   }
+   },
+   "label": "checking code"
   },
   "sample": {
    "kind": "process",
@@ -3363,7 +3748,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running sbt"
    },
    "subcommands": {
     "test": {
@@ -3371,14 +3757,16 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "testOnly": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "compile": {
      "kind": "build",
@@ -3386,7 +3774,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -3398,10 +3787,18 @@
     "writes_files"
    ]
   },
+  "script": {
+   "kind": "process",
+   "effects": [],
+   "uncertain": true,
+   "starts_processes": true,
+   "note": "script records a terminal session of the command it starts"
+  },
   "sed": {
    "kind": "read",
    "effects": [
-    "reads_files"
+    "reads_files",
+    "prints_files"
    ],
    "modifiers": {
     "-i": {
@@ -3409,12 +3806,26 @@
      "effects": [
       "writes_files"
      ],
-     "dialects": "BSD sed takes a suffix word after -i, '' for none; GNU sed takes it attached, -i.bak"
+     "dialects": "BSD sed takes a suffix word after -i, '' for none; GNU sed takes it attached, -i.bak",
+     "label": "editing"
     },
     "--in-place": {
      "same_as": "-i"
+    },
+    "-n": {
+     "label": "reading"
+    },
+    "--quiet": {
+     "same_as": "-n"
     }
-   }
+   },
+   "value_flags": [
+    "-e",
+    "-f",
+    "--expression",
+    "--file"
+   ],
+   "label": "running sed"
   },
   "set": {
    "kind": "read",
@@ -3430,8 +3841,10 @@
   "sh": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
-   "runs": "the script after -c"
+   "runs": "the script after -c",
+   "interpreted": true,
+   "runs_script_file": true,
+   "starts_processes": true
   },
   "sha256sum": {
    "kind": "read",
@@ -3450,7 +3863,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "shred": {
@@ -3480,7 +3894,7 @@
   "source": {
    "kind": "process",
    "effects": [],
-   "uncertain": true
+   "interpreted": true
   },
   "sqlite3": {
    "kind": "read",
@@ -3494,7 +3908,6 @@
    "effects": [
     "reaches_network"
    ],
-   "uncertain": true,
    "runs": "the words after the host"
   },
   "stat": {
@@ -3514,14 +3927,16 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "swift": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running swift"
    },
    "subcommands": {
     "build": {
@@ -3530,14 +3945,16 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "test": {
      "kind": "test run",
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -3546,7 +3963,8 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "sysctl": {
@@ -3556,13 +3974,15 @@
   "tail": {
    "kind": "read",
    "effects": [
-    "reads_files"
+    "reads_files",
+    "prints_files"
    ],
    "modifiers": {
     "-f": {
      "kind": "read",
      "effects": [
       "reads_files",
+      "prints_files",
       "runs_long"
      ]
     },
@@ -3570,10 +3990,12 @@
      "kind": "read",
      "effects": [
       "reads_files",
+      "prints_files",
       "runs_long"
      ]
     }
-   }
+   },
+   "label": "reading"
   },
   "tar": {
    "kind": "read",
@@ -3614,7 +4036,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running task"
    },
    "subcommands": {
     "test": {
@@ -3622,13 +4045,15 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "lint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "build": {
      "kind": "build",
@@ -3636,7 +4061,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -3644,7 +4070,8 @@
    "kind": "edit",
    "effects": [
     "writes_files"
-   ]
+   ],
+   "label": "writing a file"
   },
   "terraform": {
    "kind": "network",
@@ -3708,7 +4135,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "tr": {
@@ -3716,7 +4144,7 @@
    "effects": []
   },
   "tree": {
-   "kind": "read",
+   "kind": "search",
    "effects": [
     "reads_files"
    ]
@@ -3744,7 +4172,8 @@
      ]
     }
    },
-   "uncertain": true
+   "uncertain": true,
+   "label": "checking code"
   },
   "tsup": {
    "base": {
@@ -3753,7 +4182,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "type": {
@@ -3780,7 +4210,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "unlink": {
@@ -3807,7 +4238,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running uv"
    },
    "subcommands": {
     "sync": {
@@ -3816,7 +4248,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "add": {
      "kind": "package",
@@ -3824,7 +4257,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "lock": {
      "kind": "package",
@@ -3832,7 +4266,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "pip": {
      "kind": "process",
@@ -3845,9 +4280,11 @@
         "reaches_network",
         "writes_files",
         "runs_long"
-       ]
+       ],
+       "label": "installing"
       }
-     }
+     },
+     "label": "running uv"
     }
    }
   },
@@ -3855,7 +4292,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running vite"
    },
    "subcommands": {
     "build": {
@@ -3864,7 +4302,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -3874,7 +4313,8 @@
     "effects": [
      "reads_files",
      "runs_long"
-    ]
+    ],
+    "label": "testing"
    }
   },
   "vm_stat": {
@@ -3906,7 +4346,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    }
   },
   "wget": {
@@ -3915,7 +4356,8 @@
     "effects": [
      "reaches_network",
      "writes_files"
-    ]
+    ],
+    "label": "fetching"
    }
   },
   "whereis": {
@@ -3943,7 +4385,8 @@
      "reads_files",
      "writes_files",
      "runs_long"
-    ]
+    ],
+    "label": "building"
    },
    "subcommands": {
     "test": {
@@ -3951,7 +4394,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     }
    }
   },
@@ -3972,14 +4416,17 @@
     "kind": "check",
     "effects": [
      "reads_files"
-    ]
+    ],
+    "label": "checking code"
    }
   },
   "yarn": {
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running a script",
+    "bare_label": "installing"
    },
    "subcommands": {
     "test": {
@@ -3987,7 +4434,8 @@
      "effects": [
       "reads_files",
       "runs_long"
-     ]
+     ],
+     "label": "testing"
     },
     "build": {
      "kind": "build",
@@ -3995,7 +4443,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     },
     "install": {
      "kind": "package",
@@ -4003,7 +4452,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "add": {
      "kind": "package",
@@ -4011,21 +4461,27 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     },
     "lint": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     },
     "tsc": {
      "kind": "check",
      "effects": [
       "reads_files"
-     ]
+     ],
+     "label": "checking code"
     }
-   }
+   },
+   "value_flags": [
+    "--cwd"
+   ]
   },
   "yes": {
    "kind": "process",
@@ -4049,7 +4505,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running yum"
    },
    "subcommands": {
     "install": {
@@ -4058,7 +4515,8 @@
       "reaches_network",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "installing"
     }
    }
   },
@@ -4072,7 +4530,8 @@
    "base": {
     "kind": "process",
     "effects": [],
-    "uncertain": true
+    "uncertain": true,
+    "label": "running zig"
    },
    "subcommands": {
     "build": {
@@ -4081,7 +4540,8 @@
       "reads_files",
       "writes_files",
       "runs_long"
-     ]
+     ],
+     "label": "building"
     }
    }
   },
@@ -4095,8 +4555,10 @@
   "zsh": {
    "kind": "process",
    "effects": [],
-   "uncertain": true,
-   "runs": "the script after -c"
+   "runs": "the script after -c",
+   "interpreted": true,
+   "runs_script_file": true,
+   "starts_processes": true
   }
  }
 }

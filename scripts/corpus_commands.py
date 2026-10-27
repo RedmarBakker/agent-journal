@@ -8,6 +8,7 @@ from pathlib import Path
 
 from journal.providers.codex import Codex
 from journal.support.chain import Chain
+from journal.support.classification_table import ClassificationTable
 from journal.support.command_shape import CommandShape
 from journal.support.part import Part
 
@@ -114,21 +115,21 @@ def main(private_words: list[str], out: Path) -> None:
     for command in unique:
         groups.setdefault(CommandShape.command_name(command) or command.split()[0], []).append(json.dumps(command, ensure_ascii=False))
     out.write_text("\n\n".join("\n".join(sorted(lines)) for _, lines in sorted(groups.items())) + "\n")
-    out.with_name(PROJECT_COUNTS).write_text(json.dumps(project_counts(by_project), indent=1, sort_keys=True) + "\n")
+    out.with_name(PROJECT_COUNTS).write_text(json.dumps(project_counts(by_project, ClassificationTable()), indent=1, sort_keys=True) + "\n")
     print(f"{len(unique)} unique commands in {len(groups)} groups from {len(folders)} project folders and {sum(len(found) for _, found in codex)} Codex commands written to {out}")
 
 
 # how many projects ran each program, and each program with its first word after it, read from every part of every command; a fixture
 # ships only what several projects ran, since a project's own scripts, make targets and npm script names give the project away
-def project_counts(by_project: dict[str, list[str]]) -> dict[str, int]:
+def project_counts(by_project: dict[str, list[str]], table: ClassificationTable) -> dict[str, int]:
     counts: Counter = Counter()
     for found in by_project.values():
-        counts.update({key for command in found for part in Chain.split(command) for key in program_keys(part)})
+        counts.update({key for command in found for part in Chain.split(command) for key in program_keys(part, table)})
     return dict(counts)
 
 
-def program_keys(part: str) -> list[str]:
-    words = Part(part).tokens()
+def program_keys(part: str, table: ClassificationTable) -> list[str]:
+    words = table.unwrapped(Part(part).tokens())
     program = words[0].rsplit("/", 1)[-1] if words else ""
     subcommand = words[1] if len(words) > 1 and SUBCOMMAND_WORD.fullmatch(words[1]) else ""
     return [key for key in (program, f"{program} {subcommand}" if subcommand else "") if key]

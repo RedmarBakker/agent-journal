@@ -12,4 +12,4 @@ class ToolCalls:
         self.providers, self.aliases, self.classifier = providers, aliases, classifier
 
     def build(self, hook: Hook) -> ToolCall:
-        return self.providers.lookup(hook.provider).call(hook.tool, hook.input, self.aliases.names()).classified(self.classifier)
+        return self.providers.lookup(hook.provider).call(hook.tool, hook.input, self.aliases.names(), self.classifier)

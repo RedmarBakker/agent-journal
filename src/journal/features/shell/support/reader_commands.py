@@ -6,9 +6,6 @@ from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 
 COMMANDS_PREFIX = "commands: "
-# a part whose standard output goes to a file, or that only asks the program its version or its help, shows no run of it on a card
-FILE_REDIRECT = re.compile(r"(?:^|\s)[1&]?>>?\s*\S+")
-HELP_FLAGS = ("--version", "--help", "-h", "-V")
 JOURNAL = "journal"
 
 
@@ -39,7 +36,3 @@ class ReaderCommands:
 
     def read_aliases(self, aliases: list[Alias]) -> list[Alias]:
         return [alias for alias in aliases if self.reads(alias.expanded(""))]
-
-    def is_shown_run(self, line: str) -> bool:
-        part = self.read_part(line)
-        return bool(part) and not FILE_REDIRECT.search(part) and not any(flag in part.split() for flag in HELP_FLAGS)

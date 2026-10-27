@@ -11,7 +11,6 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
-from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.tasks_part import TasksPart
@@ -37,7 +36,7 @@ class WorkingTask(BaseState):
             return self.refuse(WorkersNudges.EDIT_LOCK.create())
         if any(part.is_git for part in event.call.parts):
             return self.refuse(WorkersNudges.WORKER_GIT_REFUSAL.create())
-        tests = ActivityLabel.test_runs(tuple(part.text for part in event.call.parts))
+        tests = event.call.test_runs()
         refusal = TESTING_REFUSALS.get(str(settings.value(WorkersOptions.TESTING)))
         return self.refuse(refusal.create(command=tests[0])) if tests and refusal else self.none()
 

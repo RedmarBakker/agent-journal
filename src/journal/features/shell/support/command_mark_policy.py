@@ -16,8 +16,8 @@ SHORT_RUN_SECONDS = 5
 class CommandMarkPolicy:
     """Whether a run may have a mark in the chat and a reader: a line that only reads, searches or lists may not, unless the same command took long before, nor may a pause (sleep), nor a line of git or GitHub commands alone, whose commit and push marks say it; either may once it failed. A mark written before these rules is stray when its run was a git line, failed or not, never moved to the background, may have no mark, or is of a command that never ran past SHORT_RUN_SECONDS."""
 
-    def __init__(self, outputs: CommandOutputs) -> None:
-        self.outputs = outputs
+    def __init__(self, outputs: CommandOutputs, labels: ActivityLabel) -> None:
+        self.outputs, self.labels = outputs, labels
 
     def forbids_mark(self, output: CommandOutput) -> bool:
         if output.ended and not output.is_success():
@@ -30,7 +30,7 @@ class CommandMarkPolicy:
         return bool(parts) and any(CommandShape.command_name(part) == "sleep" for part in parts) and all(CommandShape.command_name(part).partition(" ")[0] in PAUSE_COMMANDS for part in parts)
 
     def is_quick_read(self, line: str) -> bool:
-        if not ActivityLabel.is_reading(line):
+        if not self.labels.is_reading(line):
             return False
         last = self.outputs.last_run(line)
         return last is None or last.run_seconds() < LONG_READ_SECONDS
@@ -38,6 +38,5 @@ class CommandMarkPolicy:
     def is_stray_mark(self, output: CommandOutput) -> bool:
         return GitCommands.is_git_line(output.command) or not output.moved or self.forbids_mark(output) or self.outputs.longest_run_seconds(output.command) < SHORT_RUN_SECONDS
 
-    @staticmethod
-    def takes_no_reader(command: str) -> bool:
-        return GitCommands.is_git(command) or ActivityLabel.build(command) in READ_LABELS
+    def takes_no_reader(self, command: str) -> bool:
+        return GitCommands.is_git(command) or self.labels.build(command) in READ_LABELS

@@ -16,20 +16,21 @@ TESTING = "testing"
 class ReaderProbes:
     """What a reader picks of fixed sample lines, so a reader that filters nothing, or a test run's reader that would miss both the summary and the failures of a real run, is refused when it is added, whatever the stored run it was tried on happened to print."""
 
+    def __init__(self, labels: ActivityLabel) -> None:
+        self.labels = labels
+
     @staticmethod
     def unfiltered_patterns(reader: Reader) -> list[str]:
         patterns = {"--pattern": reader.pattern, "--finished": reader.finished_pattern, "--failed": reader.failed_pattern}
         return [flag for flag, pattern in patterns.items() if pattern and all(re.search(pattern, line) for line in UNRELATED_LINES)]
 
-    @staticmethod
-    def is_test_reader(reader: Reader) -> bool:
-        return any(ActivityLabel.line_label(program) == TESTING for program in reader.commands.programs)
+    def is_test_reader(self, reader: Reader) -> bool:
+        return any(self.labels.line_label(program) == TESTING for program in reader.commands.programs)
 
     # a test run's reader selects what a person needs at its end, its summary or its failures; progress is asked of it only once a
     # run prints a count, while it runs, since demanding it of a runner that prints none would bring a progress that lies
-    @classmethod
-    def test_run_misses(cls, reader: Reader) -> list[str]:
-        if reader.script or not cls.is_test_reader(reader):
+    def test_run_misses(self, reader: Reader) -> list[str]:
+        if reader.script or not self.is_test_reader(reader):
             return []
         summaries = any(reader.variant(FINISHED).card_lines([line]) or reader.variant(FAILED).card_lines([line]) for line in TEST_SUMMARIES)
         failures = reader.card_lines(list(TEST_FAILURES)) or reader.variant(FAILED).card_lines(list(TEST_FAILURES))
@@ -37,6 +38,5 @@ class ReaderProbes:
             return []
         return [f"it reads a test run and selects neither its summary, such as \"{TEST_SUMMARIES[0].strip()}\", nor its failures, such as \"{TEST_FAILURES[0]}\": give it a --finished and a --failed pattern for the summary of the runner and a pattern for its failed tests"]
 
-    @classmethod
-    def reads_test_runs(cls, reader: Reader) -> bool:
-        return bool(reader.script) or not cls.test_run_misses(reader)
+    def reads_test_runs(self, reader: Reader) -> bool:
+        return bool(reader.script) or not self.test_run_misses(reader)

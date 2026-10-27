@@ -3480,7 +3480,9 @@ def test_a_reply_naming_several_messages_answers_each_and_a_journal_command_afte
 
 def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_once(app: App):
     from pathlib import Path
+    from journal.support.command_lines import CommandLines
     from journal.support.part import Part
+    lines = app.container.get(CommandLines)
     here = str(Path.cwd())
     stored = [
         "grep -n foo src/journal/app.py | tail -5", "grep -rn 'def x' src --include=*.py | tail -20", "rg -n token src/web/src/App.vue | tail -3",
@@ -3494,8 +3496,8 @@ def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_o
         "cat src/journal/app.py ~/secret.py | tail -5", "cat .journal/runtime/supervisor.log | tail -5", "sed -i '' 's/a/b/' src/journal/app.py | tail -1",
         "npm run build | tail -3",
     ]
-    assert [line for line in stored if Part(line).cut()] == [], "a read of the project's own code keeps its tail and runs as written"
-    assert [line for line in cut if not Part(line).cut()] == [], "a test run, a build, a log, a file outside the project and a read that writes keep their tail cut"
+    assert [line for line in stored if lines.part_with_code_read(Part(line)).cut()] == [], "a read of the project's own code keeps its tail and runs as written"
+    assert [line for line in cut if not lines.part_with_code_read(Part(line)).cut()] == [], "a test run, a build, a log, a file outside the project and a read that writes keep their tail cut"
     console = app.console()
     for i, line in enumerate(stored[:4]):
         folder = app.config.root / f"code{i}"
@@ -3662,10 +3664,11 @@ def test_the_command_table_follows_its_schema_and_names_only_its_own_kinds_and_e
     assert {"git", "sed", "rm", "curl", "pytest", "journal"} <= set(table["programs"]) and {"timeout", "env", "xargs"} <= set(table["wrappers"])
 
 
-def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
-    from journal.support.writes import Writes
+def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent(app: App):
+    from journal.support.command_lines import CommandLines
     from journal.support.chain import Chain
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     assert Chain.split('a $(b; c) && (d; e) || f; g "h && i" | tail -1') == ["a $(b; c)", "(d; e) || f", 'g "h && i" | tail -1']
     assert Chain.split("for f in a b; do echo $f; done && if true; then echo y; fi; case $x in a) echo a;; esac && ls") == ["for f in a b; do echo $f; done", "if true; then echo y; fi", "case $x in a) echo a;; esac", "ls"]
     assert Chain.split("echo `echo a; echo b` && cat <<EOF && echo x\nbody; with && stuff\nEOF") == ["echo `echo a; echo b`", "cat <<EOF && echo x\nbody; with && stuff\nEOF"]
@@ -3695,10 +3698,10 @@ def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
     heredoc = "source /s 2>/dev/null || true && eval 'cd src && python3 - <<'\"'\"'EOF'\"'\"'\nprint(1)\nEOF' && pwd -P >| /tmp/cwd"
     chained_after = "python3 - <<'EOF'\nimport pathlib\npathlib.Path('tests/a.py').write_text('x')\nEOF\npython3 -m pytest -q tests/a.py 2>&1 | tail -1 && python3 -m pytest -q 2>&1 | tail -15"
     assert [p.text[:20] for p in Chain.parts(chained_after)] == ["python3 - <<'EOF'\nim", "python3 -m pytest -q", "python3 -m pytest -q"], "a heredoc ends at its terminator line, and the commands after it are parts of their own"
-    assert not Writes.is_code_write_line(chained_after), "a test run chained behind a script that edits code is no edit of code: the line goes through the runner and its limit"
+    assert not app.container.get(CommandLines).is_code_write(chained_after), "a test run chained behind a script that edits code is no edit of code: the line goes through the runner and its limit"
     assert [p.text for p in Chain.parts(heredoc) if p.recorded] == ["cd src", "python3 - <<'EOF'\nprint(1)\nEOF"], "a command with a heredoc comes without < /dev/null and is still the agent's own"
-    assert [ActivityLabel.build(c) for c in ("git commit -m x", "python3 -m pytest -q | tail -2", "cd src", "npm run build", "foo --bar", "python3 - <<'EOF'\nprint(1)\nEOF")] == ["committing", "testing", "moving", "building", "running foo", "running python3"]
-    assert [ActivityLabel.build(c) for c in ("npm --prefix src/web run build", "npm run dev", "npx vitest run tests/a.test.js", "make -C src")] == ["building", "running a script", "testing", "building"], "a flag's value is no part of what the command does, and a build or a test through npm is one"
+    assert [labels.build(c) for c in ("git commit -m x", "python3 -m pytest -q | tail -2", "cd src", "npm run build", "foo --bar", "python3 - <<'EOF'\nprint(1)\nEOF")] == ["committing", "testing", "moving", "building", "running foo", "running python3"]
+    assert [labels.build(c) for c in ("npm --prefix src/web run build", "npm run dev", "npx vitest run tests/a.test.js", "make -C src")] == ["building", "running a script", "testing", "building"], "a flag's value is no part of what the command does, and a build or a test through npm is one"
 
 
 def test_the_foreground_limit_is_fifteen_seconds_or_ten_while_a_message_waits(app: App):
@@ -3723,7 +3726,7 @@ def test_a_chains_parts_are_recorded_and_a_moved_chain_reports_when_it_ends(app:
     console, port = app.console(), app.server().port
     folder = app.config.root / "c1"
     folder.mkdir()
-    assert ShellVerbs(app).split("cd src && pytest -q | tail -1; git commit -m 'a\nb'", str(folder)) == "R;&-\nR&;-\nR;;-\n"
+    assert ShellVerbs(app).split("cd src && pytest -q | tail -1; git commit -m 'a\nb'", str(folder)) == "R;&--\nR&;--\nR;;-b\n", "each part's kind, then whether it writes and whether it changes version control, so a commit waits for the merger"
     assert [(folder / f"{i}.part").read_text() for i in range(3)] == ["cd src", "pytest -q", "git commit -m 'a\nb'"]
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git commit -m done"}, tool_use_id="t-1")
     ShellVerbs(app).started("git commit -m done", "c1")
@@ -3912,8 +3915,9 @@ def test_an_edit_keeps_its_files_text_before_and_after_and_a_picture_is_served(a
 
 
 def test_a_shell_line_that_writes_is_a_write_to_the_gates(app: App):
-    from journal.support.writes import Writes
-    assert [Writes.build(c) for c in ("sed -i '' s/a/b/ f.py", "cat f.py | head -3", "echo hi > /dev/null", "echo hi > out.txt", "git status; git log", "git checkout -- f.py", "`journal task create` x", "python3 - <<'EOF'\nfrom pathlib import Path\nPath('x').write_text('y')\nEOF", "python3 -c 'print(1)'", "grep -rn 'a > b' src | tee found.txt", 'echo "a > b"')] == [True, False, False, True, False, True, False, True, False, True, False]
+    from journal.support.command_classifier import CommandClassifier
+    classifier = app.container.get(CommandClassifier)
+    assert [Claude().call("Bash", {"command": c}, frozenset(), classifier).writes for c in ("sed -i '' s/a/b/ f.py", "cat f.py | head -3", "echo hi > /dev/null", "echo hi > out.txt", "git status; git log", "git checkout -- f.py", "`journal task create` x", "python3 - <<'EOF'\nfrom pathlib import Path\nPath('x').write_text('y')\nEOF", "python3 -c 'print(1)'", "grep -rn 'a > b' src | tee found.txt", 'echo "a > b"')] == [True, False, False, True, False, True, False, True, False, True, False]
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
@@ -4462,6 +4466,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
     from journal.features.shell.support.readers import Readers
     from journal.models.command_output import CommandOutput
     from journal.models.support.worker_moves import WorkerMoves
+    from journal.support.command_classifier import CommandClassifier
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
@@ -4480,7 +4485,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
     from journal.repositories.run_history import RunHistory
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers), app.container.get(RunHistory))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers, app.container.get(CommandClassifier)), app.container.get(RunHistory))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.with_output(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -9955,9 +9960,10 @@ def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_shor
 def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_command_is_named_by_what_it_wraps(app: App):
     """A reader that puts a line of code on the user's card, or picks nothing, is reported by the reader judge once its run ends; a time-limiting wrapper is looked through when a card or the line names what the command does."""
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     from journal.features.shell.support.output_log import OutputLog
     from journal.repositories.command_outputs import CommandOutputs
-    assert ActivityLabel.build("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "testing" and ActivityLabel.build("timeout 60 npm test") == "testing"
+    assert labels.build("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "testing" and labels.build("timeout 60 npm test") == "testing"
     from journal.support.command_shape import CommandShape
     assert CommandShape.build("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest", "variables set before a command are looked through, as the time-limit wrappers are"
     assert CommandShape.build("A=1 B='two words' pytest -q") == CommandShape.build("pytest -k chat") == "pytest", "two commands that differ only in the variables set before them are one shape"
@@ -10071,13 +10077,14 @@ def test_a_file_changed_by_a_shell_command_keeps_its_changed_lines(app: App):
     assert [(r["kind"], r["text"]) for r in second.rows if r["kind"] != "ctx"] == [("del", "two"), ("add", "TWO"), ("add", "three")], "a later change is told against the version the journal saw last"
 
 
-def test_a_shell_line_says_whether_it_reads_searches_or_runs():
-    from journal.support.chain import Chain
-    wrapped = lambda line: f"source /s 2>/dev/null || true && eval '{line}' < /dev/null && pwd -P >| /tmp/cwd"
-    assert Chain.work(wrapped("sed -n 1,20p src/a.py")) == "reading", "a read through the shell is reading, so the figure shows its book"
-    assert Chain.work(wrapped("grep -rn foo src && cat b.py")) == "searching", "a line that only reads, with a search in it, is searching"
-    assert Chain.work(wrapped("journal search find hammer")) == "searching", "the journal's own search is searching, as a grep is"
-    assert Chain.work(wrapped("npm run build")) == "running", "anything else runs"
+def test_a_shell_line_says_whether_it_reads_searches_or_runs(app: App):
+    from journal.support.command_classifier import CommandClassifier
+    classifier = app.container.get(CommandClassifier)
+    work = lambda line: Claude().call("Bash", {"command": f"source /s 2>/dev/null || true && eval '{line}' < /dev/null && pwd -P >| /tmp/cwd"}, frozenset(), classifier).work
+    assert work("sed -n 1,20p src/a.py") == "reading", "a read through the shell is reading, so the figure shows its book"
+    assert work("grep -rn foo src && cat b.py") == "searching", "a line that only reads, with a search in it, is searching"
+    assert work("journal search find hammer") == "searching", "the journal's own search is searching, as a grep is"
+    assert work("npm run build") == "running", "anything else runs"
 
 
 def checkout_commits(app: App, count: int) -> list[str]:
@@ -10364,6 +10371,42 @@ def test_the_classifier_reads_each_command_by_its_program_subcommands_options_wr
     assert not classify("./scripts/x.sh").writes and classify("git checkout main").writes and classify("git checkout main").uncertain, "unknown is no write, uncertain a write"
     assert classify("cd x && make test").kind == "test run" and classify("Get-ChildItem -Recurse").kind == "unknown", "a chain takes its weightiest part; a PowerShell line is unknown"
     assert app.container.get(CommandClassifier) is app.container.get(CommandClassifier), "the table is read once"
+
+
+def test_the_readers_of_a_call_read_the_classification_it_carries_and_an_entry_written_before_reads_back_as_written(app: App):
+    """Task 3773: whether a call writes, its files, its work word, its test runs and the piped test guard are read from each part's classification, an unknown program is no write and gets a mark and a reader like any run, an uncertain form is a write, and a stored call from before the classifier keeps its write flag and files."""
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
+    from journal.features.shell.support.piped_test_run import PipedTestRun
+    from journal.support.classification import Classification
+    from journal.support.command_classifier import CommandClassifier
+    from journal.support.recorded_call import RecordedCall
+    classifier, labels, policy = app.container.get(CommandClassifier), app.container.get(ActivityLabel), app.container.get(CommandMarkPolicy)
+    call = lambda line: Claude().call("Bash", {"command": line}, frozenset(), classifier)
+    tests = call("cd src && python3 -m pytest -q | tail -3")
+    assert tests.test_runs() == ["python3 -m pytest -q | tail -3"] and not tests.writes and tests.work == "running" and tests.table_version == classifier.version, "a test run is a test run by its classification, never a write"
+    assert PipedTestRun.piped_filter(tests.parts, {}) == "tail", "and the guard reads it piped into a filter from the part's classification"
+    unknown = call("./scripts/build.sh")
+    assert not unknown.writes and unknown.parts[0].classification.kind == "unknown", "a program the table does not know is no write"
+    assert not policy.takes_no_reader("./scripts/build.sh") and not labels.is_reading("./scripts/build.sh"), "and under the mark rules it is a run like any other, never a quiet read"
+    assert call("git checkout main").writes and call("echo a >| f").writes and call("for f in a b; do echo $f; done > out.txt").writes, "an uncertain form, a clobbering redirect and a loop sent into a file are writes"
+    old = RecordedCall.parsed({"command": "rm x", "parts": [{"text": "rm x", "is_journal": False, "writes": True, "files": ["x"], "reads_output": False, "read_shape": "rm x"}], "writes": True, "written_paths": ["x"]})
+    assert old.writes and old.parts[0].writes and old.parts[0].files == ("x",) and old.parts[0].classification == Classification() and old.table_version == 0, "an entry stored before the classifier reads back with its own write flag and files"
+
+
+def test_the_classifier_reads_through_groups_loops_test_scripts_and_wrappers_and_names_the_files_a_command_writes_or_prints(app: App):
+    """Task 3773: the table is the one place a program's meaning lives, so a subshell, a loop's body, a test script by its name, a time limit, a container and npm exec are read through by the classifier, and the files a part writes or prints, and the command a process runs, are read from it too."""
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.support.command_classifier import CommandClassifier
+    classifier, labels = app.container.get(CommandClassifier), app.container.get(ActivityLabel)
+    runs = ["(cd x && pytest -q)", "for f in a b; do pytest $f; done", "./scripts/test.sh", "python3 scripts/suite.py", "perl -e 'alarm 60; exec @ARGV' npx vitest run",
+            "docker run --rm -v x:/app node:20 npm test", "kubectl exec pod -- pytest", "npm --prefix web exec -- vitest run", "npm test 2>&1 | tee log"]
+    assert [line for line in runs if not classifier.classify_line(line).is_test_run] == [], "each is a test run, read through what wraps it"
+    assert not classifier.classify_line("perl -e 'print 1' f").is_test_run and labels.build("command -v jq") == "running command", "code that is no time limit, and a lookup, wrap nothing"
+    assert classifier.classify_line("(cd x && pytest -q)").label == "testing" and labels.build("sed -i '' s/a/b/ f") == "editing" and labels.build("yarn") == "installing", "labels are rows of the table: a chain's is its weightiest part's"
+    assert classifier.target_paths("cp a.py b.py") == ("a.py", "b.py") and classifier.target_paths("echo hi > notes.txt") == ("notes.txt",) and classifier.target_paths("npm run build") == (), "an edit names its files, a build does not"
+    assert "x.py" in classifier.read_paths("sed -n 1,5p x.py") and classifier.read_paths("grep -rn x src") == (), "a printing read names its files, a search does not"
+    assert classifier.process_command("docker exec -w /src t go test ./...") == "go test ./..." and classifier.process_command("make check") == "", "a process is known by what runs beneath its wrapper"
 
 
 def test_a_plugin_heard_after_the_reply_never_delays_a_hook_and_a_holding_one_is_cut_at_the_deadline(app: App):
@@ -13985,13 +14028,14 @@ def test_a_pool_worker_dispatched_with_report_each_reports_after_each_task(app: 
     assert pushes == [1]
 
 
-def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_different_work_raises_a_report(tmp_path):
+def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_different_work_raises_a_report(app: App, tmp_path):
     from types import SimpleNamespace
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import MIXED_TITLE, ReaderJudge
-    assert ActivityLabel.line_label("npm --prefix src/web exec -- vitest run tests/a.test.js") == "testing" and ActivityLabel.line_label("npm exec -- vitest run") == "testing", "npm exec runs the program after it"
-    assert ActivityLabel.line_label("npm --prefix src/web run build") == "building", "and npm --prefix <folder> run build is still a build"
+    assert labels.line_label("npm --prefix src/web exec -- vitest run tests/a.test.js") == "testing" and labels.line_label("npm exec -- vitest run") == "testing", "npm exec runs the program after it"
+    assert labels.line_label("npm --prefix src/web run build") == "building", "and npm --prefix <folder> run build is still a build"
 
     def run(number: int, command: str, text: str) -> SimpleNamespace:
         folder = tmp_path / f"run-{number}"
@@ -14004,7 +14048,7 @@ def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_diff
     reader = Reader("viewer-build", "the viewer", label="Building the viewer")
     same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
     mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
-    judge = lambda runs, aliases={}: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None, SimpleNamespace(index=lambda: aliases))
+    judge = lambda runs, aliases={}: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs), None, None, SimpleNamespace(index=lambda: aliases), None, None)
     assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
     found = judge(mixed).mixed_title(reader, mixed[0])
     assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
@@ -17642,12 +17686,14 @@ def test_a_run_that_printed_nothing_for_a_long_stretch_raises_no_reader_report_a
     assert any("showed no progress" in finding for finding in shown) and not any("printed nothing" in finding for finding in shown), "lines that came throughout with a percentage the reader did not show are the reader's to fix"
 
 
-def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
+def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read(app: App):
     from journal.features.shell.support.reader_commands import ReaderCommands
-    pytest_runs = ReaderCommands(("pytest",))
-    assert pytest_runs.is_shown_run("python3 -m pytest -p no:warnings tests/test_x.py 2>&1"), "a plain run, its errors joined to its output, is shown"
-    assert not pytest_runs.is_shown_run("S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py"), "a run whose output goes to a file shows nothing on the card"
-    assert not pytest_runs.is_shown_run("command -v uv\npython3 -m pytest --version"), "asking the tool its version is no run of it"
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    reader, judge = Reader("pytest", "the tests", pattern=".", commands=ReaderCommands(("pytest",))), app.container.get(ReaderJudge)
+    assert judge.is_shown_run(reader.commands, "python3 -m pytest -p no:warnings tests/test_x.py 2>&1"), "a plain run, its errors joined to its output, is shown"
+    assert not judge.is_shown_run(reader.commands, "S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py"), "a run whose output goes to a file shows nothing on the card"
+    assert not judge.is_shown_run(reader.commands, "command -v uv\npython3 -m pytest --version"), "asking the tool its version is no run of it"
     from journal.features.shell.support.card_line import CardLine
     assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
     assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"
@@ -18134,11 +18180,11 @@ def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_
 
 def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alias_or_its_line(app: App):
     from journal.features.shell.support.shell_runner import ShellRunner
-    from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
+    from journal.support.command_classifier import CommandClassifier
     from journal.models.alias import Alias
-
-    assert TimeLimitWrapper.unwrapped("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest -q"
-    assert TimeLimitWrapper.unwrapped("timeout 600 npm test") == "npm test" and TimeLimitWrapper.unwrapped("gtimeout --signal=KILL 10m make") == "make"
+    unlimited = app.container.get(CommandClassifier).time_unlimited
+    assert unlimited("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest -q" and unlimited("perl -e 'print 1' x") == "perl -e 'print 1' x"
+    assert unlimited("timeout 600 npm test") == "npm test" and unlimited("gtimeout --signal=KILL 10m make") == "make" and unlimited("env CI=1 npm test") == "env CI=1 npm test", "only a wrapper that limits the time comes off"
     runner = app.container.get(ShellRunner)
     suite = Alias(name="suite", line="perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q")
     told = [line.rendered() for line in runner.alias_wrapper_lines(suite)]
@@ -19032,10 +19078,11 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
     from journal.chat.process_cards import ProcessCards
     from journal.chat.process_card_contents import ProcessCardContents
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     from journal.repositories.messages import Messages
     from journal.support.card_type import CardType
-    assert ActivityLabel.build("(cd src/web && npx vitest run 2>&1 | grep -E x | head -5)") == "testing", "a subshell is read through to the command doing the work"
-    assert ActivityLabel.build("cd src") == "moving"
+    assert labels.build("(cd src/web && npx vitest run 2>&1 | grep -E x | head -5)") == "testing", "a subshell is read through to the command doing the work"
+    assert labels.build("cd src") == "moving"
     cards, scope = app.container.get(ProcessCards), app.container.get(Scope)
 
     def show():
@@ -19122,7 +19169,8 @@ def test_an_alias_with_a_reader_piped_into_tail_head_or_cat_is_refused_and_its_c
     assert expanded == "sh -c 'echo one; echo two' ./cli/hooks/ 2>&1 --verbose | tail -4", expanded
 
 
-def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when_its_bar_counts_suites_not_tests():
+def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when_its_bar_counts_suites_not_tests(app: App):
+    from journal.support.command_classifier import CommandClassifier
     from types import SimpleNamespace
     from journal.features.shell.support.process_tree import ProcessTree
     from journal.features.shell.support.reader_judge import SUITES_COUNTED, ReaderJudge
@@ -19131,16 +19179,16 @@ def test_the_journal_sees_the_test_processes_a_watched_run_started_and_says_when
     shell = "100 1 /bin/bash scripts/tested\n"
     cases = {
         "one slow package": (shell + "101 100 go test ./pkg\n102 101 /tmp/go-build1/b001/pkg.test -test.v\n", Progress(0, 1), "go test ./pkg", 1),
-        "pytest shards": (shell + "101 100 make test\n102 101 python3 -m pytest tests/a\n103 101 python3 -m pytest tests/b\n104 101 python3 -m pytest tests/c\n", Progress(1, 3), "python3 -m pytest tests/a", 3),
-        "xdist workers": (shell + "101 100 python3 -m pytest -n 4\n" + "".join(f"{102 + n} 101 python -c import sys;exec(eval(sys.stdin.readline()))\n" for n in range(4)), Progress(50, 100), "python3 -m pytest -n 4", 5),
+        "pytest shards": (shell + "101 100 make test\n102 101 python3 -m pytest tests/a\n103 101 python3 -m pytest tests/b\n104 101 python3 -m pytest tests/c\n", Progress(1, 3), "pytest tests/a", 3),
+        "xdist workers": (shell + "101 100 python3 -m pytest -n 4\n" + "".join(f"{102 + n} 101 python -c import sys;exec(eval(sys.stdin.readline()))\n" for n in range(4)), Progress(50, 100), "pytest -n 4", 5),
         "docker exec around go test": (shell + "101 100 docker exec -w /src tester go test ./...\n102 101 go test ./...\n103 102 /tmp/a.test\n104 102 /tmp/b.test\n105 102 /tmp/c.test\n", Progress(1, 3), "go test ./...", 3),
         "make around several runners": (shell + "101 100 make check\n102 101 go test ./...\n103 102 /tmp/a.test\n104 102 /tmp/b.test\n105 101 vitest run\n", Progress(2, 3), "go test ./...", 3),
         "a run that counts tests": (shell + "101 100 go test -v ./pkg\n102 101 /tmp/pkg.test -test.v\n", Progress(40, 400), "go test -v ./pkg", 1),
         "children that are no tests": (shell + "101 100 sleep 30\n102 100 node server.js\n", Progress(1, 3), "sleep 30", 0),
     }
-    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None, None)
+    judge = ReaderJudge(None, None, None, None, None, None, processes := RunProcesses(), None, None, None, None)
     for number, (name, (listing, progress, inner, count)) in enumerate(cases.items(), 1):
-        processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100))
+        processes.sampled(number, ProcessTree.parsed("1 0 /sbin/init\n" + listing).descendants(100), app.container.get(CommandClassifier))
         assert processes.test_count(number) == count and processes.inner_command(number) == inner, name
         found = judge.counted_suites(SimpleNamespace(progress=lambda lines, progress=progress: progress), SimpleNamespace(row_id=number, command="scripts/tested"), [])
         assert bool(found) == (name not in ("xdist workers", "a run that counts tests", "children that are no tests")), name
@@ -19711,8 +19759,9 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     holder.join()
 
 
-def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_or_its_setup():
+def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_or_its_setup(app: App):
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     from journal.support.chain import Chain
     from journal.support.command_shape import CommandShape
     shape = lambda line: CommandShape.chain_shape(tuple(part.text for part in Chain.parts(line)))
@@ -19721,7 +19770,7 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     assert CommandShape.command_name("do found=$(git log --all -S foo)").startswith("git log") and CommandShape.command_name("done < words.txt") == ""
     assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
     assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
-    assert ActivityLabel.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in ActivityLabel.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
+    assert labels.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in labels.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
 
 
 def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_team_settings(app: App):
@@ -19891,6 +19940,21 @@ def test_every_line_of_the_command_corpus_carries_every_expectation():
     assert not half, f"{len(half)} corpus lines lack an expectation (line, parts, and a reading of work, reader, needs, cut and label), the first: {half[:5]}"
 
 
+def test_every_line_of_the_command_corpus_writes_as_the_classifier_reads_it_and_differs_from_the_old_rule_only_where_frozen(app: App):
+    """The write gate reads the classification (task 3773): writes_before.json holds the corpus lines the hand-written write rule called writes before the classifier replaced it, and the lines where the classifier reads otherwise are frozen in write_disagreements.json, so a change shrinks or grows the list visibly; CORPUS_FREEZE=1 writes the list anew after review."""
+    from journal.support.command_classifier import CommandClassifier
+    folder, classifier = Path(__file__).parent / "shell_corpus_reading", app.container.get(CommandClassifier)
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    before = set(json.loads((folder / "writes_before.json").read_text()))
+    found = {str(n): {"before": n in before, "classifier": writes} for n, row in enumerate(rows, 1) if (writes := Claude().call("Bash", {"command": row["line"]}, frozenset(), classifier).writes) != (n in before)}
+    frozen = folder / "write_disagreements.json"
+    if os.environ.get("CORPUS_FREEZE"):
+        frozen.write_text(json.dumps(found, indent=0, sort_keys=True) + "\n")
+    known = json.loads(frozen.read_text())
+    changed = {n: found.get(n) or {"now": "agrees"} | {"line": rows[int(n) - 1]["line"][:120]} for n in found.keys() | known.keys() if found.get(n) != known.get(n)}
+    assert not changed, f"{len(changed)} lines write otherwise than frozen, the first: {list(changed.items())[:3]}"
+
+
 def test_the_output_shapers_ending_a_line_are_taken_off_and_an_in_place_edit_is_not():
     from journal.support.part import Part
     shaped = {"make 2>&1 | cut -c1-80": "cut -c1-80", "npm test | sort | uniq -c": "sort | uniq -c", "git log | sed -n 1,5p": "sed -n 1,5p", "docker logs api | grep -i error | tail -5": "grep -i error | tail -5",
@@ -19954,21 +20018,23 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
     assert refused.code != 0 and "gets no reader" in refused.error, "and a new one for a search is refused"
 
 
-def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words():
+def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words(app: App):
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     labels = {"npx jest --ci": "testing", "bundle exec rspec spec/models": "testing", "sudo apt-get install -y curl": "installing", "CI=true npm run build": "building",
               "docker compose run --rm web pytest -n auto": "testing", "docker run --rm -v \"$PWD\":/app -w /app node:20 npm test": "testing", "kubectl exec deploy/api -- pytest tests/smoke": "testing",
               "timeout 300 make test": "testing", "nix develop -c cargo test": "testing", "docker run --rm alpine sh -c 'echo a; echo b'": "running docker", "time (journal todo all)": "journalling",
               "./gradlew assembleDebug": "building", "mvn -pl core test": "testing", "dotnet restore": "installing", "mix deps.get": "installing", "uv sync --frozen": "installing", "docker build -t app .": "building",
               "ruff check src": "checking code", "npx tsc --noEmit": "checking code", "golangci-lint run ./...": "checking code", "npm run test:unit": "testing", "echo x >> .gitignore": "writing a file"}
-    wrong = {line: got for line, label in labels.items() if (got := ActivityLabel.line_label(line)) != label}
+    wrong = {line: got for line, label in labels.items() if (got := labels.line_label(line)) != label}
     assert not wrong, f"named otherwise than what they do: {wrong}"
 
 
-def test_every_line_of_the_command_corpus_is_labelled_by_what_its_working_part_does():
+def test_every_line_of_the_command_corpus_is_labelled_by_what_its_working_part_does(app: App):
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
-    wrong = [(n, row["line"][:100], row["reading"]["label"], got) for n, row in enumerate(rows, 1) if (got := ActivityLabel.line_label(row["line"])) != row["reading"]["label"]]
+    wrong = [(n, row["line"][:100], row["reading"]["label"], got) for n, row in enumerate(rows, 1) if (got := labels.line_label(row["line"])) != row["reading"]["label"]]
     assert not wrong, f"{len(wrong)} corpus lines are labelled otherwise than their reading names, the first: {wrong[:3]}"
 
 
@@ -21607,7 +21673,7 @@ def test_a_long_run_whose_progress_showed_only_in_its_last_lines_is_flagged_and_
     output = SimpleNamespace(row_id=5, command="pytest -q", creation_time=began)
     reader = Reader("tests", "the tests", progress_pattern=r"\[ *([0-9]+)%\]", label="Running tests")
     lines = ["collected 3 items", "1 passed, 2 failed [100%]"]
-    judge = lambda stalls: ReaderJudge(None, None, stalls, None, None, None, None, None, None)
+    judge = lambda stalls: ReaderJudge(None, None, stalls, None, None, None, None, None, None, None, None)
     late = judge(ProgressStalls()).late_progress(reader, output, lines, began + timedelta(seconds=40))
     assert len(late) == 1 and PROGRESS_LATE in late[0][0] and "scripts/suite.py" in late[0][1], "a figure printed only at the end of a 40 second run is flagged with the counting advice"
     counted = ProgressStalls()
@@ -21734,7 +21800,7 @@ def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words
     assert len(found) == 40 and found[0].startswith("task "), "the newest rows of the first kinds fill the forty and the later kinds are not read"
 
 
-def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progress_with_its_tools_advice():
+def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progress_with_its_tools_advice(app: App):
     from datetime import datetime, timedelta, timezone
     from types import SimpleNamespace
     from journal.features.shell.support.progress_stalls import ProgressStalls
@@ -21743,7 +21809,8 @@ def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progr
     began = datetime(2026, 10, 26, tzinfo=timezone.utc)
     output = lambda command: SimpleNamespace(row_id=6, command=command, creation_time=began)
     reader = Reader("builds", "the build", label="Building the viewer")
-    judge = ReaderJudge(None, None, ProgressStalls(), None, None, None, None, None, None)
+    from journal.features.shell.support.activity_label import ActivityLabel
+    judge = ReaderJudge(None, None, ProgressStalls(), None, None, None, None, None, None, app.container.get(ActivityLabel), None)
     found = judge.unshown_build(reader, output("vite build"), ["transforming...", "built in 38s"], began + timedelta(seconds=40))
     assert len(found) == 1 and BUILD_UNSHOWN in found[0][0] and "--logLevel info" in found[0][1], "a 40 second vite build with no figure gets the finding with the vite advice"
     assert judge.unshown_build(reader, output("vite build"), ["transforming..."], began + timedelta(seconds=10)) == [], "a short build raises nothing"
@@ -21784,18 +21851,19 @@ def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_unti
     assert bash("make build")[0] == 200, "the outer, taken up before, resumes with its step taken up"
 
 
-def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says_what_runs():
+def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says_what_runs(app: App):
     from datetime import datetime, timezone
     from types import SimpleNamespace
     from journal.features.shell.support.activity_label import ActivityLabel
+    labels = app.container.get(ActivityLabel)
     from journal.features.shell.support.reader_judge import ReaderJudge
     from journal.models.alias import Alias
-    judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}))
+    judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}), None, None)
     output = lambda command: SimpleNamespace(id=9, command=command, environment_id=1, session="s1", watch_reader="")
     assert judge.one_word_title_report(output("journal push-development"), "Pushing") is None, "a git push, by its alias, may have no reader of its own, so its title is never reported"
     assert judge.one_word_title_report(output("git commit -m x"), "Committing") is None
     assert judge.one_word_title_report(output("make"), "Building") is not None, "any other run with a one word title is still reported"
-    assert ActivityLabel.build("git push origin development") == "pushing to origin" and len(ActivityLabel.build("git push").split()) > 1, "and the journal's own label for a push says what runs"
+    assert labels.build("git push origin development") == "pushing to origin" and len(labels.build("git push").split()) > 1, "and the journal's own label for a push says what runs"
 
 
 def test_only_a_run_moved_to_the_background_is_given_a_reader_and_never_a_git_one(app: App):
@@ -22242,7 +22310,7 @@ def test_a_progress_read_as_a_percentage_past_100_or_counting_towards_an_id_is_r
     from types import SimpleNamespace
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge
-    judge = ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: []), None, None, SimpleNamespace(index=lambda: {}))
+    judge = ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: []), None, None, SimpleNamespace(index=lambda: {}), None, None)
     percent = Reader("tests", "a go test run", progress_pattern=r"=== RUN\s+\S+\s+(\d+)")
     cases = [f"=== RUN   TestCase {n}" for n in (99, 119, 121)]
     found = judge.false_progress(percent, cases)

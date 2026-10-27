@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 
-from journal.support.classification import Classification
-from journal.support.part import Part
+from journal.support.classification import VERSION_CONTROL, Classification
+from journal.support.command_classifier import CommandClassifier
 
 
 @dataclass(frozen=True)
 class CommandPart:
-    """One command of a shell line as the journal read it before it ran: its text, whether it is a journal command, whether it writes, the files it will touch, write or print, whether it reads a stored output by hand, with the shape of that read, the output's number removed, so two reads of the same kind look alike, and what the command table classifies it as."""
+    """One command of a shell line as the journal read it before it ran: its text, whether it is a journal command, whether it writes and the files it will write or print, both read from its classification, whether it reads a stored output by hand, with the shape of that read, the output's number removed, so two reads of the same kind look alike, and what the command table classifies it as."""
 
     text: str
     is_journal: bool
@@ -15,6 +15,12 @@ class CommandPart:
     reads_output: bool
     read_shape: str
     classification: Classification = Classification()
+
+    @classmethod
+    def read(cls, text: str, is_journal: bool, reads_output: bool, read_shape: str, classifier: CommandClassifier) -> "CommandPart":
+        classification = classifier.classify(text)
+        files = classifier.target_paths(text) if classification.writes else classifier.read_paths(text)
+        return cls(text=text, is_journal=is_journal, writes=classification.writes, files=files, reads_output=reads_output, read_shape=read_shape, classification=classification)
 
     @classmethod
     def parsed(cls, data: dict) -> "CommandPart":
@@ -32,4 +38,4 @@ class CommandPart:
 
     @property
     def is_git(self) -> bool:
-        return Part(self.text).program() == "git"
+        return self.classification.kind == VERSION_CONTROL

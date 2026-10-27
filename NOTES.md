@@ -1753,3 +1753,20 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - The context marks are 50, 80 and 90 percent. A reading under the highest mark taken means the window was compacted, so the marks start again; a compaction clears the mark owed.
 - At a mark the memory conduct pushes WeighingMemories over the work: writes and stops wait, reads and journal commands go through, a memory command or skip pops it (ContextDecided). A mark reached while the top takes no pushes stays owed on the row (threshold_due) and is pushed once it can be. A compaction over it pops it in on_resume. A subagent's events never push it.
 - The memories always open the overview after a compaction, a fixed part, never one of the look commands (message 69528).
+
+## One classifier for every command reader (plan 1045 phase 3, task 3773, 2026-10-27)
+
+- A call's parts are classified where the hook is translated (`Provider.call` takes the `CommandClassifier`): each part's
+  write flag and files are filled from its classification, so a stored part keeps its shape and an old entry reads back as
+  written. Unknown is no write; uncertain is a write; an interpreter row (`interpreted`) is a write only by its content
+  markers; the journal's own commands never write. The old write rule's verdicts on the corpus are frozen in
+  `tests/shell_corpus_reading/writes_before.json` and the classifier's differences in `write_disagreements.json`.
+- The table carries what the hand lists held: row labels (`label`, `bare_label`, `redirected_label`, modifier labels),
+  `runs_script_file`, `starts_processes`, the `scripts` rows a test script is known by, and wrappers with several
+  subcommands, an end word, lookup flags, a code check and `limits_time`. `ActivityLabel` is a container class reading
+  its labels through the classifier; `CommandLines` holds a line's read, code-read and code-write readings, the disk step
+  after the table. States read `part.classification` (test runs, test or build, reads) from the event.
+- Open: `CommandShape` still holds RUNNERS, LAUNCHERS, LAUNCHER_SUBCOMMANDS, WRAPPER_PATTERN and REDIRECT_PATTERN. It is
+  the stored-shape function, read statically by a model (Alias), a value (ReaderCommands) and conduct; moving it onto the
+  table needs each part's shape carried on the event and the stored shapes kept or migrated. `GitCommands` still names
+  git and gh by the shape.

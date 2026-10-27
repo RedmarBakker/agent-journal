@@ -5,9 +5,9 @@ import signal
 from itertools import islice
 from pathlib import Path
 
+from journal.support.command_classifier import CommandClassifier
 from journal.support.part import Part
 from journal.support.process_check import ProcessCheck
-from journal.support.writes import Writes
 
 BLOCK_BYTES = 65536
 STYLE_CODES = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -105,14 +105,19 @@ class OutputFiles:
     def ended(status: int) -> str:
         return "finished" if status == 0 else f"failed with code {status}"
 
-    def split(self, line: str, parts: list[Part]) -> None:
+    def split(self, line: str, parts: list[Part], classifier: CommandClassifier) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         (self.folder / "line").write_text(line)
         for i, part in enumerate(parts):
             (self.folder / f"{i}.part").write_text(part.uncut().text)
             if part.cut():
                 (self.folder / f"{i}.cut").write_text(part.cut_command())
-        (self.folder / "parts").write_text("".join(part.kind() + ("w" if part.recorded and Writes.part(part.text) else "-") + "\n" for part in parts))
+        (self.folder / "parts").write_text("".join(part.kind() + self.flags(part, classifier) + "\n" for part in parts))
+
+    @staticmethod
+    def flags(part: Part, classifier: CommandClassifier) -> str:
+        classification = classifier.classify(part.text)
+        return ("w" if part.recorded and classification.writes else "-") + ("b" if classification.changes_version_control else "-")
 
     def kinds(self) -> list[str]:
         return (self.folder / "parts").read_text().splitlines()

@@ -11,6 +11,7 @@ from journal.features.shell.support.output_files import STYLE_CODES, OutputFiles
 from journal.features.shell.support.output_silences import OutputSilences
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.run_processes import RunProcesses
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
@@ -20,6 +21,7 @@ from journal.repositories.run_history import RunHistory
 from journal.models.alias import Alias
 from journal.repositories.aliases import Aliases
 from journal.models.reader_report import ReaderReport
+from journal.support.command_classifier import CommandClassifier
 from journal.support.command_shape import CommandShape
 from journal.features.shell.shell_options import ShellOptions
 from journal.repositories.reader_reports import ReaderReports
@@ -58,22 +60,29 @@ MIXED_RUNS = 6
 LARGEST_TOTAL = 1_000_000
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
 BUILD_LINE = re.compile(r"\bbuilt in\b|\bbuild (?:succeeded|complete|finished)\b", re.IGNORECASE)
+# the flags that only ask a program its version or its help, so a part that carries one, or whose standard output goes to a file, shows no run of it on a card
+HELP_FLAGS = ("--version", "--help", "-h", "-V")
 
 
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; a run that printed nothing for a long stretch is the command's fault, buffering, and is said so in place of the reader's progress findings; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory, processes: RunProcesses, silences: OutputSilences, aliases: Aliases, labels: ActivityLabel, classifier: CommandClassifier) -> None:
+        self.labels, self.classifier = labels, classifier
         self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
         self.history, self.processes, self.silences, self.aliases = history, processes, silences, aliases
 
     def stored_runs(self, reader: Reader) -> list[CommandOutput]:
-        return self.history.latest_accepted(NEWEST_RUNS, lambda run: reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored())
+        return self.history.latest_accepted(NEWEST_RUNS, lambda run: self.is_shown_run(reader.commands, run.command) and OutputFiles(Path(run.folder)).is_stored())
+
+    def is_shown_run(self, commands: ReaderCommands, line: str) -> bool:
+        part = commands.read_part(line)
+        return bool(part) and not self.classifier.redirects_output(part) and not any(flag in part.split() for flag in HELP_FLAGS)
 
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.found(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
+        if reader is None or reader.script or self.readers.is_locked(reader.name) or not files.is_stored() or reader.commands.programs and not self.is_shown_run(reader.commands, output.command):
             return None
         lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
@@ -145,7 +154,7 @@ class ReaderJudge:
 
     def unshown_build(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()
-        if ActivityLabel.line_label(output.command) != "building" or seconds < PROGRESS_SECONDS or self.stalls.has_seen(output.row_id) or reader.progress(lines).is_known() or self.has_progress(lines):
+        if self.labels.line_label(output.command) != "building" or seconds < PROGRESS_SECONDS or self.stalls.has_seen(output.row_id) or reader.progress(lines).is_known() or self.has_progress(lines):
             return []
         return [(f"the build ran {seconds:.0f} seconds and {BUILD_UNSHOWN}", f"fix the reader or the command, the journal does not change the reader itself: {StreamingForm.advice(output.command)}")]
 

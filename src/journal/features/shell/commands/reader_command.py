@@ -35,7 +35,8 @@ class ReaderCommand(Command):
 
     noun = "reader"
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, backfill: ReaderBackfill, scope: Scope, history: RunHistory, probes: ReaderProbes, mark_policy: CommandMarkPolicy) -> None:
+        self.probes, self.mark_policy = probes, mark_policy
         self.backfill, self.scope, self.history = backfill, scope, history
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
 
@@ -79,7 +80,7 @@ class ReaderCommand(Command):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
-        unread_commands = [command.strip() for command in (args.commands or "").split(",") if CommandMarkPolicy.takes_no_reader(command.strip())]
+        unread_commands = [command.strip() for command in (args.commands or "").split(",") if self.mark_policy.takes_no_reader(command.strip())]
         if unread_commands:
             raise Rejection(f"{', '.join(unread_commands)} gets no reader: a search, a read and a git or GitHub command show no card in the chat")
         reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed, summary_pattern=args.summary)
@@ -109,12 +110,11 @@ class ReaderCommand(Command):
             if misses:
                 raise Rejection(f"reader {reader.name} is refused, tried on output {run.id}: {'; '.join(misses)}")
 
-    @staticmethod
-    def probed(reader: Reader) -> None:
+    def probed(self, reader: Reader) -> None:
         unfiltered = ReaderProbes.unfiltered_patterns(reader)
         if unfiltered:
             raise Rejection(f"reader {reader.name} is refused: its {' and '.join(unfiltered)} selects every line of any run, so it filters nothing and its card shows the raw output; give it a pattern for the few lines a person reads, such as the failures, the progress and the summary")
-        misses = ReaderProbes.test_run_misses(reader)
+        misses = self.probes.test_run_misses(reader)
         if misses:
             raise Rejection(f"reader {reader.name} is refused: {'; '.join(misses)}")
 

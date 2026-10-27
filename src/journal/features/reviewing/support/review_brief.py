@@ -17,7 +17,8 @@ OUTPUT_LINES = 40
 class ReviewBrief:
     """What a reviewer is handed as its whole brief, for a bounded job it does on a fast model: the task's brief as it was given, each point with its latest proof, which a clock-out always has, the output of the test runs the worker made, the worker's report, where its changes are, and how to judge and report each point."""
 
-    def __init__(self, proofs: Proofs, branch: WorkerBranch, outputs: CommandOutputs) -> None:
+    def __init__(self, proofs: Proofs, branch: WorkerBranch, outputs: CommandOutputs, labels: ActivityLabel) -> None:
+        self.labels = labels
         self.proofs, self.branch, self.outputs = proofs, branch, outputs
 
     def text(self, worker: Worker, task: Task, report: str) -> str:
@@ -48,7 +49,7 @@ Every point passed signs the work off and merges it; a point short goes back to 
 """
 
     def test_output(self, worker: Worker, folder: Path) -> str:
-        runs = [output for output in self.outputs.creator_outputs(Actor.worker(worker.id)) if ActivityLabel.test_runs((output.command,))]
+        runs = [output for output in self.outputs.creator_outputs(Actor.worker(worker.id)) if self.labels.test_runs((output.command,))]
         if not runs:
             return f"the worker ran no test: run the tests its proofs name, by the commands they give, in {folder}"
         return "\n\n".join(self.run_text(run) for run in runs)

@@ -3,7 +3,7 @@
     "title": "Command table",
     "description": "What a single shell command is and does: each program's base, the subcommands and options that change it, the wrappers that run another command, and the forms whose meaning the line cannot tell.",
     "type": "object",
-    "required": ["about", "version", "kinds", "effects", "redirects", "interpreted", "unknown", "wrappers", "programs"],
+    "required": ["about", "version", "kinds", "effects", "redirects", "interpreted", "unknown", "scripts", "wrappers", "programs"],
     "additionalProperties": false,
     "properties": {
         "about": {"type": "string"},
@@ -21,6 +21,7 @@
         },
         "interpreted": {"type": "object", "required": ["note"]},
         "unknown": {"$ref": "#/$defs/classification"},
+        "scripts": {"type": "object", "description": "Rows for a script the table knows by its file name, keyed by a pattern of that name.", "additionalProperties": {"$ref": "#/$defs/row"}},
         "wrappers": {"type": "object", "additionalProperties": {"$ref": "#/$defs/wrapper"}},
         "programs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/program"}}
     },
@@ -44,6 +45,13 @@
                 "kind": {"type": "string"},
                 "effects": {"type": "array", "items": {"type": "string"}},
                 "uncertain": {"type": "boolean"},
+                "interpreted": {"type": "boolean"},
+                "runs_script_file": {"type": "boolean"},
+                "starts_processes": {"type": "boolean"},
+                "redirected_label": {"type": "string"},
+                "label": {"type": "string"},
+                "bare_label": {"type": "string"},
+                "note": {"type": "string"},
                 "dialects": {"type": "string"},
                 "runs": {"type": "string"},
                 "same_as": {"type": "string"},
@@ -61,6 +69,12 @@
                 "kind": {"type": "string"},
                 "effects": {"type": "array", "items": {"type": "string"}},
                 "uncertain": {"type": "boolean"},
+                "interpreted": {"type": "boolean"},
+                "runs_script_file": {"type": "boolean"},
+                "starts_processes": {"type": "boolean"},
+                "redirected_label": {"type": "string"},
+                "label": {"type": "string"},
+                "bare_label": {"type": "string"},
                 "runs": {"type": "string"},
                 "subcommands": {"type": "object", "additionalProperties": {"$ref": "#/$defs/row"}},
                 "modifiers": {"type": "object", "additionalProperties": {"$ref": "#/$defs/row"}}
@@ -74,9 +88,11 @@
                 "value_flags": {"type": "array", "items": {"type": "string"}},
                 "leading_values": {"type": "integer"},
                 "assignments": {"type": "boolean"},
-                "options_first": {"type": "boolean"},
-                "subcommand": {"type": "string"},
-                "until": {"type": "string"}
+                "subcommands": {"type": "array", "items": {"type": "string"}},
+                "until": {"type": "string"},
+                "code_contains": {"type": "string"},
+                "lookup_flags": {"type": "array", "items": {"type": "string"}},
+                "limits_time": {"type": "boolean"}
             },
             "additionalProperties": false
         }

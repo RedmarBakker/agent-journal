@@ -1,4 +1,3 @@
-from journal.features.shell.support.command_mark_policy import CommandMarkPolicy
 from datetime import datetime, timezone
 from pathlib import Path
 from journal.config import Config
@@ -141,9 +140,6 @@ class Readers:
         aliases = self.plugin_aliases_read(reader)
         if aliases:
             raise Rejection(f"the reader {reader.name} reads what journal {', journal '.join(alias.name for alias in aliases)} runs, which its plugin's own reader reads: a reader of the project never reads a plugin's alias")
-
-    def stray_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if reader.commands.programs and all(CommandMarkPolicy.takes_no_reader(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()
