@@ -61,6 +61,9 @@ class Repository(Generic[M]):
             raise MissingRow(self.table, id)
         return rows[0]
 
+    def is_stored(self, id: int) -> bool:
+        return self.counted(self.query().filter(id=id)) > 0
+
     def all(self) -> list[M]:
         return self.newest(self.query())
 

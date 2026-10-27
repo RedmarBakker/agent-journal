@@ -338,6 +338,7 @@ const tint = computed(() => ({
 }
 
 .mark.live.w-event:hover {
+    --fold-bg: var(--hover);
     background: var(--hover);
 }
 

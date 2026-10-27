@@ -4351,6 +4351,27 @@ def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_
     assert "trigger_event" not in {row["name"] for row in connection.all("PRAGMA table_info(sequences)")}
 
 
+def test_a_plan_a_subagent_creates_starts_no_building_a_plan_sequence_for_the_agent_that_sent_it(app: App, monkeypatch):
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    assert app.console().run(["plan", "create", "Windows support", "--brief", "the journal on Windows"], AGENT.subagent_caller()).code == 0
+    app.runtime().deferred.drain()
+    assert app.container.get(RunTracker).current("s1", 1) is None, "the subagent built the plan whole, so its sender is given no sequence to build it"
+
+
+def test_reading_a_message_the_user_deleted_says_so_and_leaves_nothing_to_do(app: App):
+    from journal.repositories.messages import Messages
+    console, main = app.console(), {"X-Journal-Env": "main"}
+    assert console.run(["message", "send", "never mind this"], USER).code == 0
+    sent = app.container.get(Messages).all()[-1]
+    posted(app, f"/journal/messages/{sent.id}/delete", {}, main)
+    read = console.run(["message", "read", str(sent.id)], AGENT)
+    assert read.code == 0 and read.text.strip() == f"message {sent.id} was deleted by the user; nothing to do", read.error
+    assert console.run(["message", "read", "999999"], AGENT).code != 0, "a message that never was is still not found"
+
+
 def test_creating_a_plan_starts_the_shipped_building_a_plan_sequence(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)

@@ -6,12 +6,12 @@ from journal.models.model import Model
 from journal.models.support.row_card import RowCard
 from journal.repositories.scope import Scope
 from journal.repositories.subagents import Subagents
+from journal.support.actor import SUBAGENT_SEPARATOR
 from journal.support.actor import Actor
 from journal.support.card_type import CardType
 
 
 PLAIN_NOUNS = {"doc": "document"}
-SUBAGENT_SEPARATOR = ":"
 
 
 class RowProcessCard(ProcessCard):
@@ -28,7 +28,7 @@ class RowProcessCard(ProcessCard):
 
     def card_contents(self, environment_id: int, row: Model, actor: Actor) -> ProcessCardContents:
         dispatcher, _, subagent_session = actor.id.partition(SUBAGENT_SEPARATOR)
-        maker = self.subagent_label(environment_id, dispatcher, subagent_session) if subagent_session else ""
+        maker = self.subagent_label(environment_id, dispatcher, subagent_session) if actor.is_subagent() else ""
         data = {"kind": "made", "made_type": row.table(), "n": row.id, "title": row.title_words(), "maker": maker, **RowCard.build(row).as_data()}
         return ProcessCardContents(self.name, environment_id, self.key(row), self.created_line(row, maker), data, actor, CardType.CREATED, False, session=dispatcher)
 

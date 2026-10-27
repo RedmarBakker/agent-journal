@@ -792,7 +792,10 @@ const {colleague, me} = useColleague();
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 18px 8px 20px;
+    --scroll-top-padding: 18px;
+    /* a group's head sticks at the scroller's very top, so nothing shows above it in the padding */
+    --fold-top: calc(-1 * var(--scroll-top-padding));
+    padding: var(--scroll-top-padding) 8px 20px;
     /* bubbles scrolled under the foot fade out over its last stretch rather than end at a hard line; the padding keeps the newest clear of the fade */
     mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }

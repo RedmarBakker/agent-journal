@@ -2,6 +2,9 @@ from dataclasses import dataclass
 
 from journal.support.actor_type import ActorType
 
+# what joins the session of the agent that sent a subagent to the subagent's own in a subagent's actor
+SUBAGENT_SEPARATOR = ":"
+
 
 @dataclass(frozen=True)
 class Actor:
@@ -13,6 +16,10 @@ class Actor:
     @classmethod
     def system(cls) -> "Actor":
         return cls(ActorType.SYSTEM)
+
+    @classmethod
+    def subagent(cls, session: str) -> "Actor":
+        return cls(ActorType.AGENT, f"{session}{SUBAGENT_SEPARATOR}")
 
     @classmethod
     def agent(cls, session: str) -> "Actor":
@@ -69,7 +76,10 @@ class Actor:
         return int(self.id)
 
     def agent_session(self) -> str | None:
-        return self.id if self.actor_type == ActorType.AGENT else None
+        return self.id.partition(SUBAGENT_SEPARATOR)[0] if self.actor_type == ActorType.AGENT else None
+
+    def is_subagent(self) -> bool:
+        return self.actor_type == ActorType.AGENT and SUBAGENT_SEPARATOR in self.id
 
     @property
     def stamp(self) -> str:

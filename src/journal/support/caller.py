@@ -86,7 +86,9 @@ class Caller:
             return Actor.verifier(self.verifier_number)
         if self.reviewer_number is not None:
             return Actor.reviewer(self.reviewer_number)
-        return Actor.user(self.person) if self.session is None else Actor.agent(self.session)
+        if self.session is None:
+            return Actor.user(self.person)
+        return Actor.subagent(self.session) if self.subagent else Actor.agent(self.session)
 
     @property
     def agent_session(self) -> str:

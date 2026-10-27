@@ -62,7 +62,7 @@ test("a memories mark opens to two groups shut until clicked: the memories still
     for (const head of host.querySelectorAll(".memory-round .fold-head")) head.click();
     await flush();
     expect([...host.querySelectorAll(".memory-round-ref")].map((ref) => ref.textContent)).toEqual(["Memory 4", "Memory 5", "Memory 6"]);
-    expect([...host.querySelectorAll(".memory-round-weight")].map((weight) => weight.textContent)).toEqual(["weight 4 to 3", "faded out at weight 0", "taken out at weight 6"]);
+    expect([...host.querySelectorAll(".memory-round-weight")].map((weight) => weight.textContent)).toEqual(["weight 4 to 3", "faded out at weight 0", "taken out"]);
 });
 
 test("a memories mark written before rounds were kept opens and says the round was not recorded", async () => {

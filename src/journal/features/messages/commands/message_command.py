@@ -12,6 +12,7 @@ from journal.features.messages.support.flowchart_edges import FlowchartEdges
 from journal.features.messages.support.message_files import MessageFiles
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
+from journal.repositories.entries import Entries
 from journal.repositories.agents import Agents
 from journal.repositories.docs import Docs
 from journal.repositories.reports import Reports
@@ -33,8 +34,8 @@ class MessageCommand(Command):
     noun = "message"
     uncut_verbs = frozenset({"read", "unread"})
 
-    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows, files: MessageFiles) -> None:
-        self.agents, self.rows, self.files = agents, rows, files
+    def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports, rows: Rows, files: MessageFiles, entries: Entries) -> None:
+        self.agents, self.rows, self.files, self.entries = agents, rows, files, entries
         self.messages, self.reactions, self.links, self.config = messages, reactions, links, config
         self.docs, self.reports = docs, reports
 
@@ -107,7 +108,17 @@ class MessageCommand(Command):
         return 0
 
     def read(self, args: Namespace, caller: Caller) -> int:
+        if not self.messages.is_stored(args.n):
+            return self.deleted(args.n)
         self.show(self.messages.read(self.messages.find(args.n), caller.actor, self._tool_use(caller)))
+        return 0
+
+    def deleted(self, number: int) -> int:
+        deletions = self.entries.deletions(Message.table(), number)
+        if not deletions:
+            raise MissingRow(Message.table(), number)
+        deleter = deletions[0].actor
+        print(f"message {number} was deleted by {'the user' if deleter.is_user() else deleter.lookup}; nothing to do")
         return 0
 
     def unread(self, args: Namespace, caller: Caller) -> int:

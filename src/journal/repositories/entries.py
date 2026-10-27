@@ -20,6 +20,8 @@ DISPATCHES = ENTRIES.filter_alternatives(
 ).inlined()
 NUDGE = "nudge"
 CUT_KEY = "cut_from"
+# the entry a row's deletion is recorded as
+DELETED_ENTRY = "deleted"
 # the keys of an entry's data that hold what a tool was given and gave back, what a command printed and the agent's last words, which a read of what the agent did leaves out
 PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "last_assistant_message")
 
@@ -49,6 +51,9 @@ class Entries(ScopedRepository[Entry]):
     def last_prompt(self, session: str) -> datetime | None:
         rows = self.selected(self.query().filter(entry_type=events.PROMPT_SUBMITTED, actor=Actor.agent(session)).order_descending("id").limit(1))
         return rows[0].created_at if rows else None
+
+    def deletions(self, table: str, id: int) -> list[Entry]:
+        return self.selected(self.query().filter(entry_type=DELETED_ENTRY).filter_json("data->table", table).filter_json("data->id", id).order_descending("id").limit(1))
 
     def agent_lines(self, session: str) -> int:
         return self.counted(self.lines(session))

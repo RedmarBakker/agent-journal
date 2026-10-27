@@ -65,7 +65,7 @@ export const TABLES = {
     }),
     collections: kind("Collection", "folder", "Rows that belong together, gathered under a name", {
         in_sidebar: true,
-        listed_under: "environment",
+        listed_under: "sidebar",
         listed_as_cards: true,
         takes_comments: true,
         created_in_viewer: true,
