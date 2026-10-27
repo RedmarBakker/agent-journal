@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up, while the test commandments judge tests/ beside them and fail the run on a sin; a run of the simulator's files runs at a lower priority."""
 import json
 import os
 import re
@@ -27,7 +27,10 @@ DURATIONS_FILE = ROOT / ".journal" / "runtime" / "suite-durations.json"
 DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
 DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
 JUDGE = ROOT / ".journal" / "plugins" / "code-commandments" / "bin" / "commandments-release"
-TEST_COMMANDMENTS = ["nice", "-n", "10", str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
+LOW_PRIORITY = ["nice", "-n", "10"]
+TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
+# a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
+SIMULATION_FILE = "simulation"
 
 
 def shard_count() -> int:
@@ -150,10 +153,14 @@ def commandments_judged(judging: tuple[subprocess.Popen, Path] | None) -> bool:
     return True
 
 
+def scoped_command(arguments: list[str]) -> list[str]:
+    return [*(LOW_PRIORITY if any(SIMULATION_FILE in argument for argument in arguments) else []), *PYTEST, *arguments]
+
+
 def scoped_run(arguments: list[str]) -> int:
     with tempfile.TemporaryDirectory() as folder:
         output = Path(folder) / "run.txt"
-        process = subprocess.Popen([*PYTEST, *arguments], cwd=ROOT, env={**os.environ, "PYTHONUNBUFFERED": "1", TALLY_VARIABLE: "1"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
+        process = subprocess.Popen(scoped_command(arguments), cwd=ROOT, env={**os.environ, "PYTHONUNBUFFERED": "1", TALLY_VARIABLE: "1"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
         progress_shown([(process, output)])
         try:
             process.wait(timeout=SHARD_TIMEOUT_SECONDS)
