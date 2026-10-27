@@ -1534,7 +1534,7 @@ def test_a_setting_is_the_projects_read_the_same_in_every_environment_and_one_st
     with scope.environment(1):
         assert settings.project("workers.mode") == "builder", "and written in that other, the first reads it too"
     for environment_id, key, value in ((2, "faults.developer", True), (3, "faults.developer", False), (2, "workers.mode", "solo")):
-        connection.execute("INSERT INTO settings (environment_id, key, value, created_at, updated_at) VALUES (?, ?, ?, '2026-01-01', '2026-01-01')", (environment_id, key, json.dumps(value)))
+        settings.save(Setting(environment_id=environment_id, key=key, value=value), USER)
     ProjectWideSettings().apply(connection)
     rows = {(row["environment_id"], row["key"]): json.loads(row["value"]) for row in connection.all("SELECT environment_id, key, value FROM settings")}
     assert rows == {(0, "workers.mode"): "builder", (0, "faults.developer"): False}, "a key held only for environments moves to the project, its newest row kept, and the project's own value stands"
