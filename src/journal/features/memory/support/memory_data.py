@@ -7,7 +7,7 @@ from journal.features.memory.support.repeating_reminder import RepeatingReminder
 
 @dataclass(frozen=True)
 class MemoryData:
-    """The memory feature's reading: the context mark the agent must decide at, the highest mark it has taken, every fact, rule and reminder with keywords and not kept in the agent's context, the ones standing at least the set days named with their age, each with its presence in the agent's context window and its trigger, the reminders set for a moment, and how many memories are still shown."""
+    """The memory feature's reading: the context mark the agent must decide at, the highest mark it has taken, every fact, rule and reminder with keywords and not kept in the agent's context, the ones standing at least the set days named with their age, each with its presence in the agent's context window and its trigger, the reminders set for a moment, and how many of the agent's own memories are still shown, each of them by weight."""
 
     threshold_due: int
     context_threshold: int
@@ -17,3 +17,4 @@ class MemoryData:
     triggered: tuple[MemoryRow, ...] = ()
     shown_count: int = 0
     repeating: tuple[RepeatingReminder, ...] = ()
+    shown: tuple[str, ...] = ()

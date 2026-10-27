@@ -14,7 +14,7 @@ from journal.features.memory.memory_part import MemoryPart
 
 @dataclass(frozen=True)
 class WeighingMemories(BaseState):
-    """At a mark of the context window the agent weighs its memories: writes wait and a stop is refused, reads and journal commands go through, and journal memory add, weigh, remove or skip pops it; a state above it that pops brings it back while the mark is owed, and a compaction over it, which clears the mark owed, pops it once it ends."""
+    """At a mark of the context window the agent weighs its memories: writes wait and a stop is refused, reads and journal commands go through, and its own journal memory add, weigh, remove or skip pops it, never another agent's; a state above it that pops brings it back while the mark is owed, and a compaction over it, which clears the mark owed, pops it once it ends."""
 
     name = "weighing_memories"
     title = "Weighing memories"
@@ -33,7 +33,7 @@ class WeighingMemories(BaseState):
         return self.refuse(MemoryNudges.UNDECIDED_STOP.create(percent=self.percent))
 
     def on_context_decided(self, event: ContextDecided, settings: Settings) -> Transition:
-        return self.pop()
+        return self.pop() if event.agent_session == event.session else self.none()
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
         return () if data.part(MemoryPart).threshold_due else self.pop()

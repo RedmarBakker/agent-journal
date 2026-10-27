@@ -2736,20 +2736,20 @@ def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_writt
 
 
 HELPER_CONDUCTS = {
-    "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct"],
+    "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct", "WorkerMemoryConduct"],
     "reviewer": ["DemandConduct", "SafetyConduct"],
     "verifier": ["DemandConduct", "SafetyConduct"],
     "subagent": ["DemandConduct", "SafetyConduct"],
 }
 HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Researching"}
 HELPER_VERBS = {
-    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory list", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
+    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory add", "memory list", "memory remove", "memory skip", "memory weigh", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
     "reviewer": ["doc show", "memory list", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
     "verifier": ["verdict give", "verdict model"],
-    "subagent": ["doc show", "memory list", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
+    "subagent": ["doc show", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
 }
 HELPER_LISTENERS = {
-    "worker": ["HookAnswer", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
+    "worker": ["CompactionMarkClear", "ContextThresholdCheck", "HookAnswer", "MemoryFading", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],
     "reviewer": ["HookAnswer", "PluginAgentRelay", "ReviewerTestFailed", "ReviewerTestPassed"],
     "verifier": ["HookAnswer", "PluginAgentRelay"],
     "subagent": ["HookAnswer", "PluginAgentRelay", "SubagentTurnRecord"],

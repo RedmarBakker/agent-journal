@@ -137,7 +137,7 @@ class Agent(Scoped):
         return self.with_(is_overview_read=True).with_event(OverviewRead(environment_id=self.environment_id, time=time))
 
     def context_decided(self, time: float) -> "Agent":
-        return self.with_(threshold_due=0).with_event(ContextDecided(environment_id=self.environment_id, time=time, threshold=self.threshold_due))
+        return self.with_(threshold_due=0).with_event(ContextDecided(environment_id=self.environment_id, time=time, threshold=self.threshold_due, agent_session=self.session))
 
     def skill_read(self, name: str, digest: str, time: float) -> "Agent":
         loaded = {**self.skills_loaded, name: digest}

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from journal.features.memory.support.memory_owners import MemoryOwners
 from journal.features.memory.support.memory_row import MemoryRow
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.repositories.scope import Scope
@@ -21,8 +22,8 @@ from journal.support.time_source import TimeSource
 class MemoryDataReader:
     """Reads the memory feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields MemoryData names."""
 
-    def __init__(self, memories: Memories, rules: Rules, reminders: Reminders, settings: SettingRows, counts: RowCounts, scope: Scope, stages: StageTimes, time_source: TimeSource) -> None:
-        self.time_source, self.weighted = time_source, memories
+    def __init__(self, memories: Memories, owners: MemoryOwners, rules: Rules, reminders: Reminders, settings: SettingRows, counts: RowCounts, scope: Scope, stages: StageTimes, time_source: TimeSource) -> None:
+        self.time_source, self.weighted, self.owners = time_source, memories, owners
         self.rules, self.reminders, self.settings, self.counts, self.scope, self.stages = rules, reminders, settings, counts, scope, stages
 
     def row(self, noun: str, memory, kind: CardType) -> MemoryRow:
@@ -37,7 +38,8 @@ class MemoryDataReader:
             "triggered": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.triggered_memories()),
             "rows": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.keyword_memories()),
             "stale": lambda: self.stale([(noun, memory) for noun, memory, _ in facts.memories], self.settings.integer(MemoryOptions.STALENESS_LIMIT)),
-            "shown_count": self.weighted.shown_count,
+            "shown_count": lambda: self.weighted.shown_count(self.owners.agent_owner(agent)),
+            "shown": lambda: tuple(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in self.weighted.shown(self.owners.agent_owner(agent))),
             "repeating": lambda: tuple(RepeatingReminder(r.row_id, r.text, r.every_minutes, r.every_tool_uses, r.said_at, r.said_tool_use) for r in self.reminders.repeating()),
             "timed": lambda: tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)

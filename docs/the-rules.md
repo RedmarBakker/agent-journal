@@ -76,6 +76,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | memory | memory.check_stale_memory | these are {{stale_after}} days old or more, check they still hold: {{stale}} | MemoryConduct.on_session_started_memory |
 | memory | memory.does_the_rule_apply_project_wide | does rule {{n}} apply to the whole project? | MemoryConduct.on_rule_created_memory |
 | memory | memory.memory_whispered_back | {{noun}} {{n}}: {{text}} | MemoryConduct.on_anything_memory_hint, MemoryDataReader.read, MemoryRow.line, MemoryHintCard.handle |
+| memory | memory.memories_shown_at_clock_in | your memories from your earlier jobs, heaviest first: {{memories}} | WorkerMemoryConduct.on_tool_finished |
 | messages | messages.new_message_to_answer | new message {{n}} | DeliverMessage.handle |
 | messages | messages.new_messages_to_answer | new messages {{ns}} | nothing yet |
 | messages | messages.unread_messages_to_read | {{count}} messages unread: `journal message unread` | nothing yet |

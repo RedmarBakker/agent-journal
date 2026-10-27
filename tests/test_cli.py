@@ -519,7 +519,7 @@ def test_a_helper_runs_only_the_verbs_its_file_names(app: App):
     assert refused.code == 1 and refused.error.startswith("a worker may not run journal panic apply: WorkerHelper names the verbs it runs, ") and "journal memory list" in refused.error and "journal rule read" in refused.error, "a verb its file does not name is refused, naming the file and the verbs it runs"
     assert agent.subagent_caller().role == AgentRole.SUBAGENT and console.run(["panic", "pop"], agent.subagent_caller()).error.startswith("a subagent may not run journal panic apply: ResearcherHelper")
     assert console.run(["task", "show", "1"], worker).error.find("may not run") == -1 and console.run(["task", "complete", "1"], worker).error.startswith("a worker may not run journal task complete"), "a worker whose file names task show runs it and is refused task complete"
-    assert console.run(["memory", "list"], worker).code == 0 and console.run(["memory", "add", "x"], worker).code == 1, "a named verb runs, and its neighbour stays refused"
+    assert console.run(["memory", "list"], worker).code == 0 and console.run(["rule", "strike", "1"], worker).code == 1, "a named verb runs, and its neighbour stays refused"
     assert console.run(["memory", "add", "the port is 9"], agent).code == 0 and console.run(["task", "list"], MAIN).code == 0 and console.run(["task", "create", "x"], worker).code == 1, "the main agent and the user run every verb"
 
 

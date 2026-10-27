@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from journal.console.command import Command
 from journal.engine.clock import Clock
+from journal.features.memory.support.memory_owners import MemoryOwners
 from journal.features.memory.support.threshold_decisions import ThresholdDecisions
 from journal.models.memory import HEAVIEST, LOWEST_WEIGHT, Memory
 from journal.repositories.memories import Memories
@@ -11,12 +12,12 @@ from journal.support.rejection import Rejection
 
 
 class MemoryCommand(Command):
-    """journal memory add, weigh, list, remove and skip: the agent's memories, each with a weight every compaction lowers by one, and the word that nothing needs keeping at a mark."""
+    """journal memory add, weigh, list, remove and skip: the calling agent's own memories, each with a weight its compactions lower by one, and the word that nothing needs keeping at a mark; another agent's number is refused."""
 
     noun = "memory"
 
-    def __init__(self, memories: Memories, decisions: ThresholdDecisions, clock: Clock) -> None:
-        self.memories, self.decisions, self.clock = memories, decisions, clock
+    def __init__(self, memories: Memories, owners: MemoryOwners, decisions: ThresholdDecisions, clock: Clock) -> None:
+        self.memories, self.owners, self.decisions, self.clock = memories, owners, decisions, clock
 
     def arguments(self, verbs) -> None:
         adding = self.verb(verbs, "add", "add something to keep in mind, in one or two plain sentences")
@@ -32,13 +33,13 @@ class MemoryCommand(Command):
 
     def add(self, args: Namespace, caller: Caller) -> int:
         keywords = tuple(word.strip().lower() for word in args.keywords.split(",") if word.strip())
-        memory = self.memories.save(Memory(text=args.text, keywords=keywords).weighed(self.weight(str(args.weight))), caller.actor)
+        memory = self.memories.kept(Memory(text=args.text, keywords=keywords).weighed(self.weight(str(args.weight))), self.owners.caller_owner(caller), caller.actor)
         self.decisions.decided(caller)
         print(f"memory {memory.id} added, weight {memory.weight}: {memory.text}")
         return 0
 
     def weigh(self, args: Namespace, caller: Caller) -> int:
-        memories = self.found(args.numbers)
+        memories = self.found(args.numbers, caller)
         weights = [self.weight(text) for text in args.weights.split(",")]
         if len(weights) not in (1, len(memories)):
             raise Rejection(f"{len(memories)} memories and {len(weights)} weights: give one weight for all, or one for each")
@@ -48,13 +49,13 @@ class MemoryCommand(Command):
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        for memory in self.memories.shown():
+        for memory in self.memories.shown(self.owners.caller_owner(caller)):
             print(f"{memory.id:>4}  weight {memory.weight:>2}  {memory.text}")
         return 0
 
     def remove(self, args: Namespace, caller: Caller) -> int:
         removal_time = datetime.fromtimestamp(self.clock.time(), timezone.utc)
-        removed = [self.memories.save(memory.removed(removal_time), caller.actor) for memory in self.found(args.numbers)]
+        removed = [self.memories.save(memory.removed(removal_time), caller.actor) for memory in self.found(args.numbers, caller)]
         self.decisions.decided(caller)
         print(f"removed: memory {', '.join(str(memory.id) for memory in removed)}")
         return 0
@@ -64,14 +65,14 @@ class MemoryCommand(Command):
         print("noted; carry on")
         return 0
 
-    def found(self, text: str) -> list[Memory]:
+    def found(self, text: str, caller: Caller) -> list[Memory]:
         numbers = [self.number(word) for word in text.split(",")]
         if len(set(numbers)) != len(numbers):
             raise Rejection(f"{text} has a memory twice: write each number once")
-        memories = self.memories.numbered(numbers)
+        memories = self.memories.owned_numbered(numbers, self.owners.caller_owner(caller))
         unknown = sorted(set(numbers) - {memory.id for memory in memories})
         if unknown:
-            raise Rejection(f"no memory {', '.join(map(str, unknown))} here: `journal memory list` lists them")
+            raise Rejection(f"no memory {', '.join(map(str, unknown))} here that is yours: `journal memory list` lists yours")
         return memories
 
     @staticmethod

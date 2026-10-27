@@ -7,6 +7,8 @@ from journal.features.memory.listeners.start_memory import StartMemory
 from journal.features.memory.listeners.memory_hint_card import MemoryHintCard
 from journal.features.memory.listeners.context_threshold_check import ContextThresholdCheck
 from journal.features.memory.memory_conduct import MemoryConduct
+from journal.features.memory.worker_memory_conduct import WorkerMemoryConduct
+from journal.support.agent_role import AgentRole
 from journal.features.memory.states.weighing_memories import WeighingMemories
 from journal.features.memory.listeners.compaction_mark_clear import CompactionMarkClear
 from journal.features.memory.listeners.memory_fading import MemoryFading
@@ -36,12 +38,14 @@ class Memory(Feature[MemoryData]):
     title = "Memory"
     help = "At 50, 80 and 90 percent of the context window, the agent weighs its memories: writes wait until it weighs, adds one or says why nothing needs keeping."
     conduct = (MemoryConduct,)
+    helper_conduct = {AgentRole.WORKER: (WorkerMemoryConduct,)}
     states = (WeighingMemories,)
     listeners = (ContextThresholdCheck, CompactionMarkClear, MemoryFading, MemoryWeighCard, MemoryRemovalCard, RepeatedReminderRecord, MemoryHintCard, CompactionCard, MemoryRowCard, MemoryStrikeCard, StartMemory, DueReminderStrike, SingleUseMemoryStrike)
+    helper_listeners = {AgentRole.WORKER: (ContextThresholdCheck, CompactionMarkClear, MemoryFading)}
     data = (MemoryDataReader,)
     commands = (RuleCommand, ReminderCommand, MemoryCommand)
 
-    nudges = (MemoryNudges.CONTEXT_DECISION, MemoryNudges.DECISION_EDIT_BLOCK, MemoryNudges.UNDECIDED_STOP, MemoryNudges.CHECK_STALE_MEMORY, MemoryNudges.RULE_SCOPE_QUESTION, MemoryNudges.MEMORY_READ_REQUEST, MemoryNudges.REMINDER_DUE, MemoryNudges.REMINDER_REPEATED, MemoryNudges.MEMORY_TRIGGERED)
+    nudges = (MemoryNudges.CONTEXT_DECISION, MemoryNudges.DECISION_EDIT_BLOCK, MemoryNudges.UNDECIDED_STOP, MemoryNudges.CHECK_STALE_MEMORY, MemoryNudges.RULE_SCOPE_QUESTION, MemoryNudges.MEMORY_READ_REQUEST, MemoryNudges.REMINDER_DUE, MemoryNudges.REMINDER_REPEATED, MemoryNudges.MEMORY_TRIGGERED, MemoryNudges.OWN_MEMORIES)
     options = (MemoryOptions.STALENESS_LIMIT,)
 
     skill = Skill("memory", 'Keep what matters beyond the context window: memories with a weight, rules and reminders; load it at a context mark', """

@@ -14,4 +14,5 @@ class MemoryNudges:
     REMINDER_REPEATED = Nudge("memory", "reminder_repeated", "reminder {{n}}, again: {{text}}", repeat=Timeout.seconds(0))
     REMINDER_DUE = Nudge("memory", "reminder_due", "reminder {{n}} is due: {{text}}", repeat=Timeout.seconds(YEAR_SECONDS))
     MEMORY_TRIGGERED = Nudge("memory", "memory_for_this_moment", "{{noun}} {{n}} is for this moment: journal {{noun}} read {{n}}", repeat=Timeout.seconds(0))
+    OWN_MEMORIES = Nudge("memory", "memories_shown_at_clock_in", "your memories from your earlier jobs, heaviest first: {{memories}}", "keep one where it was or raise it with `journal memory weigh <numbers> <weights>`, and take out what is no longer true with `journal memory remove <numbers>`", repeat=Timeout.seconds(0))
     MEMORY_READ_REQUEST = Nudge("memory", "memory_whispered_back", "{{noun}} {{n}} is about this and not in your context: journal {{noun}} read {{n}}", repeat=Timeout.seconds(YEAR_SECONDS))
