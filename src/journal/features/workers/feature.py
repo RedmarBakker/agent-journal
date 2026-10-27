@@ -157,8 +157,11 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   permission, access, a credential) is named at once when it is queued behind others.
 - A worker works a turn on its task: it clocks in with `journal clock-in`, maintains its own list with `journal todo`,
   proves each point of the brief with `journal proof <point> "<file:line, and the test>"` or says why not with
-  `--not-done`, and clocks out with `journal clock-out "<report>"`, its one report. You are informed when
-  it clocks in, and once when its work is ready to check; your stops name the work still waiting.
+  `--not-done`, and clocks out with `journal clock-out "<report>"`, its one report. At clock-out the journal
+  commits its work and asks the plugins about it, rebases it, runs the tests it names in the queue of test runs, and
+  asks the plugins again before it reaches you; a plugin's hold or a failing test goes straight back to the worker.
+  You are informed when it clocks in, and once when its work is ready to check, which is only work that passed all
+  of that; your stops name the work still waiting.
 - A worker, a reviewer, a verifier and a subagent each run only the journal verbs their helper file names
   (src/journal/helpers/), and hear only what that file allows; any other verb is refused, naming the file.
 - `journal worker wait <n> [<n>...]` waits until they have clocked out; stopping is fine while you wait.

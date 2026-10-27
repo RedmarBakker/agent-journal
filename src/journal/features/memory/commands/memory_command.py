@@ -4,13 +4,10 @@ from datetime import datetime, timezone
 from journal.console.command import Command
 from journal.engine.clock import Clock
 from journal.features.memory.support.threshold_decisions import ThresholdDecisions
-from journal.models.memory import Memory
+from journal.models.memory import HEAVIEST, LOWEST_WEIGHT, Memory
 from journal.repositories.memories import Memories
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
-
-FIRST_WEIGHT = 1
-LAST_WEIGHT = 10
 
 
 class MemoryCommand(Command):
@@ -45,7 +42,7 @@ class MemoryCommand(Command):
         weights = [self.weight(text) for text in args.weights.split(",")]
         if len(weights) not in (1, len(memories)):
             raise Rejection(f"{len(memories)} memories and {len(weights)} weights: give one weight for all, or one for each")
-        weighed = [self.memories.save(memory.weighed(weight), caller.actor) for memory, weight in zip(memories, weights * len(memories) if len(weights) == 1 else weights)]
+        weighed = [self.memories.save(memory.reweighed(weight), caller.actor) for memory, weight in zip(memories, weights * len(memories) if len(weights) == 1 else weights)]
         self.decisions.decided(caller)
         print(", ".join(f"memory {memory.id} weighs {memory.weight}" for memory in weighed))
         return 0
@@ -85,6 +82,6 @@ class MemoryCommand(Command):
 
     @staticmethod
     def weight(word: str) -> int:
-        if not word.strip().isdigit() or not FIRST_WEIGHT <= int(word) <= LAST_WEIGHT:
-            raise Rejection(f"a weight is a whole number from {FIRST_WEIGHT} to {LAST_WEIGHT}, not {word.strip()}")
+        if not word.strip().isdigit() or not LOWEST_WEIGHT <= int(word) <= HEAVIEST:
+            raise Rejection(f"a weight is a whole number from {LOWEST_WEIGHT} to {HEAVIEST}, not {word.strip()}")
         return int(word)

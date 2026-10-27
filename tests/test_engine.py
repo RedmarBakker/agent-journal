@@ -1364,19 +1364,19 @@ def test_the_conduct_of_skills_briefing_and_memory_say_the_debts_hold_on_them_an
     parts = {
         "plans": PlansData((), None), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
         "skills": SkillsData(skills_due=("journal",), loaded={"plans": "h2"}, skills=cards),
-        "briefing": BriefingData(is_overview_read=False, environment="main", peer_session_active_at="09:12", rules="1. Always test", rules_count=1, facts="", reminders="1. Log often", waiting="2 tasks", team_history=""),
-        "memory": MemoryData(threshold_due=50, context_threshold=50, rows=(MemoryRow("fact", 3, "the port is 8420", ("port",), CardType.FACTS),), stale=()),
+        "briefing": BriefingData(is_overview_read=False, environment="main", peer_session_active_at="09:12", rules="1. Always test", rules_count=1, memories="", reminders="1. Log often", waiting="2 tasks", team_history=""),
+        "memory": MemoryData(threshold_due=50, context_threshold=50, rows=(MemoryRow("reminder", 3, "the port is 8420", ("port",), CardType.REMINDERS),), stale=()),
     }
     data = FeatureData(parts)
     started = Ready().respond(SessionStarted(source="startup").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     keys = [n.key for n in started.nudges]
     assert keys[:4] == ["skills.read_the_skill_first", "briefing.journal_ready", "briefing.handle_the_journal_quietly", "briefing.the_laws_apply"]
-    assert "briefing.you_took_over" in keys and "briefing.rules_in_force" in keys and "briefing.facts_here" not in keys and "briefing.reminders_here" in keys and "briefing.waiting_for_you" in keys and keys[-1] == "briefing.look_before_the_first_write"
+    assert "briefing.you_took_over" in keys and "briefing.rules_in_force" in keys and "briefing.memories_here" not in keys and "briefing.reminders_here" in keys and "briefing.waiting_for_you" in keys and "briefing.look_before_the_first_write" in keys
     assert ".claude/skills/journal/SKILL.md" in started.nudges[0].rendered()
     compacted = Ready().respond(SessionStarted(source="compact").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
     assert "briefing.you_took_over" not in [n.key for n in compacted.nudges]
     prompt = Ready().respond(PromptSubmitted(prompt="draw me a roadmap").with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
-    assert [n.key for n in prompt.nudges] == [], "the plans skill is read already, by its hash"
+    assert [n.key for n in prompt.nudges if n.feature == "skills"] == [], "the plans skill is read already, by its hash"
     unread = FeatureData({**parts, "skills": SkillsData(skills_due=(), loaded={}, skills=cards)})
     assert [n.rendered() for n in Ready().respond(PromptSubmitted(prompt="draw me a roadmap").with_data(unread), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).nudges][0].startswith("read the plans skill before anything else")
     withheld = Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(data), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
@@ -1389,15 +1389,17 @@ def test_the_conduct_of_skills_briefing_and_memory_say_the_debts_hold_on_them_an
     paid = FeatureData({**parts, "skills": SkillsData(skills_due=(), loaded={}, skills=cards)})
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(paid), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal.key == "briefing.look_before_the_first_write"
     looked = FeatureData({**paid.parts, "briefing": BriefingData(**{**parts["briefing"].__dict__, "is_overview_read": True})})
-    assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(looked), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal.key == "memory.write_held_until_decided"
-    assert Ready().respond(Stop().with_data(looked), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal.rendered().startswith("you stopped with a decision due at the context mark, 50% full")
+    from journal.features.memory.states.weighing_memories import WeighingMemories
+    assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(looked), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).pushed == WeighingMemories(percent=50), "the mark owed pushes WeighingMemories over the work"
+    assert WeighingMemories(percent=50).respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(looked), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal.key == "memory.write_held_until_decided"
+    assert WeighingMemories(percent=50).respond(Stop().with_data(looked), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal.rendered().startswith("you stopped before weighing your memories at the context mark, 50% full")
     decided = FeatureData({**looked.parts, "memory": MemoryData(threshold_due=0, context_threshold=50, rows=parts["memory"].rows, stale=())})
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(decided), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).refusal is None
     arrived = Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"})), context=0.81, session="s1").with_data(decided), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
-    assert [n.rendered() for n in arrived.nudges] == ["context 80% full: decide what to keep from it. `journal fact create \"<what is true here>\"`, `journal rule create \"<the ruling>\"`, `journal reminder create \"<do this>\"`, or `journal memory skip \"<why>\"`"] or arrived.nudges[0].key == "memory.decide_at_the_mark"
+    assert arrived.nudges[0].key == "memory.decide_at_the_mark" and arrived.pushed == WeighingMemories(percent=80)
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"})), context=0.6, session="s1").with_data(decided), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).nudges == ()
     whispered = Ready().respond(ToolStarting(call=shell("lsof -i :port")).with_data(decided), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
-    assert [n.rendered() for n in whispered.terminal_lines] == ["fact 3 is about this and not in your context: journal fact read 3"], "a whisper tells the agent to read the row, never its words"
+    assert [n.rendered() for n in whispered.terminal_lines] == ["reminder 3 is about this and not in your context: journal reminder read 3"], "a whisper tells the agent to read the row, never its words"
     prior_items = FeatureData({**decided.parts, "memory": MemoryData(threshold_due=0, context_threshold=50, rows=tuple(replace(row, presence=True) for row in parts["memory"].rows), stale=())})
     assert Ready().respond(ToolStarting(call=shell("lsof -i :port")).with_data(prior_items), settings, (SkillsConduct, BriefingConduct, MemoryConduct)).terminal_lines == (), "a row in the context window is not whispered"
     rule = Ready().respond(RuleCreated(environment_id=0, time=1.0, row_id=7, agent_origin=True).with_data(decided), settings, (SkillsConduct, BriefingConduct, MemoryConduct))
@@ -2273,7 +2275,7 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     from journal.features.briefing.support.briefing_data import BriefingData
     from journal.features.tasks.support.tasks_data import TasksData
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
-    briefing = lambda **fields: FeatureData({"tasks": tasks, "briefing": BriefingData(is_overview_read=True, environment="development", peer_session_active_at="", rules="", rules_count=0, facts="", reminders="", waiting="", team_history="", launch_folder="/projects/app", **fields)})
+    briefing = lambda **fields: FeatureData({"tasks": tasks, "briefing": BriefingData(is_overview_read=True, environment="development", peer_session_active_at="", rules="", rules_count=0, memories="", reminders="", waiting="", team_history="", launch_folder="/projects/app", **fields)})
     lines = lambda answer: " ".join(nudge.rendered() for nudge in answer.nudges)
     elsewhere = Ready().respond(SessionStarted(source="startup", folder="/projects/app/.claude/worktrees/development").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
     assert "this session runs in /projects/app/.claude/worktrees/development, but development was launched in /projects/app" in lines(elsewhere) and "start development again from /projects/app with `journal`" in lines(elsewhere), "a session in another folder is told, with the commands"
@@ -2741,10 +2743,10 @@ HELPER_CONDUCTS = {
 }
 HELPER_FLOORS = {"worker": "Void", "reviewer": "Reviewing", "verifier": "Verifying", "subagent": "Researching"}
 HELPER_VERBS = {
-    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "fact list", "fact read", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
-    "reviewer": ["doc show", "fact list", "fact read", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
+    "worker": ["await begin", "await clear", "clock-in record", "clock-out record", "doc create", "doc show", "doc update", "memory list", "output list", "output read", "output status", "output watch", "proof record", "reader list", "report create", "report show", "rule list", "rule read", "search find", "stuck declare", "task log", "task show", "tests turn", "todo add", "todo check", "todo list", "worker notify", "worker peers", "worker report", "worker send"],
+    "reviewer": ["doc show", "memory list", "output read", "report show", "review record", "rule list", "rule read", "search find", "task show"],
     "verifier": ["verdict give", "verdict model"],
-    "subagent": ["doc show", "fact list", "fact read", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
+    "subagent": ["doc show", "memory list", "output read", "plan show", "report show", "rule list", "rule read", "search find", "task list", "task show"],
 }
 HELPER_LISTENERS = {
     "worker": ["HookAnswer", "PluginAgentRelay", "RecordEdit", "SubagentMessageRecord", "SubagentTurnRecord", "WorkerTurnRecord"],

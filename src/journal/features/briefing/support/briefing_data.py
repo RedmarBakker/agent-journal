@@ -10,7 +10,7 @@ class BriefingData:
     peer_session_active_at: str
     rules: str
     rules_count: int
-    facts: str
+    memories: str
     reminders: str
     waiting: str
     team_history: str

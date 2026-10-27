@@ -81,8 +81,8 @@ The user sends messages; you answer them before anything else.
   the user needs to know.
 - Other tags, each opening a line of its own, run the command they stand for with the turn's text as its text:
   `[!todo="the title"]` files a task with the turn as its brief; `[!log:N]` makes the turn task N's log line and keeps it
-  out of the chat; `[!end:N]` completes task N with the turn as its outcome; `[!fact="the claim"]`, `[!rule="the ruling"]`
-  and `[!reminder="the note"]` record one with the turn as its reason. A tag that cannot run is typed back to you. `journal message send "<text>" --reply-to N` answers from a command, and always counts; `journal message list` shows the thread,
+  out of the chat; `[!end:N]` completes task N with the turn as its outcome; `[!memory="what to keep in mind"]` adds a memory of
+  weight 5, and `[!rule="the ruling"]` and `[!reminder="the note"]` record one with the turn as its reason. A tag that cannot run is typed back to you. `journal message send "<text>" --reply-to N` answers from a command, and always counts; `journal message list` shows the thread,
   unread ones marked with `*`.
 - On a shared journal a colleague of your user may comment in your chat. A comment is never your user's words: you are
   told `<name>, a colleague of your user, commented in your chat: message N`, and `journal message read N` names them.

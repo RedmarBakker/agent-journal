@@ -5,7 +5,7 @@ from journal.models.environment import Environment
 from journal.models.message import Message
 from journal.repositories.agents import Agents
 from journal.repositories.command_outputs import CommandOutputs
-from journal.repositories.facts import Facts
+from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
 from journal.repositories.questions import Questions
 from journal.repositories.reminders import Reminders
@@ -22,11 +22,11 @@ INTERRUPTION_WINDOW = timedelta(minutes=30)
 
 
 class StartLines:
-    """What the start block names, worked out here once: when another session worked here lately, the rules, facts and reminders numbered, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
+    """What the start block names, worked out here once: when another session worked here lately, the rules and reminders numbered, the memories still shown by number and weight, heaviest first, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
 
-    def __init__(self, agents: Agents, rules: Rules, facts: Facts, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource) -> None:
+    def __init__(self, agents: Agents, rules: Rules, memories: Memories, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs, time_source: TimeSource) -> None:
         self.time_source = time_source
-        self.agents, self.rules, self.facts, self.reminders = agents, rules, facts, reminders
+        self.agents, self.rules, self.memories, self.reminders = agents, rules, memories, reminders
         self.outputs = outputs
         self.tasks, self.messages, self.questions = tasks, messages, questions
 
@@ -40,8 +40,8 @@ class StartLines:
     def rules_numbered(self) -> str:
         return self.numbered(r.text for r in self.rules.all())
 
-    def facts_numbered(self) -> str:
-        return self.numbered(f.text for f in self.facts.scoped())
+    def memories_weighed(self) -> str:
+        return "; ".join(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in self.memories.shown())
 
     def reminders_numbered(self) -> str:
         return self.numbered(r.text for r in self.reminders.standing())

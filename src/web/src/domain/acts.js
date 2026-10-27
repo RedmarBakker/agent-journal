@@ -23,7 +23,7 @@ const ACTS = {
     notices: (r) => (isClosed(r) ? [] : [act("close", "Close")]),
     checks: (r) => (r.progress ? [act("stop", "Stop", {danger: true})] : [act("run", "Run now")]),
     shares: (r) => [...(!r.approved && !r.stopped_at ? [act("approve", "Accept")] : []), ...(r.stopped_at ? [] : [act("stop", "Stop sharing", {danger: true})])],
-    facts: () => [DELETE],
+    memories: (r) => (r.removed_at ? [] : [act("remove", "Remove", {danger: true})]),
     rules: () => [DELETE],
     reminders: () => [DELETE],
     comments: () => [DELETE],
@@ -39,7 +39,7 @@ const EDITS = {
     docs: {title: "line", abstract: "text", body: "text"},
     reports: {title: "line", abstract: "text", body: "text"},
     collections: {title: "line", abstract: "text"},
-    facts: {text: "text"},
+    memories: {text: "text", weight: "line"},
     reminders: {text: "text"},
     rules: {text: "text", reason: "text"},
 };

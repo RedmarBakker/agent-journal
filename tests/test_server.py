@@ -220,7 +220,7 @@ def test_the_port_file_is_removed_only_by_the_server_whose_port_it_names(app: Ap
 
 def test_version_fours_own_api_lists_every_resource_and_answers_a_question(server):
     assert call(server, "GET", "/journal/environments")[1]["rows"][0]["name"] == "main"
-    for name in ("plans", "facts", "reminders", "reports", "docs", "workers", "messages", "questions", "agents", "rules", "entries"):
+    for name in ("plans", "memories", "reminders", "reports", "docs", "workers", "messages", "questions", "agents", "rules", "entries"):
         assert call(server, "GET", f"/journal/{name}")[0] == 200, name
     status, message = call(server, "POST", "/journal/messages", {"text": "hello agent"})
     assert status == 201 and message["author"] == "user" and message["read_at"] is None
@@ -532,12 +532,12 @@ def test_each_type_is_read_alone_above_the_last_number_seen(server):
     tasks = call(server, "GET", "/journal/tasks?after=1&limit=2")[1]
     assert [r["id"] for r in tasks["rows"]] == [3, 4] and tasks["is_last_page"] is False
     assert tasks["counts"] == {"all": 4, "open": 0, "unread": 0}
-    call(server, "POST", "/journal/facts", {"text": "the sky is blue"})
+    call(server, "POST", "/journal/memories", {"text": "the sky is blue"})
     with server.database.transaction():
-        server.database.execute("UPDATE facts SET keywords = '{broken' WHERE id = 1")
-    status, body = call(server, "GET", "/journal/facts")
+        server.database.execute("UPDATE memories SET keywords = '{broken' WHERE id = 1")
+    status, body = call(server, "GET", "/journal/memories")
     assert status == 500 and "error" in body, "a resource whose rows will not load fails alone, with the fault named"
-    assert call(server, "GET", "/journal/tasks?after=3")[1]["rows"][0]["id"] == 4, "a fact that will not load leaves the tasks answering"
+    assert call(server, "GET", "/journal/tasks?after=3")[1]["rows"][0]["id"] == 4, "a memory that will not load leaves the tasks answering"
 
 
 def test_the_environment_header_scopes_each_read_and_a_request_without_it_is_refused(server):

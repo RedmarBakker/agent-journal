@@ -65,8 +65,8 @@
    "colouring": "none"
   },
   {
-   "key": "facts",
-   "title": "Facts",
+   "key": "memories",
+   "title": "Memories",
    "icon": "pins",
    "group": "reminders",
    "colouring": "none"
@@ -324,9 +324,9 @@
    "colouring": "none"
   },
   {
-   "key": "facts",
-   "label": "Facts",
-   "family": "facts",
+   "key": "memories",
+   "label": "Memories",
+   "family": "memories",
    "main": true,
    "shown": true,
    "turns": [],

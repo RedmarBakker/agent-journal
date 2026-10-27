@@ -15,7 +15,7 @@ class CardType(StrEnum):
     CREATED = "made"
     IMPASSE = "stuck"
     RULES = "rules"
-    FACTS = "facts"
+    MEMORIES = "memories"
     REMINDERS = "reminders"
     COMMANDS = "commands"
     COMMITS = "commits"

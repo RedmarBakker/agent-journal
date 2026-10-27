@@ -8,7 +8,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
 from journal.repositories.docs import Docs
 from journal.repositories.dumps import Dumps
-from journal.repositories.facts import Facts
+from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
 from journal.repositories.notices import Notices
 from journal.repositories.phases import Phases
@@ -35,10 +35,10 @@ CONVERSATION = "conversation"
 class Search:
     """Searches for words in every model with text of its own here, newest first, or only in the models named, and in the agents' conversations when requested; the command and the viewer both use it, so they find the same results."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, messages: Messages, questions: Questions, facts: Facts, rules: Rules, reminders: Reminders, reports: Reports,
+    def __init__(self, tasks: Tasks, plans: Plans, messages: Messages, questions: Questions, memories: Memories, rules: Rules, reminders: Reminders, reports: Reports,
                  docs: Docs, task_logs: TaskLogs, phases: Phases, checks: Checks, sequences: Sequences, workers: Workers, templates: Templates, dumps: Dumps,
                  triggers: Triggers, notices: Notices, secrets: Secrets, agents: Agents, providers: Providers, config: Config) -> None:
-        self.kinds: tuple[Repository, ...] = (tasks, plans, phases, task_logs, messages, questions, facts, rules, reminders, reports, docs, checks, sequences,
+        self.kinds: tuple[Repository, ...] = (tasks, plans, phases, task_logs, messages, questions, memories, rules, reminders, reports, docs, checks, sequences,
                                               workers, templates, dumps, triggers, notices, secrets)
         self.agents, self.providers, self.config, self.workers = agents, providers, config, workers
 

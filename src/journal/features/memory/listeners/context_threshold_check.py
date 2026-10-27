@@ -14,7 +14,7 @@ class ContextThresholdCheck(AgentListener[AgentEvent]):
         self.agents = agents
 
     def handle(self, event: AgentEvent) -> None:
-        if event.context is None or not event.session:
+        if event.context is None or not event.session or event.subagent:
             return
         agent = self.agents.session_agent(event.session)
         if MemoryThresholds.reached(event.context) < agent.context_threshold:

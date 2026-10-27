@@ -2,7 +2,6 @@ import json
 from argparse import Namespace
 
 from journal.console.command import Command
-from journal.features.memory.support.threshold_decisions import ThresholdDecisions
 from journal.features.memory.support.memory_context import MemoryContext
 from journal.features.memory.support.row_condition import RowCondition
 from journal.models.memory_trigger import MemoryTrigger
@@ -12,12 +11,12 @@ from journal.repositories.repository import Repository
 
 
 class RecordCommand(Command):
-    """What fact, rule and reminder share: create, list, read, strike, and lifting a hold at a mark when the agent records one."""
+    """What rule and reminder share: create, list, read and strike."""
 
     repository: Repository
 
-    def __init__(self, decisions: ThresholdDecisions, context: MemoryContext) -> None:
-        self.decisions, self.context = decisions, context
+    def __init__(self, context: MemoryContext) -> None:
+        self.context = context
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", f"record a {self.noun}")
@@ -36,8 +35,7 @@ class RecordCommand(Command):
         return None
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        row = self.repository.save(self.with_trigger(self.with_keywords(self.new(args), caller), args), caller.actor)
-        self.decisions.decided(caller)
+        row = self.repository.save(self.with_trigger(self.for_caller(self.new(args), caller), args), caller.actor)
         print(f"{self.noun} {row.id}: {row.text}")
         return 0
 
@@ -60,7 +58,7 @@ class RecordCommand(Command):
     def listed(self, row) -> str:
         return row.text
 
-    def with_keywords(self, row, caller: Caller):
+    def for_caller(self, row, caller: Caller):
         return row
 
     @staticmethod

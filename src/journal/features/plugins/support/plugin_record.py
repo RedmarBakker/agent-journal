@@ -2,7 +2,7 @@ from journal.features.plugins.support.record_line import RecordLine
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 
-OPENED = frozenset({"tasks", "messages", "plans", "docs", "reports", "facts", "rules", "reminders", "questions", "checks", "secrets"})
+OPENED = frozenset({"tasks", "messages", "plans", "docs", "reports", "memories", "rules", "reminders", "questions", "checks", "secrets"})
 CHANGES = {"created": "made", "updated": "changed", "deleted": "deleted"}
 
 

@@ -1,5 +1,4 @@
 from journal.features.docs.commands.doc_command import DocCommand
-from journal.features.memory.commands.fact_command import FactCommand
 from journal.features.memory.commands.rule_command import RuleCommand
 from journal.features.plans.commands.plan_command import PlanCommand
 from journal.features.plugins.feature import PluginsFeature
@@ -10,6 +9,7 @@ from journal.features.tasks.commands.task_command import TaskCommand
 from journal.features.workers.listeners.subagent_turn_record import SubagentTurnRecord
 from journal.features.workers.states.researching import Researching
 from journal.features.helper import Helper
+from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.support.agent_role import AgentRole
 
 
@@ -21,8 +21,7 @@ class ResearcherHelper(Helper):
     features = (PluginsFeature,)
     commands = (
         (DocCommand, "show"),
-        (FactCommand, "list"),
-        (FactCommand, "read"),
+        (MemoryCommand, "list"),
         (OutputCommand, "read"),
         (PlanCommand, "show"),
         (ReportCommand, "show"),

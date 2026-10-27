@@ -37,7 +37,7 @@ export const DOCKABLE = new Set([
     "plans",
     "docs",
     "reports",
-    "facts",
+    "memories",
     "rules",
     "reminders",
     "questions",

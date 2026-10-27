@@ -5,7 +5,7 @@ from journal.models.model import Model
 from journal.repositories.checks import Checks
 from journal.repositories.docs import Docs
 from journal.repositories.dumps import Dumps
-from journal.repositories.facts import Facts
+from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
 from journal.repositories.notices import Notices
 from journal.repositories.plans import Plans
@@ -37,10 +37,10 @@ ROW_LINK = re.compile(r"^[a-z_]+:\d+$")
 class Docking:
     """The rows pinned above the chat: each is a keyed system message whose data records that it is docked and the row's card, the card already made for the row if there is one, else a card written for it; undocking leaves the message in place with docked set to false."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, facts: Facts, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
+    def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, memories: Memories, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
                  templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, announcer: Announcer, scope: Scope) -> None:
         self.messages, self.announcer, self.scope = messages, announcer, scope
-        self.kinds: dict[str, Repository] = {kind.model.noun(): kind for kind in (tasks, plans, docs, reports, facts, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
+        self.kinds: dict[str, Repository] = {kind.model.noun(): kind for kind in (tasks, plans, docs, reports, memories, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
         self.tables: dict[str, Repository] = {kind.model.table(): kind for kind in self.kinds.values()}
 
     def nouns(self) -> tuple[str, ...]:

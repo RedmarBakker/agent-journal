@@ -169,7 +169,7 @@ const BEATS = [
     {beat: "answered", matches: (card) => card.shows === "questions"},
     {beat: "task_finished", matches: (card) => card.shows === "task_moves" && /^Completed /.test(card.label)},
     {beat: "messaged", matches: givenWork},
-    {beat: "fact_filed", matches: (card) => ["facts", "reminders"].includes(card.shows) && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
+    {beat: "fact_filed", matches: (card) => ["memories", "reminders"].includes(card.shows) && /^(Memory|Reminder) \d+ recorded/.test(card.label)},
     {beat: "check_passed", matches: (card) => card.shows === "checks" && outcomeOf(card) === "passed"},
 ];
 

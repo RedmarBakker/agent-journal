@@ -5,7 +5,7 @@ from journal.support.actor import Actor
 
 
 class StartMemory(AgentListener[SessionStarted]):
-    """The start block gives the agent every rule, fact and reminder, so at a session start, new or after a compaction, every one is in its context window."""
+    """The start block gives the agent every rule and reminder, so at a session start, new or after a compaction, every one is in its context window."""
 
     blocking = True
 

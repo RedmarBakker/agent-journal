@@ -6,9 +6,7 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.line_delivered import LineDelivered
-from journal.events.agent.stop import Stop
 from journal.events.agent.session_started import SessionStarted
-from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.rule_created import RuleCreated
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_started import TaskStarted
@@ -17,13 +15,14 @@ from journal.features.memory.memory_nudges import MemoryNudges
 from journal.features.memory.memory_options import MemoryOptions
 from journal.features.memory.memory_part import MemoryPart
 from journal.features.memory.memory_thresholds import MemoryThresholds
+from journal.features.memory.states.weighing_memories import WeighingMemories
 
 
 COMPACT = "compact"
 
 
 class MemoryConduct(Conduct):
-    """The memory feature's conduct in every state: at a context mark not taken yet the agent is instructed to decide what to keep, a write and a stop are blocked until it has, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, a reminder set for a moment is informed once its moment has come, at the first event after it or at the next session start, and one with a trigger is informed when its trigger fires while its condition holds."""
+    """The memory feature's conduct in every state: at a context mark not taken yet, or one owed from under a state that took no pushes, WeighingMemories is pushed over the work, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, a reminder with an interval is sent again each time its interval has passed, a reminder set for a moment is informed once its moment has come, at the first event after it or at the next session start, and one with a trigger is informed when its trigger fires while its condition holds."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         stale = event.data.part(MemoryPart).stale
@@ -31,17 +30,8 @@ class MemoryConduct(Conduct):
             return self.none()
         return self.none(MemoryNudges.CHECK_STALE_MEMORY.create(stale_after=settings.value(MemoryOptions.STALENESS_LIMIT), stale=", ".join(stale)))
 
-    def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if not event.call.writes or not event.data.part(MemoryPart).threshold_due:
-            return self.none()
-        return self.refuse(MemoryNudges.DECISION_EDIT_BLOCK.create())
-
-    def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        obligations = event.data.part(MemoryPart).threshold_due
-        return self.refuse(MemoryNudges.UNDECIDED_STOP.create(percent=obligations)) if obligations else self.none()
-
     def on_agent_event(self, event: AgentEvent, settings: Settings) -> Transition:
-        return Transition.merged(self, [hint_check(self, event, settings), threshold_check(self, event, settings), self.none(*due_lines(event))])
+        return Transition.merged(self, [hint_check(self, event, settings), threshold_check(self, event, settings), self.none(*due_lines(event), *repeated_lines(event))])
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         return self.none(*triggered_lines(event, MemoryTrigger.TASK_COMPLETED)) if event.outcome == "completed" else self.none()
@@ -64,11 +54,19 @@ def due_lines(event: AgentEvent) -> list:
 
 
 
+def repeated_lines(event: AgentEvent) -> list:
+    if isinstance(event, LineDelivered) or event.subagent:
+        return []
+    return [MemoryNudges.REMINDER_REPEATED.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).repeating if reminder.is_due(event.time, event.tool_use)]
+
+
 def threshold_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
-    if event.context is None or not event.session:
+    memory = event.data.part(MemoryPart)
+    reached = MemoryThresholds.due(event.context, memory.context_threshold) if event.context is not None and event.session and not event.subagent else 0
+    percent = reached or memory.threshold_due
+    if not percent or not state.takes_pushes():
         return state.none()
-    threshold = MemoryThresholds.due(event.context, event.data.part(MemoryPart).context_threshold)
-    return state.none(MemoryNudges.CONTEXT_DECISION.create(percent=threshold)) if threshold else state.none()
+    return state.push(WeighingMemories(percent=percent), MemoryNudges.CONTEXT_DECISION.create(percent=percent, memories=memory.shown_memories))
 
 
 def hint_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:

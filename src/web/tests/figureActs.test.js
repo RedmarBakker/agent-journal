@@ -62,7 +62,7 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
         message(4, "system", "Which one?", {kind: "question", process: "question"}, "s"),
         message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
-        message(6, "system", "Fact 15 recorded", {shows: "facts"}),
+        message(6, "system", "Memory 15 recorded", {shows: "memories"}),
         message(7, "system", "Reminder 16 recorded", {shows: "reminders"}),
         message(8, "system", "Check Check for sins passed", {shows: "checks", outcome: "passed"}),
         message(9, "system", "Resumed task 13: the parser", {icon: "todos", tone: ""}),

@@ -1,6 +1,5 @@
 from journal.events.agent.line_delivered import LineDelivered
 from journal.events.agent_listener import AgentListener
-from journal.repositories.facts import Facts
 from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.repositories.scope import Scope
@@ -9,10 +8,10 @@ from journal.features.memory.memory_nudges import MemoryNudges
 
 
 class SingleUseMemoryStrike(AgentListener[LineDelivered]):
-    """A fact, rule or reminder made for one use is struck once its moment has brought it to the agent, so it is brought once."""
+    """A rule or reminder made for one use is struck once its moment has brought it to the agent, so it is brought once."""
 
-    def __init__(self, facts: Facts, rules: Rules, reminders: Reminders, scope: Scope) -> None:
-        self.repositories, self.scope = {"fact": facts, "rule": rules, "reminder": reminders}, scope
+    def __init__(self, rules: Rules, reminders: Reminders, scope: Scope) -> None:
+        self.repositories, self.scope = {"rule": rules, "reminder": reminders}, scope
 
     def handle(self, event: LineDelivered) -> None:
         if event.nudge != MemoryNudges.MEMORY_TRIGGERED.key or not event.values.get("single_use"):

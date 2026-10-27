@@ -13,14 +13,14 @@ RUNS = {
     "todo": ("task", "create", "{name}", "--brief", "{text}"),
     "log": ("task", "log", "{n}", "{text}"),
     "end": ("task", "complete", "{n}", "--how", "{text}"),
-    "fact": ("fact", "create", "{name}", "--reason", "{text}"),
+    "memory": ("memory", "add", "{name}"),
     "rule": ("rule", "create", "{name}", "--reason", "{text}"),
     "reminder": ("reminder", "create", "{name}", "--reason", "{text}"),
 }
 
 
 class RunTags(AgentListener[TurnDisplayed]):
-    """A tag opening a line of the turn runs the command it stands for, with the turn's text as its text: [!todo="the title"] files a task with the turn as its brief, [!log:N] makes the turn the log line, [!end:N] the outcome, [!fact="the claim"] the fact's reason. A refusal is typed back; the reply tag belongs to the recorder."""
+    """A tag opening a line of the turn runs the command it stands for, with the turn's text as its text: [!todo="the title"] files a task with the turn as its brief, [!log:N] makes the turn the log line, [!end:N] the outcome, [!memory="what to keep in mind"] the fact's reason. A refusal is typed back; the reply tag belongs to the recorder."""
 
     def __init__(self, console: Console, environments: Environments, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents) -> None:
         self.nudger, self.sessions = nudger, sessions

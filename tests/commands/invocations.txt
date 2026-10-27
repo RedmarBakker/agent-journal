@@ -80,12 +80,6 @@ agent question show 1
 user question answer 1 "Mollie"
 agent question dock 1
 agent question undock 1
-agent fact create "The shop sells in euros" --reason "the customers are Dutch" --keywords euro
-agent fact list
-agent fact read 1
-agent fact dock 1
-agent fact undock 1
-agent fact strike 1
 user rule create "Always round money to cents" --reason "the bank does"
 agent rule list
 agent rule read 1
@@ -102,6 +96,8 @@ agent memory add "the suite runs in shards" --weight 7
 agent memory add "the port is fixed"
 agent memory list
 agent memory weigh 1,2 6,4
+agent memory dock 1
+agent memory undock 1
 agent memory remove 2
 agent memory skip "nothing new to keep"
 agent doc create "The cart" --file {file} --abstract "how the cart adds up"

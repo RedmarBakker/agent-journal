@@ -4,7 +4,6 @@ from journal.support.actor_type import ActorType
 from journal.support.caller import Caller
 
 from journal.features.memory.commands.record_command import RecordCommand
-from journal.features.memory.support.threshold_decisions import ThresholdDecisions
 from journal.features.memory.support.memory_context import MemoryContext
 from journal.models.rule import Rule
 from journal.repositories.rules import Rules
@@ -15,11 +14,11 @@ class RuleCommand(RecordCommand):
 
     noun = "rule"
 
-    def __init__(self, rules: Rules, decisions: ThresholdDecisions, context: MemoryContext) -> None:
-        super().__init__(decisions, context)
+    def __init__(self, rules: Rules, context: MemoryContext) -> None:
+        super().__init__(context)
         self.repository = rules
 
-    def with_keywords(self, row: Rule, caller: Caller) -> Rule:
+    def for_caller(self, row: Rule, caller: Caller) -> Rule:
         return row.created(caller.actor.kind == ActorType.AGENT)
 
     def new(self, args: Namespace) -> Rule:

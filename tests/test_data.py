@@ -217,7 +217,7 @@ def test_a_title_is_one_line_of_eighty_characters_without_a_colon_and_an_old_one
 
 def test_a_row_answers_its_heading_its_summary_and_its_dock_card():
     from journal.models.doc import Doc
-    from journal.models.fact import Fact
+    from journal.models.memory import Memory
     from journal.models.plan import Plan
     from journal.models.report import Report
     from journal.models.support.dock_card import DockCard
@@ -227,7 +227,7 @@ def test_a_row_answers_its_heading_its_summary_and_its_dock_card():
     assert Doc(id=3, title="Notes", abstract="How the notes are kept", body="# Notes\n\nThe first line.\nThe second.").summary_line() == "How the notes are kept", "a document's summary is its abstract"
     task = Task(id=12, title="Write it", brief="First line of the brief\nmore")
     assert task.heading() == "Task 12: Write it" and task.summary_line() == "First line of the brief"
-    assert Fact(id=2, text="Ports are fixed").heading() == "Fact 2" and Fact(id=2).summary_line() == ""
+    assert Memory(id=2, text="Ports are fixed").heading() == "Memory 2" and Memory(id=2).summary_line() == ""
     assert task.docked() == DockCard.plain() and [b.label for b in DockCard.plain().buttons] == ["Open", "Close"]
     assert [(b.label, b.act) for b in Plan(id=1).docked().buttons] == [("Open plan", "open"), ("Approve", "approve"), ("Close", "close")]
     assert RowCard.build(report).as_data() == {"row": "reports:33", "heading": "Report 33: What the dock showed", "summary": "One line about it", "status": "Ready", "dock": {"buttons": [{"label": "Open", "act": "open"}, {"label": "Close", "act": "close"}], "folds": True}}, "a card carries no file: a document is downloaded from where it is read"
@@ -1670,8 +1670,8 @@ def test_a_memory_fades_by_one_at_a_time_and_at_nought_is_stored_but_no_longer_s
         memories.fade_all(Actor.system())
         assert [(m.id, m.weight) for m in memories.shown()] == [(heavy.id, 6)], "a compaction lowers every weight by one, and one at nought leaves what is shown"
         assert memories.find(light.id).weight == 0 and memories.find(removed.id).weight == 9, "it stays on its row, and a removed one is not faded"
-        assert memories.find(light.id).weighed(4).is_shown(), "weighing a faded memory above nought shows it again"
-        with pytest.raises(Rejection, match="0 to 10"):
+        assert memories.find(light.id).weighed(4).is_visible(), "weighing a faded memory above nought shows it again"
+        with pytest.raises(Rejection, match="from 1 to 10"):
             heavy.weighed(11)
         with pytest.raises(Rejection, match="already removed"):
             memories.find(removed.id).removed(datetime.now(timezone.utc))
@@ -1680,8 +1680,26 @@ def test_a_memory_fades_by_one_at_a_time_and_at_nought_is_stored_but_no_longer_s
 def test_the_fact_memories_migration_makes_each_standing_fact_a_memory_of_weight_five_once(connection):
     """Migration 72: every fact still in the table, a struck one being gone from it, becomes a memory of weight 5 in its environment with its text and keywords, and a second run adds nothing."""
     from journal.db.migrations.fact_memories import FactMemories
+    connection.execute("CREATE TABLE facts (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT, creator TEXT, updated_at TEXT, updater TEXT, environment_id INTEGER, text TEXT, keywords TEXT)")
     connection.execute("INSERT INTO facts (environment_id, text, keywords, created_at, creator) VALUES (1, 'the port is fixed', '[\"port\"]', '2026-10-27', 'system'), (2, 'the suite runs in shards', '[]', '2026-10-27', 'system')")
     FactMemories().apply(connection)
     FactMemories().apply(connection)
     rows = [(row["environment_id"], row["text"], row["weight"], row["keywords"]) for row in connection.all("SELECT environment_id, text, weight, keywords FROM memories ORDER BY id")]
     assert rows == [(1, "the port is fixed", 5, '["port"]'), (2, "the suite runs in shards", 5, "[]")], rows
+
+
+def test_the_fact_table_drop_moves_each_fact_card_to_its_memory_and_drops_the_table(connection):
+    """Migration 73: a card that opened a fact opens the memory made of it, shown as a memory card; a card whose fact had no memory keeps its words and opens nothing; the facts table goes."""
+    import json
+    from journal.db.migrations.fact_table_drop import FactTableDrop
+    connection.execute("CREATE TABLE facts (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER, text TEXT)")
+    connection.execute("INSERT INTO facts (environment_id, text) VALUES (1, 'the port is fixed'), (1, 'a fact with no memory')")
+    connection.execute("INSERT INTO memories (environment_id, text, weight, created_at, creator) VALUES (1, 'the port is fixed', 5, '2026-10-27', 'system')")
+    memory = connection.one("SELECT id FROM memories")["id"]
+    for number in (1, 2):
+        connection.execute("INSERT INTO messages (environment_id, text, data, created_at, creator) VALUES (1, ?, ?, '2026-10-27', 'system')", (f"Fact {number} recorded", json.dumps({"kind": "card", "row": f"facts:{number}", "shows": "facts"})))
+    FactTableDrop().apply(connection)
+    cards = [(row["text"], json.loads(row["data"])) for row in connection.all("SELECT text, data FROM messages ORDER BY id")]
+    assert cards[0] == (f"Memory {memory} recorded", {"kind": "card", "row": f"memories:{memory}", "shows": "memories"})
+    assert cards[1] == ("Fact 2 recorded", {"kind": "card", "shows": "memories"})
+    assert not connection.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'facts'")

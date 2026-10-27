@@ -4,6 +4,14 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+- Facts are memories: a memory has a weight from 1 to 10 that every compaction lowers by one, and at nought it is no longer shown. `journal memory add`, `weigh`, `list`, `remove` and `skip`; every fact became a memory of weight 5 and the facts table is gone, its cards opening the memories made of them.
+- The context marks are 50, 80 and 90 percent and fire again in every window. At a mark the agent weighs its memories in the state WeighingMemories: writes and stops wait until it weighs, adds or removes one, or skips.
+- After a compaction the overview opens with the memories by weight, a fixed part that the look commands cannot remove.
+- The viewer lists memories with their weights; the user adds, weighs and removes one; each change is a card in the chat.
+- A reminder may repeat with `--every-minutes` or `--every-tool-uses` while it holds.
+- A line an alias runs, typed by hand, refuses the tool use with the alias; so does an alias run a more specific alias covers. A reader of the project never reads a plugin's alias, and one that does is deleted when the alias runs.
+- A work mode's state brings conduct of its own to every state above it, and the read side asks the state what it waits on, its task, its question and its reason.
+
 - Each state names the task assigner the journal asks for the agent's next task, and only the assigners pick a task or read auto mode: at a stop or when its task closes, the builder is started on its own paused task, then its plan's next task or an approved plan, then the first open task by priority; an await keeps the assigner beneath it.
 - The orchestrator is never started on a task: it asks for the next ones with `journal task next --quantity <n>`, which names them in round robin over the running plans, the same names until each is delegated or started.
 - A stop no longer names open tasks or an approved plan, since the next task is already started; the builder's stop names paused tasks and broken waits, and a blocked task is neither started nor named at it; the orchestrator's stop asks about the blocked tasks it can move, then names the tasks to dispatch.

@@ -8,7 +8,7 @@ from journal.support.time_source import TimeSource
 
 
 class ThresholdDecisions:
-    """The agent's decision at a context threshold, stored when it records a fact, a rule or a reminder or says nothing needs recording, which lifts the threshold's block."""
+    """The agent's decision at a context threshold, stored when it adds, weighs or removes a memory or says nothing needs keeping, which lifts the threshold's block."""
 
     def __init__(self, sessions: SessionAgents, scope: Scope, agents: Agents, time_source: TimeSource) -> None:
         self.time_source = time_source

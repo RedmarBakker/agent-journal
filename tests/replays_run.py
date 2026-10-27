@@ -543,25 +543,26 @@ def orienting_rules(app, replay: Replay, provider: str) -> None:
 
 
 def at_mark_rules(app, replay: Replay, provider: str) -> None:
-    """The steps: with a task in hand the context crosses the first mark, a read is told, a write is held, a fact recorded lets it through and the mark asks once; the context crosses the second mark at a stop, and nothing survives lets it through."""
+    """The steps: with a task in hand the context crosses the first mark, a read is told and WeighingMemories pushed, a write is held, a memory weighed lets it through and the mark asks once; the context crosses the second mark at a stop, and nothing to keep lets it through."""
     hook_as(app, provider, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
+    app.console().run(["memory", "add", "the login is flaky", "--weight", "6"], AGENT)
     read = lambda: hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1]
     write = lambda: hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1]
     replay.step("a task in hand")
-    context(app, 30)
+    context(app, 55)
     replay.step("a read past the first mark", read())
     replay.step("a write at the mark", write())
-    app.console().run(["fact", "create", "the login is flaky"], AGENT)
-    replay.step("a fact recorded")
-    replay.step("a write after the fact", write())
+    app.console().run(["memory", "weigh", "1", "7"], AGENT)
+    replay.step("a memory weighed")
+    replay.step("a write after weighing", write())
     replay.step("a read: the mark asks once", read())
-    context(app, 55)
+    context(app, 85)
     replay.step("a stop past the second mark", hook_as(app, provider, "Stop")[1])
     replay.step("a write at the second mark", write())
     app.console().run(["memory", "skip", "all logged"], AGENT)
-    replay.step("nothing survives")
+    replay.step("nothing to keep")
     replay.step("a write after", write())
 
 
@@ -678,10 +679,10 @@ def ended_restarts(app, replay: Replay, provider: str) -> None:
 
 
 def session_starts(app, replay: Replay, provider: str) -> None:
-    """The steps: the whole start block as a session starts fresh with rules, facts, reminders and a task in hand on record; a second session taking the environment over, which ends the first; the first starting again after a compaction, then resumed."""
+    """The steps: the whole start block as a session starts fresh with rules, memories, reminders and a task in hand on record; a second session taking the environment over, which ends the first; the first starting again after a compaction, then resumed."""
     console = app.console()
     console.run(["rule", "create", "Never skip the gate", "--reason", "it broke once"], USER)
-    console.run(["fact", "create", "the login is flaky"], USER)
+    console.run(["memory", "add", "the login is flaky"], USER)
     console.run(["reminder", "create", "tag the release"], USER)
     console.run(["task", "create", "the footer"], USER)
     console.run(["message", "send", "one"], USER)

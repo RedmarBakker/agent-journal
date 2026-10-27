@@ -12,7 +12,7 @@ from journal.features.etiquette.etiquette_nudges import EtiquetteNudges
 from journal.features.etiquette.etiquette_options import EtiquetteOptions
 from journal.features.etiquette.etiquette_part import EtiquettePart
 
-SHOP_TALK = re.compile(r"\bjournal (task|plan|message|question|fact|rule|reminder|sequence|worker|check|skill|stuck|nothing) [a-z]+\b|\[journal\]", re.I)
+SHOP_TALK = re.compile(r"\bjournal (task|plan|message|question|memory|rule|reminder|sequence|worker|check|skill|stuck|nothing) [a-z]+\b|\[journal\]", re.I)
 THIRD_PERSON = re.compile(r"\bthe user\b", re.I)
 EM_DASHES = re.compile(r"—.*—", re.S)
 LONG_PARAGRAPH_CHARACTERS, SENTENCES = 400, 3

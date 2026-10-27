@@ -46,7 +46,7 @@ const kind = computed(() => meta(table.value));
 const body = computed(() => bodyOf(props.resource));
 const sections = computed(() => sectionsOf(props.resource.body));
 const SHOWN_APART = ["triggers", "sequences", "messages", "questions"];
-const MEMORY_TABLES = ["facts", "rules", "reminders"];
+const MEMORY_TABLES = ["memories", "rules", "reminders"];
 const edits = computed(() => editsOf(props.resource));
 const editing = ref(false);
 const draft = reactive({fields: {}, error: ""});

@@ -1,25 +1,22 @@
 from typing import TypeVar
 
-from journal.models.fact import Fact
 from journal.models.reminder import Reminder
 from journal.models.rule import Rule
-from journal.repositories.facts import Facts
 from journal.repositories.repository import Repository
 from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.support.actor import Actor
 
-R = TypeVar("R", Fact, Rule, Reminder)
+R = TypeVar("R", Rule, Reminder)
 
 
 class MemoryContext:
-    """Which facts, rules and reminders are in the agent's context window: one is added when the journal gives it to the agent, by the start block, the overview or a read; every one is added at a session start, since the start block gives them all, and a row created in the meantime starts out of it."""
+    """Which rules and reminders are in the agent's context window: one is added when the journal gives it to the agent, by the start block, the overview or a read; every one is added at a session start, since the start block gives them all, and a row created in the meantime starts out of it."""
 
-    def __init__(self, facts: Facts, rules: Rules, reminders: Reminders) -> None:
-        self.facts, self.rules, self.reminders = facts, rules, reminders
+    def __init__(self, rules: Rules, reminders: Reminders) -> None:
+        self.rules, self.reminders = rules, reminders
 
     def admit_all(self, actor: Actor) -> None:
-        self.admitted(self.facts, self.facts.scoped(), actor)
         self.admitted(self.rules, self.rules.all(), actor)
         self.admitted(self.reminders, self.reminders.standing(), actor)
 
@@ -30,6 +27,6 @@ class MemoryContext:
                 repository.save(row.with_(presence=True), actor)
 
     def admit(self, row, actor: Actor):
-        repositories: dict[str, Facts | Rules | Reminders] = {"fact": self.facts, "rule": self.rules, "reminder": self.reminders}
+        repositories: dict[str, Rules | Reminders] = {"rule": self.rules, "reminder": self.reminders}
         repository = repositories[row.table().rstrip("s")]
         return row if row.presence else repository.save(row.with_(presence=True), actor)

@@ -1746,3 +1746,10 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
   `paused_declined`, not a field on Ready: a command writes rows and cannot set a state's field, and Ready cannot learn why
   the choice popped. It lets the free task through until the next close, which ends it at once and asks again.
 - A task just paused with `journal task pause` is offered at the next stop among the others; that is the choice, not a loop.
+
+## Memories that fade (plan 1044, 2026-10-27)
+
+- Facts become memories: a row with a weight from 1 to 10 that every compaction lowers by one; at nought it is no longer shown, and a removed one stays on its row. `journal memory add`, `weigh`, `list`, `remove` and `skip`; migration 72 made every standing fact a memory of weight 5. Doc 1070 is the design, report 1091 the review.
+- The context marks are 50, 80 and 90 percent. A reading under the highest mark taken means the window was compacted, so the marks start again; a compaction clears the mark owed.
+- At a mark the memory conduct pushes WeighingMemories over the work: writes and stops wait, reads and journal commands go through, a memory command or skip pops it (ContextDecided). A mark reached while the top takes no pushes stays owed on the row (threshold_due) and is pushed once it can be. A compaction over it pops it in on_resume. A subagent's events never push it.
+- The memories always open the overview after a compaction, a fixed part, never one of the look commands (message 69528).

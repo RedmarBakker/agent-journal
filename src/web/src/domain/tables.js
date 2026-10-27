@@ -83,7 +83,7 @@ export const TABLES = {
         exports: true,
         start_as_count: true,
     }),
-    facts: kind("Fact", "pin", "Something true about this environment that a later session would get wrong without", {
+    memories: kind("Memory", "pin", "What the agent keeps in mind here, with a weight from 1 to 10 that every compaction lowers by one", {
         in_sidebar: true,
         listed_under: "environment",
         takes_comments: true,
@@ -184,5 +184,5 @@ const STOPS = {triggers: "It stops running.", sequences: "It stops starting by i
 export const closeWord = (table) => NAMED_CLOSES[table] || `Close the ${meta(table).title.toLowerCase()}`;
 export const closeNote = (table) => `Moves it to Closed. ${STOPS[table] ? `${STOPS[table]} ` : ""}You can reopen it.`;
 export const SHARED = ["docs", "reports", "plans"];
-export const MENUED = ["rules", "facts", "triggers"];
+export const MENUED = ["rules", "memories", "triggers"];
 export const DELETE_NOTE = "It leaves every list. Its history stays in Activity.";

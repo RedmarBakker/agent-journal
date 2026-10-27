@@ -24,7 +24,7 @@ class BriefingDataReader:
             "peer_session_active_at": lambda: self.start.other_session_time(agent.session),
             "rules": self.start.rules_numbered,
             "rules_count": lambda: len(self.rules.all()),
-            "facts": self.start.facts_numbered,
+            "memories": self.start.memories_weighed,
             "reminders": self.start.reminders_numbered,
             "waiting": self.start.waiting,
             "team_history": lambda: self.start.team_history(facts.environment_row),

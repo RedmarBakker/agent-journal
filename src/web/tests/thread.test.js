@@ -106,9 +106,9 @@ describe("a message from another session", () => {
 
 describe("a reminder whispered to the agent", () => {
     test("is a mark with its words, never an empty one", () => {
-        const [turn] = turns([card(9, 10, {kind: "whisper", icon: "rules", row: "facts:2"}, "Reminded the agent about fact 2")]);
+        const [turn] = turns([card(9, 10, {kind: "whisper", icon: "rules", row: "reminders:2"}, "Reminded the agent about reminder 2")]);
         expect(turn.kind).toBe("whisper");
-        expect(turn.title).toBe("Reminded the agent about fact 2");
+        expect(turn.title).toBe("Reminded the agent about reminder 2");
     });
 });
 
@@ -122,15 +122,15 @@ describe("a suggestion", () => {
 });
 
 describe("the Show in chat switches", () => {
-    test("hide each card by the kind it names, a fact's whisper under Facts and never under Rules", () => {
+    test("hide each card by the kind it names, a reminder's whisper under Reminders and never under Rules", () => {
         const command = card(1, 10, {kind: "card", icon: "terminal", shows: "commands"}, "Moved to the background: testing");
-        const fact = card(2, 11, {kind: "whisper", row: "facts:4", shows: "facts"}, "Reminded the agent about fact 4");
+        const fact = card(2, 11, {kind: "whisper", row: "reminders:4", shows: "reminders"}, "Reminded the agent about reminder 4");
         const step = card(3, 12, {kind: "card", icon: "list", shows: "sequence_steps"}, "Sequence 1: moved on to step 2");
         const shown = (hidden) => threadTurns([command, fact, step], [], false, hidden).turns.map((t) => t.id);
         expect(shown([])).toEqual([1, 2, 3]);
         expect(shown(["commands"])).toEqual([2, 3]);
         expect(shown(["rules"])).toEqual([1, 2, 3]);
-        expect(shown(["facts", "sequence_steps"])).toEqual([1]);
+        expect(shown(["reminders", "sequence_steps"])).toEqual([1]);
     });
 });
 

@@ -1,5 +1,5 @@
 from journal.chat.moment_cards import MomentCards
-from journal.models.fact import Fact
+from journal.models.memory import Memory
 from journal.models.model import Model
 from journal.models.reminder import Reminder
 from journal.models.rule import Rule
@@ -9,7 +9,7 @@ from journal.support.actor import Actor
 from journal.support.actor_type import ActorType
 from journal.support.card_type import CardType
 
-MEMORY_KINDS = {Fact: ("Fact", CardType.FACTS), Rule: ("Rule", CardType.RULES), Reminder: ("Reminder", CardType.REMINDERS)}
+MEMORY_KINDS = {Memory: ("Memory", CardType.MEMORIES), Rule: ("Rule", CardType.RULES), Reminder: ("Reminder", CardType.REMINDERS)}
 
 
 class MemoryCard:
@@ -28,4 +28,6 @@ class MemoryCard:
 
     @staticmethod
     def moment(row: Model) -> str:
+        if isinstance(row, Memory):
+            return f", weight {row.weight}"
         return f", due {row.due_at.astimezone().strftime(Reminder.MOMENT)}" if isinstance(row, Reminder) and row.due_at else ""

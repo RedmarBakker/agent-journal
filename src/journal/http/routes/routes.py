@@ -7,7 +7,7 @@ from journal.http.controllers.docs import DocController
 from journal.http.controllers.dumps import DumpController
 from journal.http.controllers.entries import EntryController
 from journal.http.controllers.environments import EnvironmentController
-from journal.http.controllers.facts import FactController
+from journal.http.controllers.memories import MemoryController
 from journal.http.controllers.hooks import HookController
 from journal.http.controllers.journal import JournalController
 from journal.http.controllers.mcp import McpController
@@ -259,9 +259,12 @@ class Routes:
 
     def memory(self, router: Router) -> None:
         get = self.container.get
-        for name, controller in (("facts", get(FactController)), ("rules", get(RuleController)), ("reminders", get(ReminderController))):
+        for name, controller in (("rules", get(RuleController)), ("reminders", get(ReminderController))):
             self.resource(router, name, controller)
             self.acts(router, name, controller, "delete")
+        memories = get(MemoryController)
+        self.resource(router, "memories", memories)
+        self.acts(router, "memories", memories, "remove")
 
     def agents(self, router: Router) -> None:
         get = self.container.get

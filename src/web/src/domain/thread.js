@@ -185,7 +185,7 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
 const GROUP_FROM = 4;
 const GROUPS = {
     skill: () => ({key: "skill", icon: "book", markIcon: "skill", group: "agent", label: (n) => `${n} skills loaded`}),
-    whisper: () => ({key: "whisper", icon: "rules", markIcon: "rule", group: "reminders", label: (n) => `${n} rules and facts recalled`}),
+    whisper: () => ({key: "whisper", icon: "rules", markIcon: "rule", group: "reminders", label: (n) => `${n} rules and reminders recalled`}),
     subagent: () => ({key: "subagent", icon: "agents", markIcon: "subagent", group: "agent", label: (n) => `${n} subagent updates`}),
     card: (t) => ({
         key: `card:${t.data.icon}:${t.data.label}`,

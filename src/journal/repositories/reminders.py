@@ -16,5 +16,8 @@ class Reminders(ScopedRepository[Reminder], KeywordRows):
     def triggered(self) -> list[Reminder]:
         return self.selected(self.query().filter_null("due_at").filter_unlisted("trigger", [""]).order("id"))
 
+    def repeating(self) -> list[Reminder]:
+        return self.selected(self.memory_query().filter_alternatives(self.query().filter_greater("every_minutes", 0), self.query().filter_greater("every_tool_uses", 0)).order("id"))
+
     def timed(self) -> list[Reminder]:
         return self.selected(self.query().filter_present("due_at").order("due_at"))

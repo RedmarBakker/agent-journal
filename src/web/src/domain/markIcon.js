@@ -7,7 +7,7 @@ const KIND_ICONS = {
     skills: "skill",
     compactions: "compact",
     rules: "rule",
-    facts: "fact",
+    memories: "fact",
     reminders: "reminder",
     acknowledgements: "ack",
     task_moves: "task_start",

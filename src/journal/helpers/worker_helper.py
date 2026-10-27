@@ -2,7 +2,6 @@ from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.edits.feature import EditsFeature
 from journal.features.tasks.feature import Tasks
 from journal.features.workers.feature import Workers
-from journal.features.memory.commands.fact_command import FactCommand
 from journal.features.memory.commands.rule_command import RuleCommand
 from journal.features.plugins.feature import PluginsFeature
 from journal.features.reports.commands.report_command import ReportCommand
@@ -19,6 +18,7 @@ from journal.features.workers.commands.tests_command import TestsCommand
 from journal.features.workers.commands.todo_command import TodoCommand
 from journal.features.workers.commands.worker_command import WorkerCommand
 from journal.features.helper import Helper
+from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.support.agent_role import AgentRole
 
 
@@ -35,8 +35,7 @@ class WorkerHelper(Helper):
         (DocCommand, "create"),
         (DocCommand, "show"),
         (DocCommand, "update"),
-        (FactCommand, "list"),
-        (FactCommand, "read"),
+        (MemoryCommand, "list"),
         (OutputCommand, "list"),
         (OutputCommand, "read"),
         (OutputCommand, "status"),

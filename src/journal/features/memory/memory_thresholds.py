@@ -1,7 +1,7 @@
 class MemoryThresholds:
     """The shares of the context window at which the agent must decide what to keep; a reading below the highest mark reached means the window was compacted, so the marks above it are reached again."""
 
-    CONTEXT = (25, 50, 80)
+    CONTEXT = (50, 80, 90)
 
     @classmethod
     def due(cls, context: float, highest: int) -> int:

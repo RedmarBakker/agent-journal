@@ -22,7 +22,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "context 25% full: decide what to keep. `journal fact create \"<what is true here>\"`, `journal rule create \"<Always/Never ...>\"` or `journal memory skip \"<why>\"`; writes wait until you do"
+          "additionalContext": "context 50% full: weigh your memories. 1 (weight 6): the login is flaky. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
         }
       },
       "typed": [],
@@ -31,13 +31,14 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "weighing_memories"
       ]
     },
     {
       "name": "a write at the mark",
       "answer": {
-        "error": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
+        "error": "writes wait until you weigh your memories at the context mark. `journal memory weigh`, `journal memory add` or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -45,11 +46,12 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "weighing_memories"
       ]
     },
     {
-      "name": "a fact recorded",
+      "name": "a memory weighed",
       "answer": null,
       "typed": [],
       "nudges": [],
@@ -59,7 +61,7 @@
       ]
     },
     {
-      "name": "a write after the fact",
+      "name": "a write after weighing",
       "answer": {},
       "typed": [],
       "nudges": [],
@@ -82,7 +84,7 @@
       "name": "a stop past the second mark",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\ncontext 50% full: decide what to keep. `journal fact create \"<what is true here>\"`, `journal rule create \"<Always/Never ...>\"` or `journal memory skip \"<why>\"`; writes wait until you do"
+        "reason": "task 1 is in hand, last logged just now: carry on\ncontext 80% full: weigh your memories. 1 (weight 7): the login is flaky. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
       },
       "typed": [],
       "nudges": [
@@ -91,13 +93,14 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "weighing_memories"
       ]
     },
     {
       "name": "a write at the second mark",
       "answer": {
-        "error": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
+        "error": "writes wait until you weigh your memories at the context mark. `journal memory weigh`, `journal memory add` or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -105,11 +108,12 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "weighing_memories"
       ]
     },
     {
-      "name": "nothing survives",
+      "name": "nothing to keep",
       "answer": null,
       "typed": [],
       "nudges": [],

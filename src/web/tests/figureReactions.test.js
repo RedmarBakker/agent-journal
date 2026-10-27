@@ -132,13 +132,13 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, shows: "checks", outcome: "failed"},
         {time: 2, shows: "workers", outcome: "failed"},
         {time: 2, shows: "questions"},
-        // features/tasks, features/inbox, features/questions, features/workers, features/facts and features/checks, as their cards read
+        // features/tasks, features/inbox, features/questions, features/workers, features/memory and features/checks, as their cards read
         {time: 2, shows: "task_moves", label: "Completed task 12: the stamp"},
         {time: 2, icon: "inbox", label: "Filed task 13 from your message"},
         {time: 2, kind: "question", label: "Which one?"},
         {time: 2, process: true, processName: "worker", task: 2742, label: "Worker 57, Mr. Muybridge, motion photographer: started on claude opus"},
         {time: 2, shows: "workers", task: 2742, label: "Worker 57, Mr. Muybridge, motion photographer: sent its next job"},
-        {time: 2, shows: "facts", label: "Fact 15 recorded"},
+        {time: 2, shows: "memories", label: "Memory 15 recorded"},
         {time: 2, shows: "checks", outcome: "passed", label: "Check Check for sins passed"},
         {time: 2, key: "messages:1", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 100%", ending: "finished"}},
         {time: 2, key: "messages:2", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 90%", ending: "failed with code 1"}},

@@ -133,37 +133,119 @@ def context(app, percent: int):
 
 def test_the_session_start_is_answered_with_the_briefing(app: App):
     app.console().run(["rule", "create", "Never skip the gate", "--reason", "it broke once"], USER)
-    app.console().run(["fact", "create", "the api lives on port 9"], USER)
+    app.console().run(["memory", "add", "the api lives on port 9"], USER)
     app.console().run(["reminder", "create", "run the linter before a push"], USER)
     status, body = hook(app, "SessionStart")
     text = body["hookSpecificOutput"]["additionalContext"]
     assert status == 200 and "ready on main" in text
     assert "1 rules in force: 1. Never skip the gate" in text
-    assert "facts about this environment: 1. the api lives on port 9" in text
+    assert re.search(r"your memories, heaviest first: \d+ \(weight 5\) the api lives on port 9", text)
     assert "reminders here: 1. run the linter" in text
     assert "ready on main" in hook(app, "SessionStart")[1]["hookSpecificOutput"]["additionalContext"], "a resume is briefed again"
 
 
-def test_crossing_a_context_mark_holds_writes_until_the_agent_decides(app: App):
+def test_at_a_context_mark_the_agent_weighs_its_memories_before_it_writes_or_stops(app: App):
+    from journal.features.memory.memory_nudges import MemoryNudges
+    from journal.features.memory.states.weighing_memories import WeighingMemories
+    from journal.repositories.agents import Agents
+    from nudge_lines import has_nudge
+    agents, sessions = app.container.get(Agents), app.container.get(SessionAgents)
+    top = lambda: sessions.top("s1")
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
+    app.console().run(["memory", "add", "the suite runs in shards", "--weight", "7"], AGENT)
     context(app, 30)
-    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert "context 25% full" in body["hookSpecificOutput"]["additionalContext"]
-    from journal.repositories.agents import Agents
-    machine, agents = app.container.get(StateMachine), app.container.get(Agents)
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Working) and agents.session_agent("s1").threshold_due == 25 and agents.session_agent("s1").context_threshold == 25, "the mark is a fact on the row, not a state"
-    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={})
-    assert status == 409 and "writes wait" in body["error"]
-    assert app.console().run(["fact", "create", "the login is flaky"], AGENT).code == 0
-    assert agents.session_agent("s1").threshold_due == 0 and app.container.get(SessionAgents).top("s1").task_id == 1
-    assert hook(app, "PreToolUse", tool_name="Write", tool_input={})[0] == 200
-    assert "hookSpecificOutput" not in hook(app, "PreToolUse", tool_name="Read", tool_input={})[1], "the mark asks once"
+    assert "hookSpecificOutput" not in hook(app, "PreToolUse", tool_name="Read", tool_input={})[1], "30 percent is under the first mark"
     context(app, 55)
-    assert "context 50% full" in json.dumps(hook(app, "Stop")[1]) and agents.session_agent("s1").threshold_due == 50
-    app.console().run(["memory", "skip", "all logged"], AGENT)
-    assert agents.session_agent("s1").threshold_due == 0 and app.container.get(SessionAgents).top("s1").task_id == 1
+    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert has_nudge(body["hookSpecificOutput"]["additionalContext"], MemoryNudges.CONTEXT_DECISION, percent=50) and "(weight 7): the suite runs in shards" in body["hookSpecificOutput"]["additionalContext"], "the mark asks with the memories by weight"
+    assert type(top()) is WeighingMemories and top().percent == 50, "the mark pushes WeighingMemories over the work"
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={})
+    assert status == 409 and has_nudge(body["error"], MemoryNudges.DECISION_EDIT_BLOCK), "a write waits"
+    assert hook(app, "PreToolUse", tool_name="Read", tool_input={})[0] == 200, "a read goes through"
+    assert has_nudge(hook(app, "Stop")[1]["reason"], MemoryNudges.UNDECIDED_STOP, percent=50), "a stop is refused"
+    assert app.console().run(["memory", "weigh", "1", "8"], AGENT).code == 0
+    assert top().task_id == 1 and agents.session_agent("s1").threshold_due == 0 and hook(app, "PreToolUse", tool_name="Write", tool_input={})[0] == 200, "weighing pops it and the work goes on"
+    context(app, 85)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert type(top()) is WeighingMemories and top().percent == 80
+    hook(app, "PreCompact", trigger="auto")
+    assert agents.session_agent("s1").threshold_due == 0, "a compaction clears the mark owed"
+    hook(app, "SessionStart", source="compact")
+    app.console().run(["environment", "overview"], AGENT)
+    assert type(top()) is not WeighingMemories, "a compaction over it pops it once the compaction ends"
+    context(app, 10)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    context(app, 55)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={}, agent_id="sub-1")
+    assert type(top()) is not WeighingMemories and agents.session_agent("s1").threshold_due == 0, "a subagent's event never takes or pushes a mark"
+    assert app.console().run(["await", "the deploy", "--until", "false"], AGENT).code == 0
+    waiting = type(top())
+    hook(app, "Stop")
+    assert type(top()) is waiting and agents.session_agent("s1").threshold_due == 50, "a mark reached under a state that takes no pushes stays owed on the row"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert type(top()) is WeighingMemories and top().percent == 50, "and is pushed once that state has popped"
+
+
+def test_a_compaction_fades_every_memory_by_one_and_the_overview_always_opens_with_them(app: App):
+    from tests.user_settings import user_set
+    console = app.console()
+    run = lambda *words: console.run(list(words), AGENT)
+    hook(app, "SessionStart")
+    run("environment", "overview")
+    heavy = re.search(r"memory (\d+) added", run("memory", "add", "the suite runs in shards", "--weight", "2").text).group(1)
+    light = re.search(r"memory (\d+) added", run("memory", "add", "the port is fixed", "--weight", "1").text).group(1)
+    user_set(app, "briefing.look_commands", [])
+    hook(app, "PreCompact", trigger="auto")
+    app.runtime().deferred.drain()
+    hook(app, "SessionStart", source="compact")
+    overview = run("environment", "overview").text
+    assert overview.splitlines()[0] == f"your memories, heaviest first: {heavy} (weight 1) the suite runs in shards. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`", "the overview opens with the memories by weight, though it runs no look command, and one at nought is gone"
+    assert run("memory", "weigh", heavy, "6").code == 0, "weigh runs right after the overview"
+    hook(app, "PreCompact", trigger="auto")
+    app.runtime().deferred.drain()
+    hook(app, "SessionStart", source="compact")
+    assert run("environment", "overview").text.splitlines()[0].startswith(f"your memories, heaviest first: {heavy} (weight 5)"), "every compaction lowers it by one"
+    assert light not in run("memory", "list").text
+
+
+def test_a_reminder_with_an_interval_is_sent_again_each_time_it_passes_and_never_once_struck(app: App):
+    from journal.features.memory.memory_nudges import MemoryNudges
+    from nudge_lines import has_nudge
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    made = app.console().run(["reminder", "create", "commit what you have", "--every-tool-uses", "3"], AGENT)
+    number = re.search(r"reminder (\d+)", made.text).group(1)
+    said = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    app.runtime().deferred.drain()
+    lines = [said() for _ in range(3)]
+    app.runtime().deferred.drain()
+    assert [has_nudge(line, MemoryNudges.REMINDER_REPEATED, n=number) for line in lines] == [False, False, True], "sent again once three tool uses have passed, not before"
+    later = [said() for _ in range(2)]
+    assert not any(has_nudge(line, MemoryNudges.REMINDER_REPEATED, n=number) for line in later), "and its interval starts again from there"
+    assert app.console().run(["reminder", "create", "x", "--every-tool-uses", "3", "--every-minutes", "5"], AGENT).code != 0, "minutes or tool uses, not both"
+    app.console().run(["reminder", "strike", number], AGENT)
+    assert not any(has_nudge(said(), MemoryNudges.REMINDER_REPEATED, n=number) for _ in range(4)), "a struck reminder is never sent again"
+
+
+def test_the_user_adds_weighs_and_removes_a_memory_in_the_viewer_and_each_change_is_a_card(app: App):
+    from journal.repositories.messages import Messages
+    from tests.in_process import got, posted
+    env = {"X-Journal-Env": "main"}
+    hook(app, "SessionStart")
+    status, made = posted(app, "/journal/memories", {"text": "the release goes out on fridays", "weight": 6}, env)
+    assert status == 201 and made["weight"] == 6 and made["creator"].startswith("user"), "the user adds a memory, saved as the user"
+    assert posted(app, "/journal/memories", {"text": "too heavy", "weight": 11}, env)[0] >= 400, "a weight past 10 is refused"
+    assert posted(app, f"/journal/memories/{made['id']}", {"weight": 9}, env)[1]["weight"] == 9, "the user weighs it"
+    status, listed = got(app, "/journal/memories", env)
+    assert [row["id"] for row in listed["rows"]] == [made["id"]], "the list holds the memories still shown"
+    assert posted(app, f"/journal/memories/{made['id']}/remove", {}, env)[1]["removed_at"], "the user removes it; it stays on its row"
+    assert got(app, "/journal/memories", env)[1]["rows"] == [], "a removed memory is no longer listed"
+    app.runtime().deferred.drain()
+    labels = [m.text for m in app.container.get(Messages).scoped() if m.data.get("shows") == "memories"]
+    assert labels == [f"Memory {made['id']} recorded, weight 6", f"Memory {made['id']} weighs 9", f"Memory {made['id']} removed"], labels
 
 
 def test_a_rule_binds_the_project_not_an_environment(app: App):
@@ -176,13 +258,13 @@ def test_a_mark_owed_outlives_being_stuck_and_a_decision_pays_it(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "t", "--start"], AGENT)
-    context(app, 30)
+    context(app, 55)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     app.console().run(["stuck", "stuck"], AGENT)
-    machine, agents = app.container.get(StateMachine), app.container.get(Agents)
-    assert app.container.get(SessionAgents).top("s1").name == "stuck" and agents.session_agent("s1").threshold_due == 25, "stuck, the mark is still owed"
+    agents = app.container.get(Agents)
+    assert agents.session_agent("s1").threshold_due == 50, "stuck, the mark is still owed"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Working), "the agent's own tool use lifts being stuck"
+    assert app.container.get(SessionAgents).top("s1").name != "stuck", "the agent's own tool use lifts being stuck"
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={})[0] == 409, "the mark still holds a write"
     app.console().run(["memory", "skip", "fine"], AGENT)
     assert agents.session_agent("s1").threshold_due == 0 and app.container.get(SessionAgents).top("s1").task_id == 1, "the decision pays the mark; the task stands"
@@ -953,7 +1035,7 @@ def test_the_session_start_requires_the_journal_skill_and_reading_it_lifts_the_h
     assert status == 409 and "read the journal skill before anything else: .claude/skills/journal/SKILL.md. every other tool waits until you have" in body["error"] and "in flight" not in body["error"], "the guards hold the write while a skill is owed: the first hold wins"
     read_skill(app, "journal")
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={})
-    assert status == 409 and "before your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders" in body["error"], "the skill read, the start's look at what is in flight is still owed"
+    assert status == 409 and "before your first write, run `journal environment overview`: it lists your memories, the task in hand, the open tasks and the reminders" in body["error"], "the skill read, the start's look at what is in flight is still owed"
     app.console().run(["environment", "overview"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "idle"
     assert "journal skill" not in hook(app, "SessionStart")[1].get("hookSpecificOutput", {}).get("additionalContext", ""), "loaded once, not owed again"
@@ -2219,7 +2301,7 @@ def test_em_dashes_and_run_together_paragraphs_are_pointed_out(app: App, monkeyp
 
 
 def test_tags_run_the_commands_they_stand_for_with_the_turn_as_their_text(app: App, monkeypatch):
-    from journal.repositories.facts import Facts
+    from journal.repositories.memories import Memories
     from journal.repositories.messages import Messages
     from journal.repositories.task_logs import TaskLogs
     from journal.repositories.tasks import Tasks
@@ -2231,14 +2313,14 @@ def test_tags_run_the_commands_they_stand_for_with_the_turn_as_their_text(app: A
     started = app.console().run(["task", "start", "1"], AGENT)
     assert started.code == 0, started
     hook(app, "MessageDisplay", message="[!log:1] Halfway: the overlap is a margin.")
-    hook(app, "MessageDisplay", message='**[!fact="The footer is 64px tall"]**\nMeasured in the browser.')
+    hook(app, "MessageDisplay", message='**[!memory="The footer is 64px tall"]**\nMeasured in the browser.')
     hook(app, "MessageDisplay", message="[!end:1]\nThe footer sits below the form now.")
     hook(app, "MessageDisplay", message="[!end:99]\nNo such task.")
     app.runtime().deferred.drain()
     tasks, messages = app.container.get(Tasks), app.container.get(Messages)
     assert tasks.find(1).title == "Fix the footer" and "overlaps" in tasks.find(1).brief and tasks.find(1).state == "completed"
     assert [log.line for log in app.container.get(TaskLogs).all()][-2:] == ["Halfway: the overlap is a margin.", "The footer sits below the form now."] or any("Halfway" in log.line for log in app.container.get(TaskLogs).all())
-    assert [f.text for f in app.container.get(Facts).all()] == ["The footer is 64px tall"]
+    assert [(memory.text, memory.weight) for memory in app.container.get(Memories).all()] == [("The footer is 64px tall", 5)]
     assert [m.text for m in messages.scoped() if m.author == "agent"] == ["The footer overlaps the form on narrow screens.", "Measured in the browser.", "The footer sits below the form now.", "No such task."], "a log turn stays out of the chat; the others post without their tag"
     assert keystrokes[-1].startswith("[journal] the [!end] tag did not run:")
 
@@ -2895,10 +2977,10 @@ def test_journal_search_finds_rows_holding_every_word_and_marks_the_chat(app: Ap
     console.run(["task", "create", "Scope the reads", "--brief", "the base repository adds the environment"], AGENT)
     console.run(["plan", "create", "release", "--brief", "ship the base Repository change"], USER)
     console.run(["message", "send", "make it laravel style: the scope applies by itself"], USER)
-    console.run(["fact", "create", "the base model is data only"], AGENT)
+    console.run(["reminder", "create", "the base model is data only"], AGENT)
     output = console.run(["search", "base", "REPOSITORY"], AGENT).text
     assert "task 1: Scope the reads" in output and "plan 1: release" in output, "every word, any case, in any text field"
-    assert "fact" not in output and "message" not in output.split("Searched")[0], "a row missing a word is not found"
+    assert "reminder" not in output and "message" not in output.split("Searched")[0], "a row missing a word is not found"
     assert console.run(["search", "find", "100%"], AGENT).text == "nothing here holds all of: 100%\n", "a % is a letter, not a wildcard, and the verb may be named"
     thresholds = [m for m in app.container.get(Messages).scoped() if m.data.get("kind") == "search"]
     assert thresholds[0].text == 'Searched for "base REPOSITORY"' and any("task 1: Scope the reads" in line for line in thresholds[0].data["lines"]), "the mark opens what was found"
@@ -3067,15 +3149,15 @@ def test_a_keyword_brings_a_fact_back_once_as_a_whisper_and_a_fresh_rule_is_ques
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
-    app.console().run(["fact", "create", "the login uses the old session store", "--keywords", "login,session"], USER)
+    app.console().run(["reminder", "create", "the login uses the old session store", "--keywords", "login,session"], USER)
     hook(app, "MessageDisplay", message="I will look at the login next.")
     hook(app, "MessageDisplay", message="Still on the login.")
     app.runtime().deferred.drain()
-    whispers = [line for line in keystrokes if "fact 1 is about this and not in your context: journal fact read 1" in line]
+    whispers = [line for line in keystrokes if "reminder 1 is about this and not in your context: journal reminder read 1" in line]
     assert len(whispers) == 1, "whispered once per row per agent"
     from journal.repositories.messages import Messages
     thresholds = [m for m in app.container.get(Messages).recent(30) if m.data.get("kind") == "whisper"]
-    assert thresholds and thresholds[-1].data["row"] == "facts:1", "the mark names the row by its table, so the viewer opens it"
+    assert thresholds and thresholds[-1].data["row"] == "reminders:1", "the mark names the row by its table, so the viewer opens it"
     app.console().run(["rule", "create", "Always run the suite before a commit"], AGENT)
     app.runtime().deferred.drain()
     assert any("does rule 1 apply to the whole project?" in line for line in keystrokes), "the question is typed to the agent that made the rule"
@@ -3098,18 +3180,18 @@ def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struc
     console = app.console()
     hook(app, "SessionStart")
     app.container.get(SettingRows).save(Setting(environment_id=0, key="record.kept", value=30), Actor.system())
-    console.run(["fact", "create", "the login uses the old session store", "--keywords", "login"], USER)
-    console.run(["fact", "create", "billing runs on the first of the month", "--keywords", "billing"], USER)
+    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
+    console.run(["reminder", "create", "billing runs on the first of the month", "--keywords", "billing"], USER)
     hook(app, "MessageDisplay", message="I will look at the login next.")
     for n in range(40):
         console.run(["task", "create", f"filler {n}"], AGENT)
     hook(app, "MessageDisplay", message="Still on the login.")
     app.runtime().deferred.drain()
-    assert len([line for line in keystrokes if "fact 1 is about this" in line]) == 1, "the line said is remembered though forty row changes trimmed the record past it"
-    console.run(["fact", "strike", "2"], USER)
+    assert len([line for line in keystrokes if "reminder 1 is about this" in line]) == 1, "the line said is remembered though forty row changes trimmed the record past it"
+    console.run(["reminder", "strike", "2"], USER)
     hook(app, "MessageDisplay", message="Now the billing.")
     app.runtime().deferred.drain()
-    assert not any("fact 2 is about this" in line for line in keystrokes), "a struck fact matches no keyword"
+    assert not any("reminder 2 is about this" in line for line in keystrokes), "a struck reminder matches no keyword"
 
 
 def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_is_typed_again(app: App, monkeypatch):
@@ -3124,10 +3206,10 @@ def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_i
     for line in list(typed):
         lines.confirm(1, line)
     app.container.get(SupervisorLink).release(1)
-    console.run(["fact", "create", "the login uses the old session store", "--keywords", "login"], USER)
+    console.run(["reminder", "create", "the login uses the old session store", "--keywords", "login"], USER)
     hook(app, "MessageDisplay", message="I will look at the login next.")
     app.runtime().deferred.drain()
-    assert any("fact 1 is about this" in line for line in typed), "the whisper is typed, and no prompt shows it arrived"
+    assert any("reminder 1 is about this" in line for line in typed), "the whisper is typed, and no prompt shows it arrived"
     console.run(["message", "send", "are you there?"], USER)
     app.runtime().deferred.drain()
     assert not any("new message" in line for line in typed), "the message's line is held behind the whisper still waiting"
@@ -3135,7 +3217,7 @@ def test_a_message_left_while_a_whisper_waits_unseen_is_named_when_the_whisper_i
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=timing.time() + 30, silence_seconds=30.0))
     app.runtime().deferred.drain()
     held = stopped.get("decision") == "block" and "new message" in stopped.get("reason", "")
-    assert held or any("fact 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
+    assert held or any("reminder 1 is about this" in line and "new message" in line for line in typed[-1:]), "a held stop's reason names the message, or the whisper typed again carries it with it"
 
 
 def test_auto_mode_answers_a_stop_with_the_next_task_started(app: App):
@@ -5287,24 +5369,25 @@ def test_what_the_agent_owes_is_a_fact_on_its_row_oriented_the_mark_owed_and_the
     assert needs.obligation_names(row()) == []
     app.console().run(["task", "create", "t", "--start"], AGENT)
     assert needs.obligation_names(row()) == [], "entering a state owes nothing by itself: a state's skill is owed at a start in it"
-    context(app, 30)
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 25 and row().context_threshold == 25, "the crossing sets the mark owed"
-    app.console().run(["fact", "create", "the login is flaky"], AGENT)
-    assert row().threshold_due == 0 and row().context_threshold == 25, "the fact clears the mark owed and keeps the mark taken"
     context(app, 55)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    assert row().threshold_due == 50 and row().context_threshold == 50, "the crossing sets the mark owed"
+    app.console().run(["memory", "add", "the login is flaky"], AGENT)
+    assert row().threshold_due == 0 and row().context_threshold == 50, "a memory added clears the mark owed and keeps the mark taken"
+    context(app, 85)
     hook(app, "Stop")
-    assert row().threshold_due == 50
+    assert row().threshold_due == 80
     app.console().run(["memory", "skip", "all logged"], AGENT)
-    assert row().threshold_due == 0, "nothing survives clears it too"
+    assert row().threshold_due == 0, "nothing to keep clears it too"
     hook(app, "PreCompact", trigger="auto")
     hook(app, "SessionStart", source="compact")
+    app.console().run(["environment", "overview"], AGENT)
     context(app, 8)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     assert row().context_threshold == 0 and row().threshold_due == 0, "a reading under the marks taken, as after a compaction, starts the marks again"
-    context(app, 30)
+    context(app, 55)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert row().threshold_due == 25, "the same mark is reached again in the new window (task 3737)"
+    assert row().threshold_due == 50, "the same mark is reached again in the new window (task 3737)"
     app.console().run(["memory", "skip", "nothing new since the compaction"], AGENT)
     status, body = hook(app, "SessionStart", source="compact")
     assert row().is_overview_read is False and row().threshold_due == 0, "a start after a compaction owes the look again; the start's own write touches oriented alone"
@@ -5425,7 +5508,7 @@ def test_the_steps_hold_comes_after_the_look_the_mark_and_the_skill_and_each_is_
     produced = console.run(["sequence", "create", "release", "--steps", "bump | tag"], USER).text.split()[1].rstrip(":")
     hook(app, "SessionStart")
     console.run(["sequence", "run", produced], AGENT)
-    context(app, 30)
+    context(app, 55)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     for pay in (lambda: read_skill(app, "journal"), lambda: read_skill(app, "journal-sequences"), lambda: console.run(["environment", "overview"], AGENT), lambda: console.run(["memory", "skip", "all logged"], AGENT)):
         status, blocked = edit()
@@ -6527,7 +6610,7 @@ def test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show(app
     blocked = lambda name: {s["name"]: s["answer"]["error"] for s in json.loads((records / f"{name}_codex.json").read_text())["steps"] if isinstance(s["answer"], dict) and "error" in s["answer"]}
     assert "read the journal skill before anything else" in blocked("loading_skill_rules")["a write before the skill is read"]
     assert "`journal environment overview`" in blocked("orienting_rules")["a write before the look"]
-    assert "decide what to keep from the context" in blocked("at_mark_rules")["a write at the mark"]
+    assert "writes wait until you weigh your memories" in blocked("at_mark_rules")["a write at the mark"]
 
 def test_a_start_after_a_compaction_says_where_the_work_stands(app: App):
     console = app.console()
@@ -6542,20 +6625,20 @@ def test_a_start_after_a_compaction_says_where_the_work_stands(app: App):
     assert 'after the compaction: task 1' in line_text and '"halfway through the footer"' in line_text and "uncommitted files:" in line_text, "the task, its last log whole and the files not committed"
 
 
-def test_a_fresh_start_asks_whether_old_facts_rules_and_reminders_still_hold(app: App):
+def test_a_fresh_start_asks_whether_old_rules_and_reminders_still_hold(app: App):
     from datetime import datetime, timedelta, timezone
-    from journal.repositories.facts import Facts
+    from journal.repositories.reminders import Reminders
     from journal.repositories.scope import Scope
     console = app.console()
-    console.run(["fact", "create", "the api lives on port 9"], USER)
-    console.run(["fact", "create", "the login is new"], USER)
+    console.run(["reminder", "create", "check the api on port 9"], USER)
+    console.run(["reminder", "create", "log in again after the update"], USER)
     with app.container.get(Scope).environment(1):
-        facts = app.container.get(Facts)
-        old = facts.scoped()[0]
-        facts.connection.execute(f"UPDATE {facts.table} SET created_at = ?, updated_at = ? WHERE id = ?", ((datetime.now(timezone.utc) - timedelta(days=9)).isoformat(),) * 2 + (old.id,))
-        facts.stored()
+        reminders = app.container.get(Reminders)
+        old = reminders.standing()[0]
+        reminders.connection.execute(f"UPDATE {reminders.table} SET created_at = ?, updated_at = ? WHERE id = ?", ((datetime.now(timezone.utc) - timedelta(days=9)).isoformat(),) * 2 + (old.id,))
+        reminders.stored()
     line_text = hook(app, "SessionStart", source="startup")[1]["hookSpecificOutput"]["additionalContext"]
-    assert "7 days old or more, check they still hold: fact 1, 9 days" in line_text and "fact 2" not in line_text.split("check they still hold:")[1].split("\n")[0], "the old one is named with its age, the new one is not"
+    assert "7 days old or more, check they still hold: reminder 1, 9 days" in line_text and "reminder 2" not in line_text.split("check they still hold:")[1].split("\n")[0], "the old one is named with its age, the new one is not"
     repeat = hook(app, "SessionStart", source="startup")[1]["hookSpecificOutput"]["additionalContext"]
     assert "check they still hold" not in repeat, "at most once a day"
     compacted = hook(app, "SessionStart", source="compact")[1]["hookSpecificOutput"]["additionalContext"]
@@ -7406,7 +7489,7 @@ def test_version_3_plans_keep_their_state_phases_and_tasks_and_questions_their_a
 def test_version_3_facts_rules_reminders_documents_and_reports_come_across_and_struck_ones_stay(app: App):
     from journal.features.migration.support.migrator import Migrator
     from journal.repositories.docs import Docs
-    from journal.repositories.facts import Facts
+    from journal.repositories.memories import Memories
     from journal.repositories.reminders import Reminders
     from journal.repositories.reports import Reports
     from journal.repositories.rules import Rules
@@ -7425,8 +7508,8 @@ def test_version_3_facts_rules_reminders_documents_and_reports_come_across_and_s
     migrator = app.container.get(Migrator)
     with app.container.get(Scope).environment(MAIN):
         migrator.run(migrator.begin(Actor.user(1)), Actor.user(1))
-        facts = [(f.text, f.keywords) for f in app.container.get(Facts).rows()]
-        assert ("the port is 8420", ("port",)) in facts and not any(text == "an old truth" for text, _ in facts), "a struck fact stays behind"
+        memories = [(m.text, m.keywords, m.weight) for m in app.container.get(Memories).rows()]
+        assert ("the port is 8420", ("port",), 5) in memories and not any(text == "an old truth" for text, _, _ in memories), "a version 3 fact becomes a memory of weight 5, and a struck one stays behind"
         assert any(r.text == "say you" for r in app.container.get(Reminders).rows())
         assert any(r.title == "the audit" and r.body == "what we found" for r in app.container.get(Reports).rows())
     assert any(r.text == "Always plain English" for r in app.container.get(Rules).rows())
@@ -9812,17 +9895,15 @@ def test_a_new_message_line_is_confirmed_by_the_message_being_read_and_the_chat_
     assert all(transmitted[n - 1] == "\x15" * 3 for n in retyped), "before a line is typed again, the box is erased, a Ctrl+U for each line not seen back and two more"
 
 
-def test_a_fact_a_rule_or_a_reminder_recorded_or_struck_is_a_card_in_the_chat(app: App):
+def test_a_rule_or_a_reminder_recorded_or_struck_is_a_card_in_the_chat(app: App):
     from journal.repositories.messages import Messages
     console = app.console()
     hook(app, "SessionStart")
-    console.run(["fact", "create", "the tests run on port 8431"], AGENT)
     console.run(["rule", "create", "Always run the suite before a commit", "--reason", "a red commit costs a day"], USER)
     console.run(["reminder", "strike", "1"], AGENT) if console.run(["reminder", "create", "check the log after the restart"], AGENT).code == 0 else None
     app.runtime().deferred.drain()
     cards = [(m.text, m.data.get("row"), m.data.get("detail"), m.data.get("shows")) for m in app.container.get(Messages).scoped() if m.data.get("kind") == "card" and m.data.get("row", "").split(":")[0] in ("facts", "rules", "reminders")]
     assert cards == [
-        ("Fact 1 recorded", "facts:1", "", "facts"),
         ("Rule 1 recorded", "rules:1", "", "rules"),
         ("Reminder 1 recorded", "reminders:1", "", "reminders"),
         ("Reminder 1 struck", "reminders:1", "", "reminders"),
@@ -10452,7 +10533,7 @@ def test_a_worker_runs_the_workers_verbs_on_its_own_rows_alone(app: App, monkeyp
     assert console.run(["output", "status", str(own.id)], lovelace).code == 0 and f"output {other.id} is not worker 1's" in console.run(["output", "status", str(other.id)], lovelace).error, "it reads its own outputs alone"
     assert "pytest" in console.run(["output", "list"], lovelace).text and "ls" not in console.run(["output", "list"], lovelace).text
     assert console.run(["worker", "report", "1", "the parser is done"], lovelace).code == 0 and "worker 2 is not you" in console.run(["worker", "report", "2", "x"], lovelace).error, "it reports for itself alone"
-    assert console.run(["worker", "peers"], lovelace).code == 0 and console.run(["reader", "list"], lovelace).code == 0 and console.run(["fact", "list"], lovelace).code == 0
+    assert console.run(["worker", "peers"], lovelace).code == 0 and console.run(["reader", "list"], lovelace).code == 0 and console.run(["memory", "list"], lovelace).code == 0
     refused = console.run(["message", "send", "hello"], lovelace)
     assert refused.code == 1 and refused.error.startswith("a worker may not run journal message send"), "a worker never speaks in the chat"
     notes = app.config.root / "notes.md"
@@ -18120,7 +18201,7 @@ def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app
         before = len(messages.scoped())
         for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
             cards.show(MAIN, None, label, detail="kept: 4", shows=CardType.CONFLICTS)
-        cards.show(MAIN, None, "Task 4 started", "task", shows=CardType.FACTS)
+        cards.show(MAIN, None, "Task 4 started", "task", shows=CardType.MEMORIES)
         chat = messages.scoped()[before:]
     assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
     assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
@@ -18339,7 +18420,7 @@ def test_a_task_waiting_on_a_task_delegated_to_a_worker_opens_when_that_tasks_wo
 
 
 def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when_single_use(app: App, monkeypatch):
-    from journal.repositories.facts import Facts
+    from journal.repositories.rules import Rules
     from journal.repositories.reminders import Reminders
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -18348,20 +18429,20 @@ def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when
     console.run(["environment", "overview"], AGENT)
     none_left = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "paused"]}, "is": 0})
     assert made(console.run(["reminder", "create", "release 4.48.0", "--on", "task_completed", "--when", none_left, "--once"], USER)) == 1
-    assert made(console.run(["fact", "create", "the changelog is written per task", "--on", "task_completed"], USER)) == 1
+    assert made(console.run(["rule", "create", "Always write the changelog per task", "--on", "task_completed"], USER)) == 1
     console.run(["task", "create", "the parser"], USER)
     console.run(["task", "create", "the printer"], USER)
     console.run(["task", "complete", "1"], AGENT)
     told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
     app.runtime().deferred.drain()
     assert "reminder 1 is for this moment" not in told, "a task still open keeps the reminder quiet"
-    assert "fact 1 is for this moment: journal fact read 1" in told, "a row with no condition is told at its moment"
+    assert "rule 1 is for this moment: journal rule read 1" in told, "a row with no condition is told at its moment"
     keystrokes.clear()
     console.run(["task", "complete", "2"], AGENT)
     told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
     app.runtime().deferred.drain()
     assert "reminder 1 is for this moment: journal reminder read 1" in told, "with no task left the reminder is told"
-    assert "fact 1 is for this moment" in told and app.container.get(Facts).find(1), "a row for many uses is told again and kept"
+    assert "rule 1 is for this moment" in told and app.container.get(Rules).find(1), "a row for many uses is told again and kept"
     assert not app.container.get(Reminders).matching(id=1), "a single-use reminder is struck once told"
 
 
@@ -21160,7 +21241,7 @@ def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words
     for n in range(45):
         console.run(["task", "create", f"needle number {n}"], AGENT)
     for n in range(5):
-        console.run(["fact", "add", f"a needle fact {n}"], AGENT)
+        console.run(["reminder", "create", f"a needle reminder {n}"], AGENT)
     found = console.run(["search", "needle"], AGENT).text.strip().splitlines()
     assert len(found) == 40 and found[0].startswith("task "), "the newest rows of the first kinds fill the forty and the later kinds are not read"
 

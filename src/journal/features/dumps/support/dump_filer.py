@@ -26,7 +26,7 @@ ANSWER_CHARACTERS = 600
 GUESS_COUNT = 4
 USER_TEXT = -2
 FILED = "dump_filed"
-TABLES = {"doc": "docs", "report": "reports", "todo": "tasks", "task": "tasks", "plan": "plans", "fact": "facts", "rule": "rules", "reminder": "reminders"}
+TABLES = {"doc": "docs", "report": "reports", "todo": "tasks", "task": "tasks", "plan": "plans", "memory": "memories", "rule": "rules", "reminder": "reminders"}
 
 
 class DumpFiler:

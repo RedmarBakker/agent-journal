@@ -27,6 +27,8 @@ SECRETS = (
 )
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 ADDRESS = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# a home folder of any user, which the HOME of the one who ran the corpus does not cover
+HOME_FOLDER = re.compile(r"/(?:Users|home)/[^/\s'\"]*")
 
 
 def commands(transcript: Path) -> list[str]:
@@ -47,7 +49,7 @@ def anonymised(line: str, private_words: list[str]) -> str:
     for pattern, stand_in in SECRETS:
         line = pattern.sub(stand_in, line)
     line = EMAIL.sub("someone@example.com", line)
-    line = ADDRESS.sub("10.0.0.1", line).replace(HOME, "~").replace(USER, "user")
+    line = HOME_FOLDER.sub("~", ADDRESS.sub("10.0.0.1", line).replace(HOME, "~")).replace(USER, "user")
     for word in sorted(private_words, key=len, reverse=True):
         line = re.sub(re.escape(word), "project", line, flags=re.IGNORECASE)
     return line.strip()

@@ -1,5 +1,4 @@
 from journal.features.docs.commands.doc_command import DocCommand
-from journal.features.memory.commands.fact_command import FactCommand
 from journal.features.memory.commands.rule_command import RuleCommand
 from journal.features.plugins.feature import PluginsFeature
 from journal.features.reports.commands.report_command import ReportCommand
@@ -10,6 +9,7 @@ from journal.features.search.commands.search_command import SearchCommand
 from journal.features.shell.commands.output_command import OutputCommand
 from journal.features.tasks.commands.task_command import TaskCommand
 from journal.features.helper import Helper
+from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.support.agent_role import AgentRole
 
 
@@ -21,8 +21,7 @@ class ReviewerHelper(Helper):
     features = (ReviewingFeature, PluginsFeature)
     commands = (
         (DocCommand, "show"),
-        (FactCommand, "list"),
-        (FactCommand, "read"),
+        (MemoryCommand, "list"),
         (OutputCommand, "read"),
         (ReportCommand, "show"),
         (ReviewCommand, "record"),

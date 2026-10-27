@@ -25,7 +25,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "context 80% full: decide what to keep. `journal fact create \"<what is true here>\"`, `journal rule create \"<Always/Never ...>\"` or `journal memory skip \"<why>\"`; writes wait until you do"
+          "additionalContext": "context 90% full: weigh your memories. you have no memories yet. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
         }
       },
       "typed": [],
@@ -33,21 +33,23 @@
         "memory.decide_at_the_mark"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "weighing_memories"
       ]
     },
     {
       "name": "a stop under the mark",
       "answer": {
         "decision": "block",
-        "reason": "you stopped with a decision due at the context mark, 80% full. `journal fact create`, `journal rule create` or `journal memory skip \"<why>\"` first"
+        "reason": "you stopped before weighing your memories at the context mark, 90% full. `journal memory weigh`, `journal memory add` or `journal memory skip \"<why>\"` first"
       },
       "typed": [],
       "nudges": [
         "memory.stopped_at_mark"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "weighing_memories"
       ]
     }
   ]

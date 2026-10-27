@@ -5,7 +5,7 @@ TOKEN_PATTERN = re.compile(r"`[^`]*`|[A-Za-z][A-Za-z'-]*|\d+(?:[.:,/-]\d+)*|\S")
 ROW_KINDS = frozenset({
     "task", "tasks", "plan", "plans", "worker", "workers", "report", "reports", "doc", "docs", "document", "documents", "message", "messages",
     "question", "questions", "output", "outputs", "check", "checks", "phase", "phases", "commit", "point", "points", "step", "steps",
-    "reaction", "reactions", "fact", "facts", "rule", "rules", "reminder", "reminders", "setting", "settings", "entry", "entries", "notice",
+    "reaction", "reactions", "memory", "memories", "rule", "rules", "reminder", "reminders", "setting", "settings", "entry", "entries", "notice",
     "dump", "item", "items", "sequence", "sequences", "template", "templates", "alias", "aliases", "subagent", "turn", "line", "lines", "#",
 })
 # the words that make a number a count, a time or a size, never a row

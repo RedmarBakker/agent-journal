@@ -3,7 +3,7 @@ from types import MappingProxyType
 
 from journal.models.support.ref import Ref
 
-NOUNS = "task|todo|plan|doc|document|report|message|template|sequence|trigger|check|question|fact|rule|reminder|worker|secret|phase"
+NOUNS = "task|todo|plan|doc|document|report|message|template|sequence|trigger|check|question|memory|rule|reminder|worker|secret|phase"
 TABLES = {"todo": "tasks", "document": "docs"}
 NO_HUBS = MappingProxyType({})
 

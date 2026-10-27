@@ -15,7 +15,7 @@ COMPACT = "compact"
 
 
 class BriefingConduct(Conduct):
-    """The briefing feature's conduct in every state: the start block at every session start but a resume, whose conversation already holds it, ready, quiet, the laws, a takeover, the rules, facts and reminders and what waits, then the overview required before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the pending skills through until it has run; a write and a stop blocked until the agent has looked at what is in flight."""
+    """The briefing feature's conduct in every state: the start block at every session start but a resume, whose conversation already holds it, ready, quiet, the laws, a takeover, the rules, memories and reminders and what waits, then the overview required before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the pending skills through until it has run; a write and a stop blocked until the agent has looked at what is in flight."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if event.is_resume():
@@ -55,7 +55,7 @@ def start_block(briefing: BriefingData, source: str) -> list[Nudge]:
         (takeover_at, lambda: BriefingNudges.TAKEOVER.create(time=takeover_at)),
         (source != COMPACT and briefing.team_history, lambda: BriefingNudges.TEAM_HISTORY.create(rows=briefing.team_history)),
         (briefing.rules, lambda: BriefingNudges.ACTIVE_RULES.create(count=briefing.rules_count, rows=briefing.rules)),
-        (briefing.facts, lambda: BriefingNudges.ENVIRONMENT_FACTS.create(rows=briefing.facts)),
+        (briefing.memories, lambda: BriefingNudges.ENVIRONMENT_MEMORIES.create(rows=briefing.memories)),
         (briefing.reminders, lambda: BriefingNudges.ENVIRONMENT_REMINDERS.create(rows=briefing.reminders)),
         (briefing.interrupted_runs, lambda: BriefingNudges.INTERRUPTED_RUNS.create(rows=briefing.interrupted_runs)),
         (briefing.waiting, lambda: BriefingNudges.PENDING_ITEMS.create(rows=briefing.waiting)),

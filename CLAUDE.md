@@ -41,7 +41,7 @@ many users needs no change to the base.
 floor and the state in hand on top. A pause is a state pushed over the work and popped when what
 it waits for arrives, so returning is a pop, never a stored value that says where to return to. What the agent
 must do for the journal (a skill to read, the overview of what is in progress, a decision at a context mark) is
-a fact beside the stack on the same row, never a state above it, save two: after a compaction the overview is the state ReadingOverview, pushed over the work so nothing but it and the skills still to read goes through until it has run, and a running sequence is the state FollowingSequence, pushed over the work when it starts and popped when it ends, one started inside another pushed over it. A state is a class with a listener
+a fact beside the stack on the same row, never a state above it, save three: after a compaction the overview is the state ReadingOverview, pushed over the work so nothing but it and the skills still to read goes through until it has run; a running sequence is the state FollowingSequence, pushed over the work when it starts and popped when it ends, one started inside another pushed over it; and at a mark of the context window the agent weighs its memories in the state WeighingMemories, pushed over the work, holding writes and stops until a memory command or skip pops it, the mark owed kept on the row while the top state takes no pushes. A state is a class with a listener
 per moment: a method named `on_<moment>`, bound by the event type it annotates,
 `on_question_answered(self, event: QuestionAnswered, settings)`. Only `on_` methods are listeners.
 Every listener whose type matches the event runs, the state's own first, and their answers merge:

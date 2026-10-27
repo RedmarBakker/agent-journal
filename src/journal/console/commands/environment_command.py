@@ -21,7 +21,7 @@ from journal.repositories.environments import Environments
 from journal.features.memory.support.memory_context import MemoryContext
 from journal.features.briefing.support.overview_commands import OverviewCommands
 from journal.features.tasks.active_task import ActiveTask
-from journal.repositories.facts import Facts
+from journal.repositories.memories import Memories
 from journal.repositories.messages import Messages
 from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
@@ -47,15 +47,15 @@ class EnvironmentCommand(Command):
     noun = "environment"
     uncut_verbs = frozenset({"overview"})
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource) -> None:
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, memories: Memories, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles, states: StatesCatalogue, time_source: TimeSource) -> None:
         self.time_source, self.states = time_source, states
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
-        self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
+        self.rules, self.memories, self.reminders, self.providers, self.config, self.scope = rules, memories, reminders, providers, config, scope
         self.memory, self.overview_commands, self.taking, self.launches = memory, overview_commands, taking, launches
 
     def arguments(self, verbs) -> None:
-        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules, facts and reminders, then each command the setting briefing.look_commands names, under its heading; owed at every session start")
+        self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules and reminders, opening with the memories by weight, then each command the setting briefing.look_commands lists, under its heading; owed at every session start")
         self.verb(verbs, "list", "every environment and when it was last used")
         self.verb(verbs, "json", "the same, for the boot menu")
         creation = self.verb(verbs, "create", "a new line of work")
@@ -101,6 +101,7 @@ class EnvironmentCommand(Command):
         current = None if holder is None else self.tasks.holder_task(holder)
         peer_tasks = self.tasks.other_started_tasks(current)
         lines = [
+            self.memory_lines(),
             f"taken over from another agent, last seen {peer.update_time.astimezone().strftime('%H:%M')}" if peer else "",
             f"task in hand: {current.id} {current.title}" if current else "no task in hand",
             self.matching_rows("started by other agents", [f"{t.id} {t.title}" for t in peer_tasks]),
@@ -113,10 +114,16 @@ class EnvironmentCommand(Command):
             self.matching_rows("workers out", [f"{w.id} {w.name}" for w in self.workers.active()]),
             self.matching_rows("running in the background", self.background()),
             self.matching_rows("rules in force", [f"{r.id} {r.text}" for r in self.rules.all()]),
-            self.matching_rows("facts about this environment", [f"{f.id} {f.text}" for f in self.facts.scoped()]),
             self.matching_rows("reminders here", [f"{r.id} {r.text}" for r in self.reminders.standing()]),
         ]
         return [line for line in lines if line]
+
+    def memory_lines(self) -> str:
+        shown = self.memories.shown()
+        if not shown:
+            return "no memories yet: `journal memory add \"<what to keep in mind>\" --weight <1 to 10>`"
+        weighed = "; ".join(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in shown)
+        return f"your memories, heaviest first: {weighed}. keep one where it was, or raise it, with `journal memory weigh <numbers> <weights>`"
 
     def background(self) -> list[str]:
         moved = self.entries.open_moves(MOVED, ENDED)

@@ -1,6 +1,6 @@
 from journal.http.support.route import Route
 
-TABLES = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders", "environments", "questions", "sequences", "templates", "workers", "messages", "notices", "dumps", "agents", "shares", "checks", "triggers")
+TABLES = ("tasks", "plans", "docs", "reports", "memories", "rules", "reminders", "environments", "questions", "sequences", "templates", "workers", "messages", "notices", "dumps", "agents", "shares", "checks", "triggers")
 READS = frozenset((
     *(f"/journal/{table}" for table in TABLES), *(f"/journal/{table}/{{id}}" for table in TABLES),
     "/journal/viewer", "/journal/manifest", "/journal/identity", "/journal/health", "/journal/journals", "/journal/summary", "/journal/bar",
