@@ -20887,6 +20887,31 @@ def test_the_line_a_refused_command_becomes_is_never_recorded_or_judged_and_no_r
     assert {reader.name for reader in readers.all()} >= {"prints", "pytest", "naps"} and "own" not in {reader.name for reader in readers.all()}, "a reader kept for journal output is removed at boot, a reader of an alias's run and every other kept"
 
 
+def test_a_shell_loop_that_only_polls_journal_commands_is_refused_with_the_await_line_and_records_no_run(app: App):
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.scope import Scope
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    said = lambda command, tool="Bash": hook(app, "PreToolUse", tool_name=tool, tool_input={"command": command})
+    loop = "until journal output show 21620 | grep -q finished; do sleep 5; done; echo done"
+    for tool in ("Bash", "Monitor"):
+        status, body = said(loop, tool)
+        text = json.dumps(body)
+        assert status != 200 and "a shell loop that polls journal commands is refused" in text and "journal await" in text and "--output 21620" in text, (tool, text)
+    printed = said(loop)[1]["answer"]["hookSpecificOutput"]["updatedInput"]["command"]
+    shown = b"".join(app.container.get(ShellRunner).run(ShellRequest(line=wrapped_line(printed), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ)), AGENT, MAIN))
+    app.runtime().deferred.drain()
+    assert b"journal await" in shown, "the refused line prints the await line"
+    with app.container.get(Scope).environment(MAIN):
+        assert not app.container.get(CommandOutputs).all(), "no output row is recorded, so no card is shown"
+    assert said('while [ "$(journal output state 7)" != ended ]; do sleep 5; done')[0] != 200, "a journal command in the loop's test is a poll too"
+    assert said("journal task list")[0] == 200, "a plain journal command runs as before"
+    assert said("until curl -s localhost:8000; do sleep 1; done")[0] == 200, "a loop with no journal command runs as before"
+    assert said("while true; do journal output show 5; make build; sleep 5; done")[0] == 200, "a loop that also runs a real command runs as before"
+
+
 def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(app: App):
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge

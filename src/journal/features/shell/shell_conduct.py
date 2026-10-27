@@ -1,3 +1,5 @@
+import re
+
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
@@ -28,6 +30,8 @@ from journal.features.shell.support.shell_data import ShellData
 
 # the flag of an output read that picks lines by a pattern, the one kind of read a reader can stand for
 PATTERN_READ = "--grep"
+# the output a journal output command names: journal output show 21620
+OUTPUT_NUMBER = re.compile(r"\boutput\s+[a-z-]+\s+(\d+)")
 
 SILENCE_SECONDS = 5.0
 BACKGROUND_CHECK_DELAY_SECONDS = 300.0
@@ -38,10 +42,10 @@ TESTING = "testing"
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at a reader or asked to become one, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a test run no counting reader reads is offered one on its first run and every fiftieth, the commands that ended in the background are named once the agent is quiet, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
+        return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), reader_report_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         watch = event.data.part(ShellPart).watch
@@ -67,6 +71,13 @@ def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
 def partial_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     cap = settings.integer(ShellOptions.SHOWN)
     return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > 2 * cap else state.none()
+
+
+def journal_poll_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    if not Chain.is_journal_poll([part.text for part in event.call.parts]):
+        return state.none()
+    polled = OUTPUT_NUMBER.search(event.call.command)
+    return state.refuse(ShellNudges.JOURNAL_POLL.create(n=polled[1] if polled else "<n>"))
 
 
 def journal_isolation_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

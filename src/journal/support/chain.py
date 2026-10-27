@@ -21,6 +21,13 @@ HEREDOC_WORD = re.compile(r"(?<!<)<<-?\s*\\?(['\"]?)([A-Za-z_][\w.-]*)\1(?!<)")
 COMMENT = re.compile(r"\s+#[^'\"]*$")
 # commands that only wait or print, which choose a line's reader only when no other part does work
 IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
+# a loop that repeats, not a branch: while, until or for
+REPEATING = re.compile(r"^\s*(?:while|until|for)\s")
+# the programs a poll may run beside journal commands: the shell's own words, waits, tests, prints and filters
+POLL_GLUE = {"until", "while", "for", "do", "done", "if", "then", "else", "fi", "break", "continue", "sleep", "grep", "echo", "printf", "test", "[", "[[", "true", "false", ":"}
+JOURNAL_PROGRAMS = {"journal", "journal.sh", "journal.py"}
+# a command substitution, whose program a loop's test runs: [ "$(journal output state 4)" = ended ]
+SUBSTITUTION = re.compile(r"\$\(([^()]*)\)")
 
 
 class Chain:
@@ -89,10 +96,16 @@ class Chain:
         owned = [p for p in cls.parts(line) if p.recorded]
         return any(p.is_reading_code() for p in owned) and all(p.is_reading_code() or p.is_harmless() or p.is_project_cd() for p in owned)
 
+    # a line that loops around journal commands with nothing beside them but the shell's own words, waits, tests, prints and filters
+    @classmethod
+    def is_journal_poll(cls, parts: list[str]) -> bool:
+        programs = {program for part in parts for text in (part, *SUBSTITUTION.findall(part)) for program in CommandShape.programs(text)}
+        return any(REPEATING.match(part) for part in parts) and bool(programs & JOURNAL_PROGRAMS) and programs <= POLL_GLUE | JOURNAL_PROGRAMS
+
     @staticmethod
     def is_journal(part: str) -> bool:
         text = part.split()
-        return bool(text) and text[0].rsplit("/", 1)[-1] in ("journal", "journal.sh", "journal.py")
+        return bool(text) and text[0].rsplit("/", 1)[-1] in JOURNAL_PROGRAMS
 
     @classmethod
     def build(cls, separator: str, part: str) -> list[tuple[str, str, bool]]:

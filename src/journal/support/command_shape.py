@@ -169,6 +169,12 @@ class CommandShape:
         working = [command for command in commands if (shape := cls.plain_shape(command)) and not CommandShape.is_setup(shape)]
         return next((command for command in working if cls.plain_shape(command).split()[0] not in LOOP_IDLE), working[0] if working else "")
 
+    # every program a line runs, a loop's condition and body alike, its control words and headers passed over:
+    # until journal output show 4 | grep -q ended; do sleep 5; done runs journal, grep and sleep
+    @classmethod
+    def programs(cls, part: str) -> set[str]:
+        return {tokens[0].rsplit("/", 1)[-1] for command in cls.commands(part) if not HEADER_PATTERN.match(command) and (tokens := CONTROL_PATTERN.sub("", command, count=1).split())}
+
     # a loop whose every command is a sleep or the shell's own words and tests, so all it does is wait
     @classmethod
     def is_waiting_loop(cls, part: str) -> bool:

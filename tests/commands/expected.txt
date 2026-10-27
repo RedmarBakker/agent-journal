@@ -1762,6 +1762,7 @@ shell.give_the_reader_a_topic  [shell]  {{command}} has run with {{count}} diffe
 shell.guessed_a_reader  [shell]  reading it with {{reader}}: {{about}}. it stays when you do nothing more; write your own with `journal reader add <name> --commands "{{command}}" ...`
 shell.journal_command_piped_into_a_filter  [shell]  journal {{command}} piped into {{filter}} hides the lines the journal speaks. run it on its own and read all of its answer
 shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with other commands.
+shell.journal_poll_refused  [shell]  a shell loop that polls journal commands is refused. wait with journal await "<what you wait for>" --output {{n}}, which ends when the output does
 shell.make_its_reader  [shell]  no reader reads {{command}} yet. `journal reader add <name> --commands "{{command}}" --pattern '<failures and summary>' --progress '<percent or count of a total>' --label 'Running tests'`
 shell.more_specific_alias_refused  [shell]  journal {{name}} runs what this run of journal {{called}} runs: {{line}}. run `journal {{name}} [args]` instead: its reader and its card come with that alias
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}

@@ -87,6 +87,7 @@ class Claude(Provider):
     }
     decoders = {
         "Bash": lambda input: ShellLine(str(input.get("command", ""))),
+        "Monitor": lambda input: ShellLine(str(input.get("command", ""))),
         "Edit": lambda input: FileEdit(Provider.file_paths(input), LineCount.lines(input.get("new_string")), LineCount.lines(input.get("old_string"))),
         "MultiEdit": lambda input: FileEdit(Provider.file_paths(input), *LineCount.edits(input.get("edits"))),
         "NotebookEdit": lambda input: FileEdit(Provider.file_paths(input), LineCount.lines(input.get("new_source"))),
