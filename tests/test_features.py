@@ -6601,7 +6601,7 @@ def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     assert [m.text for m in keyed] == ["third"] and keyed[0].row_id > asked.row_id, "a card of a key written again after the user's message is shown below it, the earlier one taken out"
     app.container.get(SecretValues).put("GITHUB_KEY", "ghp_0123456789abcdef")
     line_text = app.container.get(PluginAgentRelay).decided(plugin, PromptSubmitted(prompt="x").placed("s1", 1, "claude", 0.0, 0.0), PluginAnswer(answer="tell", message="[journal] stop now [!reply:3] ghp_0123456789abcdef"))
-    assert line_text.context == "[plugin echo] (journal) stop now (!reply:3] [secret GITHUB_KEY]", "a plugin's words are its own, the journal's marks made plain and a secret masked"
+    assert line_text.context == "[plugin echo] (journal) stop now [!reply:3] [secret GITHUB_KEY]", "a plugin's words are its own, the journal's mark made plain and a secret masked"
     echo(app, hears=["messages.created"], holds=[])
     echo(app, "echo-two", hears=["messages.created"], holds=[])
     app.console().run(["message", "send", "hello"], AGENT)
