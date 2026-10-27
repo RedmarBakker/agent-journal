@@ -1844,6 +1844,7 @@ onMounted(() => {
     load(voice.value);
 });
 onUnmounted(() => {
+    figureStatus.value = "loading";
     stopBody();
     cancelAnimationFrame(homeFrame);
     cancelAnimationFrame(frameTimer);
