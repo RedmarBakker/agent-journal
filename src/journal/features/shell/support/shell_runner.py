@@ -135,7 +135,9 @@ class ShellRunner:
                 part = self.readers.read_part(reader, request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
                 alias = self.aliases.running(part)
-                notes = self.send_notes(caller, environment, [*display.notes, ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)), *self.watch_lines(number, part, alias, reader, caller)])
+                watching = self.watch_lines(number, part, alias, reader, caller)
+                moved = [] if any(line.key == ShellNudges.WATCH_VIEW.key for line in watching) else [ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder))]
+                notes = self.send_notes(caller, environment, [*display.notes, *moved, *watching])
                 yield f"{notes}{EXIT} 0\n".encode()
                 return
             time.sleep(TICK_SECONDS)
@@ -210,13 +212,13 @@ class ShellRunner:
     def reader_watched(self, number: int, part: str, reader: Reader, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor)
         shape = self.shapes.build(part)
-        watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name)]
+        watched = [ShellNudges.WATCH_VIEW.create(n=number, progress="running")]
         varied = self.entries.shape_commands(caller.session, shape) if caller.session and not reader.topic_pattern else set()
         return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name)] if len(varied) >= VARIED_RUNS else watched
 
     def watched(self, number: int, alias: Alias, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor)
-        return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "")]
+        return [ShellNudges.WATCH_VIEW.create(n=number, progress="running")]
 
     def is_carded(self, output: CommandOutput) -> bool:
         if not (output.watch_reader or output.is_watched):

@@ -168,8 +168,9 @@ positional arguments:
 options:
   -h, --help     show this help message and exit
   --tests TESTS  the arguments the project's test command takes to run the
-                 tests that prove your work; the journal runs them before your
-                 clock-out stands
+                 tests that cover the files you changed and the tests you
+                 wrote, never the whole suite; the journal runs them before
+                 your clock-out stands
 
 $ agent: journal proof record --help
 exit 0
@@ -1385,6 +1386,7 @@ workers.tests_per_run = 20
 workers.test_run_minutes = 10
 workers.failing_runs = 3
 workers.test_command = ''
+workers.affected_tests_command = ''
 workers.test_command_proof = ''
 workers.test_run_lines = True
 workers.most_out = 3
@@ -1806,12 +1808,8 @@ shell.silent_run_streams  [shell]  output {{n}} has printed nothing for {{second
 shell.test_run_piped_into_a_filter  [shell]  a test run piped into {{filter}} hides the lines its reader reads, so its mark shows no progress and its output is cut. run it whole with `journal suite <args>`, then read its output by its number with `journal output read <n> --reader pytest` or `--grep "<words>"`
 shell.unread_output  [shell]  {{outputs}}, and you have not read it yet
 shell.use_the_reader  [shell]  reader {{reader}} already reads this: {{about}}. `journal output read <n> --reader {{reader}}`
-shell.watched_alias_output  [shell]  output {{n}}, the run of journal {{name}}, is watched{{reader}}
-shell.watched_output  [shell]  output {{n}}, {{command}}:
-{{lines}}
-shell.watched_output_ended  [shell]  output {{n}}, {{command}}, {{ending}}:
-{{lines}}
-shell.watched_reader_output  [shell]  output {{n}} ({{command}}) is in the background, watched through {{reader}}
+shell.watched_output  [shell]  output {{n}}: {{progress}}
+shell.watched_output_ended  [shell]  output {{n}}: {{outcome}}
 skills.read_the_skill_first  [skills]  read before anything else: {{skills}}. every other tool waits until you have read them all
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}
 skills.stopped_owing  [skills]  you stopped with the {{skills}} skill still to read. read it first, or `journal stuck "<why>"`
@@ -1914,7 +1912,7 @@ workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop
 workers.task_names_another_without_a_wait  [workers]  task {{task}} lists task {{other}}, still open, and does not wait on it. journal task block {{task}} --on task:{{other}}
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
-workers.the_journal_runs_the_tests  [workers]  the journal runs your tests here, so you do not run {{command}}. name them when you clock out: journal clock-out "<report>" --tests "<the arguments the test command takes>"
+workers.the_journal_runs_the_tests  [workers]  the journal runs your tests here, so you do not run {{command}}. name the tests that cover the files you changed and the tests you wrote when you clock out, never the whole suite: journal clock-out "<report>" --tests "<the arguments the test command takes>"
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait <n>`, or send the job to one that reported
 workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue. put it first: journal worker queue {{n}} {{task}} --first
@@ -1935,7 +1933,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-285 nudges
+283 nudges
 
 $ agent: journal worker list
 exit 0

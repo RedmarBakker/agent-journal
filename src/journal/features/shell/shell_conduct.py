@@ -54,7 +54,7 @@ class ShellConduct(Conduct):
             return Transition.merged(self, [unread_check(self, event, settings), run_title_check(self, event, settings)])
         if watch.ending:
             return self.none()
-        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, command=watch.command, lines=watch.text()))
+        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, progress=watch.progress()))
 
     def on_command_ended(self, event: CommandEnded, settings: Settings) -> Transition:
         shell = event.data.part(ShellPart)
@@ -63,7 +63,7 @@ class ShellConduct(Conduct):
             return self.none()
         watch = shell.watch
         if watch.output == event.output:
-            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, command=watch.command, ending=watch.ending or ended.ending, lines=watch.text()), *reader_draft(shell, {event.output}, settings))
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, outcome=watch.outcome(ended.ending)), *reader_draft(shell, {event.output}, settings))
         return self.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text((ended,)), n=ended.id), *reader_draft(shell, {event.output}, settings))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:

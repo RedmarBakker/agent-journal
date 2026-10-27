@@ -1,9 +1,11 @@
+import re
 from dataclasses import dataclass
 
 from journal.chat.card_detail import CardDetail
 from journal.models.message import Message
 
 WATCH_KEY = "watch"
+PROGRESS_FIGURE = re.compile(r"\d+/\d+|\d+%")
 
 
 @dataclass(frozen=True)
@@ -46,3 +48,12 @@ class OutputView:
 
     def text(self) -> str:
         return "\n".join([line for line in (self.figure, *self.lines) if line]) or "no lines yet"
+
+    def progress(self) -> str:
+        counted = PROGRESS_FIGURE.search(self.figure)
+        if counted:
+            return counted.group(0)
+        return f"{round(self.fraction * 100)}%" if self.fraction else "running"
+
+    def outcome(self, ending: str) -> str:
+        return "failed" if (self.ending or ending).startswith("failed") else "completed"

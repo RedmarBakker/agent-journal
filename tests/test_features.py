@@ -12359,7 +12359,7 @@ def test_a_scripts_file_edits_are_found_from_the_files_whose_time_moved(app: App
         assert [e.path for e in app.container.get(Edits).rows()] == ["built.txt"], "the file the script wrote under a built name is an edit; the file it left alone is not"
 
 
-def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_end_once(app: App):
+def test_a_watched_output_shows_its_progress_after_every_tool_use_and_its_end_once(app: App):
     from journal.features.shell.support.output_log import OutputLog
     from journal.features.shell.support.shell_record import ShellRecord
     from journal.repositories.command_outputs import CommandOutputs
@@ -12378,7 +12378,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--progress", r"\[ *(\d+)%\]", "--label", "Running the tests"], AGENT)
     assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
     seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert "output 1, pytest -q:" in seen and "which you watch" not in seen and "unwatch" not in seen and "FAILED test_b" in seen and "Running the tests 40%" in seen and "test_a" not in seen, "the reader's lines and its progress come with the next tool use"
+    assert '"output 1: 40%"' in seen and "FAILED test_b" not in seen and "pytest -q" not in seen, "while it runs the agent sees its progress alone, never its lines or its command"
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key("watch:1")[0]
     assert card.data["figure"] == "Running the tests 40%" and card.data["fraction"] == 0.4, "the chat card carries the bar"
@@ -12397,8 +12397,8 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     for _ in range(3):
         said.append(json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]))
         deferred.drain()
-    ended = [line for line in said if "output 1, pytest -q, finished" in line]
-    assert len(ended) == 1 and "the tests 100%" in ended[0], "the end is said once, with the last view"
+    ended = [line for line in said if "output 1: completed" in line]
+    assert len(ended) == 1 and "FAILED" not in ended[0], "the end is said once, as completed, nothing more"
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Messages).with_key("watch:1")[0].data["outcome"] == "passed", "its card turns green once the run finished"
     deferred.drain()
@@ -13704,7 +13704,7 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     number = int(re.search(r"output (\d+)", moved).group(1))
     output = app.container.get(CommandOutputs).find(number)
     assert output.is_watched and output.watch_reader == "pytest", "a moved alias run is watched through its reader at once"
-    assert has_nudge(moved, ShellNudges.ALIAS_WATCH, name="nap", reader=" through the reader pytest") and "watch it live" not in moved, "the move says it is watched, not that it could be"
+    assert has_nudge(moved, ShellNudges.WATCH_VIEW, n=number, progress="running") and "moved to the background" not in moved and "watched through" not in moved, "a watched run is named once, as its progress, with no line about its move or its reader"
     from journal.repositories.messages import Messages
     with app.container.get(Scope).environment(MAIN):
         card = app.container.get(Messages).with_key(f"watch:{number}")[0]
@@ -21319,7 +21319,7 @@ def test_a_reader_the_journal_saves_on_its_own_is_shown_to_the_user_never_reads_
         assert guess.guessed(ran("judged", "vendor/bin/judge --changes", "error: one sin\n3 sins in 2.0s\n"), "vendor/bin/judge --changes") is None, "a guessed reader never reads a plugin's alias"
         dist = ran("dist", "cargo build", "   Compiling shop v0.1.0\nerror: missing file\nbuilt in 2.1s\n")
         lines = app.container.get(ShellRunner).watch_lines(dist.id, "cargo build", None, None, Caller.worker("main", 1, "w1", "claude"))
-        assert not [line for line in lines if line.key == ShellNudges.READER_WATCH.key] and readers.reading("cargo build") is None, "a worker's run is never given a reader of its own"
+        assert not [line for line in lines if line.key == ShellNudges.WATCH_VIEW.key] and readers.reading("cargo build") is None, "a worker's run is never given a reader of its own"
 
 
 def test_a_run_moved_to_the_background_starts_from_the_reader_of_its_kind_and_a_project_reader_that_reads_it_well_takes_its_command(app: App):
