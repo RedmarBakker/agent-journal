@@ -98,6 +98,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
         dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets kept on this machine, so it cannot go to the pool")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
+        dispatch.set_defaults(job_text="")
         dispatch.add_argument("--report", nargs="+", action=ReportArgument, help="when it reports on a queue: queue (once its queue is empty, the default), each (after every task) or every <n> (after every n tasks)")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
@@ -185,7 +186,7 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, args.job_text, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
