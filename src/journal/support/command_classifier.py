@@ -14,6 +14,8 @@ from journal.support.table_row import TableRow
 # a group of commands in braces, run as one
 GROUP = re.compile(r"^\s*\{.*\}\s*$", re.S)
 SUBSTITUTIONS = re.compile(r"\$\(([^()]*)\)|`([^`]*)`|<\(([^()]*)\)")
+# a make or CI variable written as $(NAME), such as $(MAKE) or $(PWD), which names a value and runs nothing
+VARIABLE_REFERENCE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 # the descriptors of a command's standard output: none written, or 1
 OUTPUT_DESCRIPTORS = ("", "1")
 EXEC_FLAGS = frozenset({"-exec", "-execdir", "-ok"})
@@ -208,7 +210,8 @@ class CommandClassifier:
         return replace(classification.with_effect(WRITES_FILES), uncertain=True) if row.interpreted and MARKERS.search(text) else classification
 
     def inner(self, text: str) -> list[Classification]:
-        substituted = [self.classify_line(next(group for group in groups if group)) for groups in SUBSTITUTIONS.findall(Part(text).unexpanded()) if any(groups)]
+        bodies = [next(group for group in groups if group) for groups in SUBSTITUTIONS.findall(Part(text).unexpanded()) if any(groups)]
+        substituted = [self.classify_line(body) for body in bodies if not VARIABLE_REFERENCE.match(body.strip())]
         tokens = self.table.unwrapped(Part(text).tokens())
         program = tokens[0].rsplit("/", 1)[-1] if tokens else ""
         lines = INNER_LINES.get(program, CommandClassifier.no_lines)(tokens[1:])

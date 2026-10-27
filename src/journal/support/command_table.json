@@ -5272,6 +5272,14 @@
     "uncertain": true,
     "label": "running vagrant"
    }
+  },
+  "npx": {
+   "base": {
+    "kind": "process",
+    "effects": [],
+    "uncertain": true,
+    "label": "running npx"
+   }
   }
  }
 }
