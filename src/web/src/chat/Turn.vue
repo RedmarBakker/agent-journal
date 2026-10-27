@@ -120,9 +120,7 @@ function markClick(data) {
                                         <OutputLines class="mark-terminal" :lines="pages.lines.value" @older="pages.older" />
                                     </template>
                                     <template v-if="data.proof_task">
-                                        <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">
-                                            Open task {{ data.proof_task }} and its proofs
-                                        </button>
+                                        <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">Open task {{ data.proof_task }} and its proofs</button>
                                     </template>
                                     <template v-if="!data.output && opened">
                                         <ul class="mark-lines">
