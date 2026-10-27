@@ -12545,11 +12545,9 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
 
 
 def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_still_nor_at_the_stop(app: App, monkeypatch):
-    from journal.engine.clock import Clock
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
     from journal.repositories.entries import NUDGE, Entries
-    console, settings = app.console(), app.container.get(SettingRows)
+    console = app.console()
+    drive_the_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     for title in ("the colour", "the parser"):
@@ -12558,9 +12556,7 @@ def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_s
     assert console.run(["task", "block", "2", "the schema has to settle"], AGENT).code == 0
     user_set(app, "workers.mode", "orchestrator")
     user_set(app, "tasks.auto", True)
-    now = timing.time()
-    monkeypatch.setattr(Clock, "time", lambda self, at=now + 61 * 60: at)
-    app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + 61 * 60, silence_seconds=1.0))
+    tick_at(app, 61 * 60, 1.0)
     app.runtime().deferred.drain()
     still = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.blocked_work_stands_still"]
     assert still == ["these blocked or paused tasks stand still: 2; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"], f"after the interval the task waiting on the user is not named as standing still, the other is: {still}"
