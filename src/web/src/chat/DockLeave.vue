@@ -1,5 +1,5 @@
 <script setup>
-// The line along the top edge of a card the journal docked by itself, running down over the seconds left before the card closes;
+// The line along the inside top edge of a card, its full width, the journal docked by itself, running down over the seconds left before the card closes;
 // pointing at the card pauses it (kit/ChatDock.vue)
 const props = defineProps({endsAt: {type: Number, required: true}});
 const LEAVE_SECONDS = 5;
@@ -14,9 +14,9 @@ const run = {animationDuration: `${LEAVE_SECONDS}s`, animationDelay: `${(left - 
 <style scoped>
 .dock-leave {
     position: absolute;
-    top: -1px;
-    right: 10px;
-    left: 10px;
+    top: 0;
+    right: 0;
+    left: 0;
     z-index: 1;
     height: 1px;
     overflow: hidden;

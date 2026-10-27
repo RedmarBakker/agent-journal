@@ -208,6 +208,13 @@ test("4. the chevron points down while folded and turns 180 degrees once open, o
     expect(source("src/kit/ChatMark.vue")).toMatch(/\.mark \.fold \{\s*width: 10px;\s*height: 10px;\s*margin-left: 0;\s*opacity: 0;/);
 });
 
+test("5a. the closing line lies inside the docked card along its top edge, its full width", async () => {
+    const docked = reactive(watched(8, {auto_docked: true, undock_at: now() + 3, ending: "finished", outcome: "passed"}));
+    const host = await mounted(WatchDock, {message: docked});
+    expect(host.querySelector(".chat-dock-card > .dock-leave")).not.toBeNull();
+    expect(source("src/chat/DockLeave.vue")).toMatch(/\.dock-leave \{\s*position: absolute;\s*top: 0;\s*right: 0;\s*left: 0;/);
+});
+
 test("5. a card the journal docked by itself runs a line down its top edge before it closes, held while pointed at, and kept by Keep", async () => {
     const act = vi.spyOn(api, "act").mockResolvedValue({});
     const ends = now() + 3;

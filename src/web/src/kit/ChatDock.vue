@@ -12,8 +12,8 @@ defineExpose({card});
 <template>
     <div :class="['chat-dock', {lifted}]">
         <div class="chat-dock-fold">
-            <slot name="edge" />
             <section ref="card" :class="['chat-dock-card', kind]" :aria-label="label">
+                <slot name="edge" />
                 <header class="chat-dock-head">
                     <slot name="head" />
                 </header>
@@ -40,7 +40,7 @@ defineExpose({card});
     width: 100%;
 }
 
-/* the fold holds the card and what lies along its edge; pointing at it pauses a card's closing line (chat/DockLeave.vue) */
+/* the fold holds the card, whose inside top edge carries the closing line; pointing at it pauses a card's closing line (chat/DockLeave.vue) */
 .chat-dock-fold {
     position: relative;
     min-width: 0;
