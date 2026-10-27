@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class PluginCardType:
     """A kind of card a plugin's manifest declares: the label, icon and tone its cards take unless a card says its own, and whether it shows folded."""
 
-    kind: str
+    card_type: str
     label: str = ""
     icon: str = "plug"
     tone: str = ""

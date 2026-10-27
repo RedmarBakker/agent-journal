@@ -21,7 +21,7 @@ class Sequence(Model):
     locked: bool = False
 
     def is_requested(self, text: str) -> bool:
-        return any(trigger.kind == SequenceTriggerType.PHRASE and Phrases.is_request(text, trigger.text) for trigger in self.triggers)
+        return any(trigger.trigger_type == SequenceTriggerType.PHRASE and Phrases.is_request(text, trigger.text) for trigger in self.triggers)
 
     def title_words(self) -> str:
         return self.title

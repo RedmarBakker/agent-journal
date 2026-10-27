@@ -40,13 +40,13 @@ export function useActivity(entries, find) {
     const expanded = (e) => toggled.value.has(e.id);
     const toggle = (e) => flip(e.id);
     function heading(e) {
-        if (e.kind === "nudge") return "Agent instruction";
-        if (!isRowChange(e)) return `Agent ${e.kind}`;
+        if (e.entry_type === "nudge") return "Agent instruction";
+        if (!isRowChange(e)) return `Agent ${e.entry_type}`;
         const kind = meta(e.data.table);
         if (closes(e)) return `${kind.title} closed`;
-        return `${WORDS[e.kind]} ${kind.title.toLowerCase()}`;
+        return `${WORDS[e.entry_type]} ${kind.title.toLowerCase()}`;
     }
-    const title = (e) => (e.kind === "nudge" ? e.data.line : isRowChange(e) ? e.data.title || titleOf(find(`${e.data.table}:${e.data.id}`) || {}) : e.data.tool_name) || "";
+    const title = (e) => (e.entry_type === "nudge" ? e.data.line : isRowChange(e) ? e.data.title || titleOf(find(`${e.data.table}:${e.data.id}`) || {}) : e.data.tool_name) || "";
     const who = (e) => whoOf(e).charAt(0).toUpperCase() + whoOf(e).slice(1);
     return {items, expanded, toggle, heading, title, who, unfold};
 }

@@ -22,4 +22,4 @@ class MemoryHintCard(AgentListener[LineDelivered]):
             return
         noun, n = event.values["noun"], int(event.values["n"])
         row = self.repositories[noun].find(n)
-        self.cards.show(event.environment_id, event.session, f"Reminded the agent about {noun} {n}", "", Ref.build(row), kind="whisper", shows=MEMORY_CHAT_KINDS[noun])
+        self.cards.show(event.environment_id, event.session, f"Reminded the agent about {noun} {n}", "", Ref.build(row), type_name="whisper", shows=MEMORY_CHAT_KINDS[noun])

@@ -6,7 +6,7 @@ const emit = defineEmits(["log-in", "let-log-in", "forget", "ask-each-time"]);
 </script>
 
 <template>
-    <template v-if="login.kind === 'browser login'">
+    <template v-if="login.secret_type === 'browser login'">
         <div class="secrets-delete">
             <b>Log in to {{ login.url }}</b>
             <p>

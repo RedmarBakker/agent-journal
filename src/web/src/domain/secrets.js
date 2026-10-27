@@ -40,7 +40,7 @@ const BROWSER_LOGIN = {
     fields: [],
 };
 
-export const kindOf = (row) => [...KINDS, BROWSER_LOGIN].find((k) => k.key === row.kind) || KINDS[2];
+export const kindOf = (row) => [...KINDS, BROWSER_LOGIN].find((k) => k.key === row.secret_type) || KINDS[2];
 
 export const variableOf = (title, name) =>
     `${title}_${name}`
@@ -62,7 +62,7 @@ function browserLoginWords(row) {
 }
 
 export function whenWords(row) {
-    if (row.kind === BROWSER_LOGIN.key) return browserLoginWords(row);
+    if (row.secret_type === BROWSER_LOGIN.key) return browserLoginWords(row);
     if (row.used_at) return `Last used ${ago(seconds(row.used_at))}`;
     if (isWaiting(row)) return row.filled.length ? `${row.filled.length} of ${fieldsOf(row).length} values set` : "No value set yet";
     return "Every value set";
@@ -88,7 +88,7 @@ export function drafted(row) {
     return {
         title: row ? row.title : "",
         brief: row ? row.brief : "",
-        kind: row ? row.kind : "",
+        secret_type: row ? row.secret_type : "",
         fields: row ? fieldsOf(row).map((field) => ({...field})) : [],
         programs: row ? [...row.programs] : [],
         proposed: row ? [...row.proposed] : [],
@@ -116,10 +116,10 @@ export const programsKept = (draft, row) => draft.programs.every((name) => ((row
 
 export function creating(draft) {
     const {fields, ...rest} = saved(draft);
-    return draft.kind === "custom" ? {...rest, kind: draft.kind, fields} : {...rest, kind: draft.kind};
+    return draft.secret_type === "custom" ? {...rest, secret_type: draft.secret_type, fields} : {...rest, secret_type: draft.secret_type};
 }
 
-export const complete = (draft) => Boolean(draft.title.trim() && draft.kind);
+export const complete = (draft) => Boolean(draft.title.trim() && draft.secret_type);
 
 export const handedVariable = (row) => (fieldsOf(row).find((field) => field.hidden) || {variable: ""}).variable;
 

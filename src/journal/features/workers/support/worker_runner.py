@@ -189,7 +189,7 @@ class WorkerRunner:
         return self.workers.save(worker.spent(cost, provider.tier(worker.model), self.profile_tier(worker), self.time_source.seconds()), actor)
 
     def profile_tier(self, worker: Worker) -> ModelTier:
-        if worker.profile is None or not self.profiles.kind(worker.profile):
+        if worker.profile is None or not self.profiles.profile_type(worker.profile):
             return ModelTier.UNKNOWN
         provider = self.providers.lookup(worker.provider)
         return provider.tier(provider.profile_model(self.profiles.read(worker.profile)))

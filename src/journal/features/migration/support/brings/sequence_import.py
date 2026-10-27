@@ -11,7 +11,7 @@ from journal.repositories.sequences import Sequences
 class SequenceImport(BuiltinType):
     """A sequence of the project's keeps its title, its steps in order and when it starts."""
 
-    kind = "sequence"
+    row_type = "sequence"
     title = "sequences"
 
     def __init__(self, tally: MigratedRows, sequences: Sequences) -> None:

@@ -7,8 +7,8 @@ const {useActivity} = await import("../src/composables/activity.js");
 const NOW = 1_700_000_000;
 const at = (seconds) => new Date(seconds * 1000).toISOString();
 const nothing = () => null;
-const hook = (id, seconds, kind = "ToolStarting") => ({id, kind, created_at: at(seconds), actor: "agent:s1", data: {tool_name: "Read"}});
-const change = (id, seconds, kind, data) => ({id, kind, created_at: at(seconds), actor: "user:1", data});
+const hook = (id, seconds, kind = "ToolStarting") => ({id, entry_type: kind, created_at: at(seconds), actor: "agent:s1", data: {tool_name: "Read"}});
+const change = (id, seconds, kind, data) => ({id, entry_type: kind, created_at: at(seconds), actor: "user:1", data});
 const shown = (entries, find = nothing) => useActivity(ref(entries), find);
 
 test("the agent's hooks within one minute fold into one line, newest first", () => {
@@ -26,7 +26,7 @@ test("a row's change is headed by what happened to it, and a closing reads as cl
     const {heading, title} = shown([]);
     expect(heading(change(1, NOW, "created", {table: "tasks", id: 4}))).toBe("New task");
     expect(heading(change(2, NOW, "updated", {table: "tasks", id: 4, changed: ["completed_at"]}))).toBe("Task closed");
-    expect(heading({id: 3, kind: "nudge", data: {line: "carry on"}})).toBe("Agent instruction");
+    expect(heading({id: 3, entry_type: "nudge", data: {line: "carry on"}})).toBe("Agent instruction");
     expect(title(change(1, NOW, "created", {table: "tasks", id: 4, title: "Ship it"}))).toBe("Ship it");
 });
 

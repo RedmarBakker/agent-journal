@@ -13,7 +13,7 @@ from journal.repositories.reminders import Reminders
 class ReminderImport(EnvironmentTableImport):
     """A reminder keeps its text and keywords; a retired one stays behind."""
 
-    kind = "reminder"
+    row_type = "reminder"
     title = "reminders"
 
     def __init__(self, environments: Environments, tally: MigratedRows, reminders: Reminders) -> None:

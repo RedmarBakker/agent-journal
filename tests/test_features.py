@@ -146,8 +146,8 @@ def made(output) -> int:
 PARALLEL_HOLD_WINDOW_MS = 3000
 
 
-def hook(app, kind: str, **body):
-    return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+def hook(app, type_name: str, **body):
+    return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
 
 def agent_rows(app) -> list[dict]:
@@ -639,7 +639,7 @@ def test_a_plan_does_not_hand_out_a_task_whose_wait_is_open(app: App):
     console.run(["plan", "add", "1", "second"], USER)
     tasks, plans = app.container.get(Tasks), app.container.get(Plans)
     console.run(["task", "create", "dependency"], USER)
-    app.container.get(Links).save(Link(source=Ref.build(tasks.find(1)), target=Ref.build(tasks.find(3)), kind=WAIT_LINK), Actor.system())
+    app.container.get(Links).save(Link(source=Ref.build(tasks.find(1)), target=Ref.build(tasks.find(3)), link_type=WAIT_LINK), Actor.system())
     assert plans.next_task(plans.find(1)).id == 2
     console.run(["task", "complete", "3"], AGENT)
     assert plans.next_task(plans.find(1)).id == 1
@@ -1093,15 +1093,15 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     from journal.features.profiles.support.profile_files import ProfileFiles
     files = app.container.get(ProfileFiles)
     files.write_all()
-    assert files.kind("journal-researcher") == "subagent" and files.kind("nobody") == ""
+    assert files.profile_type("journal-researcher") == "subagent" and files.profile_type("nobody") == ""
     from journal.providers.support.profile import Profile
     (files.config.root / ".codex").mkdir(exist_ok=True)
     saved = files.save(Profile("builder", "writes code", "Read, Edit", "You write.\nSay \"done\".", "worker"), "sonnet", "gpt-6")
-    assert saved["kind"] == "worker" and saved["model"] == "sonnet" and saved["codex_model"] == "gpt-6"
+    assert saved["profile_type"] == "worker" and saved["model"] == "sonnet" and saved["codex_model"] == "gpt-6"
     import tomllib
     codex = tomllib.loads((files.config.root / ".codex" / "agents" / "builder.toml").read_text())
     assert codex["model"] == "gpt-6" and codex["sandbox_mode"] == "workspace-write" and codex["developer_instructions"] == "You write.\nSay \"done\"."
-    assert files.read("builder")["kind"] == "worker" and files.read("journal-planner")["kind"] == "subagent"
+    assert files.read("builder")["profile_type"] == "worker" and files.read("journal-planner")["profile_type"] == "subagent"
     hook(app, "SessionStart")
     refused = dispatched(app.console(), ["Mr. Darwin", "look it up", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-researcher"], AGENT)
     assert refused.code != 0 and "no worker profile" in refused.error and "Agent tool" in refused.error
@@ -1231,9 +1231,9 @@ def test_the_documents_page_lists_the_projects_documents_their_search_and_the_at
     message = app.container.get(Messages).save(Message(text="the screenshot of the bar"), Actor.user(1))
     stored = app.container.get(Attachments).store("messages", message.id, "bar.png", b"png")
     app.container.get(Messages).save(message.with_(files=(stored,)), Actor.user(1))
-    page = read("/journal/attachments?kind=images")
+    page = read("/journal/attachments?file_type=images")
     assert page["total"] == 1 and page["files"][0]["name"] == "bar.png" and page["files"][0]["image"] and page["counts"]["images"] == 1, "a file attached to a message is listed"
-    assert read("/journal/attachments?kind=other")["total"] == 0 and read("/journal/attachments?search=screenshot")["total"] == 1
+    assert read("/journal/attachments?file_type=other")["total"] == 0 and read("/journal/attachments?search=screenshot")["total"] == 1
 
 
 def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_path, monkeypatch):
@@ -1648,7 +1648,7 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
 
     def named():
         with app.container.get(Scope).environment(MAIN):
-            return [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "reports.written_work_never_acted_on"]
+            return [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "reports.written_work_never_acted_on"]
 
     def older_by(minutes: float) -> None:
         with app.container.get(Scope).environment(MAIN):
@@ -1661,7 +1661,7 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
     from journal.repositories.messages import Messages
     with app.container.get(Scope).environment(MAIN):
         card = next(message for message in app.container.get(Messages).all() if message.data.get("card_type"))
-        app.container.get(Links).save(Link(source=Ref.build(card), target=Ref("reports", 1), kind="mentions"), Actor.agent("s1"))
+        app.container.get(Links).save(Link(source=Ref.build(card), target=Ref("reports", 1), link_type="mentions"), Actor.agent("s1"))
     hook(app, "Stop")
     lines = [entry.data["line"] for entry in named()]
     assert len(lines) == 1 and lines[0].startswith("report 1 has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
@@ -1692,7 +1692,7 @@ def test_a_report_the_agent_writes_is_a_made_message_docked_above_the_chat(app: 
 
 
 def test_a_refused_subagent_is_not_shown_and_one_never_answered_ends_with_its_turn_or_session(app: App):
-    transmit = lambda kind, **extra: hook(app, kind, session_id="s7", **extra)
+    transmit = lambda type_name, **extra: hook(app, type_name, session_id="s7", **extra)
     rows = lambda: [row for row in app.container.get(Subagents).session_subagents("s7")]
     transmit("SessionStart", source="startup")
     transmit("PreToolUse", tool_name="Agent", tool_input={"description": "no model named", "prompt": "read"}, tool_use_id="t-refused")
@@ -1871,7 +1871,7 @@ def test_a_plugin_requires_a_skill_it_publishes_and_a_read_of_the_file_pays_it(s
     answers = app.container.get(PluginAnswers)
     answers.apply(plugin, answer, "main", MAIN, "s1")
     assert agents.session_agent("s1").skills_due == ("echo-guide",), "a repeat of the line changes nothing"
-    warned = [e.data["warning"] for e in entries.matching(kind="plugin_warning")]
+    warned = [e.data["warning"] for e in entries.matching(entry_type="plugin_warning")]
     assert warned == ["it requires skills it does not publish, ignored: echo-missing"], "an id the plugin does not publish is a warning, written once"
     read_skill(app, "echo-guide")
     assert agents.session_agent("s1").skills_due == () and "echo-guide" in agents.session_agent("s1").skills_loaded, "a read of the published file pays the debt"
@@ -2175,7 +2175,7 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     release, billing = plans.rows()[-2:]
     for plan in (release, billing):
         plans.save(plan.with_(state=PlanState.STARTED), Actor.user(1))
-    lines = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+    lines = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
 
     hook(app, "Stop")
     [status] = lines("workers.started_plans")
@@ -2289,7 +2289,7 @@ def test_every_fitness_score_is_kept_with_its_time_as_a_timeline_point_naming_wh
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     ticked_minutes(app, 0, 1, 31, 32)
-    points = [FitnessPoint.parsed(entry.data) for entry in app.container.get(Entries).all_matching(kind=FitnessPoint.KIND)]
+    points = [FitnessPoint.parsed(entry.data) for entry in app.container.get(Entries).all_matching(entry_type=FitnessPoint.KIND)]
     assert [point.moved for point in points] == ["not scored yet: the mode has not been measured long enough", "first score in this mode"], [point.moved for point in points]
     assert points[0].scored_at < points[1].scored_at, "a point is kept only when the score moved, never for a tick under an unchanged score"
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
@@ -2384,7 +2384,7 @@ def test_a_reply_tagged_to_several_messages_clears_each_in_the_load_and_an_unlin
         return messages.read(message, Actor.agent("s1"), 0)
     first, second = asked("is the parser done?"), asked("and the lexer?")
     reply = messages.save(Message.answer(first, "both are done"), Actor.agent("s1"))
-    app.container.get(Links).save(Link(source=Ref.build(reply), target=Ref.build(second), kind=Messages.ANSWERS), Actor.agent("s1"))
+    app.container.get(Links).save(Link(source=Ref.build(reply), target=Ref.build(second), link_type=Messages.ANSWERS), Actor.agent("s1"))
     cleared = {item.ref: item.cleared_at for item in app.container.get(LoadItems).message_items(since)}
     assert cleared[f"messages:{first.row_id}"] > 0 and cleared[f"messages:{second.row_id}"] > 0, f"a reply tagged to two messages clears both in the load: {cleared}"
     assert not {first.row_id, second.row_id} & {m.row_id for m in messages.unanswered()}, "and neither is unanswered"
@@ -2835,7 +2835,7 @@ def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_w
     def lines(key: str) -> list[str]:
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
-            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
 
     assert console.run(["plan", "testing", "1", "Tests at each phase end"], USER).code == 0
     changed = lines("plans.the_plan_tests_another_way")
@@ -3400,11 +3400,11 @@ def test_an_edit_is_a_row_of_its_own_kept_to_the_last_five_hundred_and_a_shell_p
     app.runtime().deferred.drain()
     edits = app.container.get(Edits)
     stored = edits.agent_edits("s1", 0, 50)
-    assert [e.path for e in stored] == ["a.py"] and stored[0].added == 1 and stored[0].removed == 1 and stored[0].first_line == 7 and [r["kind"] for r in stored[0].rows] == ["ctx", "del", "add", "ctx"]
+    assert [e.path for e in stored] == ["a.py"] and stored[0].added == 1 and stored[0].removed == 1 and stored[0].first_line == 7 and [r["line_type"] for r in stored[0].rows] == ["ctx", "del", "add", "ctx"]
     (app.config.root / "b.py").write_text("x = 1\ny = 2\n")
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i '' s/x/y/ b.py"}, tool_response="")
     stored = edits.agent_edits("s1", 0, 50)
-    assert [e.path for e in stored] == ["a.py", "b.py"] and stored[1].added == 2 and stored[1].removed == 0 and stored[1].command.startswith("sed") and [r["kind"] for r in stored[1].rows] == ["add", "add"], "a shell line's edit is read from the call's written paths when the call ends, against the file as the journal saw it last"
+    assert [e.path for e in stored] == ["a.py", "b.py"] and stored[1].added == 2 and stored[1].removed == 0 and stored[1].command.startswith("sed") and [r["line_type"] for r in stored[1].rows] == ["add", "add"], "a shell line's edit is read from the call's written paths when the call ends, against the file as the journal saw it last"
     for i in range(EDIT_ROWS):
         edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
     assert edits.stored_count() == EDIT_ROWS, "the oldest go as new ones come"
@@ -3789,13 +3789,13 @@ def test_every_generated_line_is_split_into_its_frozen_parts_kinds_and_stages():
     fixture = folder / "lines.jsonl"
     rows = [json.loads(line) for line in fixture.read_text().splitlines()]
     began = timing.monotonic()
-    split = [[[part.text, part.kind(), part.stages()] for part in Chain.parts(row["line"])] for row in rows]
+    split = [[[part.text, part.part_type(), part.stages()] for part in Chain.parts(row["line"])] for row in rows]
     assert timing.monotonic() - began < SPLITTER_SAMPLE_SECONDS, "the splitter sample stays quick enough for the suite"
     if os.environ.get("SPLIT_FREEZE") == "1":
         fixture.write_text("".join(json.dumps({"line": row["line"], "parts": parts}, ensure_ascii=False) + "\n" for row, parts in zip(rows, split)))
     wrong = [row["line"] for row, parts in zip(rows, split) if parts != row["parts"]]
     assert not wrong or os.environ.get("SPLIT_FREEZE") == "1", f"{len(wrong)} of {len(rows)} lines split differently, the first: {wrong[:3]} (regenerate with PYTHONPATH=src python3 -m scripts.splitter_fixture .journal/corpus, or re-freeze with SPLIT_FREEZE=1 where no corpus is at hand, after reading each changed line)"
-    assert len(rows) > 500 and {"R;&", "R&;", "R;;"} <= {kind for row in rows for _, kind, _ in row["parts"]}
+    assert len(rows) > 500 and {"R;&", "R&;", "R;;"} <= {type_name for row in rows for _, type_name, _ in row["parts"]}
     assert sum(path.stat().st_size for path in folder.iterdir()) < SPLITTER_FOLDER_BYTES, "the splitter fixtures stay within their budget"
 
 
@@ -4262,7 +4262,7 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
     sequences = app.container.get(Sequences)
     building = next(s for s in sequences.all() if s.title == "Building a plan")
     shown = next(r for r in api("GET", "sequences")[1]["rows"] if r["id"] == building.id)
-    assert shown["triggers"] == [{"kind": "row", "moment": "plan.created"}], "the page is told a new plan starts it, as the engine does"
+    assert shown["triggers"] == [{"trigger_type": "row", "moment": "plan.created"}], "the page is told a new plan starts it, as the engine does"
     assert api("POST", f"sequences/{building.id}/triggers", {"triggers": []})[0] != 200, "a shipped sequence is locked"
     update = next(s for s in sequences.all() if s.title == "Writing an update")
     assert any(trigger.text == "tldr" for trigger in update.triggers) and [s.title for s in sequences.requested_sequences("tldr")] == ["Writing an update"], "the update starts on its own phrases"
@@ -4271,8 +4271,8 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
     ship = next(s for s in sequences.all() if s.title == "Ship it")
     assert [trigger.line() for trigger in ship.triggers] == ["row:plan.created", "file-text:src/*.py:TODO"] and ship in sequences.triggered_sequences("plan.created") and ship in sequences.call_sequences()
     assert "starts on row:plan.created, file-text:src/*.py:TODO" in app.console().run(["sequence", "show", str(ship.id)], USER).text
-    assert api("POST", f"sequences/{ship.id}/triggers", {"triggers": [{"kind": "phrase", "text": "ship it now"}]})[0] == 200 and [s.title for s in sequences.requested_sequences("ship it now")] == ["Ship it"], "the page sets the triggers anew"
-    for bad, said in (({"kind": "rows"}, "is none of them"), ({"kind": "command", "pattern": "("}, "not a regular expression"), ({"kind": "file"}, "path glob")):
+    assert api("POST", f"sequences/{ship.id}/triggers", {"triggers": [{"trigger_type": "phrase", "text": "ship it now"}]})[0] == 200 and [s.title for s in sequences.requested_sequences("ship it now")] == ["Ship it"], "the page sets the triggers anew"
+    for bad, said in (({"trigger_type": "rows"}, "is none of them"), ({"trigger_type": "command", "pattern": "("}, "not a regular expression"), ({"trigger_type": "file"}, "path glob")):
         status, refused = api("POST", f"sequences/{ship.id}/triggers", {"triggers": [bad]})
         assert status != 200 and said in json.dumps(refused), (bad, refused)
     refused = app.console().run(["sequence", "edit", str(ship.id), "--trigger", "row:plan"], USER)
@@ -4564,7 +4564,7 @@ def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to
     assert all(m.text.startswith("acme task ") for m in made), "each answer names the row with its team"
     with app.container.get(Scope).environment(hub.row_id):
         assert [t.title for t in app.container.get(Tasks).scoped()] == ["review it", "plan the move", "the board is slow"], "all three are in the hub environment"
-    kinds = sorted((link.kind, str(link.target)) for link in app.container.get(Links).rows() if link.kind in ("requested_of", "requested_of_team", "issue"))
+    kinds = sorted((link.link_type, str(link.target)) for link in app.container.get(Links).rows() if link.link_type in ("requested_of", "requested_of_team", "issue"))
     assert kinds == [("issue", f"environments:{hub.row_id}"), ("requested_of", f"users:{bob.row_id}"), ("requested_of_team", f"environments:{hub.row_id}")]
     assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).error
     assert console.run(["task", "create", "plain"], USER).text.startswith("task "), "a task made with none of the flags never asks for a hub"
@@ -4596,10 +4596,10 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     home = environments.save(Environment(name="bob-main"), Actor.system())
     app.container.get(Users).save(User(name="Ada", email="ada@example.com"), Actor.system())
     bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
-    links.save(Link(source=Ref.build(bob), target=Ref.build(home), kind=OWNER), Actor.system())
+    links.save(Link(source=Ref.build(bob), target=Ref.build(home), link_type=OWNER), Actor.system())
     with app.container.get(Scope).environment(hub.row_id):
         task = app.container.get(Tasks).save(Task(title="review the plan"), Actor.user(1))
-    link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), kind="requested_of"), Actor.user(1))
+    link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), link_type="requested_of"), Actor.user(1))
     listener = RequestArrivalCard(app.container.get(RequestCards), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
     listener.handle(Created(model=link, actor=Actor.user(1)))
     app.runtime().deferred.drain()
@@ -4834,7 +4834,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     assert len(agent.model_fits) == 6 and sum(entry.endswith(":right") for entry in agent.model_fits) == 2, agent.model_fits
     with app.container.get(Scope).environment(MAIN):
         sampled = next(w for w in workers.global_matching(name="large-opus"))
-        judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), kind="verifies")]
+        judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), link_type="verifies")]
         verifier = app.container.get(Verifiers).find(judging[-1].id)
     assert verifier.model == "sonnet" and "## The diff" in verifier.brief and "Change src/parser.py" in verifier.brief and "journal verdict model" in verifier.brief, "a merge sampled is judged by a verifier on the general model, never the fast one, handed the brief, the diff and the report"
     answer = app.console().run(["verdict", "model", "too-strong", "one parser module and its test"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
@@ -5184,7 +5184,7 @@ def test_a_finished_plan_says_what_follows_and_a_plan_in_review_names_the_report
     rounds.begin(plan, Actor.user(1))
     unread, read = (reports.save(Report(title=title, abstract=title), Actor.agent("s1")) for title in ("reviewer one", "researcher two"))
     for report in (unread, read):
-        links.save(Link(source=Ref.build(report), target=Ref.build(plan), kind=Messages.SUBJECT_LINK), Actor.agent("s1"))
+        links.save(Link(source=Ref.build(report), target=Ref.build(plan), link_type=Messages.SUBJECT_LINK), Actor.agent("s1"))
     reports.save(read.read(datetime.now(timezone.utc)), Actor.user(1))
     assert [report.row_id for report in rounds.unread(plan)] == [unread.row_id], "of the reports filed about the plan in its review only the unread one is named"
 
@@ -5899,7 +5899,7 @@ def test_a_run_goes_with_the_agent_to_its_next_session(app: App):
     from journal.repositories.entries import NUDGE, Entries
     agent = app.container.get(Agents).session_agent("s2")
     assert agent.stack[-1]["state"] == "following_sequence", "its sequence state is on top of the new session's stack"
-    said = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("session") == "s2" and "step 1: bump" in entry.data.get("line", "")]
+    said = [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("session") == "s2" and "step 1: bump" in entry.data.get("line", "")]
     assert len(said) == 1, f"the step is said once in the new session: {said}"
     hook(app, "SessionEnd", session_id="s2")
     hook(app, "SessionStart", session_id="s3")
@@ -6179,7 +6179,7 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     db = sqlite3.connect(first.config.database)
     db.execute("INSERT INTO agents (created_at, creator, updated_at, updater, environment_id, session, state, data) VALUES ('2026-10-17', 'system', '2026-10-17', 'system', 1, 's1', 'idle', '{}')")
     agent = db.execute("SELECT MAX(id) FROM agents").fetchone()[0]
-    db.execute("INSERT INTO links (created_at, creator, updated_at, updater, source, target, kind) VALUES ('2026-10-17', 'system', '2026-10-17', 'system', ?, NULL, 'owes:journal')", (f"agents:{agent}",))
+    db.execute("INSERT INTO links (created_at, creator, updated_at, updater, source, target, link_type) VALUES ('2026-10-17', 'system', '2026-10-17', 'system', ?, NULL, 'owes:journal')", (f"agents:{agent}",))
     old_columns(db)
     db.execute("DELETE FROM migrations WHERE number >= 7")
     db.commit()
@@ -6188,7 +6188,7 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     second.runtime().start()
     try:
         assert second.container.get(Agents).find(agent).skills_due == ("journal",), "the owed skill is a fact on the agent's row"
-        assert not [link for link in second.container.get(Links).all() if link.kind.startswith("owes:")], "and the one-ended link is gone"
+        assert not [link for link in second.container.get(Links).all() if link.link_type.startswith("owes:")], "and the one-ended link is gone"
     finally:
         second.runtime().stop()
 
@@ -6424,7 +6424,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     assert row["event"] == "tasks.created" and row["data"] == {"table": "tasks", "id": 7, "by": "plugin:echo"}, "a row event: its table, its number and who wrote it"
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
     answer = protocol.parsed_answer(json.dumps({"v": 1, "answer": "refuse", "reason": "not on main", "cards": [{"kind": "sin", "label": "a sin"}], "commands": ["journal task list"]}))
-    assert (answer.answer, answer.reason, answer.cards[0].kind, answer.commands) == ("refuse", "not on main", "sin", ("journal task list",))
+    assert (answer.answer, answer.reason, answer.cards[0].card_type, answer.commands) == ("refuse", "not on main", "sin", ("journal task list",))
     for broken, text in (("{nope", "not JSON"), ('["a"]', "not a JSON object"), ('{"answer": "maybe"}', "allow, refuse or tell"), ('{"v": 2}', "protocol 2"), (json.dumps({"commands": ["journal x"] * 21}), "at most 20")):
         try:
             protocol.parsed_answer(broken)
@@ -6486,7 +6486,7 @@ def test_a_plugin_hears_the_events_it_names_and_holds_what_it_may(app: App):
     echo(app, "echo-two")
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})
     app.container.get(ListenerQueue).drain()
-    assert status == 409 and "plugin echo-two" not in body["error"] and [e.data["plugin"] for e in app.container.get(Entries).matching(kind="plugin_unanswered")] == ["echo-two"], "the first plugin's refusal answers; the second hears it after the reply, recorded unanswered"
+    assert status == 409 and "plugin echo-two" not in body["error"] and [e.data["plugin"] for e in app.container.get(Entries).matching(entry_type="plugin_unanswered")] == ["echo-two"], "the first plugin's refusal answers; the second hears it after the reply, recorded unanswered"
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list forbidden"})
     assert status == 200 and "echo refuses a forbidden tool" in body["hookSpecificOutput"]["additionalContext"], "a journal command goes through a plugin's refusal, its words told"
 
@@ -6551,7 +6551,7 @@ def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     for _ in range(6):
         deferred.drain()
     heard = [m.text for m in messages.recent(20) if m.text.startswith("heard message")]
-    assert len(heard) == 4 and entries.matching(kind="plugin_cut"), "two plugins answer each other's rows one step deep, then the cut is recorded"
+    assert len(heard) == 4 and entries.matching(entry_type="plugin_cut"), "two plugins answer each other's rows one step deep, then the cut is recorded"
 
 def test_a_plugin_holds_a_stop_once_a_turn(app: App):
     from journal.repositories.entries import Entries
@@ -6562,7 +6562,7 @@ def test_a_plugin_holds_a_stop_once_a_turn(app: App):
     assert status == 200 and body["decision"] == "block" and "[plugin echo] echo holds the stop" in body["reason"]
     status, body = hook(app, "Stop", stop_hook_active=True)
     assert status == 200 and "decision" not in body, "a stop held once already goes through"
-    assert [e.data["reason"] for e in app.container.get(Entries).matching(kind="plugin_unanswered")] == ["echo holds the stop"], "the second refusal is recorded unanswered"
+    assert [e.data["reason"] for e in app.container.get(Entries).matching(entry_type="plugin_unanswered")] == ["echo holds the stop"], "the second refusal is recorded unanswered"
 
 
 def test_a_subagents_event_reaches_a_plugin_and_is_held_only_at_a_tool(app: App):
@@ -6940,12 +6940,12 @@ def test_the_plugins_page_previews_installs_lists_configures_and_removes(app: Ap
             return error.code, json.loads(error.read())
     folder = str(Path(__file__).parent / "plugins" / "echo")
     status, preview = api("POST", "plugins/preview", {"source": folder})
-    assert status == 200 and preview["name"] == "echo" and {"kind": "holds", "label": "before the agent continues", "command": "tool_starting, prompt_submitted"} in preview["rows"]
+    assert status == 200 and preview["name"] == "echo" and {"item_type": "holds", "label": "before the agent continues", "command": "tool_starting, prompt_submitted"} in preview["rows"]
     status, produced = api("POST", "plugins", {"source": folder})
     assert status == 201 and produced["name"] == "echo"
     row = api("GET", "plugins")[1]["rows"][0]
     mode = next(s for s in row["schema"] if s["key"] == "mode")
-    assert (row["name"], row["status"], row["manifest"]["holds"], mode["kind"], "secret" in row["settings"]["token"]) == ("echo", "on", [{"event": "tool_starting", "window_ms": 0}, {"event": "prompt_submitted", "window_ms": 0}], "choice", True)
+    assert (row["name"], row["status"], row["manifest"]["holds"], mode["setting_type"], "secret" in row["settings"]["token"]) == ("echo", "on", [{"event": "tool_starting", "window_ms": 0}, {"event": "prompt_submitted", "window_ms": 0}], "choice", True)
     assert api("POST", f"plugins/{produced['id']}/configure", {"key": "repeat", "value": "4"})[0] == 200 and app.container.get(Plugins).lookup("echo").settings["repeat"] == 4
     assert api("POST", f"plugins/{produced['id']}/disable", {})[0] == 200 and api("GET", "plugins")[1]["rows"][0]["status"] == "off"
     assert api("POST", f"plugins/{produced['id']}/remove", {})[0] == 200 and app.container.get(Plugins).all() == []
@@ -6968,7 +6968,7 @@ def test_a_plugins_record_lists_what_it_did(app: App):
     texts = [line["text"] for line in record]
     assert "held at tool_starting: echo refuses a forbidden tool" in texts, "a hold is in its record"
     assert f'ran journal task log {task.id} "echoed"' in texts, "a command it ran"
-    logged = [line for line in record if line["kind"] == "row" and line["text"].startswith("made task log")]
+    logged = [line for line in record if line["action_type"] == "row" and line["text"].startswith("made task log")]
     assert logged and logged[0]["ref"] == "", "a row it wrote; a task log opens nothing of its own"
     assert record == sorted(record, key=lambda line: line["time"], reverse=True), "newest first"
 
@@ -7021,7 +7021,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
         assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})[0] == 200, "a fault is never a refusal"
     row = plugins.lookup("echo")
     assert row.fault_streak == 5 and row.failed_at and "not JSON" in row.last_fault
-    assert len(app.container.get(Entries).matching(kind="plugin_fault")) == 5 and [m.text for m in messages.recent(20)].count("Plugin echo is failing: it faulted 5 times in a row, and events go through without it") == 1, "the failing card comes once, at the fifth"
+    assert len(app.container.get(Entries).matching(entry_type="plugin_fault")) == 5 and [m.text for m in messages.recent(20)].count("Plugin echo is failing: it faulted 5 times in a row, and events go through without it") == 1, "the failing card comes once, at the fifth"
     plugins.save(row.with_(settings={}), Actor.user(1))
     assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200
     assert plugins.lookup("echo").fault_streak == 0 and "Plugin echo answers again" in [m.text for m in messages.recent(5)]
@@ -7031,7 +7031,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
     began = timing.monotonic()
     status, _ = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})
     assert status == 200 and timing.monotonic() - began < 3, "two slow plugins are each cut at their window and the event goes through"
-    missed = [e.data["plugin"] for e in app.container.get(Entries).matching(kind="plugin_unanswered") if "no answer within" in e.data["reason"]]
+    missed = [e.data["plugin"] for e in app.container.get(Entries).matching(entry_type="plugin_unanswered") if "no answer within" in e.data["reason"]]
     assert missed == ["echo", "echo-two"] and plugins.lookup("echo").fault_streak == 0, "each miss is recorded as unanswered and counts as no fault, so the plugin is asked again next time"
 
 def test_the_three_holds_are_answered_under_codex_as_the_frozen_records_show(app: App):
@@ -7132,7 +7132,7 @@ def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app
     from journal.repositories.secrets import Secrets
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
     secrets, values = app.container.get(Secrets), app.container.get(SecretValues)
-    secret = secrets.save(Secret(title="Github", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Github")), Actor.user("u"))
+    secret = secrets.save(Secret(title="Github", secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Github")), Actor.user("u"))
     assert secret.fields == ({"name": "key", "hidden": True, "variable": "GITHUB_KEY"},) and secret.waiting()
     values.put("GITHUB_KEY", 'gh-"quoted"-token')
     secret = secrets.save(secret.is_filled("key"), Actor.user("u"))
@@ -7238,7 +7238,7 @@ def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):
     rows = app.container.get(Secrets).all()
     assert len(rows) == 1, "brought in once, however often the journal boots"
     flespi = rows[0]
-    assert flespi.title == "flespi" and flespi.kind == "api key" and flespi.filled == ("key",) and flespi.programs == ("curl",) and flespi.brief == "The flespi token, used with curl." and flespi.used_at is not None and not flespi.waiting()
+    assert flespi.title == "flespi" and flespi.secret_type == "api key" and flespi.filled == ("key",) and flespi.programs == ("curl",) and flespi.brief == "The flespi token, used with curl." and flespi.used_at is not None and not flespi.waiting()
 
 
 def test_the_agent_is_told_when_the_user_allows_a_program(app: App, monkeypatch):
@@ -7276,7 +7276,7 @@ def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_ta
     monkeypatch.setattr(BrowserLogins, "record", recorded)
     servers, secrets = app.container.get(McpServers), app.container.get(Secrets)
     servers.save(McpServer(name="playwright", title="Playwright", command="npx", args=("-y", "@playwright/mcp@latest", "--headless")), Actor.system())
-    secret = secrets.save(Secret(title="Example", kind=SecretType.BROWSER_LOGIN, url="https://app.example.com/login"), Actor.user("u"))
+    secret = secrets.save(Secret(title="Example", secret_type=SecretType.BROWSER_LOGIN, url="https://app.example.com/login"), Actor.user("u"))
     assert "the user logs in to Example with the Log in button" in app.console().run(["secret", "login", str(secret.id)], AGENT).error, "the agent logs in on its own only where the user allows it"
     viewer(app, f"secrets/{secret.id}/allow-login")
     began = timing.time()
@@ -7312,7 +7312,7 @@ def test_a_replaced_value_stays_masked_and_a_login_that_ran_out_asks_again_once(
     assert app.container.get(Messages).find(saved.id).text == "old [secret GITHUB_KEY] new [secret GITHUB_KEY]", "the replaced value is still masked"
     assert values.values()["GITHUB_KEY"] == "ghp_newvalue_0002" and len(values.retired_earlier(9e12)) == 1
     secrets = app.container.get(Secrets)
-    secrets.save(Secret(title="Example", kind=SecretType.BROWSER_LOGIN, url="https://example.com", session_at=datetime.now(timezone.utc) - timedelta(days=2), session_expires=datetime.now(timezone.utc) - timedelta(days=1)), Actor.user("u"))
+    secrets.save(Secret(title="Example", secret_type=SecretType.BROWSER_LOGIN, url="https://example.com", session_at=datetime.now(timezone.utc) - timedelta(days=2), session_expires=datetime.now(timezone.utc) - timedelta(days=1)), Actor.user("u"))
     hook(app, "SessionStart")
     for _ in range(2):
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=1.0))
@@ -7332,8 +7332,8 @@ def test_a_secret_deleted_thirty_days_ago_goes_for_good_with_its_values(app: App
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
     values, secrets = app.container.get(SecretValues), app.container.get(Secrets)
     long_ago = datetime.now(timezone.utc) - timedelta(days=31)
-    old = secrets.save(Secret(title="Old", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Old"), deleted_at=long_ago), Actor.user("u"))
-    recent = secrets.save(Secret(title="Recent", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Recent"), deleted_at=datetime.now(timezone.utc)), Actor.user("u"))
+    old = secrets.save(Secret(title="Old", secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Old"), deleted_at=long_ago), Actor.user("u"))
+    recent = secrets.save(Secret(title="Recent", secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Recent"), deleted_at=datetime.now(timezone.utc)), Actor.user("u"))
     values.write({"OLD_KEY": "a", "RECENT_KEY": "b", f"{RETIRED}X{EMAIL_SIGN_TOKEN}{int(long_ago.timestamp())}": "c", "LIVE_KEY": "d"})
     hook(app, "SessionStart")
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=1.0))
@@ -7786,7 +7786,7 @@ def test_one_reader_draft_comes_at_a_marked_runs_real_end_naming_its_part_capped
     with app.container.get(Scope).environment(MAIN):
         [again] = [draft for draft in drafts.drafts(main) if draft.output == built.id]
         assert again.suggested and again.later_runs == 0 and not again.is_suggestible(50) and not again.is_suggestible(0), "a part told before is not due until its runs since reach the repeat"
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": "shell.make_its_reader", "values": {"command": "job.sh"}, "line": "no reader reads job.sh yet", "time": 10.0}), Actor.system())
+        app.container.get(Entries).save(Entry(environment_id=MAIN, entry_type="nudge", actor=Actor.agent("s1"), data={"session": "s1", "key": "shell.make_its_reader", "values": {"command": "job.sh"}, "line": "no reader reads job.sh yet", "time": 10.0}), Actor.system())
         assert drafts.suggestion_times()["job.sh"] == 10.0, "a part told by a line the one draft replaced counts as told"
     assert app.console().run(["reader", "add", "make-builds", "--commands", "make all", "--pattern", "error|built in", "--finished", "built in", "--about", "the builds", "--label", "Building the project"], AGENT).code == 0
     app.runtime().deferred.drain()
@@ -7807,10 +7807,10 @@ def test_a_sequence_ported_from_version_3_is_written_at_boot(app: App):
     assert [trigger.line() for trigger in sorting.triggers] == ["row:doc.created"] and len(sorting.steps) == 2
 
 
-def version_3_row(folder, kind: str, n: int, brief: str = "", **header) -> None:
+def version_3_row(folder, type_name: str, n: int, brief: str = "", **header) -> None:
     """A version 3 row file: its JSON header between --- lines, then its brief."""
     folder.mkdir(parents=True, exist_ok=True)
-    head = {"n": n, "type": kind, "title": "", "refs": [], "seen": ["user"], "created": 1.0, "updated": 1.0, "deleted": 0.0, "completed": 0.0, "outcome": "", "data": {}, **header}
+    head = {"n": n, "type": type_name, "title": "", "refs": [], "seen": ["user"], "created": 1.0, "updated": 1.0, "deleted": 0.0, "completed": 0.0, "outcome": "", "data": {}, **header}
     (folder / f"{n:03d}.md").write_text(f"---\n{json.dumps(head, indent=2)}\n---\n{brief}\n")
 
 
@@ -7819,8 +7819,8 @@ def test_only_the_version_3_environments_still_in_use_are_brought_across_and_nev
     from journal.repositories.environments import Environments
     from journal.repositories.reports import Reports
     stored = app.config.home / "version-3"
-    for n, name, kind in ((1, "main", "main"), (2, "ticket-8", "ticket"), (3, "ticket-9", "ticket"), (4, "1012-inventory-page", "worktree")):
-        version_3_row(stored / "project" / "environment", "environment", n, title=name, data={"kind": kind})
+    for n, name, type_name in ((1, "main", "main"), (2, "ticket-8", "ticket"), (3, "ticket-9", "ticket"), (4, "1012-inventory-page", "worktree")):
+        version_3_row(stored / "project" / "environment", "environment", n, title=name, data={"kind": type_name})
     version_3_row(stored / "environments" / "ticket-8" / "todo", "todo", 1, "still open")
     version_3_row(stored / "environments" / "ticket-9" / "todo", "todo", 1, "long done", completed=2.0)
     (stored.parents[1] / ".claude" / "worktrees" / "1012-inventory-page").mkdir(parents=True)
@@ -8174,7 +8174,7 @@ def test_a_row_whose_text_names_another_is_linked_to_it_off_the_writes_thread(ap
     console.run(["message", "send", "see task 1, and task 99 which is not there"], AGENT)
     app.container.get(ListenerQueue).drain()
     with app.container.get(Scope).environment(MAIN):
-        mentions = [(link.source.type, link.target) for link in app.container.get(Links).rows() if link.kind == "mentions"]
+        mentions = [(link.source.type, link.target) for link in app.container.get(Links).rows() if link.link_type == "mentions"]
     assert ("messages", Ref("tasks", 1)) in mentions and Ref("tasks", 99) not in [t for _, t in mentions], "linked to what exists, not to what does not"
 
 
@@ -8454,9 +8454,9 @@ def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_
     from journal.repositories.environments import Environments
     from journal.repositories.links import Links
     environments, links = app.container.get(Environments), app.container.get(Links)
-    first = environments.save(Environment(name="team", team_name="jesse-team", kind=EnvironmentType.SESSION), Actor.system())
-    environments.save(Environment(name="team", team_name="team", kind=EnvironmentType.SESSION), Actor.system())
-    links.save(Link(source=Ref("users", 1), target=Ref.build(first), kind=OWNER), Actor.system())
+    first = environments.save(Environment(name="team", team_name="jesse-team", environment_type=EnvironmentType.SESSION), Actor.system())
+    environments.save(Environment(name="team", team_name="team", environment_type=EnvironmentType.SESSION), Actor.system())
+    links.save(Link(source=Ref("users", 1), target=Ref.build(first), link_type=OWNER), Actor.system())
     app.container.get(SingleTeamChat).run()
     assert [(chat.row_id, chat.team_name) for chat in environments.sessions()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
     assert links.model_links("target", [first], OWNER) == [], "and it is owned by no one"
@@ -9392,7 +9392,7 @@ def test_a_plans_timeline_has_each_start_log_and_end_of_its_tasks_oldest_first(a
     console.run(["task", "complete", "1", "--how", "pairs by code"], AGENT)
     with app.container.get(Scope).environment(1):
         moments = app.container.get(PlanTimeline).build(app.container.get(Plans).find(1))
-    assert [(m.kind, m.task, m.text) for m in moments] == [("started", 1, ""), ("log", 1, "the code is hashed"), ("done", 1, "pairs by code")], "each start, log line and end, oldest first"
+    assert [(m.moment_type, m.task, m.text) for m in moments] == [("started", 1, ""), ("log", 1, "the code is hashed"), ("done", 1, "pairs by code")], "each start, log line and end, oldest first"
 
 
 def test_a_phone_pairs_once_by_its_code_one_at_a_time_as_version_3_did(app: App):
@@ -9707,7 +9707,7 @@ def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows
     assert len(entries.selected_globally(entries.query())) > 5, "nothing is deleted as entries are written"
     app.container.get(RecordTrim).tick(0.0)
     kept = entries.selected_globally(entries.query())
-    assert len([e for e in kept if e.kind != "nudge"]) <= 5 and len([e for e in kept if e.kind == "nudge"]) <= 5, "the trim job keeps the record to the setting's newest, the lines said to the agents kept apart as many of their own"
+    assert len([e for e in kept if e.entry_type != "nudge"]) <= 5 and len([e for e in kept if e.entry_type == "nudge"]) <= 5, "the trim job keeps the record to the setting's newest, the lines said to the agents kept apart as many of their own"
     assert [m.text for m in app.container.get(Messages).all()][-1] == "keep me", "a message is the project's own and stays"
 
 
@@ -10269,7 +10269,7 @@ def test_a_file_changed_by_a_shell_command_keeps_its_changed_lines(app: App):
     from journal.features.edits.support.patch_rows import PatchRows
     from journal.repositories.edits import Edits
     rows = PatchRows.version_rows("a\nb\nc\nd\n", "a\nB\nc\nd\ne\n").rows
-    assert [(r.kind, r.line, r.text) for r in rows if r.kind != "ctx"] == [("del", 2, "b"), ("add", 2, "B"), ("add", 5, "e")], "the lines a change removed and added, numbered as in the file"
+    assert [(r.line_type, r.line, r.text) for r in rows if r.line_type != "ctx"] == [("del", 2, "b"), ("add", 2, "B"), ("add", 5, "e")], "the lines a change removed and added, numbered as in the file"
     hook(app, "SessionStart")
     console = app.console()
     (app.config.root / "notes.txt").write_text("one\ntwo\n")
@@ -10277,8 +10277,8 @@ def test_a_file_changed_by_a_shell_command_keeps_its_changed_lines(app: App):
     (app.config.root / "notes.txt").write_text("one\nTWO\nthree\n")
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i s/two/TWO/ notes.txt"}, tool_response="")
     first, second = [e for e in app.container.get(Edits).all() if e.path == "notes.txt"][-2:]
-    assert [r["text"] for r in first.rows if r["kind"] == "add"] == ["one", "two"], "a new file's lines are all added"
-    assert [(r["kind"], r["text"]) for r in second.rows if r["kind"] != "ctx"] == [("del", "two"), ("add", "TWO"), ("add", "three")], "a later change is told against the version the journal saw last"
+    assert [r["text"] for r in first.rows if r["line_type"] == "add"] == ["one", "two"], "a new file's lines are all added"
+    assert [(r["line_type"], r["text"]) for r in second.rows if r["line_type"] != "ctx"] == [("del", "two"), ("add", "TWO"), ("add", "three")], "a later change is told against the version the journal saw last"
 
 
 def test_a_shell_line_says_whether_it_reads_searches_or_runs(app: App):
@@ -10629,7 +10629,7 @@ def test_an_installed_and_a_fresh_journal_read_the_same_table_and_a_projects_own
     assert json.loads((installed / "support" / "command_table.json").read_text())["version"] == app.container.get(CommandClassifier).version and (installed / "support" / "command_table.schema.json").is_file(), "the installed copy carries the same table and its schema"
     hook(app, "SessionStart")
     with app.container.get(Scope).environment(MAIN):
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": "ls", "table_version": 1}}), Actor.system())
+        app.container.get(Entries).save(Entry(environment_id=MAIN, entry_type="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": "ls", "table_version": 1}}), Actor.system())
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls -la"})
     stored, fresh = app.container.get(Entries).tool_starts("s1", 2)[::-1]
     assert stored.recorded_call().table_version == 1 and fresh.recorded_call().table_version == app.container.get(CommandClassifier).version == ClassificationTable(Config.rooted(tmp_path), TableSchema()).version, "an old call keeps its version; a new one, upgraded or fresh, stamps the shipped one"
@@ -10728,7 +10728,7 @@ def test_every_shape_of_the_command_corpus_is_the_one_stored_before_the_table_he
     entries = app.container.get(Entries)
     with app.container.get(Scope).environment(MAIN):
         for line, shape in (("timeout 300 python3 -m pytest -q", "python3 -m pytest"), ("nohup ./run.sh > log 2>&1 &", "nohup run.sh"), ("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' npm test", "npm test")):
-            entries.save(Entry(environment_id=MAIN, kind="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": line, "writes": False, "shape": shape}}), Actor.system())
+            entries.save(Entry(environment_id=MAIN, entry_type="ToolStarting", actor=Actor.agent("s1"), data={"call": {"command": line, "writes": False, "shape": shape}}), Actor.system())
             hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
             assert entries.shape_count("s1", shape) == 2, f"{line}: the entry stored before and the new run are one shape, counted together"
 
@@ -10782,7 +10782,7 @@ def test_a_stored_call_keeps_its_parts_fields_and_its_doing_labels_stay_as_histo
     assert fresh.writes == fresh.classification.is_write and fresh.files == ("build/x.txt",) and fresh.shape == "rm" and not fresh.reads_output, "a new part's writes and files are its classification's, beside it"
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.features.shell.support.shell_record import PART_START
-    entry = Entry(environment_id=MAIN, kind=PART_START, data={"chain": "c1", "part": "sudo apt-get install -y curl", "doing": "running sudo", "time": 1.0})
+    entry = Entry(environment_id=MAIN, entry_type=PART_START, data={"chain": "c1", "part": "sudo apt-get install -y curl", "doing": "running sudo", "time": 1.0})
     assert BarRow.build(entry, CommandText(SHAPES)).verb == "running sudo" and app.container.get(ActivityLabel).build("sudo apt-get install -y curl") == "installing", "the label stored then is shown as history, though the table now names the run installing"
 
 
@@ -10815,7 +10815,7 @@ def test_a_plugin_heard_after_the_reply_never_delays_a_hook_and_a_holding_one_is
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     waited = timing.monotonic() - started
     assert status == 200 and 0.2 <= waited < 2.5, "the event it holds is asked on the answer path and cut at the window its manifest declares, the hook answered without the plugin's answer three seconds later"
-    missed = app.container.get(Entries).matching(kind="plugin_unanswered")
+    missed = app.container.get(Entries).matching(entry_type="plugin_unanswered")
     assert "no answer within 200 ms" in missed[-1].data["reason"] and plugins.lookup("echo").fault_streak == 0 and plugins.lookup("echo").enabled, "the miss is on the plugin's record, no fault counted, and the plugin stays on to be asked next time"
     from journal.models.support.plugin_manifest import PluginManifest
     manifest = PluginManifest.parsed({"name": "x", "hears": ["tool_starting", "idle"], "holds": [{"event": "tool_starting", "window_ms": 5000}, "idle"]})
@@ -10874,7 +10874,7 @@ def test_a_plugins_queue_is_drained_at_every_hook_and_its_line_rides_on_the_answ
     app.container.get(ListenerQueue).drain()
     assert "Sins in a.py" in [m.text for m in app.container.get(Messages).recent(10)], "the queued card is shown"
     assert any("fix a.py" == t.title for t in app.container.get(Tasks).scoped()), "the queued command ran as the plugin"
-    assert any("4.json" in e.data["fault"] for e in app.container.get(Entries).matching(kind="plugin_fault")), "the file that does not parse is a fault naming it"
+    assert any("4.json" in e.data["fault"] for e in app.container.get(Entries).matching(entry_type="plugin_fault")), "the file that does not parse is a fault naming it"
     _, repeat = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "d.py"})
     assert "two sins" not in json.dumps(repeat), "a drained line is said once"
 
@@ -11036,7 +11036,7 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
         app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
     edit = {"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"}
     patch = {"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": ["-x", "+y"]}]}
-    worker = lambda kind, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
+    worker = lambda type_name, **body: posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
     worker("PreToolUse", tool_name="Edit", tool_input=edit)
     worker("PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
     app.container.get(ListenerQueue).drain()
@@ -11081,7 +11081,7 @@ def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugi
         app.container.get(Workers).save(babbage.ready(1.0), Actor.worker(babbage.id))
     edit = {"file_path": str(app.config.root / "sinful.py"), "old_string": "x", "new_string": "y"}
     patch = {"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": ["-x", "+y"]}]}
-    worker = lambda kind, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
+    worker = lambda type_name, **body: posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
     worker("PreToolUse", tool_name="Edit", tool_input=edit)
     _, finished = worker("PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
     app.container.get(ListenerQueue).drain()
@@ -11128,7 +11128,7 @@ def test_every_hook_of_every_tool_arrives_is_recorded_and_answered_even_with_a_m
         assert status == 200, f"{tool} starting: {status} {body}"
         status, body = hook(app, "PostToolUse", tool_name=tool, tool_input=tool_input, tool_response={})
         assert status == 200, f"{tool} finished: {status} {body}"
-    recorded = [(e.kind, e.data.get("tool_name")) for e in app.container.get(Entries).scoped() if e.kind in ("ToolStarting", "ToolFinished")]
+    recorded = [(e.entry_type, e.data.get("tool_name")) for e in app.container.get(Entries).scoped() if e.entry_type in ("ToolStarting", "ToolFinished")]
     for tool in calls:
         assert ("ToolStarting", tool) in recorded and ("ToolFinished", tool) in recorded, f"{tool} is recorded at its start and its end"
     assert any(m.data.get("peer") == "code-commandments-12" for m in app.container.get(MessageRows).all()), "the message crossed in the transcript reached the chat"
@@ -11344,7 +11344,7 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
         assert [(item.position, item.text) for item in todos.task_items(task)] == [(1, "write the grammar"), (2, "write the test"), (3, "run it")], "the to-do items are kept in order"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace")
     moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (worker.delivered(2.0), WorkerDelivered, "clocked out"), (worker.merged(7, 3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
-    assert all(isinstance(moved.events[-1], kind) and moved.state == state for moved, kind, state in moves), "each state change of a worker carries its event"
+    assert all(isinstance(moved.events[-1], type_name) and moved.state == state for moved, type_name, state in moves), "each state change of a worker carries its event"
 
 
 def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_run_lets_it_stand(app: App, monkeypatch):
@@ -11381,7 +11381,7 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
     assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and drafts the worker's task with its proofs"
     assert {card.data["shows"] for card in cards} == {"worker_tests"}, "a worker's test run is a kind of mark of its own, which the chat shows until the user hides it"
     from journal.features.workers.feature import Workers as WorkersFeature
-    assert next(kind for kind in WorkersFeature.card_types if kind.key == "worker_tests").shown is True
+    assert next(type_name for type_name in WorkersFeature.card_types if type_name.key == "worker_tests").shown is True
 
 
 def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_stands(app: App, monkeypatch):
@@ -12103,7 +12103,7 @@ def test_a_message_sent_to_a_subagent_runs_its_row_again_until_it_ends(app: App)
     """A subagent that ended and is given another job by a message to its id is running again in the rows the selector lists, and done once it ends; the hook outage of 2026-10-21 and the resumes showed 0 running while three were out."""
     from dataclasses import asdict
     from journal.repositories.subagents import Subagents
-    transmit = lambda kind, **extra: hook(app, kind, session_id="s9", **extra)
+    transmit = lambda type_name, **extra: hook(app, type_name, session_id="s9", **extra)
     rows = lambda: [row for row in app.container.get(Subagents).session_subagents("s9")]
     transmit("SessionStart", source="startup")
     transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "collect commands", "prompt": "read", "model": "sonnet"}, tool_use_id="t-1")
@@ -12976,7 +12976,7 @@ def test_a_task_sent_back_a_second_time_is_marked_with_the_first_reason_and_a_th
     console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
     console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     lovelace = Caller.worker("main", 1, "w-1", "claude")
-    sent_back = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key", "").startswith("workers.worker_sent_back")]
+    sent_back = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key", "").startswith("workers.worker_sent_back")]
     with app.container.get(Scope).environment(MAIN):
         workers = app.container.get(Workers)
         for round, reason in enumerate(("the alias names are missing", "the tests do not run", "the lexer is still missing")):
@@ -13154,7 +13154,7 @@ def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_s
     user_set(app, "tasks.auto", True)
     tick_at(app, 61 * 60, 1.0)
     app.runtime().deferred.drain()
-    still = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.blocked_work_stands_still"]
+    still = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.blocked_work_stands_still"]
     assert still == [WorkersNudges.UNMOVED_TASKS.create(tasks=2).rendered()], f"after the interval the task waiting on the user is not named as standing still, the other is: {still}"
     stopped = json.dumps(hook(app, "Stop")[1])
     assert "tasks 2 are blocked" in stopped and "tasks 1" not in stopped and "1, 2" not in stopped, f"the stop names the blocked task a command or a decision of the agent's can move, not the one waiting on the user: {stopped}"
@@ -13179,7 +13179,7 @@ def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_pla
     console.run(["plan", "start", "1"], AGENT)
     user_set(app, "workers.mode", "orchestrator")
     now = timing.time()
-    said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+    said = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == key]
 
     def ticked(minutes: float) -> None:
         monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
@@ -13213,7 +13213,7 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
     user_set(app, "workers.mode", "orchestrator")
-    asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
+    asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
 
     def ticked(minutes: float) -> list[str]:
         tick_at(app, minutes * 60, 1.0)
@@ -13240,7 +13240,7 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     assert dispatched.code == 0, dispatched.error
     assert console.run(["worker", "queue", "1", "4", "5"], AGENT).code == 0
     app.runtime().deferred.drain()
-    unblocking = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.unblocking_task_waits_in_a_queue"]
+    unblocking = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.unblocking_task_waits_in_a_queue"]
     assert unblocking == [WorkersNudges.UNBLOCKER_QUEUED.create(task=5, place=2, n=1).rendered()], unblocking
 
 
@@ -13262,7 +13262,7 @@ def queue_lines_said(app: App, command: str) -> list[str]:
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
     assert status == 200, body
     app.runtime().deferred.drain()
-    return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
+    return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.queue_the_related_tasks"]
 
 
 def test_a_subagent_an_old_end_left_resting_on_void_is_put_back_to_researching_when_it_is_resumed(app: App):
@@ -13293,7 +13293,7 @@ def test_a_worker_whose_processes_pass_the_memory_warning_is_named_once_and_one_
     with app.container.get(Scope).environment(MAIN):
         worker = workers.save(Worker(environment_id=MAIN, name="Mr. Babbage", brief="b", state=WorkerState.DISPATCHED, pid=424242, dispatcher="s1"), Actor.system())
     watch = app.container.get(WorkerMemoryWatch)
-    warned = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_uses_much_memory"]
+    warned = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.worker_uses_much_memory"]
 
     def measured(megabytes: int) -> Worker:
         memory[424242] = megabytes * MEGABYTE
@@ -13374,7 +13374,7 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
     listed = console.run(["worker", "list"], AGENT).text
     assert "on opus, $0.00 at API prices, sent back 0 times on this task" in listed, listed
-    costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
+    costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
     runner = app.container.get(WorkerRunner)
     runner.cost_recorded(workers.find(1), 1.5, Actor.system())
     app.runtime().deferred.drain()
@@ -13442,7 +13442,7 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     quiet = lambda: [line for line in keystrokes if "quiet" in line]
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
-    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, kind="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
+    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
     tick_after(app, 21 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and quiet()[0].endswith('worker 1 quiet 20 min; last: journal task log 3260 "BLOCKED: commit…'), "the first line names the worker's last tool call, ended on a whole word"
@@ -13516,7 +13516,7 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     app.runtime().deferred.drain()
     assert quiet() == [] and not workers.find(1).silence.is_reported, "a tick runs at the moment it takes its turn, not the one its run began with"
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
-    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, kind="ToolStarting", actor=Actor.agent("w1"), data={"call": {"command": "python3 scripts/suite.py"}}), Actor.system())
+    app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": {"command": "python3 scripts/suite.py"}}), Actor.system())
     tick_after(app, 21 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and quiet()[0].endswith("worker 1 quiet 20 min; last: python3 scripts/suite.py"), "so the worker is named once it is quiet, with its last call"
@@ -14813,7 +14813,7 @@ def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_sui
         with app.container.get(Scope).environment(MAIN):
             app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"chain-{command}-{status}", command=command, session="s1", ended=True, status=status), Actor.agent("s1"))
 
-    broken = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.suite_failed_after_merges"]
+    broken = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.suite_failed_after_merges"]
     ran("journal suite tests/test_data.py -k unrelated", 1)
     hook(app, "Stop")
     assert broken() == [], "a failed run of part of the suite names nobody"
@@ -15224,7 +15224,7 @@ def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_an
     shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
     assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
     relay, plugin = app.container.get(PluginRelay), app.container.get(Plugins).lookup("echo")
-    answer = PluginAnswer(cards=(PluginCard(kind="sin-found", label="1 sin in src/a.py", key="sins:src/a.py"),))
+    answer = PluginAnswer(cards=(PluginCard(card_type="sin-found", label="1 sin in src/a.py", key="sins:src/a.py"),))
     shown = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
     merge = WorkerMergeEvent(environment_id=MAIN, worker=1, name="Mr Faraday", task=1, branch="worker/1", worktree="w")
     with app.container.get(Scope).environment(MAIN):
@@ -15248,7 +15248,7 @@ def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_ch
     assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
     answers, plugin, console = app.container.get(PluginAnswers), app.container.get(Plugins).lookup("echo"), app.console()
     cards = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
-    raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(kind="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN, "")
+    raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(card_type="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN, "")
     with app.container.get(Scope).environment(MAIN):
         raised("1 sin in a.py")
         app.runtime().deferred.drain()
@@ -15673,7 +15673,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         from journal.repositories.id_blocks import IdBlocks
         from journal.models.environment import Environment
         a.container.get(IdBlocks).add("messages", 900001, 900009)
-        a.container.get(Environments).save(Environment(name="team", kind=EnvironmentType.SESSION), Actor.system())
+        a.container.get(Environments).save(Environment(name="team", environment_type=EnvironmentType.SESSION), Actor.system())
         joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
         assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).sessions()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
@@ -15974,7 +15974,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         named = team.details.answer()
         assert (named.key, named.number, named.name) == (new.key, new.number, "acme"), "the first journal names the team after its checkout's folder, and the key and T stay as drawn"
         [hub] = a.container.get(Environments).hubs()
-        assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentType.HUB, new.key), "the first journal makes the team's hub environment"
+        assert (hub.name, hub.team_name, hub.environment_type, hub.team_key) == ("acme", "acme", EnvironmentType.HUB, new.key), "the first journal makes the team's hub environment"
         assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
         b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
         assert b.console().run(["environment", "create", "lab"], USER).code == 0
@@ -15982,12 +15982,12 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         with b.container.get(Scope).environment(lab.row_id):
             own_task = b.container.get(Tasks).save(Task(environment_id=lab.row_id, title="Bob's own, before joining"), Actor.user(1))
             own_message = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's note before joining"), Actor.user(1))
-        b.container.get(Links).save(Link(source=Ref.build(own_task), target=Ref.build(own_message), kind="mentions"), Actor.user(1))
+        b.container.get(Links).save(Link(source=Ref.build(own_task), target=Ref.build(own_message), link_type="mentions"), Actor.user(1))
         b.container.get(Attachments).store("messages", own_message.id, "note.txt", b"kept")
         bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_b.code == 0, joined_b.error
-        assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentType.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
+        assert [(row.row_id, row.key, row.environment_type, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentType.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
         kept_lab = b.container.get(Environments).existing("lab")
         [kept_task] = b.container.get(Tasks).global_matching(title=own_task.title)
         [kept_message] = [message for message in b.container.get(Messages).global_matching(environment_id=kept_lab.row_id) if message.text == own_message.text]
@@ -16008,7 +16008,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         numbered = lambda: {table: [row["id"] for row in b.container.get(Connection).all(f"SELECT id FROM {table} ORDER BY id")] for table in ("environments", "messages", "tasks", "links", "users")}
         rows_before = numbered()
         assert accounts[1].is_joined() and accounts[1].team_key() == "unknown", "an account from before teams had keys is read from team.json, its key unknown"
-        b.container.get(Connection).execute("UPDATE environments SET team_key = 'unknown' WHERE kind = 'session'")
+        b.container.get(Connection).execute("UPDATE environments SET team_key = 'unknown' WHERE environment_type = 'session'")
         b.container.get(Connection).cache.cleared()
         b.container.get(SyncDesk).refresh()
         assert {row.team_key for row in b.container.get(Environments).sessions()} == {new.key}, "an environment placed in the team before its key was known is given it once the team server names it"
@@ -16107,7 +16107,7 @@ def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_
         from journal.models.link import Link
         from journal.models.support.ref import Ref
         from journal.repositories.links import Links
-        mention = a.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), kind="mentions"), Actor.user(1))
+        mention = a.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), link_type="mentions"), Actor.user(1))
         moved = a.container.get(Tasks).save(a.container.get(Tasks).find(own.id).with_(environment_id=hub_task.environment_id), Actor.user(1))
         assert synced(lambda: [(task.title, task.environment_id) for task in b.container.get(Tasks).global_matching(id=own.id)] == [("Ada's own", moved.environment_id)]), "a task moved into the hub enters the team whole, its title with it"
         assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=mention.id)] == [(Ref.build(own), Ref.build(hub_task))]), "and the link that now joins it to a hub task goes with it"
@@ -16142,7 +16142,7 @@ def test_a_full_copy_after_an_upgrade_and_after_falling_behind_replaces_only_the
         main = b.container.get(Environments).existing("main")
         with b.container.get(Scope).environment(main.row_id):
             own = b.container.get(Tasks).save(Task(environment_id=main.row_id, title="Bob's own"), Actor.user(2))
-        mention = b.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), kind="mentions"), Actor.user(2))
+        mention = b.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), link_type="mentions"), Actor.user(2))
         kept = lambda: bool(b.container.get(Tasks).global_matching(id=own.id)) and bool(b.container.get(Links).all_matching(id=mention.id)) and bool(b.container.get(Environments).numbered([main.row_id]))
         has_hub_task = lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))
 
@@ -16194,7 +16194,7 @@ def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_
         _, hub_task = ada_tasks(a)
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "the hub task is on Bob's journal"
         own_rows = len(tasks.global_matching(environment_id=main.row_id))
-        a.container.get(Links).save(Link(source=Ref.build(hub_task), target=Ref(Environment.table(), main.row_id), kind=BOUND_LINK), Actor.user(1))
+        a.container.get(Links).save(Link(source=Ref.build(hub_task), target=Ref(Environment.table(), main.row_id), link_type=BOUND_LINK), Actor.user(1))
         a.container.get(Bus).listen(TaskStarted, StartedTasks())
         with scope.environment(main.row_id):
             assert hub_task.id in {task.id for task in tasks.open_tasks()}, "bound, the hub task reads as the environment's work"
@@ -16202,7 +16202,7 @@ def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_
         assert [event.bound_environment_ids for event in heard] == [(main.row_id,)] and "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "its start reaches the environment's agent"
         assert synced(lambda: b.container.get(Tasks).find(hub_task.id).state == TaskState.STARTED), "and arrives on Bob's journal with its next pull"
         assert tasks.find(hub_task.id).environment_id != main.row_id and len(tasks.global_matching(environment_id=main.row_id)) == own_rows, "the task stays the hub's and no local task is made"
-        assert team.log.row("links", a.container.get(Links).all_matching(kind=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
+        assert team.log.row("links", a.container.get(Links).all_matching(link_type=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
 
 
 def test_an_agent_view_reaches_the_team_server_for_a_shared_environment_and_the_hub_and_never_for_one_its_owner_has_not_shared(tmp_path, template_journal, monkeypatch):
@@ -16328,7 +16328,7 @@ def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_i
         with a.container.get(Scope).environment(hub.row_id):
             plan = a.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), Actor.user(1))
             planned = a.container.get(Tasks).save(Task(environment_id=hub.row_id, title="in the team's plan"), Actor.user(1))
-        a.container.get(Links).save(Link(source=Ref.build(planned), target=Ref.build(plan), kind=PLAN_LINK), Actor.user(1))
+        a.container.get(Links).save(Link(source=Ref.build(planned), target=Ref.build(plan), link_type=PLAN_LINK), Actor.user(1))
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=driven.id)) and bool(b.container.get(Tasks).global_matching(id=planned.id))), "both hub tasks are on Bob's journal"
         assert a.console().run(["task", "drive", str(driven.id)], USER).code == 0
         assert a.console().run(["task", "start", str(driven.id)], AGENT).code == 0
@@ -16390,7 +16390,7 @@ def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journa
         monkeypatch.setattr(team.clock, "time", lambda: lapsed)
         assert b.console().run(["task", "drive", str(taken.id), "--take-over"], replace(USER, person=2)).code == 0
         a.container.get(HubDrives).renewed(Ref.build(taken))
-        assert not a.container.get(Links).all_matching(kind=BOUND_LINK), "each binding is released"
+        assert not a.container.get(Links).all_matching(link_type=BOUND_LINK), "each binding is released"
         assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
         why = {event.row_id: event.reason for event in ended}
         assert "deleted it on another journal" in why[deleted.id] and "marked it completed on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
@@ -16421,7 +16421,7 @@ def test_with_the_team_server_stopped_a_drive_and_a_release_are_refused_saying_i
         subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
 
     def bound() -> list:
-        return journal.container.get(Links).all_matching(kind=BOUND_LINK)
+        return journal.container.get(Links).all_matching(link_type=BOUND_LINK)
 
     git("init", "-q", str(tmp_path / "a"))
     git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
@@ -16506,7 +16506,7 @@ def test_a_driven_hub_task_is_the_environments_task_its_agent_writing_with_none_
         lines = journal.container.get(TaskLogs).logs(task)
         assert [(line.line, line.environment_id, line.task_id) for line in lines] == [("the footer has its links", hub.row_id, task.id)], "the log line lands on the hub row"
         worker = journal.container.get(Workers).save(Worker(environment_id=main.row_id, name="Mr. Hooke", brief="write the footer"), Actor.system())
-        links.save(Link(source=Ref.build(worker), target=Ref.build(task), kind=CURRENT_TASK_LINK), Actor.system())
+        links.save(Link(source=Ref.build(worker), target=Ref.build(task), link_type=CURRENT_TASK_LINK), Actor.system())
         proved = console.run(["proof", "record", "1", "footer.html:3, test_footer_names_the_shop"], Caller.worker("main", worker.id, None, "claude"))
         assert proved.code == 0, proved.error
         proofs = [journal.container.get(Proofs).find(ref.id) for ref in links.sources(task, PROOF_LINK)]
@@ -16583,7 +16583,7 @@ def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own
         assert synced(lambda: session(a, "release") is not None and session(b, "review") is not None), "each journal holds both sessions"
         hub = a.container.get(Environments).hubs()[0]
         review = session(a, "review")
-        assert (review.kind, review.team_key, review.branch) == (EnvironmentType.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
+        assert (review.environment_type, review.team_key, review.branch) == (EnvironmentType.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
         a_hosts, b_hosts = a.container.get(Hosts), b.container.get(Hosts)
         assert a_hosts.is_host(session(a, "review")) and not a_hosts.is_host(session(a, "release")), "Ada's machine hosts the session it holds and not Bob's"
         assert b_hosts.is_host(session(b, "release")) and not b_hosts.is_host(session(b, "review")), "and Bob's machine the one it holds"
@@ -16604,7 +16604,7 @@ def test_a_message_bob_writes_in_a_session_ada_holds_reaches_the_agent_of_the_se
         return sessions[0] if sessions else None
 
     def lines() -> list[str]:
-        return [entry.data.get("line") for entry in a.container.get(Entries).global_matching(kind=NUDGE) if entry.data.get("session") == "s9"]
+        return [entry.data.get("line") for entry in a.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
 
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
         assert a.console().run(["session", "start", "review"], USER).code == 0
@@ -16654,7 +16654,7 @@ def test_a_session_drives_a_hub_plan_whose_tasks_read_as_its_work_and_change_on_
         with scope.environment(hub.row_id):
             plan = plans.save(Plan(environment_id=hub.row_id, title="the release"), Actor.user(1))
             task = tasks.save(Task(environment_id=hub.row_id, title="the release notes"), Actor.user(1))
-        journal.container.get(Links).save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), Actor.user(1))
+        journal.container.get(Links).save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), Actor.user(1))
         driven = console.run(["plan", "drive", str(plan.id)], replace(USER, environment="review"))
         assert driven.code == 0, driven.error
         with scope.environment(session.row_id):
@@ -16662,7 +16662,7 @@ def test_a_session_drives_a_hub_plan_whose_tasks_read_as_its_work_and_change_on_
             tasks.save(tasks.find(task.id).started(datetime.now(timezone.utc)), Actor.user(1))
         assert tasks.find(task.id).state == TaskState.STARTED and tasks.find(task.id).environment_id == hub.row_id, "the change is made on the hub row"
         assert not tasks.global_matching(environment_id=session.row_id) and not plans.global_matching(environment_id=session.row_id), "and no row is made in the session"
-        binding = journal.container.get(Links).all_matching(kind=BOUND_LINK)
+        binding = journal.container.get(Links).all_matching(link_type=BOUND_LINK)
         assert [link.target for link in binding] == [Ref(Environment.table(), session.row_id)], "the session is bound to the plan"
         assert not [change for change in journal.container.get(OutgoingChanges).all() if change.row_table == "links" and change.row == binding[0].id], "and its binding, both ends in the team, is never sent"
     finally:
@@ -16683,7 +16683,7 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         return sessions[0] if sessions else None
 
     def lines() -> list[str]:
-        return [entry.data.get("line") for entry in b.container.get(Entries).global_matching(kind=NUDGE) if entry.data.get("session") == "s9"]
+        return [entry.data.get("line") for entry in b.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("session") == "s9"]
 
     with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _, carriers):
         assert a.console().run(["session", "start", "review"], USER).code == 0
@@ -16845,14 +16845,14 @@ def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_
             a.container.get(Connection).execute("UPDATE tasks SET id = ? WHERE id = ?", (bobs.id, adas.id))
             a.container.get(Connection).cache.cleared()
             note = a.container.get(Messages).save(Message(environment_id=main.row_id, author=Author.USER, text="Ada's note"), Actor.user(1))
-        mention = a.container.get(Links).save(Link(source=Ref("tasks", bobs.id), target=Ref.build(note), kind="mentions"), Actor.user(1))
+        mention = a.container.get(Links).save(Link(source=Ref("tasks", bobs.id), target=Ref.build(note), link_type="mentions"), Actor.user(1))
         shared = a.console().run(["environment", "share", "main"], USER)
         assert shared.code == 0, shared.error
         moved_main = a.container.get(Environments).keyed(main.key)[0]
         [moved] = [task for task in a.container.get(Tasks).global_matching(environment_id=moved_main.row_id) if task.title == "Ada's, before sharing"]
         assert moved_main.row_id != main.row_id and moved.id != bobs.id, "an environment made before joining, and a task whose number falls in Bob's block, are moved into Ada's own numbers when shared"
         [moved_note] = [message for message in a.container.get(Messages).global_matching(environment_id=moved_main.row_id) if message.text == "Ada's note"]
-        [moved_link] = a.container.get(Links).all_matching(kind="mentions", target=Ref.build(moved_note))
+        [moved_link] = a.container.get(Links).all_matching(link_type="mentions", target=Ref.build(moved_note))
         assert moved_link.source == Ref.build(moved), "and the link on Ada's journal points at the task's new number"
         assert synced(lambda: any(task.id == moved.id and task.title == "Ada's, before sharing" for task in b.container.get(Tasks).global_matching())), "the shared task reaches Bob under its new number"
         assert b.container.get(Tasks).find(bobs.id).title == "Bob's own" and team.log.row("tasks", bobs.id) is None, "and no row is overwritten, on Bob's journal or on the server"
@@ -17288,7 +17288,7 @@ def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_atta
         assert not queued("doc_revisions", {revision.id for revision in journal.container.get(DocRevisions).document_revisions(copy)}), "nor its revisions"
         attached = console.run(["doc", "attach", str(free.id)], USER)
         assert attached.code == 0, attached.error
-        assert len(journal.container.get(Links).all_matching(kind="attached_to")) == 1 and console.run(["doc", "attach", str(free.id)], USER).code == 1, "a document is attached to an environment once"
+        assert len(journal.container.get(Links).all_matching(link_type="attached_to")) == 1 and console.run(["doc", "attach", str(free.id)], USER).code == 1, "a document is attached to an environment once"
         page.write_text("# Notes\n\nedited in place\n")
         assert console.run(["doc", "update", str(free.id), "--file", str(page)], USER).code == 0
         assert docs.find(free.id).environment_id == free.environment_id and docs.find(free.id).body.endswith("edited in place\n"), "the edit is made to the hub's document"
@@ -17350,11 +17350,11 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         assert a.console().run(["task", "create", "About the page", "--brief", "b"], USER).code == 0
         from journal.repositories.tasks import Tasks
         task = next(iter(a.container.get(Tasks).global_matching(title="About the page")))
-        about = links.save(Link(source=Ref.build(task), target=Ref.build(doc), kind="about_document"), Actor.system())
+        about = links.save(Link(source=Ref.build(task), target=Ref.build(doc), link_type="about_document"), Actor.system())
         hub_name = a.container.get(Environments).hubs()[0].team_name
         assert a.console().run(["task", "create", "Hub task about the page", "--brief", "b", "--team", hub_name], USER).code == 0
         hub_task = next(iter(a.container.get(Tasks).global_matching(title="Hub task about the page")))
-        hub_about = links.save(Link(source=Ref.build(hub_task), target=Ref.build(doc), kind="about_document"), Actor.system())
+        hub_about = links.save(Link(source=Ref.build(hub_task), target=Ref.build(doc), link_type="about_document"), Actor.system())
         with a.container.get(Scope).environment(doc.environment_id):
             before = len(revisions.document_revisions(doc))
         assert before == 2, "the document has two revisions before it moves"
@@ -17362,13 +17362,13 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         assert shared.code == 0, shared.error
         moved = docs.find(doc.id)
         assert moved.is_on_hub() and moved.id == doc.id, "the document keeps its row, so every link, mention and attachment to it points at the hub row"
-        assert sorted(link.row_id for link in links.all_matching(target=Ref.build(moved), kind="about_document")) == sorted([about.row_id, hub_about.row_id]), "every local link still points at it"
+        assert sorted(link.row_id for link in links.all_matching(target=Ref.build(moved), link_type="about_document")) == sorted([about.row_id, hub_about.row_id]), "every local link still points at it"
         assert len(revisions.document_revisions(moved)) == before and all(revision.environment_id == moved.environment_id for revision in revisions.document_revisions(moved)), "its revisions moved with it"
         copy = next(d for d in docs.global_matching(title="Linked page") if d.is_copy)
-        assert [link.target for link in links.all_matching(source=Ref.build(copy), kind="copied_from")] == [Ref.build(moved)], "--keep-copy leaves a copied_from link on the copy, which stays here"
+        assert [link.target for link in links.all_matching(source=Ref.build(copy), link_type="copied_from")] == [Ref.build(moved)], "--keep-copy leaves a copied_from link on the copy, which stays here"
         assert eventually(lambda: (read := next(iter(b.container.get(Docs).global_matching(title="Linked page")), None)) is not None and read.is_on_hub() and len(b.container.get(DocRevisions).document_revisions(read)) == before), "the other journal reads the document and all its revisions"
         on_b = next(d for d in b.container.get(Docs).global_matching(title="Linked page") if not d.is_copy)
-        assert eventually(lambda: [link.row_id for link in b.container.get(Links).all_matching(target=Ref.build(on_b), kind="about_document")] == [hub_about.row_id]), "and the link that joins it to a hub task, the personal task's link staying on Ada's journal"
+        assert eventually(lambda: [link.row_id for link in b.container.get(Links).all_matching(target=Ref.build(on_b), link_type="about_document")] == [hub_about.row_id]), "and the link that joins it to a hub task, the personal task's link staying on Ada's journal"
         assert [revision.body for revision in b.container.get(DocRevisions).document_revisions(on_b)][-1].endswith("the second words\n")
     finally:
         for carrier in carriers:
@@ -17844,7 +17844,7 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
         with scope.environment(main.row_id):
             return messages.sent_with(key)
 
-    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
+    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), link_type=OWNER), Actor.system())
     try:
         app.container.get(IdBlocks).add("messages", 800000, 800100)
         account.write({"address": address, "token": bob, "device": 2, "account_id": 2})
@@ -18136,7 +18136,7 @@ def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_t
 
     def told(text: str) -> list:
         with app.container.get(Scope).environment(MAIN):
-            return [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "memory.reminder_due" and text in entry.data.get("line", "")]
+            return [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "memory.reminder_due" and text in entry.data.get("line", "")]
 
     first = told("call the plumber")
     assert len(first) == 1, "a due reminder at a session start leaves one reminder_due entry"
@@ -18765,9 +18765,9 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
     console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
     main = app.container.get(Environments).existing("main")
     links = app.container.get(Links)
-    for link in links.all_matching(kind=OWNER):
+    for link in links.all_matching(link_type=OWNER):
         links.delete(link, Actor.system())
-    links.save(Link(source=Ref(User.table(), 2), target=Ref.build(main), kind=OWNER), Actor.system())
+    links.save(Link(source=Ref(User.table(), 2), target=Ref.build(main), link_type=OWNER), Actor.system())
     hosted_requests = lambda: team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), VERSION))
     try:
         for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
@@ -19017,7 +19017,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
     journal = f"http://127.0.0.1:{app.server().port}"
     account, scope, agents = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Agents)
     main = app.container.get(Environments).existing("main")
-    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
+    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), link_type=OWNER), Actor.system())
     from journal.repositories.setting_rows import SettingRows
     user_set(app, "voices.profile", "squire")
 
@@ -19047,8 +19047,8 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
 
     with scope.environment(main.row_id):
         agent = agents.save(Agent(environment_id=main.row_id, session="ada-session", provider="claude", state="working"), Actor.system())
-    def hook(kind, **extra):
-        body = json.dumps({"hook_event_name": kind, "session_id": "ada-session", **extra}).encode()
+    def hook(type_name, **extra):
+        body = json.dumps({"hook_event_name": type_name, "session_id": "ada-session", **extra}).encode()
         opener.open(HttpRequest(journal + "/hooks/claude", data=body, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}, method="POST"), timeout=10).read()
 
     try:
@@ -19190,8 +19190,8 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
     messages.save(Message(environment_id=1, author="user", text="mind the tests", session="w-1", thread=MessageThread.WORKER), Actor.user(1))
     patch = [{"oldStart": 3, "newStart": 3, "lines": [" a", "-b", "+c", " d"]}]
 
-    def as_worker(kind: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w-1", **body}, {"X-Journal-Env": "main"})
+    def as_worker(type_name: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "w-1", **body}, {"X-Journal-Env": "main"})
     as_worker("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "lex.py"), "old_string": "b", "new_string": "c"}, tool_use_id="e1")
     as_worker("PostToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "lex.py"), "old_string": "b", "new_string": "c"}, tool_response={"structuredPatch": patch}, tool_use_id="e1")
     as_worker("PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_use_id="b1")
@@ -19932,7 +19932,7 @@ def test_a_merge_landing_sends_back_each_waiting_branch_it_makes_clash_and_leave
     assert clashing.state == WorkerState.DISPATCHED and "conflict in platform/app.php" in clashing.brief and "no longer merges cleanly" in clashing.brief, "the branch the merge made clash went back to its worker with the conflict, by itself"
     assert worker_row(app, 3).state == WorkerState.DELIVERED and worker_row(app, 3).clashes == 0, "a branch that clashes only in built files, which its merge builds again, is left alone"
     with app.container.get(Scope).environment(MAIN):
-        named = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
+        named = [entry for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
     assert named == [], "the main agent hears nothing of a first clash"
 
 
@@ -19947,7 +19947,7 @@ def test_a_branch_sent_back_as_often_in_a_row_as_the_setting_allows_is_named_to_
     def named() -> list[str]:
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
-            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
+            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
 
     def clashed() -> None:
         with app.container.get(Scope).environment(MAIN):
@@ -21221,8 +21221,8 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
             verifiers.save(verifiers.find(verifier.id).with_(token_hash=token.digest()), Actor.system())
         return report, verifiers.find(verifier.id)
 
-    def verifier_hook(verifier, kind: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": verifier.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
+    def verifier_hook(verifier, type_name: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": verifier.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
 
     workers_before = len(app.container.get(Workers).scoped())
     report, verifier = dismissed("the card shows only the short built line")
@@ -21543,8 +21543,8 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
             assert reviewers.find(reviewer.id).pid, "the reviewer's program started"
             return reviewers.save(reviewers.find(reviewer.id).with_(token_hash=token.digest()), Actor.system())
 
-    def reviewer_hook(reviewer, kind: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": reviewer.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": token.text})
+    def reviewer_hook(reviewer, type_name: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": reviewer.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": token.text})
 
     def told(key: str) -> list[str]:
         with app.container.get(Scope).environment(MAIN):
@@ -22133,12 +22133,12 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     from journal.support.card_type import CardType
     from journal.support.card_type_catalogue import CardTypeCatalogue
     served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
-    groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {kind["key"]: kind for kind in served["kinds"]}
-    assert set(CardType) <= set(kinds) and all(kind["family"] in families for kind in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
-    assert all(kind["icon"] == families[kind["family"]]["icon"] for kind in kinds.values()), "a kind's icon is its family's, never its own"
+    groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {type_name["key"]: type_name for type_name in served["kinds"]}
+    assert set(CardType) <= set(kinds) and all(type_name["family"] in families for type_name in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
+    assert all(type_name["icon"] == families[type_name["family"]]["icon"] for type_name in kinds.values()), "a kind's icon is its family's, never its own"
     assert families["tasks"]["icon"] == "task" and families["tasks"]["colouring"] == "none" and families["commands"]["colouring"] == "outcome", "a task's cards are events with the task icon; a command's are processes coloured by their outcome"
     assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardType.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
-    assert all(kind["shown"] for kind in kinds.values()) and kinds[CardType.SEQUENCES]["main"] and not kinds[CardType.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
+    assert all(type_name["shown"] for type_name in kinds.values()) and kinds[CardType.SEQUENCES]["main"] and not kinds[CardType.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
     from journal.features.registry import Registry
     registry = app.container.get(Registry)
     fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"
@@ -22391,7 +22391,7 @@ def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_unti
         from journal.engine.support.stack_history import StackHistory
         from journal.repositories.entries import Entries
         layers = [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack]
-        trail = [entry.data for entry in app.container.get(Entries).all_matching(kind=StackHistory.KIND) if entry.data.get("session") == "s1"]
+        trail = [entry.data for entry in app.container.get(Entries).all_matching(entry_type=StackHistory.KIND) if entry.data.get("session") == "s1"]
     assert layers.count("following_sequence") == 2 and json.dumps(trail[-1]["after"]).count("following_sequence") == 2, "a push of the top's own kind leaves two layers and a trail entry"
     status, body = bash("make build")
     assert status == 409 and nudge_reached(app, body["error"], SequencesNudges.STEP_EDIT_BLOCK, n=inner), "work that is not reading is held while the top step is not taken up"
@@ -22509,7 +22509,7 @@ def test_a_hook_sent_again_is_answered_from_its_entry_and_reaches_no_listener(ap
     from journal.repositories.entries import Entries
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
-    fired = lambda kind, firing, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main", "X-Journal-Hook-Id": firing})
+    fired = lambda type_name, firing, **body: posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main", "X-Journal-Hook-Id": firing})
     refused = [fired("PreToolUse", "71-1", tool_name="Bash", tool_input={"command": "journal message read 3 | head -3"}) for _ in range(2)]
     assert [status for status, _ in refused] == [409, 409] and all("no pipe after `journal message read`" in body["error"] for _, body in refused), "a refused hook sent again is refused again with the reason its entry recorded"
     message = {"to": "code-commandments-12", "message": "the fix is in"}
@@ -22518,7 +22518,7 @@ def test_a_hook_sent_again_is_answered_from_its_entry_and_reaches_no_listener(ap
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         entries = app.container.get(Entries)
-        assert [len(entries.keyed(f"hook:s1:{kind}:{firing}")) for kind, firing in (("PreToolUse", "71-1"), ("PostToolUse", "72-1"))] == [1, 1], "a hook is one entry however often its script sends it"
+        assert [len(entries.keyed(f"hook:s1:{type_name}:{firing}")) for type_name, firing in (("PreToolUse", "71-1"), ("PostToolUse", "72-1"))] == [1, 1], "a hook is one entry however often its script sends it"
         assert [m.text for m in app.container.get(Messages).scoped() if m.data.get("sent_to")] == ["the fix is in"], "and its listeners hear it once, so the message it sent is one row"
 
 
@@ -22719,7 +22719,7 @@ def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cl
     assert console.run(["check", "run", "1"], AGENT).code == 0
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "tasks.wait_check_passed"]
+        told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "tasks.wait_check_passed"]
         assert told == ["the nightly build is done: the check passed"], "the agent is told once"
         assert checks.wait_rows() == [], "and the check retires"
     assert console.run(["await", "the second build", "--until", "exit 0"], AGENT).code == 0
@@ -22902,7 +22902,7 @@ def test_a_watched_test_run_that_prints_without_a_total_is_told_once_to_give_one
     for _ in range(3):
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
-    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == ShellNudges.RUN_TOTAL_MISSING.key]
+    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == ShellNudges.RUN_TOTAL_MISSING.key]
     assert len(told) == 1 and has_nudge(told[0], ShellNudges.RUN_TOTAL_MISSING, n=1), f"a watched test run printing dots with no total is told once to give one: {told}"
 
 
@@ -22928,7 +22928,7 @@ def test_a_background_run_that_prints_nothing_is_told_once_while_it_runs_to_stre
     for _ in range(2):
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))
     app.runtime().deferred.drain()
-    hints = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "shell.silent_run_streams"]
+    hints = [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.silent_run_streams"]
     assert len(hints) == 1 and has_nudge(hints[0], ShellNudges.SILENT_RUN_HINT, n=1, seconds=40), f"the agent is told once, while the run goes on, that the command buffers and how to make it stream (the go test -v run of the code-commandments agent): {hints}"
     views = app.container.get(OutputViews)
     assert views.card_text(outputs.find(1), replace(views.view(outputs.find(1)), silent=True)) == SILENT_CARD_LINE, "and its card says the command buffers its output"
@@ -23047,7 +23047,7 @@ def test_a_sequence_is_a_state_on_the_stack_whose_held_step_lets_only_reads_jour
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})[0] == 200, "a step that allows file edits lets the write through"
     console.run(["sequence", "next"], AGENT)
     with app.container.get(Scope).environment(MAIN):
-        trail = [entry.data for entry in app.container.get(Entries).all_matching(kind=StackHistory.KIND) if entry.data.get("session") == "s1"]
+        trail = [entry.data for entry in app.container.get(Entries).all_matching(entry_type=StackHistory.KIND) if entry.data.get("session") == "s1"]
         agent = app.container.get(Agents).session_agent("s1")
     assert "following_sequence" not in [layer["state"] for layer in agent.stack], "the last step pops it"
     assert any("following_sequence" in json.dumps(entry["after"]) for entry in trail) and any("following_sequence" in json.dumps(entry["before"]) and "following_sequence" not in json.dumps(entry["after"]) for entry in trail), "the trail shows its push and its pop"
@@ -23106,7 +23106,7 @@ def test_a_run_whose_card_title_shows_a_flag_or_a_path_is_told_once_to_name_it_i
 
     def told() -> list[str]:
         app.runtime().deferred.drain()
-        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
+        return [entry.data["line"] for entry in app.container.get(Entries).all_matching(entry_type=NUDGE) if entry.data.get("key") == "shell.name_the_run_in_words"]
 
     def tick() -> None:
         app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time(), silence_seconds=1.0))

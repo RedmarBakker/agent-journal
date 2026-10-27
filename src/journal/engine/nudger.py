@@ -41,7 +41,7 @@ class Nudger:
         if self.features.silenced(nudge) or repeated and self._repeat(agent, nudge):
             return None
         line = nudge.rendered()
-        self.entries.save(Entry(environment_id=agent.environment_id, kind=NUDGE, actor=Actor.system(), data={"key": nudge.key, "values": {name: str(value) for name, value in nudge.values.items()}, "session": agent.session, "line": line, "time": self.clock.time(), "tool_use": agent.tool_uses}), Actor.system())
+        self.entries.save(Entry(environment_id=agent.environment_id, entry_type=NUDGE, actor=Actor.system(), data={"key": nudge.key, "values": {name: str(value) for name, value in nudge.values.items()}, "session": agent.session, "line": line, "time": self.clock.time(), "tool_use": agent.tool_uses}), Actor.system())
         event = LineDelivered(nudge=nudge.key, values=dict(nudge.values)).placed(agent.session, agent.environment_id, agent.provider, None, self.clock.time())
         self.deferred.add(lambda: self.bus.dispatch(event))
         return line

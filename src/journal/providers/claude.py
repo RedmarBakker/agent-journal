@@ -165,9 +165,9 @@ class Claude(Provider):
         uses = row.type_match("tool_use")
         if not text.strip() and not uses:
             return None
-        kind = row.kind
+        type_name = row.turn_type
         steps = [self.operation(b.name, b.input).as_data() for b in uses]
-        return Turn(number, "user" if kind in ("human", "injected") else kind, kind, self.seconds(row.timestamp), text, [b.name for b in uses], steps)
+        return Turn(number, "user" if type_name in ("human", "injected") else type_name, type_name, self.seconds(row.timestamp), text, [b.name for b in uses], steps)
 
     def turn_thoughts(self, project: Path, session: str) -> list[str]:
         path = self.transcript(project, session)
@@ -216,7 +216,7 @@ class Claude(Provider):
         return [[self.program, "mcp", "remove", name, "-s", scope] for scope in ("local", "project", "user")]
 
     def profile_text(self, profile: Profile, model: str, codex_model: str) -> str:
-        return f"---\nname: {profile.name}\ndescription: {profile.description}\ntools: {profile.tools}\nkind: {profile.kind}\nmodel: {model}\ncodex-model: {codex_model}\n---\n\n{profile.body}\n"
+        return f"---\nname: {profile.name}\ndescription: {profile.description}\ntools: {profile.tools}\nkind: {profile.profile_type}\nmodel: {model}\ncodex-model: {codex_model}\n---\n\n{profile.body}\n"
 
     def write_mcp(self, project: Path, servers: list[McpServer]) -> Path:
         path = project / ".mcp.json"
@@ -289,9 +289,9 @@ class Claude(Provider):
             return
         local = root / self.home / LOCAL_SETTINGS
         settings = json.loads(local.read_text()) if local.is_file() and not local.is_symlink() else {}
-        hooks = {kind: [block for block in blocks if not self.journal_paths(block)] for kind, blocks in (settings.get("hooks") or {}).items()}
-        for kind, blocks in self.hook_block(command).items():
-            hooks[kind] = [*hooks.get(kind, []), *blocks]
+        hooks = {type_name: [block for block in blocks if not self.journal_paths(block)] for type_name, blocks in (settings.get("hooks") or {}).items()}
+        for type_name, blocks in self.hook_block(command).items():
+            hooks[type_name] = [*hooks.get(type_name, []), *blocks]
         settings_path = root / ".journal" / "runtime" / "worktree-settings" / "claude.json"
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         settings_path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": hooks, "statusLine": self.status_line(script)}, indent=2) + "\n")

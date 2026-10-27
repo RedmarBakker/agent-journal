@@ -82,7 +82,7 @@ class DeveloperCommand(Command):
         return 0
 
     def averages(self, args: Namespace, caller: Caller) -> int:
-        rows = {"hooks": self.numbers.hook_time(), "requests": self.numbers.request_time(), **{f"hook {kind}": time for kind, time in self.numbers.hook_averages().items()}, **{f"stage {stage}": time for stage, time in self.numbers.stage_averages().items()}}
+        rows = {"hooks": self.numbers.hook_time(), "requests": self.numbers.request_time(), **{f"hook {type_name}": time for type_name, time in self.numbers.hook_averages().items()}, **{f"stage {stage}": time for stage, time in self.numbers.stage_averages().items()}}
         self.print_lines([self.average_line(name, time) for name, time in rows.items() if time.count], "nothing measured yet")
         return 0
 

@@ -55,12 +55,12 @@ class PluginAnswers:
         if (plugin.name, warning) in self.warnings:
             return
         self.warnings.add((plugin.name, warning))
-        self.entries.save(Entry(environment_id=environment_id, kind=WARNING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "warning": warning}), Actor.plugin(plugin.name))
+        self.entries.save(Entry(environment_id=environment_id, entry_type=WARNING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "warning": warning}), Actor.plugin(plugin.name))
 
     def show(self, plugin: Plugin, card: PluginCard, environment_id: int) -> None:
-        kind = plugin.manifest.card_kind(card.kind)
-        label = self.text.plain(card.label or kind.label)
-        data = {"kind": "plugin", "plugin": plugin.name, "card": card.kind, "outcome": str(TONE_OUTCOMES.get(card.tone or kind.tone, CardOutcome.NONE)), "collapsed": kind.collapsed}
+        type_name = plugin.manifest.card_kind(card.card_type)
+        label = self.text.plain(card.label or type_name.label)
+        data = {"kind": "plugin", "plugin": plugin.name, "card": card.card_type, "outcome": str(TONE_OUTCOMES.get(card.tone or type_name.tone, CardOutcome.NONE)), "collapsed": type_name.collapsed}
         self.announcer.announce(PluginCardRequested(environment_id=environment_id, plugin=plugin.name, label=label, data=data, detail=self.text.plain(card.detail), card_key=card.key))
 
     def run(self, plugin: Plugin, line: str, environment: str, environment_id: int) -> None:
@@ -72,4 +72,4 @@ class PluginAnswers:
         self.record(plugin, line, environment_id, outcome.code, outcome.error.strip()[-300:])
 
     def record(self, plugin: Plugin, line: str, environment_id: int, code: int, err: str) -> None:
-        self.entries.save(Entry(environment_id=environment_id, kind=COMMAND, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "command": line, "code": code, "err": err}), Actor.plugin(plugin.name))
+        self.entries.save(Entry(environment_id=environment_id, entry_type=COMMAND, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "command": line, "code": code, "err": err}), Actor.plugin(plugin.name))

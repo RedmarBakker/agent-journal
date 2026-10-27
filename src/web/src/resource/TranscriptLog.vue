@@ -91,16 +91,16 @@ defineExpose({scroller});
             <p class="none">Nothing printed yet, or no transcript for this session.</p>
         </template>
         <template v-for="t in entries" :key="t.line">
-            <div :class="['turn', t.kind, {folded: folded.has(t.line)}]">
+            <div :class="['turn', t.turn_type, {folded: folded.has(t.line)}]">
                 <div class="meta">
                     <button type="button" class="who" :aria-expanded="hasBody(t) ? !folded.has(t.line) : undefined" @click="toggle(t.line)">
-                        {{ WHO[t.kind] || t.kind }}
+                        {{ WHO[t.turn_type] || t.turn_type }}
                         <template v-if="hasBody(t)">
                             <span class="fold-mark">{{ folded.has(t.line) ? "show" : "hide" }}</span>
                         </template>
                     </button>
                     <span class="when">{{ stamp(t.time) }}</span>
-                    <span class="line">{{ t.kind === "whisper" ? t.line : `#${t.line}` }}</span>
+                    <span class="line">{{ t.turn_type === "whisper" ? t.line : `#${t.line}` }}</span>
                     <template v-if="t.tools.length">
                         <span class="tools">used {{ t.tools.join(", ") }}</span>
                     </template>
@@ -112,7 +112,7 @@ defineExpose({scroller});
                     <template v-else-if="unread[t.line]">
                         <span class="note">Could not load this entry: {{ unread[t.line] }}</span>
                     </template>
-                    <template v-else-if="t.kind === 'agent' || t.kind === 'human'">
+                    <template v-else-if="t.turn_type === 'agent' || t.turn_type === 'human'">
                         <div class="turn-text" v-html="render(bodyOf(t), {types: [], env: env || route.env})" />
                     </template>
                     <template v-else>

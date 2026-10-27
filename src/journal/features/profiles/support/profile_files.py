@@ -58,14 +58,14 @@ class ProfileFiles:
         return sorted(path.stem for path in self.folder().glob("*.md"))
 
     def subagents(self) -> list[str]:
-        return [p["name"] for p in self.read_all() if p["kind"] != ProfileType.WORKER]
+        return [p["name"] for p in self.read_all() if p["profile_type"] != ProfileType.WORKER]
 
     def read(self, name: str) -> ProfileView:
         path = self.folder() / f"{name}.md"
         text = path.read_text()
         head, _, body = text.partition("\n---\n") if text.startswith("---\n") else ("", "", text)
         fields = {key.strip(): value.strip() for key, value in (line.partition(":")[::2] for line in head.splitlines()[1:] if ":" in line)}
-        return ProfileView(name=name, description=fields.get("description", ""), tools=fields.get("tools", ""), kind=fields.get("kind", ProfileType.SUBAGENT), model=fields.get("model", ""),
+        return ProfileView(name=name, description=fields.get("description", ""), tools=fields.get("tools", ""), profile_type=fields.get("kind", ProfileType.SUBAGENT), model=fields.get("model", ""),
                             codex_model=fields.get("codex-model", ""), body=body.strip("\n"), shipped=name in {profile.name for profile in self.PROFILES}, path=str(path.relative_to(self.config.root)))
 
     def worker_instructions(self, name: str) -> str:
@@ -74,8 +74,8 @@ class ProfileFiles:
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
         return f"{body}\n\n{tests}"
 
-    def kind(self, name: str) -> str:
-        return self.read(name)["kind"] if (self.folder() / f"{name}.md").is_file() else ""
+    def profile_type(self, name: str) -> str:
+        return self.read(name)["profile_type"] if (self.folder() / f"{name}.md").is_file() else ""
 
     def save(self, profile: Profile, model: str, codex_model: str) -> ProfileView:
         self.write(profile, model, codex_model)

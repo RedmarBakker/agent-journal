@@ -17,7 +17,7 @@ class ReplyTaskLinks(Listener[Created]):
         self.messages, self.links = messages, links
 
     def handle(self, event: Created) -> None:
-        if isinstance(event.model, Link) and event.model.kind == Messages.SUBJECT_LINK and event.model.source.type == Message.table() and event.model.target.type == Task.table():
+        if isinstance(event.model, Link) and event.model.link_type == Messages.SUBJECT_LINK and event.model.source.type == Message.table() and event.model.target.type == Task.table():
             self.task_linked(event.model, event.actor)
         if isinstance(event.model, Message) and event.model.author == Author.AGENT and event.model.reply_target:
             self.reply_link(event.model, event.actor)

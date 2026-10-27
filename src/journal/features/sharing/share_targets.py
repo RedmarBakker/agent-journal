@@ -19,15 +19,15 @@ class ShareTargets:
         self.repositories: dict[str, Docs | Reports | Plans] = {"docs": docs, "reports": reports, "plans": plans}
 
     def lookup(self, matched: str) -> Ref:
-        kind, _, number = matched.strip().partition(":")
-        if kind not in self.repositories or not number.isdigit():
+        type_name, _, number = matched.strip().partition(":")
+        if type_name not in self.repositories or not number.isdigit():
             raise Rejection(f"only a document, a report or a plan can be shared: name it as docs:12, reports:4 or plans:2, not {matched!r}")
-        ref = Ref(kind, int(number))
+        ref = Ref(type_name, int(number))
         self.repositories[ref.type].find(ref.id)
         return ref
 
     def link(self, share: Share, target: Ref, actor) -> None:
-        self.links.save(Link(source=Ref.build(share), target=target, kind=SHARES), actor)
+        self.links.save(Link(source=Ref.build(share), target=target, link_type=SHARES), actor)
 
     def targets(self, share: Share) -> Ref | None:
         targets = self.links.targets(share, SHARES)

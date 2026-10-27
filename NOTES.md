@@ -1823,6 +1823,15 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - Marking a message read raises MessageRead; the messages conduct answers it with the reply line for that message, once.
   A hook answer says each line once (Decision). A stopped agent's lines wait delivery.batch_seconds from the first one and
   are typed together on the clock's tick, each once; a working agent's go into its next hook answer as before.
+- No Python name in src/journal is kind (task 3801, worker 1143). Each field takes its table's type name: entry_type,
+  link_type, helper_type, secret_type, edit_type, environment_type, report_type, and trigger_type and line_type for the
+  records a sequence and an edit hold; migration 75 (TypeColumns) moves the stored columns and records. A model names its
+  columns' old names in column_renames, which the repository reads for every row from the team, so a change or a copy made
+  by a journal before 75 is stored under the new names; the team server reads an environment's or a link's type under
+  either name (RowType). Plugins still read kind: the protocol publishes edit_type and line_type under it.
+- Still named kind, for now: a message's data key (the chat's card kinds), an operation's key inside an entry's data and a
+  transcript step, the profile front matter, a plugin's card and setting schema, and the team server's host requests.
+  Each is a stored JSON or an outside contract of its own, renamed only with its own migration or release.
 
 ## The update matrix (2026-10-27)
 

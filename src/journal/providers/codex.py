@@ -56,7 +56,7 @@ class Codex(Provider):
         "collaborationspawn_agent": lambda input: SubagentDispatch(None, None, str(input.get("task_name", "")), None, True),
         "request_user_input": lambda input: UserQuestion(),
     }
-    hook_kinds = tuple(kind for kind in HookType if kind not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
+    hook_kinds = tuple(hook for hook in HookType if hook not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
     capabilities = frozenset()
     profile_suffix = ".toml"
     default = False
@@ -82,7 +82,7 @@ class Codex(Provider):
         trusted = self.trusted_kinds(project.resolve() / self.home / self.settings_file)
         if not trusted:
             return HooksReady.UNTRUSTED
-        return HooksReady.READY if trusted >= {self.state_name(kind) for kind in self.hook_kinds} else HooksReady.TRUST_OUTDATED
+        return HooksReady.READY if trusted >= {self.state_name(type_name) for type_name in self.hook_kinds} else HooksReady.TRUST_OUTDATED
 
     @staticmethod
     def config_folder() -> Path:
@@ -112,8 +112,8 @@ class Codex(Provider):
         return {key.rsplit(":", 3)[1] for key, state in states.items() if key.startswith(f"{hooks}:") and key.count(":") >= 3 and state.get("enabled", True)}
 
     @staticmethod
-    def state_name(kind: HookType) -> str:
-        return re.sub(r"(?<!^)(?=[A-Z])", "_", kind.value).lower()
+    def state_name(type_name: HookType) -> str:
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", type_name.value).lower()
 
     @staticmethod
     def shell_line(command) -> ShellLine:
@@ -209,7 +209,7 @@ class Codex(Provider):
         return [[self.program, "mcp", "remove", name]]
 
     def profile_text(self, profile: Profile, model: str, codex_model: str) -> str:
-        sandbox = "read-only" if profile.kind == ProfileType.SUBAGENT else "workspace-write"
+        sandbox = "read-only" if profile.profile_type == ProfileType.SUBAGENT else "workspace-write"
         return (f"name = {json.dumps(profile.name)}\ndescription = {json.dumps(profile.description, ensure_ascii=False)}\nmodel = {json.dumps(codex_model)}\n"
                 f"sandbox_mode = \"{sandbox}\"\ndeveloper_instructions = {json.dumps(profile.body, ensure_ascii=False)}\n")
 
@@ -250,4 +250,4 @@ class Codex(Provider):
             return message
 
     def hook_block(self, command: str) -> dict:
-        return {kind.value: [{"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": 60, "additionalContextLimit": CONTEXT_LIMIT_NONE}]}] for kind in self.hook_kinds}
+        return {type_name.value: [{"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": 60, "additionalContextLimit": CONTEXT_LIMIT_NONE}]}] for type_name in self.hook_kinds}

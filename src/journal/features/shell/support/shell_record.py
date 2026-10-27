@@ -87,5 +87,5 @@ class ShellRecord:
         self.outputs.delete(output, caller.actor)
         shutil.rmtree(output.folder, ignore_errors=True)
 
-    def record(self, caller: Caller, kind: str, data: dict) -> None:
-        self.entries.save(Entry(environment_id=self.scope.id, kind=kind, actor=caller.actor, data={**data, "session": caller.session, "time": self.time_source.moment().timestamp()}), caller.actor)
+    def record(self, caller: Caller, type_name: str, data: dict) -> None:
+        self.entries.save(Entry(environment_id=self.scope.id, entry_type=type_name, actor=caller.actor, data={**data, "session": caller.session, "time": self.time_source.moment().timestamp()}), caller.actor)

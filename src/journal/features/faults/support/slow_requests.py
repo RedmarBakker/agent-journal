@@ -90,17 +90,17 @@ class SlowRequests:
         if method == HOOK:
             self.tally.measured(f"developer.hooks.{path.rsplit('/', 1)[-1]}", ms)
 
-    def windowed(self, group: str, kind: str, timing: Timing) -> None:
-        self.tally.windowed(group, kind, timing.ms)
+    def windowed(self, group: str, type_name: str, timing: Timing) -> None:
+        self.tally.windowed(group, type_name, timing.ms)
         if self.settings.option(FaultsOptions.LOADS) and not self.is_outward(self.route(timing.route)):
-            self.tally.windowed(POINTS_GROUP, kind, timing.loads.points())
-            self.tally.loaded(kind, timing.loads)
+            self.tally.windowed(POINTS_GROUP, type_name, timing.loads.points())
+            self.tally.loaded(type_name, timing.loads)
         if timing.loads.points() >= COSTLY_POINTS:
-            self.deferred.add(lambda: self.costly(kind, timing))
+            self.deferred.add(lambda: self.costly(type_name, timing))
 
-    def costly(self, kind: str, timing: Timing) -> None:
+    def costly(self, type_name: str, timing: Timing) -> None:
         with (self.config.home / "runtime" / "costly-answers.log").open("a") as log:
-            log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {kind} {timing.loads.points()} points in {timing.ms} ms: {timing.loads.line()}\n")
+            log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {type_name} {timing.loads.points()} points in {timing.ms} ms: {timing.loads.line()}\n")
 
     def is_first(self, route: str) -> bool:
         first = route not in self.measured_routes

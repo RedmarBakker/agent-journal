@@ -69,7 +69,7 @@ class ScopedRepository(Repository[S]):
         return self._binding_scoped(query, bindings) if bindings else query.filter(environment_id=self.scope.id)
 
     def _binding_scoped(self, query: Query, bindings: tuple[Ref, ...]) -> Query:
-        membership = self.link_query.filter_listed("kind", self.member_links).filter_listed("target", list(bindings)).filter_ref("source", self.query())
+        membership = self.link_query.filter_listed("link_type", self.member_links).filter_listed("target", list(bindings)).filter_ref("source", self.query())
         environment_rows = self.query().filter(environment_id=self.scope.id)
         binding_rows = self.query().filter_listed("id", [ref.id for ref in bindings if ref.type == self.table])
         return query.filter_alternatives(environment_rows, binding_rows, self.query().filter_existing(membership))

@@ -6,7 +6,7 @@ class TranscriptHeading(TypedDict):
 
     line: int
     speaker: str
-    kind: str
+    turn_type: str
     time: float
     tools: list[str]
     steps: list[dict]

@@ -30,8 +30,8 @@ class SecretController(Controller[Secret]):
 
     def store(self, request: Request) -> Response:
         body = request.body
-        kind, title = SecretType.lookup(body.get("kind") or SecretType.CUSTOM.value), str(body.get("title", "")).strip()
-        secret = Secret(title=title, brief=body.get("brief", ""), kind=kind, fields=tuple(body.get("fields") or kind.first_fields(title)),
+        type_name, title = SecretType.lookup(body.get("secret_type") or SecretType.CUSTOM.value), str(body.get("title", "")).strip()
+        secret = Secret(title=title, brief=body.get("brief", ""), secret_type=type_name, fields=tuple(body.get("fields") or type_name.first_fields(title)),
                         programs=self.allowed(body.get("programs", ())), helpers=bool(body.get("helpers")))
         return Response.json(self.repository.save(secret, request.actor), 201)
 

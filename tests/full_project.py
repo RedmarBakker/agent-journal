@@ -111,8 +111,8 @@ def booted(root: Path) -> App:
     return app
 
 
-def hook(app: App, kind: str, **body) -> None:
-    posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, MAIN)
+def hook(app: App, type_name: str, **body) -> None:
+    posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, MAIN)
 
 
 def plans(app: App, words: random.Random) -> list[int]:
@@ -193,9 +193,9 @@ def hooks(app: App, words: random.Random) -> None:
 
 
 def writing(app: App, words: random.Random, plan_tasks: list[int]) -> None:
-    for kind, count in (("docs", DOCS), ("reports", REPORTS)):
+    for type_name, count in (("docs", DOCS), ("reports", REPORTS)):
         for _ in range(count):
-            posted(app, f"/journal/{kind}", {"title": phrase(words, 4), "abstract": phrase(words, 6), "body": "\n\n".join(sentence(words) for _ in range(12))}, MAIN)
+            posted(app, f"/journal/{type_name}", {"title": phrase(words, 4), "abstract": phrase(words, 6), "body": "\n\n".join(sentence(words) for _ in range(12))}, MAIN)
     with tempfile.TemporaryDirectory() as folder:
         body = Path(folder) / "report.md"
         for n in range(ABOUT_REPORTS):
@@ -206,9 +206,9 @@ def writing(app: App, words: random.Random, plan_tasks: list[int]) -> None:
 def memory(app: App, words: random.Random) -> None:
     for _ in range(CHECKS):
         posted(app, "/journal/checks", {"title": phrase(words, 3), "brief": sentence(words), "command": "true"}, MAIN)
-    for kind, count in (("facts", FACTS), ("rules", RULES), ("reminders", REMINDERS), ("questions", QUESTIONS)):
+    for type_name, count in (("facts", FACTS), ("rules", RULES), ("reminders", REMINDERS), ("questions", QUESTIONS)):
         for _ in range(count):
-            posted(app, f"/journal/{kind}", {"text": sentence(words)}, MAIN)
+            posted(app, f"/journal/{type_name}", {"text": sentence(words)}, MAIN)
 
 
 def remarks(app: App, words: random.Random, tasks: list[int], messages: list[int]) -> None:

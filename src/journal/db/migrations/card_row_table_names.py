@@ -16,9 +16,9 @@ class CardRowTableNames(Migration):
     def apply(self, connection: Connection) -> None:
         for row in connection.all("SELECT id, data FROM messages WHERE json_extract(data, '$.row') LIKE '%:%' OR json_extract(data, '$.made_type') IS NOT NULL"):
             data = json.loads(row["data"])
-            kind, _, id = str(data.get("row", "")).partition(":")
-            if kind in TABLES:
-                data["row"] = f"{TABLES[kind]}:{id}"
+            type_name, _, id = str(data.get("row", "")).partition(":")
+            if type_name in TABLES:
+                data["row"] = f"{TABLES[type_name]}:{id}"
             if data.get("made_type") in TABLES:
                 data["made_type"] = TABLES[data["made_type"]]
             connection.execute("UPDATE messages SET data = ? WHERE id = ?", (json.dumps(data), row["id"]))

@@ -16,8 +16,8 @@ class ListenerIndex:
         for state in states:
             for conducts in conduct_sets:
                 pairs = state.listeners(conducts)
-                listeners.update({(state, conducts, kind): tuple(method for event_kind, method in pairs if issubclass(kind, event_kind)) for kind in kinds})
+                listeners.update({(state, conducts, type_name): tuple(method for event_kind, method in pairs if issubclass(type_name, event_kind)) for type_name in kinds})
         return cls(listeners)
 
-    def state_listeners(self, state: type[BaseState], conducts: tuple[type[Conduct], ...], kind: type) -> tuple[Callable, ...]:
-        return self.listeners[(state, conducts, kind)]
+    def state_listeners(self, state: type[BaseState], conducts: tuple[type[Conduct], ...], type_name: type) -> tuple[Callable, ...]:
+        return self.listeners[(state, conducts, type_name)]

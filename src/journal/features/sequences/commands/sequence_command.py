@@ -147,7 +147,7 @@ class SequenceCommand(Command):
 
     @staticmethod
     def triggers_summary(sequence: Sequence) -> str:
-        phrases = [trigger for trigger in sequence.triggers if trigger.kind == SequenceTriggerType.PHRASE]
-        lines = [trigger.line() for trigger in sequence.triggers if trigger.kind != SequenceTriggerType.PHRASE]
+        phrases = [trigger for trigger in sequence.triggers if trigger.trigger_type == SequenceTriggerType.PHRASE]
+        lines = [trigger.line() for trigger in sequence.triggers if trigger.trigger_type != SequenceTriggerType.PHRASE]
         counted = [phrases[0].line()] if len(phrases) == 1 else [f"{len(phrases)} phrases"] if phrases else []
         return ", ".join([*lines, *counted])

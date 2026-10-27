@@ -40,7 +40,7 @@ def test_a_hook_posted_over_http_lands_as_an_entry_and_answers(app: App):
     status, body = sent(app, "POST", "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})
     assert (status, body) == (200, {}), body
     with app.container.get(Scope).environment(MAIN):
-        assert [entry.kind for entry in app.container.get(Entries).scoped()] == ["ToolStarting"], "the hook script's post reaches the journal and is recorded"
+        assert [entry.entry_type for entry in app.container.get(Entries).scoped()] == ["ToolStarting"], "the hook script's post reaches the journal and is recorded"
 
 
 def test_a_command_posted_over_http_runs_and_answers_with_its_output(app: App):
@@ -82,7 +82,7 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     assert answers["hook"][0] == 200 and answers["viewer"][0] == 200, answers
     assert not lifecycle.marker().exists() and sent(app, "GET", "/journal/health")[1]["phase"] == "booted"
     with app.container.get(Scope).environment(MAIN):
-        [entry] = [entry for entry in app.container.get(Entries).scoped() if entry.kind == "ToolStarting" and "hook_ms" in entry.data]
+        [entry] = [entry for entry in app.container.get(Entries).scoped() if entry.entry_type == "ToolStarting" and "hook_ms" in entry.data]
     assert entry.data["boot_wait_ms"] >= 350, "the hook's entry says how long it waited for the boot"
     assert entry.data["hook_ms"] < entry.data["boot_wait_ms"], "and its own time leaves the wait out"
 

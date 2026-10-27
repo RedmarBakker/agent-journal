@@ -207,6 +207,6 @@ class Readers:
             raise Rejection(f"the reader {reader.name} would read a journal command's output, which the journal writes and shows whole itself: a reader reads a program's own output, such as pytest or go test, or an alias's run of one")
         name = reader.name
         self.config.readers.mkdir(parents=True, exist_ok=True)
-        for kind in KINDS:
-            (self.config.readers / f"{name}{kind}").unlink(missing_ok=True)
+        for type_name in KINDS:
+            (self.config.readers / f"{name}{type_name}").unlink(missing_ok=True)
         (self.config.readers / f"{name}{suffix}").write_text(text)

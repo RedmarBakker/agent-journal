@@ -74,7 +74,7 @@ class PluginRelay:
 
     def applied(self, plugin: Plugin, event: Event, answer: PluginAnswer, environment: str, environment_id: int) -> None:
         if isinstance(event, WorkerMergeEvent) and answer.cards:
-            self.logged(environment_id, MERGE_CARDS, Actor.plugin(plugin.name), {"plugin": plugin.name, "worker": event.worker, "task": event.task, "cards": [{"kind": card.kind, "label": card.label, "detail": card.detail} for card in answer.cards]})
+            self.logged(environment_id, MERGE_CARDS, Actor.plugin(plugin.name), {"plugin": plugin.name, "worker": event.worker, "task": event.task, "cards": [{"kind": card.card_type, "label": card.label, "detail": card.detail} for card in answer.cards]})
             answer = replace(answer, cards=())
         if answer.cards or answer.commands or answer.require_skills:
             self.deferred.add(lambda: self.answers.apply(plugin, answer, environment, environment_id, self.agent_session(event, environment_id)))
@@ -88,11 +88,11 @@ class PluginRelay:
 
     def waiting(self, plugin: Plugin, event: Event, environment_id: int, text: str) -> None:
         session = self.agent_session(event, environment_id)
-        self.entries.save(Entry(environment_id=environment_id, kind=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": Protocol.published_name(event), "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
+        self.entries.save(Entry(environment_id=environment_id, entry_type=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": Protocol.published_name(event), "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
 
     def queued_line(self, plugin: Plugin, environment_id: int, key: str, text: str) -> None:
         session = self.current_session(environment_id)
-        self.entries.save(Entry(environment_id=environment_id, kind=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": key, "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
+        self.entries.save(Entry(environment_id=environment_id, entry_type=WAITING, actor=Actor.plugin(plugin.name), data={"plugin": plugin.name, "session": session, "event": key, "line": self.text.line(plugin, text), "delivered": not session}), Actor.plugin(plugin.name))
 
     def agent_session(self, event: Event, environment_id: int) -> str:
         return event.session if isinstance(event, AgentEvent) else self.current_session(environment_id)
@@ -114,8 +114,8 @@ class PluginRelay:
     def unanswered(self, plugin: Plugin, event: Event, environment_id: int, reason: str) -> None:
         self.logged(environment_id, UNANSWERED, Actor.plugin(plugin.name), {"plugin": plugin.name, "event": Protocol.published_name(event), "reason": reason})
 
-    def logged(self, environment_id: int, kind: str, actor: Actor, data: dict) -> None:
-        self.entries.save(Entry(environment_id=environment_id, kind=kind, actor=actor, data=data), actor)
+    def logged(self, environment_id: int, type_name: str, actor: Actor, data: dict) -> None:
+        self.entries.save(Entry(environment_id=environment_id, entry_type=type_name, actor=actor, data=data), actor)
 
     def helper_role(self, event: Event) -> AgentRole:
         if not isinstance(event, AgentEvent):

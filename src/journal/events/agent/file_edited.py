@@ -9,7 +9,7 @@ class FileEdited(AgentEvent):
     """One file the agent changed, as the journal recorded the edit: the path, the kind of change (create, edit or delete), the counts, the span and the changed lines with their numbers; offered at the tool's end to the plugins that block it, inside their window, and announced after the reply to the rest."""
 
     path: str = ""
-    kind: str = "edit"
+    edit_type: str = "edit"
     added: int = 0
     removed: int = 0
     first_line: int = 1
@@ -19,4 +19,4 @@ class FileEdited(AgentEvent):
 
     @classmethod
     def build(cls, edit: Edit, environment_id: int) -> "FileEdited":
-        return cls(path=edit.path, kind=edit.kind, added=edit.added, removed=edit.removed, first_line=edit.first_line, last_line=edit.last_line, lines=edit.rows, command=edit.command, tool_use=edit.tool_use).placed(edit.session, environment_id, "", None, edit.time)
+        return cls(path=edit.path, edit_type=edit.edit_type, added=edit.added, removed=edit.removed, first_line=edit.first_line, last_line=edit.last_line, lines=edit.rows, command=edit.command, tool_use=edit.tool_use).placed(edit.session, environment_id, "", None, edit.time)

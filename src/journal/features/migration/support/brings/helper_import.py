@@ -14,7 +14,7 @@ from journal.repositories.workers import Workers
 class HelperImport(EnvironmentTableImport):
     """A version 3 helper is history here: a stopped worker of its name, provider and model, with its job as its brief."""
 
-    kind = "helper"
+    row_type = "helper"
     title = "workers"
 
     def __init__(self, environments: Environments, tally: MigratedRows, workers: Workers) -> None:

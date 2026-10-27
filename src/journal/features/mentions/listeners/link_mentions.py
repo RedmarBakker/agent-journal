@@ -27,5 +27,5 @@ class LinkMentions(Listener[Saved]):
     def link(self, row: Model, actor: Actor) -> None:
         source = Ref.build(row)
         for target in MentionMatch.found(row.mentioning_text()):
-            if target != source and self.rows.is_row(target) and not self.links.matching(source=source, target=target, kind=MENTIONS):
-                self.links.save(Link(source=source, target=target, kind=MENTIONS), actor)
+            if target != source and self.rows.is_row(target) and not self.links.matching(source=source, target=target, link_type=MENTIONS):
+                self.links.save(Link(source=source, target=target, link_type=MENTIONS), actor)

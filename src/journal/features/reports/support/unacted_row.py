@@ -5,6 +5,6 @@ from dataclasses import dataclass
 class UnactedRow:
     """A report or document never acted on: its kind as its command names it, its number and when it was written."""
 
-    kind: str
+    row_type: str
     row_id: int
     written_at: float

@@ -39,7 +39,7 @@ class OutputFiles:
         return (self.folder / "parts").is_file()
 
     def recorded(self) -> list[int]:
-        return [i for i, kind in enumerate((self.folder / "parts").read_text().splitlines()) if kind.startswith("R")]
+        return [i for i, type_name in enumerate((self.folder / "parts").read_text().splitlines()) if type_name.startswith("R")]
 
     def lines(self) -> list[str]:
         return [STYLE_CODES.sub("", line) for path in self.parts() for line in path.read_text(errors="replace").splitlines()]
@@ -118,7 +118,7 @@ class OutputFiles:
             (self.folder / f"{i}.part").write_text(part.uncut().text)
             if part.cut():
                 (self.folder / f"{i}.cut").write_text(part.cut_command())
-        (self.folder / "parts").write_text("".join(part.kind() + self.flags(part, classifier) + "\n" for part in parts))
+        (self.folder / "parts").write_text("".join(part.part_type() + self.flags(part, classifier) + "\n" for part in parts))
 
     @staticmethod
     def flags(part: Part, classifier: CommandClassifier) -> str:

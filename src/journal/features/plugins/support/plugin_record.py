@@ -17,10 +17,10 @@ class PluginRecord:
 
     def line(self, entry: Entry) -> RecordLine | None:
         data, time = entry.data, entry.creation_time
-        if entry.kind in CHANGES:
+        if entry.entry_type in CHANGES:
             table = data.get("table", "")
-            opens = table in OPENED and entry.kind != "deleted"
-            return RecordLine(time=time, kind="row", text=f"{CHANGES[entry.kind]} {table[:-1].replace('_', ' ')} {data.get('id', '')}" + (f": {data['title']}" if data.get("title") else ""), ref=f"{table}:{data.get('id')}" if opens else "")
+            opens = table in OPENED and entry.entry_type != "deleted"
+            return RecordLine(time=time, action_type="row", text=f"{CHANGES[entry.entry_type]} {table[:-1].replace('_', ' ')} {data.get('id', '')}" + (f": {data['title']}" if data.get("title") else ""), ref=f"{table}:{data.get('id')}" if opens else "")
         line_text = {
             "plugin_said": lambda: f"{data.get('how', '')} at {data.get('event', '')}: {data.get('words', '')}",
             "plugin_line_waiting": lambda: f"said after the reply to {data.get('event', '')}, for the agent's next hook: {data.get('line', '')}" if data.get("session") else f"said after the reply to {data.get('event', '')}, with no agent to hear it: {data.get('line', '')}",
@@ -28,5 +28,5 @@ class PluginRecord:
             "plugin_fault": lambda: f"faulted at {data.get('event', '')}: {data.get('fault', '')}",
             "plugin_unanswered": lambda: f"refused {data.get('event', '')} after the reply, too late to hold it: {data.get('reason', '')}",
             "plugin_warning": lambda: f"warned: {data.get('warning', '')}",
-        }.get(entry.kind)
-        return RecordLine(time=time, kind=entry.kind.removeprefix("plugin_"), text=line_text(), ref="") if line_text else None
+        }.get(entry.entry_type)
+        return RecordLine(time=time, action_type=entry.entry_type.removeprefix("plugin_"), text=line_text(), ref="") if line_text else None

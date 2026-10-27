@@ -43,7 +43,7 @@ class PlanTesting:
         if not matches:
             raise Rejection(f"no plan testing template is titled {title}: {', '.join(template.title for template in self.templates_offered())}")
         self.clear(plan, actor)
-        self.links.save(Link(source=Ref.build(plan), target=Ref.build(matches[0]), kind=TESTING_LINK), actor)
+        self.links.save(Link(source=Ref.build(plan), target=Ref.build(matches[0]), link_type=TESTING_LINK), actor)
         return matches[0]
 
     def clear(self, plan: Plan, actor: Actor) -> None:

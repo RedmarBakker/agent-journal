@@ -29,5 +29,5 @@ class PhoneIcon:
         return [bytes(round(item + (b - item) * y / height) for item, b in zip(self.top, bottom)) for y in range(height)]
 
     @staticmethod
-    def chunk(kind: bytes, body: bytes) -> bytes:
-        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    def chunk(type_name: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + type_name + body + struct.pack(">I", zlib.crc32(type_name + body))

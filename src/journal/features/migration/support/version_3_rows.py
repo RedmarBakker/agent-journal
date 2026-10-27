@@ -12,14 +12,14 @@ class Version3Rows:
     def environments(self) -> list[Version3Row]:
         return self.read(self.folder / "project" / "environment")
 
-    def project(self, kind: str) -> list[Version3Row]:
-        return self.read(self.folder / "project" / kind)
+    def project(self, type_name: str) -> list[Version3Row]:
+        return self.read(self.folder / "project" / type_name)
 
     def docs(self) -> list[Version3Row]:
         return sorted((Version3Row.parsed(path.read_text()) for path in (self.folder / "project" / "doc").glob("*/doc.md")), key=lambda row: row.n)
 
-    def rows(self, environment: str, kind: str) -> list[Version3Row]:
-        return self.read(self.folder / "environments" / environment / kind)
+    def rows(self, environment: str, type_name: str) -> list[Version3Row]:
+        return self.read(self.folder / "environments" / environment / type_name)
 
     def read(self, caller: Path) -> list[Version3Row]:
         if not caller.is_dir():
@@ -41,4 +41,4 @@ class Version3Rows:
             return True
         if (self.folder.parents[1] / ".claude" / "worktrees" / environment.title).is_dir():
             return True
-        return any(row.is_open() for kind in ("todo", "question") for row in self.rows(environment.title, kind))
+        return any(row.is_open() for type_name in ("todo", "question") for row in self.rows(environment.title, type_name))

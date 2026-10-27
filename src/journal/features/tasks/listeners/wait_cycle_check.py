@@ -13,7 +13,7 @@ class WaitCycleCheck(Listener[Saving]):
 
     def handle(self, event: Saving) -> None:
         link = event.model
-        if not isinstance(link, Link) or link.kind != WAIT_LINK:
+        if not isinstance(link, Link) or link.link_type != WAIT_LINK:
             return
         if self.tasks.waits_reach(link.target, link.source):
             raise Rejection(f"{link.source} waiting on {link.target} would close a loop of waits that nothing could ever end")

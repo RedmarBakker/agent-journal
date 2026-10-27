@@ -10,7 +10,7 @@ import {store} from "../state/store.js";
 const profiles = ref([]);
 onMounted(async () => {
     try {
-        profiles.value = (await api.agentProfiles()).profiles.filter((profile) => profile.kind === "worker").map((profile) => profile.name);
+        profiles.value = (await api.agentProfiles()).profiles.filter((profile) => profile.profile_type === "worker").map((profile) => profile.name);
     } catch {
         profiles.value = [];
     }

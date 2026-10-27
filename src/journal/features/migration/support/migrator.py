@@ -43,19 +43,19 @@ class Migrator:
         return self.migrations.save(self.migrations.current().is_started(), actor)
 
     def run(self, migration: Version3Migration, actor: Actor) -> Version3Migration:
-        ported = [self.imported(kind, actor) for kind in self.kinds]
+        ported = [self.imported(type_name, actor) for type_name in self.kinds]
         self.reports.save(self.report(ported), actor)
         return self.migrations.save(migration.is_finished(), actor)
 
-    def imported(self, kind, actor: Actor) -> ImportTally:
+    def imported(self, type_name, actor: Actor) -> ImportTally:
         try:
-            return kind.import_rows(self.backup.folder, actor)
+            return type_name.import_rows(self.backup.folder, actor)
         except Exception as fault:
-            return ImportTally(kind.title, 0, (f"the whole kind could not be read: {fault}",))
+            return ImportTally(type_name.title, 0, (f"the whole kind could not be read: {fault}",))
 
     def report(self, imported: list[ImportTally]) -> Report:
         rows = "\n".join(single.line() for single in imported)
-        skipped = "\n".join(f"- {single.kind}: {reason}" for single in imported for reason in single.skipped) or "Nothing."
+        skipped = "\n".join(f"- {single.row_type}: {reason}" for single in imported for reason in single.skipped) or "Nothing."
         body = dedent("""\
             ## Brought across
 

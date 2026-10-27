@@ -18,7 +18,7 @@ from journal.repositories.tasks import WAIT_LINK, Tasks
 class WaitImport(EnvironmentTableImport):
     """A to-do that comes after others waits on them here, once all have been migrated; a wait that version 3 allowed to form a loop is dropped and reported, and the task keeps the rest."""
 
-    kind = "todo"
+    row_type = "todo"
     title = "waits"
 
     def __init__(self, environments: Environments, tally: MigratedRows, tasks: Tasks, links: Links) -> None:
@@ -29,7 +29,7 @@ class WaitImport(EnvironmentTableImport):
     def import_rows(self, folder: Path, actor: Actor) -> ImportTally:
         self.dropped = []
         imported = super().import_rows(folder, actor)
-        return ImportTally(imported.kind, imported.count, (*imported.skipped, *self.dropped))
+        return ImportTally(imported.row_type, imported.count, (*imported.skipped, *self.dropped))
 
     def source(self, environment: str, row: Version3Row) -> str:
         return f"environments/{environment}/todo/{row.n}/waits"
@@ -43,7 +43,7 @@ class WaitImport(EnvironmentTableImport):
         task = self.tasks.find(self.ledger.counterpart(receiver.name, (f"todo:{row.n}",)).id)
         for previous in [rows for n in row.listed("after") if (rows := self.ledger.referred(receiver.name, f"todo:{n}"))]:
             try:
-                self.links.save(Link(source=Ref.build(task), target=previous, kind=WAIT_LINK), actor)
+                self.links.save(Link(source=Ref.build(task), target=previous, link_type=WAIT_LINK), actor)
             except Rejection as loop:
                 self.dropped.append(f"task {task.id}: {loop}")
         return task

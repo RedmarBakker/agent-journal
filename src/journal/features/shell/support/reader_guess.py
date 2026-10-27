@@ -37,8 +37,8 @@ class ReaderGuess:
         return self.readers.stored_reader(reader.name)
 
     def shared(self, output: CommandOutput, part: str, name: str, lines: list[str]) -> Reader | None:
-        kind = self.classifier.classify(part).command_type
-        reader = next((reader for reader in self.readers.all() if not self.readers.is_locked(reader.name) and not reader.script and self.is_kind(reader, kind) and self.reads_well(reader, lines)), None)
+        type_name = self.classifier.classify(part).command_type
+        reader = next((reader for reader in self.readers.all() if not self.readers.is_locked(reader.name) and not reader.script and self.is_kind(reader, type_name) and self.reads_well(reader, lines)), None)
         if reader is None:
             return None
         widened = reader.revised(commands=ReaderCommands((*reader.commands.programs, name)))
@@ -52,8 +52,8 @@ class ReaderGuess:
         self.readers.add(reader)
         self.announcer.announce(ReaderGuessed(environment_id=output.environment_id, session=output.session, reader=reader.name, command=name, output=output.row_id, subject=reader.subject))
 
-    def is_kind(self, reader: Reader, kind: str) -> bool:
-        return any(self.classifier.classify(program).command_type == kind for program in reader.commands.programs)
+    def is_kind(self, reader: Reader, type_name: str) -> bool:
+        return any(self.classifier.classify(program).command_type == type_name for program in reader.commands.programs)
 
     def reads_well(self, reader: Reader, lines: list[str]) -> bool:
         return not self.judge.misses(reader, lines) and not ReaderProbes.unfiltered_patterns(reader)

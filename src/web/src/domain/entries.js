@@ -5,9 +5,9 @@ import {seconds} from "./row.js";
 // line typed to it are the agents' and the nudges' own.
 const ROW_CHANGES = ["created", "updated", "deleted"];
 
-export const isRowChange = (entry) => ROW_CHANGES.includes(entry.kind);
+export const isRowChange = (entry) => ROW_CHANGES.includes(entry.entry_type);
 
-export const tableOf = (entry) => (isRowChange(entry) ? entry.data.table : entry.kind === "nudge" ? "nudges" : "agents");
+export const tableOf = (entry) => (isRowChange(entry) ? entry.data.table : entry.entry_type === "nudge" ? "nudges" : "agents");
 
 export const atOf = (entry) => seconds(entry.created_at);
 
@@ -16,6 +16,6 @@ export const whoOf = (entry) => (entry.actor || "system").split(":")[0];
 // The fields whose change closes a row of a table, so a change of one reads as its closing.
 const CLOSES = {tasks: "completed_at", questions: "answer", notices: "closed_at", shares: "stopped_at", secrets: "deleted_at"};
 
-export const closes = (entry) => entry.kind === "updated" && (entry.data.changed || []).includes(CLOSES[entry.data.table]);
+export const closes = (entry) => entry.entry_type === "updated" && (entry.data.changed || []).includes(CLOSES[entry.data.table]);
 
 export const known = (entry) => !isRowChange(entry) || Boolean(meta(entry.data.table));

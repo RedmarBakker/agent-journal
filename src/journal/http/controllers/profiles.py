@@ -26,8 +26,8 @@ class ProfileController:
         body = request.body
         if not str(request.params["name"]).replace("-", "").replace("_", "").isalnum():
             return Response.refused("a profile's name is letters, digits, dashes and underscores")
-        if body.get("kind", ProfileType.SUBAGENT) not in ProfileType:
+        if body.get("profile_type", ProfileType.SUBAGENT) not in ProfileType:
             return Response.refused("a profile is a worker or a subagent")
-        profile = Profile(request.params["name"], body.get("description", "").strip(), body.get("tools", "").strip(), body.get("body", "").strip(), ProfileType(body.get("kind", ProfileType.SUBAGENT)))
+        profile = Profile(request.params["name"], body.get("description", "").strip(), body.get("tools", "").strip(), body.get("body", "").strip(), ProfileType(body.get("profile_type", ProfileType.SUBAGENT)))
         return Response.json(self.files.save(profile, body.get("model", "").strip(), body.get("codex_model", "").strip()))
 

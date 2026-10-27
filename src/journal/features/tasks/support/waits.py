@@ -38,14 +38,14 @@ class Waits:
 
     def linked(self, row: Model, enabled: list[str], deadline: str, interval: int, actor: Actor) -> None:
         for ref in self.created(enabled, deadline, interval, f"{row.table()[:-1]} {row.id}", actor):
-            self.links.save(Link(source=Ref.build(row), target=ref, kind=WAIT_LINK), actor)
+            self.links.save(Link(source=Ref.build(row), target=ref, link_type=WAIT_LINK), actor)
 
     def wait_targets(self, text: str) -> Ref:
-        kind, _, number = text.partition(":")
-        if kind not in ("question", "task") or not number.isdigit():
+        type_name, _, number = text.partition(":")
+        if type_name not in ("question", "task") or not number.isdigit():
             raise Rejection(f"--on takes question:N or task:N, not {text}")
-        ref = Ref(f"{kind}s", int(number))
-        (self.questions if kind == "question" else self.tasks).find(ref.id)
+        ref = Ref(f"{type_name}s", int(number))
+        (self.questions if type_name == "question" else self.tasks).find(ref.id)
         return ref
 
     def released(self, row: Model, actor: Actor) -> None:

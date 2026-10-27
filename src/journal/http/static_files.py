@@ -18,5 +18,5 @@ class StaticFiles:
             wanted = self.folder / "index.html"
         if not wanted.is_file():
             return None
-        kind = mimetypes.guess_type(str(wanted))[0] or "application/octet-stream"
-        return FileResponse(kind, wanted.read_bytes())
+        type_name = mimetypes.guess_type(str(wanted))[0] or "application/octet-stream"
+        return FileResponse(type_name, wanted.read_bytes())

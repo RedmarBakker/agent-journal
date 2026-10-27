@@ -86,11 +86,11 @@ class Tasks(ScopedRepository[Task]):
 
     def choosable_paused_tasks(self, holder: Ref) -> list[Task]:
         others = Query.build(Agent).filter_unequal("state", "ended").filter_unequal("id", holder.id)
-        held_elsewhere = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(others.filter_named(self.links.query(), "source"))
+        held_elsewhere = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(others.filter_named(self.links.query(), "source"))
         return self.selected(self.free_query(TaskState.PAUSED, UNAPPROVED_PLAN_STATES).filter_absent(held_elsewhere).filter_absent(self.wait_links()))
 
     def wait_links(self) -> Query:
-        return self.links.query().filter(kind=WAIT_LINK).filter_ref("source", self.query())
+        return self.links.query().filter(link_type=WAIT_LINK).filter_ref("source", self.query())
 
     def broken_waits(self) -> list[tuple[Task, Check]]:
         return [(task, check) for check in self.checks.broken_waits() for task in self.waiting_refs(check)]
@@ -124,7 +124,7 @@ class Tasks(ScopedRepository[Task]):
         return [task for task in self.waiting_refs(model) if not self.open_waits(task)]
 
     def unprioritised(self) -> list[Task]:
-        planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())
+        planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query())
         return self.selected(self.query().filter(state=TaskState.OPEN, delegated=False, priority=NORMAL, priority_set=False).filter_prefix("creator", AGENT_CREATOR).filter_absent(planned).order("id"))
 
     def agent_started(self) -> list[Task]:
@@ -149,7 +149,7 @@ class Tasks(ScopedRepository[Task]):
         return self.free_tasks(TaskState.PAUSED, (PlanState.PAUSED.value,))
 
     def holder_paused_task(self, holder: Ref) -> Task | None:
-        hand_links = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
+        hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
         return next(iter(self.selected(self.free_query(TaskState.PAUSED, (PlanState.PAUSED.value,)).filter_existing(hand_links).filter_unequal("wait_ended_at", 0.0).limit(1))), None)
 
     def actionable(self, state: TaskState) -> list[Task]:
@@ -178,7 +178,7 @@ class Tasks(ScopedRepository[Task]):
 
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
         plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_named(self.links.query(), "target")
-        planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
+        planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
         return self.query().filter(state=state, delegated=False).filter_absent(planned).order_descending("priority").order("id")
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:
@@ -194,19 +194,19 @@ class Tasks(ScopedRepository[Task]):
         return Ref.build(task) in self.scope.bound()
 
     def holder_task(self, holder: Ref) -> Task | None:
-        hand_links = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
+        hand_links = self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).filter_ref("target", self.query())
         tasks = self.selected(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
         return next((task for task in tasks if task.state == TaskState.STARTED), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
-        return tuple(link.target.id for link in self.links.all_matching(source=holder, kind=CURRENT_TASK_LINK))
+        return tuple(link.target.id for link in self.links.all_matching(source=holder, link_type=CURRENT_TASK_LINK))
 
     def last_task_id(self, holder: Ref) -> int:
         task_ids = self.recent_task_ids(holder, 1)
         return task_ids[-1] if task_ids else 0
 
     def recent_task_ids(self, holder: Ref, count: int) -> tuple[int, ...]:
-        links = self.links.selected(self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).order_descending("id").limit(count))
+        links = self.links.selected(self.links.query().filter(source=holder, link_type=CURRENT_TASK_LINK).order_descending("id").limit(count))
         return tuple(reversed([link.target.id for link in links]))
 
     def holder(self, task: Task) -> Ref | None:
@@ -223,7 +223,7 @@ class Tasks(ScopedRepository[Task]):
         return self.selected(self.agents_state_query(TaskState.PAUSED, agents).filter(pause_reason=reason).order("id"))
 
     def agents_state_query(self, state: TaskState, agents: Query) -> Query:
-        agent_links = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
+        agent_links = self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
         return self.query().filter(state=state).filter_existing(agent_links)
 
     def row_holders(self, rows: list[Task]) -> dict[int, Ref]:
@@ -250,49 +250,49 @@ class Tasks(ScopedRepository[Task]):
         self.guard_worker_task(task, holder, actor)
         owner = self.holder(task)
         target = Ref.build(task)
-        for link in self.links.all_matching(target=target, kind=CURRENT_TASK_LINK):
+        for link in self.links.all_matching(target=target, link_type=CURRENT_TASK_LINK):
             if link.source != holder:
                 self.links.delete(link, actor)
         if owner != holder:
-            self.links.save(Link(source=holder, target=target, kind=CURRENT_TASK_LINK), actor)
-        if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, kind=WORKED_LINK):
-            self.links.save(Link(source=holder, target=target, kind=WORKED_LINK), actor)
+            self.links.save(Link(source=holder, target=target, link_type=CURRENT_TASK_LINK), actor)
+        if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, link_type=WORKED_LINK):
+            self.links.save(Link(source=holder, target=target, link_type=WORKED_LINK), actor)
         if holder.type == WORKERS and not task.delegated:
             self.save(task.delegate(self.time_source.moment()), actor)
-        for link in self.links.all_matching(source=holder, target=target, kind=QUEUED_LINK):
+        for link in self.links.all_matching(source=holder, target=target, link_type=QUEUED_LINK):
             self.links.delete(link, actor)
 
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
         if not self.is_free(task):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, or a started or paused one in your own hands, waits in a worker's queue")
-        if not self.links.all_matching(source=worker, target=Ref.build(task), kind=QUEUED_LINK):
-            self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
+        if not self.links.all_matching(source=worker, target=Ref.build(task), link_type=QUEUED_LINK):
+            self.links.save(Link(source=worker, target=Ref.build(task), link_type=QUEUED_LINK), actor)
         return self.save(task.delegate(self.time_source.moment()), actor)
 
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
-        queue_links = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
+        queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
         if not self.is_free(task) and not (task.delegated and queue_links):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, a started or paused one in your own hands, or one waiting in a worker's queue, goes first in a worker's queue")
         for link in queue_links:
             self.links.delete(link, actor)
         remaining = [queued for queued in self.queue(worker) if queued.id != task.id]
-        for link in self.links.all_matching(source=worker, kind=QUEUED_LINK):
+        for link in self.links.all_matching(source=worker, link_type=QUEUED_LINK):
             self.links.delete(link, actor)
         for queued in (task, *remaining):
-            self.links.save(Link(source=worker, target=Ref.build(queued), kind=QUEUED_LINK), actor)
+            self.links.save(Link(source=worker, target=Ref.build(queued), link_type=QUEUED_LINK), actor)
         return task if task.delegated else self.save(task.delegate(self.time_source.moment()), actor)
 
     def drop_holder(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):
             return
-        for link in self.links.all_matching(source=holder, target=Ref.build(task), kind=CURRENT_TASK_LINK):
+        for link in self.links.all_matching(source=holder, target=Ref.build(task), link_type=CURRENT_TASK_LINK):
             self.links.delete(link, actor)
 
     def is_free(self, task: Task) -> bool:
         return (task.state == TaskState.OPEN and not task.delegated) or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
 
     def queue(self, worker: Ref) -> list[Task]:
-        links = sorted(self.links.all_matching(source=worker, kind=QUEUED_LINK), key=lambda link: link.row_id)
+        links = sorted(self.links.all_matching(source=worker, link_type=QUEUED_LINK), key=lambda link: link.row_id)
         return [self.find(n) for n in dict.fromkeys(link.target.id for link in links)]
 
     def worker_task(self, task_id: int, worker: int) -> Task:
@@ -307,28 +307,28 @@ class Tasks(ScopedRepository[Task]):
 
     def finish_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         self.release_task(holder, task_id, actor)
-        self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
+        self.links.save(Link(source=holder, target=Ref("tasks", task_id), link_type=FINISHED_LINK), actor)
 
     def reopen_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         for current in self.holder_task_ids(holder):
             self.finish_holder_task(current, holder, actor)
-        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK):
+        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), link_type=FINISHED_LINK):
             self.links.delete(link, actor)
-        self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK), actor)
+        self.links.save(Link(source=holder, target=Ref("tasks", task_id), link_type=CURRENT_TASK_LINK), actor)
 
     def unfinished(self, holder: Ref, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, kind=FINISHED_LINK):
+        for link in self.links.all_matching(source=holder, link_type=FINISHED_LINK):
             self.links.delete(link, actor)
 
     def finished_task_ids(self, holder: Ref) -> tuple[int, ...]:
-        return tuple(link.target.id for link in sorted(self.links.all_matching(source=holder, kind=FINISHED_LINK), key=lambda link: link.row_id))
+        return tuple(link.target.id for link in sorted(self.links.all_matching(source=holder, link_type=FINISHED_LINK), key=lambda link: link.row_id))
 
     def release_task(self, holder: Ref, task_id: int, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK):
+        for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), link_type=CURRENT_TASK_LINK):
             self.links.delete(link, actor)
 
     def unqueued_task(self, task: Task, actor: Actor) -> list[Ref]:
-        queue_links = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
+        queue_links = self.links.all_matching(target=Ref.build(task), link_type=QUEUED_LINK)
         for link in queue_links:
             self.links.delete(link, actor)
         if queue_links:
@@ -338,8 +338,8 @@ class Tasks(ScopedRepository[Task]):
     def unqueued(self, holder: Ref, actor: Actor) -> None:
         self.freed(holder, QUEUED_LINK, actor)
 
-    def freed(self, holder: Ref, kind: str, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, kind=kind):
+    def freed(self, holder: Ref, type_name: str, actor: Actor) -> None:
+        for link in self.links.all_matching(source=holder, link_type=type_name):
             self.links.delete(link, actor)
             for task in self.matching(id=link.target.id, delegated=True):
                 if not task.state.is_closed():
@@ -364,7 +364,7 @@ class Tasks(ScopedRepository[Task]):
         return {link.target.id: link.source.id for link in self.links.model_links("source", workers, CURRENT_TASK_LINK)}
 
     def worker_holdings(self) -> dict[int, int]:
-        return {link.target.id: link.source.id for link in self.links.selected(self.links.query().filter(kind=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").order("id"))}
+        return {link.target.id: link.source.id for link in self.links.selected(self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").order("id"))}
 
     def earlier_tasks(self, workers: list[Model], holdings: dict[int, int]) -> dict[int, int]:
         worker_tasks = {worker: task for task, worker in holdings.items()}
@@ -398,7 +398,7 @@ class Tasks(ScopedRepository[Task]):
         return previous[0].created_at if previous else datetime.min.replace(tzinfo=timezone.utc)
 
     def unfinished_count(self) -> int:
-        planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())
+        planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query())
         return self.counted(self.query().filter_unlisted("state", CLOSED).filter_absent(planned))
 
     def unviewed(self) -> int:

@@ -15,5 +15,5 @@ class NudgeController(Controller[Entry]):
         self.repository = entries
 
     def list_query(self) -> Query:
-        return self.repository.query().filter(kind=NUDGE)
+        return self.repository.query().filter(entry_type=NUDGE)
 

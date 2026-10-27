@@ -45,7 +45,7 @@ class DeveloperNumbers:
     def hook_averages(self) -> dict[str, AnswerTime]:
         numbers = self.series(HOOKS_PREFIX)
         kinds = sorted({key.split(".")[2] for key in numbers if key.count(".") == 3})
-        return {kind: AnswerTime.read(numbers, f"{HOOKS_PREFIX}{kind}") for kind in kinds}
+        return {type_name: AnswerTime.read(numbers, f"{HOOKS_PREFIX}{type_name}") for type_name in kinds}
 
     def stage_averages(self) -> dict[str, AnswerTime]:
         numbers = self.series(STAGES_PREFIX)

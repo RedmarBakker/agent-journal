@@ -24,8 +24,8 @@ class HostDesk:
         self.makers = {self.MESSAGE: self.message, self.POOL_WORKER: self.jobs.arrived}
         self.lock = threading.Lock()
 
-    def register(self, kind: str, writer: Callable[[HostRequest], None]) -> None:
-        self.makers[kind] = partial(self.finished_write, writer)
+    def register(self, type_name: str, writer: Callable[[HostRequest], None]) -> None:
+        self.makers[type_name] = partial(self.finished_write, writer)
 
     def finished_write(self, writer: Callable[[HostRequest], None], request: HostRequest) -> None:
         writer(request)

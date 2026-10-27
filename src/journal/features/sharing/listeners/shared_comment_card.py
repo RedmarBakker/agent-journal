@@ -20,5 +20,5 @@ class SharedCommentCard(Listener[SharedCommentPosted]):
     def handle(self, event: SharedCommentPosted) -> Message:
         message = self.messages.save(Message(author=Author.SYSTEM, text=f"{event.name} commented on {event.row} through a shared link",
                                              data={"kind": "card", "detail": event.text, "row": str(event.row), VISITOR: event.name, "share": event.share}), Actor.system())
-        self.links.save(Link(source=Ref.build(message), target=event.row, kind=Messages.COMMENT_LINK), Actor.system())
+        self.links.save(Link(source=Ref.build(message), target=event.row, link_type=Messages.COMMENT_LINK), Actor.system())
         return message

@@ -5,6 +5,6 @@ from dataclasses import dataclass
 class PreviewRow:
     """One thing a plugin runs, listens for, blocks, needs or adds, as its preview lists it: a kind, a label and the command or names."""
 
-    kind: str
+    item_type: str
     label: str
     command: str = ""

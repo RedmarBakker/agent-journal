@@ -9,7 +9,7 @@ from journal.repositories.checks import Checks
 class CheckImport(ProjectType):
     """A check keeps its command, what it checks and how often it runs."""
 
-    kind = "check"
+    row_type = "check"
     title = "checks"
 
     def __init__(self, tally: MigratedRows, checks: Checks) -> None:

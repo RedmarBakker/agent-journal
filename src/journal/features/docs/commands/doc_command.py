@@ -137,7 +137,7 @@ class DocCommand(Command):
 
     def copy_of(self, doc: Doc, caller: Caller) -> Doc:
         copy = self.docs.save(doc.local_copy(), caller.actor)
-        self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), kind=COPIED_FROM), caller.actor)
+        self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), link_type=COPIED_FROM), caller.actor)
         return copy
 
     def attach(self, args: Namespace, caller: Caller) -> int:
@@ -145,9 +145,9 @@ class DocCommand(Command):
         if doc.edit_mode != DocEditMode.FREE:
             raise Rejection(f"doc {doc.id} is read-only on the hub, so it cannot be edited in place here: journal doc copy {doc.id} saves a copy of it")
         environment = Ref("environments", self.scope.id)
-        if self.links.all_matching(source=Ref.build(doc), target=environment, kind=ATTACHED):
+        if self.links.all_matching(source=Ref.build(doc), target=environment, link_type=ATTACHED):
             raise Rejection(f"doc {doc.id} is attached to this environment already")
-        self.links.save(Link(source=Ref.build(doc), target=environment, kind=ATTACHED), caller.actor)
+        self.links.save(Link(source=Ref.build(doc), target=environment, link_type=ATTACHED), caller.actor)
         print(f"doc {doc.id} is attached here, and edited in place on the hub")
         return 0
 

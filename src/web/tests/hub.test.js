@@ -20,12 +20,12 @@ function mounted(component, props) {
     return host;
 }
 
-const hub = {id: 5, kind: "hub", name: "acme", team_name: "acme", team_key: "k1"};
+const hub = {id: 5, environment_type: "hub", name: "acme", team_name: "acme", team_key: "k1"};
 const environments = [
-    {id: 1, name: "main", kind: "local"},
-    {id: 2, name: "docs", kind: "local", team_key: "k1"},
-    {id: 3, name: "team", kind: "session", team_key: "k1"},
-    {id: 4, name: "bobs-api", kind: "local", team_key: "k1"},
+    {id: 1, name: "main", environment_type: "local"},
+    {id: 2, name: "docs", environment_type: "local", team_key: "k1"},
+    {id: 3, name: "team", environment_type: "session", team_key: "k1"},
+    {id: 4, name: "bobs-api", environment_type: "local", team_key: "k1"},
     hub,
 ];
 const people = {me: 1, device: "", people: [], owners: {1: 1, 2: 1, 4: 2}};
@@ -80,7 +80,7 @@ test("a driven hub task and plan show who drives them, the person and the agent,
 test("the New dialog says whether a row made in the open environment lands on the hub or stays on this machine, and says nothing in a journal with no hub", () => {
     expect(destination(environments[0], environments)).toBe("Stays in main, on this machine");
     expect(destination(hub, environments)).toBe("Lands on the acme hub");
-    expect(destination({id: 1, name: "main", kind: "local"}, [{id: 1, name: "main", kind: "local"}])).toBe("");
+    expect(destination({id: 1, name: "main", environment_type: "local"}, [{id: 1, name: "main", environment_type: "local"}])).toBe("");
     expect(destination(undefined, environments)).toBe("");
     const dialog = readFileSync("src/resource/NewResource.vue", "utf8");
     expect(dialog).toContain("destination(rows(\"environments\")");
@@ -106,13 +106,13 @@ test("a hosted journal opens on the hub home with its documents, plans and board
 
 test("with two teams each hub is its own group named for its team, holding the sessions of its own team key", () => {
     const rows = [
-        {id: 1, name: "main", kind: "local"},
-        {id: 3, name: "acme-chat", kind: "session", team_key: "k1"},
-        {id: 4, name: "acme-api", kind: "local", team_key: "k1"},
-        {id: 6, name: "beta-chat", kind: "session", team_key: "k2"},
-        {id: 7, name: "beta-web", kind: "local", team_key: "k2"},
-        {id: 5, kind: "hub", name: "acme", team_name: "acme", team_key: "k1"},
-        {id: 8, kind: "hub", name: "beta", team_name: "beta", team_key: "k2"},
+        {id: 1, name: "main", environment_type: "local"},
+        {id: 3, name: "acme-chat", environment_type: "session", team_key: "k1"},
+        {id: 4, name: "acme-api", environment_type: "local", team_key: "k1"},
+        {id: 6, name: "beta-chat", environment_type: "session", team_key: "k2"},
+        {id: 7, name: "beta-web", environment_type: "local", team_key: "k2"},
+        {id: 5, environment_type: "hub", name: "acme", team_name: "acme", team_key: "k1"},
+        {id: 8, environment_type: "hub", name: "beta", team_name: "beta", team_key: "k2"},
     ];
     const shared = {me: 1, device: "", people: [], owners: {1: 1, 4: 2, 7: 3}};
     const groups = teamGroups(rows, shared);

@@ -32,7 +32,7 @@ class WritingController(Controller[W]):
     def export(self, request: Request) -> DownloadResponse:
         row = self.repository.find(request.number("id"))
         exported = DocxExport.build(row.title, row.abstract, row.body, f"{row.noun()} {row.id}")
-        return DownloadResponse(exported.kind, exported.body, name=exported.name)
+        return DownloadResponse(exported.media_type, exported.body, name=exported.name)
 
     def section(self, request: Request) -> Response:
         row = self.repository.find(request.number("id"))

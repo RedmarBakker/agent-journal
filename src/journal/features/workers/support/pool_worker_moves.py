@@ -38,9 +38,9 @@ class PoolWorkerMoves:
     def is_remote_run(self, worker: Worker) -> bool:
         return self.is_local_dispatch(worker) and bool(worker.device) and not worker.is_device(self.account.device())
 
-    def ask_runner(self, worker: Worker, kind: str, body: dict) -> None:
+    def ask_runner(self, worker: Worker, type_name: str, body: dict) -> None:
         environment = self.environments.find(worker.environment_id)
-        self.link.ask_device(DeviceAskRequest(int(worker.device), environment.key, kind, {"worker_id": worker.id, **body}, self.account.user_number()))
+        self.link.ask_device(DeviceAskRequest(int(worker.device), environment.key, type_name, {"worker_id": worker.id, **body}, self.account.user_number()))
 
     def cleared(self, worker: Worker) -> None:
         if not self.is_local_dispatch(worker):
@@ -54,5 +54,5 @@ class PoolWorkerMoves:
             self.jobs.save(job.finished(self.time_source.seconds()), Actor.system())
             self.link.finish_host_request(job.request_id)
 
-    def ask(self, worker: Worker, kind: str, body: dict, actor: Actor) -> None:
-        self.hosts.ask(self.environments.find(worker.environment_id), kind, {"worker_id": worker.id, **body}, actor)
+    def ask(self, worker: Worker, type_name: str, body: dict, actor: Actor) -> None:
+        self.hosts.ask(self.environments.find(worker.environment_id), type_name, {"worker_id": worker.id, **body}, actor)

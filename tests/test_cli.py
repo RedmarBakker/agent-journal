@@ -416,7 +416,7 @@ def test_codex_in_a_new_worktree_runs_the_main_checkouts_hooks_trusted_without_a
     home.mkdir()
     monkeypatch.setenv("CODEX_HOME", str(home))
     main_hooks = root.resolve() / ".codex" / "hooks.json"
-    (home / "config.toml").write_text("".join(f'[hooks.state."{main_hooks}:{kind}:0:0"]\ntrusted_hash = "x"\n\n' for kind in ("session_start", "stop")))
+    (home / "config.toml").write_text("".join(f'[hooks.state."{main_hooks}:{type_name}:0:0"]\ntrusted_hash = "x"\n\n' for type_name in ("session_start", "stop")))
     folder = Path(Launch.parse(["codex", "--worktree", "calm-river"], root).launch_file(Choice("calm-river"), StatusLine(root))["front"]["folder"])
     hooks = folder / ".codex" / "hooks.json"
     assert hooks.is_symlink() and hooks.resolve() == main_hooks and str(root) in hooks.read_text(), "the worktree reads the main checkout's hooks, naming the main root"

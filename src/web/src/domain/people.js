@@ -37,8 +37,8 @@ export function colleagueOwner(environmentId, people = NOBODY) {
 }
 
 // A session, the Team chat the first, is an environment of kind session; a person's own environment shared with the team carries the team's key.
-export const isSession = (row) => row.kind === "session";
-export const isShared = (row) => row.kind === "local" && Boolean(row.team_key);
+export const isSession = (row) => row.environment_type === "session";
+export const isShared = (row) => row.environment_type === "local" && Boolean(row.team_key);
 
 // The environments the sidebar lists: the viewer's own, the Team chat and those a colleague shares with the team; a colleague's
 // other environments open from the Team page.

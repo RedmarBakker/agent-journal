@@ -19,7 +19,7 @@ class SubagentRecord(Listener[Updated]):
         if not isinstance(event.model, Entry) or not SubagentEntries.is_dispatch_entry(event.model):
             return
         session = event.model.data.get("session_id", "")
-        if event.model.kind in ENDS and not self.subagents.running_session_subagents(session):
+        if event.model.entry_type in ENDS and not self.subagents.running_session_subagents(session):
             return
         stored = {s.dispatch: s for s in self.movable_rows(session, event.model)}
         newest = self.subagents.newest_session_subagent(session)

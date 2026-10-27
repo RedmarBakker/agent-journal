@@ -109,14 +109,14 @@ class Receiver:
         return decision
 
     def recorded(self, hook: Hook, environment: Environment, event: AgentEvent) -> Entry:
-        return self.entries.recorded(Entry(environment_id=environment.row_id, kind=type(event).__name__, actor=Actor.agent(hook.session), data={**hook.stored(), **event.recorded()}, idempotency=hook.key()), Actor.agent(hook.session))
+        return self.entries.recorded(Entry(environment_id=environment.row_id, entry_type=type(event).__name__, actor=Actor.agent(hook.session), data={**hook.stored(), **event.recorded()}, idempotency=hook.key()), Actor.agent(hook.session))
 
     @staticmethod
     def replayed(entry: Entry) -> Decision:
         return Decision.refuse(entry.data["refused"]) if entry.data.get("refused") else Decision()
 
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
-        self.entries.recorded(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
+        self.entries.recorded(Entry(environment_id=environment.row_id, entry_type=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
         if hook.hook_type == HookType.SESSION_START:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
@@ -157,7 +157,7 @@ class Receiver:
             return answered if isinstance(answered, Decision) else None
         except Exception as fault:
             text = f"{type(listener).__name__} raised {type(fault).__name__}: {fault}"
-            self.entries.save(Entry(environment_id=event.environment_id, kind=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": type(listener).__name__, "fault": f"{type(fault).__name__}: {fault}"}), Actor.system())
+            self.entries.save(Entry(environment_id=event.environment_id, entry_type=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": type(listener).__name__, "fault": f"{type(fault).__name__}: {fault}"}), Actor.system())
             self.bus.dispatch(GuardFailed(environment_id=event.environment_id, session=event.session, text=text))
             line = self.nudger.refuse_with(self.sessions.agent(event.session, event.environment_id), EngineNudges.GUARD_FAILED.create(text=text))
             return Decision.allowed_with(line) if line else None

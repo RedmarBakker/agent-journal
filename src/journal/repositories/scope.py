@@ -43,5 +43,5 @@ class Scope:
         bindings = self.links.unlisted_kind_links(BOUND_LINK)
         if not bindings:
             return ()
-        owners = {ref, *(link.target for kind in member_links for link in self.links.ref_links("source", [ref], kind))}
+        owners = {ref, *(link.target for type_name in member_links for link in self.links.ref_links("source", [ref], type_name))}
         return tuple(dict.fromkeys(link.target.id for link in bindings if link.source in owners))

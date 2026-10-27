@@ -16,7 +16,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class MessageImport(EnvironmentTableImport):
     """Every message, the packed ones too, with its author, its time, what it replies to and its attachments."""
 
-    kind = "message"
+    row_type = "message"
     title = "messages"
 
     def __init__(self, environments: Environments, tally: MigratedRows, messages: Messages, config: Config) -> None:

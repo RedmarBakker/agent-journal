@@ -11,5 +11,5 @@ class Index:
     unique: bool = False
 
     def sql(self) -> str:
-        kind = "UNIQUE INDEX" if self.unique else "INDEX"
-        return f"CREATE {kind} {self.name} ON {self.table} ({self.columns})"
+        type_name = "UNIQUE INDEX" if self.unique else "INDEX"
+        return f"CREATE {type_name} {self.name} ON {self.table} ({self.columns})"

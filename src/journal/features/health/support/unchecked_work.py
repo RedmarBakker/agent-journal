@@ -17,7 +17,7 @@ class UncheckedWork:
 
     @classmethod
     def read(cls, bypasses: list[Bypass]) -> "UncheckedWork":
-        return cls(sum(1 for bypass in bypasses if bypass.kind == HOOK), tuple(" && ".join(Chain.self_parts(bypass.subject)) for bypass in bypasses if bypass.kind == SHELL))
+        return cls(sum(1 for bypass in bypasses if bypass.bypass_type == HOOK), tuple(" && ".join(Chain.self_parts(bypass.subject)) for bypass in bypasses if bypass.bypass_type == SHELL))
 
     def is_empty(self) -> bool:
         return not self.hooks and not self.commands

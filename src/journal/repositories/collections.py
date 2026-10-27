@@ -29,10 +29,10 @@ class Collections(ScopedRepository[Collection]):
 
     def joined(self, collection: Collection, ref: Ref, actor: Actor) -> None:
         if ref not in self.links.targets(collection, MEMBER_LINK):
-            self.links.save(Link(source=Ref.build(collection), target=ref, kind=MEMBER_LINK), actor)
+            self.links.save(Link(source=Ref.build(collection), target=ref, link_type=MEMBER_LINK), actor)
 
     def parted(self, collection: Collection, ref: Ref, actor: Actor) -> None:
-        for link in self.links.all_matching(source=Ref.build(collection), target=ref, kind=MEMBER_LINK):
+        for link in self.links.all_matching(source=Ref.build(collection), target=ref, link_type=MEMBER_LINK):
             self.links.delete(link, actor)
 
     def owned(self, owner: Model, title: str, actor: Actor) -> Collection:
@@ -40,7 +40,7 @@ class Collections(ScopedRepository[Collection]):
         if existing:
             return existing[0]
         collection = self.save(Collection(title=title), actor)
-        self.links.save(Link(source=Ref.build(owner), target=Ref.build(collection), kind=OWNER_LINK), actor)
+        self.links.save(Link(source=Ref.build(owner), target=Ref.build(collection), link_type=OWNER_LINK), actor)
         return collection
 
     def owner_collection(self, owner: Model) -> list[Collection]:

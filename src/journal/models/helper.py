@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from typing import ClassVar
 
 from journal.models.scoped import Scoped
 
@@ -11,6 +12,8 @@ WORKER_POOL = "workers"
 class Helper(Scoped):
     """An agent sent on one job, a worker or a verifier, stored in the one table of sent agents, its kind saying which: its name and brief, its program and model, its session, the hash of the token its run proves itself with, and its process."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "helper_type"}
+
     name: str = ""
     brief: str = ""
     provider: str = "claude"
@@ -18,15 +21,15 @@ class Helper(Scoped):
     session: str = ""
     token_hash: str = ""
     pid: int = 0
-    kind: str = ""
+    helper_type: str = ""
 
     @classmethod
     def storage(cls) -> str:
         return HELPERS_TABLE
 
     @classmethod
-    def kind_filter(cls) -> dict[str, str]:
-        return {"kind": next(field.default for field in fields(cls) if field.name == "kind")}
+    def type_filter(cls) -> dict[str, str]:
+        return {"helper_type": next(field.default for field in fields(cls) if field.name == "helper_type")}
 
     @classmethod
     def number_pool(cls) -> str | None:

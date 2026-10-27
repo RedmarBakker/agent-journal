@@ -17,7 +17,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class CommentImport(EnvironmentTableImport):
     """A comment becomes a message linked to the row it was written under, once that row has come across."""
 
-    kind = "comment"
+    row_type = "comment"
     title = "comments"
 
     def __init__(self, environments: Environments, tally: MigratedRows, messages: Messages, links: Links) -> None:
@@ -32,5 +32,5 @@ class CommentImport(EnvironmentTableImport):
 
     def created(self, row: Version3Row, receiver: Environment, attached: Path, actor: Actor) -> Message:
         comment = self.messages.imported(Message(environment_id=receiver.row_id, author=Author(row.author()), text=row.brief, read_at=row.reading_moment()), row.creation_moment(), actor)
-        self.links.save(Link(source=Ref.build(comment), target=self.ledger.counterpart(receiver.name, tuple(row.refs)), kind=Messages.COMMENT_LINK), actor)
+        self.links.save(Link(source=Ref.build(comment), target=self.ledger.counterpart(receiver.name, tuple(row.refs)), link_type=Messages.COMMENT_LINK), actor)
         return comment

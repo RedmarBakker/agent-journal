@@ -66,5 +66,5 @@ class PluginManifest:
     def programs(self) -> list[str]:
         return [self.program, *(s.program for s in self.services if s.is_local)]
 
-    def card_kind(self, kind: str) -> PluginCardType:
-        return next((k for k in self.cards if k.kind == kind), PluginCardType(kind, self.name))
+    def card_kind(self, type_name: str) -> PluginCardType:
+        return next((k for k in self.cards if k.card_type == type_name), PluginCardType(type_name, self.name))

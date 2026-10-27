@@ -16,12 +16,14 @@ SECTION_NAMES = {"need": ("waits on you", "wait on you"), "done": ("done", "done
 class Report(Scoped):
     """What was checked or researched now; an update report is of kind update, its abstract the agent's summary and its items the rows the journal gathered for the time it covers, each with its section, ref, title and note, the moment the user read it, and why it needs no action once it is signed off as such."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "report_type"}
+
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
     title: str = ""
     abstract: str = field(default="", metadata={"characters": (1, ABSTRACT_LENGTH_CHARACTERS)})
     body: str = ""
-    kind: str = ""
+    report_type: str = ""
     items: tuple = ()
     start_at: datetime | None = None
     end_at: datetime | None = None
@@ -55,7 +57,7 @@ class Report(Scoped):
         return DockCard((DockButton("Open update", "open_update"), DockButton("Close", "close"))) if self.is_update() else DockCard.plain()
 
     def is_update(self) -> bool:
-        return self.kind == UPDATE
+        return self.report_type == UPDATE
 
     def writing_status(self) -> str:
         return "Being written" if self.unfinished else "Ready"

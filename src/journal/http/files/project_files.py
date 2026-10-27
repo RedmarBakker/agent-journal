@@ -42,8 +42,8 @@ class ProjectFiles:
         try:
             text = raw.decode()
         except UnicodeDecodeError:
-            return ProjectFile(path=value, kind="binary", size=len(raw), lines=0, text="")
-        return ProjectFile(path=value, kind="text", size=len(raw), lines=len(text.splitlines()), text=text)
+            return ProjectFile(path=value, file_type="binary", size=len(raw), lines=0, text="")
+        return ProjectFile(path=value, file_type="text", size=len(raw), lines=len(text.splitlines()), text=text)
 
     def raw(self, value: str) -> tuple[str, bytes] | None:
         path = self.contains(value)

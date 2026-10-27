@@ -6,7 +6,7 @@ class PluginSetting:
     """One setting a plugin's schema names: its key, its kind, the words the page shows for it, its default and, for a choice, the choices."""
 
     key: str
-    kind: str
+    setting_type: str
     title: str = ""
     help: str = ""
     default: object = None
@@ -18,4 +18,4 @@ class PluginSetting:
 
     @property
     def is_secret(self) -> bool:
-        return self.kind == "secret"
+        return self.setting_type == "secret"

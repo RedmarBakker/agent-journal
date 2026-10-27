@@ -15,7 +15,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class EnvironmentTableImport:
     """A version 3 kind stored per environment, migrated row by row for each environment found: a row already migrated is skipped, and one not migrated is reported with the reason."""
 
-    kind: ClassVar[str]
+    row_type: ClassVar[str]
     title: ClassVar[str]
 
     def __init__(self, environments: Environments, tally: MigratedRows) -> None:
@@ -26,24 +26,24 @@ class EnvironmentTableImport:
         count, skipped = 0, []
         for environment in [e for e in rows.environments() if self.ledger.is_imported(f"project/environment/{e.n}")]:
             target = self.environments.existing(environment.title)
-            for row in rows.rows(environment.title, self.kind):
+            for row in rows.rows(environment.title, self.row_type):
                 source = self.source(environment.title, row)
                 reason = self.skipped(row, target)
                 if reason:
-                    skipped.append(f"{self.kind} {row.n} in {environment.title}: {reason}")
+                    skipped.append(f"{self.row_type} {row.n} in {environment.title}: {reason}")
                     continue
                 if self.ledger.is_imported(source):
                     continue
                 try:
-                    self.ledger.import_rows(source, lambda: self.created(row, target, folder / "environments" / environment.title / self.kind / str(row.n), actor), actor)
+                    self.ledger.import_rows(source, lambda: self.created(row, target, folder / "environments" / environment.title / self.row_type / str(row.n), actor), actor)
                 except Exception as fault:
-                    skipped.append(f"{self.kind} {row.n} in {environment.title}: could not be brought: {fault}")
+                    skipped.append(f"{self.row_type} {row.n} in {environment.title}: could not be brought: {fault}")
                     continue
                 count += 1
         return ImportTally(self.title, count, tuple(skipped))
 
     def source(self, environment: str, row: Version3Row) -> str:
-        return f"environments/{environment}/{self.kind}/{row.n}"
+        return f"environments/{environment}/{self.row_type}/{row.n}"
 
     def skipped(self, row: Version3Row, target: Environment) -> str:
         return "deleted" if row.is_deleted() else ""

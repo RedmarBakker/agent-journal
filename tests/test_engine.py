@@ -86,6 +86,7 @@ from journal.engine.nudge_registry import NudgeRegistry
 from journal.support.time_source import TimeSource
 from journal.events.agent.session_started import SessionStarted
 from tests.in_process import posted
+from tests.old_columns import kind_columns
 from tests.user_settings import user_set
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.stop import Stop
@@ -141,8 +142,8 @@ def boot():
     return booted
 
 
-def hook(app, kind: str, **body):
-    return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+def hook(app, type_name: str, **body):
+    return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
 
 def batch_waited(app) -> None:
@@ -627,8 +628,8 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
         worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
         tasks.handover(task, Ref.build(worker), Actor.system())
-    def worker_hook(kind: str, **body):
-        data = json.dumps({"hook_event_name": kind, "session_id": "w1", **body}).encode()
+    def worker_hook(type_name: str, **body):
+        data = json.dumps({"hook_event_name": type_name, "session_id": "w1", **body}).encode()
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
         try:
             with urlopen(request, timeout=5) as reply:
@@ -972,12 +973,12 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         plan = plans.save(Plan(environment_id=1, title="p", state=PlanState.APPROVED), actor)
         first, second = [phases.save(Phase(environment_id=1, title=title, checkpoint=title == "one"), actor) for title in ("one", "two")]
         for phase in (first, second):
-            links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
+            links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)
         rows = [tasks.save(Task(environment_id=1, title=title), actor) for title in ("a", "b", "c", "loose")]
         for task in rows:
-            links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
         for task, phase in ((rows[1], first), (rows[0], first), (rows[2], second)):
-            links.save(Link(source=Ref.build(task), target=Ref.build(phase), kind=PHASE_LINK), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), actor)
         assert [phase.id for phase in plans.plan_phases(plan)] == [first.id, second.id], "in the order they were added"
         LoadTally.begin()
         states = plans.phase_states(plan)
@@ -1017,7 +1018,7 @@ def test_a_hub_task_and_a_hub_plan_bound_to_an_environment_read_as_its_work_and_
             heard.append(event)
 
     assert hook(app, "SessionStart")[0] == 200
-    environments, plans, tasks, phases, links, scope = (app.container.get(kind) for kind in (Environments, Plans, Tasks, Phases, Links, Scope))
+    environments, plans, tasks, phases, links, scope = (app.container.get(type_name) for type_name in (Environments, Plans, Tasks, Phases, Links, Scope))
     actor = Actor.system()
     main = environments.existing("main")
     hub = environments.save(Environment.hub("k-acme", "acme"), actor)
@@ -1026,13 +1027,13 @@ def test_a_hub_task_and_a_hub_plan_bound_to_an_environment_read_as_its_work_and_
         plan = plans.save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), actor)
         phase = phases.save(Phase(environment_id=hub.row_id, title="one"), actor)
         planned = tasks.save(Task(environment_id=hub.row_id, title="in the team's plan"), actor)
-    links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
-    links.save(Link(source=Ref.build(planned), target=Ref.build(plan), kind=PLAN_LINK), actor)
+    links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)
+    links.save(Link(source=Ref.build(planned), target=Ref.build(plan), link_type=PLAN_LINK), actor)
     local_rows = (len(tasks.global_matching(environment_id=main.row_id)), len(plans.global_matching(environment_id=main.row_id)), len(phases.global_matching(environment_id=main.row_id)))
     with scope.environment(main.row_id):
         assert not {task.id, planned.id} & {row.id for row in tasks.scoped()} and plan.id not in {row.id for row in plans.scoped()}, "a hub row is no environment's work until it is bound"
     for row in (task, plan):
-        links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), main.row_id), kind=BOUND_LINK), actor)
+        links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), main.row_id), link_type=BOUND_LINK), actor)
     with scope.environment(main.row_id):
         assert {task.id, planned.id} <= {row.id for row in tasks.open_tasks()} and plan.id in {row.id for row in plans.scoped()}, "the bound task and plan read as the environment's work"
         assert [row.id for row in plans.plan_phases(plan)] == [phase.id] and plans.remaining_count(plan) == 1 and plans.next_task(plan).id == planned.id, "and the bound plan's phases and tasks with it"
@@ -2225,7 +2226,7 @@ def test_a_compaction_start_is_handed_down_whole_so_the_start_block_comes_once_a
     assert status == 200 and context.count(BriefingNudges.JOURNAL_READY.create(env="main").rendered()) == 1, "the state beneath hears the start once, so the start block is not sent twice: " + context[:400]
     assert app.container.get(Agents).session_agent("s1").stack[-1]["state"] == "reading_overview", "and the push of the overview state is taken, not dropped on the compacting state"
     with app.container.get(Scope).environment(1):
-        moves = app.container.get(Entries).selected(app.container.get(Entries).query().filter(kind="state"))
+        moves = app.container.get(Entries).selected(app.container.get(Entries).query().filter(entry_type="state"))
     assert not any(entry.data.get("dropped") for entry in moves), "no listener answered the start while the compacting state was still on top"
 
 
@@ -2542,7 +2543,7 @@ def test_tasks_added_to_a_plan_leave_the_load_where_it_was(app: App):
         before = tasks.unplanned_open_count()
         for number in range(10):
             task = tasks.save(Task(environment_id=1, title=f"t{number}"), actor)
-            links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
         assert tasks.unplanned_open_count() == before, "ten tasks in a plan are no arrival"
         tasks.save(Task(environment_id=1, title="loose"), actor)
         assert tasks.unplanned_open_count() == before + 1
@@ -2857,7 +2858,7 @@ def test_each_helpers_file_alone_says_what_reaches_it_and_a_wrong_file_stops_the
     registry, roles = app.container.get(Registry), AgentRole.helpers()
     assert {role.value: sorted(conduct.__name__ for conduct in registry.conducts(role)) for role in roles} == HELPER_CONDUCTS
     assert {role.value: state.__name__ for role, state in registry.floors().items()} == HELPER_FLOORS
-    listeners = {listener.registered_class() for kind in StateMachine.event_kinds(AgentEvent) for listener in app.container.get(Bus).listeners(kind)}
+    listeners = {listener.registered_class() for type_name in StateMachine.event_kinds(AgentEvent) for listener in app.container.get(Bus).listeners(type_name)}
     reached = {role.value: sorted({listener.__name__ for listener in listeners if registry.reaches_helper(listener, role)}) for role in roles}
     assert reached == HELPER_LISTENERS, reached
     console = app.console()
@@ -3259,6 +3260,7 @@ def test_the_tool_use_columns_are_dropped_from_a_database_that_holds_them(connec
     from journal.db.migrations.tool_use_columns_drop import DROPPED_COLUMNS, ToolUseColumnsDrop
     for column in DROPPED_COLUMNS:
         connection.execute(f"ALTER TABLE agents ADD COLUMN {column} TEXT")
+    kind_columns(connection)
     connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator, handover_uses) VALUES (1, 's1', 'main', 'idle', '{}', '[]', '2026-10-26', 'system', '[3]')")
     connection.execute("INSERT INTO entries (environment_id, kind, actor, data, created_at, creator) VALUES (1, 'workload_level', 'system', '{}', '2026-10-26', 'system')")
     ToolUseColumnsDrop().apply(connection)
@@ -3580,7 +3582,7 @@ def test_every_row_event_names_the_feature_it_belongs_to(app: App):
     from journal.events.rows.worker_delivered import WorkerDelivered
     from journal.features.registry import ENGINE, Registry
     registry = app.container.get(Registry)
-    unknown = [kind.__name__ for kind in StateMachine.event_kinds(RowEvent) if kind is not RowEvent and kind.feature_name != ENGINE and not registry.has_feature(kind.feature_name)]
+    unknown = [type_name.__name__ for type_name in StateMachine.event_kinds(RowEvent) if type_name is not RowEvent and type_name.feature_name != ENGINE and not registry.has_feature(type_name.feature_name)]
     assert not unknown, f"row events naming no feature the registry knows: {unknown}"
     assert (TaskClosed.feature_name, WorkerDelivered.feature_name) == ("tasks", "workers"), "a row event names its own feature, a worker's delivery the workers feature though it resolves a wait"
 
@@ -3733,20 +3735,20 @@ def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers
         tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
 
-    def worker_hook(at: float, silence: str = "", kind: str = "PreToolUse", command: str = "ls") -> tuple[int, dict]:
+    def worker_hook(at: float, silence: str = "", type_name: str = "PreToolUse", command: str = "ls") -> tuple[int, dict]:
         source.pin(at)
-        body = {"hook_event_name": kind, "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}
+        body = {"hook_event_name": type_name, "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}
         return posted(app, "/hooks/claude", body, {"X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok", "X-Journal-Silence-Start": silence})
     top = lambda: app.container.get(SessionAgents).top("w1").name
     assert worker_hook(1000.0)[0] == 200, "a worker its journal answers goes on"
     status, body = worker_hook(1020.0, silence="1000")
     assert status == 409 and "did not answer for 20 seconds" in json.dumps(body) and top() == "locked_out", "a hook answered after a silence locks the worker out"
-    assert worker_hook(1022.0, command="journal todo list")[0] == 409 and worker_hook(1023.0, kind="PreCompact")[0] in (200, 409) and top() == "locked_out", "every tool is held, a journal command too, and nothing else moves it"
+    assert worker_hook(1022.0, command="journal todo list")[0] == 409 and worker_hook(1023.0, type_name="PreCompact")[0] in (200, 409) and top() == "locked_out", "every tool is held, a journal command too, and nothing else moves it"
     assert worker_hook(1026.0)[0] == 200 and top() != "locked_out", "once the journal has answered for a few seconds the state pops and the tool goes on"
     status, body = worker_hook(2000.0, silence="1950")
     assert status == 409 and "your work ends here" in json.dumps(body) and top() == "locked_out", "a silence past the grace ends the worker"
     assert worker_hook(2100.0)[0] == 409 and top() == "locked_out", "and it never goes on"
-    assert worker_hook(2101.0, kind="Stop")[1].get("decision") != "block", "its stop goes through"
+    assert worker_hook(2101.0, type_name="Stop")[1].get("decision") != "block", "its stop goes through"
 
 
 def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_edits():

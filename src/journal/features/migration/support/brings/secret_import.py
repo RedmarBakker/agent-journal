@@ -10,7 +10,7 @@ from journal.repositories.secrets import Secrets
 class SecretImport(ProjectType):
     """A secret brings its name, how it is used, its kind, its fields and the programs the user allowed; never a value, which the user fills again on the Secrets page."""
 
-    kind = "secret"
+    row_type = "secret"
     title = "secrets"
 
     def __init__(self, tally: MigratedRows, secrets: Secrets) -> None:
@@ -18,7 +18,7 @@ class SecretImport(ProjectType):
         self.secrets = secrets
 
     def created(self, row: Version3Row, actor: Actor) -> Secret:
-        kind = row.data.get("kind", "")
+        type_name = row.data.get("kind", "")
         fields = tuple({"name": f.get("name", ""), "hidden": bool(f.get("hidden")), "variable": f.get("variable", "")} for f in row.listed("secret_fields"))
-        secret = Secret(title=row.title, brief=row.brief, kind=SecretType(kind) if kind in {k.value for k in SecretType} else SecretType.CUSTOM, fields=fields, programs=tuple(row.listed("programs")))
+        secret = Secret(title=row.title, brief=row.brief, secret_type=SecretType(type_name) if type_name in {k.value for k in SecretType} else SecretType.CUSTOM, fields=fields, programs=tuple(row.listed("programs")))
         return self.secrets.imported(secret, row.creation_moment(), actor)

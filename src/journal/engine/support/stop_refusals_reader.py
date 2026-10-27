@@ -15,6 +15,6 @@ class StopRefusalsReader:
 
     def read(self, agent: Agent) -> int:
         newest = self.entries.turn_events(agent.session, 1)
-        answered = newest[0].row_id if newest and newest[0].kind == STOP and "refused" not in newest[0].data else 0
+        answered = newest[0].row_id if newest and newest[0].entry_type == STOP and "refused" not in newest[0].data else 0
         return self.entries.refusal_run_count(agent.session, answered, RECENT_TURN_EVENTS)
 

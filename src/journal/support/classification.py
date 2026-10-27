@@ -45,8 +45,8 @@ class Classification:
         parts = list(classifications)
         if not parts:
             return cls()
-        kind = min((part.command_type for part in parts), key=lambda kind: KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER))
-        return cls(command_type=kind, effects=tuple(sorted({effect for part in parts for effect in part.effects})), uncertain=any(part.uncertain for part in parts), label=next((part.label for part in sorted(parts, key=lambda part: part.command_type != kind) if part.label), ""))
+        type_name = min((part.command_type for part in parts), key=lambda type_name: KIND_ORDER.index(type_name) if type_name in KIND_ORDER else len(KIND_ORDER))
+        return cls(command_type=type_name, effects=tuple(sorted({effect for part in parts for effect in part.effects})), uncertain=any(part.uncertain for part in parts), label=next((part.label for part in sorted(parts, key=lambda part: part.command_type != type_name) if part.label), ""))
 
     def with_row(self, row: TableRow) -> "Classification":
         effects = row.effects if row.command_type else (*self.effects, *row.effects)

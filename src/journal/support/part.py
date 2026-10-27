@@ -34,7 +34,7 @@ class Part:
     guarded: bool = False
     reads_code: bool = False
 
-    def kind(self) -> str:
+    def part_type(self) -> str:
         return ("R" if self.recorded else "S") + (";" if self.unconditional else "&") + ("&" if self.guarded else ";")
 
     def tokens(self) -> list[str]:

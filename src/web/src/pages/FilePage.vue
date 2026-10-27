@@ -36,7 +36,7 @@ async function load() {
         [file.value, diff.value] = await Promise.all([
             api
                 .projectFile(route.value.q)
-                .catch((e) => (changes.value ? {path: route.value.q, kind: "", size: 0, lines: 0, gone: true} : Promise.reject(e))),
+                .catch((e) => (changes.value ? {path: route.value.q, file_type: "", size: 0, lines: 0, gone: true} : Promise.reject(e))),
             changes.value ? api.fileDiff(route.value.q).then((got) => got.diff) : "",
         ]);
     } catch (e) {
@@ -125,7 +125,7 @@ watch(() => route.value.line, reveal);
                     :class="{framed: isPicture(file.path)}"
                     :name="file.path"
                     :url="api.projectFileUrl(file.path)"
-                    :text="file.kind === 'text' ? file.text : null"
+                    :text="file.file_type === 'text' ? file.text : null"
                 >
                     <template #text>
                         <template v-if="picked">

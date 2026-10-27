@@ -48,13 +48,13 @@ class Actor:
 
     @classmethod
     def parse(cls, stamp: str) -> "Actor":
-        kind, _, id = stamp.partition(":")
-        return cls(ActorType(kind), id)
+        type_name, _, id = stamp.partition(":")
+        return cls(ActorType(type_name), id)
 
     @staticmethod
-    def stamp_number(stamp: str, kind: ActorType) -> int | None:
+    def stamp_number(stamp: str, type_name: ActorType) -> int | None:
         prefix, colon, number = stamp.partition(":")
-        if prefix != kind.value or not colon:
+        if prefix != type_name.value or not colon:
             return None
         return int(number) if number.isdigit() else 0
 

@@ -11,7 +11,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class DocImport(ProjectType):
     """A document keeps its title, its line and its current text; its older revisions stay in the backup."""
 
-    kind = "doc"
+    row_type = "doc"
     title = "documents"
 
     def __init__(self, tally: MigratedRows, docs: Docs) -> None:

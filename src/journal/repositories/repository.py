@@ -130,14 +130,14 @@ class Repository(Generic[M]):
     def stored_model(model: type[Model], row) -> Model:
         return model(**{column.name: value for column in Schema.columns(model) if (value := column.parsed(row[column.name])) is not None})
 
-    def linked(self, kind: str, ids: Iterable[int]) -> dict[int, list[Ref]]:
-        return self._linked(self.link_query.filter(kind=kind).filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
+    def linked(self, type_name: str, ids: Iterable[int]) -> dict[int, list[Ref]]:
+        return self._linked(self.link_query.filter(link_type=type_name).filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
 
     def linked_rows(self, ids: Iterable[int]) -> dict[int, list[Ref]]:
         return self._linked(self.link_query.filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
 
-    def linking_counts(self, kind: str, ids: Iterable[int]) -> dict[int, int]:
-        query = self.link_query.filter(kind=kind).filter_listed("target", [f"{self.table}:{row_id}" for row_id in ids])
+    def linking_counts(self, type_name: str, ids: Iterable[int]) -> dict[int, int]:
+        query = self.link_query.filter(link_type=type_name).filter_listed("target", [f"{self.table}:{row_id}" for row_id in ids])
         with self.connection.unlisted():
             return {Ref.parse(row["value"]).id: row["total"] for row in self.connection.all(*query.grouped("target"))}
 
@@ -282,7 +282,10 @@ class Repository(Generic[M]):
             return rows
 
     def _parsed(self, fields: dict) -> dict:
-        return {name: self.column_map[name].parsed(value) for name, value in fields.items() if name in self.column_map and name != "id"}
+        return {name: self.column_map[name].parsed(value) for name, value in self._current_names(fields).items() if name in self.column_map and name != "id"}
+
+    def _current_names(self, fields: dict) -> dict:
+        return {self.model.column_renames.get(name, name): value for name, value in fields.items()}
 
     def remove(self, id: int, actor: Actor) -> None:
         self.delete(self.find(id), actor)

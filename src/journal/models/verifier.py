@@ -13,7 +13,7 @@ class Verifier(Helper):
     shared: ClassVar[bool] = False
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
 
-    kind: str = "verifier"
+    helper_type: str = "verifier"
     state: VerifierState = VerifierState.VERIFYING
 
     def next_judgement(self, brief: str) -> "Verifier":

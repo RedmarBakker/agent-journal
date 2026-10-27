@@ -13,7 +13,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class FactImport(EnvironmentTableImport):
     """A version 3 fact becomes a memory of weight 5 with its text and keywords; a struck one stays behind."""
 
-    kind = "fact"
+    row_type = "fact"
     title = "facts"
 
     def __init__(self, environments: Environments, tally: MigratedRows, memories: Memories) -> None:

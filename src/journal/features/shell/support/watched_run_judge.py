@@ -65,6 +65,6 @@ class WatchedRunJudge:
     def contradicted(self, command: str, findings: set[str], time: datetime) -> None:
         name = self.shapes.command_name(command)
         for report in self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS))):
-            kinds = {kind for kind in WATCHED_RUN_FINDINGS if any(kind in finding for finding in report.findings)}
-            if self.shapes.command_name(report.command) == name and any(kind in finding for kind in kinds for finding in findings):
+            kinds = {type_name for type_name in WATCHED_RUN_FINDINGS if any(type_name in finding for finding in report.findings)}
+            if self.shapes.command_name(report.command) == name and any(type_name in finding for type_name in kinds for finding in findings):
                 self.reports.save(report.contradicted(f"a later run of {name} showed the same while it ran, so the dismissal \"{report.dismissal}\" was wrong", time), Actor.system())

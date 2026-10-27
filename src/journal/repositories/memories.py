@@ -28,7 +28,7 @@ class Memories(ScopedRepository[Memory]):
     def added(self, memory: Memory, owner: Ref | None, actor: Actor) -> Memory:
         saved = self.save(memory, actor)
         if owner is not None:
-            self.links.save(Link(source=Ref.build(saved), target=owner, kind=OWNER_LINK), actor)
+            self.links.save(Link(source=Ref.build(saved), target=owner, link_type=OWNER_LINK), actor)
         return saved
 
     def shown(self, owner: Ref | None = None) -> list[Memory]:
@@ -61,5 +61,5 @@ class Memories(ScopedRepository[Memory]):
         return self.owned_query(owner).filter_greater("weight", LIGHTEST).filter_null("removed_at")
 
     def owned_query(self, owner: Ref | None) -> Query:
-        owner_links = self.links.query().filter(kind=OWNER_LINK).filter_ref("source", self.query())
+        owner_links = self.links.query().filter(link_type=OWNER_LINK).filter_ref("source", self.query())
         return self.query().filter_absent(owner_links) if owner is None else self.query().filter_existing(owner_links.filter(target=owner))

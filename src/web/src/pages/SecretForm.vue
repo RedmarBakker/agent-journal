@@ -12,7 +12,7 @@ import TextInput from "../kit/TextInput.vue";
 const props = defineProps({draft: {type: Object, required: true}});
 const emit = defineEmits(["allowed"]);
 const program = ref("");
-const own = computed(() => props.draft.kind === "custom");
+const own = computed(() => props.draft.secret_type === "custom");
 
 // Allowing a program the agent proposed is a decision of its own, so the page it sits on saves it at once rather than waiting for the Save below.
 function allow(name) {

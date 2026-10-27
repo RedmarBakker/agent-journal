@@ -196,8 +196,8 @@ class WorkerBranch:
             raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
 
-    def merging_event(self, kind: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
-        return kind(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task_id, branch=self.name(worker), worktree=str(self.folder(worker)), repositories=worker.repositories, files=self.touched(worker) or (), base=self.base(worker), window_ms=window_ms)
+    def merging_event(self, type_name: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
+        return type_name(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task_id, branch=self.name(worker), worktree=str(self.folder(worker)), repositories=worker.repositories, files=self.touched(worker) or (), base=self.base(worker), window_ms=window_ms)
 
     def base(self, worker: Worker) -> str:
         return self.git("rev-parse", "--abbrev-ref", "HEAD", cwd=self.checkout(worker)).stdout.strip()

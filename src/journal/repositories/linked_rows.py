@@ -15,14 +15,14 @@ class LinkedRows:
 
     def added(self, row: Model, parent: Model, actor: Actor) -> Model:
         saved = self.save(row, actor)
-        self.links.save(Link(source=Ref.build(saved), target=Ref.build(parent), kind=self.link_kind), actor)
+        self.links.save(Link(source=Ref.build(saved), target=Ref.build(parent), link_type=self.link_kind), actor)
         return saved
 
     def children(self, parent: Model) -> list:
         return self.numbered(ref.id for ref in self.links.sources(parent, self.link_kind))
 
     def grouped(self, parent_ids: set[int]) -> dict[int, list]:
-        owners = {link.source.id: link.target.id for link in self.links.all_matching(kind=self.link_kind) if link.target.id in parent_ids}
+        owners = {link.source.id: link.target.id for link in self.links.all_matching(link_type=self.link_kind) if link.target.id in parent_ids}
         groups: dict[int, list] = {}
         for row in self.numbered(owners):
             groups.setdefault(owners[row.row_id], []).append(row)

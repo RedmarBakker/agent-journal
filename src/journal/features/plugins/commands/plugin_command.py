@@ -126,10 +126,10 @@ class PluginCommand(Command):
         for setting in self.schemas.schema(plugin):
             value = plugin.settings.get(setting.key)
             shown = f"secret {value['secret']}, filled on the Secrets page" if isinstance(value, dict) else value
-            print(f"{setting.key:<16} {setting.kind:<7} {shown}  {setting.title}" + (f": {setting.help}" if setting.help else ""))
+            print(f"{setting.key:<16} {setting.setting_type:<7} {shown}  {setting.title}" + (f": {setting.help}" if setting.help else ""))
         return 0
 
     @staticmethod
     def description(preview: PluginPreview) -> str:
         head = [f"{preview.name} {preview.version}" + (f": {preview.title}" if preview.title != preview.name else ""), f"from {preview.source}" + (f" at {preview.commit[:12]}" if preview.commit else " (linked: read where it lies)")]
-        return "\n".join(head + [f"{STEP_DESCRIPTIONS[r.kind]} {r.label}: {r.command}".rstrip(": ") for r in preview.rows])
+        return "\n".join(head + [f"{STEP_DESCRIPTIONS[r.item_type]} {r.label}: {r.command}".rstrip(": ") for r in preview.rows])

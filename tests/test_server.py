@@ -246,7 +246,7 @@ def test_version_fours_own_api_lists_every_resource_and_answers_a_question(serve
     status, answered = call(server, "POST", "/journal/questions/1/answer", {"answer": "b"})
     assert answered["answer"] == "b"
     status, entries = call(server, "GET", "/journal/entries?since=0")
-    assert status == 200 and any(e["kind"] == "created" and e["data"]["table"] == "questions" for e in entries)
+    assert status == 200 and any(e["entry_type"] == "created" and e["data"]["table"] == "questions" for e in entries)
     status, settings = call(server, "GET", "/journal/settings")
     assert settings["features"]["tasks"] is True
     call(server, "POST", "/journal/settings", {"features": {**settings["features"], "tasks": False}})
@@ -319,8 +319,8 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
         call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
         assert call(server, "GET", "/journal/reactions")[1]["rows"] == [], "the same face again takes it off"
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-        for kind, extra in (("SessionStart", {}), ("PreToolUse", {"tool_name": "Agent", "tool_input": {"description": "review the login", "prompt": "read the login flow and report", "subagent_type": "journal-plan-reviewer", "model": "sonnet"}}), ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": "fine"})):
-            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        for type_name, extra in (("SessionStart", {}), ("PreToolUse", {"tool_name": "Agent", "tool_input": {"description": "review the login", "prompt": "read the login flow and report", "subagent_type": "journal-plan-reviewer", "model": "sonnet"}}), ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": "fine"})):
+            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         thresholds = lambda: [m["data"] for m in call(server, "GET", "/journal/messages?limit=200")[1]["rows"] if m["data"].get("kind") == "subagent"]
         for _ in range(50):
             if any(c["state"] == "done" for c in thresholds()):
@@ -341,7 +341,7 @@ def test_the_subagents_are_listed_as_their_rows_stand_a_resumed_one_running_agai
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
         agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}
         message = {"to": "a9", "message": "one more"}
-        for kind, extra in (
+        for type_name, extra in (
             ("SessionStart", {"source": "startup"}),
             ("PreToolUse", {"tool_name": "Agent", "tool_input": agent, "tool_use_id": "t-1"}),
             ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": {"isAsync": True, "agentId": "a9"}, "tool_use_id": "t-1"}),
@@ -349,7 +349,7 @@ def test_the_subagents_are_listed_as_their_rows_stand_a_resumed_one_running_agai
             ("PreToolUse", {"tool_name": "SendMessage", "tool_input": message, "tool_use_id": "t-2"}),
             ("PostToolUse", {"tool_name": "SendMessage", "tool_input": message, "tool_response": {}, "tool_use_id": "t-2"}),
         ):
-            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         listed = lambda: call(server, "GET", "/journal/subagents")[1]
         for _ in range(50):
             if [r["resumed_at"] > 0 for r in listed()["rows"]] == [True]:
@@ -372,8 +372,8 @@ def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_se
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
         agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}
         message = {"to": "a9", "message": "one more"}
-        def hook(kind, **extra):
-            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        def hook(type_name, **extra):
+            urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s9", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         listed = lambda: call(server, "GET", "/journal/subagents")[1]["rows"]
         def states(expected):
             for _ in range(50):
@@ -429,8 +429,8 @@ def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entrie
     unowed(app)
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    def hook(type_name, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
     try:
         hook("SessionStart")
         call(server, "POST", "/journal/messages", {"text": "hello agent"})
@@ -458,8 +458,8 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
     unowed(app)
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    def hook(type_name, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
     shell = {"command": "ls src && git status"}
     try:
         hook("SessionStart")
@@ -486,8 +486,8 @@ def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its
     unowed(app)
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        request = HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+    def hook(type_name, **extra):
+        request = HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
         try:
             urlopen(request, timeout=5).read()
             return 200
@@ -514,8 +514,8 @@ def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_han
     unowed(app)
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    def hook(type_name, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
     work = lambda: whole_rows(server, "agents")[0]["tool_work"]
     try:
         hook("SessionStart")
@@ -539,8 +539,8 @@ def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: 
     unowed(app)
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    def hook(type_name, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
     doing = lambda: whole_rows(server, "agents")[0]["doing"]
     shell = {"command": "ls src && git status"}
     try:
@@ -783,8 +783,8 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
     app.runtime().start()
     server = app.server()
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
-    def hook(kind, **extra):
-        return urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    def hook(type_name, **extra):
+        return urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
     try:
         hook("SessionStart")
         n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "k"})[1]["id"]
@@ -792,12 +792,12 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         app.console().run(["task", "create", "t", "--start"], Caller.agent("main", "s1", "claude"))
         app.console().run(["task", "complete", "1", "--how", "shipped"], Caller.agent("main", "s1", "claude"))
         entries = call(server, "GET", "/journal/entries?last=50")[1]
-        assert any(e["kind"] == "updated" and e["data"]["table"] == "messages" and "read_at" in e["data"]["changed"] for e in entries)
-        assert any(e["kind"] == "updated" and e["data"]["table"] == "tasks" and "completed_at" in e["data"]["changed"] for e in entries)
-        assert any(e["kind"] == "SessionStarted" for e in entries)
+        assert any(e["entry_type"] == "updated" and e["data"]["table"] == "messages" and "read_at" in e["data"]["changed"] for e in entries)
+        assert any(e["entry_type"] == "updated" and e["data"]["table"] == "tasks" and "completed_at" in e["data"]["changed"] for e in entries)
+        assert any(e["entry_type"] == "SessionStarted" for e in entries)
         hook("PostToolUse", tool_name="Edit", tool_input={"file_path": str(tmp_path / "a.py"), "old_string": "x", "new_string": "y"}, tool_response={"structuredPatch": [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]})
         edit = call(server, "GET", "/journal/agents/1/edits")[1]["edits"][0]
-        assert [r["kind"] for r in edit["rows"]] == ["ctx", "del", "add", "ctx"] and edit["first_line"] == 7 and edit["last_line"] == 9
+        assert [r["line_type"] for r in edit["rows"]] == ["ctx", "del", "add", "ctx"] and edit["first_line"] == 7 and edit["last_line"] == 9
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-9")
         ShellVerbs(app).ran("journal task list", "c1", 0, output="1 t")
         hook("PostToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_response={"stdout": "1 t"}, tool_use_id="t-9")
@@ -908,8 +908,8 @@ def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_pat
     server = app.server()
     try:
         n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for kind, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
+            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         app.runtime().deferred.drain()
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if n in (r["id"], r["reply_target"])]
         assert [(r["author"], r["reply_target"], r["text"]) for r in rows] == [("user", None, "hello"), ("agent", n, "Hello back.")]
@@ -962,8 +962,8 @@ def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp
     try:
         with app.container.get(Scope).environment(1):
             for time in (10.0, 20.0, 30.0):
-                app.container.get(Entries).save(Entry(environment_id=1, kind="nudge", actor=Actor.system(), data={"key": "tasks.log_due", "session": "s1", "line": "log", "time": time}), Actor.system())
-            app.container.get(Entries).save(Entry(environment_id=1, kind="nudge", actor=Actor.system(), data={"key": "messages.unread", "session": "s1", "line": "read", "time": 15.0}), Actor.system())
+                app.container.get(Entries).save(Entry(environment_id=1, entry_type="nudge", actor=Actor.system(), data={"key": "tasks.log_due", "session": "s1", "line": "log", "time": time}), Actor.system())
+            app.container.get(Entries).save(Entry(environment_id=1, entry_type="nudge", actor=Actor.system(), data={"key": "messages.unread", "session": "s1", "line": "read", "time": 15.0}), Actor.system())
         agents = call(server, "GET", "/journal/developer/nudges")[1]["agents"]
         assert [(a["session"], [(n["key"], n["count"], n["last_at"]) for n in a["nudges"]]) for a in agents] == [("s1", [("tasks.log_due", 3, 30.0), ("messages.unread", 1, 15.0)])], "each nudge is counted once per agent, with when it last fired"
         assert call(server, "POST", "/journal/developer/nudges/reset")[1]["agents"] == [], "the reset sets the counts back to zero"
@@ -1002,8 +1002,8 @@ def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_car
     server = app.server()
     try:
         n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for kind, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+        for type_name, extra in (("SessionStart", {}), ("MessageDisplay", {"message": f"[!reply:{n}]\nHello back."})):
+            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
         app.runtime().deferred.drain()
         app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardType.CHECKS, outcome=CardOutcome.PASSED)
         rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if r["id"] >= n]
@@ -1146,7 +1146,7 @@ def test_the_journal_knows_whether_a_viewer_tab_is_open(server):
 
 def test_the_secrets_page_makes_fills_allows_deletes_and_restores_a_secret(server, tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
-    status, produced = call(server, "POST", "/journal/secrets", {"title": "Github", "kind": "api key", "brief": "gh api user", "programs": ["gh"]})
+    status, produced = call(server, "POST", "/journal/secrets", {"title": "Github", "secret_type": "api key", "brief": "gh api user", "programs": ["gh"]})
     assert status == 201
     n = produced["id"]
     listed = json.dumps(call(server, "GET", "/journal/secrets")[1])
@@ -1175,13 +1175,13 @@ def test_the_transcript_of_an_agent_and_of_its_subagent_are_read_from_the_provid
             {"type": "user", "timestamp": "2026-10-17T10:00:06Z", "message": {"content": [{"type": "tool_result", "content": "file text"}]}}]
     (project / "s5.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows) + '{"type": "assi')
     (project / "s5" / "subagents" / "agent-a5.jsonl").write_text(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Read the login."}]}}) + "\n")
-    transmit = lambda kind, **extra: call(server, "POST", "/hooks/claude", {"hook_event_name": kind, "session_id": "s5", **extra})
+    transmit = lambda type_name, **extra: call(server, "POST", "/hooks/claude", {"hook_event_name": type_name, "session_id": "s5", **extra})
     transmit("SessionStart", source="startup")
     transmit("PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "read it", "prompt": "read", "model": "haiku"}, tool_use_id="t1")
     transmit("PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a5"}, tool_use_id="t1")
     agent = next(item for item in call(server, "GET", "/journal/agents")[1]["rows"] if item["session"] == "s5")
     page = call(server, "GET", f"/journal/agents/{agent['id']}/transcript")[1]
-    assert [(t["kind"], t["text"], t["tools"]) for t in page["turns"]] == [("human", "fix the login", []), ("agent", "Looking.", ["Read"]), ("tool", "", [])], "a tool result is a heading, its text asked for"
+    assert [(t["turn_type"], t["text"], t["tools"]) for t in page["turns"]] == [("human", "fix the login", []), ("agent", "Looking.", ["Read"]), ("tool", "", [])], "a tool result is a heading, its text asked for"
     assert page["turns"][1]["steps"] == [{"kind": "file read", "path": "login.py", "partial": False}], "each tool call carries what it did, as its provider decoded it"
     assert call(server, "GET", f"/journal/agents/{agent['id']}/transcript?entry=3")[1]["text"] == "file text"
     assert call(server, "GET", f"/journal/agents/{agent['id']}/transcript?since=1")[1]["turns"][0]["line"] == 2
@@ -1562,7 +1562,7 @@ def test_the_plan_bars_work_mode_and_the_top_bars_pause_are_version_fours_own(se
     assert call(server, "POST", "/journal/mode", {"mode": "orchestrator"})[1]["mode"] == "orchestrator"
     assert call(server, "GET", "/journal/settings")[1]["workers"]["mode"] == "orchestrator"
     assert call(server, "POST", "/journal/mode", {"mode": "boss"})[0] == 409
-    machine_answer = lambda kind, **body: call(server, "POST", "/hooks/claude", {"hook_event_name": kind, "session_id": "s7", **body})
+    machine_answer = lambda type_name, **body: call(server, "POST", "/hooks/claude", {"hook_event_name": type_name, "session_id": "s7", **body})
     machine_answer("SessionStart")
     agent = call(server, "GET", "/journal/agents")[1]["rows"][0]
     paused = call(server, "POST", f"/journal/agents/{agent['id']}/pause")[1]
@@ -1806,12 +1806,12 @@ def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(serv
     assert ExportName.stem("What: the check/found?") == "What the checkfound" and ExportName.build("", "report 3").startswith("report 3.")
     call(server, "POST", "/journal/reports", {"abstract": "What it says, in one line", "title": "What the check found", "body": "## Found\n\nThree faults.\n"})
     with urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/journal/reports/1/export", headers={"X-Journal-Env": "main"}), timeout=10) as reply:
-        kind, disposition, body = reply.headers["Content-Type"], reply.headers["Content-Disposition"], reply.read()
+        type_name, disposition, body = reply.headers["Content-Type"], reply.headers["Content-Disposition"], reply.read()
     assert disposition == f"attachment; filename*=UTF-8''What%20the%20check%20found.{ExportName.extension()}"
     if ExportName.extension() == "docx":
-        assert kind == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" and body[:2] == b"PK", "a Word file from textutil"
+        assert type_name == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" and body[:2] == b"PK", "a Word file from textutil"
     else:
-        assert kind.startswith("text/html") and b"<h1>What the check found</h1>" in body, "the page itself where textutil is missing"
+        assert type_name.startswith("text/html") and b"<h1>What the check found</h1>" in body, "the page itself where textutil is missing"
 
 
 def test_a_comment_on_a_documents_passage_names_the_section_and_lines_it_sits_on(tmp_path: Path):
@@ -1918,7 +1918,7 @@ def test_the_change_stream_starts_after_the_entry_the_page_names(tmp_path: Path)
         with app.container.get(Scope).environment(1):
             entries = app.container.get(Entries)
             known = entries.last_id()
-            entries.save(Entry(environment_id=1, kind="updated", actor=Actor.system(), data={"table": "notices", "id": 5}), Actor.system())
+            entries.save(Entry(environment_id=1, entry_type="updated", actor=Actor.system(), data={"table": "notices", "id": 5}), Actor.system())
         seen = b""
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{server.port}/journal/entries/stream?since={known}&env=main", timeout=3) as answer:
@@ -1928,12 +1928,12 @@ def test_the_change_stream_starts_after_the_entry_the_page_names(tmp_path: Path)
             pass
         assert b'"table": "notices"' in seen, seen[:600]
         with app.container.get(Scope).environment(1):
-            app.container.get(Entries).save(Entry(environment_id=1, kind="updated", actor=Actor.system(), data={"table": "tasks", "id": 9}), Actor.system())
+            app.container.get(Entries).save(Entry(environment_id=1, entry_type="updated", actor=Actor.system(), data={"table": "tasks", "id": 9}), Actor.system())
         later = b""
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{server.port}/journal/entries/stream?since=99999999&env=main", timeout=3) as answer:
                 with app.container.get(Scope).environment(1):
-                    app.container.get(Entries).save(Entry(environment_id=1, kind="updated", actor=Actor.system(), data={"table": "docs", "id": 3}), Actor.system())
+                    app.container.get(Entries).save(Entry(environment_id=1, entry_type="updated", actor=Actor.system(), data={"table": "docs", "id": 3}), Actor.system())
                 while b'"table": "docs"' not in later:
                     later += answer.read1(4096)
         except TimeoutError:
@@ -1985,7 +1985,7 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
         app.console().run(["task", "list"], Caller.agent("main", "first", "claude"))
         call(server, "GET", "/journal/tasks?limit=50")
         app.runtime().deferred.drain()
-        assert sorted(kind.__name__ for kind in set(app.container._instances) - built) == [], "everything a request needs is built at boot"
+        assert sorted(type_name.__name__ for type_name in set(app.container._instances) - built) == [], "everything a request needs is built at boot"
         assert sorted({name for name in sys.modules if name.startswith("journal")} - loaded) == [], "every module a request needs is imported at boot"
     finally:
         app.runtime().stop()

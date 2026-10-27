@@ -85,7 +85,7 @@ class ReaderJudge:
         lines = self.read_lines(reader, files)
         candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.progress_findings(reader, output, lines, ended_at), *self.counted_suites(reader, output, lines), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
         kinds = self.dismissal_kinds(output.command, ended_at)
-        shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
+        shortfalls = [shortfall for shortfall in candidates if not any(type_name in shortfall[0] for type_name in kinds)]
         if not shortfalls:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
@@ -102,8 +102,8 @@ class ReaderJudge:
             return set()
         name = self.shapes.command_name(command)
         reports = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
-        counts = Counter(kind for report in reports if self.shapes.command_name(report.command) == name for kind in self.kinds(report))
-        return {kind for kind, count in counts.items() if count >= limit}
+        counts = Counter(type_name for report in reports if self.shapes.command_name(report.command) == name for type_name in self.kinds(report))
+        return {type_name for type_name, count in counts.items() if count >= limit}
 
     def unjudged_dismissal(self, report: ReaderReport, time: datetime) -> ReaderReport | None:
         name, kinds = self.shapes.command_name(report.command), self.kinds(report)
@@ -112,7 +112,7 @@ class ReaderJudge:
 
     @staticmethod
     def kinds(report: ReaderReport) -> set[str]:
-        return {kind for kind in FINDING_KINDS if any(kind in finding for finding in report.findings)}
+        return {type_name for type_name in FINDING_KINDS if any(type_name in finding for finding in report.findings)}
 
     def poor_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         poor = [line for line in reader.variant(output.stage()).card_lines(lines) if CardLine.is_poor(CardLine.plain(line))][:QUOTED_LINES]
@@ -196,7 +196,7 @@ class ReaderJudge:
     def mixed_title(self, reader: Reader, output: CommandOutput) -> list[tuple[str, str]]:
         runs = self.history.reader_ended(reader.name, MIXED_RUNS)
         programs = sorted({name.split()[0] for run in runs if (name := self.shapes.command_name(self.read_command(reader, run)))})
-        kinds = sorted({kind for run in runs if (kind := self.work_kind(run))})
+        kinds = sorted({type_name for run in runs if (type_name := self.work_kind(run))})
         if len(programs) < 2 and len(kinds) < 2:
             return []
         kinds_text = f"the programs {', '.join(programs)}" if len(programs) > 1 else f"runs that print {' and '.join(kinds)}"

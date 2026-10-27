@@ -38,7 +38,7 @@ def test_secret_run_gives_a_value_to_an_allowed_program_and_masks_every_form_of_
     echoer.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tools}:/usr/bin:/bin")
     secrets = app.container.get(Secrets)
-    secrets.save(Secret(title="Fake", kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Fake"), programs=("fakeapi",)), Actor.user("u"))
+    secrets.save(Secret(title="Fake", secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields("Fake"), programs=("fakeapi",)), Actor.user("u"))
     console = app.console()
     assert "no value for key on this machine" in console.run(["secret", "run", "Fake", "--", "fakeapi"], AGENT).error
     app.container.get(SecretValues).put("FAKE_KEY", "s3cretvalue123")

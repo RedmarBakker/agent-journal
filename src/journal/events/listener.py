@@ -15,7 +15,7 @@ class Listener(Generic[E]):
         return type(self)
 
     @classmethod
-    def kind(cls) -> type[Event]:
+    def event_type(cls) -> type[Event]:
         for klass in cls.__mro__:
             for base in getattr(klass, "__orig_bases__", ()):
                 args = get_args(base)

@@ -252,8 +252,8 @@ def test_a_stale_offline_edit_to_a_hub_document_that_became_read_only_is_refused
     def send(device, table, row, action, actor, fields, seconds):
         return push.answer(device, PushRequest.parsed([{"row_table": table, "row": row, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], 0.0), seconds + 1)
 
-    send(ada, "environments", 3, "created", "user:1", {"kind": "hub", "team_name": "acme"}, 1.0)
-    send(ada, "environments", 4, "created", "user:1", {"kind": "local", "team_name": "ada-main"}, 1.0)
+    send(ada, "environments", 3, "created", "user:1", {"environment_type": "hub", "team_name": "acme"}, 1.0)
+    send(ada, "environments", 4, "created", "user:1", {"environment_type": "local", "team_name": "ada-main"}, 1.0)
     send(ada, "docs", 9, "created", "user:1", {"environment_id": 3, "title": "Handbook", "body": "first words", "edit_mode": "free", "owner": 1}, 2.0)
     send(ada, "docs", 8, "created", "user:1", {"environment_id": 4, "title": "Mine", "body": "a personal document", "edit_mode": "local", "owner": 0}, 2.0)
     assert send(bob, "docs", 9, "updated", "user:2", {"body": "Bob's edit made while it was free"}, 3.0).rejected == (), "anyone edits a document free to edit"
@@ -269,6 +269,9 @@ def test_a_stale_offline_edit_to_a_hub_document_that_became_read_only_is_refused
     _, dan = devices.login("dan@example.com", PASSWORD, "dan's laptop", "10.0.0.4", 2.0)
     assert send(dan, "docs", 9, "updated", "user:4", {"body": "an admin edits it"}, 8.0).rejected == (), "and so does an admin who is not its owner"
     assert send(bob, "docs", 8, "updated", "user:2", {"body": "outside the hub"}, 9.0).rejected == (), "a document outside the hub is no business of the rules"
+    send(ada, "environments", 5, "created", "user:1", {"kind": "hub", "team_name": "beta"}, 10.0)
+    send(ada, "docs", 7, "created", "user:1", {"environment_id": 5, "title": "Old", "body": "first words", "edit_mode": "read_only", "owner": 1}, 10.0)
+    assert send(bob, "docs", 7, "updated", "user:2", {"body": "Bob's edit"}, 11.0).rejected[0].field == "body", "a hub sent before its type was named environment_type, under kind, is a hub all the same"
 
 
 def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_first_time(store, tmp_path):

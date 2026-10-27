@@ -131,15 +131,15 @@ class TaskCommand(Command):
     def link_creation(self, message: int, task: Task, caller: Caller) -> None:
         if not message or Ref.build(task) in self.links.targets(self.messages.find(message), Messages.SUBJECT_LINK):
             return
-        for guessed in [link for link in self.links.link_rows(task) if link.kind == Messages.SUBJECT_LINK and link.target == Ref.build(task) and link.source.type == Message.table()]:
+        for guessed in [link for link in self.links.link_rows(task) if link.link_type == Messages.SUBJECT_LINK and link.target == Ref.build(task) and link.source.type == Message.table()]:
             self.links.delete(guessed, caller.actor)
-        self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+        self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
     def link_edit(self, message: int, task: Task, caller: Caller) -> None:
         if message:
             source = Ref.build(self.messages.find(message))
-            self.links.save(Link(source=source, target=Ref.build(task), kind=Messages.EDIT_LINK), caller.actor)
-            self.links.save(Link(source=source, target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+            self.links.save(Link(source=source, target=Ref.build(task), link_type=Messages.EDIT_LINK), caller.actor)
+            self.links.save(Link(source=source, target=Ref.build(task), link_type=Messages.SUBJECT_LINK), caller.actor)
 
     def start(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "started")

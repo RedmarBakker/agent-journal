@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class PluginCard:
     """A card a plugin's answer shows in the chat: its kind from the plugin's manifest, its words, and a key, so a later card of the same key replaces it."""
 
-    kind: str = ""
+    card_type: str = ""
     label: str = ""
     tone: str = ""
     detail: str = ""

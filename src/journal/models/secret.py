@@ -13,12 +13,14 @@ from journal.support.rejection import Rejection
 class Secret(Model):
     """A key or a login the agent may use without seeing it: its fields and the programs it may be given to. Its values live in a file in the home folder, never here."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "secret_type"}
+
     shared: ClassVar[bool] = False
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
     title: str = ""
     brief: str = ""
-    kind: SecretType = SecretType.CUSTOM
+    secret_type: SecretType = SecretType.CUSTOM
     fields: tuple = ()
     filled: tuple[str, ...] = ()
     programs: tuple[str, ...] = ()

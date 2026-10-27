@@ -17,7 +17,7 @@ from journal.repositories.reactions import REACTS, Reactions
 class ReactionImport(EnvironmentTableImport):
     """A reaction keeps its emoji and the message it sits on, once that message has come across."""
 
-    kind = "reaction"
+    row_type = "reaction"
     title = "reactions"
 
     def __init__(self, environments: Environments, tally: MigratedRows, reactions: Reactions, links: Links) -> None:
@@ -29,5 +29,5 @@ class ReactionImport(EnvironmentTableImport):
 
     def created(self, row: Version3Row, receiver: Environment, attached: Path, actor: Actor) -> Reaction:
         reaction = self.reactions.imported(Reaction(environment_id=receiver.row_id, emoji=row.data.get("face", ""), author=Author(row.author())), row.creation_moment(), actor)
-        self.links.save(Link(source=Ref.build(reaction), target=self.ledger.counterpart(receiver.name, tuple(ref for ref in row.refs if ref.startswith("message:"))), kind=REACTS), actor)
+        self.links.save(Link(source=Ref.build(reaction), target=self.ledger.counterpart(receiver.name, tuple(ref for ref in row.refs if ref.startswith("message:"))), link_type=REACTS), actor)
         return reaction

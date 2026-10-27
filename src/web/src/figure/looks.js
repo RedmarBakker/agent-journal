@@ -32,7 +32,7 @@ export const ATTACHMENT_SECONDS = 3;
 // (a ToolStarting whose call read a path under .journal/files/message/<n>/), or 0 when it read none
 export function attachmentRead(entries, now) {
     const reads = entries
-        .filter((entry) => entry.kind === "ToolStarting" && now - Date.parse(entry.created_at) / 1000 <= ATTACHMENT_SECONDS)
+        .filter((entry) => entry.entry_type === "ToolStarting" && now - Date.parse(entry.created_at) / 1000 <= ATTACHMENT_SECONDS)
         .flatMap((entry) => (entry.data?.call?.read_paths || []).map((path) => ({path, at: Date.parse(entry.created_at)})))
         .map(({path, at}) => ({message: Number(/\/files\/message\/(\d+)\//.exec(path)?.[1] ?? 0), at}))
         .filter(({message}) => message);

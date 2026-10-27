@@ -128,8 +128,8 @@ class SharePages:
         rows = (APP / "assets" / name).resolve()
         if rows.parent != (APP / "assets").resolve() or not rows.is_file():
             return SharePages.missing(404)
-        kind = mimetypes.guess_type(rows.name)[0] or "application/octet-stream"
-        return ShareAnswer(200, rows.read_bytes(), kind, {"Cache-Control": "public, max-age=31536000, immutable", **APP_HEADERS})
+        type_name = mimetypes.guess_type(rows.name)[0] or "application/octet-stream"
+        return ShareAnswer(200, rows.read_bytes(), type_name, {"Cache-Control": "public, max-age=31536000, immutable", **APP_HEADERS})
 
     @staticmethod
     def missing(status: int) -> ShareAnswer:

@@ -68,7 +68,7 @@ class JournalController:
     def developer(self, request: Request) -> Response:
         as_rows = lambda timings: [{"method": t.method, "route": t.route, "ms": t.ms, "time": t.time} for t in timings]
         return Response.json({"hooks": self.numbers.hook_time().as_data(), "requests": self.numbers.request_time().as_data(),
-                              "by_kind": {kind: answer.as_data() for kind, answer in self.numbers.hook_averages().items()},
+                              "by_kind": {type_name: answer.as_data() for type_name, answer in self.numbers.hook_averages().items()},
                               "recent": as_rows(self.numbers.recent()), "slowest": as_rows(self.numbers.slowest()),
                               "loads": [{"time": t.time, "label": t.label(), "ms": t.ms, "loads": t.loads.line()} for t in self.numbers.loaded()],
                               "models": [{"model": total.model, "rows": total.rows} for total in self.numbers.model_totals()]})

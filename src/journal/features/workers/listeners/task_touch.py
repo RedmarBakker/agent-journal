@@ -20,11 +20,11 @@ class TaskTouch(Listener[ModelEvent]):
         self.tasks, self.links = tasks, links
 
     def handle(self, event: ModelEvent) -> None:
-        if isinstance(event, Created) and isinstance(event.model, Link) and event.model.kind in KINDS:
+        if isinstance(event, Created) and isinstance(event.model, Link) and event.model.link_type in KINDS:
             self.touched(event.model.target.id, event)
         if isinstance(event, Updated) and isinstance(event.model, (Proof, WorkerTodo)):
-            for kind in KINDS:
-                for ref in self.links.targets(event.model, kind):
+            for type_name in KINDS:
+                for ref in self.links.targets(event.model, type_name):
                     self.touched(ref.id, event)
 
     def touched(self, task_id: int, event: ModelEvent) -> None:

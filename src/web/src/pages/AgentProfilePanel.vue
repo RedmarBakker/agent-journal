@@ -24,7 +24,7 @@ watch(
             name: props.profile.name,
             description: props.profile.description,
             tools: props.profile.tools,
-            kind: props.profile.kind,
+            profile_type: props.profile.profile_type,
             model: props.profile.model,
             codex_model: props.profile.codex_model,
             body: props.profile.body,
@@ -33,7 +33,7 @@ watch(
     {immediate: true}
 );
 const dirty = computed(
-    () => ["description", "tools", "kind", "model", "codex_model", "body"].some((key) => draft.value[key] !== props.profile[key]) || !props.profile.name
+    () => ["description", "tools", "profile_type", "model", "codex_model", "body"].some((key) => draft.value[key] !== props.profile[key]) || !props.profile.name
 );
 const canSave = computed(() => dirty.value && /^[a-z0-9_-]+$/i.test(draft.value.name || "") && draft.value.description.trim());
 </script>
@@ -75,7 +75,7 @@ const canSave = computed(() => dirty.value && /^[a-z0-9_-]+$/i.test(draft.value.
                 for="profile-kind"
                 help="A subagent only reads and is started with the Agent tool; a worker writes and is sent out by the agent with a journal command."
             >
-                <Segmented :options="KINDS" :value="draft.kind" @pick="draft.kind = $event" />
+                <Segmented :options="KINDS" :value="draft.profile_type" @pick="draft.profile_type = $event" />
             </FormField>
             <FormField label="Model on Claude Code" for="profile-model" help="The least expensive model that reliably fits the work.">
                 <ModelPicker provider="claude" inherits :value="draft.model" @pick="draft.model = $event" />

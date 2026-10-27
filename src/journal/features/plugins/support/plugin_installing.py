@@ -289,5 +289,5 @@ class PluginInstalling:
                 PreviewRow("holds", "before the agent continues", ", ".join(window.as_text() for window in manifest.blocks) or "nothing"),
                 *(PreviewRow("skill", name) for name in ManifestReader.skill_names(folder, manifest)),
                 *(PreviewRow("alias", alias.name, alias.line) for alias in manifest.aliases))
-        return tuple(row for row in rows if row.kind != "installed" or row.command)
+        return tuple(row for row in rows if row.item_type != "installed" or row.command)
 

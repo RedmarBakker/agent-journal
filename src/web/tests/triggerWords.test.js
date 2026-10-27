@@ -29,12 +29,12 @@ describe("the sentence a trigger reads as", () => {
 describe("when a sequence starts", () => {
     it("reads each of its triggers as a sentence, or by hand only", () => {
         const triggers = [
-            {kind: "row", moment: "task.created"},
-            {kind: "phrase", text: "give me an update"},
-            {kind: "command", pattern: "^git push"},
-            {kind: "file", pattern: "src/*.py"},
-            {kind: "file-text", pattern: "src/*.py", text: "TODO"},
-            {kind: "tool", tool: "Edit", pattern: ""},
+            {trigger_type: "row", moment: "task.created"},
+            {trigger_type: "phrase", text: "give me an update"},
+            {trigger_type: "command", pattern: "^git push"},
+            {trigger_type: "file", pattern: "src/*.py"},
+            {trigger_type: "file-text", pattern: "src/*.py", text: "TODO"},
+            {trigger_type: "tool", tool: "Edit", pattern: ""},
         ];
         expect(startWords({triggers})).toEqual([
             "When a task is made",
@@ -48,8 +48,8 @@ describe("when a sequence starts", () => {
     });
 
     it("sends only the fields a trigger's kind reads and names the first one missing", () => {
-        expect(triggerBody({kind: "file-text", pattern: " src/*.py ", text: "TODO", moment: "x", tool: ""})).toEqual({kind: "file-text", pattern: "src/*.py", text: "TODO"});
-        expect(triggersProblem([{kind: "file-text", pattern: "src/*.py", text: ""}])).toBe("An edit adds a text: fill in text in the new content.");
-        expect(triggersProblem([{kind: "tool", tool: "Bash", pattern: ""}])).toBe("");
+        expect(triggerBody({trigger_type: "file-text", pattern: " src/*.py ", text: "TODO", moment: "x", tool: ""})).toEqual({trigger_type: "file-text", pattern: "src/*.py", text: "TODO"});
+        expect(triggersProblem([{trigger_type: "file-text", pattern: "src/*.py", text: ""}])).toBe("An edit adds a text: fill in text in the new content.");
+        expect(triggersProblem([{trigger_type: "tool", tool: "Bash", pattern: ""}])).toBe("");
     });
 });

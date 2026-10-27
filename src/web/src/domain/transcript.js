@@ -5,7 +5,7 @@ export function withWhispers(turns, nudges, session) {
         .filter((n) => n.data.session === session && n.created >= from)
         .map((n) => ({
             line: `reminder ${n.n}`,
-            kind: "whisper",
+            turn_type: "whisper",
             time: n.created,
             text: n.brief ? `${n.title} — ${n.brief}` : n.title,
             tools: [],
@@ -14,7 +14,7 @@ export function withWhispers(turns, nudges, session) {
 }
 
 const SPEAKERS = {agent: "agent", human: "user", injected: "user"};
-const hasText = (t) => SPEAKERS[t.kind] && t.text;
+const hasText = (t) => SPEAKERS[t.turn_type] && t.text;
 
 // a spoken turn drawn as a message bubble, and a run of tool calls as a card: `kind` is what the chat's Turn switches on
 const line = (t) => ({
@@ -22,7 +22,7 @@ const line = (t) => ({
     kind: "message",
     ref: `line:${t.line}`,
     n: t.line,
-    who: SPEAKERS[t.kind],
+    who: SPEAKERS[t.turn_type],
     title: "",
     text: t.said || t.text,
     brief: t.said || t.text,
@@ -70,13 +70,13 @@ export function fromMainAgent(turns) {
 }
 
 export const briefOf = (entries) => {
-    const first = entries.find((t) => hasText(t) && SPEAKERS[t.kind] === "user");
+    const first = entries.find((t) => hasText(t) && SPEAKERS[t.turn_type] === "user");
     return first ? {text: first.text, time: first.time} : null;
 };
 
 // What a subagent handed back: the last thing it said.
 export const reportOf = (entries) => {
-    const last = entries.findLast((t) => hasText(t) && SPEAKERS[t.kind] === "agent");
+    const last = entries.findLast((t) => hasText(t) && SPEAKERS[t.turn_type] === "agent");
     return last ? {text: last.text, time: last.time} : null;
 };
 
@@ -104,14 +104,14 @@ export function saidTurns(entries, speakers) {
     const out = [];
     let last = null;
     for (const t of entries) {
-        if (t.kind === "tool") {
+        if (t.turn_type === "tool") {
             const step = last && last.steps.find((s) => !s.output);
             if (step) step.output = t.line;
             continue;
         }
-        const spoken = hasText(t) && speakers[t.kind];
-        if (spoken || (t.tools.length && (!last || last.kind !== t.kind))) {
-            last = {key: t.line, kind: t.kind, who: speakers[t.kind] || t.kind, time: t.time, text: spoken ? t.text : "", steps: []};
+        const spoken = hasText(t) && speakers[t.turn_type];
+        if (spoken || (t.tools.length && (!last || last.turn_type !== t.turn_type))) {
+            last = {key: t.line, turn_type: t.turn_type, who: speakers[t.turn_type] || t.turn_type, time: t.time, text: spoken ? t.text : "", steps: []};
             out.push(last);
         }
         if (t.tools.length) last.steps.push(...stepsOf(t).map((step) => ({...step, output: 0})));

@@ -18,8 +18,8 @@ const ROW = {
     failed_at: new Date(Date.now() - 120000).toISOString(),
     settings: {repeat: 3, token: {secret: 7}},
     schema: [
-        {key: "repeat", title: "Repeat", kind: "number", default: 1},
-        {key: "token", title: "Token", kind: "secret"},
+        {key: "repeat", title: "Repeat", setting_type: "number", default: 1},
+        {key: "token", title: "Token", setting_type: "secret"},
     ],
 };
 
@@ -51,8 +51,8 @@ describe("the Plugins page", () => {
             commit: "",
             description: "",
             rows: [
-                {kind: "program", label: "for each event it hears", command: "/plugins/echo/run.py"},
-                {kind: "holds", label: "before the agent continues", command: "tool_starting"},
+                {item_type: "program", label: "for each event it hears", command: "/plugins/echo/run.py"},
+                {item_type: "holds", label: "before the agent continues", command: "tool_starting"},
             ],
         };
         const page = await mounted(PluginInstallDialog, {previewed});

@@ -45,10 +45,10 @@ class RowCounts:
 
     @staticmethod
     def checked_choices(model: type[Model], name: str, allowed: tuple) -> None:
-        kind = get_type_hints(model)[name]
-        if not (isinstance(kind, type) and issubclass(kind, Enum)):
+        type_name = get_type_hints(model)[name]
+        if not (isinstance(type_name, type) and issubclass(type_name, Enum)):
             return
-        choices = [member.value for member in kind]
+        choices = [member.value for member in type_name]
         unknown = [str(value) for value in allowed if value not in choices]
         if unknown:
             raise Rejection(f"{model.table()} {name} is never {', '.join(unknown)}; it is one of {', '.join(choices)}")

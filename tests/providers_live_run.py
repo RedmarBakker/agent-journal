@@ -90,9 +90,9 @@ def run_agent(app: App, provider: str, prompt: str, resume: str = "", seconds: i
     return subprocess.run(command, cwd=app.config.root, env=launched(app, provider), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=seconds)
 
 
-def entries(app: App, kind: str) -> list:
+def entries(app: App, type_name: str) -> list:
     with app.container.get(Scope).environment(MAIN):
-        return list(reversed(app.container.get(Entries).kind_entries(kind, 500)))
+        return list(reversed(app.container.get(Entries).kind_entries(type_name, 500)))
 
 
 def wait_for(check, seconds: int):

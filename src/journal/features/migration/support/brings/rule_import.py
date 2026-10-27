@@ -9,7 +9,7 @@ from journal.repositories.rules import Rules
 class RuleImport(ProjectType):
     """A rule of the project keeps its text and keywords; a struck one stays behind."""
 
-    kind = "rule"
+    row_type = "rule"
     title = "rules"
 
     def __init__(self, tally: MigratedRows, rules: Rules) -> None:

@@ -47,7 +47,7 @@ class WorkerReports:
 
     def posted(self, worker: Worker, text: str, actor: Actor) -> Message:
         message = self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{self.lead(worker)}{text}", data={"kind": Message.REPORT, "worker": worker.name, "worker_id": worker.id, "task": next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0)}), actor)
-        self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), kind=REPORTED), actor)
+        self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), link_type=REPORTED), actor)
         return message
 
     def lasts(self, workers: list[Worker]) -> dict[int, str]:

@@ -14,7 +14,7 @@ SEQUENCE_START = "start"
 class TriggerImport(BuiltinType):
     """A trigger of the project's keeps its words, what it does and its text, where version 4 can do the same."""
 
-    kind = "trigger"
+    row_type = "trigger"
     title = "triggers"
 
     def __init__(self, tally: MigratedRows, triggers: Triggers) -> None:

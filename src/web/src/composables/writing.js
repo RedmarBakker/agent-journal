@@ -6,7 +6,7 @@ import {useNow} from "./now.js";
 
 const WRITING_FOR = 45;
 const TICK = 3000;
-const wrote = (entry) => (entry.actor || "").startsWith("agent") && ["created", "updated"].includes(entry.kind);
+const wrote = (entry) => (entry.actor || "").startsWith("agent") && ["created", "updated"].includes(entry.entry_type);
 
 watch(
     () => store.entries.at(-1)?.id,

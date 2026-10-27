@@ -26,7 +26,7 @@ const {items, unfold, expanded, toggle, heading, title, who} = useActivity(toRef
                 <div :class="['activity-row', 'activity-link', {'activity-nested': item.nested, 'activity-open': expanded(item.entry)}]" @click="toggle(item.entry)">
                     <span class="activity-text">
                         {{ heading(item.entry) }}
-                        <template v-if="isRowChange(item.entry) && item.entry.kind !== 'deleted'">
+                        <template v-if="isRowChange(item.entry) && item.entry.entry_type !== 'deleted'">
                             <a class="activity-n" href="#" @click.prevent.stop="peek(item.entry.data.table, item.entry.data.id)">{{ item.entry.data.id }}</a>
                         </template>
                     </span>

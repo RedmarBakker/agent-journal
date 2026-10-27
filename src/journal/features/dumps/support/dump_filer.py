@@ -64,7 +64,7 @@ class DumpFiler:
             raise Rejection(f"not a row here: {', '.join(missing)}")
         collection = self.collections.owned(dump, dump.title, actor)
         for ref in rows:
-            self.links.save(Link(source=Ref.build(dump), target=Ref.parse(ref), kind=FILED), actor)
+            self.links.save(Link(source=Ref.build(dump), target=Ref.parse(ref), link_type=FILED), actor)
             self.collections.joined(collection, Ref.parse(ref), actor)
         return self.filed_item(n, item, actor, outcome=manner.strip(), refs=rows, added=owned, failed="")
 
@@ -172,7 +172,7 @@ class DumpFiler:
             raise Rejection('say what should happen next: journal dump direct <n> "<what to do>"')
         dump = self.dumps.find(n)
         message = self.messages.save(Message(author=Author.USER, text=manner.strip()).arrived(), actor)
-        self.links.save(Link(source=Ref.build(message), target=Ref.build(dump), kind=Messages.COMMENT_LINK), actor)
+        self.links.save(Link(source=Ref.build(message), target=Ref.build(dump), link_type=Messages.COMMENT_LINK), actor)
         return self.dumps.save(dump.step_directed(manner.strip(), self.time_source.seconds()), actor)
 
     def stop(self, n: int, actor: Actor) -> Dump:
@@ -223,10 +223,10 @@ class DumpFiler:
     def refs(text: str) -> list[str]:
         refs = []
         for part in (p.strip() for p in text.split(",") if p.strip()):
-            kind, _, number = part.partition(":")
+            type_name, _, number = part.partition(":")
             if not number.isdigit():
                 raise Rejection(f"not a row: {part}; write each as doc:2 or plans:8")
-            table = TABLES.get(kind, kind)
+            table = TABLES.get(type_name, type_name)
             if table not in TABLES.values():
                 raise Rejection(f"not a row a dump files into: {part}; write each as doc:2 or plans:8")
             refs.append(f"{table}:{number}")

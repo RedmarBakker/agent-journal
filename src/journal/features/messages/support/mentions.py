@@ -15,8 +15,8 @@ class Mentions:
     def found(text: str, hubs: MappingProxyType = NO_HUBS) -> list[Ref]:
         named = {team.lower(): hub for team, hub in hubs.items()}
         rows = []
-        for team, kind, n in Mentions.pattern(list(hubs)).findall(text):
-            table = TABLES.get(kind.lower(), f"{kind.lower()}s")
+        for team, type_name, n in Mentions.pattern(list(hubs)).findall(text):
+            table = TABLES.get(type_name.lower(), f"{type_name.lower()}s")
             ref = Ref(f"{named[team.lower()]}/{table}" if team else table, int(n))
             if ref not in rows:
                 rows.append(ref)

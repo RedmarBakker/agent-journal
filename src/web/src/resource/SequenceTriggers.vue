@@ -12,7 +12,7 @@ const problem = computed(() => triggersProblem(draft.cards));
 let made = 0;
 
 function edit() {
-    Object.assign(draft, {open: true, cards: (props.resource.triggers || []).map((t) => ({key: ++made, ...blankTrigger(t.kind), ...t})), error: "", busy: false});
+    Object.assign(draft, {open: true, cards: (props.resource.triggers || []).map((t) => ({key: ++made, ...blankTrigger(t.trigger_type), ...t})), error: "", busy: false});
 }
 
 async function save() {

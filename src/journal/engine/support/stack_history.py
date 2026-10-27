@@ -11,4 +11,4 @@ class StackHistory:
     @staticmethod
     def entry(agent: Agent, following: list[dict], cause: str, actor: Actor, **extra) -> Entry:
         data = {"session": agent.session, "before": list(agent.stack), "after": following, "cause": cause, **extra}
-        return Entry(environment_id=agent.environment_id, kind=StackHistory.KIND, actor=actor, data=data)
+        return Entry(environment_id=agent.environment_id, entry_type=StackHistory.KIND, actor=actor, data=data)

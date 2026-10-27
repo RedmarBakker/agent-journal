@@ -21,9 +21,9 @@ class SkillCard(AgentListener[ToolFinished]):
         for skill in self.files.loaded_skills(event.call):
             self.loaded(event, skill)
         for name in self.files.other_skill_names(event.call):
-            self.cards.show(event.environment_id, event.session, f"Skill {name} loaded", name, kind="skill", shows=CardType.SKILLS)
+            self.cards.show(event.environment_id, event.session, f"Skill {name} loaded", name, type_name="skill", shows=CardType.SKILLS)
 
     def loaded(self, event: ToolFinished, skill: Skill) -> None:
         digest = self.files.digest(skill)
         self.agents.rewritten(self.agents.session_agent(event.session), Actor.system(), lambda time: time.skill_read(skill.name, digest, self.clock.time()))
-        self.cards.show(event.environment_id, event.session, f"Skill {skill.name} loaded", skill.name, kind="skill", shows=CardType.SKILLS)
+        self.cards.show(event.environment_id, event.session, f"Skill {skill.name} loaded", skill.name, type_name="skill", shows=CardType.SKILLS)

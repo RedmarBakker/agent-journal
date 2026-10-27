@@ -7,7 +7,7 @@ const FIELDS = [
     {name: "username", hidden: false, variable: "U"},
     {name: "password", hidden: true, variable: "P"},
 ];
-const row = (more = {}) => ({table: "secrets", id: 1, title: "Stripe test", brief: "", kind: "login", fields: FIELDS, filled: [], programs: [], proposed: [], helpers: false, questioned_at: null, used_at: null, session_at: null, login_started_at: null, deleted_at: null, ...more});
+const row = (more = {}) => ({table: "secrets", id: 1, title: "Stripe test", brief: "", secret_type: "login", fields: FIELDS, filled: [], programs: [], proposed: [], helpers: false, questioned_at: null, used_at: null, session_at: null, login_started_at: null, deleted_at: null, ...more});
 
 describe("secrets", () => {
     test("a secret waits while any of its fields has no value", () => {
@@ -37,17 +37,17 @@ describe("secrets", () => {
     });
 
     test("a browser login says a browser is open while the user logs in", () => {
-        expect(whenWords(row({kind: "browser login"}))).toBe("Not logged in yet");
-        expect(whenWords(row({kind: "browser login", login_started_at: at(1000)}))).toBe("A browser is open for you to log in");
-        expect(whenWords(row({kind: "browser login", session_at: at(1000)}))).toContain("Logged in");
+        expect(whenWords(row({secret_type: "browser login"}))).toBe("Not logged in yet");
+        expect(whenWords(row({secret_type: "browser login", login_started_at: at(1000)}))).toBe("A browser is open for you to log in");
+        expect(whenWords(row({secret_type: "browser login", session_at: at(1000)}))).toContain("Logged in");
     });
 
     test("saving drops unnamed fields and gives new ones a variable", () => {
-        const draft = {...drafted(null), title: " Mail ", kind: "custom", fields: [{name: "token", hidden: true, variable: ""}, {name: " ", hidden: true, variable: ""}]};
+        const draft = {...drafted(null), title: " Mail ", secret_type: "custom", fields: [{name: "token", hidden: true, variable: ""}, {name: " ", hidden: true, variable: ""}]};
         expect(complete(draft)).toBe(true);
         expect(saved(draft).fields).toEqual([{name: "token", hidden: true, variable: "MAIL_TOKEN"}]);
-        expect(creating(draft).kind).toBe("custom");
-        expect(creating({...draft, kind: "login"})).not.toHaveProperty("fields");
+        expect(creating(draft).secret_type).toBe("custom");
+        expect(creating({...draft, secret_type: "login"})).not.toHaveProperty("fields");
     });
 
     test("a plugin gets the first hidden field of the secret picked for it", () => {

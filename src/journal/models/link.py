@@ -9,6 +9,8 @@ from journal.models.support.ref import Ref
 class Link(Model):
     """A relation between any two rows. Models declare no relations themselves; every one is a row here, with a kind that says what it means. A deleted row takes its links with it, but for a copy's link to the row it was copied from and an attachment's link from the document attached, which stay to show their source removed."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "link_type"}
+
     COPIED_FROM: ClassVar[str] = "copied_from"
     ATTACHED_TO: ClassVar[str] = "attached_to"
     SURVIVING_SOURCE: ClassVar[tuple[str, ...]] = (ATTACHED_TO,)
@@ -16,4 +18,4 @@ class Link(Model):
 
     source: Ref
     target: Ref
-    kind: str
+    link_type: str

@@ -26,17 +26,17 @@ class MemoryDataReader:
         self.time_source, self.weighted, self.owners = time_source, memories, owners
         self.rules, self.reminders, self.settings, self.counts, self.scope, self.stages = rules, reminders, settings, counts, scope, stages
 
-    def row(self, noun: str, memory, kind: CardType) -> MemoryRow:
+    def row(self, noun: str, memory, type_name: CardType) -> MemoryRow:
         ready = bool(memory.trigger) and RowCondition.read(memory.condition).is_true(self.counts)
-        return MemoryRow(noun, memory.row_id, memory.text, tuple(memory.keywords), kind, memory.presence, memory.trigger, ready, memory.is_single_use)
+        return MemoryRow(noun, memory.row_id, memory.text, tuple(memory.keywords), type_name, memory.presence, memory.trigger, ready, memory.is_single_use)
 
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("memory", {
             "threshold_due": lambda: agent.threshold_due,
             "context_threshold": lambda: agent.context_threshold,
             "memories": self.memories,
-            "triggered": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.triggered_memories()),
-            "rows": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.keyword_memories()),
+            "triggered": lambda: tuple(self.row(noun, memory, type_name) for noun, memory, type_name in self.triggered_memories()),
+            "rows": lambda: tuple(self.row(noun, memory, type_name) for noun, memory, type_name in self.keyword_memories()),
             "stale": lambda: self.stale([(noun, memory) for noun, memory, _ in facts.memories], self.settings.integer(MemoryOptions.STALENESS_LIMIT)),
             "shown_count": lambda: self.weighted.shown_count(self.owners.agent_owner(agent)),
             "shown": lambda: tuple(f"{memory.id} (weight {memory.weight}) {memory.text}" for memory in self.weighted.shown(self.owners.agent_owner(agent))),

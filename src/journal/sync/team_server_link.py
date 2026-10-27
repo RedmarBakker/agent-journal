@@ -61,8 +61,8 @@ class TeamServerLink:
     def agent_views(self, keys: list[str]) -> dict[str, list[dict]]:
         return AgentViewList(**json.loads(self.sent(self.account.address(), f"/agent-views?keys={','.join(keys)}", None, REQUEST_SECONDS))).views
 
-    def ask_host(self, environment_key: str, kind: str, body: dict, account_id: int) -> None:
-        self.posted("/host-requests", {"environment_key": environment_key, "kind": kind, "body": body, "account_id": account_id})
+    def ask_host(self, environment_key: str, type_name: str, body: dict, account_id: int) -> None:
+        self.posted("/host-requests", {"environment_key": environment_key, "kind": type_name, "body": body, "account_id": account_id})
 
     def ask_pool(self, request: PoolAskRequest) -> int:
         answer = json.loads(self.posted("/pool-requests", asdict(request)))

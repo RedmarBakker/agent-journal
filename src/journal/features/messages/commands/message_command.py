@@ -133,7 +133,7 @@ class MessageCommand(Command):
         kinds = args.kinds * len(spans) if len(args.kinds) == 1 else args.kinds
         if len(kinds) != len(spans):
             raise Rejection(f"message {args.n} has {len(spans)} numbers without a kind, {', '.join(str(number) for number, _ in spans)}, and you named {len(args.kinds)} kinds: name one for each, in order, or one for all")
-        missing = [f"{kind} {number}" for (number, _), kind in zip(spans, kinds) if kind != PLAIN and not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
+        missing = [f"{type_name} {number}" for (number, _), type_name in zip(spans, kinds) if type_name != PLAIN and not self.rows.is_row(Ref(ROW_TABLES[type_name], number))]
         if missing:
             raise Rejection(f"no {', no '.join(missing)} exists, so nothing was changed: give the kind each number really is")
         linked = self.messages.save(message.with_(text=UnlinkedRowNumbers.linked(message.text, kinds)), caller.actor)
@@ -185,8 +185,8 @@ class MessageCommand(Command):
             print(f"  file {path}" + (f": {viewed}" if viewed else f" (open it, then `journal message tag {message.id} \"{name}\" \"<what it shows>\"`)"))
         for link in self.links.link_rows(message):
             counterpart = link.target if link.source == Ref.build(message) else link.source
-            print(f"  {link.kind} {counterpart}")
-            if link.kind == Messages.COMMENT_LINK and message.is_passage_comment:
+            print(f"  {link.link_type} {counterpart}")
+            if link.link_type == Messages.COMMENT_LINK and message.is_passage_comment:
                 print(self.passage_place(counterpart, message.quote))
 
     def _tool_use(self, caller: Caller) -> int:

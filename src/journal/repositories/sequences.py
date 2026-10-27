@@ -12,13 +12,13 @@ class Sequences(Repository[Sequence]):
     model = Sequence
 
     def triggered_sequences(self, moment: str) -> list[Sequence]:
-        return self.selected(self.query().filter_record("triggers", kind=SequenceTriggerType.ROW.value, moment=moment).order("id"))
+        return self.selected(self.query().filter_record("triggers", trigger_type=SequenceTriggerType.ROW.value, moment=moment).order("id"))
 
     def requested_sequences(self, text: str) -> list[Sequence]:
-        return [sequence for sequence in self.selected(self.query().filter_record("triggers", kind=SequenceTriggerType.PHRASE.value).order("id")) if sequence.is_requested(text)]
+        return [sequence for sequence in self.selected(self.query().filter_record("triggers", trigger_type=SequenceTriggerType.PHRASE.value).order("id")) if sequence.is_requested(text)]
 
     def call_sequences(self) -> list[Sequence]:
-        return self.selected(self.query().filter_record_listed("triggers", "kind", CALL_KINDS).order("id"))
+        return self.selected(self.query().filter_record_listed("triggers", "trigger_type", CALL_KINDS).order("id"))
 
     def called_sequences(self, call: ToolCall) -> list[Sequence]:
         return [sequence for sequence in self.call_sequences() if CallTriggers.is_called(sequence, call)]

@@ -33,14 +33,14 @@ class PlanBindings:
         self.check(row, environment_id)
         self.removed(Ref.build(row), ENDED_LINK, actor)
         if not self.environment_id(row):
-            self.links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), environment_id), kind=BOUND_LINK), actor)
+            self.links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), environment_id), link_type=BOUND_LINK), actor)
 
     def end(self, row: Task | Plan, reason: str, actor: Actor) -> None:
         environment_id = self.environment_id(row)
         noun = type(row).__name__.lower()
         ending = DriveEnded(environment_id=environment_id, row_id=row.row_id, name=self.labels.name(noun, row), noun=noun, reason=reason)
         self.unbind(Ref.build(row), actor)
-        self.links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), environment_id), kind=ENDED_LINK).with_event(ending), actor)
+        self.links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), environment_id), link_type=ENDED_LINK).with_event(ending), actor)
 
     def is_ended(self, row: Task | Plan) -> bool:
         return bool(self.links.targets(row, ENDED_LINK))
@@ -51,6 +51,6 @@ class PlanBindings:
     def unbind(self, ref: Ref, actor: Actor) -> None:
         self.removed(ref, BOUND_LINK, actor)
 
-    def removed(self, ref: Ref, kind: str, actor: Actor) -> None:
-        for link in self.links.all_matching(source=ref, kind=kind):
+    def removed(self, ref: Ref, type_name: str, actor: Actor) -> None:
+        for link in self.links.all_matching(source=ref, link_type=type_name):
             self.links.delete(link, actor)

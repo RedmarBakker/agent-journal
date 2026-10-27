@@ -65,8 +65,8 @@ class StateMachine:
         return (*self.features.conducts(role), *self.features.mode_conducts(role, lowest_state))
 
     @classmethod
-    def event_kinds(cls, kind: type) -> list[type]:
-        return [kind, *(descendant for subclass in kind.__subclasses__() for descendant in cls.event_kinds(subclass))]
+    def event_kinds(cls, type_name: type) -> list[type]:
+        return [type_name, *(descendant for subclass in type_name.__subclasses__() for descendant in cls.event_kinds(subclass))]
 
     @staticmethod
     def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:

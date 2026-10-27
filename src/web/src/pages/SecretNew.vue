@@ -11,9 +11,9 @@ import SecretForm from "./SecretForm.vue";
 const emit = defineEmits(["open", "back"]);
 const {busy, failure, attempt} = useAttempt();
 const draft = ref(drafted(null));
-const chosen = computed(() => Boolean(draft.value.kind));
+const chosen = computed(() => Boolean(draft.value.secret_type));
 
-const pick = (kind) => (draft.value = {...drafted(null), kind: kind.key, fields: kind.fields.map((field) => ({...field, variable: ""}))});
+const pick = (kind) => (draft.value = {...drafted(null), secret_type: kind.key, fields: kind.fields.map((field) => ({...field, variable: ""}))});
 
 async function create() {
     const {done, got} = await attempt(() => api.create("secrets", creating(draft.value)));
@@ -28,7 +28,7 @@ async function create() {
         <b>What kind of secret is it?</b>
         <div class="secrets-kinds" role="radiogroup" aria-label="Kind of secret">
             <template v-for="kind in KINDS" :key="kind.key">
-                <PickCard :title="kind.title" :picked="draft.kind === kind.key" @click="pick(kind)">{{ kind.line }}</PickCard>
+                <PickCard :title="kind.title" :picked="draft.secret_type === kind.key" @click="pick(kind)">{{ kind.line }}</PickCard>
             </template>
         </div>
         <template v-if="chosen">

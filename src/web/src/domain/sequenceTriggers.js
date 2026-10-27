@@ -26,7 +26,7 @@ export const TRIGGER_KINDS = [
 
 export const kindOf = (value) => TRIGGER_KINDS.find((kind) => kind.value === value) || TRIGGER_KINDS[0];
 
-export const blankTrigger = (value = "row") => ({kind: value, moment: "", text: "", pattern: "", tool: ""});
+export const blankTrigger = (value = "row") => ({trigger_type: value, moment: "", text: "", pattern: "", tool: ""});
 
 const quoted = (text) => `“${text}”`;
 
@@ -46,22 +46,22 @@ const WORDS = {
 };
 
 // One trigger as a sentence, and what starts a sequence as a list of them.
-export const triggerWords = (trigger) => WORDS[trigger.kind](trigger);
+export const triggerWords = (trigger) => WORDS[trigger.trigger_type](trigger);
 
 export const startWords = (sequence) => ((sequence.triggers || []).length ? sequence.triggers.map(triggerWords) : ["Only when you or the agent start it"]);
 
 // A trigger as the server takes it: only the fields its kind reads, trimmed.
 export function triggerBody(trigger) {
-    const named = kindOf(trigger.kind).fields.map((field) => [field.name, (trigger[field.name] || "").trim()]);
-    return {kind: trigger.kind, ...Object.fromEntries(named.filter(([, value]) => value))};
+    const named = kindOf(trigger.trigger_type).fields.map((field) => [field.name, (trigger[field.name] || "").trim()]);
+    return {trigger_type: trigger.trigger_type, ...Object.fromEntries(named.filter(([, value]) => value))};
 }
 
 // The first thing missing from the triggers, in plain words, or nothing.
 export function triggersProblem(triggers) {
     for (const trigger of triggers) {
-        const required = kindOf(trigger.kind).fields.filter((field) => !(trigger.kind === "tool" && field.name === "pattern"));
+        const required = kindOf(trigger.trigger_type).fields.filter((field) => !(trigger.trigger_type === "tool" && field.name === "pattern"));
         const empty = required.find((field) => !(trigger[field.name] || "").trim());
-        if (empty) return `${kindOf(trigger.kind).label}: fill in ${empty.label.toLowerCase()}.`;
+        if (empty) return `${kindOf(trigger.trigger_type).label}: fill in ${empty.label.toLowerCase()}.`;
     }
     return "";
 }

@@ -2,6 +2,7 @@ from sync_server.accounts import Accounts
 from sync_server.change_log import ChangeLog
 from sync_server.logged_change import LoggedChange
 from sync_server.rejected_field import RejectedField
+from sync_server.row_type import RowType
 from sync_server.stored_row import StoredRow
 
 DOCS = "docs"
@@ -28,4 +29,4 @@ class HubDocRules:
 
     def is_in_hub(self, doc: StoredRow) -> bool:
         environment = self.log.row(ENVIRONMENTS, int(doc.fields.get("environment_id", 0)))
-        return environment is not None and environment.fields.get("kind") == HUB
+        return environment is not None and RowType.of(environment.fields, "environment_type") == HUB

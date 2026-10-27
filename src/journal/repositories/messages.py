@@ -102,7 +102,7 @@ class Messages(ScopedRepository[Message]):
         return [m for m in read if not m.is_terminal_line and not any(ref.type == "tasks" for ref in self.links.targets(m, self.SUBJECT_LINK))]
 
     def prompt_repeats(self, text: str) -> list[Message]:
-        return [message for kind in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", kind).order("id"))]
+        return [message for type_name in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", type_name).order("id"))]
 
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()
@@ -218,10 +218,10 @@ class Messages(ScopedRepository[Message]):
         return self.window(chat, last)
 
     def comments_query(self) -> Query:
-        return self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK))
+        return self.comment_query(self.link_query.filter(link_type=self.COMMENT_LINK))
 
     def row_comments(self, ref: Ref) -> list[Message]:
-        return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK, target=str(ref))).order("id"))
+        return self.selected(self.comment_query(self.link_query.filter(link_type=self.COMMENT_LINK, target=str(ref))).order("id"))
 
     def comment_query(self, links: Query) -> Query:
         candidates = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
@@ -242,9 +242,9 @@ class Messages(ScopedRepository[Message]):
         return message if message.read_at else self.save(message.with_read_time(self.time_source.moment(), tool_use), actor)
 
     def newest_moments(self, kinds: tuple[str, ...], last: int) -> list[Message]:
-        moments = [message for kind in kinds for message in self.selected(self.query().filter_json("data->shows", kind).order_descending("id").limit(last))]
+        moments = [message for type_name in kinds for message in self.selected(self.query().filter_json("data->shows", type_name).order_descending("id").limit(last))]
         return sorted(moments, key=lambda message: message.id, reverse=True)[:last]
 
-    def newest_shown(self, kind: str) -> list[Message]:
-        return self.selected(self.query().filter_json("data->shows", kind).order_descending("id").limit(NEWEST_SHOWN))
+    def newest_shown(self, type_name: str) -> list[Message]:
+        return self.selected(self.query().filter_json("data->shows", type_name).order_descending("id").limit(NEWEST_SHOWN))
 

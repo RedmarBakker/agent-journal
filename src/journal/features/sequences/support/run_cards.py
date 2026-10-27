@@ -15,7 +15,7 @@ class RunCards:
 
     def recorded(self, environment_id: int, session: str, sequence_id: int, title: str, subject: str) -> str:
         data = {"session": session, "n": sequence_id, "title": title, "what": subject}
-        self.entries.save(Entry(environment_id=environment_id, kind=RUN, actor=Actor.system(), data=data), Actor.system())
+        self.entries.save(Entry(environment_id=environment_id, entry_type=RUN, actor=Actor.system(), data=data), Actor.system())
         return f"Sequence {sequence_id}, {title}: {subject}"
 
     def step_moved(self, environment_id: int, session: str, run: SequenceRun) -> str:

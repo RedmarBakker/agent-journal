@@ -7,7 +7,7 @@ class Turn:
 
     line: int
     speaker: str
-    kind: str
+    turn_type: str
     time: float
     text: str = ""
     tools: list[str] = field(default_factory=list)

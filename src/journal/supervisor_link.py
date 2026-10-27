@@ -151,9 +151,9 @@ class SupervisorLink:
         keyboard_input = path.stat().st_mtime if path else 0.0
         return max(keyboard_input, self._viewer_keyed_at.get(environment_id, 0.0))
 
-    def mirrored(self, environment_id: int, kind: str) -> Path | None:
+    def mirrored(self, environment_id: int, type_name: str) -> Path | None:
         announced = self.announced(environment_id)
-        path = Path(announced.screen).with_suffix(f".{kind}") if announced and announced.screen else None
+        path = Path(announced.screen).with_suffix(f".{type_name}") if announced and announced.screen else None
         return path if path and path.exists() else None
 
     def start(self, environment_id: int, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, health: dict) -> SupervisorReply:

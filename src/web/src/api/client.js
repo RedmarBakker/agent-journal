@@ -297,8 +297,8 @@ export class ApiClient {
         return this.get(this.here(`/docs/search${query({words})}`));
     }
 
-    attachments({kind, shelf, search, last, skip}) {
-        return this.get(this.here(`/attachments${query({kind, shelf, search, last, skip})}`));
+    attachments({file_type, shelf, search, last, skip}) {
+        return this.get(this.here(`/attachments${query({file_type, shelf, search, last, skip})}`));
     }
 
     // a plan's tasks

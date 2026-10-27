@@ -57,6 +57,6 @@ test("a new sequence is made on the page with two steps, a step whose file edits
             {title: "", instructions: "find what the todo asks", file_edits_allowed: false, allowed_commands: []},
             {title: "", instructions: "do what it asks", file_edits_allowed: true, allowed_commands: []},
         ],
-        triggers: [{kind: "file-text", pattern: "src/*.py", text: "TODO"}],
+        triggers: [{trigger_type: "file-text", pattern: "src/*.py", text: "TODO"}],
     });
 });

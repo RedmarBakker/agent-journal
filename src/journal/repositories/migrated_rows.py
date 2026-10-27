@@ -19,8 +19,8 @@ class MigratedRows(Repository[MigratedRow]):
         return Ref.parse(rows[0].target) if rows else None
 
     def referred(self, environment: str, ref: str) -> Ref | None:
-        kind, _, n = ref.partition(":")
-        return self.imported_ref(f"environments/{environment}/{kind}/{n}") or self.imported_ref(f"project/{kind}/{n}")
+        type_name, _, n = ref.partition(":")
+        return self.imported_ref(f"environments/{environment}/{type_name}/{n}") or self.imported_ref(f"project/{type_name}/{n}")
 
     def counterpart(self, environment: str, refs: tuple[str, ...]) -> Ref:
         counterpart = next((imported for ref in refs if (imported := self.referred(environment, ref))), None)

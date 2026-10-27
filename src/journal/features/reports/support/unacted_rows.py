@@ -18,16 +18,16 @@ class UnactedRows:
     def rows(self) -> tuple[UnactedRow, ...]:
         return (*self.unacted("report", self.reports), *self.unacted("doc", self.docs))
 
-    def unacted(self, kind: str, writing: UnactedWriting) -> list[UnactedRow]:
+    def unacted(self, type_name: str, writing: UnactedWriting) -> list[UnactedRow]:
         unacted_rows: list[UnactedRow] = []
         last_id = 0
         while len(unacted_rows) < UNACTED_ROWS:
             page = writing.unacted(last_id, UNACTED_ROWS)
-            unacted_rows.extend(UnactedRow(kind, row.row_id, row.creation_time.timestamp()) for row in page if not self.is_opened(kind, row))
+            unacted_rows.extend(UnactedRow(type_name, row.row_id, row.creation_time.timestamp()) for row in page if not self.is_opened(type_name, row))
             if len(page) < UNACTED_ROWS:
                 break
             last_id = page[-1].row_id
         return unacted_rows[:UNACTED_ROWS]
 
-    def is_opened(self, kind: str, row: Model) -> bool:
-        return any(run.command.split()[:4] == ["journal", kind, "show", str(row.row_id)] for run in self.outputs.started_with(f"journal {kind} show {row.row_id}"))
+    def is_opened(self, type_name: str, row: Model) -> bool:
+        return any(run.command.split()[:4] == ["journal", type_name, "show", str(row.row_id)] for run in self.outputs.started_with(f"journal {type_name} show {row.row_id}"))

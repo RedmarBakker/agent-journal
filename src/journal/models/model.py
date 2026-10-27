@@ -11,12 +11,13 @@ from journal.support.unsaved_row import UnsavedRow
 
 @dataclass(frozen=True)
 class Model:
-    """A row. Data only; it never touches the database. Every row says who made it and who last changed it. A row's refusal says why it cannot be written as it stands, before anything is written, and is empty when it can; a row pulled from the team is made as this journal stores it, for a sender on an older version whose row lacks what this one requires, and takes in only the fields of an update that this journal takes; a table is shared by models that tell their rows apart by kind_filter; a shared model takes a new row's number from the team's block of numbers."""
+    """A row. Data only; it never touches the database. Every row says who made it and who last changed it. A row's refusal says why it cannot be written as it stands, before anything is written, and is empty when it can; a row pulled from the team is made as this journal stores it, for a sender on an older version whose row lacks what this one requires, and takes in only the fields of an update that this journal takes; a row from the team or a copy of it may name a column by the name it had before a rename, which column_renames gives as it is named now; a table is shared by models that tell their rows apart by type_filter; a shared model takes a new row's number from the team's block of numbers."""
 
     text_fields: ClassVar[tuple[str, ...]] = ()
     timeline_visible: ClassVar[bool] = True
     shared: ClassVar[bool] = True
     local_fields: ClassVar[tuple[str, ...]] = ()
+    column_renames: ClassVar[dict[str, str]] = {}
     unshown_fields: ClassVar[tuple[str, ...]] = ()
 
     id: int | None = None
@@ -59,7 +60,7 @@ class Model:
         return cls.table()
 
     @classmethod
-    def kind_filter(cls) -> dict[str, str]:
+    def type_filter(cls) -> dict[str, str]:
         return {}
 
     @classmethod

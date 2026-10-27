@@ -30,7 +30,7 @@ class PluginSettings:
         settings: dict[str, object] = {}
         for setting in self.schema(plugin):
             if setting.is_secret:
-                secret = self.secrets.save(Secret(title=f"{plugin.name} {setting.title}", brief=setting.help, kind=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields(f"{plugin.name} {setting.key}"), proposed=(self.program(plugin),)), actor)
+                secret = self.secrets.save(Secret(title=f"{plugin.name} {setting.title}", brief=setting.help, secret_type=SecretType.API_KEY, fields=SecretType.API_KEY.first_fields(f"{plugin.name} {setting.key}"), proposed=(self.program(plugin),)), actor)
                 settings[setting.key] = {"secret": secret.row_id}
             else:
                 settings[setting.key] = setting.default
@@ -47,21 +47,21 @@ class PluginSettings:
 
     @staticmethod
     def parsed(setting: PluginSetting, value: str) -> object:
-        kind = setting.kind
+        type_name = setting.setting_type
         if setting.is_secret:
             raise Rejection(f"{setting.key} is a secret: the user fills it on the Secrets page, never through a command")
-        if kind == "number":
+        if type_name == "number":
             try:
                 return float(value) if "." in value else int(value)
             except ValueError:
                 raise Rejection(f"{setting.key} is a number; {value!r} is not") from None
-        if kind == "flag":
+        if type_name == "flag":
             if value.lower() not in FLAGS:
                 raise Rejection(f"{setting.key} is on or off; {value!r} is neither")
             return FLAGS[value.lower()]
-        if kind == "choice" and value not in setting.choices:
+        if type_name == "choice" and value not in setting.choices:
             raise Rejection(f"{setting.key} is one of {', '.join(setting.choices)}")
-        if kind == "list":
+        if type_name == "list":
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 

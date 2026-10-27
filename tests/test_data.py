@@ -16,6 +16,7 @@ import threading
 import pytest
 
 from journal.db.query import Query
+from tests.old_columns import kind_columns
 from journal.db.unknown_column import UnknownColumn
 from journal.events.models.created import Created
 from journal.events.models.creating import Creating
@@ -120,7 +121,7 @@ def test_links_join_any_two_rows_and_leave_with_a_deleted_row(connection, bus, s
     bus.listen(Deleted, UnlinkDeleted(links))
     item = tasks.save(Task(environment_id=1, title="a"), actor=USER)
     b = tasks.save(Task(environment_id=1, title="b"), actor=USER)
-    links.save(Link(source=Ref.build(item), target=Ref.build(b), kind="blocks"), actor=AGENT)
+    links.save(Link(source=Ref.build(item), target=Ref.build(b), link_type="blocks"), actor=AGENT)
     assert links.targets(item, "blocks") == [Ref.build(b)]
     assert links.all_sources(b) == [Ref.build(item)]
     assert len(links.connecting(item, b)) == 1
@@ -237,13 +238,14 @@ def legacy_workers(connection) -> None:
     """The workers table as journals kept it before workers and verifiers shared the table of sent agents, for the migrations that ran on it."""
     from journal.db.schema import Schema
     from journal.models.worker import Worker
-    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Worker) if column.name not in ("id", "kind"))
+    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Worker) if column.name not in ("id", "helper_type"))
     connection.execute(f"CREATE TABLE workers (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})")
 
 
 def test_the_time_keys_migration_renames_at_in_the_column_and_the_stored_json(connection):
     """Migration 20: the edits column at becomes time, and the at key inside an entry's data, a check's progress and a dump's question and answers becomes time; a record without them is left as it is."""
     from journal.db.migrations.time_keys import TimeKeys
+    kind_columns(connection)
     connection.execute("ALTER TABLE edits RENAME COLUMN time TO at")
     for table, now, then in (("checks", "progress", "running"), ("dumps", "choice", "chosen"), ("dumps", "claimed", "taken")):
         connection.execute(f"ALTER TABLE {table} RENAME COLUMN {now} TO {then}")
@@ -269,6 +271,7 @@ def test_the_verifiers_once_kept_as_workers_go_with_their_links_their_role_colum
     from journal.db.migrations.orphan_worker_cards import OrphanWorkerCards
     from journal.db.migrations.verifier_workers_drop import VerifierWorkersDrop
     legacy_workers(connection)
+    kind_columns(connection)
     connection.execute("ALTER TABLE workers ADD COLUMN role TEXT DEFAULT 'worker'")
     for name, role in (("Ada", "worker"), ("Diogenes", "verifier")):
         connection.execute("INSERT INTO workers (environment_id, name, role, created_at, creator) VALUES (1, ?, ?, '2026-10-25', 'system')", (name, role))
@@ -288,15 +291,15 @@ def test_workers_and_verifiers_move_into_the_one_table_of_sent_agents_each_keepi
     from journal.db.schema import Schema
     from journal.models.verifier import Verifier
     legacy_workers(connection)
-    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Verifier) if column.name not in ("id", "kind"))
+    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Verifier) if column.name not in ("id", "helper_type"))
     connection.execute(f"CREATE TABLE verifiers (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})")
     for name in ("Ada", "Grace"):
         connection.execute("INSERT INTO workers (environment_id, name, state, created_at, creator) VALUES (1, ?, 'dispatched', '2026-10-25', 'system')", (name,))
     connection.execute("INSERT INTO verifiers (environment_id, name, state, created_at, creator) VALUES (1, 'Diogenes', 'judged', '2026-10-25', 'system')")
-    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('verifiers:1', 'reader_reports:4', 'verifies', '2026-10-25', 'system')")
+    connection.execute("INSERT INTO links (source, target, link_type, created_at, creator) VALUES ('verifiers:1', 'reader_reports:4', 'verifies', '2026-10-25', 'system')")
     connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at, creator) VALUES (1, 'system', 'card', ?, '2026-10-25', 'system')", (json.dumps({"key": "verifier:1"}),))
     HelperRows().apply(connection)
-    rows = [(row["id"], row["name"], row["kind"]) for row in connection.all("SELECT id, name, kind FROM sent_agents ORDER BY id")]
+    rows = [(row["id"], row["name"], row["helper_type"]) for row in connection.all("SELECT id, name, helper_type FROM sent_agents ORDER BY id")]
     assert rows == [(1, "Ada", "worker"), (2, "Grace", "worker"), (3, "Diogenes", "verifier")], "each worker keeps its number, and a verifier takes one after the last so none meets a worker's"
     assert connection.one("SELECT source FROM links")["source"] == "verifiers:3" and json.loads(connection.one("SELECT data FROM messages")["data"]) == {"key": "verifier:3"}, "its link and its card follow its new number"
     tables = {row["name"] for row in connection.all("SELECT name FROM sqlite_master WHERE type = 'table'")}
@@ -361,6 +364,7 @@ def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_sha
         (config.home / filename).write_text(json.dumps(account))
         connection = Connection(config.database, Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
         Schema(connection, AllModels.MODELS).create()
+        kind_columns(connection)
         connection.execute("ALTER TABLE environments ADD COLUMN is_team_chat INTEGER NOT NULL DEFAULT 0")
         connection.execute("ALTER TABLE environments ADD COLUMN is_shared_with_team INTEGER NOT NULL DEFAULT 0")
         for name, team_chat, shared in (("main", 0, 0), ("team", 1, 0), ("ada-docs", 0, 1)):
@@ -448,6 +452,7 @@ def test_the_worker_reuse_counts_migration_reads_each_reuse_from_the_reports_bef
     """Migration 30: an old worker row's reuse count comes from its report links, the last report followed by a send when it is out again; the reason it was retired starts empty."""
     from journal.db.migrations.worker_reuse_counts import WorkerReuseCounts
     legacy_workers(connection)
+    kind_columns(connection)
     for n, state in ((1, "reported"), (2, "dispatched"), (3, "dispatched")):
         connection.execute("INSERT INTO workers (environment_id, name, state, created_at, creator) VALUES (1, ?, ?, '2026-10-21', 'system')", (f"w{n}", state))
     for worker, reports in ((1, 3), (2, 2)):
@@ -491,8 +496,8 @@ def test_a_query_renders_every_read_shape_with_its_values_bound():
     assert tasks.filter_containing("title", "50%_off").order("state").order_descending("id").offset(3).select() == ("SELECT * FROM tasks WHERE title LIKE ? ESCAPE '\\' ORDER BY state, id DESC LIMIT ? OFFSET ?", ("%50\\%\\_off%", -1, 3))
     assert entries.filter_json("data->session", "s").filter_listed("data->call->kind", ("a",)).maximum("data->time", 0) == ("SELECT COALESCE(MAX(json_extract(data, '$.time')), 0) AS value FROM entries WHERE json_extract(data, '$.session') = ? AND json_extract(data, '$.call.kind') IN (?)", ("s", "a"))
     assert tasks.filter_alternatives(tasks.filter(title="a"), tasks.filter(title="b").filter_null("block_reason")).count() == ("SELECT count(*) AS value FROM tasks WHERE (title = ? OR (title = ? AND block_reason IS NULL))", ("a", "b"))
-    assert entries.filter(kind="ToolStarting").order_descending("id").limit(9).repeated("data->call->command", 2) == ("SELECT value FROM (SELECT json_extract(data, '$.call.command') AS value FROM entries WHERE kind = ? ORDER BY id DESC LIMIT ? OFFSET ?) WHERE value != '' GROUP BY value HAVING COUNT(*) >= ?", ("ToolStarting", 9, 0, 2)), "the values a page of rows holds at least so many times"
-    assert tasks.filter_absent(Query.build(Link).filter(kind="in_plan").filter_ref("source", tasks)).count() == ("SELECT count(*) AS value FROM tasks WHERE NOT EXISTS (SELECT 1 FROM links WHERE kind = ? AND links.source = ? || tasks.id)", ("in_plan", "tasks:"))
+    assert entries.filter(entry_type="ToolStarting").order_descending("id").limit(9).repeated("data->call->command", 2) == ("SELECT value FROM (SELECT json_extract(data, '$.call.command') AS value FROM entries WHERE entry_type = ? ORDER BY id DESC LIMIT ? OFFSET ?) WHERE value != '' GROUP BY value HAVING COUNT(*) >= ?", ("ToolStarting", 9, 0, 2)), "the values a page of rows holds at least so many times"
+    assert tasks.filter_absent(Query.build(Link).filter(link_type="in_plan").filter_ref("source", tasks)).count() == ("SELECT count(*) AS value FROM tasks WHERE NOT EXISTS (SELECT 1 FROM links WHERE link_type = ? AND links.source = ? || tasks.id)", ("in_plan", "tasks:"))
 
 
 def test_a_query_renders_its_writes_and_writes_a_condition_into_its_text():
@@ -523,6 +528,7 @@ def test_a_line_said_before_lines_carried_the_tool_use_gains_it_and_its_moment(t
     first.runtime().start()
     first.runtime().stop()
     db = sqlite3.connect(first.config.database)
+    kind_columns(db)
     db.execute("INSERT INTO entries (environment_id, kind, actor, data, created_at, creator, updated_at, updater) VALUES (1, 'nudge', 'system', ?, '2026-10-01T10:00:00+00:00', 'system', '2026-10-01T10:00:00+00:00', 'system')", (json.dumps({"key": "shell.outputs_ended", "session": "s1", "line": "output 1 finished"}),))
     db.execute("DELETE FROM migrations WHERE number >= 37")
     db.commit()
@@ -531,7 +537,7 @@ def test_a_line_said_before_lines_carried_the_tool_use_gains_it_and_its_moment(t
     second.runtime().start()
     second.runtime().stop()
     db = sqlite3.connect(second.config.database)
-    data = json.loads(db.execute("SELECT data FROM entries WHERE kind = 'nudge' AND json_extract(data, '$.line') = 'output 1 finished'").fetchone()[0])
+    data = json.loads(db.execute("SELECT data FROM entries WHERE entry_type = 'nudge' AND json_extract(data, '$.line') = 'output 1 finished'").fetchone()[0])
     assert data["tool_use"] == 0 and data["time"] > 0, data
 
 
@@ -552,7 +558,7 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
         paused = tasks.save(Task(environment_id=1, title="paused", state=TaskState.PAUSED), actor=USER)
         done = tasks.save(Task(environment_id=1, title="done", state=TaskState.COMPLETED), actor=USER)
         draft = PlanRows(connection, bus, scope, TimeSource()).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
-        links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), kind=PLAN_LINK), actor=USER)
+        links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), link_type=PLAN_LINK), actor=USER)
         assert [task.id for task in tasks.open_tasks()] == [free.id], "a task of an unapproved plan is no open work"
         assert [task.id for task in tasks.blocked_tasks()] == [blocked.id]
         assert [task.id for task in tasks.paused_tasks()] == [paused.id]
@@ -915,9 +921,9 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
     rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
     links_a, links_b = Links(tasks_a.connection, tasks_a.bus, TimeSource()), Links(tasks_b.connection, tasks_b.bus, TimeSource())
 
-    hub = scope_a.environments.save(Environment(name="hub", kind=EnvironmentType.SESSION), USER)
+    hub = scope_a.environments.save(Environment(name="hub", environment_type=EnvironmentType.SESSION), USER)
     shared = scope_a.environments.save(Environment(name="mine"), USER)
-    links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), kind="owner"), USER)
+    links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), link_type="owner"), USER)
     with scope_a.environment(hub.id):
         hub_task = tasks_a.save(Task(environment_id=hub.id, title="the hub's task"), actor=USER)
     sharing = EnvironmentSharing(scope_a.environments, EnvironmentOwners(links_a, Users(tasks_a.connection, tasks_a.bus, TimeSource()), scope_a.environments), TeamAccount(Config(tmp_path / "a")))
@@ -926,7 +932,7 @@ def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_se
         task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
         plan = rows_a.rows("plans").save(Plan(environment_id=shared.id, title="my plan"), USER)
         messages = [rows_a.rows("messages").save(Message(environment_id=shared.id, text=text, files=files), USER) for text, files in (("hello", ("note.txt",)), ("again", ()))]
-        to_hub = links_a.save(Link(source=Ref.build(task), target=Ref.build(hub_task), kind="follows"), USER)
+        to_hub = links_a.save(Link(source=Ref.build(task), target=Ref.build(hub_task), link_type="follows"), USER)
     team.files.put(FilePlace("messages", messages[0].id, "note.txt"), b"a note")
     for side in ("a", "b"):
         (tmp_path / side / ".journal" / "files" / "message" / str(messages[0].id)).mkdir(parents=True)
@@ -1007,7 +1013,7 @@ def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_an
     private = scope_a.environments.save(Environment(name="private"), USER)
     shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
     chat = scope_a.environments.save(Environment.session(team.details.answer().key, "team"), USER)
-    owner = Links(tasks_a.connection, tasks_a.bus, TimeSource()).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
+    owner = Links(tasks_a.connection, tasks_a.bus, TimeSource()).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), link_type="owner"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)
     carried()
@@ -1038,7 +1044,7 @@ def test_a_wiped_environment_and_a_deleted_rows_links_reach_the_other_journal(tm
     with scope_a.environment(1):
         first = tasks_a.save(Task(environment_id=1, title="first"), actor=USER)
         other = tasks_a.save(Task(environment_id=1, title="other"), actor=USER)
-        links_a.save(Link(source=Ref.build(first), target=Ref.build(other), kind="follows"), actor=USER)
+        links_a.save(Link(source=Ref.build(first), target=Ref.build(other), link_type="follows"), actor=USER)
     with scope_a.environment(second.id):
         tasks_a.save(Task(environment_id=second.id, title="in the second"), actor=USER)
     incoming_b.apply(team_changes(outgoing_a))
@@ -1146,7 +1152,7 @@ def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_a
     try:
         rule = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()).rows("rules").save(Rule(text="a rule"), USER)
         private = scope_a.environments.save(Environment(name="mine"), USER)
-        links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
+        links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), link_type="owner"), USER)
         shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
         with scope_a.environment(private.id):
             task = tasks_a.save(Task(environment_id=private.id, title="mine"), actor=USER)
@@ -1196,7 +1202,7 @@ def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its
         ada_own, bob_own = (scope_a.environments.save(Environment(name=name), USER) for name in ("ada-own", "bob-own"))
         shared = scope_a.environments.save(Environment(name="open", team_key=team.details.answer().key), USER)
         for person, environment in ((1, ada_own), (2, bob_own)):
-            links_a.save(Link(source=Ref.build(User(id=person)), target=Ref.build(environment), kind="owner"), USER)
+            links_a.save(Link(source=Ref.build(User(id=person)), target=Ref.build(environment), link_type="owner"), USER)
         with scope_a.environment(ada_own.id):
             ada_plan = rows_a.rows("plans").save(Plan(environment_id=ada_own.id, title="Ada's plan"), USER)
             ada_task = tasks_a.save(Task(environment_id=ada_own.id, title="Ada's task"), actor=USER)
@@ -1287,9 +1293,9 @@ def test_team_placement_puts_each_row_in_its_team_or_in_none(tmp_path):
     assert placed(hub, session, shared, private) == ["k1", "k1", "k1", ""], "an environment is in its team when it is the hub, a session or shared, and a private one in none"
     assert placed(*(work[name] for name in ("acme", "team", "open", "mine"))) == ["k1", "k1", "k1", ""], "a row of an environment is placed with its environment, whose chat is shared or not"
     links = Links(tasks.connection, bus, TimeSource())
-    together = links.save(Link(source=Ref.build(work["acme"]), target=Ref.build(work["team"]), kind="mentions"), USER)
-    apart = links.save(Link(source=Ref.build(work["mine"]), target=Ref.build(work["acme"]), kind="copied_from"), USER)
-    owner = links.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
+    together = links.save(Link(source=Ref.build(work["acme"]), target=Ref.build(work["team"]), link_type="mentions"), USER)
+    apart = links.save(Link(source=Ref.build(work["mine"]), target=Ref.build(work["acme"]), link_type="copied_from"), USER)
+    owner = links.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), link_type="owner"), USER)
     assert placed(together, apart, owner) == ["k1", "", ""], "a link is in a team only when both its ends are in that team"
     assert placed(User(id=2, name="Bob")) == ["k1"], "a person is in their team"
     assert placed(Rule(text="a rule"), Template(title="a template"), Entry()) == ["", "", ""], "rules and templates are in no team, nor is a row kept on one machine"
@@ -1333,6 +1339,55 @@ def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is
     assert arrived.title == "lint" and arrived.last_output == "" and arrived.last_run_at is None, "the check reaches the other journal without the first machine's run"
 
 
+def test_a_database_from_before_the_type_columns_keeps_every_type_under_its_new_name(connection, bus):
+    """Migration 75: each column named kind becomes its table's type name, entry_type, link_type and the rest, keeping its values and its indexes, the empty column the schema already added and the index made on it dropped first; a sequence's triggers and an edit's rows keep their types as trigger_type and line_type, and a write still waiting for the team is sent under the new name."""
+    from journal.db.migrations.type_columns import TypeColumns
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.models.outgoing_change import CREATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+
+    kind_columns(connection)
+    connection.execute("CREATE INDEX IF NOT EXISTS links_by_kind ON links (kind, source)")
+    Schema(connection, AllModels.MODELS).create()
+    connection.execute("CREATE INDEX entries_dispatches ON entries (environment_id, id) WHERE entry_type = 'Stop'")
+    for table, value in (("entries", "nudge"), ("links", "mentions"), ("sent_agents", "worker"), ("secrets", "browser login"), ("environments", "hub")):
+        connection.execute(f"INSERT INTO {table} (kind, created_at, creator) VALUES (?, '2026-10-27', 'system')", (value,))
+    connection.execute("INSERT INTO reports (kind, abstract, created_at, creator) VALUES ('update', 'what changed', '2026-10-27', 'system')")
+    connection.execute("INSERT INTO edits (kind, rows, created_at, creator) VALUES ('create', ?, '2026-10-27', 'system')", (json.dumps([{"kind": "add", "line": 1, "text": "x = 1", "hidden": 0}]),))
+    connection.execute("INSERT INTO sequences (title, triggers, created_at, creator) VALUES ('Ship', ?, '2026-10-27', 'system')", (json.dumps([{"kind": "row", "moment": "plan.created"}]),))
+    outgoing = OutgoingChanges(connection, bus, TimeSource())
+    outgoing.queued(OutgoingChange(row_table="links", row=1, action=CREATED, fields={"kind": "mentions", "source": "tasks:1"}, changed_at={"kind": 1.0, "source": 1.0}, writer="user:1"), Actor.system())
+    with connection.transaction():
+        TypeColumns().apply(connection)
+    for table, column, value in (("entries", "entry_type", "nudge"), ("links", "link_type", "mentions"), ("sent_agents", "helper_type", "worker"), ("secrets", "secret_type", "browser login"), ("edits", "edit_type", "create"), ("environments", "environment_type", "hub"), ("reports", "report_type", "update")):
+        columns = {row["name"] for row in connection.all(f"PRAGMA table_info({table})")}
+        assert "kind" not in columns and connection.one(f"SELECT {column} AS value FROM {table}")["value"] == value, f"{table} keeps its type under {column}"
+    assert "link_type" in connection.one("SELECT sql FROM sqlite_master WHERE name = 'links_by_kind'")["sql"], "an index on the old column follows it"
+    assert json.loads(connection.one("SELECT rows FROM edits")["rows"]) == [{"line_type": "add", "line": 1, "text": "x = 1", "hidden": 0}], "an edit's rows name their type line_type"
+    assert json.loads(connection.one("SELECT triggers FROM sequences")["triggers"]) == [{"trigger_type": "row", "moment": "plan.created"}], "a sequence's triggers name theirs trigger_type"
+    [change] = outgoing.waiting()
+    assert change.fields == {"link_type": "mentions", "source": "tasks:1"} and set(change.changed_at) == {"link_type", "source"}, "a write waiting for the team is sent under the new name"
+
+
+def test_a_team_row_on_the_names_before_the_type_columns_is_stored_under_the_new_ones(connection, bus):
+    """A change or a copy from the team made by a journal before migration 75 names a type column kind; this journal stores it under the column's name now, and a sequence trigger stored as kind reads as its trigger_type."""
+    from journal.models.support.sequence_trigger import SequenceTrigger
+    from journal.models.support.sequence_trigger_type import SequenceTriggerType
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+
+    links = Links(connection, bus, TimeSource())
+    pulled = links.pulled_creation(41, {"source": "tasks:1", "target": "tasks:2", "kind": "mentions"}, Actor.system())
+    links.restored([(42, {"source": "tasks:3", "target": "tasks:4", "kind": "copied_from"})])
+    assert (pulled.link_type, links.find(41).link_type, links.find(42).link_type) == ("mentions", "mentions", "copied_from"), "a pulled row and a copy laid in keep their type"
+    environments = Environments(connection, bus, TimeSource())
+    environments.pulled_creation(43, {"name": "acme", "team_name": "acme", "key": "k43", "kind": "hub"}, Actor.system())
+    environments.pulled_update(43, {"kind": "session"}, Actor.system())
+    assert environments.find(43).environment_type == "session", "an update on the old name changes the type too"
+    assert SequenceTrigger.parsed({"kind": "row", "moment": "plan.created"}) == SequenceTrigger.parsed({"trigger_type": "row", "moment": "plan.created"}) == SequenceTrigger(SequenceTriggerType.ROW, moment="plan.created"), "a trigger reads under either name"
+
+
 def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connection, bus):
     from journal.db.migration import Migration
     from journal.models.outgoing_change import UPDATED, OutgoingChange
@@ -1358,7 +1413,7 @@ def test_a_new_journal_has_every_index_and_an_index_whose_definition_changed_is_
     assert {index.name: index.sql() for index in INDEXES}.items() <= present.items(), "a journal created fresh has every index its reads rely on"
     assert present["environments_key"].startswith("CREATE UNIQUE INDEX"), "one environment to a key"
     connection.execute("DROP INDEX entries_dispatches")
-    connection.execute("CREATE INDEX entries_dispatches ON entries (environment_id, id) WHERE kind = 'Stop'")
+    connection.execute("CREATE INDEX entries_dispatches ON entries (environment_id, id) WHERE entry_type = 'Stop'")
     Indexes(connection, INDEXES).refresh()
     assert connection.result("SELECT sql FROM sqlite_master WHERE name = 'entries_dispatches'")[0] == next(index.sql() for index in INDEXES if index.name == "entries_dispatches"), "an index made under an older definition is made again under the current one"
     connection.close()
@@ -1462,7 +1517,7 @@ def test_a_read_that_leaves_columns_or_keys_out_loads_its_rows_with_those_fields
     reports, entries = Reports(connection, bus, scope, TimeSource()), Entries(connection, bus, scope, TimeSource())
     with scope.environment(1):
         reports.save(Report(title="the parser", abstract="what it reads", body="a long body " * 200, items=({"section": "done", "ref": "tasks:1", "title": "t"},)), USER)
-        entries.save(Entry(environment_id=1, kind="ToolStarting", actor=Actor.agent("s1"), data={"tool_name": "Read", "tool_input": {"file_path": "x" * 3000}, "call": {"read_paths": ["x"]}}), USER)
+        entries.save(Entry(environment_id=1, entry_type="ToolStarting", actor=Actor.agent("s1"), data={"tool_name": "Read", "tool_input": {"file_path": "x" * 3000}, "call": {"read_paths": ["x"]}}), USER)
         LoadTally.begin()
         summary = reports.selected(reports.query().without("body", "items"))[0]
         bare = reports.selected(reports.query().with_columns("title"))[0]
@@ -1492,7 +1547,7 @@ def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and
         loads = LoadTally.ended()
         agents.save(counted, USER)
         agents.save(counted.with_(work_queue=AgentLoad(rho=0.5, measured_at=1.0)), USER)
-        changes = [entry.data["changed"] for entry in entries.all_matching(kind="updated")]
+        changes = [entry.data["changed"] for entry in entries.all_matching(entry_type="updated")]
     assert [(load.model, load.rows) for load in loads.counts if load.rows] == [], f"the row as it was comes from the session read the cache holds: {loads.line()}"
     assert changes == [["tool_uses"]], "a save that changed nothing and a change of the load alone are no timeline entries"
 
@@ -1578,6 +1633,7 @@ def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_t
 
 def test_the_delegated_flag_migration_gives_every_delegated_task_the_state_it_really_has(connection):
     from journal.db.migrations.delegated_flag import DelegatedFlag
+    kind_columns(connection)
     for number, state in ((1, "delegated"), (2, "delegated"), (3, "open"), (4, "delegated")):
         connection.execute("INSERT INTO tasks (id, environment_id, title, state, created_at, creator) VALUES (?, 1, 't', ?, '2026-10-25', 'system')", (number, state))
     connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('workers:1', 'tasks:1', 'in_hand', '2026-10-25', 'system')")
@@ -1743,7 +1799,7 @@ def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_
     from journal.repositories.entries import Entries, NUDGE
     entries = Entries(connection, bus, scope, TimeSource())
     with scope.environment(1):
-        entries.save(Entry(environment_id=1, kind=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "session": "s1", "line": "an older line", "time": 1.0}), Actor.system())
-        entries.save(Entry(environment_id=1, kind=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "values": {"command": "pytest"}, "session": "s1", "line": "a line", "time": 2.0}), Actor.system())
+        entries.save(Entry(environment_id=1, entry_type=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "session": "s1", "line": "an older line", "time": 1.0}), Actor.system())
+        entries.save(Entry(environment_id=1, entry_type=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "values": {"command": "pytest"}, "session": "s1", "line": "a line", "time": 2.0}), Actor.system())
         assert entries.environment_values("shell.add_a_reader", "command") == ["pytest"], "a line recorded before lines kept their values is no fault at every tool use"
         assert entries.project_values("shell.add_a_reader", "command") == {"pytest": 2.0}

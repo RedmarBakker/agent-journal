@@ -142,7 +142,7 @@ def compound_lines() -> list[str]:
 
 
 def row(line: str) -> dict:
-    return {"line": line, "parts": [[part.text, part.kind(), part.stages()] for part in Chain.parts(line)]}
+    return {"line": line, "parts": [[part.text, part.part_type(), part.stages()] for part in Chain.parts(line)]}
 
 
 def main(corpus: Path) -> None:

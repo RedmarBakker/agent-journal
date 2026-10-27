@@ -10,11 +10,13 @@ from journal.models.scoped import Scoped
 class Entry(Scoped):
     """Append only: everything that happened, from hooks and from commands, and who did it, a hook's under that hook's key; it is the timeline itself, so it is in no timeline, and a tool entry includes the call's one reading beside the raw hook."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "entry_type"}
+
     shared: ClassVar[bool] = False
 
     timeline_visible: ClassVar[bool] = False
 
-    kind: str = ""
+    entry_type: str = ""
     actor: Actor | None = None
     data: dict = field(default_factory=dict)
     idempotency: str = ""

@@ -22,7 +22,7 @@ class CallTriggers:
             SequenceTriggerType.FILE_TEXT: lambda: cls.is_file_edit(call, trigger.pattern) and trigger.text in call.input_text,
             SequenceTriggerType.TOOL: lambda: call.tool == trigger.tool and re.search(trigger.pattern, call.input_text) is not None,
         }
-        return trigger.kind in checks and checks[trigger.kind]()
+        return trigger.trigger_type in checks and checks[trigger.trigger_type]()
 
     @staticmethod
     def is_file_edit(call: ToolCall, path_glob: str) -> bool:

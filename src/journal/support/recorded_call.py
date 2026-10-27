@@ -13,7 +13,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.undecoded_tool import UndecodedTool
 from journal.support.user_question import UserQuestion
 
-OPERATIONS = {kind.operation_type: kind for kind in (ShellLine, FileEdit, FileWrite, FileRead, SkillLoad, SubagentDispatch, AgentMessage, UserQuestion, UndecodedTool)}
+OPERATIONS = {operation.operation_type: operation for operation in (ShellLine, FileEdit, FileWrite, FileRead, SkillLoad, SubagentDispatch, AgentMessage, UserQuestion, UndecodedTool)}
 
 
 @dataclass(frozen=True)

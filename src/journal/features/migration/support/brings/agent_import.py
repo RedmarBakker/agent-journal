@@ -13,7 +13,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class AgentImport(EnvironmentTableImport):
     """A version 3 agent is history here: an ended agent of its provider, under the session its transcript names; no process is started."""
 
-    kind = "agent"
+    row_type = "agent"
     title = "agents"
 
     def __init__(self, environments: Environments, tally: MigratedRows, agents: Agents) -> None:

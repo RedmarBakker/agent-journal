@@ -16,13 +16,13 @@ const add = () => props.cards.push({key: ++made, ...blankTrigger()});
         <template v-for="(t, i) in cards" :key="t.key">
             <li class="trigger-card">
                 <div class="trigger-row">
-                    <Segmented wrap :options="kinds" :value="t.kind" @pick="(kind) => (t.kind = kind)" />
+                    <Segmented wrap :options="kinds" :value="t.trigger_type" @pick="(kind) => (t.trigger_type = kind)" />
                     <span class="grow" />
                     <button type="button" class="trigger-tool" aria-label="Remove this trigger" @click="cards.splice(i, 1)">
                         <Icon name="close" :size="12" />
                     </button>
                 </div>
-                <template v-for="field in kindOf(t.kind).fields" :key="field.name">
+                <template v-for="field in kindOf(t.trigger_type).fields" :key="field.name">
                     <label class="trigger-field">
                         <span class="trigger-label">{{ field.label }}</span>
                         <input v-model="t[field.name]" :placeholder="field.placeholder" />

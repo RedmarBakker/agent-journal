@@ -16,7 +16,7 @@ MIGRATED_PROGRESS_NOTE = "it was in progress in version 3 when the journal was b
 class TodoImport(EnvironmentTableImport):
     """A to-do becomes a task: done with its outcome, blocked with its reason, open, or paused when it was in progress, since one task alone is ever in hand; a struck one stays behind."""
 
-    kind = "todo"
+    row_type = "todo"
     title = "tasks"
 
     def __init__(self, environments: Environments, tally: MigratedRows, tasks: Tasks) -> None:

@@ -219,7 +219,7 @@ def test_the_shell_readers_section_counts_reader_runs_report_rate_suggestions_fo
         outputs.save(CommandOutput(environment_id=MAIN, command="sh test_naps.sh", session=session, moved=True, ended=True, watch_reader=reader), Actor.system())
     app.container.get(ReaderReports).save(ReaderReport(environment_id=MAIN, reader="naps", output=1, command="sh test_naps.sh", session="s1", findings=("x",), fixes=("y",)), Actor.system())
     for part in ("test_naps.sh", "make all"):
-        app.container.get(Entries).save(Entry(environment_id=MAIN, kind="nudge", actor=Actor.system(), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": part}, "line": f"no reader reads {part} yet"}), Actor.system())
+        app.container.get(Entries).save(Entry(environment_id=MAIN, entry_type="nudge", actor=Actor.system(), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": part}, "line": f"no reader reads {part} yet"}), Actor.system())
     assert added(app, "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap").code == 0
     status, measures = got(app, "/journal/developer/readers", {"X-Journal-Env": "main"})
     assert status == 200 and (measures["background_runs"], measures["reader_runs"]) == (4, 2), "half the background runs were read by a project reader"

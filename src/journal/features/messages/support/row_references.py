@@ -7,10 +7,10 @@ class RowReferences:
     @classmethod
     def rows(cls, text: str) -> list[tuple[str, int]]:
         tokens = [match.group() for match in TOKEN_PATTERN.finditer(text)]
-        references = [(kind, int(token)) for i, token in enumerate(tokens) if token.isdigit() and (kind := cls.kind(UnlinkedRowNumbers.preceding_word(tokens, i)))]
+        references = [(type_name, int(token)) for i, token in enumerate(tokens) if token.isdigit() and (type_name := cls.table_name(UnlinkedRowNumbers.preceding_word(tokens, i)))]
         return list(dict.fromkeys(references))
 
     @staticmethod
-    def kind(word: str) -> str:
+    def table_name(word: str) -> str:
         singular = word.removesuffix("s")
         return singular if singular in ROW_TABLES else ""

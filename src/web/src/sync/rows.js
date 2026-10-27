@@ -401,7 +401,8 @@ export function reload() {
 }
 
 const KEPT_ENTRIES = 50;
-const entriesKey = () => `entries:${store.identity?.root || location.host}:${api.env()}`;
+// entries kept in the browser under the name they have since their type is entry_type, so none kept under kind is read
+const entriesKey = () => `typed-entries:${store.identity?.root || location.host}:${api.env()}`;
 
 function keepEntries(entries) {
     const byEntryId = new Map(entries.map((e) => [e.id, e]));
@@ -421,10 +422,10 @@ export const tablesOf = (table) => SHOWN_AS[table] || [table];
 
 // The tables an entry tells the viewer to read again: a row's change names its table, a link's change the tables of the two rows it joins,
 // as a task put under a plan's phase changes the plan, a setting's change the settings.
-const owedBy = (e) => (!ROW_CHANGES.includes(e.kind) ? [] : [...tablesOf(e.data.table), ...(e.data.joins || []).flatMap(tablesOf)]);
+const owedBy = (e) => (!ROW_CHANGES.includes(e.entry_type) ? [] : [...tablesOf(e.data.table), ...(e.data.joins || []).flatMap(tablesOf)]);
 
 function dropDeleted(entries) {
-    for (const e of entries.filter((e) => e.kind === "deleted")) {
+    for (const e of entries.filter((e) => e.entry_type === "deleted")) {
         for (const table of tablesOf(e.data.table).filter((t) => store.rows[t])) {
             store.rows[table] = store.rows[table].filter((r) => r.id !== e.data.id);
         }

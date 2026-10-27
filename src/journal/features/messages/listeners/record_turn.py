@@ -131,7 +131,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             return False
         provider = self.providers.lookup(event.provider)
         start = self.entries.recent(entry.row_id)
-        return not any(e.kind == "ToolStarting" and e.is_write() for e in start)
+        return not any(e.entry_type == "ToolStarting" and e.is_write() for e in start)
 
     def _chat_answer(self, event: TurnDisplayed, line: str) -> bool:
         line_text = self.entries.line_entries(event.session, line)
@@ -140,7 +140,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
 
     def _other_answers(self, reply: Message, n: int, actor: Actor) -> None:
         try:
-            self.links.save(Link(source=Ref.build(reply), target=Ref.build(self.messages.find(n)), kind=Messages.ANSWERS), actor)
+            self.links.save(Link(source=Ref.build(reply), target=Ref.build(self.messages.find(n)), link_type=Messages.ANSWERS), actor)
         except MissingRow:
             return
 

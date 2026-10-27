@@ -149,7 +149,7 @@ class Registry:
         return [*CardTypeCatalogue.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
 
     def card_types(self) -> list[CardTypeEntry]:
-        return [*CardTypeCatalogue.TYPES, *(kind for feature in self.features for kind in feature.card_types)]
+        return [*CardTypeCatalogue.TYPES, *(type_name for feature in self.features for type_name in feature.card_types)]
 
     def skills(self) -> list[Skill]:
         return [feature.skill for feature in self.features if feature.skill]

@@ -16,11 +16,11 @@ class DocSources:
         self.docs, self.links, self.scope = docs, links, scope
 
     def copied(self, copy: Doc) -> str:
-        return "; ".join(self.phrase("copied from", link.target) for link in self.links.all_matching(source=Ref.build(copy), kind=COPIED_FROM))
+        return "; ".join(self.phrase("copied from", link.target) for link in self.links.all_matching(source=Ref.build(copy), link_type=COPIED_FROM))
 
     def attached(self) -> list[str]:
         here = Ref("environments", self.scope.id)
-        return [self.phrase("attached here:", link.source) for link in self.links.all_matching(target=here, kind=ATTACHED)]
+        return [self.phrase("attached here:", link.source) for link in self.links.all_matching(target=here, link_type=ATTACHED)]
 
     def phrase(self, what: str, source: Ref) -> str:
         found = self.docs.numbered([source.id])

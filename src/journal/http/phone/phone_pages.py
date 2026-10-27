@@ -92,8 +92,8 @@ class PhonePages:
         rows = (APP / "/".join(remainder)).resolve()
         if root not in rows.parents or not rows.is_file():
             return SharePages.missing(404)
-        kind = mimetypes.guess_type(rows.name)[0] or "application/octet-stream"
-        return ShareAnswer(200, rows.read_bytes(), kind, {"Cache-Control": "public, max-age=3600", **APP_HEADERS})
+        type_name = mimetypes.guess_type(rows.name)[0] or "application/octet-stream"
+        return ShareAnswer(200, rows.read_bytes(), type_name, {"Cache-Control": "public, max-age=3600", **APP_HEADERS})
 
     @staticmethod
     def worker() -> ShareAnswer:

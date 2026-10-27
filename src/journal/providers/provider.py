@@ -111,7 +111,7 @@ class Provider(ABC):
     def past_session(self, path: Path) -> PastSession:
         with path.open("rb") as file:
             head = file.read(HEAD_BYTES).decode(errors="replace")
-        prompts = [turn.text for turn in self.turn_rows(self.rows(head[: head.rfind("\n") + 1], 0)) if turn.kind == "human" and turn.text.strip() and PromptOrigin.is_users(turn.text)]
+        prompts = [turn.text for turn in self.turn_rows(self.rows(head[: head.rfind("\n") + 1], 0)) if turn.turn_type == "human" and turn.text.strip() and PromptOrigin.is_users(turn.text)]
         return PastSession(self.name, self.session_name(path), path.stat().st_mtime, prompts[0].strip()[:PROMPT_CHARACTERS] if prompts else "", self.line_count(path))
 
     @staticmethod
@@ -255,16 +255,16 @@ class Provider(ABC):
         return self.reply(hook, decision, "")
 
     def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
-        kind = hook.hook_type
-        if kind == HookType.STOP and (not decision.allowed or decision.context):
+        type_name = hook.hook_type
+        if type_name == HookType.STOP and (not decision.allowed or decision.context):
             return Response(200, {"decision": "block", "reason": "\n".join(part for part in (decision.reason, decision.context) if part)})
         if not decision.allowed:
             return self.refused(hook, decision)
         if not decision.context:
             return Response(200, {})
-        if kind in CONTEXT_HOOKS:
+        if type_name in CONTEXT_HOOKS:
             shown = {copy_key: decision.context} if copy_key else {}
-            return Response(200, {"hookSpecificOutput": {"hookEventName": kind.value, "additionalContext": decision.context}, **shown})
+            return Response(200, {"hookSpecificOutput": {"hookEventName": type_name.value, "additionalContext": decision.context}, **shown})
         return Response(200, {})
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
@@ -277,16 +277,16 @@ class Provider(ABC):
     def worker_settings_flags(self, path: Path) -> list[str]: ...
 
     def hook_block(self, command: str) -> dict:
-        return {kind.value: [{"hooks": [{"type": "command", "command": command}]}] for kind in self.hook_kinds}
+        return {type_name.value: [{"hooks": [{"type": "command", "command": command}]}] for type_name in self.hook_kinds}
 
     def wire_hooks(self, project: Path, script: Path, command: str) -> Path:
         for counterpart in self.foreign_settings:
             self.unwired(project / self.home / counterpart)
         path = project / self.home / self.settings_file
         settings = json.loads(path.read_text()) if path.is_file() else {}
-        hooks = {kind: [b for b in blocks if not self.journal_paths(b)] for kind, blocks in (settings.get("hooks") or {}).items()}
-        for kind, blocks in self.hook_block(command).items():
-            hooks[kind] = [*hooks.get(kind, []), *blocks]
+        hooks = {type_name: [b for b in blocks if not self.journal_paths(b)] for type_name, blocks in (settings.get("hooks") or {}).items()}
+        for type_name, blocks in self.hook_block(command).items():
+            hooks[type_name] = [*hooks.get(type_name, []), *blocks]
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": {k: v for k, v in hooks.items() if v}}, indent=2) + "\n")
         return path
@@ -305,7 +305,7 @@ class Provider(ABC):
         if not path.is_file():
             return
         settings = json.loads(path.read_text())
-        hooks = {kind: [b for b in blocks if not self.journal_paths(b)] for kind, blocks in (settings.get("hooks") or {}).items()}
+        hooks = {type_name: [b for b in blocks if not self.journal_paths(b)] for type_name, blocks in (settings.get("hooks") or {}).items()}
         if hooks == settings.get("hooks", {}):
             return
         settings["hooks"] = {k: v for k, v in hooks.items() if v}

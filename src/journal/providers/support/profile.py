@@ -11,7 +11,7 @@ class Profile:
     description: str
     tools: str
     body: str
-    kind: ProfileType = ProfileType.SUBAGENT
+    profile_type: ProfileType = ProfileType.SUBAGENT
     model: str | None = None
 
     def model_default(self, selection: str) -> str:

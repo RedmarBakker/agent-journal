@@ -41,5 +41,5 @@ class Reactions(ScopedRepository[Reaction]):
                 self.delete(reaction, actor)
                 return None
         reaction = self.save(Reaction(environment_id=message.environment_id, emoji=emoji, author=author).reacted_message(message), actor)
-        self.links.save(Link(source=Ref.build(reaction), target=Ref.build(message), kind=REACTS), actor)
+        self.links.save(Link(source=Ref.build(reaction), target=Ref.build(message), link_type=REACTS), actor)
         return reaction

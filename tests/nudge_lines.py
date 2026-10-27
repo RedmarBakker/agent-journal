@@ -23,6 +23,6 @@ def nudge_reached(app, text: str, nudge: Nudge, /, **values) -> bool:
     app.container.get(NudgeRegistry).lookup(nudge.key)
     wanted = {name: str(value) for name, value in values.items()}
     entries = app.container.get(Entries)
-    keyed = entries.selected_globally(entries.query().filter(kind=NUDGE).filter_json("data->key", nudge.key))
+    keyed = entries.selected_globally(entries.query().filter(entry_type=NUDGE).filter_json("data->key", nudge.key))
     sent = [entry.data["line"] for entry in keyed if wanted.items() <= entry.data.get("values", {}).items()]
     return any(line in text for line in sent)

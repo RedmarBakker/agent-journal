@@ -12,7 +12,7 @@ from journal.repositories.migrated_rows import MigratedRows
 class ProjectType:
     """A version 3 kind stored for the whole project, migrated row by row: a row already migrated is skipped, and one not migrated is reported with the reason."""
 
-    kind: ClassVar[str]
+    row_type: ClassVar[str]
     title: ClassVar[str]
 
     def __init__(self, tally: MigratedRows) -> None:
@@ -21,23 +21,23 @@ class ProjectType:
     def import_rows(self, folder: Path, actor: Actor) -> ImportTally:
         count, skipped = 0, []
         for row in self.rows(Version3Rows(folder)):
-            source = f"project/{self.kind}/{row.n}"
+            source = f"project/{self.row_type}/{row.n}"
             reason = self.skipped(row)
             if reason:
-                skipped.append(f"{self.kind} {row.n}: {reason}")
+                skipped.append(f"{self.row_type} {row.n}: {reason}")
                 continue
             if self.ledger.is_imported(source):
                 continue
             try:
                 self.ledger.import_rows(source, lambda: self.created(row, actor), actor)
             except Exception as fault:
-                skipped.append(f"{self.kind} {row.n}: could not be brought: {fault}")
+                skipped.append(f"{self.row_type} {row.n}: could not be brought: {fault}")
                 continue
             count += 1
         return ImportTally(self.title, count, tuple(skipped))
 
     def rows(self, rows: Version3Rows) -> list[Version3Row]:
-        return rows.project(self.kind)
+        return rows.project(self.row_type)
 
     def skipped(self, row: Version3Row) -> str:
         return "deleted" if row.is_deleted() else ""

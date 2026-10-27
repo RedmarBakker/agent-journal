@@ -18,14 +18,15 @@ PLACED = ("session", "environment_id", "bound_environment_ids", "provider", "con
 EVENT_NAMES = {"stop": "idle", "edit_overridden": "edit_kept", "plugin_recovered": "plugin_answering", "plugin_card_requested": "plugin_card_asked", "plugin_upgrade_failed": "plugin_not_upgraded",
                "plugin_disabled": "plugin_switched_off", "search_completed": "search_made", "shared_comment_posted": "shared_comment_left"}
 ANSWER_FIELDS = {"tell": "message"}
-FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "edited_paths": "written_paths", "field_value": "kept", "menu_choice": "done", "explanation": "why"}
+FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "edited_paths": "written_paths", "field_value": "kept", "menu_choice": "done", "explanation": "why", "edit_type": "kind"}
+ROW_NAMES = {"line_type": "kind"}
 
 
 HEALTH_EVENT = "health"
 
 
 class Protocol:
-    """The one line the journal sends a plugin for an event, and the one line it reads back: JSON both ways, versioned. An event and its fields go by their names, or by the published names plugins already read where the journal renamed them."""
+    """The one line the journal sends a plugin for an event, and the one line it reads back: JSON both ways, versioned. An event and its fields go by their names, or by the published names plugins already read where the journal renamed them, the rows a field lists too."""
 
     VERSION = 1
 
@@ -53,7 +54,13 @@ class Protocol:
         data: dict[str, object] = {}
         for name, value in ((f.name, getattr(event, f.name)) for f in fields(event) if f.name not in PLACED):
             data |= {**asdict(value), "operation": value.operation.as_data()} if isinstance(value, ToolCall) else {name: value}
-        return {FIELD_NAMES.get(name, name): value for name, value in data.items()}
+        return {FIELD_NAMES.get(name, name): Protocol.published_rows(value) for name, value in data.items()}
+
+    @staticmethod
+    def published_rows(value: object) -> object:
+        if not isinstance(value, (list, tuple)):
+            return value
+        return [{ROW_NAMES.get(key, key): inner for key, inner in row.items()} if isinstance(row, dict) else row for row in value]
 
     @staticmethod
     def line_status(text: str) -> str:

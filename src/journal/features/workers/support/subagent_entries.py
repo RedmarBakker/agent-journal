@@ -46,11 +46,11 @@ class SubagentEntries:
 
     @staticmethod
     def is_dispatch_entry(entry: Entry) -> bool:
-        return entry.kind in SUBAGENT_KINDS or (entry.kind in TOOL_MOMENTS and isinstance(entry.recorded_call().operation, (SubagentDispatch, AgentMessage)))
+        return entry.entry_type in SUBAGENT_KINDS or (entry.entry_type in TOOL_MOMENTS and isinstance(entry.recorded_call().operation, (SubagentDispatch, AgentMessage)))
 
     @staticmethod
     def message_receiver(entry: Entry) -> str:
-        if entry.kind != "ToolStarting":
+        if entry.entry_type != "ToolStarting":
             return ""
         operation = entry.recorded_call().operation
         return operation.receiver if isinstance(operation, AgentMessage) else ""
@@ -63,43 +63,43 @@ class SubagentEntries:
         unstarted: dict[str, int] = {}
         for e in dispatches:
             time = e.created_at.timestamp()
-            if e.kind == TURN_FAILED:
+            if e.entry_type == TURN_FAILED:
                 reason = f"cut off when the agent's turn failed: {e.data.get('error', '')}"
                 for active in (open_, background, unstarted):
                     SubagentEntries.failed_rows(rows, active, reason, time)
                 continue
-            if e.kind in ENDS:
+            if e.entry_type in ENDS:
                 SubagentEntries.stopped(rows, open_, time)
-                if e.kind == "SessionEnded" or (e.kind == "SessionStarted" and e.data.get("source") != "compact"):
+                if e.entry_type == "SessionEnded" or (e.entry_type == "SessionStarted" and e.data.get("source") != "compact"):
                     SubagentEntries.stopped(rows, background, time)
                     SubagentEntries.stopped(rows, unstarted, time)
                 continue
-            if e.kind == "SubagentStarted":
+            if e.entry_type == "SubagentStarted":
                 SubagentEntries.started(rows, background, unstarted, e.data.get("agent_id", ""))
                 continue
-            if e.kind == "SubagentEnded":
+            if e.entry_type == "SubagentEnded":
                 i = background.pop(e.data.get("agent_id", ""), None)
                 if i is not None:
                     rows[i] = rows[i].finished(SubagentState.FINISHED, time)
                 continue
-            if e.kind == "PromptSubmitted":
+            if e.entry_type == "PromptSubmitted":
                 SubagentEntries.notified(rows, background, str(e.data.get("prompt", "")), time)
                 continue
             operation = e.recorded_call().operation
             if isinstance(operation, AgentMessage):
-                SubagentEntries.resumed(rows, background, operation, e.kind, time)
+                SubagentEntries.resumed(rows, background, operation, e.entry_type, time)
                 continue
             if not isinstance(operation, SubagentDispatch) or e.data.get("refused"):
                 continue
             use = e.data.get("tool_use_id", "")
-            if e.kind == "ToolStarting":
+            if e.entry_type == "ToolStarting":
                 brief = operation.brief or ""
                 rows.append(Subagent(environment_id=e.environment_id, dispatch=f"sub:{e.id}", dispatcher=e.data.get("session_id", ""), started_at=time, task=operation.title or brief[:80], brief=f"{operation.title} {brief}", agent_type=operation.role or "subagent", model=operation.model))
                 open_[use or f"entry:{e.id}"] = len(rows) - 1
-            elif e.kind == "ToolFailed" and open_:
+            elif e.entry_type == "ToolFailed" and open_:
                 i = open_.pop(use) if use in open_ else open_.pop(next(iter(open_)))
                 rows[i] = rows[i].failed(str(e.data.get("error", "")), time)
-            elif e.kind == "ToolFinished" and open_:
+            elif e.entry_type == "ToolFinished" and open_:
                 i = open_.pop(use) if use in open_ else open_.pop(next(iter(open_)))
                 answer = SubagentEntries.answered(e.data.get("tool_response"))
                 rows[i] = rows[i].answered(answer.get("agentId", ""))
@@ -115,14 +115,14 @@ class SubagentEntries:
     @staticmethod
     def moved(row: Subagent, entry: Entry) -> Subagent:
         time, agent_id = entry.created_at.timestamp(), entry.data.get("agent_id", "")
-        operation = entry.recorded_call().operation if entry.kind == "ToolStarting" else None
+        operation = entry.recorded_call().operation if entry.entry_type == "ToolStarting" else None
         if isinstance(operation, AgentMessage) and operation.receiver == row.session:
             return row.resumed(time, operation.text)
         if not row.is_running():
             return row
-        if entry.kind == "SubagentEnded" and agent_id == row.session:
+        if entry.entry_type == "SubagentEnded" and agent_id == row.session:
             return row.finished(SubagentState.FINISHED, time)
-        if entry.kind == "SessionEnded" or (entry.kind == "SessionStarted" and entry.data.get("source") != "compact"):
+        if entry.entry_type == "SessionEnded" or (entry.entry_type == "SessionStarted" and entry.data.get("source") != "compact"):
             return row.finished(SubagentState.STOPPED, time)
         return row
 
@@ -145,8 +145,8 @@ class SubagentEntries:
         background[agent_id] = i
 
     @staticmethod
-    def resumed(rows: list[Subagent], background: dict[str, int], message: AgentMessage, kind: str, time: float) -> None:
-        if kind != "ToolStarting":
+    def resumed(rows: list[Subagent], background: dict[str, int], message: AgentMessage, type_name: str, time: float) -> None:
+        if type_name != "ToolStarting":
             return
         for i in [i for i, row in enumerate(rows) if row.session and row.session == message.receiver]:
             rows[i] = rows[i].resumed(time, message.text)

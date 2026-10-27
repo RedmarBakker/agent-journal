@@ -31,8 +31,8 @@ class UnlinkedNumberRecord(Listener[Saved]):
 
     def recorded(self, message: Message) -> None:
         with self.scope.environment(message.environment_id):
-            row_names = tuple(f"{kind} {number}" for number in UnlinkedRowNumbers.numbers(message.text) if (kind := self.likely_kind(number)))
-            missing = [f"{kind} {number}" for kind, number in RowReferences.rows(message.text) if not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
+            row_names = tuple(f"{type_name} {number}" for number in UnlinkedRowNumbers.numbers(message.text) if (type_name := self.likely_kind(number)))
+            missing = [f"{type_name} {number}" for type_name, number in RowReferences.rows(message.text) if not self.rows.is_row(Ref(ROW_TABLES[type_name], number))]
             self.store_missing_rows(message, missing)
         if row_names or missing:
             self.announcer.announce(MessageRowsFaulty(environment_id=message.environment_id, row_id=message.row_id, writer_session=message.session, unlinked=row_names, missing=tuple(missing)))
@@ -47,4 +47,4 @@ class UnlinkedNumberRecord(Listener[Saved]):
         return {**unrelated, Message.MISSING_ROWS: missing} if missing else unrelated
 
     def likely_kind(self, number: int) -> str:
-        return next((kind for kind, table in ROW_TABLES.items() if self.rows.is_row(Ref(table, number))), "")
+        return next((type_name for type_name, table in ROW_TABLES.items() if self.rows.is_row(Ref(table, number))), "")

@@ -11,5 +11,5 @@ class AssignerIndex:
     def register(self, assigner: TaskAssigner) -> None:
         self.assigners[type(assigner)] = assigner
 
-    def instance(self, kind: type) -> TaskAssigner:
-        return self.assigners[kind]
+    def instance(self, type_name: type) -> TaskAssigner:
+        return self.assigners[type_name]

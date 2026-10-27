@@ -31,7 +31,7 @@ class Query:
 
     @classmethod
     def build(cls, model: type[Model]) -> "Query":
-        return cls(model.storage(), {column.name: column for column in Schema.columns(model)}, ref_table=model.table()).filter(**model.kind_filter())
+        return cls(model.storage(), {column.name: column for column in Schema.columns(model)}, ref_table=model.table()).filter(**model.type_filter())
 
     @property
     def ref_name(self) -> str:

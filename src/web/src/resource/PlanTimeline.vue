@@ -21,18 +21,18 @@ const days = computed(() => momentDays(props.items));
         <template v-for="group in days" :key="group.day">
             <h3 class="day">{{ group.day }}</h3>
             <ol class="moments">
-                <template v-for="item in group.items" :key="`${item.time}-${item.kind}-${item.task}`">
-                    <li :class="['moment', item.kind]">
-                        <span class="mark"><Icon :name="MOMENTS[item.kind].icon" :size="11" /></span>
+                <template v-for="item in group.items" :key="`${item.time}-${item.moment_type}-${item.task}`">
+                    <li :class="['moment', item.moment_type]">
+                        <span class="mark"><Icon :name="MOMENTS[item.moment_type].icon" :size="11" /></span>
                         <div class="what">
                             <div class="head">
-                                <span class="word">{{ MOMENTS[item.kind].word }}</span>
+                                <span class="word">{{ MOMENTS[item.moment_type].word }}</span>
                                 <button type="button" class="todo" :title="`Open task ${item.task}`" @click="emit('open', item.task)">
                                     #{{ item.task }} {{ item.title }}
                                 </button>
                                 <span class="at">{{ timeOf(item.time) }}</span>
                             </div>
-                            <template v-if="item.text && item.kind !== 'started'">
+                            <template v-if="item.text && item.moment_type !== 'started'">
                                 <TextDisplay class="text" :text="item.text" />
                             </template>
                         </div>

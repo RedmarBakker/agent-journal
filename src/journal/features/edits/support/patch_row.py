@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class PatchRow:
     """One line of an edit: added, removed or around them, its number in the file, and its text."""
 
-    kind: str
+    line_type: str
     line: int
     text: str
     hidden: int = 0

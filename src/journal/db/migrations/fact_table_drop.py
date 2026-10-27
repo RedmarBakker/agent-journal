@@ -19,8 +19,8 @@ class FactTableDrop(Migration):
         memory_numbers = {row["fact_id"]: row["memory_id"] for row in connection.all("SELECT facts.id AS fact_id, MIN(memories.id) AS memory_id FROM facts JOIN memories ON memories.environment_id = facts.environment_id AND memories.text = facts.text GROUP BY facts.id")}
         for row in connection.all("SELECT id, text, data FROM messages WHERE json_extract(data, '$.shows') = ? OR json_extract(data, '$.row') LIKE 'facts:%'", (FACT_CARDS,)):
             data = json.loads(row["data"])
-            kind, _, number = str(data.get("row", "")).partition(":")
-            memory_number = memory_numbers.get(int(number)) if kind == FACT_CARDS and number.isdigit() else None
+            type_name, _, number = str(data.get("row", "")).partition(":")
+            memory_number = memory_numbers.get(int(number)) if type_name == FACT_CARDS and number.isdigit() else None
             if memory_number is None:
                 data.pop("row", None)
             else:

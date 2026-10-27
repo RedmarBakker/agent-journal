@@ -168,11 +168,11 @@ STAMP = str(int(time.time()))
 
 
 def is_shared(row: dict) -> bool:
-    return row.get("kind") == "local" and bool(row.get("team_key"))
+    return row.get("environment_type") == "local" and bool(row.get("team_key"))
 
 
 def hubs(name: str) -> list[dict]:
-    return [row for row in api(name, "/environments")["rows"] if row["kind"] == "hub"]
+    return [row for row in api(name, "/environments")["rows"] if row["environment_type"] == "hub"]
 
 
 def titles(name: str, environment_name: str) -> list[str]:
@@ -184,7 +184,7 @@ def check_team_key_and_hub() -> str:
     if len(one) != 1 or len(other) != 1:
         return f"FAIL: hubs a={len(one)} b={len(other)}"
     same = one[0]["team_key"] and one[0]["team_key"] == other[0]["team_key"]
-    return f"{'OK' if same else 'FAIL'}: both journals hold the hub '{one[0]['name']}' of team key {one[0]['team_key'][:8]}, kind {one[0]['kind']}"
+    return f"{'OK' if same else 'FAIL'}: both journals hold the hub '{one[0]['name']}' of team key {one[0]['team_key'][:8]}, type {one[0]['environment_type']}"
 
 
 def check_hub_write() -> str:
@@ -218,7 +218,7 @@ def check_share_and_unshare() -> str:
 
 def check_server_holds_only_team_rows() -> str:
     environments = [row for row in server_rows() if row["table"] == "environments"]
-    personal = [row.get("team_name") for row in environments if row.get("kind") not in ("hub", "session") and not is_shared(row)]
+    personal = [row.get("team_name") for row in environments if row.get("environment_type") not in ("hub", "session") and not is_shared(row)]
     return f"{'OK' if not personal else 'FAIL'}: environments on the server: {[row.get('team_name') for row in environments]}; not the team's: {personal}"
 
 
@@ -245,7 +245,7 @@ def check_hosted_journal() -> str:
         return "FAIL: the hosted journal opened no session from a's one-time link within three minutes"
     reply = hosted("GET", "/journal/environments", cookie=cookie)
     rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
-    hub = next((row for row in rows if row.get("kind") == "hub"), None)
+    hub = next((row for row in rows if row.get("environment_type") == "hub"), None)
     found = bool(hub) and hub.get("team_key") == hubs("a")[0]["team_key"]
     home = hosted("GET", "/journal/tasks?limit=49", cookie=cookie)
     tasks = [row.get("title") for row in json.loads(home.read()).get("rows", [])] if home.status == 200 else []
@@ -279,8 +279,8 @@ def check_hosted_hub_home() -> str:
         return "FAIL: the hosted journal opened no session from a's one-time link"
     reply = hosted("GET", "/journal/environments", cookie=cookie)
     rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
-    unshared = [row.get("name") for row in rows if row.get("kind") == "local" and not row.get("team_key")]
-    hub = next((row.get("name") for row in rows if row.get("kind") == "hub"), "")
+    unshared = [row.get("name") for row in rows if row.get("environment_type") == "local" and not row.get("team_key")]
+    hub = next((row.get("name") for row in rows if row.get("environment_type") == "hub"), "")
     return f"{'OK' if hub and not unshared else 'FAIL'}: the hosted journal lists the hub {hub or 'none'} and these environments that are not shared: {unshared or 'none'} (all: {[row.get('name') for row in rows]})"
 
 
@@ -352,12 +352,12 @@ def check_sessions() -> str:
     review, notes, planner = f"review-{STAMP}", f"notes-{STAMP}", f"planner-{STAMP}"
     journal("a", "session", "start", review)
     journal("b", "session", "start", notes)
-    both = waiting_for(lambda: all(stored(name, "SELECT id FROM environments WHERE kind = 'session' AND name IN (?, ?)", (review, notes)) and len(stored(name, "SELECT id FROM environments WHERE kind = 'session' AND name IN (?, ?)", (review, notes))) == 2 for name in ("a", "b")))
+    both = waiting_for(lambda: all(stored(name, "SELECT id FROM environments WHERE environment_type = 'session' AND name IN (?, ?)", (review, notes)) and len(stored(name, "SELECT id FROM environments WHERE environment_type = 'session' AND name IN (?, ?)", (review, notes))) == 2 for name in ("a", "b")))
     holders = lease_holders()
     held_apart = holders.get(f"session:{review}") == PEOPLE["a"][1] and holders.get(f"session:{notes}") == PEOPLE["b"][1]
     sent("a", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": f"e2e-{STAMP}"}, review)
     posted("b", "/messages", {"text": f"for the review {STAMP}", "idempotency": f"e2e-{STAMP}"}, review)
-    heard = waiting_for(lambda: any("from Bob" in str(row["data"]) for row in stored("a", "SELECT data FROM entries WHERE kind = 'nudge' AND data LIKE ?", (f"%e2e-{STAMP}%",))), 120)
+    heard = waiting_for(lambda: any("from Bob" in str(row["data"]) for row in stored("a", "SELECT data FROM entries WHERE entry_type = 'nudge' AND data LIKE ?", (f"%e2e-{STAMP}%",))), 120)
     made = bool(stored("a", "SELECT id FROM messages WHERE text = ?", (f"for the review {STAMP}",)))
     plan_title = f"session plan {STAMP}"
     journal("a", "plan", "create", plan_title, "--brief", "driven by a session", "--team", hubs("a")[0]["team_name"])
@@ -428,10 +428,10 @@ def check_pre_hub_migration() -> str:
     posted("c", "/messages", {"text": f"lab chat {STAMP}"}, "lab")
     synced_old_way = waiting_for(lambda: any(row.get("team_name") == "cara-main" for row in server_environments()) and stored("d", "SELECT id FROM tasks WHERE title = ?", (f"Cara's own task {STAMP}",)))
     migrated = journal("c", "team", "migrate")
-    hub_on = lambda name: bool(stored(name, "SELECT id FROM environments WHERE kind = 'hub'"))
+    hub_on = lambda name: bool(stored(name, "SELECT id FROM environments WHERE environment_type = 'hub'"))
     task_on = lambda name, title: bool(stored(name, "SELECT id FROM tasks WHERE title = ?", (title,)))
     chat_on = lambda name: bool(stored(name, "SELECT id FROM messages WHERE text = ?", (f"lab chat {STAMP}",)))
-    settled = waiting_for(lambda: hub_on("c") and hub_on("d") and not [row for row in server_environments() if row.get("kind") not in ("hub", "session") and not (row.get("kind") == "local" and row.get("team_key"))], 150)
+    settled = waiting_for(lambda: hub_on("c") and hub_on("d") and not [row for row in server_environments() if row.get("environment_type") not in ("hub", "session") and not (row.get("environment_type") == "local" and row.get("team_key"))], 150)
     kept = {"c's own task": task_on("c", f"Cara's own task {STAMP}"), "d's own task": task_on("d", f"Dan's own task {STAMP}"), "c's lab chat": chat_on("c"), "the shared lab chat on d": chat_on("d"), "the hub on c": hub_on("c"), "the hub on d": hub_on("d")}
     held = [row.get("team_name") for row in server_environments()]
     gone = not task_on("d", f"Cara's own task {STAMP}")

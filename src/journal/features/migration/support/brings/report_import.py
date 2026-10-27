@@ -14,7 +14,7 @@ from journal.repositories.reports import Reports
 class ReportImport(EnvironmentTableImport):
     """A report keeps its title, its line and its text with its sections."""
 
-    kind = "report"
+    row_type = "report"
     title = "reports"
 
     def __init__(self, environments: Environments, tally: MigratedRows, reports: Reports) -> None:

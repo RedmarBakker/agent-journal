@@ -156,11 +156,11 @@ class AgentController(Controller[Agent]):
     def environment(self) -> Environment:
         return self.environments.find(self.scope.id)
 
-    def host_request(self, request: Request, kind: str, body: dict) -> Response:
+    def host_request(self, request: Request, type_name: str, body: dict) -> Response:
         environment = self.environment()
         if self.owners.owner_number(environment.row_id) != request.actor.number():
             raise Rejection(f"the agent in {environment.name} is {self.owners.owner_name(environment.row_id)}'s: only they change it")
-        self.hosts.ask(environment, kind, {"agent_id": request.number("id"), **body}, request.actor)
+        self.hosts.ask(environment, type_name, {"agent_id": request.number("id"), **body}, request.actor)
         return Response.json({"asked": True})
 
     def skip_step(self, request: Request) -> Response:

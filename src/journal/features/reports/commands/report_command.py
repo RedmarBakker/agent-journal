@@ -65,7 +65,7 @@ class ReportCommand(Command):
         rows = self.mentioned_rows(args.about)
         report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, abstract=args.abstract, body=body, unfinished=args.part), caller.actor)
         for row in rows:
-            self.links.save(Link(source=Ref.build(report), target=row, kind=Messages.SUBJECT_LINK), caller.actor)
+            self.links.save(Link(source=Ref.build(report), target=row, link_type=Messages.SUBJECT_LINK), caller.actor)
         print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
         return 0
 
@@ -106,7 +106,7 @@ class ReportCommand(Command):
         end = self.time_source.moment()
         start = self.gathering.start(end)
         items = tuple(item.as_data() for item in self.gathering.items(start, end))
-        report = self.reports.save(Report(kind=UPDATE, title=f"Update {end:%Y-%m-%d} at {end:%H.%M}", abstract=args.summary, items=items, start_at=start, end_at=end), caller.actor)
+        report = self.reports.save(Report(report_type=UPDATE, title=f"Update {end:%Y-%m-%d} at {end:%H.%M}", abstract=args.summary, items=items, start_at=start, end_at=end), caller.actor)
         counts = ", ".join(f"{section} {sum(1 for item in items if item['section'] == section)}" for section in SECTIONS if any(item["section"] == section for item in items))
         print(f"report {report.id}: the update, docked at the bottom of the chat" + (f"; {counts}" if counts else ""))
         return 0

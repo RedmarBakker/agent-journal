@@ -61,9 +61,9 @@ class QuestionCommand(Command):
             counterpart = link.target if link.source == Ref.build(question) else link.source
             if counterpart.type == "messages":
                 message = self.messages.find(counterpart.id)
-                print(f"  {link.kind} message {message.id} from the {message.author}: {message.text}")
+                print(f"  {link.link_type} message {message.id} from the {message.author}: {message.text}")
             else:
-                print(f"  {link.kind} {counterpart}")
+                print(f"  {link.link_type} {counterpart}")
         if question.is_answered():
             print("  act on the answer")
         return 0

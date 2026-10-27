@@ -99,7 +99,7 @@ class Runtime:
             for assigner in feature.assigners:
                 assigners.register(self.container.get(assigner))
             for listener in feature.listeners:
-                self.bus.listen(listener.kind(), Switches(feature, self.container.get(listener), self.registry, self.scope))
+                self.bus.listen(listener.event_type(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
                 self.seeded(seed)
             for host_writer in feature.host_writers:
@@ -165,8 +165,8 @@ class Runtime:
         self.stop()
 
     def registered(self, host_writer: type[HostWriter]) -> None:
-        for kind, writer in self.container.get(host_writer).makers().items():
-            self.container.get(HostDesk).register(kind, writer)
+        for type_name, writer in self.container.get(host_writer).makers().items():
+            self.container.get(HostDesk).register(type_name, writer)
 
     def stop(self) -> None:
         self.container.get(AgentViewSender).stop()

@@ -33,7 +33,7 @@ class Observer:
     def observe(self, answer=None) -> Observation:
         keystrokes = tuple(self.typed)
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
-            entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.kind == "nudge"]
+            entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.entry_type == "nudge"]
             self.app.runtime().deferred.drain()
             agent = self.app.container.get(Agents).current()
             workers = tuple(f"{worker.id}:{worker.state}" + (":locked" if worker.edit_lock else "") for worker in self.app.container.get(Workers).open_workers())

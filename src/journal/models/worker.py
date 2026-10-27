@@ -59,7 +59,7 @@ class Worker(Helper):
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     unshown_fields: ClassVar[tuple[str, ...]] = ("transcript_bytes",)
-    kind: str = "worker"
+    helper_type: str = "worker"
     profile: str | None = None
     worktree: bool = False
     repositories: tuple[str, ...] = ()
@@ -105,8 +105,8 @@ class Worker(Helper):
     def dispatched(self, time: float) -> "Worker":
         return self.contacted(time).moved("dispatched", time).with_(state=WorkerState.DISPATCHED).with_event(self.pending(WorkerDispatched, time))
 
-    def pending(self, kind: type[WorkerDispatched], time: float) -> WorkerDispatched:
-        return kind(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), label=self.mention().label(), awaiter=self.dispatcher, brief=self.brief)
+    def pending(self, type_name: type[WorkerDispatched], time: float) -> WorkerDispatched:
+        return type_name(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), label=self.mention().label(), awaiter=self.dispatcher, brief=self.brief)
 
     def reported(self, time: float, report: int) -> "Worker":
         return self.contacted(time).moved("reported", time).with_(state=WorkerState.REPORTED, adopted=False, pid=0).with_event(WorkerReported(environment_id=self.environment_id, time=time, worker=self.mention(), report=report, ref=self.mention().ref(), outcome=f"{self.mention().title()}, reported"))
@@ -198,12 +198,12 @@ class Worker(Helper):
     def running_as(self, pid: int, began: float) -> "Worker":
         return self.with_(pid=pid, began=began, recovered_session="")
 
-    def resumed(self, brief: str, time: float, kind: type[WorkerReused] | type[WorkerRevived], move: str) -> "Worker":
+    def resumed(self, brief: str, time: float, type_name: type[WorkerReused] | type[WorkerRevived], move: str) -> "Worker":
         instructed = self.instructed(brief, time).moved(move, time).with_(reuse_count=self.reuse_count + 1)
-        return instructed.with_event(instructed.pending(kind, time))
+        return instructed.with_event(instructed.pending(type_name, time))
 
-    def redirected(self, brief: str, time: float, kind: type[WorkerReused] | type[WorkerRevived], move: str) -> "Worker":
-        return self.resumed(brief, time, kind, move).with_(pid=self.pid, began=self.began)
+    def redirected(self, brief: str, time: float, type_name: type[WorkerReused] | type[WorkerRevived], move: str) -> "Worker":
+        return self.resumed(brief, time, type_name, move).with_(pid=self.pid, began=self.began)
 
     def instructed(self, brief: str, time: float) -> "Worker":
         return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, review_pending=False, review_queued_at=0.0)

@@ -149,17 +149,17 @@ function nudgeRowsOf(f, key, settings) {
 
 function settingRow(f, setting, settings) {
     const saved = (settings[f.name] || {})[setting.name] ?? setting.default;
-    const value = setting.kind !== "choice" || setting.choices.includes(saved) ? saved : setting.default;
+    const value = setting.option_type !== "choice" || setting.choices.includes(saved) ? saved : setting.default;
     const defaults = Object.fromEntries(f.settings.map((s) => [s.name, s.default]));
     return row({
         key: `${f.name}:${setting.name}`,
-        kind: setting.kind,
+        kind: setting.option_type,
         label: setting.title,
         hint: `${setting.abstract}.`,
         unit: setting.unit,
         provider: setting.provider,
         indent: Boolean(setting.under),
-        options: setting.kind === "choice" ? choiceOptions(setting) : [],
+        options: setting.option_type === "choice" ? choiceOptions(setting) : [],
         example: (setting.examples || {})[value] || "",
         value,
         shipped: setting.default,
@@ -170,7 +170,7 @@ function settingRow(f, setting, settings) {
 const settingRows = (f, setting, settings) => [settingRow(f, setting, settings)];
 
 function featureRows(f, settings, extras) {
-    const declared = f.settings.filter((s) => s.kind !== "map" && !s.hidden && s.name !== "allowed_models");
+    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models");
     const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings));
     const own =
         hasTiming(f.trigger) && f.trigger_label

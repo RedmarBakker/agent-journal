@@ -77,36 +77,36 @@ class AgentActivity:
         return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:
-        hooks = [e for e in entries if e.kind not in ("nudge", "created", "updated", "deleted")]
-        moves = [e for e in hooks if e.kind in STATUS]
+        hooks = [e for e in entries if e.entry_type not in ("nudge", "created", "updated", "deleted")]
+        moves = [e for e in hooks if e.entry_type in STATUS]
         last = moves[-1] if moves else None
-        kind = last.kind if last else ""
+        type_name = last.entry_type if last else ""
         state = self.states.restored(agent.state, agent.data)
         waiting_state, enabled = self.current.wait_text(agent)
         provider = self.providers.lookup(agent.provider)
         status = provider.status(agent.session, self.config.status_home)
         return {
             **ModelFields.build(agent),
-            "status": "stopped" if state.final else self.status(agent.state, STATUS.get(kind, "idle")),
+            "status": "stopped" if state.final else self.status(agent.state, STATUS.get(type_name, "idle")),
             "heard_at": last.created_at if last else agent.updated_at,
-            "tool": last.data.get("tool_name", "") if last and kind in TOOL_KINDS else "",
-            "tool_work": self.work(last, entries) if last and kind in TOOL_KINDS else "",
-            "tool_running": kind == "ToolStarting" or self.unended_part(entries) is not None,
+            "tool": last.data.get("tool_name", "") if last and type_name in TOOL_KINDS else "",
+            "tool_work": self.work(last, entries) if last and type_name in TOOL_KINDS else "",
+            "tool_running": type_name == "ToolStarting" or self.unended_part(entries) is not None,
             "part_started_at": self.part_start(entries),
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
             "branch": self.files.branch(), "context": round(status.context * 100) if status.context is not None else None,
             "question_id": state.question_number(),
-            "doing": self.activity(state, [e for e in entries if e.kind in (*TOOL_KINDS, PART_START, PART_END)]),
+            "doing": self.activity(state, [e for e in entries if e.entry_type in (*TOOL_KINDS, PART_START, PART_END)]),
             "thinking": "" if state.final else self.thinking(agent.session, hooks),
             "thinking_at": 0.0 if state.final else agent.thinking_at,
-            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.kind == "TurnDisplayed"), ""),
+            "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.entry_type == "TurnDisplayed"), ""),
             "stuck": state.impasse_reason(),
             "state_title": self.states.title(agent.state),
             "sequence": self.sequence(agent),
             "stack": self.stack(agent),
-            "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],
-            "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
+            "trail": [self.trail_entry(e) for e in [e for e in entries if e.entry_type == StackHistory.KIND][-HISTORY_ENTRIES:]],
+            "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.entry_type == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
             "fitness": self.fitness(agent),
             "load": StatusLoad.measured(agent),
@@ -150,7 +150,7 @@ class AgentActivity:
         thoughts = self.messages.thoughts(session, 1)
         if not thoughts:
             return ""
-        saved = [e.created_at for e in hooks if e.kind == "TurnDisplayed"]
+        saved = [e.created_at for e in hooks if e.entry_type == "TurnDisplayed"]
         later = [time for time in (saved[-1] if saved else None, self.entries.last_prompt(session)) if time is not None]
         return "" if any(time > thoughts[-1].creation_time for time in later) else thoughts[-1].text
 
@@ -164,9 +164,9 @@ class AgentActivity:
 
     def activity(self, state, hooks) -> str:
         last = hooks[-1] if hooks else None
-        if last and last.kind in (PART_START, PART_END):
+        if last and last.entry_type in (PART_START, PART_END):
             return self.text.shown(last.data["part"])
-        if last and last.kind == "ToolStarting":
+        if last and last.entry_type == "ToolStarting":
             return self.tool_activity(last.recorded_call())
         part = self.unended_part(hooks)
         if part is not None:
@@ -179,8 +179,8 @@ class AgentActivity:
 
     @staticmethod
     def unended_part(entries):
-        parts = [e for e in entries if e.kind in (PART_START, PART_END)]
-        return parts[-1] if parts and parts[-1].kind == PART_START else None
+        parts = [e for e in entries if e.entry_type in (PART_START, PART_END)]
+        return parts[-1] if parts and parts[-1].entry_type == PART_START else None
 
     @staticmethod
     def tool_activity(call: RecordedCall) -> str:

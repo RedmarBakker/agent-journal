@@ -14,7 +14,7 @@ class Reviewer(Helper):
     shared: ClassVar[bool] = False
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
 
-    kind: str = "reviewer"
+    helper_type: str = "reviewer"
     state: ReviewerState = ReviewerState.REVIEWING
 
     def next_review(self, brief: str, model: str) -> "Reviewer":

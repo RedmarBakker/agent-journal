@@ -13,7 +13,7 @@ from journal.repositories.questions import Questions
 class QuestionImport(EnvironmentTableImport):
     """A question keeps its options and its answer, or stays open when it had none."""
 
-    kind = "question"
+    row_type = "question"
     title = "questions"
 
     def __init__(self, environments: Environments, tally: MigratedRows, questions: Questions) -> None:

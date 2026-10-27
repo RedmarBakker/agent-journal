@@ -17,7 +17,7 @@ class RequestArrivalCard(Listener[Created]):
     def handle(self, event: Created) -> None:
         link = event.model
         person = self.account.user_number()
-        if not (isinstance(link, Link) and link.kind == REQUESTER_LINK and link.target.id == person):
+        if not (isinstance(link, Link) and link.link_type == REQUESTER_LINK and link.target.id == person):
             return
         for task in self.tasks.tasks_numbered([link.source.id]):
             self.cards.show(person, task, f"{self.labels.name('task', task)} is a request for you: {task.title}")

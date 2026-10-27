@@ -35,26 +35,26 @@ class BarRow:
 
     @staticmethod
     def is_shown(entry: Entry) -> bool:
-        if entry.kind in PARTS:
+        if entry.entry_type in PARTS:
             return entry.data["part"].split(" ", 1)[0] not in SETUP_COMMANDS
-        return entry.kind in TOOLS and not entry.recorded_call().command
+        return entry.entry_type in TOOLS and not entry.recorded_call().command
 
     @classmethod
     def build(cls, entry: Entry, text: CommandText) -> "BarRow":
-        return cls.part_row(entry, text) if entry.kind in PARTS else cls.tool_row(entry)
+        return cls.part_row(entry, text) if entry.entry_type in PARTS else cls.tool_row(entry)
 
     @classmethod
     def part_row(cls, entry: Entry, text: CommandText) -> "BarRow":
         changed = entry.data.get("changed", [])
         files = tuple((c["path"], c["added"], c["removed"]) for c in changed)
-        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], text.shown(entry.data["part"]), entry.data["time"], entry.kind == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
+        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], text.shown(entry.data["part"]), entry.data["time"], entry.entry_type == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
 
     @classmethod
     def tool_row(cls, entry: Entry) -> "BarRow":
         call = entry.recorded_call()
         tool, paths = entry.data.get("tool_name", ""), call.edited_paths or call.read_paths or ("",)
         path, (added, removed) = paths[0], call.operation.changed_lines()
-        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), entry.kind == "ToolFinished", added, removed)
+        return cls(f"{tool} {path}".strip(), call.operation.activity() or tool.lower() or "working", path, entry.creation_time.timestamp(), entry.entry_type == "ToolFinished", added, removed)
 
     def counts(self) -> list[dict]:
         return [{"value": n, "prefix": sign, "color": color, "increments": True} for n, sign, color in ((self.added, "+", "green"), (self.removed, "-", "red")) if n]

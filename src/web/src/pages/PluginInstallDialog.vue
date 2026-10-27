@@ -61,7 +61,7 @@ const emit = defineEmits(["close", "back", "install"]);
             <div class="preview-rows">
                 <template v-for="(row, i) in previewed.rows" :key="i">
                     <div class="preview-row">
-                        <span :class="['preview-kind', row.kind]">{{ PREVIEW_KINDS[row.kind] }}</span>
+                        <span :class="['preview-kind', row.item_type]">{{ PREVIEW_KINDS[row.item_type] }}</span>
                         <span class="preview-label">{{ row.label }}</span>
                         <code class="preview-command">{{ row.command }}</code>
                     </div>

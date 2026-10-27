@@ -70,7 +70,7 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.counted(self.plan_task_query(plan).filter_unlisted("state", list(CLOSED_STATES)))
 
     def plan_task_query(self, plan: Plan) -> Query:
-        planned = self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)).filter_ref("source", self.tasks.query())
+        planned = self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan)).filter_ref("source", self.tasks.query())
         return self.tasks.query().filter_existing(planned)
 
     def task_count(self, plan: Plan) -> int:
@@ -108,7 +108,7 @@ class Plans(ScopedRepository[Plan]):
         return self.phases.selected(self.plan_phase_query(plan).order("id"))
 
     def plan_phase_query(self, plan: Plan) -> Query:
-        linked = self.links.query().filter(target=Ref.build(plan), kind=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
+        linked = self.links.query().filter(target=Ref.build(plan), link_type=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
         return self.phases.query().filter_existing(linked)
 
     def phase_counts(self, plans: list[Plan]) -> dict[int, int]:
@@ -124,7 +124,7 @@ class Plans(ScopedRepository[Plan]):
         return [PhaseStates(number, phase, self.phase_state_counts(phase)) for number, phase in enumerate(self.plan_phases(plan), 1)]
 
     def phase_state_counts(self, phase: Phase) -> dict[TaskState, int]:
-        members = self.links.query().filter(kind=PHASE_LINK, target=Ref.build(phase)).filter_ref("source", self.tasks.query())
+        members = self.links.query().filter(link_type=PHASE_LINK, target=Ref.build(phase)).filter_ref("source", self.tasks.query())
         return {TaskState(state): count for state, count in self.tasks.grouped_counts(self.tasks.query().filter_existing(members), "state").items()}
 
     def phase_task_ids(self, phases: list[Phase]) -> dict[int, list[int]]:
@@ -216,17 +216,17 @@ class Plans(ScopedRepository[Plan]):
         return self.first_planned(plan, candidates.filter(state=state))
 
     def first_planned(self, plan: Plan, matching: Query) -> Task | None:
-        phase_links = self.links.query().filter(kind=PHASE_LINK)
+        phase_links = self.links.query().filter(link_type=PHASE_LINK)
         task_links = phase_links.filter_ref("target", self.phases.query()).filter_existing(matching.filter_named(phase_links, "source"))
         first_phase = self.phases.selected(self.plan_phase_query(plan).filter_existing(task_links).order("id").limit(1))
         if first_phase:
             return self.first_link(phase_links.filter(target=Ref.build(first_phase[0])), matching)
         planned = phase_links.filter_existing(self.plan_phase_query(plan).filter_named(phase_links, "target"))
         unphased = matching.filter_absent(planned.filter_ref("source", self.tasks.query()))
-        return self.first_link(self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)), unphased)
+        return self.first_link(self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan)), unphased)
 
     def has_resumable(self, plan: Plan) -> bool:
-        plan_links = self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan))
+        plan_links = self.links.query().filter(link_type=PLAN_LINK, target=Ref.build(plan))
         return self.has_link(plan_links, self.tasks.query().filter(state=TaskState.PAUSED)) or self.has_link(plan_links, self.startable_tasks(plan))
 
     def has_link(self, links: Query, tasks: Query) -> bool:
@@ -237,11 +237,11 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.find(first[0].source.id) if first else None
 
     def waiting_task_ids(self, plan: Plan) -> set[int]:
-        waits = self.links.query().filter(kind=WAIT_LINK)
+        waits = self.links.query().filter(link_type=WAIT_LINK)
         return self.tasks.waiting_ids(self.tasks.selected(self.plan_task_query(plan).filter_existing(waits.filter_ref("source", self.tasks.query()))))
 
     def worker_holdings(self) -> Query:
-        return self.links.query().filter(kind=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").filter_ref("target", self.tasks.query())
+        return self.links.query().filter(link_type=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").filter_ref("target", self.tasks.query())
 
     def checkpoint_plans(self, plan: Plan) -> PhaseStates | None:
         return plan.checkpoint_phase(self.phase_states(plan))

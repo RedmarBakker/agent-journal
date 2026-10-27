@@ -52,7 +52,7 @@ class FitnessPoint:
 
     def entry(self, agent: Agent) -> Entry:
         data = {"session": agent.session, "at": self.scored_at, "mode": self.mode, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "parts": [list(part) for part in self.parts], "moved": self.moved, "drop_points": self.drop_points, "version": self.version}
-        return Entry(environment_id=agent.environment_id, kind=FitnessPoint.KIND, actor=Actor.system(), data=data)
+        return Entry(environment_id=agent.environment_id, entry_type=FitnessPoint.KIND, actor=Actor.system(), data=data)
 
     def shown(self) -> dict:
         return {"at": self.scored_at, "score": self.score, "is_measured": self.is_measured, "gaps": list(self.gaps), "moved": self.moved, "version": self.version}

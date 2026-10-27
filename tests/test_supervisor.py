@@ -588,7 +588,7 @@ def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_
     terminal = Terminal(["true"], str(tmp_path), {})
     terminal.pid = 4242
     sent = []
-    monkeypatch.setattr(os, "kill", lambda pid, kind: sent.append((pid, kind)))
+    monkeypatch.setattr(os, "kill", lambda pid, type_name: sent.append((pid, type_name)))
 
     def nested_reap(seconds: float) -> None:
         terminal.pid = -1
@@ -601,14 +601,14 @@ def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_
 
 def test_an_owner_pid_of_zero_or_below_is_never_probed_and_a_gone_owner_ends_the_supervisor(monkeypatch):
     probed = []
-    monkeypatch.setattr(os, "kill", lambda pid, kind: probed.append(pid))
+    monkeypatch.setattr(os, "kill", lambda pid, type_name: probed.append(pid))
     for owner in (-1, 0):
         supervisor = Supervisor.__new__(Supervisor)
         supervisor.owner, supervisor._owner_checked_at = owner, float("-inf")
         supervisor.check_owner()
     assert probed == [], "an owner pid of zero or below is never probed"
 
-    def gone(pid: int, kind: int) -> None:
+    def gone(pid: int, type_name: int) -> None:
         raise ProcessLookupError
 
     monkeypatch.setattr(os, "kill", gone)

@@ -63,7 +63,7 @@ export function useTranscript(agent, session, scroller, client = api, active = (
 
     function foldTools(fresh) {
         const next = new Set(folded.value);
-        fresh.filter((turn) => turn.kind === "tool").forEach((turn) => next.add(turn.line));
+        fresh.filter((turn) => turn.turn_type === "tool").forEach((turn) => next.add(turn.line));
         folded.value = next;
     }
 

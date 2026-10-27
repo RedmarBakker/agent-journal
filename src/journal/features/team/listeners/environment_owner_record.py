@@ -19,4 +19,4 @@ class EnvironmentOwnerRecord(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         if isinstance(event.model, Environment) and event.model.is_personal():
-            self.links.save(Link(source=Ref(User.table(), self.account.user_number()), target=Ref.build(event.model), kind=OWNER), event.actor)
+            self.links.save(Link(source=Ref(User.table(), self.account.user_number()), target=Ref.build(event.model), link_type=OWNER), event.actor)

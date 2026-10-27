@@ -101,8 +101,8 @@ describe("paging rows", () => {
 
 describe("entries", () => {
     test("entries are kept in order with no id twice, and only recent ones are remembered", () => {
-        takeEntries([{id: 2, kind: "x", data: {}}, {id: 1, kind: "x", data: {}}]);
-        takeEntries([{id: 2, kind: "x", data: {}}, {id: 3, kind: "x", data: {}}]);
+        takeEntries([{id: 2, entry_type: "x", data: {}}, {id: 1, entry_type: "x", data: {}}]);
+        takeEntries([{id: 2, entry_type: "x", data: {}}, {id: 3, entry_type: "x", data: {}}]);
         expect(store.entries.map((e) => e.id)).toEqual([1, 2, 3]);
         store.entries = [];
         recallEntries();
@@ -117,16 +117,16 @@ describe("entries", () => {
 
     test("a phase added to a plan, or a task linked under it, reads the plans again", async () => {
         store.rows.plans = [];
-        await takeEntries([{id: 5, kind: "created", data: {table: "phases", id: 7}}]);
+        await takeEntries([{id: 5, entry_type: "created", data: {table: "phases", id: 7}}]);
         await vi.waitFor(() => expect(api.list.mock.calls.map((call) => call[0])).toContain("plans"));
         api.list.mockClear();
-        await takeEntries([{id: 6, kind: "created", data: {table: "links", id: 9, joins: ["phases", "tasks"]}}]);
+        await takeEntries([{id: 6, entry_type: "created", data: {table: "links", id: 9, joins: ["phases", "tasks"]}}]);
         await vi.waitFor(() => expect(api.list.mock.calls.map((call) => call[0])).toContain("plans"));
     });
 
     test("an entry that changes a row reads that table's rows and counts again", async () => {
         api.list.mockResolvedValue({rows: [row(1)], is_last_page: true, counts: {open: 1, all: 1, unread: 0}});
-        await takeEntries([{id: 1, kind: "created", data: {table: "tasks", id: 1}}]);
+        await takeEntries([{id: 1, entry_type: "created", data: {table: "tasks", id: 1}}]);
         await vi.waitFor(() => expect(store.rows.tasks).toEqual([row(1)]));
         expect(store.counts.tasks).toEqual({open: 1, all: 1, unread: 0});
         expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE, since: 0, after: 0});
@@ -137,14 +137,14 @@ describe("entries", () => {
         store.paging.size.tasks = 1;
         const touched = row(1, {updated_at: at(5), todos: [{text: "write the test", complete: false}]});
         api.list.mockResolvedValue({rows: [touched], is_last_page: true, counts: {}});
-        await takeEntries([{id: 2, kind: "updated", data: {table: "tasks", id: 1}}]);
+        await takeEntries([{id: 2, entry_type: "updated", data: {table: "tasks", id: 1}}]);
         await vi.waitFor(() => expect(store.rows.tasks).toEqual([touched]));
         expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE, since: 1, after: 0});
     });
 
     test("an entry that deletes a row takes it away at once", () => {
         store.rows.tasks = [row(1), row(2)];
-        takeEntries([{id: 1, kind: "deleted", data: {table: "tasks", id: 1}}]);
+        takeEntries([{id: 1, entry_type: "deleted", data: {table: "tasks", id: 1}}]);
         expect(store.rows.tasks.map((r) => r.id)).toEqual([2]);
     });
 

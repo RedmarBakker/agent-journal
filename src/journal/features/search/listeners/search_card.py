@@ -11,4 +11,4 @@ class SearchCard(Listener[SearchCompleted]):
         self.cards = cards
 
     def handle(self, event: SearchCompleted) -> None:
-        self.cards.show(event.environment_id, event.session, f"Searched for \"{event.terms}\"", detail=event.answer, kind="search", shows=CardType.SEARCHES)
+        self.cards.show(event.environment_id, event.session, f"Searched for \"{event.terms}\"", detail=event.answer, type_name="search", shows=CardType.SEARCHES)

@@ -10,7 +10,7 @@ SECTION = re.compile(r"^## ", re.M)
 class Version3Row:
     """One version 3 row as its file holds it: a JSON header between two --- lines, then its brief, then its ## sections."""
 
-    kind: str
+    row_type: str
     n: int
     title: str = ""
     abstract: str = ""

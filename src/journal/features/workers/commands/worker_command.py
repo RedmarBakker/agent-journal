@@ -261,7 +261,7 @@ class WorkerCommand(Command):
         return bool(agents) and self.tasks.holder(task) == Ref.build(agents[0])
 
     def worker_profile(self, profile: str) -> None:
-        if self.profiles.kind(profile) != ProfileType.WORKER:
+        if self.profiles.profile_type(profile) != ProfileType.WORKER:
             raise Rejection(f"{profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
 
     def allowed_model(self, provider: str, profile: str, model: str) -> str:

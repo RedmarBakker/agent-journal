@@ -12,7 +12,7 @@ AGENT_MESSAGE = "agent_message"
 class CodexEvent(JsonLine):
     """One line of codex exec --json, as far as the journal reads it: its type, the thread a start names, the text of a completed agent message and the message of a failed turn."""
 
-    kind: str | None
+    event_type: str | None
     thread: str | None
     reply: str | None
     error: str | None
@@ -28,10 +28,10 @@ class CodexEvent(JsonLine):
         return cls(data.get("type"), data.get("thread_id"), reply, error.get("message"))
 
     def is_reply(self) -> bool:
-        return self.kind == ITEM_COMPLETED and self.reply is not None
+        return self.event_type == ITEM_COMPLETED and self.reply is not None
 
     def is_failure(self) -> bool:
-        return self.kind == TURN_FAILED
+        return self.event_type == TURN_FAILED
 
     def is_thread_start(self) -> bool:
-        return self.kind == THREAD_STARTED and bool(self.thread)
+        return self.event_type == THREAD_STARTED and bool(self.thread)

@@ -76,7 +76,7 @@ def test_a_hook_lands_as_an_entry_and_answers_200(app: App):
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})
     assert status == 200 and body == {}
     entries = app.container.get(Entries).scoped()
-    assert [e.kind for e in entries] == ["ToolStarting"] and entries[0].actor.stamp == "agent:s1"
+    assert [e.entry_type for e in entries] == ["ToolStarting"] and entries[0].actor.stamp == "agent:s1"
 
 
 def test_a_blocking_listener_refuses_with_409_and_tells_with_context(app: App):
@@ -98,8 +98,8 @@ def test_a_deferred_listener_runs_after_the_reply_and_never_refuses(app: App):
 
 
 def test_every_hook_kind_translates(app: App):
-    for kind in ["SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "PreCompact", "Stop", "SubagentStart", "SubagentStop", "MessageDisplay", "SessionEnd"]:
-        assert post_hook(app, {"hook_event_name": kind, "session_id": "s1"})[0] == 200
+    for type_name in ["SessionStart", "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "PreCompact", "Stop", "SubagentStart", "SubagentStop", "MessageDisplay", "SessionEnd"]:
+        assert post_hook(app, {"hook_event_name": type_name, "session_id": "s1"})[0] == 200
     assert len(app.container.get(Entries).scoped()) == 10
 
 
@@ -152,10 +152,10 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
-    failed = [e for e in app.container.get(Entries).scoped() if e.kind == GUARD_FAILED]
+    failed = [e for e in app.container.get(Entries).scoped() if e.entry_type == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
     assert any("A guard failed and let the event through" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
-    said = [e for e in app.container.get(Entries).scoped() if e.kind == "nudge" and e.data.get("key") == "engine.guard_failed"]
+    said = [e for e in app.container.get(Entries).scoped() if e.entry_type == "nudge" and e.data.get("key") == "engine.guard_failed"]
     assert said, "the line is the engine's registered nudge, said through the Nudger and recorded"
     from journal.engine.nudge_registry import NudgeRegistry
     from journal.support.rejection import Rejection
@@ -342,10 +342,10 @@ def post_as(app, provider: str, body: dict, launch: str = ""):
 def test_every_hook_a_real_run_sent_decodes_into_its_agent_event(app: App, provider: str):
     from journal.providers.providers import Providers
     bodies = [body for body in captured(provider) if not (body.get("agent_id") and body["hook_event_name"] == "PreToolUse")]
-    assert {body["hook_event_name"] for body in bodies} <= {kind.value for kind in Providers().lookup(provider).hook_kinds}, "a real run sends only the kinds the provider wires"
+    assert {body["hook_event_name"] for body in bodies} <= {type_name.value for type_name in Providers().lookup(provider).hook_kinds}, "a real run sends only the kinds the provider wires"
     for body in bodies:
         assert post_as(app, provider, body)[0] == 200, body
-    assert [entry.kind for entry in app.container.get(Entries).scoped()] == [EVENTS[body["hook_event_name"]] for body in bodies]
+    assert [entry.entry_type for entry in app.container.get(Entries).scoped()] == [EVENTS[body["hook_event_name"]] for body in bodies]
 
 
 def first_calls(provider: str) -> dict:
@@ -427,7 +427,7 @@ def dispatch_entries(provider: str, kept, bodies: list[dict] | None = None) -> l
     entries = []
     for n, body in enumerate(body for body in (bodies or captured(provider)) if kept(body)):
         call = {"call": program.call(body["tool_name"], body["tool_input"], frozenset(), classifier).as_data()} if "tool_name" in body else {}
-        entries.append(Entry(id=n + 1, environment_id=1, kind=EVENTS[body["hook_event_name"]], data={**body, **call}, created_at=datetime(2026, 10, 21, 12, 0, n, tzinfo=timezone.utc)))
+        entries.append(Entry(id=n + 1, environment_id=1, entry_type=EVENTS[body["hook_event_name"]], data={**body, **call}, created_at=datetime(2026, 10, 21, 12, 0, n, tzinfo=timezone.utc)))
     return entries
 
 

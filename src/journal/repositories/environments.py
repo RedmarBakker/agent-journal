@@ -17,26 +17,26 @@ class Environments(Repository[Environment]):
         return self.counted(self.query())
 
     def working(self) -> list[Environment]:
-        return self.selected(self.query().filter(kind=EnvironmentType.LOCAL).order("id"))
+        return self.selected(self.query().filter(environment_type=EnvironmentType.LOCAL).order("id"))
 
     def team_query(self) -> Query:
-        return self.query().filter_alternatives(self.query().filter_unequal("kind", EnvironmentType.LOCAL), self.query().filter_unequal("team_key", ""))
+        return self.query().filter_alternatives(self.query().filter_unequal("environment_type", EnvironmentType.LOCAL), self.query().filter_unequal("team_key", ""))
 
     def hubs(self) -> list[Environment]:
-        return self.matching(kind=EnvironmentType.HUB)
+        return self.matching(environment_type=EnvironmentType.HUB)
 
     def hub_ids(self) -> tuple[int, ...]:
         with self.connection.unlisted():
             return tuple(hub.row_id for hub in self.hubs())
 
     def sessions(self) -> list[Environment]:
-        return self.selected(self.query().filter(kind=EnvironmentType.SESSION).order("id"))
+        return self.selected(self.query().filter(environment_type=EnvironmentType.SESSION).order("id"))
 
     def team_chats(self) -> list[Environment]:
-        return self.selected(self.query().filter(kind=EnvironmentType.SESSION, branch=None).order("id"))
+        return self.selected(self.query().filter(environment_type=EnvironmentType.SESSION, branch=None).order("id"))
 
     def session_rows(self, names: list[str]) -> list[Environment]:
-        return self.selected(self.query().filter(kind=EnvironmentType.SESSION).filter_unequal("branch", None).filter_listed("team_name", names).order("id"))
+        return self.selected(self.query().filter(environment_type=EnvironmentType.SESSION).filter_unequal("branch", None).filter_listed("team_name", names).order("id"))
 
     def keys_learnt(self, team_key: str, actor: Actor) -> None:
         for environment in self.matching(team_key=UNKNOWN_TEAM_KEY):

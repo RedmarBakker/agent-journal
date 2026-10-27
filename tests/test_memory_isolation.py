@@ -51,8 +51,8 @@ def sent(app: App, name: str, session: str) -> tuple[Worker, Caller]:
     return row, Caller.worker("main", row.id, session, "claude")
 
 
-def worker_hook(app: App, row: Worker, kind: str, **body) -> tuple[int, dict]:
-    return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": row.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"worker:{row.id}", "X-Journal-Actor-Token": TOKEN})
+def worker_hook(app: App, row: Worker, type_name: str, **body) -> tuple[int, dict]:
+    return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": row.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"worker:{row.id}", "X-Journal-Actor-Token": TOKEN})
 
 
 def compacted(app: App, row: Worker) -> None:

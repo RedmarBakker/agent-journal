@@ -23,7 +23,7 @@ class RequestController:
         return Response.json({"rows": [ModelFields.build(task) for task in reversed(self.tasks.tasks_numbered(ids))]})
 
     def filed(self, request: Request) -> Response:
-        ids = sorted({link.source.id for kind in (REQUESTER_LINK, TEAM_REQUEST) for link in self.links.of_kind(kind)})
+        ids = sorted({link.source.id for type_name in (REQUESTER_LINK, TEAM_REQUEST) for link in self.links.of_kind(type_name)})
         mine = self.tasks.creator_tasks(ids, request.actor)
         drivers = self.tasks.row_holders(mine)
         return Response.json({"rows": [self.standing(task, drivers) for task in reversed(mine)]})

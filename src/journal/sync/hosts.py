@@ -29,5 +29,5 @@ class Hosts:
     def waiting_notice(self, environment: Environment) -> str:
         return self.sessions.waiting_notice(environment)
 
-    def ask(self, environment: Environment, kind: str, body: dict, actor: Actor) -> None:
-        self.link.ask_host(environment.key, kind, body, actor.number())
+    def ask(self, environment: Environment, type_name: str, body: dict, actor: Actor) -> None:
+        self.link.ask_host(environment.key, type_name, body, actor.number())

@@ -22,7 +22,7 @@ STATES = {"building": PlanState.DRAFT, "draft": PlanState.DRAFT, "ready": PlanSt
 class PlanImport(EnvironmentTableImport):
     """A plan keeps its state, its phases in order and its tasks under them, once the tasks have come across."""
 
-    kind = "plan"
+    row_type = "plan"
     title = "plans"
 
     def __init__(self, environments: Environments, tally: MigratedRows, plans: Plans, phases: Phases, links: Links) -> None:
@@ -33,8 +33,8 @@ class PlanImport(EnvironmentTableImport):
         plan = self.plans.imported(Plan(environment_id=receiver.row_id, title=row.title, brief=row.brief, state=STATES.get(row.data.get("status", ""), PlanState.DRAFT)), row.creation_moment(), actor)
         for value in row.listed("phases"):
             phase = self.phases.imported(Phase(environment_id=receiver.row_id, title=value.get("title", ""), completion_rule=value.get("when", ""), checkpoint=bool(value.get("checkpoint"))), row.creation_moment(), actor)
-            self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), actor)
+            self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)
             for task in [rows for n in value.get("todos", []) if (rows := self.ledger.referred(receiver.name, f"todo:{n}"))]:
-                self.links.save(Link(source=task, target=Ref.build(plan), kind=PLAN_LINK), actor)
-                self.links.save(Link(source=task, target=Ref.build(phase), kind=PHASE_LINK), actor)
+                self.links.save(Link(source=task, target=Ref.build(plan), link_type=PLAN_LINK), actor)
+                self.links.save(Link(source=task, target=Ref.build(phase), link_type=PHASE_LINK), actor)
         return plan

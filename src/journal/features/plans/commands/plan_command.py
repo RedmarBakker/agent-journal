@@ -116,7 +116,7 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         previous = self.plans.plan_tasks(plan) if args.first else []
         task = self.tasks.save(Task(environment_id=plan.environment_id, title=args.title, brief=args.brief), caller.actor)
-        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), caller.actor)
+        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
         print(f"{self.labels.name('task', task)} added to {self.labels.name('plan', plan)}{' first' if args.first else ''}{self.destination.phrase(task)}")
@@ -125,7 +125,7 @@ class PlanCommand(Command):
     def relink(self, task: Task, plan: Plan, caller: Caller) -> None:
         for link in self.links.connecting(task, plan):
             self.links.delete(link, caller.actor)
-        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), caller.actor)
+        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
 
     def rephase(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
@@ -138,7 +138,7 @@ class PlanCommand(Command):
     def phase(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
         phase = self.phases.save(Phase(environment_id=plan.environment_id, title=args.title, completion_rule=args.when, checkpoint=args.checkpoint), caller.actor)
-        self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), kind=PHASE_TASK_LINK), caller.actor)
+        self.links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), caller.actor)
         print(f"phase {len(self.plans.plan_phases(plan))} of plan {plan.id}")
         return 0
 
@@ -151,10 +151,10 @@ class PlanCommand(Command):
         for n in args.tasks:
             task = self.tasks.find(n)
             if not self.links.connecting(task, plan):
-                self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), caller.actor)
+                self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
             for link in [link for counterpart in phases for link in self.links.connecting(task, counterpart)]:
                 self.links.delete(link, caller.actor)
-            self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), kind=PHASE_LINK), caller.actor)
+            self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} under phase {args.phase} of plan {plan.id}")
         return 0
 

@@ -55,7 +55,7 @@ class TeamPlacement:
         return NO_TEAM if environment.is_private() else environment.team_key
 
     def link_team(self, link: Link) -> str:
-        if link.kind in MACHINE_LINKS:
+        if link.link_type in MACHINE_LINKS:
             return NO_TEAM
         ends = {self.ref_key(link.source), self.ref_key(link.target)}
         return ends.pop() if len(ends) == 1 else NO_TEAM

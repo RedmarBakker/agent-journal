@@ -7,7 +7,7 @@ const {useFileFeed} = await import("../src/composables/fileFeed.js");
 const {choose} = await import("../src/state/environment.js");
 choose("main");
 
-const edit = (id) => ({id, path: `f${id}.py`, kind: "edit", time: id, added: 1, removed: 0, first_line: 1, last_line: 1, rows: [{kind: "add", line: 1, text: "x"}]});
+const edit = (id) => ({id, path: `f${id}.py`, edit_type: "edit", time: id, added: 1, removed: 0, first_line: 1, last_line: 1, rows: [{line_type: "add", line: 1, text: "x"}]});
 const ALL = Array.from({length: 120}, (_, i) => edit(i + 1));
 
 const client = {

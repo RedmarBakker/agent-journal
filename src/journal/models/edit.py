@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import ClassVar
 
 from journal.models.scoped import Scoped
 
@@ -7,9 +8,11 @@ from journal.models.scoped import Scoped
 class Edit(Scoped):
     """One change an agent made to a file: by a tool with its changed lines, or by a shell command with its counts alone. Stored as rows so the file edits pane shows the same after a reload."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "edit_type"}
+
     session: str = ""
     path: str = ""
-    kind: str = "edit"
+    edit_type: str = "edit"
     time: float = 0.0
     added: int = 0
     removed: int = 0

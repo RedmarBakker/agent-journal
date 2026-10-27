@@ -92,7 +92,7 @@ def test_each_hooks_ready_state_is_read_from_the_projects_settings_and_codexs_tr
     assert Claude().hooks_ready(root) == HooksReady.READY, "Claude Code runs a project's hooks with no trust step of its own"
     assert Codex().hooks_ready(root) == HooksReady.UNTRUSTED, "wired, but Codex was never asked to trust them"
     hooks = root.resolve() / ".codex" / "hooks.json"
-    tables = lambda kinds: "".join(f'[hooks.state."{hooks}:{kind}:0:0"]\ntrusted_hash = "x"\n\n' for kind in kinds)
+    tables = lambda kinds: "".join(f'[hooks.state."{hooks}:{type_name}:0:0"]\ntrusted_hash = "x"\n\n' for type_name in kinds)
     (root / "home" / ".codex").mkdir(parents=True)
     (root / "home" / ".codex" / "config.toml").write_text(tables(["session_start", "stop"]))
     assert Codex().hooks_ready(root) == HooksReady.TRUST_OUTDATED, "trusted before the journal wired the hooks it has now"

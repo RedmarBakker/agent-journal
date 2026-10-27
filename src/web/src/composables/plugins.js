@@ -31,7 +31,7 @@ export const pluginFrom = (p) => ({
         key: s.key,
         title: s.title || s.key,
         help: s.help || "",
-        type: TYPES[s.kind] || "text",
+        type: TYPES[s.setting_type] || "text",
         options: s.choices || [],
         group: "",
         parent: "",

@@ -7,13 +7,13 @@ const SMALL_CHARS = 44;
 
 const small = (card) =>
     !card.image &&
-    (card.kind === "deleted" || (card.rows.length <= SMALL_ROWS && card.rows.every((row) => row.text.length <= SMALL_CHARS)));
-const joins = (card, edit) => card.path === edit.path && card.kind !== "deleted" && edit.kind !== "deleted";
+    (card.edit_type === "deleted" || (card.rows.length <= SMALL_ROWS && card.rows.every((row) => row.text.length <= SMALL_CHARS)));
+const joins = (card, edit) => card.path === edit.path && card.edit_type !== "deleted" && edit.edit_type !== "deleted";
 const tagged = (edit) => edit.rows.map((row) => ({...row, edit: edit.id}));
 
 function merged(card, edit) {
     const gap = edit.first_line - card.last_line - 1;
-    const between = gap ? [{kind: "fold", line: null, text: "", hidden: Math.max(gap, 0), edit: edit.id}] : [];
+    const between = gap ? [{line_type: "fold", line: null, text: "", hidden: Math.max(gap, 0), edit: edit.id}] : [];
     return {
         ...card,
         rows: [...card.rows, ...between, ...tagged(edit)],

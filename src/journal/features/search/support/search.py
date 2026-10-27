@@ -43,21 +43,21 @@ class Search:
         self.agents, self.providers, self.config, self.workers = agents, providers, config, workers
 
     def models(self) -> list[str]:
-        return [self.lookup(kind) for kind in self.kinds]
+        return [self.lookup(type_name) for type_name in self.kinds]
 
     def hits(self, terms: list[str]) -> list[SearchHit]:
         return self.rows(terms, self.kinds)
 
     def kind_hits(self, terms: list[str], names: list[str]) -> list[SearchHit]:
-        wanted = [kind for kind in self.kinds if self.lookup(kind) in names]
+        wanted = [type_name for type_name in self.kinds if self.lookup(type_name) in names]
         return self.rows(terms, wanted) + (self.conversation_hits(terms) if CONVERSATION in names else [])
 
     def rows(self, terms: list[str], kinds) -> list[SearchHit]:
         matches: list[Model] = []
-        for kind in kinds:
+        for type_name in kinds:
             if len(matches) >= SHOWN_ROWS:
                 break
-            matches += kind.search(terms, SHOWN_ROWS - len(matches))
+            matches += type_name.search(terms, SHOWN_ROWS - len(matches))
         return [self.hit(row, terms) for row in matches]
 
     def hit(self, row: Model, terms: list[str]) -> SearchHit:
@@ -68,8 +68,8 @@ class Search:
         return SearchHit(f"message {row.id} in the chat of {chat}", SearchHit.excerpt(row.mentioning_text(), terms))
 
     @staticmethod
-    def lookup(kind: Repository) -> str:
-        return kind.model.table().removesuffix("s")
+    def lookup(type_name: Repository) -> str:
+        return type_name.model.table().removesuffix("s")
 
     def conversation_hits(self, terms: list[str]) -> list[SearchHit]:
         rows = []

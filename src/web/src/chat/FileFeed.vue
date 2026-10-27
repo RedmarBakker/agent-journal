@@ -102,7 +102,7 @@ async function onScroll(e) {
                         @whole="whole(c)"
                         @open="(path) => showFile(path, 0, scope.env)"
                         :path="c.path"
-                        :kind="c.kind"
+                        :kind="c.edit_type"
                         :added="c.added"
                         :removed="c.removed"
                         :ago="fresh(c.time, now)"

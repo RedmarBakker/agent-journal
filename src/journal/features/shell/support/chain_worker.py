@@ -60,13 +60,13 @@ class ChainWorker:
         request = request.folder_request(folder.folder)
         shell, pump = self.started(request, output_text)
         code = 0
-        for i, kind in enumerate(folder.kinds()):
-            code = self.part(shell, folder, i, kind, code, direct, caller)
+        for i, type_name in enumerate(folder.kinds()):
+            code = self.part(shell, folder, i, type_name, code, direct, caller)
             if folder.part_text(i).startswith("exec "):
                 break
             if shell.process.poll() is None:
                 continue
-            if kind[0] == "R":
+            if type_name[0] == "R":
                 break
             pump.join(timeout=2)
             shell, pump = self.started(request, output_text)
@@ -88,8 +88,8 @@ class ChainWorker:
         self.write_part(shell, SHELL_SETUP.replace("__JOURNAL_OWNER", str(os.getpid())))
         return shell, pump
 
-    def part(self, shell: ShellProcess, folder: OutputFiles, i: int, kind: str, code: int, direct: bool, caller: Caller) -> int:
-        recorded, tail_edges, edges, writes, branch = kind[0] == "R", kind[1] == "&", kind[2] == "&", kind[3:4] == "w", kind[4:5] == "b"
+    def part(self, shell: ShellProcess, folder: OutputFiles, i: int, type_name: str, code: int, direct: bool, caller: Caller) -> int:
+        recorded, tail_edges, edges, writes, branch = type_name[0] == "R", type_name[1] == "&", type_name[2] == "&", type_name[3:4] == "w", type_name[4:5] == "b"
         text = folder.part_text(i)
         if tail_edges and code != 0:
             folder.ended_with(i, code)

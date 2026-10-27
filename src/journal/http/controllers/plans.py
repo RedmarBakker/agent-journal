@@ -56,7 +56,7 @@ class PlanController(Controller[Plan]):
     def add_task(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
         task = self.tasks.save(Task(environment_id=plan.environment_id, title=request.body.get("title", ""), brief=request.body.get("brief", "")), request.actor)
-        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), request.actor)
+        self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), request.actor)
         return Response.json(task, 201)
 
     def review(self, request: Request) -> Response:

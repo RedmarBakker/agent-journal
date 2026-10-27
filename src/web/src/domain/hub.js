@@ -2,7 +2,7 @@ import {colleagueOwner, isSession, isShared, sidebarEnvironments} from "./people
 import {updatedAt} from "./row.js";
 
 // A team's hub is an environment of kind hub, named for the team; what the team's colleagues share and the Team chat are its sessions.
-export const isHub = (row) => row.kind === "hub";
+export const isHub = (row) => row.environment_type === "hub";
 
 const isTeamListed = (row, people) => !isHub(row) && (isSession(row) || (isShared(row) && colleagueOwner(row.id, people) > 0));
 

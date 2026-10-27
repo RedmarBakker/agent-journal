@@ -16,7 +16,7 @@ class ReviewLinks:
         self.links = links
 
     def linked(self, reviewer: Reviewer, worker: Worker) -> None:
-        self.links.save(Link(source=Ref.build(reviewer), target=Ref.build(worker), kind=REVIEWS), Actor.system())
+        self.links.save(Link(source=Ref.build(reviewer), target=Ref.build(worker), link_type=REVIEWS), Actor.system())
 
     def worker(self, reviewer: Reviewer) -> Ref:
         targets = self.links.targets(reviewer, REVIEWS)

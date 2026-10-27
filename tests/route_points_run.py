@@ -163,8 +163,8 @@ def hook_bodies() -> dict[HookType, dict]:
 
 def answer_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
     """The rows, bytes and writes the journal's own router spends answering, the answer written as the server writes it; the deferred listeners then run uncounted, so each request starts with the worker thread idle."""
-    kind, raw = body
-    request = RequestReading.read(RequestReading.head(method, target, {**MAIN, "Content-Type": kind}), raw if method == "POST" else b"", app.container.get(Identity))
+    type_name, raw = body
+    request = RequestReading.read(RequestReading.head(method, target, {**MAIN, "Content-Type": type_name}), raw if method == "POST" else b"", app.container.get(Identity))
     LoadTally.begin()
     answer = app.container.get(Router).route(request)
     if isinstance(answer, Response):
@@ -243,19 +243,19 @@ def hook_cases(app: App) -> dict[str, tuple[HookType, dict]]:
     """Every hook kind with its body, and after the tool call a shell call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran, and an edit in a worker's worktree, which asks whose worktree it is."""
     edit = {"tool_name": "Edit", "tool_input": {"file_path": str(app.config.home / "worktrees" / WORKTREE / "src" / "parser.py"), "old_string": "a", "new_string": "b"}}
     followers = {"hook PreToolUse shell": (HookType.PRE_TOOL_USE, SHELL_CALL), "hook PreToolUse worktree edit": (HookType.PRE_TOOL_USE, edit)}
-    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(followers if kind == HookType.PRE_TOOL_USE else {})}.items()}
+    return {name: case for type_name, body in hook_bodies().items() for name, case in {f"hook {type_name.value}": (type_name, body), **(followers if type_name == HookType.PRE_TOOL_USE else {})}.items()}
 
 
-def hook_body(kind: HookType, body: dict, try_name: str) -> tuple[str, bytes]:
-    return JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode()
+def hook_body(type_name: HookType, body: dict, try_name: str) -> tuple[str, bytes]:
+    return JSON, json.dumps({"hook_event_name": type_name.value, "session_id": "s1", "tool_use_id": f"{try_name}-{type_name.value}", **body}).encode()
 
 
 def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent_orchestrates(full_project: App):
     orchestrating(full_project)
     cases = hook_cases(full_project)
-    for name, (kind, body) in cases.items():
-        answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"warm {name}"))
-    hooks = over(recorded({name: cold_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"counted {name}")) for name, (kind, body) in cases.items()}))
+    for name, (type_name, body) in cases.items():
+        answer_loads(full_project, "POST", HOOK_PATH, hook_body(type_name, body, f"warm {name}"))
+    hooks = over(recorded({name: cold_loads(full_project, "POST", HOOK_PATH, hook_body(type_name, body, f"counted {name}")) for name, (type_name, body) in cases.items()}))
     assert not hooks, "\n".join(hooks)
 
 
@@ -264,8 +264,8 @@ def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget
     with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
         polled_to = full_project.container.get(Entries).last_id()
     for n in range(TURN_SHELL_CALLS):
-        for kind, body in ((HookType.PRE_TOOL_USE, SHELL_CALL), (HookType.POST_TOOL_USE, {**SHELL_CALL, "tool_response": {"stdout": SHELL_OUTPUT, "stderr": ""}})):
-            answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"turn {n}"))
+        for type_name, body in ((HookType.PRE_TOOL_USE, SHELL_CALL), (HookType.POST_TOOL_USE, {**SHELL_CALL, "tool_response": {"stdout": SHELL_OUTPUT, "stderr": ""}})):
+            answer_loads(full_project, "POST", HOOK_PATH, hook_body(type_name, body, f"turn {n}"))
     polled = over(recorded({"GET /journal/entries after a turn": cold_loads(full_project, "GET", f"/journal/entries?since={polled_to}", EMPTY)}))
     assert not polled, "\n".join(polled)
 

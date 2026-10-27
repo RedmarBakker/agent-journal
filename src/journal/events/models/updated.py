@@ -13,8 +13,8 @@ class Updated(ModelEvent):
 
     previous: Model | None = None
 
-    def previous_row(self, kind: type[M]) -> M | None:
-        return self.previous if isinstance(self.previous, kind) else None
+    def previous_row(self, type_name: type[M]) -> M | None:
+        return self.previous if isinstance(self.previous, type_name) else None
 
     def changed(self) -> tuple[str, ...]:
         if self.previous is None:

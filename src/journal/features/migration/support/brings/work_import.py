@@ -13,7 +13,7 @@ from journal.repositories.task_logs import TaskLogs
 class WorkImport(EnvironmentTableImport):
     """A to-do's work log becomes its task's log lines, one for each entry, once the task has come across."""
 
-    kind = "work"
+    row_type = "work"
     title = "task logs"
 
     def __init__(self, environments: Environments, tally: MigratedRows, logs: TaskLogs) -> None:

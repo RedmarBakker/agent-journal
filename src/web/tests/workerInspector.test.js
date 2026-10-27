@@ -122,11 +122,11 @@ test("a worker still at work has no check to offer, and its tasks mark what is d
 });
 
 const turns = [
-    {line: 1, kind: "human", time: 1, text: "Write the parser.", tools: []},
-    {line: 2, kind: "agent", time: 2, text: "Reading the grammar first.", tools: ["Read", "Bash"], steps: [{kind: "file read", path: "grammar.txt", partial: false}, {kind: "shell line", command: "pytest -k parser"}]},
-    {line: 3, kind: "tool", time: 3, text: "", tools: [], has_text: true},
-    {line: 4, kind: "tool", time: 4, text: "", tools: [], has_text: true},
-    {line: 5, kind: "agent", time: 5, text: "", tools: ["WebFetch"], steps: []},
+    {line: 1, turn_type: "human", time: 1, text: "Write the parser.", tools: []},
+    {line: 2, turn_type: "agent", time: 2, text: "Reading the grammar first.", tools: ["Read", "Bash"], steps: [{kind: "file read", path: "grammar.txt", partial: false}, {kind: "shell line", command: "pytest -k parser"}]},
+    {line: 3, turn_type: "tool", time: 3, text: "", tools: [], has_text: true},
+    {line: 4, turn_type: "tool", time: 4, text: "", tools: [], has_text: true},
+    {line: 5, turn_type: "agent", time: 5, text: "", tools: ["WebFetch"], steps: []},
 ];
 
 test("a transcript reads as who said what, each with the steps it took in words and the line of each step's output", () => {

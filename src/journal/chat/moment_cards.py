@@ -29,8 +29,8 @@ class MomentCards:
         self.time_source = time_source
         self.messages, self.settings, self.agents = messages, settings, agents
 
-    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE, place: RunPlace | None = None) -> Message:
-        data = {"kind": kind, "outcome": str(outcome), "row": str(row) if row else "", "command": command, **(asdict(place) if place else {})}
+    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, type_name: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardType, outcome: CardOutcome = CardOutcome.NONE, place: RunPlace | None = None) -> Message:
+        data = {"kind": type_name, "outcome": str(outcome), "row": str(row) if row else "", "command": command, **(asdict(place) if place else {})}
         return self.show_fields(environment_id, session, label, data, actor, shows, detail, key)
 
     def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardType, detail: str = "", key: str = "") -> Message:

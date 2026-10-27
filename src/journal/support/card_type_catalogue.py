@@ -32,8 +32,8 @@ class CardTypeCatalogue:
     def served(families: list[CardFamily], kinds: list[CardTypeEntry]) -> dict:
         family_index = {family.key: family for family in families}
         return {"groups": [asdict(group) for group in CardTypeCatalogue.GROUPS], "families": [{**asdict(family), "colouring": str(family.colouring)} for family in families],
-                "kinds": [CardTypeCatalogue.served_kind(kind, family_index[kind.family]) for kind in kinds]}
+                "kinds": [CardTypeCatalogue.served_kind(type_name, family_index[type_name.family]) for type_name in kinds]}
 
     @staticmethod
-    def served_kind(kind: CardTypeEntry, family: CardFamily) -> dict:
-        return {**asdict(kind), "key": str(kind.key), "icon": family.icon, "group": family.group, "colouring": str(family.colouring), "turns": list(kind.turns), "messages": list(kind.messages), "covers": [str(key) for key in kind.covers]}
+    def served_kind(type_name: CardTypeEntry, family: CardFamily) -> dict:
+        return {**asdict(type_name), "key": str(type_name.key), "icon": family.icon, "group": family.group, "colouring": str(family.colouring), "turns": list(type_name.turns), "messages": list(type_name.messages), "covers": [str(key) for key in type_name.covers]}

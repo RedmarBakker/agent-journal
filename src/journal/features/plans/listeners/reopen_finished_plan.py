@@ -17,7 +17,7 @@ class ReopenFinishedPlan(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         link = event.model
-        if not isinstance(link, Link) or link.kind != PLAN_LINK:
+        if not isinstance(link, Link) or link.link_type != PLAN_LINK:
             return
         plan = self.plans.find(link.target.id)
         if plan.state == PlanState.FINISHED and not self.plans.finished(plan):

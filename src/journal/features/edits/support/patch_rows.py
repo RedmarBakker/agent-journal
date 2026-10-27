@@ -49,8 +49,8 @@ class PatchRows:
                 old += 1
         return rows
 
-    def counted(self, kind: str) -> int:
-        return len([r for r in self.rows if r.kind == kind])
+    def counted(self, type_name: str) -> int:
+        return len([r for r in self.rows if r.line_type == type_name])
 
     @property
     def first_line(self) -> int:

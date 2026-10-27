@@ -49,7 +49,7 @@ class VerifierDispatch:
 
     def judging(self, verifier: Verifier, target: Scoped, resume: str) -> Verifier:
         verifier = self.verifiers.save(verifier, Actor.system())
-        self.links.save(Link(source=Ref.build(verifier), target=Ref.build(target), kind=VERIFIES), Actor.system())
+        self.links.save(Link(source=Ref.build(verifier), target=Ref.build(target), link_type=VERIFIES), Actor.system())
         return self.runner.start(verifier, resume)
 
     def judged(self, number: int) -> Ref:

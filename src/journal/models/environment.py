@@ -14,6 +14,8 @@ UNKNOWN_TEAM_KEY = "unknown"
 class Environment(Model):
     """A place an agent works. Its key, made at random when it is made, never changes and is how this machine and the team server match it; its name is this machine's own and never changes when the journal joins a team; its team name, the owner's name before it, is the one the team server and every other machine know it by, and is absent until a team knows it; one its owner shares with the team carries the team's key, and is in every member's sidebar and its chat open to all; one that works in a worktree names the machine that holds its folder; a team's hub and sessions name the team by its key, which a journal that has not learnt it yet holds as unknown."""
 
+    column_renames: ClassVar[dict[str, str]] = {"kind": "environment_type"}
+
     local_fields: ClassVar[tuple[str, ...]] = ("name",)
 
     name: str = ""
@@ -21,22 +23,22 @@ class Environment(Model):
     worktree_host: str = ""
     team_name: str | None = None
     key: str = field(default_factory=EnvironmentKey.random)
-    kind: EnvironmentType = EnvironmentType.LOCAL
+    environment_type: EnvironmentType = EnvironmentType.LOCAL
     team_key: str = ""
 
     @classmethod
     def hub(cls, team_key: str, team_name: str) -> "Environment":
-        return cls(name=team_name, team_name=team_name, kind=EnvironmentType.HUB, team_key=team_key)
+        return cls(name=team_name, team_name=team_name, environment_type=EnvironmentType.HUB, team_key=team_key)
 
     @classmethod
     def session(cls, team_key: str, name: str) -> "Environment":
-        return cls(name=name, team_name=name, kind=EnvironmentType.SESSION, team_key=team_key)
+        return cls(name=name, team_name=name, environment_type=EnvironmentType.SESSION, team_key=team_key)
 
     def is_personal(self) -> bool:
-        return self.kind == EnvironmentType.LOCAL
+        return self.environment_type == EnvironmentType.LOCAL
 
     def is_session(self) -> bool:
-        return self.kind == EnvironmentType.SESSION
+        return self.environment_type == EnvironmentType.SESSION
 
     def is_team_chat(self) -> bool:
         return self.is_session() and self.branch is None

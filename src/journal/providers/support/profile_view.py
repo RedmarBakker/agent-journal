@@ -7,7 +7,7 @@ class ProfileView(TypedDict):
     name: str
     description: str
     tools: str
-    kind: str
+    profile_type: str
     model: str
     codex_model: str
     body: str

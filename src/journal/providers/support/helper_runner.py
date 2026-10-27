@@ -36,8 +36,8 @@ class HelperRunner[H: Helper]:
         helper = self.rows.save(helper.with_(session=provider.worker_session(resume), token_hash=token.digest()), Actor.system())
         settings = self.setup.hook_settings(provider, self.config.root, self.output(helper).with_suffix(".settings.json"))
         command = [*provider.worker_command(helper.brief, helper.model, resume, helper.session), *provider.worker_settings_flags(settings)]
-        environ = self.setup.variables(self.environments.find(helper.environment_id).name, Actor(ActorType(helper.kind), str(helper.id)), token)
-        threading.Thread(target=self.run, args=(helper, command, environ), name=f"{helper.kind}-{helper.id}", daemon=True).start()
+        environ = self.setup.variables(self.environments.find(helper.environment_id).name, Actor(ActorType(helper.helper_type), str(helper.id)), token)
+        threading.Thread(target=self.run, args=(helper, command, environ), name=f"{helper.helper_type}-{helper.id}", daemon=True).start()
         return helper
 
     def run(self, helper: H, command: list[str], environ: dict[str, str]) -> None:
@@ -71,4 +71,4 @@ class HelperRunner[H: Helper]:
             os.killpg(helper.pid, signal.SIGTERM)
 
     def output(self, helper: H) -> Path:
-        return self.config.home / "runtime" / f"{helper.kind}s" / f"{helper.id}.out"
+        return self.config.home / "runtime" / f"{helper.helper_type}s" / f"{helper.id}.out"

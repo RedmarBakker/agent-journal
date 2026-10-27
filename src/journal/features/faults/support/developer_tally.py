@@ -36,15 +36,15 @@ class DeveloperTally:
             self._numbers[f"{prefix}.total_ms"] = self._numbers.get(f"{prefix}.total_ms", 0) + ms
             self._numbers[f"{prefix}.slowest_ms"] = max(ms, self._numbers.get(f"{prefix}.slowest_ms", 0))
 
-    def windowed(self, group: str, kind: str, ms: int) -> None:
+    def windowed(self, group: str, type_name: str, ms: int) -> None:
         with self._lock:
-            window = self._rolling.setdefault(group, {}).setdefault(kind, [])
+            window = self._rolling.setdefault(group, {}).setdefault(type_name, [])
             window.append((time.monotonic(), ms))
             window[:] = self.trimmed(window)
 
-    def loaded(self, kind: str, loads: RequestLoads) -> None:
+    def loaded(self, type_name: str, loads: RequestLoads) -> None:
         with self._lock:
-            window = self._loads.setdefault(kind, [])
+            window = self._loads.setdefault(type_name, [])
             window.append((time.monotonic(), loads))
             window[:] = self.trimmed(window)
 
@@ -70,12 +70,12 @@ class DeveloperTally:
 
     def rolling_parts(self, group: str) -> list[dict]:
         with self._lock:
-            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.time_details(window)} for kind, window in self.recent_windows(group).items()]
+            parts = [{"name": type_name, "average": round(sum(window) / len(window)), "count": len(window), "details": self.time_details(window)} for type_name, window in self.recent_windows(group).items()]
         return sorted(parts, key=lambda part: -part["average"])
 
     def recent_windows(self, group: str) -> dict[str, list[int]]:
-        windows = {kind: self.recent(window) for kind, window in self._rolling.get(group, {}).items()}
-        return {kind: window for kind, window in windows.items() if window}
+        windows = {type_name: self.recent(window) for type_name, window in self._rolling.get(group, {}).items()}
+        return {type_name: window for type_name, window in windows.items() if window}
 
     @staticmethod
     def trimmed(window: list) -> list:
@@ -93,7 +93,7 @@ class DeveloperTally:
 
     def point_parts(self) -> list[dict]:
         with self._lock:
-            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.table_details(self.recent(self._loads.get(kind, [])))} for kind, window in self.recent_windows(POINTS_GROUP).items()]
+            parts = [{"name": type_name, "average": round(sum(window) / len(window)), "count": len(window), "details": self.table_details(self.recent(self._loads.get(type_name, [])))} for type_name, window in self.recent_windows(POINTS_GROUP).items()]
         return sorted(parts, key=lambda part: -part["average"])
 
     @staticmethod

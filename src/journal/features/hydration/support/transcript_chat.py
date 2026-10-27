@@ -29,9 +29,9 @@ class TranscriptChat:
 
     def add(self, turn: Turn) -> None:
         text = turn.text.strip()
-        if turn.kind == "human" and text and PromptOrigin.is_users(text):
+        if turn.turn_type == "human" and text and PromptOrigin.is_users(text):
             self.append_row(Message(author=Author.USER, text=text, read_at=datetime.fromtimestamp(turn.time, timezone.utc)), turn.time)
-        elif turn.kind == "agent" and (reply_text := self.chat_text(text)):
+        elif turn.turn_type == "agent" and (reply_text := self.chat_text(text)):
             self.append_row(Message(author=Author.AGENT, session=self.session, text=reply_text), turn.time)
         self.count_tools(turn)
 

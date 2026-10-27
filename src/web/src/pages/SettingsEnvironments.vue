@@ -33,7 +33,7 @@ const envRows = computed(() =>
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
             worktree: hosted.value ? "" : (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
-            shareable: Boolean(store.people.device) && standing.environment.kind === "local" && !colleagueOwner(standing.environment.id, store.people),
+            shareable: Boolean(store.people.device) && standing.environment.environment_type === "local" && !colleagueOwner(standing.environment.id, store.people),
             shared: isShared(standing.environment),
         }))
         .filter((row) => matches(`${row.name} environment`, props.query))

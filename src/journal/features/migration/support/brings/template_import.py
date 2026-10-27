@@ -9,7 +9,7 @@ from journal.repositories.templates import Templates
 class TemplateImport(BuiltinType):
     """A template of the project's keeps its instructions, what it applies to, its purpose and its outline."""
 
-    kind = "template"
+    row_type = "template"
     title = "templates"
 
     def __init__(self, tally: MigratedRows, templates: Templates) -> None:

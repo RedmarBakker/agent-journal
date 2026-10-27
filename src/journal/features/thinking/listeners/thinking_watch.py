@@ -19,7 +19,7 @@ class ThinkingWatch(AgentListener[Ticked]):
         agent = self.agents.session_agent(event.session)
         moves = self.entries.session_moves(MOVES, event.session)
         last = moves[0] if moves else None
-        thinking = bool(last) and ThinkingWindow.opens(agent.state, last.kind, event.time - last.created_at.timestamp())
+        thinking = bool(last) and ThinkingWindow.opens(agent.state, last.entry_type, event.time - last.created_at.timestamp())
         if thinking and not agent.is_thinking():
             self.agents.save(agent.thinking_started(event.time), Actor.system())
         elif agent.is_thinking() and not thinking:

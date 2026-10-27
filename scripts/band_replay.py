@@ -39,7 +39,7 @@ def copied_journal() -> Path:
 
 def kept_days(database: Path) -> list[str]:
     with sqlite3.connect(database) as connection:
-        return [row[0] for row in connection.execute("SELECT DISTINCT substr(created_at, 1, 10) FROM entries WHERE kind = 'load_inputs' ORDER BY 1")]
+        return [row[0] for row in connection.execute("SELECT DISTINCT substr(created_at, 1, 10) FROM entries WHERE entry_type = 'load_inputs' ORDER BY 1")]
 
 
 def newest_environment(database: Path) -> int:

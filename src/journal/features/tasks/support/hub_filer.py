@@ -43,5 +43,5 @@ class HubFiler:
         links = [(Ref("users", person), REQUESTER_LINK)] if person else []
         links += [(hub, TEAM_REQUEST)] if args.to_team else []
         links += [(hub, ISSUE)] if args.issue else []
-        for target, kind in links:
-            self.links.save(Link(source=Ref.build(task), target=target, kind=kind), actor)
+        for target, type_name in links:
+            self.links.save(Link(source=Ref.build(task), target=target, link_type=type_name), actor)

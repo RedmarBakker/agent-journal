@@ -40,8 +40,8 @@ class Docking:
     def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, memories: Memories, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
                  templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, announcer: Announcer, scope: Scope) -> None:
         self.messages, self.announcer, self.scope = messages, announcer, scope
-        self.kinds: dict[str, Repository] = {kind.model.noun(): kind for kind in (tasks, plans, docs, reports, memories, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
-        self.tables: dict[str, Repository] = {kind.model.table(): kind for kind in self.kinds.values()}
+        self.kinds: dict[str, Repository] = {type_name.model.noun(): type_name for type_name in (tasks, plans, docs, reports, memories, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
+        self.tables: dict[str, Repository] = {type_name.model.table(): type_name for type_name in self.kinds.values()}
 
     def nouns(self) -> tuple[str, ...]:
         return tuple(self.kinds)

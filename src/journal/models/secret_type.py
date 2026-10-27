@@ -14,7 +14,7 @@ class SecretType(StrEnum):
         try:
             return cls(supplied.strip().lower())
         except ValueError as unknown:
-            raise Rejection(f"a secret is one of {', '.join(kind.value for kind in cls)}, not {supplied!r}") from unknown
+            raise Rejection(f"a secret is one of {', '.join(type_name.value for type_name in cls)}, not {supplied!r}") from unknown
 
     def first_fields(self, title: str) -> tuple[dict, ...]:
         stem = "_".join("".join(c if c.isalnum() else " " for c in title).upper().split())

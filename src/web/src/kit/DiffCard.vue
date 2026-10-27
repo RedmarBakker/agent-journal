@@ -39,14 +39,14 @@ const name = computed(() => props.path.slice(cut.value));
 const gone = computed(() => props.kind === "deleted");
 const badge = computed(() => BADGES[props.kind]);
 
-const changed = computed(() => new Set(props.rows.filter((row) => row.kind === "add").map((row) => row.line)));
+const changed = computed(() => new Set(props.rows.filter((row) => row.line_type === "add").map((row) => row.line)));
 const side = ref("after");
 const sideText = computed(() => (side.value === "before" ? props.whole.old : props.whole.text));
 const drawn = computed(() => {
     if (props.whole && props.whole.text !== undefined)
-        return sideText.value.split("\n").map((text, i) => ({kind: side.value === "after" && changed.value.has(i + 1) ? "add" : "ctx", line: i + 1, text}));
+        return sideText.value.split("\n").map((text, i) => ({line_type: side.value === "after" && changed.value.has(i + 1) ? "add" : "ctx", line: i + 1, text}));
     return props.rows.filter(
-        (row) => !(props.editsOnly && ["ctx", "fold"].includes(row.kind)) && !(props.hideRemovals && row.kind === "del")
+        (row) => !(props.editsOnly && ["ctx", "fold"].includes(row.line_type)) && !(props.hideRemovals && row.line_type === "del")
     );
 });
 
@@ -55,8 +55,8 @@ const limited = computed(() => props.lines && !opened.value && !props.whole);
 const listed = computed(() => (limited.value ? drawn.value.slice(0, props.lines) : drawn.value));
 const beyond = computed(() => drawn.value.length - listed.value.length);
 
-const numberOf = (row) => (row.line === null || row.kind === "del" ? "" : row.line);
-const textOf = (row) => (row.kind === "fold" ? (row.hidden ? `⋯ ${row.hidden} lines` : "⋯") : row.text);
+const numberOf = (row) => (row.line === null || row.line_type === "del" ? "" : row.line);
+const textOf = (row) => (row.line_type === "fold" ? (row.hidden ? `⋯ ${row.hidden} lines` : "⋯") : row.text);
 
 const grow = ref(null);
 const body = ref(null);
@@ -129,9 +129,9 @@ onUnmounted(() => sized && sized.disconnect());
                     <div ref="body" class="diff-card-diff">
                         <div class="diff-card-rows">
                             <template v-for="(row, i) in listed" :key="i">
-                                <div :class="['diff-row', row.kind, {fresh: fresh && row.edit === fresh}]">
+                                <div :class="['diff-row', row.line_type, {fresh: fresh && row.edit === fresh}]">
                                     <span class="diff-row-num">{{ numberOf(row) }}</span>
-                                    <span class="diff-row-sign">{{ SIGNS[row.kind] }}</span>
+                                    <span class="diff-row-sign">{{ SIGNS[row.line_type] }}</span>
                                     <span class="diff-row-code">{{ textOf(row) }}</span>
                                 </div>
                             </template>

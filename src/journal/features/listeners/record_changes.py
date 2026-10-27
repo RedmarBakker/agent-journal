@@ -31,4 +31,4 @@ class RecordChanges(Listener[ModelEvent]):
         if isinstance(event, Updated) and event.previous is not None and not set(changed) - set(model.unshown_fields):
             return
         joined = [model.source.type, model.target.type] if isinstance(model, Link) else []
-        self.entries.save(Entry(environment_id=environment, kind=action, actor=event.actor, data={"table": model.table(), "id": model.id, "title": getattr(model, "title", "") or getattr(model, "text", "")[:80], "changed": changed, "joins": joined}), event.actor)
+        self.entries.save(Entry(environment_id=environment, entry_type=action, actor=event.actor, data={"table": model.table(), "id": model.id, "title": getattr(model, "title", "") or getattr(model, "text", "")[:80], "changed": changed, "joins": joined}), event.actor)

@@ -47,8 +47,8 @@ class UnlinkedRowNumbers:
     @classmethod
     def linked(cls, text: str, kinds: list[str]) -> str:
         spans = cls.spans(text)
-        for (number, (start, end)), kind in reversed([(span, kind) for span, kind in zip(spans, kinds) if kind != PLAIN]):
-            text = f"{text[:start]}{kind} {number}{text[end:]}"
+        for (number, (start, end)), type_name in reversed([(span, type_name) for span, type_name in zip(spans, kinds) if type_name != PLAIN]):
+            text = f"{text[:start]}{type_name} {number}{text[end:]}"
         return text
 
     @classmethod
