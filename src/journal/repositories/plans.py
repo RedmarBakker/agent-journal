@@ -99,7 +99,7 @@ class Plans(ScopedRepository[Plan]):
         return self.tasks.selected_ids(self.plan_task_query(plan).order_descending("updated_at").order_descending("id").limit(count))
 
     def assignable_tasks(self, task_ids: list[int]) -> list[Task]:
-        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter(state=TaskState.OPEN, delegated=False).filter_unequal("brief", ""))}
+        assignable = {task.row_id: task for task in self.tasks.selected(self.tasks.query().filter_listed("id", task_ids).filter_listed("state", [TaskState.OPEN.value, TaskState.PAUSED.value]).filter(delegated=False).filter_unequal("brief", ""))}
         return [assignable[n] for n in task_ids if n in assignable]
 
     def plan_task_ids(self, plan: Plan) -> list[int]:
