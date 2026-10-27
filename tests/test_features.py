@@ -23281,7 +23281,7 @@ def test_runs_of_different_lines_under_one_card_title_are_told_once_naming_both_
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.entries import NUDGE, Entries
     hook(app, "SessionStart")
-    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--label", "Running tests", "--commands", "pytest", "--topic", r"(\S+\.py)"], USER).code == 0
+    assert app.console().run(["reader", "add", "unit-runs", "--pattern", "[0-9]+ passed", "--about", "a unit run's summary", "--label", "Running tests", "--commands", "pytest", "--topic", r"(\S+\.py)"], USER).code == 0
     outputs = app.container.get(CommandOutputs)
 
     def ran(n: int, line: str, reader: str, title: str) -> None:
