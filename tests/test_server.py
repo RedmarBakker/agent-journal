@@ -459,7 +459,7 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
 
 
 def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its_retry_the_one_run(tmp_path: Path):
-    """A journal command chained with another is refused before it runs: the terminal shows its line as refused, with the reason, and the retry that runs as the one run."""
+    """A journal command chained with another is refused before it runs: the terminal shows its parts as refused, with the reason, and the retry that runs as the one run."""
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
@@ -477,10 +477,10 @@ def test_a_command_the_journal_refused_is_a_refused_line_in_the_terminal_and_its
         hook("SessionStart")
         assert hook("PreToolUse", tool_name="Bash", tool_input=chained, tool_use_id="t-1") == 409, "the chained line is refused before it runs"
         hook("PostToolUseFailure", tool_name="Bash", tool_input=chained, error="refused by a hook", tool_use_id="t-1")
-        hook("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_use_id="t-2")
-        hook("PostToolUse", tool_name="Bash", tool_input={"command": "journal task list"}, tool_response={"stdout": "no task"}, tool_use_id="t-2")
+        assert hook("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t-2") == 200, "the retry on its own runs"
+        hook("PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "a"}, tool_use_id="t-2")
         lines = call(server, "GET", "/journal/agents/1/terminal")[1]
-        assert [(l["command"], bool(l["refused"])) for l in lines] == [("journal task list", True), ("ls", True), ("journal task list", False)], lines
+        assert [(l["command"], bool(l["refused"])) for l in lines] == [("journal task list", True), ("ls", True), ("ls", False)], lines
         assert "journal command" in lines[0]["refused"], "the refused line carries the journal's reason"
     finally:
         app.runtime().stop()
