@@ -6,7 +6,7 @@ from journal.support.table_row import TableRow
 UNKNOWN = "unknown"
 # a chain is named by the kind of its weightiest part: an edit over a read, a test run over a folder change
 KIND_ORDER = ("edit", "test run", "build", "package", "network", "version control", "check", "process", "search", "read", "journal", UNKNOWN)
-WRITE_EFFECTS = frozenset({"writes_files", "deletes_files"})
+FILE_CHANGING_EFFECTS = frozenset({"writes_files", "deletes_files"})
 
 
 @dataclass(frozen=True)
@@ -38,4 +38,4 @@ class Classification:
 
     @property
     def writes(self) -> bool:
-        return bool(WRITE_EFFECTS & set(self.effects)) or self.uncertain and self.kind != UNKNOWN
+        return bool(FILE_CHANGING_EFFECTS & set(self.effects)) or self.uncertain and self.kind != UNKNOWN

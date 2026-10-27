@@ -281,8 +281,8 @@ class Chain:
 
     @staticmethod
     def has_closer(text: list[str], segments: list[list[str]]) -> bool:
-        pipe_words = [word for segment in segments[segments.index(text) + 1:] for word in segment]
-        return any(word == OPENS[text[0]] and pipe_words[index - 1].endswith(";") for index, word in enumerate(pipe_words) if index)
+        following_tokens = [token for segment in segments[segments.index(text) + 1:] for token in segment]
+        return any(token == OPENS[text[0]] and following_tokens[index - 1].endswith(";") for index, token in enumerate(following_tokens) if index)
 
     @staticmethod
     def closes(part: str, segments: list[list[str]], closer: str) -> bool:

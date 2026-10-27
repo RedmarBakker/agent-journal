@@ -32,10 +32,10 @@ class CommandClassifier:
 
     def classify(self, text: str) -> Classification:
         if text not in self.known:
-            self.known[text] = Classification.union([self.own(text), *self.inner(text)])
+            self.known[text] = Classification.union([self.program_classification(text), *self.inner(text)])
         return self.known[text]
 
-    def own(self, text: str) -> Classification:
+    def program_classification(self, text: str) -> Classification:
         tokens = self.table.unwrapped(Part(text).tokens())
         row = self.table.programs.get(tokens[0].rsplit("/", 1)[-1]) if tokens else None
         if row is None:
