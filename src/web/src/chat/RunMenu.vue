@@ -5,7 +5,7 @@ import MenuPanel from "../kit/MenuPanel.vue";
 import {usePoll} from "../composables/poll.js";
 import {useScope} from "../composables/scope.js";
 
-// A slim strip at the left of the chat's foot while any process runs in the environment: a terminal icon and how many run.
+// A slim strip at the right of the agent's status line while any process runs in the environment: a terminal icon and how many run.
 // A click opens the list of every running process, each marked docked or not, and a click on one not docked docks its card
 const scope = useScope();
 const outputs = ref([]);
@@ -52,9 +52,12 @@ async function dock(output) {
 </template>
 
 <style scoped>
+/* on the status line's own row, at its right end */
 .run-menu {
+    position: absolute;
+    right: 0;
+    bottom: 0;
     display: flex;
-    margin: 0 -8px;
 }
 
 /* drawn like a docked card, its border and its raised ground, but low and only as wide as what it says */

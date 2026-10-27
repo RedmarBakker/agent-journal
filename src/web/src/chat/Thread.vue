@@ -621,7 +621,6 @@ const {colleague, me} = useColleague();
                                 <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
                             </Transition>
                         </div>
-                        <RunMenu />
                         <template v-if="busy && !waitingNow">
                             <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
                                 <div class="thread-meta">
@@ -643,6 +642,7 @@ const {colleague, me} = useColleague();
                                 </div>
                             </div>
                         </template>
+                        <RunMenu />
                     </div>
                 </template>
                 <Transition name="pane">
