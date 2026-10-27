@@ -23,6 +23,9 @@ from journal.support.rejection import Rejection
 from journal.models.support.commentable import Commentable
 
 
+USER_PAUSER = "user"
+AGENT_PAUSER = "agent"
+
 @dataclass(frozen=True)
 class Plan(Scoped, Commentable):
     """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase."""
@@ -40,6 +43,7 @@ class Plan(Scoped, Commentable):
     priorities_at: float = 0.0
     priorities_phase: int = 0
     is_dismissed: bool = False
+    pauser: str = ""
 
     def waiting_reason(self) -> str:
         return self.block_reason
@@ -87,7 +91,7 @@ class Plan(Scoped, Commentable):
         return self.moved(PlanState.DELEGATED).with_event(PlanDelegated(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 
     def postponed(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.PAUSED).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+        return self.moved(PlanState.PAUSED).with_(pauser=USER_PAUSER if user_origin else AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
 
     def blocked(self, reason: str, time: float) -> "Plan":
         return self.moved(PlanState.BLOCKED).with_(block_reason=reason).with_event(PlanBlocked(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
@@ -113,7 +117,7 @@ class Plan(Scoped, Commentable):
     def moved(self, state: PlanState) -> "Plan":
         if not self.state.can_become(state):
             raise Rejection(f"plan {self.id} is {self.state} and cannot become {state}")
-        return self.with_(state=state)
+        return self.with_(state=state, pauser="")
 
     def is_finished(self, task_count: int, remaining_count: int) -> bool:
         return bool(task_count) and not remaining_count

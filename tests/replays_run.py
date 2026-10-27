@@ -800,7 +800,29 @@ def outside_task_rules(app, replay: Replay, provider: str) -> None:
     replay.step("the task outside the plan is done")
 
 
-STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules}
+def paused_plan_rules(app, replay: Replay, provider: str) -> None:
+    """The steps: the agent pauses its own plan and stops with nothing in hand, so the plan's task is offered again; the plan started again, the user pauses it, and a stop offers nothing of it."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first", "--brief", "1. the first is written"], USER)
+    console.run(["plan", "add", "1", "second", "--brief", "1. the second is written"], USER)
+    console.run(["plan", "ready", "1"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["plan", "pause", "1"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("the agent pauses its own plan")
+    replay.step("a stop with the agent's paused plan", hook_as(app, provider, "Stop")[1])
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["plan", "pause", "1"], USER)
+    app.runtime().deferred.drain()
+    replay.step("the user pauses the plan")
+    replay.step("a stop with the user's paused plan", hook_as(app, provider, "Stop")[1])
+
+
+STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules, "paused_plan_rules": paused_plan_rules}
 
 
 @pytest.mark.parametrize("name", sorted(STATE_RULES))
