@@ -1,0 +1,24 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "judges": [
+        "tests"
+    ],
+    "find": {
+        "select": "literal",
+        "where": [
+            {
+                "fileMatches": "(^|/)tests/"
+            },
+            {
+                "textMatches": "(${nudge_words})"
+            }
+        ]
+    },
+    "sin": {
+        "name": "nudge-words-in-test",
+        "description": "A test checks that a nudge reached the agent by a string of the nudge's own words, so it fails when the words are reworded and passes when another line contains the same words.",
+        "rule": "Check the nudge by the registry: nudge_reached(app, text, Nudges.NAME, value=...) from tests/nudge_lines.py finds the nudger's entry for that nudge with those values and its line in the text the agent was sent.",
+        "skill": "tests-drive-the-real-path"
+    }
+}

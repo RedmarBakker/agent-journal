@@ -1,6 +1,6 @@
 ---
 name: TestsDriveTheRealPath
-description: Load it before writing a test, or when a test is flagged for writing a command's row, so every test runs the path the agent and the user really take.
+description: Load it before writing a test, or when a test is flagged for writing a command's row or for checking a nudge by its words, so every test runs the path the agent and the user really take.
 summary: A test drives the command the agent or the user runs and reads what the agent is sent; it never writes the rows a command would write to stand in for it.
 tier: mandatory
 languages: [python]
@@ -39,3 +39,24 @@ user_set(app, "workers.mode", "orchestrator")
 ```
 
 where `user_set` (tests/user_settings.py) runs `journal settings set workers.mode orchestrator` as the user.
+
+## A nudge is checked by the registry
+
+A test that checks a nudge reached the agent never compares a string of the nudge's words: the words change, and
+another line can contain them. It names the nudge and its values, and `nudge_reached` (tests/nudge_lines.py) finds the
+nudger's entry for that nudge with those values and its line in the text the agent was sent.
+
+Bad:
+
+```python
+assert "a guard failed and let this through" in body["error"]
+```
+
+Good:
+
+```python
+assert nudge_reached(app, body["error"], EngineNudges.GUARD_FAILED)
+```
+
+The rule reads the nudges' words from `nudge_words` in .commandments/custom/lists.json, written from the registry by
+`PYTHONPATH=src python3 -m scripts.nudge_words`.

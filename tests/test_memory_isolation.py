@@ -20,7 +20,7 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.agent_token import AgentToken
 from journal.support.caller import Caller
-from nudge_lines import has_nudge
+from nudge_lines import nudge_reached
 from tests.in_process import posted
 from tests.test_features import booted, hook, made
 
@@ -88,13 +88,13 @@ def test_a_worker_sent_its_next_job_is_shown_its_own_memories_faded_by_its_compa
     assert console.run(["worker", "send", str(lovelace.id), "now the lexer"], AGENT).code == 0, "the worker that reported is sent its next job"
     assert console.run(["clock-in"], as_lovelace).code == 0
     shown = told(worker_hook(app, lovelace, "PostToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"}, tool_response="")[1])
-    assert has_nudge(shown, MemoryNudges.WORKER_MEMORIES, memories=f"{own} (weight 5) the parser reads tokens left to right"), "once it has clocked in on the next job it is shown its memories, faded by its compaction"
+    assert nudge_reached(app, shown, MemoryNudges.WORKER_MEMORIES, memories=f"{own} (weight 5) the parser reads tokens left to right"), "once it has clocked in on the next job it is shown its memories, faded by its compaction"
     assert "release notes" not in shown, "and never the main agent's"
     babbage, as_babbage = sent(app, "Mr. Babbage", "w2")
     theirs = made(console.run(["memory", "add", "the engine turns in decimal"], as_babbage))
     assert console.run(["clock-in"], as_babbage).code == 0
     other_shown = told(worker_hook(app, babbage, "PostToolUse", tool_name="Bash", tool_input={"command": "journal clock-in"}, tool_response="")[1])
-    assert has_nudge(other_shown, MemoryNudges.WORKER_MEMORIES, memories=f"{theirs} (weight 5) the engine turns in decimal") and "the parser reads" not in other_shown and "release notes" not in other_shown, "another worker clocking in is shown its own memories and nobody else's"
+    assert nudge_reached(app, other_shown, MemoryNudges.WORKER_MEMORIES, memories=f"{theirs} (weight 5) the engine turns in decimal") and "the parser reads" not in other_shown and "release notes" not in other_shown, "another worker clocking in is shown its own memories and nobody else's"
 
 
 def test_each_agent_lists_weighs_removes_and_fades_only_its_own_memories_and_a_subagent_keeps_none(app: App):
@@ -132,7 +132,7 @@ def test_a_worker_weighs_its_own_memories_at_its_own_marks_and_the_main_agents_d
     made(console.run(["memory", "add", "the lexer is next", "--weight", "4"], as_lovelace))
     context(app, "w1", 55)
     status, body = worker_hook(app, lovelace, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert status == 200 and has_nudge(told(body), MemoryNudges.CONTEXT_DECISION, percent=50, count=2), "at the mark of its own context window the worker is told to weigh its own two memories"
+    assert status == 200 and nudge_reached(app, told(body), MemoryNudges.CONTEXT_DECISION, percent=50, count=2), "at the mark of its own context window the worker is told to weigh its own two memories"
     assert type(sessions.top("w1")) is WeighingMemories and type(sessions.top("s1")) is not WeighingMemories, "the mark pushes WeighingMemories over the worker's work alone"
     assert worker_hook(app, lovelace, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 409, "its writes wait"
     context(app, "s1", 55)

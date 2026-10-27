@@ -2735,6 +2735,12 @@ def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_writt
     assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"
 
 
+def test_the_nudge_words_the_rule_judges_tests_by_are_the_registrys_own(app: App):
+    """The list nudge-words-in-test reads from .commandments/custom/lists.json is written from the registry: a nudge added or reworded is written in with PYTHONPATH=src python3 -m scripts.nudge_words."""
+    from journal.engine.nudge_registry import NudgeRegistry
+    from scripts.nudge_words import LISTS, words
+    assert json.loads(LISTS.read_text())["nudge_words"] == words(app.container.get(NudgeRegistry).all()), "the list holds the fixed words of every registered nudge, and no others"
+
 HELPER_CONDUCTS = {
     "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct", "WorkerMemoryConduct"],
     "reviewer": ["DemandConduct", "SafetyConduct"],
