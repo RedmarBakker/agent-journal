@@ -11,7 +11,7 @@ from journal.support.unsaved_row import UnsavedRow
 
 @dataclass(frozen=True)
 class Model:
-    """A row. Data only; it never touches the database. Every row says who made it and who last changed it."""
+    """A row. Data only; it never touches the database. Every row says who made it and who last changed it. A row's refusal says why it cannot be written as it stands, before anything is written, and is empty when it can; a row pulled from the team is made as this journal stores it, for a sender on an older version whose row lacks what this one requires, and takes in only the fields of an update that this journal takes; a table is shared by models that tell their rows apart by kind_filter; a shared model takes a new row's number from the team's block of numbers."""
 
     text_fields: ClassVar[tuple[str, ...]] = ()
     timeline_visible: ClassVar[bool] = True

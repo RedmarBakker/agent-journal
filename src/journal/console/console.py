@@ -30,7 +30,7 @@ HELP_FLAGS = ("-h", "--help")
 
 
 class Console:
-    """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from."""
+    """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from. run_streamed runs a command whose printed lines a reply streams as they are printed, such as a merge that waits on the plugins."""
 
     def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames, verb_rules: VerbRules) -> None:
         self.names, self.verb_rules = names, verb_rules

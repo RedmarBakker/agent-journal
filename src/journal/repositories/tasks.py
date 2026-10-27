@@ -43,6 +43,8 @@ UNAPPROVED_PLAN_STATES = tuple(state.value for state in PlanState if state.is_un
 CLOSED_STATES = (TaskState.COMPLETED, TaskState.CANCELLED)
 
 class Tasks(ScopedRepository[Task]):
+    """A completed task sent back short is the one in hand again, and the task the worker reported on waits for the merge in its place; the tasks a worker held before the one it holds, every task it ever held, those it completed and those queued for it are read from their own links alone, in the order it took them."""
+
     model = Task
     member_links = (PLAN_LINK,)
 

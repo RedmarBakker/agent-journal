@@ -56,7 +56,7 @@ VERSION_3_HOOKS = ("/.journal/src/hook.sh", "/.journal/hook.py", "/.journal/jour
 
 
 class Provider(ABC):
-    """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else."""
+    """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else. A worktree's hooks are written once from the main checkout, where its program reads them, never inside the worktree."""
 
     name: ClassVar[str]
     title: ClassVar[str]

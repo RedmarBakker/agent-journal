@@ -6,6 +6,8 @@ from journal.events.listener import Listener
 
 
 class Bus:
+    """Delivers each event to its listeners; dispatch_guarded logs a listener that raises and goes on, so the others still run, as a tick of the clock does."""
+
     def __init__(self) -> None:
         self._listeners: list[tuple[type[Event], Listener]] = []
         self._matched: dict[type[Event], list[Listener]] = {}

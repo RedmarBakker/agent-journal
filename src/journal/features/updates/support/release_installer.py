@@ -18,7 +18,7 @@ UPDATE_REASON = "updating to the latest release"
 
 
 class ReleaseInstaller:
-    """A release's own install.sh run from the project root: it copies the release's source into .journal/src, runs journal setup and restarts the running journals on the new code."""
+    """A release's own install.sh run from the project root: it copies the release's source into .journal/src, runs journal setup and restarts the running journals on the new code. The reason of a run has a plain default, since an updater from before 2026-10-24 calls it with the ref and the repository alone."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

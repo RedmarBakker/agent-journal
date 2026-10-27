@@ -21,7 +21,7 @@ FOLLOWING_PLAN = "following_plan"
 
 
 class PlanTaskAssigner:
-    """The task assigner a followed plan names: when the agent finishes a task of a started plan, or stops with none in progress, it starts the plan's next task in the plan's order, a paused one first; the plan the closed task was in goes first, else the plan the agent follows now; nothing while a blocked task of the plan waits to be checked, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, in the orchestrator's mode, or with the agent on a task."""
+    """The task assigner a followed plan names: when the agent finishes a task of a started plan, or stops with none in progress, it starts the plan's next task in the plan's order, a paused one first; the plan the closed task was in goes first, else the plan the agent follows now; nothing while a blocked task of the plan waits to be checked, at a checkpoint out of auto mode, at a phase end whose testing commands have not passed since, in the orchestrator's mode, or with the agent on a task. A close is followed in the name of whoever closed the task, so the agent that closed it is not told the start it caused."""
 
     def __init__(self, default: DefaultTaskAssigner, plans: Plans, tasks: Tasks, testing: PhaseTesting, orchestrator: WorkMode, settings: SettingRows, time_source: TimeSource) -> None:
         self.default, self.plans, self.tasks, self.testing, self.orchestrator, self.settings, self.time_source = default, plans, tasks, testing, orchestrator, settings, time_source

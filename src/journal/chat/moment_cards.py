@@ -23,7 +23,7 @@ FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind wit
 
 
 class MomentCards:
-    """A card for a moment, in the chat of the agent whose session it names, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, save one of a kind that folds, posted within the fold window after a mark of its kind that is the chat's newest message, which is counted in that mark with its detail."""
+    """A card for a moment, in the chat of the agent whose session it names, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, save one of a kind that folds, posted within the fold window after a mark of its kind that is the chat's newest message, which is counted in that mark with its detail. A role card shows in the chat of a session whose agent may not have hooked in yet, such as a reviewer's, and names its role itself."""
 
     def __init__(self, messages: Messages, settings: SettingRows, agents: Agents, time_source: TimeSource) -> None:
         self.time_source = time_source

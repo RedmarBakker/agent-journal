@@ -7,7 +7,7 @@ from journal.support.process_check import ProcessCheck
 
 
 class LaunchFiles:
-    """What the launch of each environment's agent was: the file the launcher writes under runtime/launches, read for the flags the agent runs with, the id the launch is named by, and whether the launcher that wrote it still runs."""
+    """What the launch of each environment's agent was: the file the launcher writes under runtime/launches, read for the flags the agent runs with, the id the launch is named by, and whether the launcher that wrote it still runs. A launch whose launcher process has gone, as after a crash, is abandoned and holds its environment no more."""
 
     def __init__(self, config: Config, environments: Environments, providers: Providers) -> None:
         self.config, self.environments, self.providers = config, environments, providers

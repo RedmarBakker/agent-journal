@@ -27,6 +27,8 @@ NEWEST_SHOWN = 2000
 
 
 class Messages(ScopedRepository[Message]):
+    """A page of messages says whether an older written message is left; the message count is of what a person or an agent wrote, in every environment, leaving out the journal's own marks and cards."""
+
     ANSWERS = "answers"
     SUBJECT_LINK = "about"
     EDIT_LINK = "edited"

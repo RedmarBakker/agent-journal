@@ -27,7 +27,7 @@ QUEUED_TASKS = 10
 
 
 class Plans(ScopedRepository[Plan]):
-    """The plans and their rows: tasks and phases in the order they were added, the plan's questions answered over them, and its writes: approve, start (a finished plan is done, else its postponed or next task is taken in hand, one at a time, else it waits for a task to open), postpone (its task in hand postponed first, so the plan's event comes last), cancel (with the tasks that are its alone)."""
+    """The plans and their rows: tasks and phases in the order they were added, the plan's questions answered over them, and its writes: approve, start (a finished plan is done, else its postponed or next task is taken in hand, one at a time, else it waits for a task to open), postpone (its task in hand postponed first, so the plan's event comes last), cancel (with the tasks that are its alone). The open work is the open tasks of the approved and started plans that are neither blocked, paused, delegated, queued nor in hand; a blocked task, or a paused one still waiting, never stops the plan; the tasks it may take up next are open or paused alike, the first in the plan's order first; a task joined its phase, then its tasks under no phase in the order they joined the plan, and the first phase holding one is found in one read."""
 
     model = Plan
 

@@ -42,7 +42,7 @@ SHIPPED_FILE = ".shipped-files"
 
 
 class PluginInstalling:
-    """A plugin taken in: a folder linked where it lies, or a git address fetched into the journal's plugins folder; its manifest read and checked, a preview of all it will run, and only then its row, its data folder, its skills and its aliases."""
+    """A plugin taken in: a folder linked where it lies, or a git address fetched into the journal's plugins folder; its manifest read and checked, a preview of all it will run, and only then its row, its data folder, its skills and its aliases. A git address is taken at the newest release tag that runs on this journal, else at its head when it has no release tags; a folder as it lies."""
 
     def __init__(self, config: Config, reader: ManifestReader, plugins: Plugins, folders: PluginFolders, hashes: PluginHashes, settings: PluginSettings, skills: PluginSkills, runner: PluginRunner, services: PluginServices, dashboard: DashboardRows, aliases: PluginAliases, checks: Checks, tags: PluginTags, time_source: TimeSource) -> None:
         self.time_source = time_source

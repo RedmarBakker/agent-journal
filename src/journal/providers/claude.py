@@ -54,6 +54,8 @@ LOCAL_SETTINGS = "settings.local.json"
 
 
 class Claude(Provider):
+    """Claude Code keeps its state beside its config folder when one is named, else in the home folder; a run it would make in its own background runs in the foreground through the journal's runner instead; a worktree gets settings with the journal's hooks added, unless the worktree's checked-in settings carry the hooks already."""
+
     user_line_key = "systemMessage"
     name = "claude"
     title = "Claude Code"

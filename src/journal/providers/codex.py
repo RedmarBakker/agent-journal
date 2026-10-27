@@ -40,7 +40,7 @@ CONTEXT_LIMIT_NONE = 0
 
 
 class Codex(Provider):
-    """OpenAI's Codex: the journal reads no thoughts, no messages between sessions and no subagent transcripts from its rollouts, so it offers none of them."""
+    """OpenAI's Codex: the journal reads no thoughts, no messages between sessions and no subagent transcripts from its rollouts, so it offers none of them. A worktree reads the main checkout's hooks file through a link, so its hooks name the main root and nothing is written inside it; Codex trusts hooks per project path, so the main checkout's trust is given to the worktree's path too."""
 
     name = "codex"
     title = "Codex"

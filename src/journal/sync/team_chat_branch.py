@@ -18,7 +18,7 @@ STAGE_WAIT_SECONDS = 0.2
 
 
 class TeamChatBranch:
-    """The Team chat's files, the same on every machine: the holder commits its worktree of the Team chat once its files have not changed for 15 seconds and pushes it to the branch journal/team-chat on origin, which every member fetches from; every other machine moves its own worktree of the Team chat to that branch's last commit when the worktree has no changes of its own, and says in the Team chat when it has. Files git ignores, the journal's folder and secrets among them, are never committed; repositories inside the project are not part of an environment's worktree, so they are not shared."""
+    """The Team chat's files, the same on every machine: the holder commits its worktree of the Team chat once its files have not changed for 15 seconds and pushes it to the branch journal/team-chat on origin, which every member fetches from; every other machine moves its own worktree of the Team chat to that branch's last commit when the worktree has no changes of its own, and says in the Team chat when it has. Files git ignores, the journal's folder and secrets among them, are never committed; repositories inside the project are not part of an environment's worktree, so they are not shared. This machine claims the Team chat when its worktree is made, now and never on joining, and brought to the holder's last push."""
 
     def __init__(self, config: Config, account: TeamAccount, environments: Environments, announcer: Announcer, status: SyncStatus) -> None:
         self.account, self.environments, self.announcer, self.status = account, environments, announcer, status

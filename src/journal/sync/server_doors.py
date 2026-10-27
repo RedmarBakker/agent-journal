@@ -11,7 +11,7 @@ BATCH_ROWS = 200
 
 
 class ServerDoors:
-    """The sync desk as its doors offer it to the sync service: the query a pull asks with, the queue's next batch with the files waiting and the push the team takes them in, each answer the team gave taken back, and the team's full copy laid in."""
+    """The sync desk as its doors offer it to the sync service: the query a pull asks with, the queue's next batch with the files waiting and the push the team takes them in, each answer the team gave taken back, and the team's full copy laid in. A push's pull is handed again once the team's full copy is laid in."""
 
     def __init__(self, desk: SyncDesk) -> None:
         self.desk = desk

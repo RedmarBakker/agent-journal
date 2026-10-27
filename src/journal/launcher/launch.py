@@ -47,7 +47,7 @@ RESUME_FLAGS = {"--resume", "-r", "--continue", "-c"}
 
 @dataclass(frozen=True)
 class Launch:
-    """What was requested on the command line: which agent, in which project, with which arguments; the menu fills in the rest."""
+    """What was requested on the command line: which agent, in which project, with which arguments; the menu fills in the rest. A bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds; a worktree launch never shares an environment a live session holds, and takes name-2, name-3 and so on; the worktree a launch named follows its environment when that was renamed for a live session holding it; an environment that records a worktree works in one however it is launched, its folder made again from the kept tip when lost; the supervisor's health check takes its numbers from the Health and backups settings, or none when the journal cannot say them."""
 
     agent: str
     root: Path

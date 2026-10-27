@@ -34,7 +34,7 @@ ACTIVITY_ENTRY_ROWS = 2 * ACTIVITY_ENTRIES
 
 
 class JournalController:
-    """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now."""
+    """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now. Health fails when the journal cannot reach its database, as when it has run out of descriptors, so its supervisor starts it again."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
                  entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals) -> None:

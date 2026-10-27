@@ -7,7 +7,7 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s")
 
 
 class AbstractText:
-    """A report's or a document's abstract: one short description, at most ABSTRACT_LENGTH_CHARACTERS long, and, for a row written without one, its body's first sentence cut to that length."""
+    """A report's or a document's abstract: one short description, at most ABSTRACT_LENGTH_CHARACTERS long, and, for a row written without one, its body's first sentence cut to that length. A fitted abstract is the one a row arrives with when it is fit, else its body's first sentence, for rows written before abstracts were required."""
 
     @staticmethod
     def refusal(text: str) -> str:

@@ -19,7 +19,7 @@ DIOGENES = "Diogenes, lamp-bearer of the honest reason"
 
 
 class VerifierDispatch:
-    """Sends a verifier, as the journal and never an agent, on the general model, Sonnet at the least, since a verdict on a job's model is a judgement: the idle one on that model that judged last and whose process has ended, in its own session with its memory of that judgement, else a new one named after Diogenes, handed the evidence as its whole brief, linked to the row whose dismissal it judges, and started by its own runner; and finds the row a verifier judges now, the last it was linked to."""
+    """Sends a verifier, as the journal and never an agent, on the general model, Sonnet at the least, since a verdict on a job's model is a judgement: the idle one on that model that judged last and whose process has ended, in its own session with its memory of that judgement, else a new one named after Diogenes, handed the evidence as its whole brief, linked to the row whose dismissal it judges, and started by its own runner; and finds the row a verifier judges now, the last it was linked to. A dismissal taken back is dropped from the verifier's link."""
 
     def __init__(self, verifiers: Verifiers, links: Links, runner: VerifierRunner, providers: Providers, allowed: AllowedModels, settings: SettingRows) -> None:
         self.verifiers, self.links, self.runner, self.providers, self.allowed, self.settings = verifiers, links, runner, providers, allowed, settings

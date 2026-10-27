@@ -26,7 +26,7 @@ ListedRow = TypeVar("ListedRow", EnvironmentRow, PastSessionRow)
 
 
 class Menu:
-    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, for a new one a past conversation of the project to continue from, whether to continue its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run."""
+    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, for a new one a past conversation of the project to continue from, whether to continue its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run. The left arrow asks again the last question that was asked, and each question is skipped where it does not apply."""
 
     def __init__(self, root: Path, journal_sh: Path, screen: Screen | None = None) -> None:
         self.root, self.journal_sh = root, journal_sh

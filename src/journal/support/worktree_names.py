@@ -12,7 +12,7 @@ NAME_PARTS = (("amber", "brisk", "calm", "deft", "eager", "fond", "gentle", "har
 
 
 class WorktreeNames:
-    """A name for a worktree a launch makes when it is given none: two words no worktree folder, worktree branch, kept tip or environment of the project holds yet, so a new launch never shares a folder or takes over old work or a conversation."""
+    """A name for a worktree a launch makes when it is given none: two words no worktree folder, worktree branch, kept tip or environment of the project holds yet, so a new launch never shares a folder or takes over old work or a conversation. A branch worktree-<name> or a kept tip that outlived its worktree would hand a new launch the old work, so those names count as taken."""
 
     def __init__(self, root: Path) -> None:
         self.root = root

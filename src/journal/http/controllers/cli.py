@@ -31,7 +31,7 @@ EXEC = "__journal_exec"
 
 
 class CliController:
-    """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's."""
+    """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's. A background command's printed lines go out as they are printed, into the output its shell line writes, with its errors and exit line once it ends."""
 
     def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands, worker_lines: WorkerAliasLine) -> None:
         self.accounts, self.background, self.worker_lines = accounts, background, worker_lines

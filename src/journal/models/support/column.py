@@ -11,7 +11,7 @@ from journal.models.support.ref import Ref
 
 @dataclass(frozen=True)
 class Column:
-    """One model field as the database holds it: its SQL type, and the value both ways."""
+    """One model field as the database holds it: its SQL type, and the value both ways. The definition is the column as a table is made with it: its type, and for a text the database bounds, its length checked; the type of a tuple's items, such as SequenceStep in tuple[SequenceStep, ...], lets a stored tuple of records be read back as records."""
 
     PLAIN = (bool, int, float, str, datetime, Actor, Ref)
 

@@ -5,7 +5,7 @@ from journal.models.outgoing_change import OutgoingChange
 
 
 class Migration:
-    """One numbered change to the database after the schema was first created: its statements, run in order, or an up of its own, with a column renamed in place of the empty one the schema already added, and renamed too in every write of that table still waiting for the team server, so it is sent under the new name."""
+    """One numbered change to the database after the schema was first created: its statements, run in order, or an up of its own, with a column renamed in place of the empty one the schema already added, and renamed too in every write of that table still waiting for the team server, so it is sent under the new name. has_table is asked of the workers table only for a migration before 50, when workers and verifiers moved to the table of sent agents."""
 
     number: ClassVar[int]
     statements: ClassVar[tuple[str, ...]] = ()
