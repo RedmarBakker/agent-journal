@@ -8,6 +8,7 @@ from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_test_failed import TaskTestFailed
+from journal.support.timespan import Timespan
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_released import TaskReleased
@@ -45,6 +46,7 @@ class Task(Scoped, Commentable):
     delegated: bool = False
     priority_set: bool = False
     wait_ended_at: float = 0.0
+    tool_uses: int = 0
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.is_open() else ()
@@ -142,6 +144,12 @@ class Task(Scoped, Commentable):
     def test_failed(self, time: datetime, output_id: int, outcome: str) -> "Task":
         event = TaskTestFailed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, output_id=output_id, outcome=outcome)
         return self.with_(state=TaskState.PAUSED, pause_reason=f"its test run failed: {outcome}", wait_ended_at=0.0).with_event(event)
+
+    def tool_used(self) -> "Task":
+        return self.with_(tool_uses=self.tool_uses + 1)
+
+    def progress_span(self, moment: float) -> Timespan:
+        return Timespan(self.tool_uses, moment - self.started_at.timestamp()) if self.started_at else Timespan()
 
     def is_testing(self) -> bool:
         return self.state == TaskState.TESTING

@@ -42,6 +42,7 @@ class TasksDataReader:
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("tasks", {
             "current_task": lambda: self.current_id(agent),
+            "current_task_row": lambda: self.tasks.current(agent),
             "last_log_line": lambda: self.current_log(agent),
             "paused": lambda: tuple(t.row_id for t in self.assigner.paused_work()),
             "pause_summary": lambda: ", ".join(f"task {task.id}" for task in self.assigner.paused_work()),

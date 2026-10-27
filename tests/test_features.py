@@ -18709,6 +18709,20 @@ def test_a_task_keeps_the_moment_it_was_first_started_through_a_pause_and_a_resu
         assert app.container.get(Tasks).find(1).started_at == first, "the first start is kept, so how long a task has been in progress is measured from it"
 
 
+def test_a_test_run_started_while_a_task_is_long_in_progress_asks_once_whether_it_tests_that_task(app: App):
+    from journal.features.tasks.tasks_nudges import TasksNudges
+    user_set(app, "tasks.testing_suggestion_minutes", 0)
+    user_set(app, "tasks.testing_suggestion_tool_uses", 3)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    test_run = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
+    assert not nudge_reached(app, test_run(), TasksNudges.TESTING_SUGGESTION, n=1), "one tool use on the task is below the limit"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    assert nudge_reached(app, test_run(), TasksNudges.TESTING_SUGGESTION, n=1), "a test run on the third tool use of the task asks whether it tests it"
+    assert not nudge_reached(app, test_run(), TasksNudges.TESTING_SUGGESTION, n=1), "and not again within 25 tool uses"
+
+
 def test_a_silent_command_beats_while_it_runs(app: App):
     import threading
     from journal.support.heartbeat import Heartbeat

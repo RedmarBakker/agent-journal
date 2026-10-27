@@ -1309,6 +1309,8 @@ tasks.auto = True  (the user sets it)
 tasks.wake_minutes = 10
 tasks.wake_count = 3
 tasks.wait_out_seconds = 120
+tasks.testing_suggestion_minutes = 5
+tasks.testing_suggestion_tool_uses = 30
 tasks.priority_remind_tasks = 5
 tasks.priority_block_tasks = 10
 tasks.first_nudge_after = 25
@@ -1858,6 +1860,7 @@ tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take 
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
 tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, did not pass: {{outcome|cap=60}}. take it up with `journal task resume {{n}}`
+tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. if it tests the task: `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
@@ -1943,7 +1946,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-290 nudges
+291 nudges
 
 $ agent: journal worker list
 exit 0

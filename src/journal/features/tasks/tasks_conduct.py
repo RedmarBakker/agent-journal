@@ -23,6 +23,7 @@ from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
+from journal.support.timespan import Timespan
 
 POLL_REPEAT_COMMANDS = 3
 WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
@@ -32,7 +33,7 @@ AWAIT_REFUSAL_COUNT = 2
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a task whose test run failed named to its agent, a test run started while the task in hand has been in progress a while met with how to put it in testing, a paused task named when a task closes, unless the choice of paused work will ask at the stop, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return wake_check(self, event, settings)
@@ -44,7 +45,7 @@ class TasksConduct(Conduct):
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
+        return Transition.merged(self, [polling_check(self, event), output_poll_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings), testing_suggestion(self, event, settings)])
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
         passed = [wait for wait in event.data.part(TasksPart).passed_waits if f"{Check.table()}:{wait.check_id}" == event.ref]
@@ -66,6 +67,14 @@ class TasksConduct(Conduct):
         if event.outcome != "completed" or tasks.current_task or not tasks.paused or tasks.choosable or event.data.part(TaskSuccession):
             return self.none()
         return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
+
+
+def testing_suggestion(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    task = event.data.part(TasksPart).current_task_row
+    if task is None or not task.is_started() or not event.call.test_runs():
+        return state.none()
+    limit = Timespan(tool_uses=settings.integer(TasksOptions.TESTING_SUGGESTION_TOOL_USES), seconds=settings.integer(TasksOptions.TESTING_SUGGESTION_MINUTES) * 60)
+    return state.none(TasksNudges.TESTING_SUGGESTION.create(n=task.row_id)) if limit <= task.progress_span(event.time) else state.none()
 
 
 def priorities_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
