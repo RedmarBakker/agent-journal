@@ -12,6 +12,7 @@ from journal.support.time_source import TimeSource
 
 class CheckCommand(Command):
     noun = "check"
+    background_verbs = frozenset({"run"})
 
     def __init__(self, checks: Checks, runner: CheckRunner, time_source: TimeSource) -> None:
         self.time_source = time_source

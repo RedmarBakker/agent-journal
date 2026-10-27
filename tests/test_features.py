@@ -12937,6 +12937,7 @@ def test_a_worker_merge_goes_to_the_background_at_once_with_the_reader_the_journ
     limits, readers = app.container.get(ForegroundLimit), app.container.get(Readers)
     hook(app, "SessionStart")
     assert limits.is_background("journal worker merge 3") and limits.is_background("journal worker 3 merge"), "worker merge names itself among its command's background verbs"
+    assert limits.is_background("journal check run 1172"), "a check run, which may run the whole suite, goes to the background at once (message 70029)"
     assert limits.build("journal worker merge 3", MAIN, None) > 0, "so its line has a foreground limit, which the runner passes at once"
     assert not limits.is_background("journal task list") and limits.build("journal task list", MAIN, None) == 0, "any other journal command stays in the foreground"
     assert not limits.is_background("python3 -c \"print('it''s')\"") and not limits.is_background("echo 'open"), "a line with an unclosed quote is read, never refused"
