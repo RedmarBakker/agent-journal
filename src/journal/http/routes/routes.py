@@ -265,7 +265,7 @@ class Routes:
             self.acts(router, name, controller, "delete")
         memories = get(MemoryController)
         self.resource(router, "memories", memories)
-        self.acts(router, "memories", memories, "remove")
+        self.acts(router, "memories", memories, "weigh", "remove")
 
     def agents(self, router: Router) -> None:
         get = self.container.get

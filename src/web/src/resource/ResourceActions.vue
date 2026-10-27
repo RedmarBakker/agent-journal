@@ -31,7 +31,7 @@ async function dock() {
 async function run(act) {
     error.value = "";
     try {
-        await api.act(props.resource.table, props.resource.id, act.name, act.asks ? {how: how.value} : {});
+        await api.act(props.resource.table, props.resource.id, act.name, act.asks ? {[act.field]: how.value} : {});
         asking.value = null;
         how.value = "";
         if (act.name === "delete") emit("close");
@@ -49,7 +49,7 @@ const press = (act) => (act.asks ? (asking.value = act) : run(act));
             <TextInput
                 :value="how"
                 class="grow"
-                :placeholder="label(resource.table, 'outcome', 'Say how it ended')"
+                :placeholder="label(resource.table, asking.field === 'how' ? 'outcome' : asking.field, 'Say how it ended')"
                 autofocus
                 @keydown.enter="run(asking)"
                 @input="how = $event.target.value"

@@ -26,6 +26,7 @@ import ResourceMoment from "./ResourceMoment.vue";
 import ResourceMadeFor from "./ResourceMadeFor.vue";
 import ResourceOutcome from "./ResourceOutcome.vue";
 import ResourceWaits from "./ResourceWaits.vue";
+import MemoryFacts from "./MemoryFacts.vue";
 import TaskLogs from "./TaskLogs.vue";
 import TaskWork from "./TaskWork.vue";
 
@@ -101,6 +102,9 @@ async function follow() {
         </template>
         <template v-if="table === 'checks'">
             <CheckResult :resource="resource" />
+        </template>
+        <template v-if="table === 'memories'">
+            <MemoryFacts :resource="resource" />
         </template>
         <template v-if="table === 'questions'">
             <TextDisplay :text="resource.text" />

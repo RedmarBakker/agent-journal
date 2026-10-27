@@ -88,6 +88,7 @@ export const TABLES = {
         listed_under: "environment",
         takes_comments: true,
         created_in_viewer: true,
+        labels: {weight: "A weight from 1 to 10"},
     }),
     rules: kind("Rule", "list", "A ruling that binds every environment of the project", {
         scope: "project",

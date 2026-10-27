@@ -30,6 +30,10 @@ class MemoryController(Controller[Memory]):
         memory_weight = memory_text.reweighed(int(request.body["weight"])) if "weight" in request.body else memory_text
         return Response.json(self.shown(self.repository.save(memory_weight, request.actor)))
 
+    def weigh(self, request: Request) -> Response:
+        memory = self.repository.find(request.number("id")).reweighed(int(request.body["weight"]))
+        return Response.json(self.shown(self.repository.save(memory, request.actor)))
+
     def remove(self, request: Request) -> Response:
         memory = self.repository.find(request.number("id")).removed(datetime.fromtimestamp(self.clock.time(), timezone.utc))
         return Response.json(self.shown(self.repository.save(memory, request.actor)))

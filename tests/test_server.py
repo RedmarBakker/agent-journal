@@ -80,6 +80,14 @@ def test_the_viewer_closes_a_task_undone_as_journal_task_cancel_does(server):
     assert status == 200 and cancelled["state"] == "cancelled"
 
 
+def test_the_user_weighs_a_memory_from_its_inspector(server):
+    status, memory = call(server, "POST", "/journal/memories", {"text": "the user signs off with one word", "weight": 5})
+    assert status == 201
+    status, weighed = call(server, "POST", f"/journal/memories/{memory['id']}/weigh", {"weight": "9"})
+    assert status == 200 and weighed["weight"] == 9, "the Weigh act sets the weight the user typed"
+    assert call(server, "POST", f"/journal/memories/{memory['id']}/weigh", {"weight": "11"})[0] == 409, "a weight past 10 is refused"
+
+
 def test_tasks_live_over_http(server):
     status, task = call(server, "POST", "/journal/tasks", {"title": "ship it", "brief": "b"})
     assert status == 201 and task["id"] == 1 and task["creator"] == "user:1"

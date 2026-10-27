@@ -1,8 +1,9 @@
 import {isClosed} from "./row.js";
 
-// What the viewer offers to do to a row: each act is the last word of its path, its label, and whether it asks how it ended
-// or is a removal. Which acts a row offers follows from its table and its state.
-const act = (name, label, more = {}) => ({name, label, asks: false, danger: false, ...more});
+// What the viewer offers to do to a row: each act is the last word of its path, its label, whether it asks for a word first and
+// which field it sends that word as (how it ended, unless it names another), or is a removal. Which acts a row offers follows from
+// its table and its state.
+const act = (name, label, more = {}) => ({name, label, asks: false, field: "how", danger: false, ...more});
 const DELETE = act("delete", "Delete", {danger: true});
 const UNSTARTED = ["open", "paused", "blocked"];
 const UNAPPROVED = ["draft", "ready", "reviewing"];
@@ -23,7 +24,7 @@ const ACTS = {
     notices: (r) => (isClosed(r) ? [] : [act("close", "Close")]),
     checks: (r) => (r.progress ? [act("stop", "Stop", {danger: true})] : [act("run", "Run now")]),
     shares: (r) => [...(!r.approved && !r.stopped_at ? [act("approve", "Accept")] : []), ...(r.stopped_at ? [] : [act("stop", "Stop sharing", {danger: true})])],
-    memories: (r) => (r.removed_at ? [] : [act("remove", "Remove", {danger: true})]),
+    memories: (r) => (r.removed_at ? [] : [act("weigh", "Weigh", {asks: true, field: "weight"}), act("remove", "Remove", {danger: true})]),
     rules: () => [DELETE],
     reminders: () => [DELETE],
     comments: () => [DELETE],
