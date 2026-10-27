@@ -337,3 +337,18 @@ test("9. three runs the journal docked by itself, grouped and all ended, undock 
     expect(props.runs).toEqual([]);
     expect(host.querySelector(".dock-group .chat-dock")).toBeNull();
 });
+
+test("10. a running command's mark shows its stop beside it while pointed at, and pressing it asks the journal to stop the output", async () => {
+    const act = vi.fn().mockResolvedValue({});
+    const scope = {env: "", api: {act, readOutput: vi.fn().mockResolvedValue({lines: [], start: 0, next: 0})}, rows: () => [], loaded: () => true, holding: () => {}, earlier: () => {}};
+    const running = {table: "messages", id: 8, created_at: new Date(1e4).toISOString(), author: "system", text: "Running npm run build", files: [], comments_on: [], data: {kind: "card", output: 12, line: "npm run build", began_at: now(), detail: "", lines: []}};
+    const host = await mounted(Turn, {turn: threadTurns([running], []).turns[0]}, scope);
+    expect(source("src/chat/Turn.vue")).toMatch(/\.mark-row:hover \.run-stop,\s*\.mark-row:focus-within \.run-stop \{\s*opacity: 1;/);
+    host.querySelector(".mark-row .run-stop-button").click();
+    await flush();
+    expect(document.querySelector(".run-stop-question").textContent).toBe("Stop the command npm run build now?");
+    [...document.querySelectorAll(".run-stop-ask button")].find((b) => b.textContent.trim() === "Stop the run").click();
+    await flush();
+    expect(act).toHaveBeenCalledWith("outputs", 12, "stop");
+    expect(host.querySelector(".mark .status").textContent).toContain("Stopping");
+});

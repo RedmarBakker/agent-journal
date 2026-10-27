@@ -8,10 +8,11 @@ from journal.repositories.command_outputs import CommandOutputs
 
 
 PAGE_LINES = 500
+STOPPED_BY_USER = "journal: this run was stopped by the user from the chat"
 
 
 class OutputController:
-    """What one stored output holds, for the viewer: its command, how it ended and one page of what it printed, the newest by default, the lines after a position (`after`) or the page before one (`before`), with the position it starts at and the next one to ask from."""
+    """What one stored output holds, for the viewer: its command, how it ended and one page of what it printed, the newest by default, the lines after a position (`after`) or the page before one (`before`), with the position it starts at and the next one to ask from; and the stop of a run still going, which kills its process group."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs
@@ -23,6 +24,11 @@ class OutputController:
         start, size = self.window(request, files.line_count() if stored else 0)
         lines = files.page(start, size) if stored else []
         return Response.json({**ModelFields.build(output), "outcome": files.outcome() if stored else "files gone", "lines": lines, "start": start, "next": start + len(lines)})
+
+    def stop(self, request: Request) -> Response:
+        output = self.outputs.find(request.number("id"))
+        OutputFiles(Path(output.folder)).stop(STOPPED_BY_USER)
+        return Response.json(ModelFields.build(output))
 
     @staticmethod
     def window(request: Request, total: int) -> tuple[int, int]:

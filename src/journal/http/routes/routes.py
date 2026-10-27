@@ -154,6 +154,7 @@ class Routes:
         router.get(f"{API}/entries/stream", entries.stream)
         router.get(f"{API}/cards/active", get(ProcessCardController).fields)
         router.get(f"{API}/outputs/{{id}}", get(OutputController).show)
+        router.post(f"{API}/outputs/{{id}}/stop", get(OutputController).stop)
         router.get(f"{API}/voices", get(VoiceController).index)
         router.post(f"{API}/voices/choose", get(VoiceController).choose)
         files = get(ProjectFileController)

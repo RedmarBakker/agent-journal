@@ -1347,6 +1347,28 @@ def test_a_supervisor_found_outdated_at_boot_is_restarted_once_at_the_end_of_its
     assert asked == [], "it is restarted once; the journal it restarts asks again at its own boot"
 
 
+def test_a_running_output_is_force_stopped_by_the_route_the_chats_stop_posts_to(app: App, tmp_path):
+    """The stop beside a watched command's mark or docked card posts to its output: the run's whole process group is killed within a second, and its output says the user stopped it."""
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.support.process_check import ProcessCheck
+    folder = tmp_path / "run"
+    folder.mkdir()
+    (folder / "parts").write_text("R sleep 30\n")
+    (folder / "0.out").write_text("started\n")
+    run = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    try:
+        (folder / "pid").write_text(str(run.pid))
+        with app.container.get(Scope).environment(MAIN):
+            output = app.container.get(CommandOutputs).save(CommandOutput(chain="sleeper", command="sleep 30", session="s1", folder=str(folder)).backgrounded(), Actor.system())
+        assert posted(app, f"/journal/outputs/{output.row_id}/stop", {}, {"X-Journal-Env": "main"})[0] == 200
+        run.wait(timeout=1)
+        assert not ProcessCheck.is_running(run.pid), "the run's process group is gone"
+        assert "stopped by the user from the chat" in (folder / "0.out").read_text(), "its output says who stopped it"
+    finally:
+        run.kill()
+
+
 def test_a_check_left_marked_running_by_a_journal_that_stopped_runs_again(app: App):
     from journal.features.checks.support.check_runner import CheckRunner
     from journal.models.check import RUN_LIMIT_SECONDS
