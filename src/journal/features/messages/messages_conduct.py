@@ -11,6 +11,7 @@ from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.message_read import MessageRead
 from journal.events.rows.message_rows_faulty import MessageRowsFaulty
+from journal.events.rows.reply_posted import ReplyPosted
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.reaction_added import ReactionAdded
 from journal.events.rows.colleague_commented import ColleagueCommented
@@ -23,7 +24,7 @@ TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread
 
 
 class MessagesConduct(Conduct):
-    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
+    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, after a reply sent by command that it is in the chat and is never said again, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         comments = event.data.part(MessagesPart).unread_comments
@@ -55,6 +56,9 @@ class MessagesConduct(Conduct):
         if event.commented_writing is None:
             return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id))
         return self.none(MessagesNudges.COMMENT_READ.create(n=event.row_id, writing=event.commented_writing))
+
+    def on_reply_posted(self, event: ReplyPosted, settings: Settings) -> Transition:
+        return self.none(MessagesNudges.REPLY_REPEAT_WARNING.create(reply=event.row_id, n=event.reply_target)) if event.is_agents(event.session) else self.none()
 
     def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
         return self.none(MessagesNudges.COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))

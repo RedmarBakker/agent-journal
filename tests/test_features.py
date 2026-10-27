@@ -2529,6 +2529,20 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
+def test_a_reply_by_command_is_followed_at_once_by_the_line_that_it_is_in_the_chat_and_never_said_again(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.console().run(["message", "send", "is it released?"], USER)
+    app.console().run(["message", "unread"], AGENT)
+    replying = {"tool_name": "Bash", "tool_input": {"command": "journal message send 'Yes, it is.' --reply-to 1"}}
+    hook(app, "PreToolUse", **replying)
+    sent = app.console().run(["message", "send", "Yes, it is.", "--reply-to", "1"], AGENT)
+    app.runtime().deferred.drain()
+    after = json.dumps(hook(app, "PostToolUse", **replying, tool_response={"stdout": sent.text})[1])
+    reply = sent.text.split()[1]
+    assert nudge_reached(app, after, MessagesNudges.REPLY_REPEAT_WARNING, reply=reply, n=1), "right after the reply goes out, the agent is told it is in the chat and never to say it again"
+
+
 def test_each_message_read_mid_turn_brings_its_reply_line_ten_times_in_a_row_even_after_a_start_that_failed(app: App, monkeypatch):
     from journal.features.briefing.support.start_lines import StartLines
     keystrokes = []

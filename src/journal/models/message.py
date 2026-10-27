@@ -5,6 +5,7 @@ from typing import ClassVar
 from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
 from journal.events.rows.message_read import MessageRead
+from journal.events.rows.reply_posted import ReplyPosted
 from journal.support.message_thread import MessageThread
 from journal.models.author import Author
 from journal.models.scoped import Scoped
@@ -86,9 +87,10 @@ class Message(Scoped, Commentable):
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":
+        reply_event = ReplyPosted(reply_target=target.id)
         if target.is_main_thread():
-            return cls(author=Author.AGENT, text=text, reply_target=target.id)
-        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread)
+            return cls(author=Author.AGENT, text=text, reply_target=target.id).with_event(reply_event)
+        return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, thread=target.thread).with_event(reply_event)
 
     def authored(self, session: str | None) -> "Message":
         return self.with_(session=session) if self.is_new and self.session is None and self.is_main_thread() else self

@@ -1521,7 +1521,7 @@ log: none
 
 $ agent: journal environment json
 exit 0
-[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": "", "worktree": false}]
+[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": "", "worktree": false, "agent": "claude session s1", "agent_session": "s1"}]
 
 $ agent: journal environment sessions
 exit 0
@@ -1727,6 +1727,7 @@ messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{na
 messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
+messages.reply_in_the_chat  [messages]  reply {{reply}} to message {{n}} is in the chat. never say it again in your own words; go on
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
 messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
@@ -1941,7 +1942,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-288 nudges
+289 nudges
 
 $ agent: journal worker list
 exit 0

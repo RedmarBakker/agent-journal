@@ -76,7 +76,13 @@ class DefaultTaskAssigner:
         return self.tasks.next_open_task() if self.is_auto() else None
 
     def offered(self, agent: Agent) -> OpenTask | None:
-        task = self.paused_task(agent) or self.free_task() or next(iter(self.choosable_work(agent)), None)
+        return self.open_task(self.paused_task(agent) or self.free_task() or next(iter(self.choosable_work(agent)), None))
+
+    def open_work(self, agent: Agent) -> OpenTask | None:
+        return self.open_task(self.tasks.holder_paused_task(Ref.build(agent)) or self.tasks.next_open_task())
+
+    @staticmethod
+    def open_task(task: Task | None) -> OpenTask | None:
         return OpenTask(task.row_id, task.title, task.brief, 0, task.state.value) if task is not None else None
 
     def is_auto(self) -> bool:

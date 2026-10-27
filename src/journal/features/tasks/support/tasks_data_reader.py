@@ -52,7 +52,7 @@ class TasksDataReader:
             "broken_waits_summary": lambda: "; ".join(f"task {task.id} waits on check {check.id}, {check.title}, which cannot run" for task, check in self.tasks.broken_waits()),
             "first_pause_reason": lambda: next((task.pause_reason for task in self.assigner.paused_work()), ""),
             "next_open": lambda: self.assigner.offered(agent),
-            "open_work": lambda: facts.next_open,
+            "open_work": lambda: self.assigner.open_work(agent),
             "last_commands": lambda: self.last_commands(agent),
             "command_lines": lambda: tuple(self.entries.last_command_lines(agent.session, COMMAND_LINE_COUNT)),
             "turn_finished": lambda: self.turn.is_finished(agent),

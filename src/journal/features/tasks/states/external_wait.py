@@ -94,14 +94,14 @@ class ExternalWait(Wait):
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
         work = event.data.next_work()
-        if self.is_output_wait() or work is None or estimate.is_short(settings):
+        if work is None or estimate.is_short(settings):
             return self.none()
         return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=work.id))
 
     def estimated(self, remaining: float, data: FeatureData, settings: Settings) -> Transition:
         work = data.next_work()
         seconds = round(remaining)
-        if self.is_output_wait() or remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or work is None:
+        if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or work is None:
             return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
         return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=work.id), *self.lifted_lines(data))
 
