@@ -1,9 +1,12 @@
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, fields, replace
+
+# the keys a load was stored under before they took their plain names, read as the names they have now
+OLD_KEY_NAMES = {"dispatches_for": "calm_dispatches", "dispatches_against": "busy_dispatches", "over_minutes": "busy_minutes", "under_minutes": "low_minutes"}
 
 
 @dataclass(frozen=True)
 class AgentLoad:
-    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes the oldest has waited, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, the items ended without a clearing in the window (sent back, released or stopped), shown as the send-back rate, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low; with when it was measured and when its places last changed; kept with only the values that differ from an empty load."""
+    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes the oldest has waited, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, the items ended without a clearing in the window (sent back, released or stopped), shown as the send-back rate, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low; with when it was measured and when its places last changed; kept with only the values that differ from an empty load, and read from whatever version stored it."""
 
     arrivals: float = 0.0
     clearings: float = 0.0
@@ -29,7 +32,9 @@ class AgentLoad:
 
     @classmethod
     def parsed(cls, data: dict) -> "AgentLoad":
-        return cls(**{**data, "waiting_refs": tuple(data.get("waiting_refs", ()))})
+        known = {field.name for field in fields(cls)}
+        named = {OLD_KEY_NAMES.get(key, key): value for key, value in data.items()}
+        return cls(**{**{key: value for key, value in named.items() if key in known}, "waiting_refs": tuple(named.get("waiting_refs", ()))})
 
     def is_measured(self) -> bool:
         return self.measured_at > 0

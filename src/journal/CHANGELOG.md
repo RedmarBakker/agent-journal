@@ -4,6 +4,18 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## Unreleased
 
+## 4.65.0
+
+- Commands the journal understands: a command table ships with the journal and classifies every shell command once, by its program, subcommands, options, wrappers, redirects and inner commands, and every recorded call carries its classification; the old wrapper lists, redirect patterns and activity verbs are gone, and a project may add a table of its own.
+- The reader suggester: a run moved to the background starts from the reader of its kind (a test run, a build, an install or a long process), filled from its own output, or joins a project reader that already reads it well; the six reader lines are one, said at a run's real end, capped per session; a new reader is checked against the runs it was written for. Every reader a project wrote is removed once, at the first boot of this release, so readers start fresh.
+- The splitter splits every line of a 320,000-command corpus right, Codex's commands included, frozen against a generated fixture that holds no private value.
+- Memories are each agent's own: a worker's and a subagent's memories are theirs alone, shown when a worker is reused, faded by its own compactions.
+- Workers take a queue of tasks by default and report once; a worker whose journal stops answering is held and then ended; a worker's processes stay within a memory budget.
+- The chat: a running process is stopped from its mark or dock; docked groups clear finished runs and undock when done; marks of one family fold into a group; a refused command shows as refused in the terminal; the user closes a question without a reason; a memory opens an inspector.
+- Settings are project-wide, a Services tab lists every process the supervisor runs, and one Developer switch, off by default, turns off every developer feature.
+- A stored agent row written by an older journal reads at boot, its load's old key names mapped to the new ones.
+- Fixes: the time source reads to the microsecond in one place; the supervisor raises the open file limit a terminal starts it with; a stop of an output whose files are gone and a weigh without a weight are refused, not crashed.
+
 ## 4.64.0
 
 - Facts are memories: a memory has a weight from 1 to 10 that every compaction lowers by one, and at nought it is no longer shown. `journal memory add`, `weigh`, `list`, `remove` and `skip`; every fact became a memory of weight 5 and the facts table is gone, its cards opening the memories made of them.

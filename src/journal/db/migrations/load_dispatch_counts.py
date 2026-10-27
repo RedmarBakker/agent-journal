@@ -3,9 +3,8 @@ from typing import ClassVar
 
 from journal.db.connection import Connection
 from journal.db.migration import Migration
+from journal.models.support.agent_load import OLD_KEY_NAMES
 
-# the keys of a stored load's dispatch counts and its busy and low stretches, as they were and as they are named now
-KEY_NAMES = {"dispatches_for": "calm_dispatches", "dispatches_against": "busy_dispatches", "over_minutes": "busy_minutes", "under_minutes": "low_minutes"}
 QUEUE_COLUMNS = ("work_queue", "message_queue")
 
 
@@ -25,4 +24,4 @@ class LoadDispatchCounts(Migration):
 
 
 def with_key_names(queue: dict) -> dict:
-    return {KEY_NAMES.get(key, key): value for key, value in queue.items()}
+    return {OLD_KEY_NAMES.get(key, key): value for key, value in queue.items()}

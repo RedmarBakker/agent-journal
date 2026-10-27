@@ -1731,3 +1731,9 @@ def test_the_fact_table_drop_moves_each_fact_card_to_its_memory_and_drops_the_ta
     assert cards[0] == (f"Memory {memory} recorded", {"kind": "card", "row": f"memories:{memory}", "shows": "memories"})
     assert cards[1] == ("Fact 2 recorded", {"kind": "card", "shows": "memories"})
     assert not connection.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'facts'")
+
+
+def test_a_load_stored_by_an_older_version_reads_with_its_keys_renamed_and_the_retired_ones_left_out():
+    from journal.models.support.agent_load import AgentLoad
+    load = AgentLoad.parsed({"under_minutes": 3.0, "over_minutes": 2.0, "dispatches_for": 1, "a_retired_key": 7, "waiting_refs": ["tasks:1"]})
+    assert (load.low_minutes, load.busy_minutes, load.calm_dispatches, load.waiting_refs) == (3.0, 2.0, 1, ("tasks:1",)), "an agent row an older journal wrote boots with its load read, never a crash at the start"
