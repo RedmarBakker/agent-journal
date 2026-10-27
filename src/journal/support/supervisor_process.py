@@ -7,7 +7,7 @@ class SupervisorProcess:
 
     name: str
     pid: int
-    is_running: bool
+    is_active: bool
     started_at: float
     restarts: int
     front: bool

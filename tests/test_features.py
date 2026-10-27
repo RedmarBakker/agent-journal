@@ -1874,8 +1874,8 @@ def test_the_services_tab_reads_every_process_the_supervisor_runs_through_its_li
     Path(path).unlink(missing_ok=True)
     assert status == 200 and heard == ["hello", "list"], heard
     assert served["processes"] == [
-        {"environment": "main", "name": "agent", "pid": 4101, "is_running": True, "started_at": 1793000000.5, "restarts": 0, "front": True},
-        {"environment": "main", "name": "journal", "pid": 4102, "is_running": True, "started_at": 1793000100.0, "restarts": 2, "front": False},
+        {"environment": "main", "name": "agent", "pid": 4101, "is_active": True, "started_at": 1793000000.5, "restarts": 0, "front": True},
+        {"environment": "main", "name": "journal", "pid": 4102, "is_active": True, "started_at": 1793000100.0, "restarts": 2, "front": False},
     ]
 
 
