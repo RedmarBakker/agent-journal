@@ -1,11 +1,17 @@
+import signal
+
 from supervisor.service import Service
 
 
 class Services:
-    """The named processes a supervisor runs beside the agent, each running until it is stopped."""
+    """The named processes a supervisor runs beside the agent, each running until it is stopped, and the process groups it is handed to end when it exits."""
 
     def __init__(self, *services: Service) -> None:
         self._table = {service.name: service for service in services}
+        self._groups: set[int] = set()
+
+    def group(self, pid: int) -> None:
+        self._groups.add(pid)
 
     def service(self, name: str) -> Service:
         if name not in self._table:
@@ -48,3 +54,5 @@ class Services:
     def stop_all(self) -> None:
         for service in self._table.values():
             service.stop()
+        for pid in self._groups:
+            Service.signal_pid(pid, signal.SIGTERM)

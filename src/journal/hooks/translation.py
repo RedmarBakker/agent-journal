@@ -1,6 +1,7 @@
 from journal.engine.clock import Clock
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.compacting import Compacting
+from journal.events.agent.journal_returned import JournalReturned
 from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_ended import SessionEnded
@@ -46,7 +47,12 @@ class Translation:
         self.entries, self.clock, self.uses, self.calls = entries, clock, uses, calls
 
     def event(self, hook: Hook, environment: Environment) -> AgentEvent:
-        provider = self.providers.lookup(hook.provider)
-        bare = self.EVENTS[hook.kind](hook, self.calls)
-        placed = bare.placed(hook.session, environment.row_id, hook.provider, provider.status(hook.session, self.config.status_home).context, self.clock.time(), hook.subagent)
+        placed = self.placed(self.EVENTS[hook.kind](hook, self.calls), hook, environment)
         return self.turns.fold(self.uses.counted(placed.boot_delayed(hook.boot_wait_seconds).hooked(hook.key())))
+
+    def returned(self, hook: Hook, environment: Environment) -> JournalReturned:
+        return self.placed(JournalReturned(silence_start=hook.silence_start), hook, environment)
+
+    def placed(self, bare: AgentEvent, hook: Hook, environment: Environment) -> AgentEvent:
+        provider = self.providers.lookup(hook.provider)
+        return bare.placed(hook.session, environment.row_id, hook.provider, provider.status(hook.session, self.config.status_home).context, self.clock.time(), hook.subagent)

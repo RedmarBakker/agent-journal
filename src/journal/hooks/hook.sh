@@ -3,7 +3,7 @@
 #   200  go on; the body is JSON in the agent's own hook shape, printed for it to read
 #   409  refused; a body that starts with the agent's own answer (a Claude tool call denied, a prompt blocked) is printed as it is,
 #        so the agent shows only the journal's line; otherwise the body's error is the reason, and exit 2 tells the agent to stop
-#   anything else, or no server  go on, silently
+#   anything else, or no server  go on, silently; but a worker's hook waits for its journal, and ends its session when it stays gone
 # Nothing is decided here, and a deferred handler never changes the status: the server replies before it runs.
 # Who runs the hook: JOURNAL_ACTOR is agent, sub-agent, or a sent agent's actor, worker:12, verifier:3 or reviewer:4, with the token that proves it in JOURNAL_ACTOR_TOKEN;
 # the agent's and a sent agent's own hooks reach the journal.
@@ -43,13 +43,31 @@ post() {
         -H "X-Journal-Request-At: $started" \
         -H "X-Journal-Hook-Id: $firing" \
         -H "X-Journal-Boot-Wait-Ms: $waited" \
+        -H "X-Journal-Silence-Start: $silence" \
         --data-binary @"$sent"
+}
+# A worker whose journal does not answer holds its tool, asking again every second through the grace in JOURNAL_LOCKOUT_SECONDS,
+# and goes on once it answers, sending when the silence started so the journal locks the worker out on its own record;
+# past the grace the worker's session ends. Any other agent's hook goes on while the journal is down.
+silence=""
+held() {
+    case "${JOURNAL_ACTOR:-agent}" in worker:*) ;; *) return 1 ;; esac
+    silence=$(date +%s)
+    deadline=$((silence + ${JOURNAL_LOCKOUT_SECONDS:-30}))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 1
+        port=$(cat "$root/.journal/port" 2>/dev/null)
+        [ -n "$port" ] && curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" && return 0
+    done
+    printf '{"continue": false, "stopReason": "the journal did not answer for %s seconds, so this worker ends"}\n' "${JOURNAL_LOCKOUT_SECONDS:-30}"
+    rm -f "$body" "$sent"
+    exit 0
 }
 waited=$(journal_boot_wait "$root/.journal")
 [ "$waited" = 0 ] || { port=$(cat "$root/.journal/port" 2>/dev/null); started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null); }
-[ -n "$port" ] || { rm -f "$body" "$sent"; exit 0; }
+[ -n "$port" ] || held || { rm -f "$body" "$sent"; exit 0; }
 # a journal that does not answer its health in two seconds is gone around: the tool goes on, and the miss is noted for the journal to say
-if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health"; then
+if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" && ! held; then
     printf '%s hook %s\n' "$(date +%s)" "$agent" >> "$root/.journal/runtime/bypass.log"
     rm -f "$body" "$sent"
     exit 0
@@ -63,6 +81,9 @@ if [ "$status" = 000 ] || [ "$status" = 0 ]; then
         started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
         status=$(post) || status=0
     fi
+fi
+if [ "$status" = 000 ] || [ "$status" = 0 ]; then
+    held && { status=$(post) || status=0; }
 fi
 rm -f "$sent"
 case "$status" in

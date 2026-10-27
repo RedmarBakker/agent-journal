@@ -7,6 +7,8 @@ import time
 import subprocess
 import threading
 
+from journal.supervisor_link import SupervisorLink
+from journal.support.lockout_option import LOCKOUT_OPTION
 from journal.config import Config
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
@@ -48,11 +50,14 @@ POOL_VARIABLES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", 
 POOL_PREFIXES = ("LC_", "JOURNAL_")
 
 
+# the variable the hook script reads the seconds a worker waits for its journal from, when the journal cannot be asked
+LOCKOUT_VARIABLE = "JOURNAL_LOCKOUT_SECONDS"
+
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup, supervisor: SupervisorLink, time_source: TimeSource) -> None:
+        self.time_source, self.supervisor = time_source, supervisor
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup
@@ -98,10 +103,11 @@ class WorkerRunner:
             self.reports.file(worker, f"could not start: {error}", actor)
             return
         worker = self.workers.save(worker.running_as(process.pid, self.time_source.seconds()), actor)
+        self.supervisor.group(worker.environment_id, process.pid)
         self.finish(worker, self.waited(worker, process, actor), actor)
 
     def worker_variables(self, worker: Worker, token: AgentToken) -> dict[str, str]:
-        variables = self.setup.variables(self.environments.find(worker.environment_id).name, Actor.worker(worker.id), token)
+        variables = {**self.setup.variables(self.environments.find(worker.environment_id).name, Actor.worker(worker.id), token), LOCKOUT_VARIABLE: str(self.settings.integer(LOCKOUT_OPTION))}
         if not worker.pool_request:
             return variables
         return {name: value for name, value in variables.items() if name in POOL_VARIABLES or name.startswith(POOL_PREFIXES)}

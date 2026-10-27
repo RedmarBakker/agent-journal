@@ -9,7 +9,7 @@ SUBAGENT_KEYS = ("agent_id", "subagent_id")
 
 @dataclass(frozen=True)
 class Hook:
-    """What the agent's hook script posts, as the agent sent it, with the id of the launch it was loaded from, the millisecond the script started at when it stamped its request, measured from the journal's boot when it waited for one, and the seconds it waited, and the id the script gave this firing, the same when it sends it again; when stored, a tool's response is cut to KEPT characters a text, so a long read or a command's whole output is not stored again for every call."""
+    """What the agent's hook script posts, as the agent sent it, with the id of the launch it was loaded from, the millisecond the script started at when it stamped its request, measured from the journal's boot when it waited for one, and the seconds it waited, the id the script gave this firing, the same when it sends it again, and, for a worker's hook its journal did not answer at first, when that silence started; when stored, a tool's response is cut to KEPT characters a text, so a long read or a command's whole output is not stored again for every call."""
 
     RESPONSE_CHARACTERS = 4000
 
@@ -26,6 +26,7 @@ class Hook:
     actor_token: str | None = None
     boot_wait_seconds: float = 0.0
     firing: str = ""
+    silence_start: float = 0.0
 
     @classmethod
     def parse(cls, body: dict, environment: str, provider: str, launch: str) -> "Hook":
@@ -62,6 +63,9 @@ class Hook:
 
     def fired(self, firing: str) -> "Hook":
         return replace(self, firing=firing)
+
+    def silenced(self, start: float) -> "Hook":
+        return replace(self, silence_start=start)
 
     def key(self) -> str:
         return f"hook:{self.session}:{self.kind.value}:{self.firing}" if self.firing else ""

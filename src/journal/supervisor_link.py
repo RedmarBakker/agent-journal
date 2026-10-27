@@ -155,6 +155,9 @@ class SupervisorLink:
     def start_clean(self, environment_id: int, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, retain: bool) -> SupervisorReply:
         return self._send(environment_id, "start", {"name": name, "command": command, "folder": str(folder), "env": environ, "log": str(log), "inherit": False, "keep": retain})
 
+    def group(self, environment_id: int, pid: int) -> None:
+        self._send(environment_id, "group", {"pid": pid})
+
     def stop_service(self, environment_id: int, name: str) -> None:
         self._send(environment_id, "stop", {"name": name})
 

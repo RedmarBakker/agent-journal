@@ -97,6 +97,9 @@ class Receiver:
         return self.launches.is_launch(environment.name, hook.launch)
 
     def sent_recorded(self, hook: Hook, environment: Environment) -> Decision:
+        if hook.silence_start:
+            returned = self.translation.returned(hook, environment)
+            self._blocking(returned, self._split(self.helper_listeners.listeners(returned))[0])
         event = self.translation.event(hook, environment)
         self.recorded(hook, environment, event)
         blocking, deferred = self._split(self.helper_listeners.listeners(event))

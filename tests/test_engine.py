@@ -3640,3 +3640,34 @@ def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that
     lonely.seen(5, 0.1, 0.0)
     lonely.seen(5, 0.1, 40.0)
     assert ReaderJudge(None, None, lonely, None, None, None, None, None, None).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
+
+
+def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers_steadily_and_ended_past_the_grace(app: App):
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    hook(app, "SessionStart")
+    scope, workers, tasks, source = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(TimeSource)
+    with scope.environment(1):
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+
+    def worker_hook(at: float, silence: str = "", kind: str = "PreToolUse", command: str = "ls") -> tuple[int, dict]:
+        source.pin(at)
+        body = {"hook_event_name": kind, "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}
+        return posted(app, "/hooks/claude", body, {"X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok", "X-Journal-Silence-Start": silence})
+    top = lambda: app.container.get(SessionAgents).top("w1").name
+    assert worker_hook(1000.0)[0] == 200, "a worker its journal answers goes on"
+    status, body = worker_hook(1020.0, silence="1000")
+    assert status == 409 and "did not answer for 20 seconds" in json.dumps(body) and top() == "locked_out", "a hook answered after a silence locks the worker out"
+    assert worker_hook(1022.0, command="journal todo list")[0] == 409 and worker_hook(1023.0, kind="PreCompact")[0] in (200, 409) and top() == "locked_out", "every tool is held, a journal command too, and nothing else moves it"
+    assert worker_hook(1026.0)[0] == 200 and top() != "locked_out", "once the journal has answered for a few seconds the state pops and the tool goes on"
+    status, body = worker_hook(2000.0, silence="1950")
+    assert status == 409 and "your work ends here" in json.dumps(body) and top() == "locked_out", "a silence past the grace ends the worker"
+    assert worker_hook(2100.0)[0] == 409 and top() == "locked_out", "and it never goes on"
+    assert worker_hook(2101.0, kind="Stop")[1].get("decision") != "block", "its stop goes through"
+

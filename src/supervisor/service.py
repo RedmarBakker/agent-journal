@@ -150,7 +150,11 @@ class Service:
 
     @staticmethod
     def signal_group(process: subprocess.Popen, signal_kind: signal.Signals) -> None:
+        Service.signal_pid(process.pid, signal_kind)
+
+    @staticmethod
+    def signal_pid(pid: int, signal_kind: signal.Signals) -> None:
         try:
-            os.killpg(process.pid, signal_kind)
+            os.killpg(pid, signal_kind)
         except (ProcessLookupError, PermissionError):
             return

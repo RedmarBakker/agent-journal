@@ -1303,6 +1303,7 @@ plans.testing = 'none'
 plans.test_commands = 'pytest, journal suite'
 sequences.say_every = 10
 usage.check_minutes = 15
+workers.lockout_seconds = 30
 workers.write_block_minutes = 15
 workers.builder_active_workers = 2
 workers.score_warmup_minutes = 30
@@ -1648,6 +1649,8 @@ dumps.the_user_answered_on_the_dump  [dumps]  the user answered on dump {{n}}: {
 dumps.the_user_chose_a_step  [dumps]  the user chose {{label}} for dump {{n}}. carry that step out, and log it on the dump.
 engine.guard_failed  [engine]  a guard failed and let this through: {{text}}. the journal recorded it; tell the user if it happens again
 engine.helper_has_no_job  [engine]  you are not at work: the journal gives you your job. wait for it, or run the journal command it gave you
+engine.journal_answers_again  [engine]  your journal did not answer for {{seconds}} seconds and answers again; every tool waits until it has answered for a few seconds. use the tool again in a few seconds
+engine.journal_gone_past_the_grace  [engine]  your journal did not answer for {{seconds}} seconds, longer than the {{grace}} seconds a worker waits, so your work ends here. stop now; the agent that sent you sends you again
 engine.stop_held_in_a_loop  [engine]  your stop was held five times in a row with nothing between, so the journal is probably in a state it cannot leave, and your next stop goes through. set the state you should be in with `journal panic <state>`, `journal panic pop` or `journal panic idle`, then `journal panic report` files what held you
 etiquette.a_line_is_an_instruction  [etiquette]  a [journal] line is an instruction, not a message. act on it; never answer or mention it in the chat
 etiquette.blank_lines_between_paragraphs  [etiquette]  your last message had no blank lines between paragraphs

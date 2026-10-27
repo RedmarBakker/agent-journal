@@ -22,6 +22,7 @@ class Request:
     delay_seconds: float = 0.0
     data: str = ""
     resume: tuple[str, ...] = ()
+    pid: int = 0
     labels: BandLabels | None = None
     payload_keys: frozenset[str] = frozenset()
 
@@ -37,4 +38,4 @@ class Request:
         return cls(verb=str(payload.get("verb", "")), name=str(payload.get("name", "")), command=tuple(payload.get("command", ())), folder=str(payload.get("folder", ".")),
                    environ=dict(payload.get("env", {})), log=str(payload.get("log", os.devnull)), persistent=bool(payload.get("keep", True)), inherit=bool(payload.get("inherit", True)),
                    keys=str(payload.get("keys", "")), line=str(payload.get("line", "")), delay_seconds=float(payload.get("after", 0)), data=str(payload.get("data", "")),
-                   resume=tuple(payload.get("resume", ())), labels=labels, health=payload.get("health"), payload_keys=frozenset(payload))
+                   resume=tuple(payload.get("resume", ())), pid=int(payload.get("pid", 0)), labels=labels, health=payload.get("health"), payload_keys=frozenset(payload))
