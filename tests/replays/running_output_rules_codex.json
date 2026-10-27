@@ -1,0 +1,71 @@
+{
+  "nudges": true,
+  "steps": [
+    {
+      "name": "a command in the background",
+      "answer": null,
+      "typed": [],
+      "nudges": [
+        "briefing.journal_ready",
+        "briefing.handle_the_journal_quietly",
+        "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
+        "voices.how_to_talk_to_the_user"
+      ],
+      "stack": [
+        "idle"
+      ]
+    },
+    {
+      "name": "a stop with it running",
+      "answer": {
+        "decision": "block",
+        "reason": "task 1 is in hand: carry on\noutput 1 still running. stop only by waiting on it: `journal await \"<what>\" --output <n>`, or keep working"
+      },
+      "typed": [],
+      "nudges": [
+        "tasks.carry_on",
+        "shell.stop_with_a_run_going"
+      ],
+      "stack": [
+        "idle",
+        "working"
+      ]
+    },
+    {
+      "name": "the agent awaits it",
+      "answer": {},
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "working"
+      ]
+    },
+    {
+      "name": "a stop while it waits",
+      "answer": {},
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "working",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "it ended",
+      "answer": null,
+      "typed": [
+        "[journal] wait over: output 1 finished"
+      ],
+      "nudges": [
+        "tasks.wait_over"
+      ],
+      "stack": [
+        "idle",
+        "working"
+      ]
+    }
+  ]
+}

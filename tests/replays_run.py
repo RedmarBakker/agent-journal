@@ -822,7 +822,28 @@ def paused_plan_rules(app, replay: Replay, provider: str) -> None:
     replay.step("a stop with the user's paused plan", hook_as(app, provider, "Stop")[1])
 
 
-STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules, "paused_plan_rules": paused_plan_rules}
+def running_output_rules(app, replay: Replay, provider: str) -> None:
+    """The steps: with a task open, a command moves to the background; a stop is refused naming it; the agent awaits it and a stop passes, the agent waiting; the command ends and the agent is told."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the next one", "--brief", "1. it is done"], AGENT)
+    folder = app.config.root / "c8"
+    folder.mkdir()
+    ShellVerbs(app).split("pytest -q", str(folder))
+    ShellVerbs(app).moved("c8", "pytest -q", str(folder / "out"))
+    replay.step("a command in the background")
+    replay.step("a stop with it running", hook_as(app, provider, "Stop")[1])
+    replay.step("the agent awaits it", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": 'journal await "the tests" --output 1'})[1])
+    console.run(["await", "the tests", "--output", "1"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("a stop while it waits", hook_as(app, provider, "Stop")[1])
+    ShellVerbs(app).ended("c8", 0, str(folder / "out"))
+    app.runtime().deferred.drain()
+    replay.step("it ended")
+
+
+STATE_RULES = {"plan_building": plan_building, "session_starts": session_starts, "silent_session_ends": silent_session_ends, "pause_exits": pause_exits, "ended_restarts": ended_restarts, "plan_rules": plan_rules, "awaiting_rules": awaiting_rules, "loading_skill_rules": loading_skill_rules, "orienting_rules": orienting_rules, "at_mark_rules": at_mark_rules, "working_rules": working_rules, "expecting_rules": expecting_rules, "sequence_rules": sequence_rules, "owed_pause_rules": owed_pause_rules, "waiting_rules": waiting_rules, "stuck_rules": stuck_rules, "outside_task_rules": outside_task_rules, "paused_plan_rules": paused_plan_rules, "running_output_rules": running_output_rules}
 
 
 @pytest.mark.parametrize("name", sorted(STATE_RULES))

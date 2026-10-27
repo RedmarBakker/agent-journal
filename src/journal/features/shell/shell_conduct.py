@@ -13,6 +13,7 @@ from journal.events.rows.output_quiet import OutputQuiet
 from journal.events.rows.output_without_total import OutputWithoutTotal
 from journal.events.rows.reader_report_judged import ReaderReportJudged
 from journal.events.rows.reader_report_raised import ReaderReportRaised
+from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
@@ -44,7 +45,13 @@ ALIAS_RUNS = 3
 
 
 class ShellConduct(Conduct):
-    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a command that ended in the background is named once, at its end, as one line through the delivery queue, with one reader said for it, a watched one with its last view, one the agent waits on left to the wait, one running five minutes is looked at, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+    """The shell feature's conduct in every state: a file longer than the runner shows is read in parts, a shell loop that only polls journal commands is refused with the await that waits instead, a journal command runs alone while an alias may chain, a test run piped into a filter is refused, a cd that would leave the shell outside its environment's folder is refused, a read of an output by hand is pointed at the reader that reads it, a line an alias runs, typed by hand or through a wider alias, is refused with the alias, and a line run three times is asked to become one, a command that ended in the background is named once, at its end, as one line through the delivery queue, with one reader said for it, a watched one with its last view, one the agent waits on left to the wait, one running five minutes is looked at, a stop with one of the agent's own still running refused unless the agent waits on it, and a watched output's view is sent after every tool use until its command ends; a watched card that has shown nothing for 30 seconds is named once, after a tool use or while the agent waits."""
+
+    def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        outputs = event.data.part(ShellPart).background
+        if self.is_waiting() or self.blocks_tools() or not outputs:
+            return self.none()
+        return self.refuse(ShellNudges.RUNNING_OUTPUT_STOP.create(outputs=", ".join(str(n) for n in outputs)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings)])

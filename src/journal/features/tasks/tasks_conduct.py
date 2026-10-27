@@ -84,6 +84,8 @@ def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tra
     if not event.call.is_journal_noun("await") or tasks.next_open is None:
         return state.none()
     wait_line = event.call.journal_text("await")
+    if WAITED_OUTPUT.findall(wait_line):
+        return state.none()
     estimate = WaitEstimate.create([f"{CommandOutput.table()}:{n}" for n in WAITED_OUTPUT.findall(wait_line)], tasks.wait_progress, event.time)
     if estimate.is_short(settings):
         return state.none()

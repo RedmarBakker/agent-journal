@@ -23,6 +23,7 @@ from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.events.feature_data import FeatureData
 from journal.models.check import Check
+from journal.models.command_output import CommandOutput
 
 NEXT_TASK_DELAY = Timeout.minutes(1)
 CHECK_REMINDER = Timeout.minutes(5)
@@ -55,6 +56,9 @@ class ExternalWait(Wait):
     def wait_description(self) -> tuple[str, str]:
         return self.focus, self.end_refs
 
+    def is_output_wait(self) -> bool:
+        return any(target.startswith(f"{CommandOutput.table()}:") for target in self.targets())
+
     def targets(self) -> list[str]:
         return [ref for ref in self.end_refs.split(",") if ref]
 
@@ -84,14 +88,14 @@ class ExternalWait(Wait):
             return Transition.merged(self, [self.swap(replace(self, started_task=0, started_title="")), self.refuse(TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=self.started_task, title=self.started_title))])
         tasks = event.data.part(TasksPart)
         estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
-        if tasks.next_open is None or estimate.is_short(settings):
+        if self.is_output_wait() or tasks.next_open is None or estimate.is_short(settings):
             return self.none()
         return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
 
     def estimated(self, remaining: float, data: FeatureData, settings: Settings) -> Transition:
         next_open = data.part(TasksPart).next_open
         seconds = round(remaining)
-        if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or next_open is None:
+        if self.is_output_wait() or remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or next_open is None:
             return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
         return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=next_open.id), *self.lifted_lines(data))
 
