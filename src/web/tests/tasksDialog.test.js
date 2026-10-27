@@ -89,12 +89,12 @@ afterEach(async () => {
 });
 
 describe("the tasks dialog", () => {
-    test("lists the tasks under their plan and phase, says what a blocked one waits on and hides the done ones", async () => {
+    test("lists the tasks under their plan and phase, each under its status like the Home Tasks tab, says what a blocked one waits on and hides the done ones", async () => {
         await opened();
         const heads = [...document.body.querySelectorAll(".tasks-dialog .head")].map((h) => h.querySelector(".label").textContent.trim());
-        expect(heads).toEqual(["Tasks open in a dialog", "Phase 1 of 2: The list", "Not in a plan"]);
+        expect(heads).toEqual(["Tasks open in a dialog", "Phase 1 of 2: The list", "Blocked", "Open", "Not in a plan", "Open"]);
         const titles = [...document.body.querySelectorAll(".tasks-dialog .task-row .title")].map((t) => t.textContent);
-        expect(titles).toEqual(["first", "second", "fourth"]);
+        expect(titles).toEqual(["second", "first", "fourth"]);
         expect(inDialog('.task-row[data-task="2"] .wait').textContent).toBe("Blocked by task 1");
         expect(inDialog(".hidden-done").textContent).toContain("1 completed task is hidden.");
     });
@@ -228,7 +228,7 @@ describe("the tasks dialog's rules", () => {
         const lines = boardLines("plan", {shown: all, all, plans: [plan], folded: {}});
         const at = lines.findIndex((l) => l.type === "head" && l.label === "Not in a plan");
         expect(lines[at].note).toBe("2 tasks");
-        expect(lines.slice(at + 1).map((l) => l.task.id)).toEqual([3, 4]);
+        expect(lines.slice(at + 1).map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Open", 3, 4]);
         expect(lines.some((l) => l.type === "head" && l.number === "Plan 1028")).toBe(true);
     });
 
@@ -244,5 +244,42 @@ describe("the tasks dialog's rules", () => {
         expect(graph.others).toBe(1);
         const open = taskGraph(tasks, {unfolded: {t10: true}});
         expect(open.placed.filter((p) => p.node.kind === "task")).toHaveLength(6);
+    });
+});
+
+describe("the tasks dialog grouped by plan", () => {
+    test("puts each section's tasks under the Home Tasks tab's status dividers, with their counts, a level below the section, each section folding its own", () => {
+        const all = [
+            task(1, "plan open", {plan_id: 31}),
+            task(5, "plan started", {plan_id: 31, state: "started"}),
+            task(6, "loose paused", {state: "paused"}),
+            task(7, "loose open"),
+            task(8, "loose open too"),
+        ];
+        store.rows = {tasks: all, plans: [plan], questions: [], checks: []};
+        const drawn = (folded) => boardLines("plan", {shown: all, all, plans: [{...plan, phases: [{title: "The list", task_ids: [1, 5]}]}], folded});
+        const lines = drawn({});
+        expect(lines.map((l) => (l.type === "head" ? `${l.label} ${l.note}` : l.task.id))).toEqual([
+            `Tasks open in a dialog ${lines[0].note}`,
+            "In progress 1",
+            5,
+            "Open 1",
+            1,
+            "Not in a plan 3 tasks",
+            "Paused 1",
+            6,
+            "Open 2",
+            7,
+            8,
+        ]);
+        const home = boardLines("status", {shown: all, folded: {}}).filter((l) => l.type === "head");
+        const loose = lines.filter((l) => l.type === "head" && l.key.startsWith("p0-"));
+        expect(loose.map((l) => [l.label, l.status, l.depth])).toEqual([
+            [home.find((h) => h.status === "paused").label, "paused", 1],
+            [home.find((h) => h.status === "open").label, "open", 1],
+        ]);
+        expect(lines.filter((l) => l.type === "row" && l.task.plan_id === null).every((l) => l.depth === 2)).toBe(true);
+        const folded = drawn({"p0-sopen": true});
+        expect(folded.filter((l) => l.type === "row").map((l) => l.task.id)).toEqual([5, 1, 6]);
     });
 });

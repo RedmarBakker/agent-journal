@@ -45,6 +45,10 @@ SETS = {
         "tests/subagentMarkFailed.test.js",
         "tests/chatFootFolding.test.js",
     ),
+    "task_board": (
+        "tests/tasksDialog.test.js",
+        "tests/wholePlans.test.js",
+    ),
 }
 
 

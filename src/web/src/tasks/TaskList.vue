@@ -135,6 +135,16 @@ const fold = (key) => (taskBoard.folded[key] = !taskBoard.folded[key]);
     font-weight: 400;
 }
 
+.head.depth-2 {
+    position: static;
+    height: 28px;
+    margin-top: 0;
+    padding-left: 52px;
+    color: var(--text-3);
+    font-size: 12px;
+    font-weight: 400;
+}
+
 .head:hover {
     color: var(--text);
 }

@@ -65,6 +65,10 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
     padding-left: 52px;
 }
 
+.task-row.depth-3 {
+    padding-left: 70px;
+}
+
 .task-row:hover {
     background: var(--hover);
 }

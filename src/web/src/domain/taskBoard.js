@@ -102,10 +102,10 @@ function phaseLines(plan, shown, all, folded) {
             );
             if (folded[key]) return;
         }
-        lines.push(...rowLines(rows, phases.length > 1 ? 2 : 1));
+        lines.push(...byStatus(rows, folded, phases.length > 1 ? 2 : 1, `${key}-`));
     });
     const loose = shown.filter((t) => !phases.some((p) => p.task_ids.includes(t.id)));
-    return [...lines, ...rowLines(loose, 1)];
+    return [...lines, ...byStatus(loose, folded, 1, `p${plan.id}-`)];
 }
 
 // A task's plan is its plan_id, whether or not the plan's own row has reached the list yet.
@@ -136,17 +136,19 @@ function byPlan(shown, all, rows, folded) {
     const loose = shown.filter((t) => !t.plan_id);
     if (loose.length) {
         lines.push(head("p0", 0, "Not in a plan", counted(loose.length, "task")));
-        if (!folded.p0) lines.push(...rowLines(loose, 1));
+        if (!folded.p0) lines.push(...byStatus(loose, folded, 1, "p0-"));
     }
     return lines;
 }
 
-function byStatus(shown, folded) {
+// The tasks under a divider for each status with its count, most urgent first: the Home Tasks tab's whole list, and the tasks of each
+// section of the dialog grouped by plan, a level below the section's head; `within` keeps each section's folds its own
+function byStatus(shown, folded, depth = 0, within = "") {
     return STATUS_ORDER.flatMap((status) => {
         const rows = byPriority(shown.filter((t) => statusOf(t) === status));
         if (!rows.length) return [];
-        const key = `s${status}`;
-        return [head(key, 0, STATUS_WORDS[status], String(rows.length), {status}), ...(folded[key] ? [] : rowLines(rows, 1))];
+        const key = `${within}s${status}`;
+        return [head(key, depth, STATUS_WORDS[status], String(rows.length), {status}), ...(folded[key] ? [] : rowLines(rows, depth + 1))];
     });
 }
 
