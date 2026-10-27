@@ -156,7 +156,7 @@ def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transiti
 
 def reader_draft(shell: ShellData, outputs: set[int], settings: Settings) -> list[Nudge]:
     draft = next((draft for draft in shell.reader_drafts if draft.output in outputs and draft.is_suggestible(settings.integer(ShellOptions.READER_SUGGESTION_RUNS))), None)
-    if draft is None or shell.drafts_said >= settings.integer(ShellOptions.READER_SUGGESTIONS):
+    if draft is None or shell.draft_count >= settings.integer(ShellOptions.READER_SUGGESTIONS):
         return []
     return [ShellNudges.READER_DRAFT.create(part=draft.part, command=draft.command)]
 

@@ -28,7 +28,7 @@ class ShellData:
     home: str
     uncut_verbs: tuple[str, ...] = ()
     reader_drafts: tuple[ReaderDraft, ...] = ()
-    drafts_said: int = 0
+    draft_count: int = 0
     unread_reports: tuple[int, ...] = ()
     unfixed_reports: tuple[int, ...] = ()
     refuted_reports: tuple[ReaderReport, ...] = ()
