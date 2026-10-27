@@ -1675,6 +1675,7 @@ mcp.sign_in_to_the_server  [mcp]  sign in to {{server}}. call mcp__{{name}}__aut
 memory.check_stale_memory  [memory]  {{stale_after}} days old or more, check they still hold: {{stale}}. strike what no longer holds and reword what drifted
 memory.decide_at_the_mark  [memory]  context {{percent}}% full: weigh your {{count}} memories (journal memory list shows them). `journal memory weigh <numbers> <weights>`, `journal memory add "<what to keep in mind>" --weight <1 to 10>` or `journal memory skip "<why>"`; writes wait until you do
 memory.does_the_rule_apply_project_wide  [memory]  does rule {{n}} apply to the whole project?. if not, delete it and record a fact or a reminder
+memory.memories_shown_at_clock_in  [memory]  your memories from your earlier jobs, heaviest first: {{memories}}. keep one where it was or raise it with `journal memory weigh <numbers> <weights>`, and take out what is no longer true with `journal memory remove <numbers>`
 memory.memory_for_this_moment  [memory]  {{noun}} {{n}} is for this moment: journal {{noun}} read {{n}}
 memory.memory_whispered_back  [memory]  {{noun}} {{n}} is about this and not in your context: journal {{noun}} read {{n}}
 memory.reminder_due  [memory]  reminder {{n}} is due: {{text}}
@@ -1913,7 +1914,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}}'s processes use {{megabytes}} MB, more than the {{budget}} MB past which you are warned. check what it runs; it is stopped past the memory limit on the Settings page
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree onto the project's branch, so your writes wait until it is done. wait a moment, then write again
-278 nudges
+284 nudges
 
 $ agent: journal worker list
 exit 0
