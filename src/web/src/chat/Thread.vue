@@ -390,6 +390,15 @@ watch(
         comeIn.flush();
     }
 );
+// back on the page, by the tab or the window's focus, the turns still queued to come in one by one are shown at once and the reader is at the
+// foot, so nothing that came while they were away plays out in front of them
+watch(
+    () => ui.away.returnedAt,
+    () => {
+        comeIn.flush();
+        if (!away.value) toFoot();
+    }
+);
 // back on the tab, a reader who followed the foot is at the foot of the latest page at once, with no glide, and so is one who had
 // scrolled up when messages came while the tab was hidden
 watch(
