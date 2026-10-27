@@ -116,7 +116,7 @@ async function follow() {
         <template v-if="table === 'triggers'">
             <TriggerEditor :resource="resource" />
         </template>
-        <template v-if="resource.keywords && !readOnly">
+        <template v-if="resource.keywords && !readOnly && table !== 'memories'">
             <ResourceKeywords :resource="resource" />
         </template>
         <template v-if="MEMORY_TABLES.includes(table) && resource.trigger">

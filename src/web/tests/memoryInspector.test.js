@@ -33,7 +33,8 @@ test("a memory's inspector shows its text, its weight, when it was added and las
     const facts = [...host.querySelectorAll(".memory-facts .fact")].map((fact) => [fact.querySelector(".label").textContent, fact.querySelector(".value").textContent.trim()]);
     expect(facts.map(([label]) => label)).toEqual(["Weight", "Added", "Last weighed"]);
     expect(facts[0][1]).toBe("7 of 10");
-    expect(facts[1][1]).not.toBe("");
+    expect(facts.slice(1).map(([, value]) => value)).toEqual(["3d ago", "1h ago"]);
+    expect(host.textContent).not.toContain("Keywords");
     const buttons = [...host.querySelectorAll("button")];
     const weigh = buttons.find((b) => b.textContent.trim() === "Weigh");
     expect(buttons.some((b) => b.textContent.trim() === "Remove")).toBe(true);
@@ -47,5 +48,17 @@ test("a memory's inspector shows its text, its weight, when it was added and las
     await flush();
     expect(act).toHaveBeenCalledWith("memories", 3, "weigh", {weight: "9"});
     expect(errors).toEqual([]);
+    app.unmount();
+});
+
+test("a rule's inspector still has its keywords", async () => {
+    const rule = {table: "rules", id: 5, text: "Say it plainly", keywords: ["plain"], created_at: new Date(Date.now() - 86400e3).toISOString(), updated_at: new Date().toISOString()};
+    store.rows = {rules: [rule], messages: [], links: [], comments: []};
+    const host = document.body.appendChild(document.createElement("div"));
+    const app = createApp({render: () => h(ResourceBody, {resource: rule, comments: false, links: false})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.textContent).toContain("Keywords");
     app.unmount();
 });
