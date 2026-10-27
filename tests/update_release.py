@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from journal.features.updates.support.update_window import UpdateWindow
+from journal.support.release import Release
 from journal.version import VERSION
 from tests.update_matrix_run import PASSED_FILE, STEPS_FILE, WINDOW, pair_kept, passed_pairs, releases, step
 
@@ -41,5 +42,5 @@ class UpdateRelease:
 
     def written(self, entry: dict[str, object]) -> None:
         steps = {**(json.loads(self.steps_file.read_text()) if self.steps_file.is_file() else {}), self.version: entry}
-        ordered = dict(sorted(steps.items(), key=lambda item: self.window.number(item[0])))
+        ordered = dict(sorted(steps.items(), key=lambda item: Release(item[0]).numbers))
         self.steps_file.write_text(json.dumps(ordered, indent=1) + "\n")
