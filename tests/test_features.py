@@ -11598,7 +11598,7 @@ def test_the_main_agent_is_told_a_workers_work_is_ready_and_checks_each_proof(ap
     lovelace = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "parser.py:12, test_reads passes"], lovelace)
     console.run(["proof", "2", "parser.py:30, test_names passes"], lovelace)
-    assert "worker 2 is clocked in: only a worker that clocked out has proofs to check" in console.run(["worker", "check", "2", "1"], AGENT).error, "a check before clock-out is refused, saying so"
+    assert "worker 2 is clocked in: only a worker that clocked out, stopped or ended unfinished has proofs to check" in console.run(["worker", "check", "2", "1"], AGENT).error, "a check before clock-out is refused, saying so"
     assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
     app.runtime().deferred.drain()
     from journal.events.agent.ticked import Ticked
@@ -14414,6 +14414,27 @@ def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merg
     assert merged.code == 0, merged.error
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["completed", "completed", "completed"], "one merge closes all three"
+
+
+def test_a_stopped_workers_checked_task_is_merged_and_closed_while_its_unproved_task_is_left_open(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "--report", "queue"], AGENT).code == 0
+    committed(worktree, "notes1.md", "note 1\n")
+    assert "your next task, 2:" in proved_and_out(app, caller, "notes1.md:1").text
+    assert console.run(["worker", "stop", "1"], AGENT).code == 0
+    assert console.run(["worker", "check", "1", "1", "--task", "1"], AGENT).code == 0, "a stopped worker's proofs are checked"
+    merged = console.run(["worker", "merge", "1"], AGENT)
+    assert merged.code == 0, merged.error
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        assert tasks.find(1).state == "completed" and tasks.find(2).state == "open", "the checked task is closed and the unproved one is left open"
+        assert not tasks.holder_task_ids(Ref("workers", 1)) and not tasks.finished_task_ids(Ref("workers", 1)), "the stopped worker holds neither"
+    assert (app.config.root / "notes1.md").read_text() == "note 1\n", "the checked task's commit is merged from its branch"
 
 
 def queue_sent_back_short(app: App, monkeypatch):

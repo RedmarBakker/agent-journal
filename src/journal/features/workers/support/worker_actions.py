@@ -46,6 +46,8 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 
 
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
+# a worker whose checked work can be taken in: clocked out, or stopped or ended before it clocked out
+MERGEABLE_STATES = (WorkerState.DELIVERED, WorkerState.STOPPED, WorkerState.UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
 REBASE_NOTE = f"The journal rebased your worktree onto the project's branch, at {{heads}}, and {{clashing}}. First {REBASE_STEPS}. Then: "
 MOVED_NOTE = "The journal rebased your worktree onto the project's branch, at {heads}, so files may have changed since your last job. "
@@ -106,7 +108,7 @@ class WorkerActions:
         return worker
 
     def check(self, n: int, point: int, actor: Actor, task_id: int = 0) -> Task:
-        worker = self.delivered(n, "proofs to check")
+        worker = self.mergeable(n, "proofs to check")
         task = self.checked_task(worker, task_id)
         self.proofs.save(self.open_proof(task, point).checked(), actor)
         return task
@@ -151,11 +153,8 @@ class WorkerActions:
         return proofs[-1]
 
     def merge(self, n: int, actor: Actor, steps: MergeSteps) -> MergeOutcome:
-        worker = self.delivered(n, "work to merge")
-        task = self.worker_task(worker)
-        finished = tuple(self.tasks.find(task_id) for task_id in self.tasks.finished_task_ids(Ref.build(worker)))
-        for merged_task in (*finished, task):
-            self.refuse_unchecked(worker, merged_task, "" if merged_task.id == task.id else f" --task {merged_task.id}")
+        worker = self.mergeable(n, "work to merge")
+        *finished, task = self.merged_tasks(worker)
         latest = self.latest_proofs(task)
         if worker.pool_request:
             self.branch.fetch_pool(worker)
@@ -176,7 +175,7 @@ class WorkerActions:
             closed = self.tasks.save(task.merge_completed(self.time_source.moment(), outcome, worker.id), actor)
             self.tasks.release_task(Ref.build(worker), task.id, actor)
             closed_queue = tuple(self.tasks.save(queued_task.merge_completed(self.time_source.moment(), merged, worker.id), actor) for queued_task in finished)
-            self.tasks.unfinished(Ref.build(worker), actor)
+            self.release_rest(worker, actor)
             self.workers.save(worker.merged(task.id, self.time_source.moment().timestamp()), actor)
             self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
             self.moves.cleared(worker)
@@ -194,9 +193,9 @@ class WorkerActions:
         return f", after the {queued} merges before it in the queue" if queued else ""
 
     def gated(self, n: int, task: Task) -> Worker:
-        worker = self.delivered(n, "work to merge")
-        if self.worker_task(worker).id != task.id:
-            raise Rejection(f"worker {worker.id} moved on to task {self.worker_task(worker).id} while the plugins were asked about task {task.id}: nothing was merged")
+        worker = self.mergeable(n, "work to merge")
+        if task.id not in self.merged_task_ids(worker):
+            raise Rejection(f"worker {worker.id} let go of task {task.id} while the plugins were asked about it: nothing was merged")
         return worker
 
     def latest_proofs(self, task: Task) -> dict[int, Proof]:
@@ -255,6 +254,31 @@ class WorkerActions:
         if refusals:
             reasons = "\n".join(refusals)
             raise Rejection(f"worker {event.worker}'s work was not merged: a plugin held it\n{reasons}\nits proofs and its task are as they were")
+
+    def merged_tasks(self, worker: Worker) -> tuple[Task, ...]:
+        owned = tuple(self.tasks.find(task_id) for task_id in self.merged_task_ids(worker))
+        if worker.state != WorkerState.DELIVERED:
+            return self.checked_tasks(worker, owned)
+        for task in owned:
+            self.refuse_unchecked(worker, task, "" if task is owned[-1] else f" --task {task.id}")
+        return owned
+
+    def checked_tasks(self, worker: Worker, owned: tuple[Task, ...]) -> tuple[Task, ...]:
+        checked = tuple(task for task in owned if not self.unchecked_points(task))
+        if not checked:
+            raise Rejection(f"no task of worker {worker.id} has every point checked: journal worker check {worker.id} <point> --task <task> first; its tasks are {', '.join(f'task {task.id}' for task in owned)}")
+        return checked
+
+    def release_rest(self, worker: Worker, actor: Actor) -> None:
+        self.tasks.release(Ref.build(worker), actor)
+        if worker.state != WorkerState.DELIVERED:
+            self.tasks.unqueued(Ref.build(worker), actor)
+
+    def mergeable(self, n: int, purpose: str) -> Worker:
+        worker = self.local(n)
+        if worker.state not in MERGEABLE_STATES:
+            raise Rejection(f"worker {worker.id} is {worker.state}: only a worker that clocked out, stopped or ended unfinished has {purpose}")
+        return worker
 
     def delivered(self, n: int, purpose: str) -> Worker:
         worker = self.local(n)
