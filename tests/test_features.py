@@ -2065,18 +2065,23 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
     assert transmitted[0]["env"]["PYTHONPATH"] == str(package), "the module is imported from the folder the package is installed in, never from inside the journal package"
 
 
-def test_the_journals_boot_starts_the_sync_service_its_installed_version_names_whatever_the_launch_file_holds(app: App, monkeypatch):
+def test_the_journals_boot_starts_no_sync_service_and_leaves_every_team_it_joined_without_asking_the_server(app: App, monkeypatch):
     from journal.features.plugins.support.service_start import ServiceStart
+    from journal.features.team.seeds.team_departure import TeamDeparture
+    from journal.sync.team_account import TeamAccount
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}) or SupervisorReply(True))
     monkeypatch.setenv("JOURNAL_ENV", "main")
     app.container.get(ServiceStart).run()
-    [sync] = [request for request in transmitted if request["name"] == "sync"]
-    port = sync["command"][-1]
-    assert sync["health"] == {"url": f"http://127.0.0.1:{port}/health"} and port.isdigit(), "it is given a free loopback port, where the supervisor checks its health"
-    assert sync["verb"] == "start" and sync["command"][1:-1] == ["-m", "sync_service", str(app.config.root)] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs, given the project's folder"
-    assert (Path(sync["env"]["PYTHONPATH"]) / "sync_service" / "__main__.py").is_file(), "with the folder its package is installed in importable, so it starts wherever the journal is installed"
+    assert not [request for request in transmitted if request.get("name") == "sync"], "the team servers are no longer used, so the boot starts no sync service"
+    teams = app.config.home / "teams"
+    teams.mkdir(exist_ok=True)
+    for key in ("first", "second"):
+        (teams / f"{key}.json").write_text(json.dumps({"address": "https://team.invalid", "token": "t", "team_key": key, "home": key == "first"}))
+    app.container.get(TeamDeparture).run()
+    assert not TeamAccount(app.config).is_joined() and not list(teams.glob("*.json")), "a journal joined to team servers leaves every one of them at boot"
+    assert list(app.config.home.glob("team.json.left-*")), "and keeps the team's settings beside the database"
 
 
 def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):

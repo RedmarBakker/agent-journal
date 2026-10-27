@@ -3,7 +3,6 @@ from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
 from journal.support.card_type import CardType
 from journal.features.feature import Feature
-from journal.features.support.service import Service
 from journal.features.team.support.team_data import TeamData
 from journal.features.team.support.team_data_reader import TeamDataReader
 from journal.features.team.team_conduct import TeamConduct
@@ -11,6 +10,7 @@ from journal.features.team.commands.session_command import SessionCommand
 from journal.features.team.commands.team_command import TeamCommand
 from journal.features.team.jobs.team_chat_files import TeamChatFiles
 from journal.features.team.seeds.single_team_chat import SingleTeamChat
+from journal.features.team.seeds.team_departure import TeamDeparture
 from journal.features.team.listeners.colleague_write_guard import ColleagueWriteGuard
 from journal.features.team.listeners.environment_owner_record import EnvironmentOwnerRecord
 from journal.features.team.listeners.sync_moment_cards import SyncMomentCards
@@ -27,9 +27,8 @@ class TeamFeature(Feature[TeamData]):
     commands = (TeamCommand, SessionCommand)
     listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard, SyncMomentCards)
     jobs = (TeamChatFiles,)
-    seeds = (SingleTeamChat,)
+    seeds = (TeamDeparture, SingleTeamChat)
     data = (TeamDataReader,)
     conduct = (TeamConduct,)
-    services = (Service("sync", "sync_service", "/health"),)
 
     nudges = (TeamNudges.UPGRADE_NEEDED,)
