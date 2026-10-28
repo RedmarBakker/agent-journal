@@ -1,8 +1,9 @@
+from journal.engine.states.void import Void
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.worker_state import WorkerState
 from tests.stories.fixtures.state_fixture import StateFixture
-from tests.stories.fixtures.clocked_in_worker import ClockedInWorker
+from tests.stories.fixtures.working_worker import WorkingWorker
 
 
 class WorkerDelivered(StateFixture):
@@ -10,7 +11,7 @@ class WorkerDelivered(StateFixture):
 
     stack = (Ready,)
 
-    parent = ClockedInWorker
+    parent = WorkingWorker
 
     def steps(self, story) -> None:
         story.worker_proves(self.worker, 1, "parser.py:12, test_reads passes")
@@ -20,3 +21,4 @@ class WorkerDelivered(StateFixture):
     def expected(self, story) -> None:
         story.expect_worker(self.worker, state=WorkerState.DELIVERED)
         story.expect_agent_told(WorkersNudges.WORK_READY)
+        story.expect_worker_stack(self.worker, Void)

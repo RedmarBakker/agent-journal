@@ -11,8 +11,13 @@ from journal.support.caller import Caller
 from journal.support.option import Option
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
+from tests.replay import pass_time
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
+
+SUBAGENT_MODEL = "haiku"
+# how much later a new turn starts than the step before it
+TURN_GAP_SECONDS = 1
 
 
 class AgentSteps:
@@ -33,6 +38,10 @@ class AgentSteps:
     def agent_is_prompted(self, text: str) -> None:
         self.hooked("the user prompts the agent", "UserPromptSubmit", prompt=text)
 
+    def agent_is_prompted_in_a_new_turn(self, text: str) -> None:
+        pass_time(self.app, TURN_GAP_SECONDS)
+        self.agent_is_prompted(text)
+
     def agent_looks_at_the_overview(self) -> None:
         self.agent_runs("environment overview")
 
@@ -52,8 +61,23 @@ class AgentSteps:
     def agent_runs_in_the_shell(self, line: str) -> None:
         self.hooked(f"agent runs in the shell {line.split()[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": line})
 
+    def agent_sends_subagent(self, role: str, job: str) -> None:
+        self.hooked("agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_input={"subagent_type": role, "description": job, "task_name": job, "prompt": job, "model": SUBAGENT_MODEL})
+
+    def subagent_starts(self, subagent: str, role: str) -> None:
+        self.hooked("a subagent starts", "SubagentStart", agent_id=subagent, agent_type=role)
+
+    def subagent_writes(self, subagent: str, path: str) -> None:
+        self.hooked("a subagent writes", "PreToolUse", agent_id=subagent, tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
+
+    def subagent_ends(self, subagent: str) -> None:
+        self.hooked("a subagent ends", "SubagentStop", agent_id=subagent)
+
     def agent_stops(self) -> None:
         self.hooked("agent stops", "Stop")
+
+    def agent_stops_again(self) -> None:
+        self.hooked("agent stops again after a held stop", "Stop", stop_hook_active=True)
 
     def agent_reads_message(self, message: int) -> None:
         self.agent_runs(f"message read {message}")

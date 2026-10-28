@@ -9,7 +9,7 @@ from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.path_overlay import PathOverlay
 from tests.stories.builder.story import Story
 from tests.stories.builder.setting_reads import SettingReads
-from tests.stories.builder.story_marks import END_MARK, PROVIDER_MARK, SETTINGS_MARK, START_MARK
+from tests.stories.builder.story_marks import END_MARK, PROVIDER_MARK, SCOPE_MARK, SETTINGS_MARK, START_MARK
 from tests.stories.builder.void_provider import VoidProvider
 from tests.test_features import booted
 from journal.config import Config
@@ -54,6 +54,8 @@ def story(app, monkeypatch, request, copies):
     played = Story(app, program.args[0] if program else VoidProvider, reads, copies)
     for mark in request.node.iter_markers(START_MARK):
         played.reach(mark.args[0])
+    for mark in request.node.iter_markers(SCOPE_MARK):
+        played.scope = mark.args[0]
     for mark in reversed(list(request.node.iter_markers(SETTINGS_MARK))):
         played.user_sets(*mark.args)
     yield played

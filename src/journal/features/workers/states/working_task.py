@@ -11,6 +11,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
+from journal.events.rows.worker_silent import WorkerSilent
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
 from journal.features.tasks.tasks_part import TasksPart
@@ -24,7 +25,7 @@ TESTING_REFUSALS = {MERGER_TESTING: WorkersNudges.TEST_HANDOVER, TEST_BUDGET: Wo
 
 @dataclass(frozen=True)
 class WorkingTask(BaseState):
-    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, its journal await and journal stuck push the wait and the stuck state over its work."""
+    """A worker at work on its task, pushed over Void when it clocks in and popped back to Void when its work is delivered, sent to review, or its task is closed by the user: its writes wait while the journal rebases its worktree, it never runs git, it runs tests only as the setting says, its stop waits for an output of its own still running and is told the to-do items still open, it is told the end of each of its outputs, its journal await and journal stuck push the wait and the stuck state over its work, and a quiet span past its length tells it to log."""
 
     name = "working_task"
     title = "At work on its task"
@@ -46,6 +47,9 @@ class WorkingTask(BaseState):
             return self.refuse(WorkersNudges.OUTPUT_UNFINISHED.create(n=unfinished[0]))
         items = [item for item in event.data.part(WorkersPart).todos if not item.complete]
         return self.none(WorkersNudges.OPEN_TODOS.create(count=len(items), items="; ".join(f"{item.position}. {item.text}" for item in items))) if items else self.none()
+
+    def on_worker_silent(self, event: WorkerSilent, settings: Settings) -> Transition:
+        return self.none(WorkersNudges.WORKER_LOG_DUE.create(minutes=event.minutes)) if event.worker.session == event.session else self.none()
 
     def on_command_ended(self, event: CommandEnded, settings: Settings) -> Transition:
         return self.none(WorkersNudges.OUTPUT_END.create(n=event.output, status=event.status))

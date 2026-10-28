@@ -24,14 +24,15 @@ FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
 
 @dataclass(frozen=True)
 class Tools:
-    """The names a provider's agent uses for reading, writing and the shell."""
+    """The names a provider's agent uses for reading, writing, the shell and sending a subagent."""
 
     read: str
     write: str
     shell: str
+    subagent: str
 
 
-TOOLS = {"claude": Tools("Read", "Write", "Bash"), "codex": Tools("read_file", "write_file", "Bash")}
+TOOLS = {"claude": Tools("Read", "Write", "Bash", "Agent"), "codex": Tools("read_file", "write_file", "Bash", "collaborationspawn_agent")}
 PROVIDERS = tuple(TOOLS)
 
 

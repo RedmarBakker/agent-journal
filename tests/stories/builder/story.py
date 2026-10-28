@@ -1,4 +1,5 @@
 from journal.console.support.outcome import Outcome
+from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
 from tests.in_process import posted
 from tests.replay import TOOLS
@@ -8,7 +9,8 @@ from tests.stories.builder.developer_steps import DeveloperSteps
 from tests.stories.builder.hook_verdict import HookVerdict
 from tests.stories.builder.journal_log import JournalLog
 from tests.stories.builder.time_steps import TimeSteps
-from tests.stories.builder.worker_steps import WorkerSteps
+from tests.stories.builder.main_session import MAIN_SESSION
+from tests.stories.builder.worker_steps import WorkerSteps, worker_session
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.story_checks import StoryChecks
 from tests.stories.builder.user_steps import UserSteps
@@ -22,13 +24,14 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.copies = copies
         self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
-        self.agent = Caller.agent("main", "s1", program.name)
+        self.agent = Caller.agent("main", MAIN_SESSION, program.name)
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
         self.line_keys: set[str] = set()
         self.start = StateFixture()
         self.end_stack: list[type] | None = None
+        self.scope = AgentRole.MAIN
 
     def reach(self, fixture: type[StateFixture]) -> None:
         self.start = self.copies.reached(self, fixture)
@@ -37,10 +40,20 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
-        return self.session_posted_hook("s1", {}, type_name, body)
+        return self.session_posted_hook(MAIN_SESSION, {}, type_name, body)
 
     def session_posted_hook(self, session: str, headers: dict, type_name: str, body: dict) -> tuple[int, object]:
         return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main", **headers})
+
+    def scoped_session(self) -> str:
+        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session}[self.scope]()
+
+    @staticmethod
+    def main_session() -> str:
+        return MAIN_SESSION
+
+    def worker_scope_session(self) -> str:
+        return worker_session(self.start.worker)
 
     def record_command(self, action: str, outcome: Outcome) -> None:
         self.observed(action, None, outcome)

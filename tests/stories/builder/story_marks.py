@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 import pytest
 
+from journal.support.agent_role import AgentRole
 from journal.support.option import Option
 
 
@@ -13,6 +14,8 @@ END_MARK = "ends_in"
 SETTINGS_MARK = "settings"
 # the marker naming the provider a story runs on, where the provider is what it tests
 PROVIDER_MARK = "provider"
+# the marker naming whose point of view a story's expectations take
+SCOPE_MARK = "scope"
 
 
 def setting(option: Option, value: object) -> pytest.MarkDecorator:
@@ -23,6 +26,6 @@ def provider(program: type) -> pytest.MarkDecorator:
     return getattr(pytest.mark, PROVIDER_MARK).with_args(program)
 
 
-def story(start: type, end: list[type] | None = None) -> Callable:
-    marks = (getattr(pytest.mark, START_MARK).with_args(start), getattr(pytest.mark, END_MARK).with_args(*(end if end is not None else start.stack)))
-    return lambda story: marks[0](marks[1](story))
+def story(start: type, end: list[type] | None = None, scope: AgentRole = AgentRole.MAIN) -> Callable:
+    marks = (getattr(pytest.mark, START_MARK).with_args(start), getattr(pytest.mark, END_MARK).with_args(*(end if end is not None else start.stack)), getattr(pytest.mark, SCOPE_MARK).with_args(scope))
+    return lambda story: marks[0](marks[1](marks[2](story)))

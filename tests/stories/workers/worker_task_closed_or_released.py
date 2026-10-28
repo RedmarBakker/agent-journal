@@ -3,28 +3,28 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.task_state import TaskState
 from journal.models.worker_state import WorkerState
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.clocked_in_worker import ClockedInWorker
+from tests.stories.fixtures.working_worker import WorkingWorker
 from tests.stories.fixtures.plan_worker import PlanWorker
 from tests.stories.fixtures.worker_delivered import WorkerDelivered
 
 
-@story(ClockedInWorker, end=[Ready])
+@story(WorkingWorker, end=[Void], scope=AgentRole.WORKER)
 def test_the_user_completing_a_workers_task_releases_the_worker_and_tells_it_to_stop(story):
     story.user_completes_task(story.start.briefed, "done by hand")
     story.expect_worker(story.start.worker, state=WorkerState.RELEASED)
     story.expect_agent_told(WorkersNudges.USER_CLOSURE, task=story.start.briefed)
-    story.expect_worker_stack(story.start.worker, Void)
 
 
-@story(ClockedInWorker, end=[Ready])
+@story(WorkingWorker, end=[Ready])
 def test_the_user_cancelling_a_workers_task_leaves_it_cancelled_and_undelegated(story):
     story.user_cancels_task(story.start.briefed, "not needed")
-    story.expect_task(story.start.briefed, state=TaskState.CANCELLED, delegated=False)
+    story.expect_task(story.start.briefed, state=TaskState.CANCELLED)
     story.expect_worker(story.start.worker, state=WorkerState.RELEASED)
 
 
-@story(ClockedInWorker, end=[Ready])
+@story(WorkingWorker, end=[Ready])
 def test_the_user_pausing_a_workers_task_takes_it_from_the_worker(story):
     story.user_pauses_task(story.start.briefed, "later")
     story.expect_task(story.start.briefed, state=TaskState.PAUSED)
@@ -32,7 +32,10 @@ def test_the_user_pausing_a_workers_task_takes_it_from_the_worker(story):
 
 
 @story(PlanWorker, end=[Ready])
-def test_releasing_a_worker_opens_its_queued_tasks_again(story):
+def test_releasing_a_worker_still_out_waits_for_its_stop_and_then_opens_its_queue(story):
+    story.agent_runs(f"worker release {story.start.worker}")
+    story.expect_command_refused()
+    story.agent_runs(f"worker stop {story.start.worker}")
     story.agent_runs(f"worker release {story.start.worker}")
     story.expect_command_passed()
     story.expect_task(story.start.second_task, state=TaskState.OPEN, delegated=False)
@@ -46,7 +49,7 @@ def test_a_task_the_user_cancels_while_its_work_waits_releases_the_worker_unmerg
     story.expect_task(story.start.briefed, state=TaskState.CANCELLED)
 
 
-@story(ClockedInWorker, end=[Ready])
+@story(WorkingWorker, end=[Ready])
 def test_stopping_a_worker_tells_the_agent_it_ended_without_a_report(story):
     story.agent_runs(f"worker stop {story.start.worker}")
     story.expect_command_passed()

@@ -50,6 +50,9 @@
         ],
         "reject": [
             {
+                "file": "tests/stories/builder/journal_log.py"
+            },
+            {
                 "file": "src/journal/repositories/**"
             },
             {

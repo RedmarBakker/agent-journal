@@ -1,10 +1,6 @@
 import re
 import shlex
 
-from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.repositories.scope import Scope
-from journal.repositories.workers import Workers
-from journal.support.actor import Actor
 from journal.support.caller import Caller
 
 
@@ -19,6 +15,9 @@ class WorkerSteps:
         self.agent_runs(f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
         self.expect_command_passed()
         return self.newest("workers")
+
+    def worker_session_starts(self, worker: int) -> None:
+        self.worker_hooked(worker, "worker session starts", "SessionStart", source="startup")
 
     def worker_clocks_in(self, worker: int) -> None:
         self.worker_runs(worker, "clock-in")
@@ -44,11 +43,6 @@ class WorkerSteps:
 
     def worker_hooked(self, worker: int, action: str, type_name: str, **body) -> None:
         self.hook_observed(action, *self.session_posted_hook(worker_session(worker), {"X-Journal-Actor": f"worker:{worker}"}, type_name, body))
-
-    def worker_run_ends(self, worker: int) -> None:
-        with self.app.container.get(Scope).environment(1):
-            self.app.container.get(WorkerRunner).finish(self.app.container.get(Workers).find(worker), 0, Actor.system())
-        self.observed("worker's run ends", None, None)
 
     def worker_tries(self, worker: int, line: str) -> None:
         arguments = shlex.split(line)

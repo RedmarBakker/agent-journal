@@ -4,7 +4,7 @@ from tests.stories.fixtures.briefed_task import BriefedTask
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class OrchestratorWithOpenTask(StateFixture):
+class OrchestratorOpenTask(StateFixture):
     """The user switched the agent to orchestrator mode with the briefed task open and no worker on it."""
 
     stack = (Orchestrating,)

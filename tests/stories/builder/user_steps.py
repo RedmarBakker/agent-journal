@@ -36,14 +36,14 @@ class UserSteps:
     def user_edits_task(self, task: int, title: str) -> None:
         self.user_posted(f"/journal/tasks/{task}", {"title": title}, "user edits a task")
 
-    def user_completes_task(self, task: int, how: str) -> None:
-        self.user_posted(f"/journal/tasks/{task}/finish", {"how": how}, "user completes a task")
+    def user_completes_task(self, task: int, outcome: str) -> None:
+        self.user_posted(f"/journal/tasks/{task}/finish", dict(how=outcome), "user completes a task")
 
-    def user_pauses_task(self, task: int, why: str) -> None:
-        self.user_posted(f"/journal/tasks/{task}/pause", {"why": why}, "user pauses a task")
+    def user_pauses_task(self, task: int, reason: str) -> None:
+        self.user_posted(f"/journal/tasks/{task}/pause", dict(why=reason), "user pauses a task")
 
-    def user_cancels_task(self, task: int, why: str) -> None:
-        self.user_posted(f"/journal/tasks/{task}/cancel", {"why": why}, "user cancels a task")
+    def user_cancels_task(self, task: int, reason: str) -> None:
+        self.user_posted(f"/journal/tasks/{task}/cancel", dict(why=reason), "user cancels a task")
 
     def user_sets(self, option: Option, value: object) -> None:
         top, _, name = option.key.partition(".")

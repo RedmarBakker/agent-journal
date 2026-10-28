@@ -22,20 +22,21 @@ from tests.in_process import posted
 from tests.user_settings import user_set
 from journal.engine.engine_nudges import EngineNudges
 from tests.nudge_lines import nudge_reached
+from journal.events.blocking import Blocking
 
 MAIN = 1
 """The id of main, made by the first hook: what a test reads directly, it reads there."""
 
 
 class RefuseWrites(AgentListener[ToolStarting]):
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def handle(self, event):
         return Decision.refuse("no work declared") if event.call.tool == "Write" else Decision.allowed_with("carry on")
 
 
 class RefuseEveryStop(AgentListener[Stop]):
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def handle(self, event):
         return Decision.refuse("finish the task in hand first")
@@ -139,7 +140,7 @@ def test_a_session_whose_status_has_no_plan_limits_yet_shows_the_newest_the_acco
 
 
 class Raising(AgentListener[ToolStarting]):
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def handle(self, event):
         raise RuntimeError("the guard broke")

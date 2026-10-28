@@ -68,8 +68,6 @@ class WorkersConduct(Conduct):
         return self.none(*report_mentions(event.data))
 
     def on_worker_silent(self, event: WorkerSilent, settings: Settings) -> Transition:
-        if event.worker.session and event.worker.session == event.session:
-            return self.none(WorkersNudges.WORKER_LOG_DUE.create(minutes=event.minutes))
         if event.worker.dispatcher != event.session or not event.is_split_due:
             return self.none()
         return self.none(WorkersNudges.SILENT_WORKER.create(n=event.worker.id, minutes=event.minutes, last=event.data.part(WorkersPart).last_calls.get(event.worker.id, "")))

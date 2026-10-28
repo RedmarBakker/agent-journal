@@ -2,7 +2,9 @@ from enum import Enum
 
 from journal.engine.nudge import Nudge
 from tests.full_project import MAIN
+from journal.support.researcher_session import ResearcherSession
 from tests.in_process import get_answer
+from tests.stories.builder.main_session import MAIN_SESSION
 from tests.stories.builder.worker_steps import worker_session
 
 
@@ -10,10 +12,25 @@ class StoryChecks:
     """The checks a story makes on what its last step brought: what the agent was told, by registry key and values, whether the hook let it through, whether the command passed, the stack and the rows, read through the API; a failing check says what was lines instead and the stack."""
 
     def expect_agent_told(self, nudge: Nudge, **values) -> None:
-        assert any(lines.matches(nudge.key, values) for lines in self.said), f"not told {nudge.key} {values}; {self.account()}"
+        self.expect_told_to(self.scoped_session(), nudge, values)
+
+    def expect_main_told(self, nudge: Nudge, **values) -> None:
+        self.expect_told_to(MAIN_SESSION, nudge, values)
+
+    def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
+        assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account()}"
+
+    def expect_worker_told(self, worker: int, nudge: Nudge, **values) -> None:
+        self.expect_told_to(worker_session(worker), nudge, values)
 
     def expect_agent_not_told(self, nudge: Nudge) -> None:
-        assert not any(lines.key == nudge.key for lines in self.said), f"told {nudge.key}; {self.account()}"
+        self.expect_not_told_to(self.scoped_session(), nudge)
+
+    def expect_main_not_told(self, nudge: Nudge) -> None:
+        self.expect_not_told_to(MAIN_SESSION, nudge)
+
+    def expect_not_told_to(self, session: str, nudge: Nudge) -> None:
+        assert not any(lines.key == nudge.key and lines.session == session for lines in self.said), f"{session} told {nudge.key}; {self.account()}"
 
     def expect_agent_told_nothing(self) -> None:
         assert not self.said, f"told something; {self.account()}"
@@ -57,6 +74,23 @@ class StoryChecks:
         agent_messages = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
         assert len(agent_messages) == count, f"the chat holds {len(agent_messages)} messages of the agent, not {count}"
 
+    def expect_setting(self, option, value: object) -> None:
+        stored = self.setting(option)
+        assert stored == value, f"{option.key} is {stored!r}, not {value!r}"
+
+    def expect_task_count(self, count: int) -> None:
+        self.expect_row_count("tasks", count)
+
+    def expect_plan_count(self, count: int) -> None:
+        self.expect_row_count("plans", count)
+
+    def expect_question_count(self, count: int) -> None:
+        self.expect_row_count("questions", count)
+
+    def expect_row_count(self, table: str, count: int) -> None:
+        rows = get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]
+        assert len(rows) == count, f"{len(rows)} {table} through the API, not {count}"
+
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
@@ -76,8 +110,12 @@ class StoryChecks:
         stack = self.session_stack(worker_session(worker))
         assert stack == [state.name for state in states], f"worker {worker}'s stack is {stack}; told {[line.key for line in self.said]}"
 
+    def expect_subagent_stack(self, subagent: str, *states: type) -> None:
+        stack = self.session_stack(ResearcherSession.joined(MAIN_SESSION, subagent))
+        assert stack == [state.name for state in states], f"subagent {subagent}'s stack is {stack}; told {[line.key for line in self.said]}"
+
     def stack(self) -> list[str]:
-        return self.session_stack("s1")
+        return self.session_stack(self.scoped_session())
 
     def session_stack(self, session: str) -> list[str]:
         agents = [row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == session]
@@ -92,7 +130,7 @@ class StoryChecks:
         return rows[0]
 
     def account(self) -> str:
-        return f"told {[(lines.key, lines.values) for lines in self.said]}; stack {self.stack()}"
+        return f"told {[(lines.session, lines.key, lines.values) for lines in self.said]}; stack {self.stack()}"
 
     def expect_command_line(self, *parts: str) -> str:
         lines = [line for line in self.command.text.splitlines() if all(part in line for part in parts)]

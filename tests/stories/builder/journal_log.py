@@ -19,7 +19,7 @@ class JournalLog:
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
             entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.entry_type in (NUDGE, StackHistory.KIND)]
         unread_entries, self.read_count = entries[self.read_count:], len(entries)
-        lines = tuple(NudgeRecord(entry.data["key"], entry.data.get("values", {})) for entry in unread_entries if entry.entry_type == NUDGE)
+        lines = tuple(NudgeRecord(entry.data["key"], entry.data.get("values", {}), entry.data.get("session", "")) for entry in unread_entries if entry.entry_type == NUDGE)
         steps = tuple(self.step(entry) for entry in unread_entries)
         self.walked |= {self.step(entry) for entry in unread_entries if entry.entry_type == StackHistory.KIND and not {"refused", "dropped"} & entry.data.keys()}
         return lines, steps
@@ -28,7 +28,7 @@ class JournalLog:
         self.app.runtime().deferred.drain()
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup(environment).id):
             entries = self.app.container.get(Entries).kind_entries_scoped(1000)
-        return [NudgeRecord(entry.data["key"], entry.data.get("values", {})) for entry in entries if entry.entry_type == NUDGE]
+        return [NudgeRecord(entry.data["key"], entry.data.get("values", {}), entry.data.get("session", "")) for entry in entries if entry.entry_type == NUDGE]
 
     @staticmethod
     def step(entry) -> str:

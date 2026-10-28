@@ -17,3 +17,4 @@ class ReadMessage(StateFixture):
 
     def expected(self, story) -> None:
         story.expect_agent_told(MessagesNudges.MESSAGE_READ, n=self.message)
+        story.expect_agent_told(MessagesNudges.REPLY_COMMAND)

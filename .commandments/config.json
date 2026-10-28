@@ -90,7 +90,8 @@
         "SessionPurityRoleCheckedDetector",
         "SessionPurityActorTypeCheckedDetector",
         "SessionPurityHookKindComparedDetector",
-        "SessionPurityAgentLookedUpAgainDetector"
+        "SessionPurityAgentLookedUpAgainDetector",
+        "AssignmentInConditionDetector"
     ],
     "parallel": 2,
     "configure": {

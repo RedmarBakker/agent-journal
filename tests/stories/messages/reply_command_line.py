@@ -2,14 +2,6 @@ from journal.features.messages.messages_nudges import REPLY_COMMAND_SPAN_USES, M
 from journal.features.tasks.states.ready import Ready
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.read_message import ReadMessage
-from tests.stories.fixtures.two_unread_messages import TwoUnreadMessages
-
-
-@story(TwoUnreadMessages, end=[Ready])
-def test_the_first_message_read_names_what_to_do_and_the_reply_command(story):
-    story.agent_reads_message(story.start.first_message)
-    story.expect_agent_told(MessagesNudges.MESSAGE_READ, n=story.start.first_message)
-    story.expect_agent_told(MessagesNudges.REPLY_COMMAND)
 
 
 @story(ReadMessage, end=[Ready])
