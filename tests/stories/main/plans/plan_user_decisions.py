@@ -47,3 +47,16 @@ def test_a_plan_closed_on_its_card_stays_a_draft_and_the_agent_brings_the_card_b
     story.agent_runs(f"plan card {plan}")
     story.expect_plan(plan, is_dismissed=False)
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_cancelled_plan_is_shown_with_its_phases_and_their_tasks(story):
+    plan = story.user_creates_plan("release", "ship it")
+    story.agent_runs(f"plan phase {plan} build --when built")
+    notes, tag, loose = (story.user_adds_plan_task(plan, title) for title in ("write the notes", "tag it", "loose end"))
+    story.agent_runs(f"plan todos {plan} 1 {notes} {tag}")
+    story.user_cancels_plan(plan)
+    story.user_opens(f"/journal/plans?closed=1&ids={plan}")
+    story.expect_viewer_part(("rows", 0, "phases", 0, "task_ids"), [notes, tag])
+    story.expect_viewer_part(("rows", 0, "unphased_task_ids"), [loose])
+    story.expect_stack(Ready)

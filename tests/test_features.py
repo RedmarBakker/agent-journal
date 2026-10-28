@@ -345,20 +345,6 @@ def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked
 
 
 
-def test_a_closed_plan_is_outlined_from_its_links_as_it_would_be_from_its_tasks(app: App):
-    from journal.http.plans.plan_outline import PlanOutline
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
-    console.run(["plan", "phase", "1", "build", "--when", "built"], USER)
-    for title in ("write the notes", "tag it", "loose end"):
-        console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "todos", "1", "1", "1", "2"], USER)
-    console.run(["plan", "cancel", "1"], USER)
-    plan, outline = app.container.get(Plans).find(1), app.container.get(PlanOutline)
-    built, read = outline.open_outline(plan), outline.build(plan)
-    assert plan.state.is_closed() and read["phases"][0]["task_ids"] == [1, 2] and read["unphased_task_ids"] == [3]
-    assert {k: read[k] for k in ("task_ids", "phases", "unphased_task_ids", "current_phase")} == {k: built[k] for k in ("task_ids", "phases", "unphased_task_ids", "current_phase")}, "a closed plan's outline, read from its links alone, is the one its tasks give"
 
 
 def test_a_plan_task_done_leaves_naming_what_is_next_to_the_plan(app: App):
@@ -1113,7 +1099,8 @@ def test_a_launcher_handed_inline_code_names_the_run_by_the_launcher():
 def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: App):
     from journal.engine.clock import Clock
     from journal.repositories.checks import Checks
-    app.console().run(["check", "create", "due", "--command", "true", "--every", "1"], USER)
+    from journal.models.check import Check
+    app.container.get(Checks).save(Check(title="due", command="true", interval=1), Actor.user(1))
     began = timing.monotonic()
     app.container.get(Clock).tick(app.container.get(Clock).time())
     assert timing.monotonic() - began < 0.5, "the clock's tick only starts the check, on a thread of its own"
