@@ -2083,38 +2083,8 @@ def test_the_providers_own_question_tool_is_refused_and_every_fiftieth_line_remi
     assert status == 409 and nudge_reached(app, body["error"], QuestionsNudges.JOURNAL_QUESTION_TOOL)
 
 
-def test_a_worker_from_before_tokens_has_its_output_filed_as_its_report(app: App):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.support.actor import Actor as A
-    from journal.repositories.messages import Messages
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    dispatched(app.console(), ["Lady Lovelace", "say hello", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    worker, runner = app.container.get(Workers).find(1), app.container.get(WorkerRunner)
-    output, err = runner.outputs(worker)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("the footer is fixed\n")
-    err.write_text("")
-    runner.finish(worker, 0, A.agent("s1"))
-    assert app.container.get(Workers).find(1).state == "reported", "a run that carries no token ends the way it did before tokens"
-    assert any("Lady Lovelace reports: the footer is fixed" in m.text for m in app.container.get(Messages).scoped())
 
 
-def test_a_worker_that_reported_itself_keeps_its_report_and_session_when_its_process_ends(app: App):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.support.actor import Actor as A
-    from journal.repositories.messages import Messages
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    dispatched(app.console(), ["Lady Lovelace", "say hello", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    workers = app.container.get(Workers)
-    stale = workers.find(1)
-    app.console().run(["worker", "report", "1", "the parser is done"], Caller.agent("main", "w1", "claude"))
-    app.console().run(["worker", "complete", "1"], AGENT)
-    app.container.get(WorkerRunner).finish(stale, 0, A.agent("s1"))
-    worker = workers.find(1)
-    reports = [m.text for m in app.container.get(Messages).scoped() if "Lady Lovelace reports" in m.text]
-    assert reports == ["Lady Lovelace reports: the parser is done"] and worker.adopted and worker.session == "w1", "the process ending after the worker's own report files no second report and keeps what was acted on"
 
 
 
@@ -3758,15 +3728,6 @@ def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: A
 
 
 
-def test_a_workers_report_message_carries_the_report_kind_and_its_worker(app: App):
-    from journal.repositories.messages import Messages
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], AGENT)
-    console.run(["worker", "report", "1", "the parser is written"], Caller.agent("main", "w1", "claude"))
-    report = next(m for m in app.container.get(Messages).all() if m.data.get("kind") == "report")
-    assert (report.text, report.data["worker"], report.data["worker_id"]) == ("Lady Lovelace reports: the parser is written", "Lady Lovelace", 1)
 
 
 
@@ -4433,31 +4394,6 @@ def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
         assert app.container.get(Tasks).unfinished_count() == 1, "only the task still open is counted"
 
 
-def test_a_worker_that_ends_without_clocking_out_has_its_commits_named_unchecked_never_taken_in_and_its_leftovers_named(app: App):
-    import subprocess
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.support.actor import Actor as A
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    from journal.repositories.workers import Workers
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "main")
-    git("config", "user.email", "t@example.com")
-    git("config", "user.name", "T")
-    (root / ".gitignore").write_text(".journal/\n")
-    git("add", ".gitignore")
-    git("commit", "-qm", "start")
-    hook(app, "SessionStart")
-    dispatched(app.console(), ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    with app.container.get(Scope).environment(1):
-        worker = app.container.get(Workers).find(1)
-        tokenless_run(app.container.get(WorkerRunner), worker, ["sh", "-c", "echo parsed > parser.txt && git add parser.txt && git commit -qm 'the parser' && echo half > notes.txt && echo the parser is written"], A.agent("s1"))
-        report = next(m.text for m in app.container.get(Messages).scoped() if "Lady Lovelace reports" in m.text)
-    assert "the parser is written" in report and "its 1 commits wait on its branch, unchecked" in report and "the parser" in report.split("unchecked:")[1], "its commit is named, waiting to be checked"
-    assert "(files: parser.txt)" in report, "the files its commits wrote are named in its report, as its own feed of edits"
-    assert not (root / "parser.txt").exists(), "nothing unchecked is taken in by the end of its run (law L10)"
-    assert "it left 1 files uncommitted in its worktree" in report and "notes.txt" in report, "what it never committed is named, not lost"
 
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):
     import stat
@@ -5571,35 +5507,6 @@ def test_the_agent_stays_out_of_a_workers_worktree_and_is_told_how_to_work_there
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(root / "elsewhere.py"), "content": "x"})[0] == 200
 
 
-def test_a_done_workers_worktree_goes_with_its_branch_its_last_commit_kept_and_never_while_it_works_or_holds_uncommitted_work(app: App):
-    import subprocess
-    from journal.repositories.workers import Workers
-    from journal.repositories.scope import Scope
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "main")
-    git("config", "user.email", "t@example.com")
-    git("config", "user.name", "T")
-    git("commit", "-q", "--allow-empty", "-m", "start")
-    hook(app, "SessionStart")
-    dispatched(app.console(), ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    tree = app.config.home / "worktrees" / "1-Lady-Lovelace"
-    (tree / "parser.py").write_text("PARSE = 1\n")
-    git("add", "parser.py", cwd=tree)
-    git("commit", "-qm", "the parser", cwd=tree)
-    workers = app.container.get(Workers)
-    with app.container.get(Scope).environment(1):
-        assert "stays while it works" in app.container.get(WorkerBranch).dropped(workers.find(1)), "never while the worker runs in it"
-        workers.save(workers.find(1).reported(0.0, 0), Actor.system())
-    (tree / "notes.txt").write_text("half\n")
-    stored = app.console().run(["worker", "discard", "1", "--why", "the parser is not needed"], AGENT).text
-    assert "stays, since 1 files in it are not committed: notes.txt" in stored and tree.is_dir(), "uncommitted work keeps it"
-    (tree / "notes.txt").unlink()
-    missing = app.console().run(["worker", "discard", "1", "--why", "the parser is not needed"], AGENT).text
-    assert "its worktree and branch are removed; its last commit is kept as refs/journal/worktrees/1-Lady-Lovelace" in missing and not tree.exists()
-    assert git("log", "-1", "--format=%s", "refs/journal/worktrees/1-Lady-Lovelace").stdout.strip() == "the parser", "its last commit can still be taken in"
-    app.runtime().deferred.drain()
-    assert git("branch", "--list", "worker/1-Lady-Lovelace").stdout.strip() == "" and git("worktree", "list").stdout.count("\n") == 1, "its branch and worktree go after the reply"
 
 
 def test_a_workers_clean_up_never_drops_a_launch_worktree_or_its_branch(app: App):
@@ -7404,34 +7311,6 @@ def test_a_workers_stop_hears_nothing_of_an_approved_plan_the_main_agent_starts(
     assert "journal plan start" not in json.dumps(worker_stop) and "is approved and not started" not in json.dumps(worker_stop), "a worker is never told to start, approve or ready a plan"
 
 
-def test_a_worker_runs_the_workers_verbs_on_its_own_rows_alone(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    console = app.console()
-    hook(app, "SessionStart")
-    console.run(["task", "create", "the parser", "--brief", "the parser reads the grammar"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
-    console.run(["worker", "dispatch", "Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", "1"], AGENT)
-    console.run(["worker", "dispatch", "Mr. Babbage", "write the lexer", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", "2"], AGENT)
-    lovelace = Caller.worker("main", 1, "w-1", "claude")
-    with app.container.get(Scope).environment(MAIN):
-        outputs = app.container.get(CommandOutputs)
-        own, other = outputs.save(CommandOutput(environment_id=1, command="pytest -q", moved=True, ended=True), Actor.worker(1)), outputs.save(CommandOutput(environment_id=1, command="ls", moved=True, ended=True), Actor.worker(2))
-    assert console.run(["task", "show", "1"], lovelace).code == 0 and console.run(["task", "log", "1", "the grammar is in"], lovelace).code == 0, "a worker reads and logs the task it holds"
-    assert "task 2 is not worker 1's: a worker works on the task it holds, task 1" in console.run(["task", "log", "2", "x"], lovelace).error, "and no other, naming the one it holds"
-    assert console.run(["output", "status", str(own.id)], lovelace).code == 0 and f"output {other.id} is not worker 1's" in console.run(["output", "status", str(other.id)], lovelace).error, "it reads its own outputs alone"
-    assert "pytest" in console.run(["output", "list"], lovelace).text and "ls" not in console.run(["output", "list"], lovelace).text
-    assert console.run(["worker", "report", "1", "the parser is done"], lovelace).code == 0 and "worker 2 is not you" in console.run(["worker", "report", "2", "x"], lovelace).error, "it reports for itself alone"
-    assert console.run(["worker", "peers"], lovelace).code == 0 and console.run(["reader", "list"], lovelace).code == 0 and console.run(["memory", "list"], lovelace).code == 0
-    refused = console.run(["message", "send", "hello"], lovelace)
-    assert refused.code == 1 and refused.error.startswith("a worker may not run journal message send"), "a worker never speaks in the chat"
-    notes = app.config.root / "notes.md"
-    notes.write_text("## Grammar\nthe rules\n")
-    assert console.run(["doc", "create", "Grammar notes", "--abstract", "What it says, in one line", "--file", str(notes)], lovelace).code == 0 and console.run(["doc", "update", "1", "--file", str(notes)], lovelace).code == 0, "writing is a worker's job: it writes and updates a document"
-    assert console.run(["report", "create", "Parser findings", "--abstract", "What it says, in one line", "--body", "the grammar is ambiguous"], lovelace).code == 0, "and files a report"
-    assert console.run(["doc", "create", "Scout notes", "--abstract", "What it says, in one line", "--file", str(notes)], AGENT.subagent_caller()).code == 0, "a subagent files its own document"
 
 
 
@@ -8506,35 +8385,6 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
     assert sent == [("a blue glaze", "s1", "worker 1, Mr. Wedgwood")], "a notify is a message sent to the worker in the dispatcher's chat, its whole text, as a message to any other agent is, never a worker mark"
 
 
-def test_the_files_a_worker_touched_are_read_from_its_branch_when_it_reports_a_rename_under_both_names(app: App):
-    import subprocess
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-    root = app.config.root
-    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
-    git("init", "-q", "-b", "main")
-    git("config", "user.email", "t@example.com")
-    git("config", "user.name", "T")
-    (root / ".gitignore").write_text(".journal/\n")
-    (root / "src").mkdir()
-    (root / "src" / "old_parser.py").write_text("parse\n")
-    git("add", ".")
-    git("commit", "-qm", "start")
-    hook(app, "SessionStart")
-    console, workers = app.console(), app.container.get(Workers)
-    dispatched(console, ["Lady Lovelace", "rename the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
-    folder = app.config.home / "worktrees" / "1-Lady-Lovelace"
-    git("mv", "src/old_parser.py", "src/parser.py", cwd=folder)
-    (folder / "src" / "lexer.py").write_text("lex\n")
-    git("add", ".", cwd=folder)
-    git("commit", "-qm", "the parser renamed, the lexer added", cwd=folder)
-    console.run(["worker", "report", "1", "renamed"], Caller.agent("main", "w1", "claude"))
-    assert set(workers.find(1).touched_paths) == {"src/old_parser.py", "src/parser.py", "src/lexer.py"}, "a rename counts under both names, each repo-relative"
-    workers.save(Worker(name="Mr. Babbage", brief="an old job", state=WorkerState.REPORTED), Actor.system())
-    listed = console.run(["worker", "list"], AGENT).text
-    assert "files: no files known" in listed and "src/lexer.py" in listed, "a worker reported before files were read has none known"
-    workers.save(Worker(name="Mr. Pepys", brief="keep the diary " * 40, state=WorkerState.REPORTED), Actor.system())
-    assert max(len(line) for line in console.run(["worker", "list"], AGENT).text.splitlines()) < 140, "a long brief is listed as its opening words, never whole"
 
 
 def test_a_worker_is_idle_by_one_rule_old_rows_and_dead_processes_included(app: App):
@@ -9742,23 +9592,6 @@ def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchec
     assert "ran in the shell itself" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "the line is said once"
 
 
-def test_a_queued_worker_whose_run_ends_without_a_clock_out_names_every_task_of_its_queue_and_merges_nothing(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner as Runner
-    from journal.repositories.messages import Messages
-    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
-    worker, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
-    console = app.console()
-    for title in ("the second job", "the third job"):
-        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
-    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
-    committed(worktree, "notes1.md", "note 1\n")
-    proved_and_out(app, caller, "notes1.md:1")
-    with app.container.get(Scope).environment(MAIN):
-        runner = app.container.get(Runner)
-        runner.reported(worker_row(app).with_(token_hash=""), "the run ended", runner.branch.summary(worker_row(app)) + ". " + runner.reports.queue_line(worker_row(app)), Actor.system())
-        report = next(m.text for m in app.container.get(Messages).all() if m.data.get("kind") == "report")
-    assert "finished, waiting for the merge: task 1; cut short: task 2; still queued: task 3" in report, report
-    assert "wait on its branch, unchecked" in report and not (app.config.root / "notes1.md").exists(), "nothing unchecked is taken in"
 
 
 

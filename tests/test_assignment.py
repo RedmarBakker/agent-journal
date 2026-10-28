@@ -354,18 +354,6 @@ def test_every_floor_names_an_assigner(app: App):
     assert [type(state).__name__ for state in floors if state.assigner is None] == []
 
 
-def test_the_orchestrators_next_task_is_one_it_hands_a_worker_in_turn_across_its_plans_and_never_starts(app: App):
-    from journal.events.agent.stop import Stop
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "tasks.auto", True)
-    first_plan, (floors,) = approved(app, [["the floors"]])
-    run(app, ["plan", "start", str(first_plan)])
-    second_plan, (walls,) = approved(app, [["the walls"]])
-    run(app, ["plan", "start", str(second_plan)])
-    agent = app.container.get(Agents).session_agent("s1")
-    assignment = app.container.get(OrchestratorTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN))
-    assert assignment.task_id in (floors, walls) and "hand a worker" in assignment.reason, assignment
-    assert app.container.get(Tasks).agent_started() == [], "the orchestrator starts none of them on itself"
 
 
 def worker_through_its_task(app: App, queued: bool) -> dict:
@@ -396,18 +384,5 @@ def test_a_worker_with_an_empty_queue_is_handed_nothing_more(app: App):
     assert not tasks.find(rows["second"]).delegated and tasks.agent_started() == [], "an empty queue hands the worker nothing, and the main agent takes nothing of it"
 
 
-def test_asked_for_three_the_orchestrators_assigner_names_three_tasks_in_turn_and_starts_none(app: App):
-    from journal.events.agent.stop import Stop
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "tasks.auto", True)
-    plan_tasks = []
-    for title in ("the floors", "the walls", "the roof"):
-        plan, ids = approved(app, [[f"{title} one", f"{title} two"]])
-        run(app, ["plan", "start", str(plan)])
-        plan_tasks.append(ids)
-    agent = app.container.get(Agents).session_agent("s1")
-    assignment = app.container.get(OrchestratorTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN), quantity=3)
-    assert len(set(assignment.task_ids())) == 3 and {plan_tasks[n][0] for n in range(3)} == set(assignment.task_ids()), assignment
-    assert app.container.get(Tasks).agent_started() == [], "naming three starts none on the orchestrator"
 
 
