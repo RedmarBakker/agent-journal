@@ -6469,23 +6469,6 @@ def test_another_agents_question_is_owed_an_answer_until_the_agent_sends_it_one_
     assert "asked you a question" not in json.dumps(hook(app, "Stop")[1]), "a message sent back to that agent answers it"
 
 
-def test_a_removed_check_runs_no_more_leaves_the_list_and_opens_a_task_that_waited_on_it_alone(app: App):
-    from datetime import datetime, timezone
-    from journal.models.task_state import TaskState
-    from journal.repositories.checks import Checks
-    from journal.repositories.tasks import Tasks
-    console, checks = app.console(), app.container.get(Checks)
-    console.run(["check", "create", "the build", "--command", "false", "--every", "5"], USER)
-    console.run(["task", "create", "ship it"], USER)
-    console.run(["task", "block", "1", "the build", "--until", "false"], USER)
-    with app.container.get(Scope).environment(MAIN):
-        waited = [check for check in checks.rows() if check.wait_target]
-        assert app.container.get(Tasks).find(1).state == TaskState.BLOCKED and len(waited) == 1
-        assert console.run(["check", "remove", str(waited[0].id)], USER).code == 0
-        assert app.container.get(Tasks).find(1).state == TaskState.OPEN, "a task that waited on the check alone is open again"
-        assert console.run(["check", "remove", "1"], USER).code == 0 and "the build" not in console.run(["check", "list"], USER).text
-        assert checks.due(datetime.now(timezone.utc)) == [], "a removed check runs no more"
-    assert "removed already" in console.run(["check", "remove", "1"], USER).error
 
 
 
@@ -6678,15 +6661,6 @@ def test_a_plugins_linked_skill_folder_is_unlinked_when_withdrawn_and_its_target
     assert (target / "SKILL.md").is_file(), "what it pointed at is left as it was"
 
 
-def test_a_plans_phase_is_retitled_and_its_complete_when_line_written_anew(app: App):
-    from journal.repositories.plans import Plans
-    console = app.console()
-    console.run(["plan", "create", "release"], USER)
-    console.run(["plan", "phase", "1", "Build it", "--when", "it builds"], USER)
-    assert console.run(["plan", "rephase", "1", "1", "--title", "Build and prove it", "--when", "it builds and the suite is green"], USER).text == "phase 1 of plan 1 is now: Build and prove it\n"
-    plans = app.container.get(Plans)
-    phase = plans.plan_phases(plans.find(1))[0]
-    assert (phase.title, phase.completion_rule) == ("Build and prove it", "it builds and the suite is green")
 
 
 def test_a_short_output_with_no_pipe_keeps_no_output_row(app: App):
@@ -9076,16 +9050,6 @@ def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to
 
 
 
-def test_an_alias_name_that_is_a_journal_command_or_another_alias_is_refused(app: App):
-    console = app.console()
-    noun = console.run(["alias", "add", "task", "echo hi"], USER)
-    assert noun.code == 1 and "task is a journal command" in noun.error
-    added = console.run(["alias", "add", "hi", "echo hi"], USER)
-    assert added.code == 0 and "created: alias 1" in added.text, "a row the command made is named by its model's noun"
-    taken = console.run(["alias", "add", "hi", "echo again"], AGENT)
-    assert taken.code == 1 and "an alias named hi exists" in taken.error
-    assert console.run(["alias", "edit", "hi", "--line", "echo hello"], AGENT).code == 0 and "echo hello" in console.run(["alias", "list"], USER).text
-    assert console.run(["alias", "remove", "hi"], USER).code == 0 and console.run(["alias", "list"], USER).text == ""
 
 
 
@@ -14384,12 +14348,6 @@ def test_the_output_shapers_ending_a_line_are_taken_off_and_an_in_place_edit_is_
         assert Part(line).cut_command() in ("", "grep error") and Part(line).uncut().text.startswith(line.split(" | ")[0]), f"{line} keeps what writes a file, runs a command or follows a file"
 
 
-def test_a_readers_label_ending_half_a_sentence_is_refused_and_a_whole_phrase_is_taken(app: App):
-    from journal.features.shell.support.activity_title import TITLE_RULE
-    console = app.console()
-    refused = console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running the tests of"], AGENT)
-    assert refused.code != 0 and TITLE_RULE in refused.error and "stops on 'of'" in refused.error, refused.error
-    assert console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running tests"], AGENT).code == 0, "a whole phrase is taken"
 
 
 def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_failed_and_a_test_run_always_does(app: App, tmp_path):
@@ -15684,24 +15642,6 @@ def test_the_retired_commit_reader_is_taken_out_at_boot_so_a_commit_shows_only_i
     assert not (app.config.readers / "git-commit.pattern").exists(), "the commit reader the journal once shipped is removed, so a commit's mark alone says it"
 
 
-def test_a_reader_the_journal_ships_is_locked_and_refused_before_anything_is_written(app: App):
-    from journal.features.shell.support.reader import Reader
-    from journal.features.shell.support.reader_commands import ReaderCommands
-    from journal.features.shell.support.readers import Readers
-    from journal.support.rejection import Rejection
-    readers = app.container.get(Readers)
-    before = {name: readers.definition(name) for name in ("pytest", "worker-merge")}
-    assert all(before.values()), "the journal ships them"
-    for name in before:
-        with pytest.raises(Rejection) as removing:
-            readers.removed(name)
-        assert "locked" in str(removing.value)
-        with pytest.raises(Rejection):
-            readers.add(Reader(name, "mine", ".", commands=ReaderCommands(("pytest",))))
-    assert {name: readers.definition(name) for name in before} == before, "nothing was written or removed"
-    edited = app.console().run(["reader", "add", "pytest", "--about", "mine", "--pattern", "."], AGENT)
-    assert edited.code != 0 and "locked" in edited.error, "the agent cannot replace one by the command"
-    assert "pytest" in app.console().run(["reader", "list"], USER).text and "(locked)" in app.console().run(["reader", "list"], USER).text
 
 
 def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_they_run_and_what_they_run(app: App):

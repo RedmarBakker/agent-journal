@@ -60,5 +60,12 @@ def test_a_removed_alias_refuses_nothing(story):
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_an_alias_named_like_a_journal_command_is_refused(story):
     story.agent_runs("alias add task 'git status'")
-    story.expect_command_refused()
+    story.expect_command_text("task is a journal command")
+    story.expect_stack(Ready)
+
+
+@story(GitStatusAlias, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_an_alias_named_like_another_alias_is_refused(story):
+    story.agent_runs(f"alias add {story.start.alias} 'echo again'")
+    story.expect_command_text(f"an alias named {story.start.alias} exists")
     story.expect_stack(Ready)
