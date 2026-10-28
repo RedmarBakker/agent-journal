@@ -92,7 +92,8 @@
         "SessionPurityHookKindComparedDetector",
         "SessionPurityAgentLookedUpAgainDetector",
         "AssignmentInConditionDetector",
-        "StoryStepOutsideScopeDetector"
+        "StoryStepOutsideScopeDetector",
+        "BehaviourTestOutsideStoriesDetector"
     ],
     "parallel": 2,
     "configure": {
