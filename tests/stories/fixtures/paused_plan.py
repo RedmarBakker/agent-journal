@@ -6,7 +6,7 @@ from tests.stories.fixtures.started_plan import StartedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class PlanPausedByUser(StateFixture):
+class PausedPlan(StateFixture):
     """The user paused the started plan in the viewer, which pauses its task in hand and frees the agent: start.plan, start.first_task and start.second_task."""
 
     stack = (Ready,)

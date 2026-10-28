@@ -6,15 +6,16 @@ from tests.stories.fixtures.plan_approved import PlanApproved
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class PlanWaitingForTestCommands(StateFixture):
+class TestCommandWait(StateFixture):
     """The project names no test commands, and the agent started the approved plan, so the plan waits for them: start.plan, start.first_task and start.second_task."""
 
     stack = (Ready, FollowingPlan, NamingTestCommands)
 
     parent = PlanApproved
 
+    settings = ((PlansOptions.TEST_COMMANDS, ""),)
+
     def steps(self, story) -> None:
-        story.user_sets(PlansOptions.TEST_COMMANDS, "")
         story.agent_runs(f"plan start {self.plan}")
 
     def expected(self, story) -> None:

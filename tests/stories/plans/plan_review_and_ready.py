@@ -6,8 +6,10 @@ from tests.stories.fixtures.draft_plan import DraftPlan
 
 
 @story(DraftPlan, end=[Ready, FollowingSequence])
-def test_a_plan_with_no_phase_is_not_ready(story):
+def test_the_agent_can_neither_ready_a_plan_with_no_phase_nor_approve_it(story):
     story.agent_runs(f"plan ready {story.start.plan}")
+    story.expect_command_refused()
+    story.agent_runs(f"plan approve {story.start.plan}")
     story.expect_command_refused()
     story.expect_plan(story.start.plan, state=PlanState.DRAFT)
 
@@ -22,7 +24,7 @@ def test_a_phase_with_no_task_is_not_ready(story):
 
 @story(DraftPlan, end=[Ready, FollowingSequence])
 def test_a_ready_plan_is_not_started_before_the_user_approves(story):
-    grid = story.agent_adds_plan_task(story.start.plan, "the grid", "- the grid has four columns")
+    grid = story.agent_adds_plan_task(story.start.plan, "the grid")
     story.agent_runs(f"plan phase {story.start.plan} 'Layout' --when 'the layout stands'")
     story.agent_runs(f"plan todos {story.start.plan} 1 {grid}")
     story.agent_runs(f"plan ready {story.start.plan}")
@@ -30,9 +32,3 @@ def test_a_ready_plan_is_not_started_before_the_user_approves(story):
     story.agent_runs(f"plan start {story.start.plan}")
     story.expect_command_refused()
 
-
-@story(DraftPlan, end=[Ready, FollowingSequence])
-def test_the_agent_cannot_approve_a_plan(story):
-    story.agent_runs(f"plan approve {story.start.plan}")
-    story.expect_command_refused()
-    story.expect_plan(story.start.plan, state=PlanState.DRAFT)

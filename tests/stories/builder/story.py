@@ -33,7 +33,8 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
     def reach(self, fixture: type[StateFixture]) -> None:
         self.start = self.copies.reached(self, fixture)
         self.observed("", None, None)
-        self.path, self.set_positions = [f"starts from {fixture.__name__}"], {}
+        self.path = [f"starts from {fixture.__name__}"]
+        self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
         return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})

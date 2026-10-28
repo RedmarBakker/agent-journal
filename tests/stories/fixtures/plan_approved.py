@@ -13,8 +13,8 @@ class PlanApproved(StateFixture):
 
     def steps(self, story) -> None:
         self.plan = story.user_creates_plan("p", "b")
-        self.first_task = story.user_adds_plan_task(self.plan, "first", "- writes part one")
-        self.second_task = story.user_adds_plan_task(self.plan, "second", "- writes part two")
+        self.first_task = story.user_adds_plan_task(self.plan, "first")
+        self.second_task = story.user_adds_plan_task(self.plan, "second")
         story.user_approves_plan(self.plan)
 
     def expected(self, story) -> None:

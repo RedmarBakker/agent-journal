@@ -4,7 +4,7 @@ from tests.stories.fixtures.started_task import StartedTask
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class TaskInTesting(StateFixture):
+class TestingTask(StateFixture):
     """The agent put its task in testing, out of its hand until a test run says how it went: start.started_task."""
 
     stack = (Ready,)

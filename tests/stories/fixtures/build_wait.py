@@ -5,7 +5,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 from tests.stories.fixtures.task_queue import TaskQueue
 
 
-class AwaitWithOpenWork(StateFixture):
+class BuildWait(StateFixture):
     """The agent with the footer in hand and the header open waits on the build: start.started_task and start.next_open."""
 
     stack = (Ready, Working, ExternalWait)

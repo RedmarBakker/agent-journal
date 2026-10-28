@@ -3,6 +3,7 @@ from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
+from tests.stories.builder.missing_row import MISSING_ROW
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.working_agent import WorkingAgent
 from tests.stories.fixtures.started_task import StartedTask
@@ -24,7 +25,7 @@ def test_a_message_read_alone_goes_through(story):
 
 @story(ReadMessage, end=[Ready])
 def test_a_reply_naming_a_row_that_does_not_exist_is_asked_to_correct_it(story):
-    reply = story.agent_replies_with_number(story.start.message, "yes, task 9999 is done")
+    reply = story.agent_replies_with_number(story.start.message, f"yes, task {MISSING_ROW} is done")
     story.expect_agent_told(MessagesNudges.MISSING_ROWS, n=reply)
 
 

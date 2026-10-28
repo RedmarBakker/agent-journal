@@ -1,4 +1,4 @@
-from tests.stories.fixtures.await_with_open_work import AwaitWithOpenWork
+from tests.stories.fixtures.build_wait import BuildWait
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
@@ -8,14 +8,14 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.started_task import StartedTask
 
 
-@story(AwaitWithOpenWork, end=[Ready, Working, ExternalWait])
+@story(BuildWait, end=[Ready, Working, ExternalWait])
 def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
     story.agent_stops()
     story.expect_allowed()
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
 
 
-@story(AwaitWithOpenWork, end=[Ready, Working, ExternalWait])
+@story(BuildWait, end=[Ready, Working, ExternalWait])
 def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
     story.agent_runs(f"task test {story.start.started_task}")
     story.agent_stops()

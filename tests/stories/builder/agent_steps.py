@@ -99,8 +99,8 @@ class AgentSteps:
         self.agent_runs(f"plan create '{title}' --brief '{brief}'")
         return self.created_number("plan")
 
-    def agent_adds_plan_task(self, plan: int, title: str, brief: str) -> int:
-        self.agent_runs(f"plan add {plan} '{title}' --brief '{brief}'")
+    def agent_adds_plan_task(self, plan: int, title: str) -> int:
+        self.agent_runs(f"plan add {plan} '{title}' --brief '- {title} is done'")
         return self.created_number("task")
 
     def agent_creates_sequence(self, title: str, steps: str) -> int:
@@ -178,6 +178,9 @@ class AgentSteps:
         for _ in range(int(self.setting(option))):
             self.agent_reads()
             self.expect_allowed()
+
+    def setting_seconds(self, option: Option) -> float:
+        return float(self.setting(option)) * 60
 
     def setting(self, option: Option) -> object:
         settings_tree = get_answer(self.app, "/journal/settings", MAIN)[1]

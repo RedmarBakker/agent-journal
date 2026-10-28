@@ -38,14 +38,19 @@ class StoryChecks:
         self.end_stack = list(states)
 
     def expect_task_in(self, environment: str, n: int, state: str) -> None:
-        held = self.task_states_in(environment)
-        assert held.get(n) == state, f"task {n} in {environment} is {held.get(n)}, not {state}"
+        states = self.task_states_in(environment)
+        assert states.get(n) == state, f"task {n} in {environment} is {states.get(n)}, not {state}"
 
     def expect_task_not_in(self, environment: str, n: int) -> None:
         assert n not in self.task_numbers_in(environment), f"task {n} is still in {environment}"
 
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
+
+    def expect_newest_agent_message(self, text: str) -> None:
+        agent_rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
+        newest = max(agent_rows, key=lambda row: row["id"]) if agent_rows else {}
+        assert newest.get("text") == text, f"the agent's newest message is {newest.get('text')!r}, not {text!r}"
 
     def expect_agent_messages(self, count: int) -> None:
         agent_messages = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
@@ -62,9 +67,9 @@ class StoryChecks:
 
     def expect_row(self, table: str, n: int, fields: dict) -> None:
         row = self.api_row(table, n)
-        wanted = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
-        held_fields = {name: row.get(name) for name in wanted}
-        assert held_fields == wanted, f"{table} {n} has {held_fields}, not {wanted}"
+        expected_fields = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
+        row_fields = {name: row.get(name) for name in expected_fields}
+        assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
 
     def stack(self) -> list[str]:
         agents = get_answer(self.app, "/journal/agents", MAIN)[1]["rows"]

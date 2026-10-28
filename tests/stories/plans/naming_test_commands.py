@@ -5,10 +5,10 @@ from journal.features.plans.states.naming_test_commands import NamingTestCommand
 from journal.features.tasks.states.ready import Ready
 from journal.models.task_state import TaskState
 from tests.stories.builder.story_marks import story
-from tests.stories.fixtures.plan_waiting_for_test_commands import PlanWaitingForTestCommands
+from tests.stories.fixtures.test_command_wait import TestCommandWait
 
 
-@story(PlanWaitingForTestCommands, end=[Ready, FollowingPlan, NamingTestCommands])
+@story(TestCommandWait, end=[Ready, FollowingPlan, NamingTestCommands])
 def test_a_plan_with_no_test_commands_holds_writes_until_they_are_named(story):
     story.agent_writes("a.py")
     story.expect_refused(PlansNudges.TEST_COMMANDS_NEEDED)
@@ -18,7 +18,7 @@ def test_a_plan_with_no_test_commands_holds_writes_until_they_are_named(story):
     story.expect_task(story.start.second_task, state=TaskState.OPEN)
 
 
-@story(PlanWaitingForTestCommands, end=[Ready, FollowingPlan])
+@story(TestCommandWait, end=[Ready, FollowingPlan])
 def test_naming_the_test_commands_lets_the_plan_go_on(story):
     story.user_sets(PlansOptions.TEST_COMMANDS, "journal suite")
     story.agent_writes("a.py")

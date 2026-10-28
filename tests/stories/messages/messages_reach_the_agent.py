@@ -22,9 +22,10 @@ def test_two_unread_messages_are_named_by_number_at_the_stop(story):
 
 @story(TwoUnreadMessages, end=[Ready])
 def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
-    story.repeat(2, lambda: story.user_sends_message("one more thing"))
+    third = story.user_sends_message("one more thing")
+    fourth = story.user_sends_message("and the last one")
     story.agent_stops()
-    story.expect_agent_told(MessagesNudges.UNREAD_MESSAGES, count=4)
+    story.expect_agent_told(MessagesNudges.UNREAD_MESSAGES, count=len((story.start.first_message, story.start.second_message, third, fourth)))
     story.expect_message(story.start.first_message, author="user")
     story.expect_message(story.start.second_message, author="user")
 

@@ -13,8 +13,9 @@ class UnansweredMessage(StateFixture):
 
     parent = ReadMessage
 
+    settings = ((MessagesOptions.TOOL_BLOCK_LIMIT, 0),)
+
     def steps(self, story) -> None:
-        story.user_sets(MessagesOptions.TOOL_BLOCK_LIMIT, 0)
         story.agent_reads()
 
     def expected(self, story) -> None:

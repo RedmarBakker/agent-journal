@@ -28,6 +28,10 @@ SUPPORT_FOLDERS = ("builder", "fixtures")
 collect_ignore = list(SUPPORT_FOLDERS)
 
 
+def pytest_configure(config) -> None:
+    config.stash[SEEDINGS] = []
+
+
 @pytest.fixture(scope="module")
 def boot():
     return booted
@@ -35,9 +39,9 @@ def boot():
 
 @pytest.fixture(scope="module")
 def copies(request):
-    made = FixtureCopies()
-    request.config.stash.setdefault(SEEDINGS, []).append(made)
-    return made
+    fixture_copies = FixtureCopies()
+    request.config.stash[SEEDINGS].append(fixture_copies)
+    return fixture_copies
 
 
 @pytest.fixture
@@ -80,8 +84,8 @@ def pytest_sessionfinish(session, exitstatus) -> None:
         failures += [f"[{provider}] {line}" for line in overlay.failures()]
         warnings += [f"[{provider}] {line}" for line in overlay.warnings()]
     fixtures: dict[str, PathOverlay] = {}
-    for made in session.config.stash.get(SEEDINGS, []):
-        for (fixture, provider), path in made.seedings.items():
+    for fixture_copies in session.config.stash[SEEDINGS]:
+        for (fixture, provider), path in fixture_copies.seedings.items():
             fixtures.setdefault(provider, PathOverlay()).add(fixture.__name__, path)
     for provider, overlay in fixtures.items():
         failures += [f"[fixtures on {provider}] {line}" for line in overlay.failures() if " reaches nothing " not in line]

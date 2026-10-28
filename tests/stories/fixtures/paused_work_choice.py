@@ -13,8 +13,9 @@ class PausedWorkChoice(StateFixture):
 
     parent = TaskQueue
 
+    settings = ((TasksOptions.AUTO, True),)
+
     def steps(self, story) -> None:
-        story.user_sets(TasksOptions.AUTO, True)
         story.agent_runs(f"task pause {self.started_task} 'the header first'")
         story.agent_stops()
 

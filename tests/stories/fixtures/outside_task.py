@@ -6,7 +6,7 @@ from tests.stories.fixtures.started_plan import StartedPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class OutsideTaskOverPlan(StateFixture):
+class OutsideTask(StateFixture):
     """The agent paused the plan's first task and took up a task outside the plan, worked on top of the plan: start.outside_task, with start.plan, start.first_task and start.second_task."""
 
     stack = (Ready, FollowingPlan, Working)

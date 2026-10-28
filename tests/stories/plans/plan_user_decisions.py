@@ -10,7 +10,7 @@ from tests.stories.fixtures.working_agent import WorkingAgent
 @story(WorkingAgent, end=[Ready])
 def test_the_users_approval_is_told_to_the_agent(story):
     plan = story.user_creates_plan("the site", "the site is built")
-    story.user_adds_plan_task(plan, "the grid", "- the grid has four columns")
+    story.user_adds_plan_task(plan, "the grid")
     story.user_approves_plan(plan)
     story.expect_agent_told(PlansNudges.PLAN_APPROVED, n=plan)
     story.expect_plan(plan, state=PlanState.APPROVED)

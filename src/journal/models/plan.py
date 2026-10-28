@@ -87,6 +87,9 @@ class Plan(Scoped, Commentable):
     def reopened(self, time: float) -> "Plan":
         return self.moved(PlanState.STARTED).with_event(PlanStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id, task_id=0))
 
+    def unfinished(self, reason: str, time: float) -> "Plan":
+        return self.moved(PlanState.STARTED).with_event(PlanReopened(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
+
     def delegated(self, time: float) -> "Plan":
         return self.moved(PlanState.DELEGATED).with_event(PlanDelegated(environment_id=self.environment_id, time=time, plan_id=self.row_id))
 

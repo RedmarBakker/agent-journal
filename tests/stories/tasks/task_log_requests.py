@@ -1,6 +1,6 @@
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
-from journal.features.tasks.states.working import Working
+from journal.features.tasks.states.working import OPEN_TASK_LIMIT_SECONDS, Working
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
@@ -51,7 +51,7 @@ def test_past_the_limit_the_next_write_waits_for_a_log_line(story):
 
 @story(StartedTask, end=[Ready, Working])
 def test_a_quiet_quarter_hour_names_the_open_task(story):
-    story.agent_is_quiet_for(minutes=16)
+    story.agent_is_quiet_past(OPEN_TASK_LIMIT_SECONDS)
     story.expect_agent_told(TasksNudges.OPEN_TASK)
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
 

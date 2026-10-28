@@ -6,7 +6,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 from tests.stories.fixtures.draft_plan import DraftPlan
 
 
-class PlanOfTwoPhases(StateFixture):
+class TwoPhasePlan(StateFixture):
     """The agent built the drafted plan into two phases with one task each, the first ending at a checkpoint, the user approved it in the viewer, and the agent started it: start.plan, start.first_phase_task in hand and start.second_phase_task waiting."""
 
     stack = (Ready, FollowingPlan)
@@ -18,8 +18,8 @@ class PlanOfTwoPhases(StateFixture):
         story.agent_runs("sequence abandon --why 'the plan is built step by step right here' --sure")
         story.agent_runs(f"plan phase {self.plan} 'Layout' --when 'the layout stands' --checkpoint")
         story.agent_runs(f"plan phase {self.plan} 'Content' --when 'the pages hold their words'")
-        self.first_phase_task = story.agent_adds_plan_task(self.plan, "the grid", "- the grid has four columns")
-        self.second_phase_task = story.agent_adds_plan_task(self.plan, "the about page", "- the about page says who we are")
+        self.first_phase_task = story.agent_adds_plan_task(self.plan, "the grid")
+        self.second_phase_task = story.agent_adds_plan_task(self.plan, "the about page")
         story.agent_runs(f"plan todos {self.plan} 1 {self.first_phase_task}")
         story.agent_runs(f"plan todos {self.plan} 2 {self.second_phase_task}")
         story.agent_runs(f"plan ready {self.plan}")

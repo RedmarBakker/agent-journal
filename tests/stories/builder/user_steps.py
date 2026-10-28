@@ -24,8 +24,8 @@ class UserSteps:
     def user_creates_plan(self, title: str, brief: str) -> int:
         return self.user_posted("/journal/plans", {"title": title, "brief": brief})["id"]
 
-    def user_adds_plan_task(self, plan: int, title: str, brief: str = "") -> int:
-        return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title, "brief": brief})["id"]
+    def user_adds_plan_task(self, plan: int, title: str) -> int:
+        return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title, "brief": f"- {title} is done"})["id"]
 
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})
