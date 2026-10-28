@@ -894,31 +894,6 @@ def test_triggers_nudge_on_a_prompt_and_deny_a_tool_call(app: App):
 
 
 
-def test_the_documents_page_lists_the_projects_documents_their_search_and_the_attached_files(app: App, tmp_path):
-    from journal.sync.attachments import Attachments
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages
-    old = tmp_path / "doc"
-    for n, (title, deleted) in enumerate((("Audit of the package", 0), ("Gone", 1.0)), 1):
-        (old / f"{n:03}").mkdir(parents=True)
-        (old / f"{n:03}" / "doc.md").write_text(f'---\n{{"n": {n}, "title": "{title}", "abstract": "what is broken", "deleted": {deleted}}}\n---\n# Findings\n\nThe cleanup pluralises the wrong noun.\n')
-    (old / "003").mkdir()
-    (old / "003" / "doc.md").write_text("")
-    console = app.console()
-    assert "1 documents brought in, 0 already here" in console.run(["doc", "import", str(old)], USER).text, "a deleted one and an empty one stay out"
-    assert "0 documents brought in, 1 already here" in console.run(["doc", "import", str(old)], USER).text, "a second import brings nothing twice"
-    port = app.server().port
-    read = lambda path, environment="main": json.load(urlopen(HttpRequest(f"http://127.0.0.1:{port}{path}", headers={"X-Journal-Env": environment}), timeout=5))
-    console.run(["environment", "create", "other"], USER)
-    assert [r["title"] for r in read("/journal/docs", "other")["rows"]] == ["Audit of the package"], "a document is the project's, seen from every environment"
-    hits = read("/journal/docs/search?words=pluralises+noun")
-    assert hits and hits[0]["id"] == 1 and "pluralises the wrong noun" in hits[0]["text"], "a search finds the document holding every word, with the passage"
-    message = app.container.get(Messages).save(Message(text="the screenshot of the bar"), Actor.user(1))
-    stored = app.container.get(Attachments).store("messages", message.id, "bar.png", b"png")
-    app.container.get(Messages).save(message.with_(files=(stored,)), Actor.user(1))
-    page = read("/journal/attachments?file_type=images")
-    assert page["total"] == 1 and page["files"][0]["name"] == "bar.png" and page["files"][0]["image"] and page["counts"]["images"] == 1, "a file attached to a message is listed"
-    assert read("/journal/attachments?file_type=other")["total"] == 0 and read("/journal/attachments?search=screenshot")["total"] == 1
 
 
 def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_path, monkeypatch):

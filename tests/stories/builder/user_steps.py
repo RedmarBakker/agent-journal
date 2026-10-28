@@ -73,6 +73,10 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         self.observed(f"user opens {route}", None, None)
 
+    def user_opens_in(self, environment: str, route: str) -> None:
+        self.viewer_status, self.viewer_answer = get_answer(self.app, route, {"X-Journal-Env": environment})
+        self.observed(f"user opens {route} in {environment}", None, None)
+
     def card_number(self, key: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == key)
 
