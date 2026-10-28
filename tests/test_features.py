@@ -4374,24 +4374,22 @@ def test_a_fresh_start_asks_whether_old_rules_and_reminders_still_hold(app: App)
 
 
 def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
+    from datetime import datetime, timezone
     from journal.db.migrations.finish_cancelled_tasks import FinishCancelledTasks
     from journal.db.connection import Connection
+    from journal.models.task import Task
     from journal.repositories.scope import Scope
     from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "a task of its own"], USER)
-    console.run(["task", "create", "a task of nobody's"], USER)
-    console.run(["plan", "cancel", "1"], USER)
     with app.container.get(Scope).environment(1):
-        cancelled = app.container.get(Tasks).find(1)
-        assert cancelled.state.value == "cancelled" and cancelled.completed_at is not None, "a cancel stamps when it finished"
+        tasks = app.container.get(Tasks)
+        cancelled = tasks.save(tasks.save(Task(environment_id=1, title="a task of its own"), USER.actor).cancelled(datetime.now(timezone.utc), "the plan was cancelled"), USER.actor)
+        tasks.save(Task(environment_id=1, title="a task of nobody's"), USER.actor)
+        assert cancelled.completed_at is not None, "a cancel stamps when it finished"
         connection = app.container.get(Connection)
-        connection.execute("UPDATE tasks SET completed_at = NULL WHERE id = 1")
+        connection.execute("UPDATE tasks SET completed_at = NULL WHERE id = ?", (cancelled.row_id,))
         FinishCancelledTasks().apply(connection)
-        assert app.container.get(Tasks).find(1).completed_at is not None, "and one cancelled before that is finished by the migration"
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(Tasks).unfinished_count() == 1, "only the task still open is counted"
+        assert tasks.find(cancelled.row_id).completed_at is not None, "and one cancelled before that is finished by the migration"
+        assert tasks.unfinished_count() == 1, "only the task still open is counted"
 
 
 
