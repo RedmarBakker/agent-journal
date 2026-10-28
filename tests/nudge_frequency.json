@@ -181,9 +181,9 @@
     },
     "engine.stop_held_in_a_loop": {
         "actions": 4374,
-        "most_in_a_run": 6,
+        "most_in_a_run": 2,
         "runs": 5,
-        "sent": 14
+        "sent": 8
     },
     "engine.worker_ends_after_the_grace": {
         "actions": 4374,
@@ -234,6 +234,12 @@
         "sent": 0
     },
     "faults.slow_requests_to_fix": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "faults.viewer_update_before_answer": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -365,6 +371,12 @@
         "runs": 0,
         "sent": 0
     },
+    "messages.answer_the_comment_read": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "messages.answer_the_message_read": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -397,9 +409,9 @@
     },
     "messages.new_message_to_answer": {
         "actions": 4374,
-        "most_in_a_run": 60,
+        "most_in_a_run": 56,
         "runs": 11,
-        "sent": 184
+        "sent": 166
     },
     "messages.new_messages_to_answer": {
         "actions": 4374,
@@ -431,17 +443,17 @@
         "runs": 0,
         "sent": 0
     },
-    "messages.reply_kept_out_as_replied_already": {
+    "messages.reply_by_command": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
         "sent": 0
     },
-    "messages.reply_tag_opens_a_line": {
+    "messages.reply_in_the_chat": {
         "actions": 4374,
-        "most_in_a_run": 0,
-        "runs": 0,
-        "sent": 0
+        "most_in_a_run": 59,
+        "runs": 11,
+        "sent": 188
     },
     "messages.reply_was_only_a_face": {
         "actions": 4374,
@@ -449,7 +461,7 @@
         "runs": 0,
         "sent": 0
     },
-    "messages.tag_did_not_run": {
+    "messages.tags_run_nothing": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -605,6 +617,12 @@
         "runs": 0,
         "sent": 0
     },
+    "plans.return_to_the_paused_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "plans.tests_wait_for_the_phase_end": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -624,6 +642,12 @@
         "sent": 0
     },
     "plans.the_user_approved_the_plan": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "plans.the_user_approved_the_plan_with_a_comment": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -941,6 +965,12 @@
         "runs": 0,
         "sent": 0
     },
+    "shell.stop_with_a_run_going": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "shell.test_run_piped_into_a_filter": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -1023,7 +1053,7 @@
         "actions": 4374,
         "most_in_a_run": 11,
         "runs": 5,
-        "sent": 34
+        "sent": 32
     },
     "tasks.check_in_after_quiet": {
         "actions": 4374,
@@ -1069,9 +1099,9 @@
     },
     "tasks.log_first_at_stop": {
         "actions": 4374,
-        "most_in_a_run": 75,
+        "most_in_a_run": 63,
         "runs": 4,
-        "sent": 155
+        "sent": 133
     },
     "tasks.log_where_it_stands": {
         "actions": 4374,
@@ -1157,6 +1187,12 @@
         "runs": 0,
         "sent": 0
     },
+    "tasks.task_arrived": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "tasks.task_changed": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -1205,6 +1241,18 @@
         "runs": 0,
         "sent": 0
     },
+    "tasks.tested_task_back": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
+    "tasks.testing_offered": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "tasks.wait_check_passed": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -1222,6 +1270,12 @@
         "most_in_a_run": 1,
         "runs": 5,
         "sent": 5
+    },
+    "tasks.woken_with_work_in_hand": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
     },
     "tasks.write_held_until_logged": {
         "actions": 4374,
@@ -1338,12 +1392,6 @@
         "sent": 0
     },
     "workers.check_blocked_tasks": {
-        "actions": 4374,
-        "most_in_a_run": 0,
-        "runs": 0,
-        "sent": 0
-    },
-    "workers.clock_in_first": {
         "actions": 4374,
         "most_in_a_run": 0,
         "runs": 0,
@@ -1609,9 +1657,9 @@
     },
     "workers.work_ready": {
         "actions": 4374,
-        "most_in_a_run": 34,
+        "most_in_a_run": 35,
         "runs": 9,
-        "sent": 103
+        "sent": 101
     },
     "workers.worker_costly_on_shaped_work": {
         "actions": 4374,
@@ -1621,9 +1669,9 @@
     },
     "workers.worker_has_no_work_left": {
         "actions": 4374,
-        "most_in_a_run": 24,
+        "most_in_a_run": 21,
         "runs": 8,
-        "sent": 74
+        "sent": 68
     },
     "workers.worker_keeps_failing": {
         "actions": 4374,

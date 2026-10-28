@@ -4,12 +4,13 @@ from journal.features.workers.states.working_task import WorkingTask
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.worker_state import WorkerState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.dispatched_worker import DispatchedWorker
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
-@story(DispatchedWorker, mode=BUILDER_MODE)
+@story(DispatchedWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_worker_that_writes_before_it_clocks_in_is_refused(story):
     story.agent_writes("parser.py")
     story.expect_refused(EngineNudges.JOBLESS_HELPER)
@@ -17,7 +18,7 @@ def test_a_worker_that_writes_before_it_clocks_in_is_refused(story):
     story.expect_stack(Void)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE)
+@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_worker_stop_with_open_todos_is_told_them(story):
     story.agent_runs("todo add 'read the grammar'")
     story.agent_stops()
@@ -26,7 +27,7 @@ def test_a_worker_stop_with_open_todos_is_told_them(story):
     story.expect_stack(Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE)
+@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
     story.agent_runs("todo add 'read the grammar'")
     story.agent_runs("todo check 1")
@@ -36,7 +37,7 @@ def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
     story.expect_stack(Void, WorkingTask)
 
 
-@story(WorkingWorker, mode=BUILDER_MODE)
+@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_worker_never_runs_git(story):
     story.agent_runs_in_the_shell("git commit -am done")
     story.expect_refused(WorkersNudges.WORKER_GIT_REFUSAL)

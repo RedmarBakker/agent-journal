@@ -6,11 +6,12 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.two_phase_plan import TwoPhasePlan
 
 
-@story(TwoPhasePlan, mode=BUILDER_MODE)
+@story(TwoPhasePlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, False)
 def test_a_phase_end_with_auto_mode_off_waits_for_the_user(story):
     story.agent_runs(f"task complete {story.start.first_phase_task} --how done")
@@ -20,7 +21,7 @@ def test_a_phase_end_with_auto_mode_off_waits_for_the_user(story):
     story.expect_stack(Ready, FollowingPlan)
 
 
-@story(TwoPhasePlan, mode=BUILDER_MODE)
+@story(TwoPhasePlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(TasksOptions.AUTO, True)
 def test_a_checkpoint_in_auto_mode_goes_straight_on_to_the_next_phase(story):
     story.agent_runs(f"task complete {story.start.first_phase_task} --how done")

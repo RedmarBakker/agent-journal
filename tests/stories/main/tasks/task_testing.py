@@ -4,12 +4,13 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.testing_task import TestingTask
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
 @setting(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
 def test_a_test_run_on_a_long_task_suggests_putting_it_in_testing(story):
@@ -21,7 +22,7 @@ def test_a_test_run_on_a_long_task_suggests_putting_it_in_testing(story):
     story.expect_stack(Ready, Working)
 
 
-@story(TestingTask, mode=BUILDER_MODE)
+@story(TestingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_in_testing_is_completed_when_its_run_passes(story):
     run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 0'")
     story.agent_runs(f"output test {run}")
@@ -29,7 +30,7 @@ def test_a_task_in_testing_is_completed_when_its_run_passes(story):
     story.expect_stack(Ready)
 
 
-@story(TestingTask, mode=BUILDER_MODE)
+@story(TestingTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_in_testing_is_paused_when_its_run_fails(story):
     run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 3'")
     story.agent_runs(f"output test {run}")

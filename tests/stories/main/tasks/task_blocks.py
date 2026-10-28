@@ -3,11 +3,12 @@ from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(story):
     header = story.agent_creates_task("the header")
     story.agent_runs(f"task block {header} --on task:{story.start.started_task}")
@@ -18,7 +19,7 @@ def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(story):
     story.expect_stack(Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_blocked_by_hand_opens_when_unblocked(story):
     logo = story.agent_creates_task("the logo")
     story.agent_runs(f"task block {logo} 'waits on the designer'")

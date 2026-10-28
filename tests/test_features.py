@@ -18,6 +18,7 @@ from before_the_hub import before_the_hub
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
+from journal.events.listener import Listener
 from journal.support.command_shape import CommandShape, SETUP_COMMANDS
 from journal.events.announcer import Announcer
 from journal.providers.claude import Claude
@@ -31,7 +32,6 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.providers.support.helper_runner import HelperRunner
 from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
@@ -121,13 +121,10 @@ def boot():
 
 
 def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """A journal started on a free port; no worker, reviewer or verifier process starts, since one would run its provider headless and file what it printed, or that it could not start, beside the test's own report; a reviewer or verifier launch is kept on the app with the variables its process would have had, its token among them."""
+    """A journal started on a free port; no worker process starts, since a dispatched worker would run its provider headless and file what it printed, or that it could not start, beside the test's own report."""
     patch.setattr(Config, "status_home", property(lambda self: root / "status"))
     patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    launches: list[dict[str, str]] = []
-    patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
     app = main_journal(Config(root, port=0))
-    app.helper_launches = launches
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
@@ -151,7 +148,10 @@ PARALLEL_HOLD_WINDOW_MS = 3000
 
 
 def hook(app, type_name: str, **body):
-    return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+    """A hook posted as the agent's would be, its deferred work, the edit rows and the cards written after the answer, done before the test reads on, as it is done by the time the agent's next hook comes."""
+    answer = posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+    app.runtime().deferred.drain()
+    return answer
 
 
 def agent_rows(app) -> list[dict]:
@@ -1791,78 +1791,6 @@ def test_a_task_the_reply_names_is_linked_to_the_message_it_answers_however_old(
     assert [ref.id for ref in app.container.get(Links).targets(requested, Messages.SUBJECT_LINK)] == [1], "your message carries the task the reply names, whenever it was filed"
 
 
-def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_minutes_with_a_new_mark_and_one_line(app: App, monkeypatch):
-    user_set(app, "faults.developer", True)
-    from journal.engine.clock import Clock
-    from journal.features.faults.support.slow_requests import SlowRequests
-    from journal.repositories.messages import Messages
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    user_set(app, "features.faults", True)
-    user_set(app, "faults.report", True)
-    slow = app.container.get(SlowRequests)
-    monkeypatch.setattr("os.getloadavg", lambda: (0.0, 0.0, 0.0))
-    marks = lambda: [m for m in app.container.get(Messages).all() if m.text.endswith("slow responses were recorded")]
-    lines = lambda: [t for t in keystrokes if "requests over budget" in t]
-    with app.container.get(Scope).environment(MAIN):
-        slow.measured("GET", "/journal/plans", 80)
-        slow.measured("GET", "/journal/messages/12/read", 70)
-        slow.measured("GET", "/journal/docs", 200)
-        slow.measured("GET", "/journal/plans", 30)
-        slow.measured("GET", "/journal/plans", 80)
-        slow.measured("GET", "/journal/plans", 95)
-        slow.measured("GET", "/journal/messages/12/read", 70)
-        slow.measured("GET", "/journal/messages/12/read", 400)
-        app.runtime().deferred.drain()
-    assert marks() == [] and lines() == [], "slow requests are counted in memory: no message is written and no line typed while they still come"
-    written = len(app.container.get(Messages).all())
-    with app.container.get(Scope).environment(MAIN):
-        for _ in range(500):
-            slow.measured("GET", "/journal/messages", 900)
-        app.runtime().deferred.drain()
-    assert len(app.container.get(Messages).all()) == written, "a flood of slow requests writes nothing to the chat, so the viewer's reads of the chat can never set off more of them"
-    slow.slow_tally = slow.slow_tally.__class__()
-    with app.container.get(Scope).environment(MAIN):
-        for path, ms in (("/journal/plans", 80), ("/journal/plans", 95), ("/journal/messages/12/read", 70), ("/journal/messages/12/read", 400)):
-            slow.measured("GET", path, ms)
-        app.runtime().deferred.drain()
-    flagged_at = slow.slow_tally.flagged_at
-    with app.container.get(Scope).environment(MAIN):
-        slow.report_gathered(flagged_at + 31)
-    assert len(lines()) == 1 and nudge_reached(app, lines()[0], FaultsNudges.SLOW_REQUESTS, count=4, route="GET /journal/messages/{n}/read", ms=400), "thirty seconds without another, the agent is told once that a report is ready, how many and the worst, and how to read it"
-    assert [(m.text, m.data["routes"]) for m in marks()] == [("4 slow responses were recorded", {"GET /journal/plans": [2, 95], "GET /journal/messages/{n}/read": [2, 400]})], "and the one mark is written then, each route with its count and worst time"
-    assert "GET /journal/messages/{n}/read worst 400 ms, 2 times" in marks()[0].data["detail"], "the mark names the slowest routes"
-    told_at = flagged_at + 31
-    for minutes, said in ((3, 1), (6, 2)):
-        monkeypatch.setattr(Clock, "time", lambda self, at=told_at + minutes * 60: at)
-        with app.container.get(Scope).environment(MAIN):
-            slow.measured("GET", "/journal/plans", 60 + minutes)
-            app.runtime().deferred.drain()
-            slow.report_gathered(told_at + minutes * 60 + 31)
-        assert len(lines()) == said, f"{minutes} minutes after it was told, the agent is told {said} times: again once five minutes have passed, and not before"
-    assert nudge_reached(app, lines()[-1], FaultsNudges.SLOW_REQUESTS, count=2), "the second report counts what gathered since the first"
-    assert len(marks()) == 2, "each report is a new mark in the chat, where it is seen"
-    monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 3600: at)
-    with app.container.get(Scope).environment(MAIN):
-        for _ in range(10):
-            slow.measured("GET", "/journal/plans", 90)
-        app.runtime().deferred.drain()
-        slow.report_gathered(told_at + 3600)
-    assert nudge_reached(app, lines()[-1], FaultsNudges.SLOW_REQUESTS, count=10), "ten gathered are told at once, without waiting for them to go quiet"
-    user_set(app, "faults.repeat_minutes", 0)
-    monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 7200: at)
-    with app.container.get(Scope).environment(MAIN):
-        slow.measured("GET", "/journal/plans", 90)
-        app.runtime().deferred.drain()
-        slow.report_gathered(told_at + 7300)
-    assert len(lines()) == 3, "0 tells it once only"
-    runtime = app.config.home / "runtime"
-    runtime.mkdir(parents=True, exist_ok=True)
-    (runtime / "tests.running.999999").touch()
-    assert slow.judging(), "a mark left by a run that died is stale"
-    (runtime / f"tests.running.{os.getpid()}").touch()
-    assert not slow.judging(), "nothing is judged while any test run is on, whatever other runs left their marks or took them away"
 
 def test_a_command_reports_every_row_it_caused_that_its_own_words_did_not_name(app: App):
     console = app.console()
@@ -2505,35 +2433,6 @@ def test_the_first_line_for_a_stopped_agent_goes_at_once_and_the_lines_after_it_
     clock.unpin()
 
 
-def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: App, monkeypatch):
-    keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
-    app.console().run(["message", "send", "nobody is here yet"], USER)
-    assert keystrokes == [], "no live agent, nothing to type to"
-    hook(app, "SessionStart")
-    looking = {"tool_name": "Bash", "tool_input": {"command": "journal environment overview"}}
-    hook(app, "PreToolUse", **looking)
-    app.console().run(["environment", "overview"], AGENT)
-    app.runtime().deferred.drain()
-    assert "--reply-to 1" in json.dumps(hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})[1]), "the overview read message 1, so how to answer it comes with that tool use"
-    hook(app, "Stop")
-    app.console().run(["message", "send", "are you there?"], USER)
-    app.console().run(["message", "send", "hello?"], USER)
-    assert keystrokes == ["[journal] new message 2"], "a second line waits while the first is on its way, or it would pile up in the prompt box"
-    notified = hook(app, "UserPromptSubmit", prompt="[journal] new message 2")[1]["hookSpecificOutput"]["additionalContext"]
-    app.runtime().deferred.drain()
-    assert keystrokes == ["[journal] new message 2"], "the first seen back, the agent is at work, so the next waits for its next tool use instead of being typed"
-    assert "new messages 2, 3" in notified, "message 1 was shown by the overview, which reads the unread"
-    app.console().run(["message", "send", "four"], USER)
-    app.console().run(["message", "send", "five"], USER)
-    assert nudge_reached(app, hook(app, "Stop")[1]["reason"], MessagesNudges.UNREAD_MESSAGES, count=4)
-    reading = {"tool_name": "Bash", "tool_input": {"command": "journal message unread"}}
-    hook(app, "PreToolUse", **reading)
-    shown = app.console().run(["message", "unread"], AGENT).text
-    after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
-    assert "--reply-to" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert nudge_reached(app, after, MessagesNudges.MESSAGE_READ, n=2) and all(after.count(f"--reply-to {n}`") == 1 for n in range(2, 6)) and "--reply-to 1" not in after, "how to answer each comes after the tool use, in its context, once; message 1 was answered for at the overview"
-    assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
 def test_a_reply_by_command_is_followed_at_once_by_the_line_that_it_is_in_the_chat_and_never_said_again(app: App):
@@ -2550,42 +2449,6 @@ def test_a_reply_by_command_is_followed_at_once_by_the_line_that_it_is_in_the_ch
     assert nudge_reached(app, after, MessagesNudges.REPLY_REPEAT_WARNING, reply=reply, n=1), "right after the reply goes out, the agent is told it is in the chat and never to say it again"
 
 
-def test_each_message_read_mid_turn_brings_its_reply_line_ten_times_in_a_row_even_after_a_start_that_failed(app: App, monkeypatch):
-    from journal.features.briefing.support.start_lines import StartLines
-    keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields.get("line", "")))
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["memory", "add", "the updater is in hand"], AGENT)
-    hook(app, "PreCompact", trigger="auto")
-    app.runtime().deferred.drain()
-    working_start = StartLines.memories_weighed
-    monkeypatch.setattr(StartLines, "memories_weighed", lambda self: (_ for _ in ()).throw(IndexError("No item with that key")))
-    hook(app, "SessionStart", source="compact")
-    monkeypatch.setattr(StartLines, "memories_weighed", working_start)
-    looking = {"tool_name": "Bash", "tool_input": {"command": "journal environment overview"}}
-    hook(app, "PreToolUse", **looking)
-    app.console().run(["environment", "overview"], AGENT)
-    app.runtime().deferred.drain()
-    hook(app, "PostToolUse", **looking, tool_response={"stdout": ""})
-    editing = {"tool_name": "Edit", "tool_input": {"file_path": "a.py"}}
-    reached = []
-    for round_number in range(10):
-        number = re.search(r"message (\d+)", app.console().run(["message", "send", f"question {round_number}"], USER).text).group(1)
-        app.runtime().deferred.drain()
-        hook(app, "PreToolUse", **editing)
-        hook(app, "PostToolUse", **editing, tool_response={})
-        reading = {"tool_name": "Bash", "tool_input": {"command": f"journal message read {number}"}}
-        hook(app, "PreToolUse", **reading)
-        shown = app.console().run(["message", "read", number], AGENT).text
-        app.runtime().deferred.drain()
-        after = json.dumps(hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1])
-        later = json.dumps(hook(app, "PreToolUse", **editing)[1])
-        hook(app, "PostToolUse", **editing, tool_response={})
-        reached.append(f"--reply-to {number}`" in after + later)
-        app.console().run(["message", "send", "noted", "--reply-to", number], AGENT)
-        app.runtime().deferred.drain()
-    assert reached == [True] * 10, f"every read brings its reply line with the tool use, not only the first: {reached}, typed: {keystrokes}"
 
 
 def test_a_turn_streamed_in_parts_lands_once_whole(app: App):
@@ -2907,61 +2770,6 @@ def test_the_agent_is_told_when_the_user_changes_how_a_plan_tests_and_reminded_w
     assert reminded and "run the tests only at the end of each phase" in reminded[-1], "the task the plan hands next comes with how the plan tests"
 
 
-def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_ends_refuses_them_mid_phase_but_not_to_its_last_task(app: App, monkeypatch):
-    from journal.features.plans.plans_options import PlansOptions
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    keystrokes: list[str] = []
-    typing_capture(app, monkeypatch, keystrokes)
-    console = app.console()
-    named = lambda: [line for line in keystrokes if "the plan waits for test commands" in line]
-    hook(app, "SessionStart")
-    with app.container.get(Scope).environment(MAIN):
-        user_set(app, PlansOptions.TEST_COMMANDS.key, "")
-    console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "phase", "1", "one", "--when", "done"], USER)
-    console.run(["plan", "phase", "1", "two", "--when", "done"], USER)
-    for title in ("p first", "p second", "p third", "p last of one"):
-        console.run(["plan", "add", "1", title], USER)
-    console.run(["plan", "todos", "1", "1", "1", "2", "4"], USER)
-    console.run(["plan", "todos", "1", "2", "3"], USER)
-    console.run(["plan", "testing", "1", "Tests at each phase end"], USER)
-    console.run(["plan", "approve", "1"], USER)
-    console.run(["plan", "start", "1"], AGENT)
-    run = lambda command: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
-    write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": str(app.config.root / "a.py"), "content": "x"})
-    assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task started with no test commands named waits in a state of its own"
-    assert len(named()) == 1, "the agent is told at once to name them, before any tool of its is refused"
-    status, body = write()
-    assert status == 409 and "the plan waits for test commands" in body["error"], "a write is held with the line that says how to name them"
-    assert run("grep -n parse src/a.py")[0] == 200, "a read goes through while it waits"
-    assert run("journal settings set plans.test_commands 'pytest, journal suite'")[0] == 200, "the settings command goes through"
-    assert console.run(["settings", "set", PlansOptions.TEST_COMMANDS.key, "pytest, journal suite"], AGENT).code == 0, "the agent names them with the settings command"
-    assert write()[0] == 200 and app.container.get(SessionAgents).top("s1").name != "naming_test_commands", "once they are named the state leaves and the write goes through"
-    assert run("pytest -q")[0] == 200, "until a task of the phase in hand is done, the run of the phase before may still go"
-    console.run(["task", "complete", "1"], AGENT)
-    status, body = run("pytest -q")
-    assert status == 409 and "runs tests at phase end" in body["error"], "a listed test run in the middle of a phase is refused"
-    assert run("npx vitest run tests/a.test.js")[0] == 409 and run("cargo test")[0] == 409, "and so is any command the classifier names a test run, listed or not"
-    assert run("npm run build")[0] == 200, "a build is no test run"
-    assert run("ls -la")[0] == 200, "a command that is not a test run passes"
-    console.run(["task", "complete", "2"], AGENT)
-    assert run("pytest -q")[0] == 200, "the phase's last open task may run the tests its brief asks for"
-    console.run(["task", "complete", "4"], AGENT)
-    assert run("pytest -q")[0] == 200, "at the phase's end the test run goes through"
-    console.run(["plan", "testing", "1", "Test throughout"], USER)
-    console.run(["task", "start", "3"], AGENT)
-    assert run("pytest -q")[0] == 200, "a plan that tests throughout never refuses it"
-    with app.container.get(Scope).environment(MAIN):
-        user_set(app, PlansOptions.TEST_COMMANDS.key, "")
-    console.run(["task", "pause", "3", "a moment"], AGENT)
-    console.run(["task", "start", "3"], AGENT)
-    assert app.container.get(SessionAgents).top("s1").name == "naming_test_commands", "a plan task the agent starts by hand waits for the test commands too"
-    assert "the plan waits for test commands" in run("grep -n parse src/a.py")[1]["hookSpecificOutput"]["additionalContext"], "and is told so with its next tool, since a working agent's lines wait for its next hook"
-    keystrokes.clear()
-    console.run(["task", "complete", "3"], AGENT)
-    console.run(["plan", "add", "1", "p fourth"], USER)
-    console.run(["plan", "todos", "1", "2", "5"], USER)
 
 
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
@@ -4050,20 +3858,6 @@ def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read
     assert app.container.get(Messages).all()[-1].text == "It is fixed."
 
 
-def test_a_stop_takes_up_the_agents_paused_task_in_auto_mode_and_off_auto_mode_is_handed_no_task(app: App):
-    from journal.repositories.tasks import Tasks
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["task", "pause", "1", "the header first"], AGENT)
-    user_set(app, "tasks.auto", False)
-    assert hook(app, "Stop")[1].get("decision") != "block", "off auto mode a paused task holds no stop"
-    console.run(["task", "create", "the menu"], USER)
-    assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") != "block" and not app.container.get(Tasks).agent_started(), "nor do open tasks: off auto mode the journal hands no task at a stop"
-    user_set(app, "tasks.auto", True)
-    status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1" in body["reason"] and not app.container.get(Tasks).agent_started(), "in auto mode a task paused by choice is named at the stop and holds the open one back; it is not taken up by itself"
 
 def test_a_file_rewritten_in_place_is_recorded_as_its_real_difference_never_as_emptied(app: App):
     import threading
@@ -18644,54 +18438,6 @@ def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: Ap
     assert get_answer(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
 
 
-def test_a_task_waiting_in_testing_completes_when_its_run_passes_and_is_paused_for_its_agent_when_its_run_fails(app: App, monkeypatch):
-    import threading
-    from journal.models.task_state import TaskState
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.tasks import Tasks
-
-    def shell(line: str) -> None:
-        raw = f"JOURNAL_ENV=main\0\0{line}\n"
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
-        urlopen(request, timeout=10).read()
-
-    def output_of(line: str) -> int:
-        for _ in range(60):
-            with app.container.get(Scope).environment(1):
-                found = [output.id for output in app.container.get(CommandOutputs).selected(app.container.get(CommandOutputs).query().order("id")) if line in (output.chain, output.command)]
-            if found:
-                return found[-1]
-            timing.sleep(0.05)
-        with app.container.get(Scope).environment(1):
-            seen = [(output.chain, output.command) for output in app.container.get(CommandOutputs).selected(app.container.get(CommandOutputs).query().order("id"))]
-        raise AssertionError(f"no output of {line}: {seen}")
-
-    def task(n: int):
-        with app.container.get(Scope).environment(1):
-            return app.container.get(Tasks).find(n)
-
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "the footer", "--start"], AGENT)
-    shell("seq 1 300")
-    tested = app.console().run(["task", "test", "1", "--output", str(output_of("seq 1 300"))], AGENT)
-    app.runtime().deferred.drain()
-    assert tested.code == 0 and task(1).state == TaskState.COMPLETED, "a run that already passed completes the task at once"
-    app.console().run(["task", "create", "the header", "--start"], AGENT)
-    parked = app.console().run(["task", "test", "2"], AGENT)
-    assert parked.code == 0 and task(2).state == TaskState.TESTING, "with no run named the task waits in testing"
-    assert "carry on" not in json.dumps(hook(app, "Stop")[1]), "a task waiting in testing is out of the agent's hand"
-    refused = app.console().run(["output", "test", str(output_of("seq 1 300")), "--tasks", "1"], AGENT)
-    assert refused.code != 0 and "not in testing" in refused.error, "a finished task is refused"
-    failing = threading.Thread(target=lambda: shell("sh -c 'seq 1 300; sleep 1; exit 3'"), daemon=True)
-    failing.start()
-    attached = app.console().run(["output", "test", str(output_of("sh -c 'seq 1 300; sleep 1; exit 3'"))], AGENT)
-    failing.join(timeout=10)
-    app.runtime().deferred.drain()
-    assert attached.code == 0 and task(2).state == TaskState.PAUSED and "test run failed" in task(2).pause_reason, "a run that fails pauses the task for its agent"
-    assert any("task 2's test run" in line and "journal task resume 2" in line for line in keystrokes), "the agent, idle, is told which run failed and how to take the task up"
 
 
 def test_a_task_keeps_the_moment_it_was_first_started_through_a_pause_and_a_resume(app: App):
@@ -18993,7 +18739,7 @@ def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_sent
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     reviewed = []
-    app.container.get(Bus).listen(PlanReviewed, SimpleNamespace(handle=reviewed.append))
+    app.container.get(Bus).listen(PlanReviewed, type("ReviewedPlans", (Listener,), {"handle": lambda self, event: reviewed.append(event)})())
     early = {"subagent_type": "journal-researcher", "description": "Sir Babbage reads plan 1 early", "prompt": "read plan 1", "model": "sonnet", "run_in_background": True}
     hook(app, "PreToolUse", tool_name="Agent", tool_input=early, tool_use_id="t-1")
     hook(app, "PostToolUse", tool_name="Agent", tool_input=early, tool_response={"isAsync": True, "agentId": "a1"}, tool_use_id="t-1")
@@ -20441,24 +20187,6 @@ def test_the_edit_the_reminder_gives_links_the_message_on_its_own(app: App):
     assert console.run(["task", "edit", "1"], AGENT).code != 0, "an edit naming nothing is still refused"
 
 
-def test_each_message_read_brings_its_reply_line_once_from_its_read_event_and_never_again(app: App):
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    for text in ("one", "two"):
-        console.run(["message", "send", text], USER)
-
-    def read_in_a_tool_use(number: str) -> str:
-        command = {"tool_name": "Bash", "tool_input": {"command": f"journal message read {number}"}}
-        hook(app, "PreToolUse", **command)
-        console.run(["message", "read", number], AGENT)
-        app.runtime().deferred.drain()
-        return json.dumps(hook(app, "PostToolUse", **command, tool_response={"stdout": ""})[1])
-
-    first, second, again = read_in_a_tool_use("1"), read_in_a_tool_use("2"), read_in_a_tool_use("1")
-    assert first.count("--reply-to 1") == 1 and "--reply-to 2" not in first, "the first read brings its own line, once: " + first
-    assert second.count("--reply-to 2") == 1 and "--reply-to 1" not in second, "the second read brings only its own"
-    assert "--reply-to " not in again, "a message read before brings no line again"
 
 
 def test_a_comment_on_a_document_read_brings_the_line_to_answer_it_in_the_document_and_no_task_line(app: App):
@@ -20833,7 +20561,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     server, account = joined_team(app)
     heard = []
 
-    class TaskCreations:
+    class TaskCreations(Listener[SyncedCreation]):
         def handle(self, event: SyncedCreation) -> None:
             if isinstance(event.model, Task):
                 heard.append(event.model)
@@ -21716,105 +21444,6 @@ def test_a_run_moved_to_the_background_starts_from_the_reader_of_its_kind_and_a_
     assert readers.read_part(readers.stored_reader(shared.name), "python3 -m pytest tests/b.py"), "and the new command is added to it, so the next run is read by it"
 
 
-def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_is_told_to_the_agent(app: App):
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.support.agent_role import AgentRole
-    from journal.models.reader_report import ReaderReport
-    from journal.models.verifier_state import VerifierState
-    from journal.repositories.agents import Agents
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.messages import Messages
-    from journal.repositories.reader_reports import ReaderReports
-    from journal.repositories.verifiers import Verifiers
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    console, outputs, reports, verifiers, sessions = app.console(), app.container.get(CommandOutputs), app.container.get(ReaderReports), app.container.get(Verifiers), app.container.get(SessionAgents)
-    console.run(["environment", "overview"], AGENT)
-    assert console.run(["reader", "add", "builds", "--commands", "make", "--pattern", "^(built|failed)", "--about", "each build's end"], AGENT).code == 0
-    folder = app.config.root / "build"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("make all")
-    (folder / "0.out").write_text("cc -O2 -Wall -Wextra -o build/app src/main.c src/util.c src/net.c src/parse.c src/render.c src/store.c\nbuilt app\n")
-    app.container.get(OutputLog).start("build", "make all", folder, Caller.agent("main", "s1", "claude"))
-    output = max(row.id for row in outputs.all())
-    write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
-    token = AgentToken("the verifier's token")
-
-    def dismissed(why: str) -> tuple[ReaderReport, object]:
-        with app.container.get(Scope).environment(MAIN):
-            report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=output, command="make all", session="s1", findings=("the card showed lines too long or too much like code to read at a glance: \"cc -O2 -Wall\"",), fixes=("narrow the pattern to the short lines a person reads",)), Actor.system())
-        console.run(["reader", "report", str(report.id)], AGENT)
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            assert not [verifier for verifier in verifiers.scoped() if verifier.is_verifying()], "a report read and not disputed starts no verifier"
-        assert console.run(["reader", "dismiss", str(report.id), "--why", why], AGENT).code == 0
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            [verifier] = [verifier for verifier in verifiers.scoped() if verifier.is_verifying()]
-            deadline = timing.time() + 10
-            while not verifiers.find(verifier.id).pid and timing.time() < deadline:
-                timing.sleep(0.02)
-            verifiers.save(verifiers.find(verifier.id).with_(token_hash=token.digest()), Actor.system())
-        return report, verifiers.find(verifier.id)
-
-    def verifier_hook(verifier, type_name: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": verifier.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
-
-    workers_before = len(app.container.get(Workers).scoped())
-    report, verifier = dismissed("the card shows only the short built line")
-    assert verifier.name == "Diogenes, lamp-bearer of the honest reason" and verifier.state == VerifierState.VERIFYING and verifier.pid, "the journal sends the verifier itself, and its program runs"
-    assert len(app.container.get(Workers).scoped()) == workers_before and "Diogenes" not in console.run(["worker", "list"], AGENT).text, "a verifier is never a worker: no worker row, nothing in the workers' list"
-    assert all(part in verifier.brief for part in ("lines too long", "the card shows only the short built line", "built|failed", "cc -O2 -Wall -Wextra")), "it is handed the report, the agent's reason, the reader and the run's output"
-    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": verifier.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": "a wrong token"})
-    assert not app.container.get(Agents).active_session_agents(verifier.session), "a hook that claims a verifier without its token is not taken in"
-    verifier_hook(verifier, "SessionStart")
-    assert sessions.top(verifier.session).name == "verifying" and app.container.get(Agents).session_agent(verifier.session).role == AgentRole.VERIFIER, "a verifier rests on Verifying from its first hook"
-    for tool, tool_input in (("Write", {"file_path": "a.py", "content": "x"}), ("Edit", {"file_path": "a.py", "old_string": "a", "new_string": "b"}), ("Read", {"file_path": "a.py"}), ("Bash", {"command": "journal task list"})):
-        status, body = verifier_hook(verifier, "PreToolUse", tool_name=tool, tool_input=tool_input, tool_use_id=f"t-{tool}")
-        assert status == 409 and "verifier: other tools are refused" in body["error"], (tool, status, body)
-    assert verifier_hook(verifier, "PreToolUse", tool_name="Bash", tool_input={"command": "journal verdict no 'the card shows the long compiler line'"}, tool_use_id="t-verdict")[0] == 200, "its verdict is the one tool it may use"
-    status, body = write()
-    stop_status, stop_body = hook(app, "Stop")
-    assert status == 200 and not any(word in str(body) + str(stop_body) for word in ("verifier", "Diogenes", "dismissal")), "the main agent goes on working and hears nothing of the verifier"
-    assert console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.worker("main", 1, verifier.session, "claude")).code != 0, "a worker never gives a verdict"
-    verdict = console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
-    assert verdict.code == 0, verdict.error
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        refuted, judged = reports.find(report.id), verifiers.find(verifier.id)
-        card = app.container.get(Messages).with_key(f"verifier:{verifier.id}")[0]
-    assert refuted.dismissal is None and refuted.is_refuted and judged.state == VerifierState.JUDGED and not judged.token_hash, "a no opens the report again, and the verdict ends the verifier"
-    assert card.text.startswith("Diogenes") and card.text.endswith("the report was right after all") and card.data["outcome"] == "failed" and "120-character compiler command" in str(card.data), "its one card in the chat turns to its verdict, with its reason"
-    assert sessions.top(verifier.session).name == "ended", "and its session ends"
-    assert judged.pid, "its process is left to end its turn, so the reply to its verdict reaches it"
-    os.killpg(judged.pid, signal.SIGTERM)
-    deadline = timing.time() + 10
-    while verifiers.find(verifier.id).pid and timing.time() < deadline:
-        timing.sleep(0.02)
-    status, body = write()
-    told = json.dumps(body)
-    assert status == 200 and "you dismissed a report that was right" in told and "120-character compiler command" in told and "verifier" not in told, "the next tool use is told the refutation with its reason, never held, and never names a verifier"
-    assert console.run(["reader", "dismiss", str(report.id), "--why", "it is still wrong"], AGENT).code != 0, "a refuted report is never dismissed again"
-    timing.sleep(0.01)
-    assert console.run(["reader", "add", "builds", "--pattern", "^(built|failed)\\b"], AGENT).code == 0
-    sound, kept_verifier = dismissed("the reader now picks only the line that starts with built")
-    assert kept_verifier.id == verifier.id and kept_verifier.session == verifier.session and len(verifiers.scoped()) == 1 and kept_verifier.brief != verifier.brief, "the idle verifier takes the next judgement in its own session, with its new brief"
-    verifier_hook(kept_verifier, "SessionStart")
-    assert sessions.top(kept_verifier.session).name == "verifying", "and rests on Verifying again"
-    from in_process import get_answer
-    listed = get_answer(app, "/journal/verifiers", {"X-Journal-Env": "main"})[1]["rows"]
-    shown = get_answer(app, f"/journal/verifiers?ids={verifier.id}", {"X-Journal-Env": "main"})[1]["rows"][0]
-    assert [row["id"] for row in listed] == [verifier.id] and shown["judged"] == [f"reader_reports:{report.id}", f"reader_reports:{sound.id}"] and shown["session"] == verifier.session, "the viewer lists the verifier with its session, and reads the reports it judged in order"
-    assert get_answer(app, f"/journal/verifiers/{verifier.id}/transcript", {"X-Journal-Env": "main"})[0] == 200, "and its transcript"
-    console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.verifier("main", kept_verifier.id, kept_verifier.session, "claude"))
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        kept = reports.find(sound.id)
-    assert kept.dismissal == "the reader now picks only the line that starts with built" and not kept.is_refuted and kept.verdict == "the pattern picks the built line alone", "a sound dismissal stays closed"
-    status, body = write()
-    assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
 def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorded(app: App, monkeypatch):
@@ -21933,86 +21562,6 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
             app.container.get(ReviewerRunner).stop(reviewer)
 
 
-def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_worker_goes_on_while_a_short_goes_back_to_it(app: App, monkeypatch):
-    from journal.features.reviewing.support.review_report import ReviewReport
-    from journal.models.command_output import CommandOutput
-    from journal.models.proof_state import ProofState
-    from journal.models.task_state import TaskState
-    from journal.models.support.ref import Ref
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.entries import Entries
-    from journal.repositories.proofs import Proofs
-    from journal.repositories.reviewers import Reviewers
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    assert ReviewReport("1 passed\n2 short: no table").judged and ReviewReport("1 passed").is_approved(1) and ReviewReport("1 passed. 2 undecided: the proof names no test").is_undecided(2) and ReviewReport("1 passed").is_undecided(2), "a report signs off when it passes every point, and is undecided when no point is short but one is undecided or not named"
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console, settings = app.console(), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "reviewing.reviewer", True)
-    user_set(app, "workers.allowed_models", ["claude reviewer: haiku"])
-    with app.container.get(Scope).environment(MAIN):
-        workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
-    console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        parser, lexer = sorted(tasks.scoped(), key=lambda row: row.id)[-2:]
-    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--report", "each"], AGENT)
-    assert dispatched.code == 0, dispatched.error
-    with app.container.get(Scope).environment(MAIN):
-        worker = max(workers.scoped(), key=lambda row: row.id)
-        workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
-    assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
-    lovelace = Caller.worker("main", worker.id, "w-1", "claude")
-
-    def clocked_out(proof: str):
-        assert console.run(["proof", "1", proof], lovelace).code == 0
-        out = console.run(["clock-out", "done"], lovelace)
-        assert out.code == 0, out.error
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            [reviewer] = [r for r in reviewers.scoped() if r.is_reviewing()]
-            return reviewer
-
-    def newest() -> int:
-        with app.container.get(Scope).environment(MAIN):
-            return max((entry.id for entry in app.container.get(Entries).kind_entries("nudge", 1)), default=0)
-
-    def told_since(mark: int) -> list[str]:
-        with app.container.get(Scope).environment(MAIN):
-            return [entry.data["key"] for entry in reversed(app.container.get(Entries).kind_entries("nudge", 500)) if entry.id > mark and entry.data["session"] == "s1"]
-
-    def reviewed(reviewer, report: str) -> None:
-        out = console.run(["review", report], Caller.reviewer("main", reviewer.id, reviewer.session, "claude"))
-        assert out.code == 0, out.error
-        app.runtime().deferred.drain()
-
-    reviewer = clocked_out("parser.py:20, test_reads_every_rule passes")
-    assert reviewer.model == "haiku", "the reviewer runs on the strongest model the settings allow it"
-    assert all(part in reviewer.brief for part in ("the parser reads every rule of the grammar", "parser.py:20, test_reads_every_rule passes", "$ python3 -m pytest tests/test_parser.py (exit 0)", "3 passed in 0.4s")), "it is handed the task's brief, the worker's proof and the output of the test the worker ran"
-    before = newest()
-    reviewed(reviewer, "1 passed. Tests: python3 -m pytest tests/test_parser.py passed")
-    with app.container.get(Scope).environment(MAIN):
-        signed, going = tasks.find(parser.id), workers.find(worker.id)
-        holding = tasks.holder_task_ids(Ref.build(going))
-    assert signed.state == TaskState.COMPLETED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
-    assert told_since(before) == [], "with no line to the orchestrator"
-    again = clocked_out("lexer.py:4, test_splits passes")
-    assert again.id == reviewer.id, "the same reviewer takes the next review"
-    reviewed(again, "1 short: the lexer drops the last word. FAILED tests/test_lexer.py::test_last_word")
-    with app.container.get(Scope).environment(MAIN):
-        back, [proof] = workers.find(worker.id), proofs.task_proofs(tasks.find(lexer.id))
-    assert back.state == WorkerState.DISPATCHED and proof.state == ProofState.SHORT and "the lexer drops the last word" in proof.shortfall and "test_last_word" in proof.shortfall, "a point short goes back to the worker by itself, with the reason and the failing output"
-    assert told_since(before) == [], "and the orchestrator hears nothing of it"
-    last = clocked_out("lexer.py:9, test_last_word passes")
-    reviewed(last, "1 passed")
-    with app.container.get(Scope).environment(MAIN):
-        assert tasks.find(lexer.id).state == TaskState.COMPLETED, "the work proved again is signed off"
-    lines = told_since(before)
-    assert lines.count("workers.worker_has_no_work_left") == 1 and set(lines) <= {"workers.worker_has_no_work_left", "tasks.wait_over"}, ("the orchestrator is told once, when the worker's queue runs dry, and its wait on the worker ends with it", lines)
 
 
 def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transaction_commits(app: App):
@@ -22041,108 +21590,6 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
         assert reviewers.find(sent.id).state == ReviewerState.ENDED, "and a run that ends without a report ends the reviewer"
 
 
-def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_reviewer_whose_report_reaches_the_orchestrator(app: App, monkeypatch):
-    from journal.models.proof_state import ProofState
-    from journal.features.reviewing.support.reviewer_dispatch import JURAN
-    from journal.support.agent_role import AgentRole
-    from journal.models.reviewer_state import ReviewerState
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import Entries
-    from journal.repositories.reviewers import Reviewers
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    kept_conversation(app, monkeypatch)
-    console, sessions, settings = app.console(), app.container.get(SessionAgents), app.container.get(SettingRows)
-    hook(app, "SessionStart")
-    user_set(app, "workers.mode", "orchestrator")
-    user_set(app, "reviewing.reviewer", True)
-    console.run(["task", "create", "the parser", "--brief", "- reads the grammar\n- names each rule"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
-    for name, task in (("Lady Lovelace", "1"), ("Mr. Babbage", "2")):
-        console.run(["worker", "dispatch", name, "--task", task, "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    with app.container.get(Scope).environment(MAIN):
-        workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
-        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
-        workers.save(workers.find(2).with_(token_hash="h", session="w-2", resume="w-2").ready(1.0), Actor.system())
-    lovelace, babbage = Caller.worker("main", 1, "w-1", "claude"), Caller.worker("main", 2, "w-2", "claude")
-    token = AgentToken("the reviewer's token")
-
-    def clocked_out(caller: Caller, report: str, *proofs: str):
-        for point, proof in enumerate(proofs, 1):
-            assert console.run(["proof", str(point), proof], caller).code == 0
-        assert console.run(["clock-out", report], caller).code == 0
-        app.runtime().deferred.drain()
-        with app.container.get(Scope).environment(MAIN):
-            [reviewer] = [reviewer for reviewer in reviewers.scoped() if reviewer.is_reviewing()]
-            deadline = timing.time() + 90
-            while not reviewers.find(reviewer.id).pid and timing.time() < deadline:
-                timing.sleep(0.02)
-            assert reviewers.find(reviewer.id).pid, "the reviewer's program started"
-            return reviewers.save(reviewers.find(reviewer.id).with_(token_hash=token.digest()), Actor.system())
-
-    def reviewer_hook(reviewer, type_name: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": type_name, "session_id": reviewer.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": token.text})
-
-    def told(key: str) -> list[str]:
-        with app.container.get(Scope).environment(MAIN):
-            return [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1" and entry.data["key"] == key]
-
-    reviewer = clocked_out(lovelace, "the parser is done", "parser.py:12, test_reads passes: pytest tests/test_parser.py", "parser.py:30, test_names passes")
-    with app.container.get(Scope).environment(MAIN):
-        sent = workers.find(1)
-    assert reviewer.name == JURAN and reviewer.pid and sent.state == WorkerState.DELIVERED and sent.review_pending, "the clock-out sends the journal's reviewer, and its program runs"
-    assert all(part in reviewer.brief for part in ("reads the grammar", "parser.py:12, test_reads passes", "the parser is done", "git diff HEAD...", "journal review")), "it is handed the brief, each proof and the report"
-    assert not told("workers.work_ready") and "awaiting workers 1" in console.run(["worker", "wait", "1"], AGENT).text, "the orchestrator is not told of the clock-out, and a wait on the worker waits for its review"
-    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": reviewer.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": "a wrong token"})
-    assert not app.container.get(Agents).active_session_agents(reviewer.session), "a hook that claims a reviewer without its token is not taken in"
-    reviewer_hook(reviewer, "SessionStart")
-    assert sessions.top(reviewer.session).name == "reviewing" and app.container.get(Agents).session_agent(reviewer.session).role == AgentRole.REVIEWER, "a reviewer rests on Reviewing from its first hook, as reviewer:N"
-    status, body = reviewer_hook(reviewer, "PreToolUse", tool_name="Write", tool_input={"file_path": "parser.py", "content": "x"}, tool_use_id="t-write")
-    assert status == 409 and "you are a reviewer: change and merge nothing" in body["error"], "it changes no file"
-    assert reviewer_hook(reviewer, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest tests/test_parser.py"}, tool_use_id="t-test")[0] == 200, "it runs the tests"
-    reviewer_hook(reviewer, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest tests/test_parser.py"}, tool_response={"stdout": "2 passed"}, tool_use_id="t-test")
-    app.runtime().deferred.drain()
-    assert nudge_reached(app, reviewer_hook(reviewer, "Stop")[1].get("reason", ""), ReviewingNudges.REPORT_REQUEST), "it may not stop before its report"
-    reviewing = Caller.reviewer("main", reviewer.id, reviewer.session, "claude")
-    assert reviewing.actor.stamp == f"reviewer:{reviewer.id}" and console.run(["worker", "merge", "1"], reviewing).code != 0, "the reviewer never merges"
-    assert console.run(["review", "it is fine"], lovelace).code != 0, "a worker gives no review"
-    report = "1 passed. 2 short: the alias names are missing. Tests: pytest tests/test_parser.py passed"
-    assert console.run(["review", report], reviewing).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        reviewed, sent = reviewers.find(reviewer.id), workers.find(1)
-    assert reviewed.state == ReviewerState.REVIEWED and not reviewed.token_hash and not sent.review_pending and sessions.top(reviewer.session).name == "ended", "the report ends the review and the reviewer's session"
-    with app.container.get(Scope).environment(MAIN):
-        from journal.repositories.messages import Messages
-        messages = app.container.get(Messages)
-        steps = [message.text for message in messages.selected(messages.agent_chat(reviewer.session).order("id")) if message.data.get("kind") == "review_step"]
-    assert steps == ["Started reviewing worker 1, Lady Lovelace", "Ran python3 -m pytest tests/test_parser.py: passed", "Point 1 passed", "Point 2 short: the alias names are missing", f"Handed its report on worker 1, Lady Lovelace, to the agent: {report}"], ("the reviewer pane's steps, in order: the review started, the test it ran, each point and the report", steps)
-    with app.container.get(Scope).environment(MAIN):
-        from journal.repositories.proofs import Proofs
-        from journal.repositories.tasks import Tasks
-        back, proofs = workers.find(1), {proof.point: proof for proof in app.container.get(Proofs).task_proofs(app.container.get(Tasks).find(1))}
-    assert back.state == WorkerState.DISPATCHED and proofs[1].state == ProofState.CHECKED and proofs[2].state == ProofState.SHORT and "the alias names are missing" in proofs[2].shortfall, "the point short goes back to the worker with the reviewer's reason, and the point passed is checked"
-    assert not told("reviewing.reviewer_could_not_decide") and not told("workers.work_ready"), "and the orchestrator hears nothing of it"
-    kept = clocked_out(babbage, "the lexer splits", "lexer.py:4, test_splits passes")
-    assert kept.id == reviewer.id and kept.session == reviewer.session and len(reviewers.scoped()) == 1 and "the lexer splits the words" in kept.brief, "the idle reviewer takes the next review in its own session"
-    os.killpg(kept.pid, signal.SIGKILL)
-    deadline = timing.time() + 10
-    with app.container.get(Scope).environment(MAIN):
-        while reviewers.find(kept.id).state != ReviewerState.ENDED and timing.time() < deadline:
-            timing.sleep(0.02)
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        handed = workers.find(2)
-    assert not handed.review_pending and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
-    assert any(has_nudge(line, ReviewingNudges.REVIEW_FAILED, n=2, task=2) for line in told("reviewing.review_failed")), "and tells the orchestrator so"
-    user_set(app, "reviewing.reviewer", False)
-    console.run(["proof", "2", "parser.py:31, the alias names are in"], lovelace)
-    assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        assert not workers.find(1).review_pending and not [r for r in reviewers.scoped() if r.is_reviewing()], "with the reviewer off no reviewer is sent"
-    assert told("workers.work_ready"), "and the orchestrator is told of the clock-out as today"
 
 
 def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_team_and_hands_the_teams_back(tmp_path, template_journal, monkeypatch):
@@ -22621,7 +22068,7 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
 
     told = []
     bus = app.container.get(Bus)
-    bus.listen(BootFailed, type("Hears", (), {"handle": lambda self, event: told.append(event.text)})())
+    bus.listen(BootFailed, type("Hears", (Listener,), {"handle": lambda self, event: told.append(event.text)})())
     app.runtime().seeded(RemovedReader)
     assert "ValueError: a removed reader" in capsys.readouterr().err, "the traceback is logged"
     notice = app.container.get(Config).home / "runtime" / BOOT_NOTICE
@@ -23873,3 +23320,85 @@ def test_a_chain_of_three_parts_is_classified_only_by_its_command_parts_and_no_o
     assert parts[2].is_git, "and the commit is the version control one"
     classifying = [path.name for path in Path("src/journal").rglob("*.py") if re.search(r"classifier\.classify\(", path.read_text())]
     assert classifying == ["command_part.py"], f"no caller outside CommandPart.read classifies a part's text: {classifying}"
+
+
+def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_worker_goes_on_while_a_short_goes_back_to_it(app: App, monkeypatch):
+    from journal.features.reviewing.support.review_report import ReviewReport
+    from journal.models.command_output import CommandOutput
+    from journal.models.proof_state import ProofState
+    from journal.models.task_state import TaskState
+    from journal.models.support.ref import Ref
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import Entries
+    from journal.repositories.proofs import Proofs
+    from journal.repositories.reviewers import Reviewers
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    assert ReviewReport("1 passed\n2 short: no table").judged and ReviewReport("1 passed").is_approved(1) and ReviewReport("1 passed. 2 undecided: the proof names no test").is_undecided(2) and ReviewReport("1 passed").is_undecided(2), "a report signs off when it passes every point, and is undecided when no point is short but one is undecided or not named"
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    user_set(app, "workers.mode", "orchestrator")
+    user_set(app, "reviewing.reviewer", True)
+    user_set(app, "workers.allowed_models", ["claude reviewer: haiku"])
+    with app.container.get(Scope).environment(MAIN):
+        workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
+    console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
+    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        parser, lexer = sorted(tasks.scoped(), key=lambda row: row.id)[-2:]
+    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--report", "each"], AGENT)
+    assert dispatched.code == 0, dispatched.error
+    with app.container.get(Scope).environment(MAIN):
+        worker = max(workers.scoped(), key=lambda row: row.id)
+        workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
+    assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
+    lovelace = Caller.worker("main", worker.id, "w-1", "claude")
+
+    def clocked_out(proof: str):
+        assert console.run(["proof", "1", proof], lovelace).code == 0
+        out = console.run(["clock-out", "done"], lovelace)
+        assert out.code == 0, out.error
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            [reviewer] = [r for r in reviewers.scoped() if r.is_reviewing()]
+            return reviewer
+
+    def newest() -> int:
+        with app.container.get(Scope).environment(MAIN):
+            return max((entry.id for entry in app.container.get(Entries).kind_entries("nudge", 1)), default=0)
+
+    def told_since(mark: int) -> list[str]:
+        with app.container.get(Scope).environment(MAIN):
+            return [entry.data["key"] for entry in reversed(app.container.get(Entries).kind_entries("nudge", 500)) if entry.id > mark and entry.data["session"] == "s1"]
+
+    def reviewed(reviewer, report: str) -> None:
+        out = console.run(["review", report], Caller.reviewer("main", reviewer.id, reviewer.session, "claude"))
+        assert out.code == 0, out.error
+        app.runtime().deferred.drain()
+
+    reviewer = clocked_out("parser.py:20, test_reads_every_rule passes")
+    assert reviewer.model == "haiku", "the reviewer runs on the strongest model the settings allow it"
+    assert all(part in reviewer.brief for part in ("the parser reads every rule of the grammar", "parser.py:20, test_reads_every_rule passes", "$ python3 -m pytest tests/test_parser.py (exit 0)", "3 passed in 0.4s")), "it is handed the task's brief, the worker's proof and the output of the test the worker ran"
+    before = newest()
+    reviewed(reviewer, "1 passed. Tests: python3 -m pytest tests/test_parser.py passed")
+    with app.container.get(Scope).environment(MAIN):
+        signed, going = tasks.find(parser.id), workers.find(worker.id)
+        holding = tasks.holder_task_ids(Ref.build(going))
+    assert signed.state == TaskState.COMPLETED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
+    assert told_since(before) == [], "with no line to the orchestrator"
+    again = clocked_out("lexer.py:4, test_splits passes")
+    assert again.id == reviewer.id, "the same reviewer takes the next review"
+    reviewed(again, "1 short: the lexer drops the last word. FAILED tests/test_lexer.py::test_last_word")
+    with app.container.get(Scope).environment(MAIN):
+        back, [proof] = workers.find(worker.id), proofs.task_proofs(tasks.find(lexer.id))
+    assert back.state == WorkerState.DISPATCHED and proof.state == ProofState.SHORT and "the lexer drops the last word" in proof.shortfall and "test_last_word" in proof.shortfall, "a point short goes back to the worker by itself, with the reason and the failing output"
+    assert told_since(before) == [], "and the orchestrator hears nothing of it"
+    last = clocked_out("lexer.py:9, test_last_word passes")
+    reviewed(last, "1 passed")
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(lexer.id).state == TaskState.COMPLETED, "the work proved again is signed off"
+    lines = told_since(before)
+    assert lines.count("workers.worker_has_no_work_left") == 1 and set(lines) <= {"workers.worker_has_no_work_left", "tasks.wait_over"}, ("the orchestrator is told once, when the worker's queue runs dry, and its wait on the worker ends with it", lines)

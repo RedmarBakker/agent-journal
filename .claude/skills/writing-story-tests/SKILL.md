@@ -41,7 +41,7 @@ Before a line of a story, write down for yourself what the feature does in each 
 - One story per case, its name the sentence of what happens:
   `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
 - Start each story from the fixture whose rows it uses and name the work mode it plays in
-  (`@story(StartedTask, mode=BUILDER_MODE)`; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
+  (`@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)`, the scope the one its folder names; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
   `ModeFloor`), and close it with
   `story.expect_stack(Ready, Working)`, the stack it leaves, bottom first; the run fails a story that does not close on it.
 - Under a helper scope the agent checks read that helper: `expect_agent_told` is the worker's line under `worker/`;

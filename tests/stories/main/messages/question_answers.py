@@ -6,13 +6,14 @@ from journal.features.tasks.states.working import Working
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_plan import StartedPlan
 from tests.stories.fixtures.main.started_task import StartedTask
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_an_answered_question_is_told_to_the_agent_and_ends_its_wait(story):
     question = story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.expect_stack(Ready, Waiting)
@@ -22,7 +23,7 @@ def test_an_answered_question_is_told_to_the_agent_and_ends_its_wait(story):
     story.expect_stack(Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_question_asked_with_a_task_in_hand_waits_over_the_task_and_returns_to_it(story):
     question = story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.expect_stack(Ready, Working, Waiting)
@@ -32,7 +33,7 @@ def test_a_question_asked_with_a_task_in_hand_waits_over_the_task_and_returns_to
     story.expect_stack(Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE)
+@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_question_asked_while_a_plan_is_followed_returns_to_the_plan(story):
     question = story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.expect_stack(Ready, FollowingPlan, Waiting)
@@ -43,21 +44,21 @@ def test_a_question_asked_while_a_plan_is_followed_returns_to_the_plan(story):
     story.expect_stack(Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_agents_own_tool_use_ends_its_wait(story):
     story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.agent_reads()
     story.expect_stack(Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_journal_command_while_waiting_keeps_the_wait(story):
     story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.agent_creates_task("the header")
     story.expect_stack(Ready, Waiting)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_stop_while_waiting_for_an_answer_goes_through(story):
     story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.agent_stops()
@@ -65,14 +66,14 @@ def test_a_stop_while_waiting_for_an_answer_goes_through(story):
     story.expect_stack(Ready, Waiting)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_users_own_words_end_the_wait(story):
     story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.agent_is_prompted("the short one, please")
     story.expect_stack(Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_options_that_say_I_or_we_are_refused(story):
     story.agent_runs("question ask 'which footer?' --options 'I write the short one' 'we write the long one'")
     story.expect_command_refused()

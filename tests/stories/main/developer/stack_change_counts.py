@@ -3,13 +3,14 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.main.started_task import StartedTask
 
 TASK_START_CAUSE = "task_started"
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(FaultsOptions.DEVELOPER, True)
 def test_the_task_start_is_counted_as_a_kind_of_stack_change_and_with_no_story_run_nothing_is_marked(story):
     story.agent_runs("developer transitions")
@@ -20,7 +21,7 @@ def test_the_task_start_is_counted_as_a_kind_of_stack_change_and_with_no_story_r
     story.expect_stack(Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(FaultsOptions.DEVELOPER, True)
 def test_a_kind_the_last_story_run_did_not_walk_is_marked(story):
     story.story_run_walked("no state > idle on session_started")

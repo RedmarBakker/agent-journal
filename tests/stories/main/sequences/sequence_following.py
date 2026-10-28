@@ -4,6 +4,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.task_state import TaskState
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.sequence_run import SequenceRun
 from tests.stories.fixtures.main.started_task import StartedTask
@@ -12,7 +13,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 FIRST_STEP, SECOND_STEP = 1, 2
 
 
-@story(SequenceRun, mode=BUILDER_MODE)
+@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_step_never_taken_up_cannot_be_moved_on(story):
     story.agent_runs("sequence next")
     story.expect_command_refused()
@@ -20,7 +21,7 @@ def test_a_step_never_taken_up_cannot_be_moved_on(story):
     story.expect_stack(Ready, FollowingSequence)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_sequence_of_one_step_ends_at_its_first_next(story):
     sequence = story.agent_creates_sequence("tag", "push the tag")
     story.agent_runs(f"sequence run {sequence}")
@@ -30,13 +31,13 @@ def test_a_sequence_of_one_step_ends_at_its_first_next(story):
     story.expect_stack(Ready)
 
 
-@story(SequenceRun, mode=BUILDER_MODE)
+@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_running_the_running_sequence_again_starts_no_second_run(story):
     story.agent_runs(f"sequence run {story.start.sequence}")
     story.expect_stack(Ready, FollowingSequence)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_sequence_runs_over_the_task_in_hand_and_gives_it_back_at_its_end(story):
     sequence = story.agent_creates_sequence("tag", "push the tag")
     story.agent_runs(f"sequence run {sequence}")
@@ -47,7 +48,7 @@ def test_a_sequence_runs_over_the_task_in_hand_and_gives_it_back_at_its_end(stor
     story.expect_stack(Ready, Working)
 
 
-@story(SequenceRun, mode=BUILDER_MODE)
+@story(SequenceRun, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_sequence_show_lists_the_steps(story):
     story.agent_runs(f"sequence show {story.start.sequence}")
     story.expect_command_passed()

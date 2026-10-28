@@ -1,11 +1,12 @@
 from journal.features.messages.messages_nudges import REPLY_COMMAND_SPAN_USES, MessagesNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
 
 
-@story(ReadMessage, mode=BUILDER_MODE)
+@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_second_message_read_soon_after_names_only_what_to_do(story):
     story.agent_replies(story.start.message, "not yet")
     second = story.user_sends_message("and the header?")
@@ -15,7 +16,7 @@ def test_a_second_message_read_soon_after_names_only_what_to_do(story):
     story.expect_stack(Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE)
+@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_message_read_past_the_span_of_tool_uses_names_the_reply_command_again(story):
     story.agent_replies(story.start.message, "not yet")
     story.agent_reads(count=REPLY_COMMAND_SPAN_USES)

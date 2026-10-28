@@ -3,12 +3,13 @@ from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_plan import StartedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_users_approval_is_told_to_the_agent(story):
     plan = story.user_creates_plan("the site", "the site is built")
     story.user_adds_plan_task(plan, "the grid")
@@ -18,7 +19,7 @@ def test_the_users_approval_is_told_to_the_agent(story):
     story.expect_stack(Ready)
 
 
-@story(StartedPlan, mode=BUILDER_MODE)
+@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_agent_cancelling_its_plan_cancels_the_open_tasks_and_frees_the_stack(story):
     story.agent_runs(f"plan cancel {story.start.plan}")
     story.expect_plan(story.start.plan, state=PlanState.CANCELLED)

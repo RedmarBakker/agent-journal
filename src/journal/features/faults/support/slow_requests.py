@@ -82,10 +82,15 @@ class SlowRequests:
         elif not path.startswith(HOOK_ROUTE):
             self.windowed("developer.requests", f"{method} {self.route(path)}", timing)
         self.tally.logged(timing)
-        for count in loads.counts:
-            self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)
+        self.models_counted(loads)
         if method == HOOK:
             self.tally.measured(f"developer.hooks.{path.rsplit('/', 1)[-1]}", ms)
+
+    def models_counted(self, loads: RequestLoads) -> None:
+        if not self.settings.option(FaultsOptions.LOADS):
+            return
+        for count in loads.counts:
+            self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)
 
     def windowed(self, group: str, type_name: str, timing: Timing) -> None:
         self.tally.windowed(group, type_name, timing.ms)

@@ -2,11 +2,12 @@
 from journal.engine.states.void import Void
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.models.worker_state import WorkerState
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.worktree_worker import WorktreeWorker
 
 
-@story(WorktreeWorker, mode=BUILDER_MODE)
+@story(WorktreeWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_worker_whose_rebase_waited_is_rebased_at_its_clock_out(story):
     story.main_agent_runs(f"worker rebase {story.start.worker}")
     story.agent_runs("proof 1 'parser.py:12, test_reads passes'")

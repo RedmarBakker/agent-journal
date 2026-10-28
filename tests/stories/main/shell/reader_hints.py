@@ -1,12 +1,13 @@
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.errors_reader import ErrorsReader
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
-@story(ErrorsReader, mode=BUILDER_MODE)
+@story(ErrorsReader, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_an_output_searched_by_hand_for_a_readers_pattern_is_pointed_at_the_reader_once(story):
     story.agent_runs_in_the_shell(f"journal output read {story.start.output} --grep error")
     story.expect_allowed()
@@ -16,7 +17,7 @@ def test_an_output_searched_by_hand_for_a_readers_pattern_is_pointed_at_the_read
     story.expect_stack(Ready)
 
 
-@story(ErrorsReader, mode=BUILDER_MODE)
+@story(ErrorsReader, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_reader_shows_the_lines_its_pattern_picks(story):
     story.agent_runs(f"output read {story.start.output} --reader {story.start.reader}")
     story.expect_command_passed()
@@ -24,7 +25,7 @@ def test_a_reader_shows_the_lines_its_pattern_picks(story):
     story.expect_stack(Ready)
 
 
-@story(ErrorsReader, mode=BUILDER_MODE)
+@story(ErrorsReader, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_removed_reader_is_named_no_more(story):
     story.agent_runs(f"reader remove {story.start.reader}")
     story.expect_command_passed()
@@ -33,7 +34,7 @@ def test_a_removed_reader_is_named_no_more(story):
     story.expect_stack(Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE)
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_read_through_a_reader_that_does_not_exist_is_refused(story):
     output = story.agent_runs_a_command("printf 'an error\\nfine\\n' | head -2")
     story.agent_runs(f"output read {output} --reader nobody")

@@ -5,13 +5,14 @@ from journal.features.tasks.states.working import Working
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.read_message import ReadMessage
 from tests.stories.fixtures.main.started_plan import StartedPlan
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(ReadMessage, mode=BUILDER_MODE)
+@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_agents_own_reaction_is_never_told_back(story):
     story.agent_reacts(story.start.message, "🙏")
     story.agent_reads()
@@ -19,7 +20,7 @@ def test_the_agents_own_reaction_is_never_told_back(story):
     story.expect_stack(Ready)
 
 
-@story(ReadMessage, mode=BUILDER_MODE)
+@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_two_different_reactions_are_each_told(story):
     reply = story.agent_replies_with_number(story.start.message, "it is")
     story.user_reacts(reply, "🎉")
@@ -29,7 +30,7 @@ def test_two_different_reactions_are_each_told(story):
     story.expect_stack(Ready)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_reaction_leaves_the_task_in_hand_as_it_was(story):
     message = story.user_sends_message("is the footer done?")
     story.agent_reads_message(message)
@@ -40,7 +41,7 @@ def test_a_reaction_leaves_the_task_in_hand_as_it_was(story):
     story.expect_stack(Ready, Working)
 
 
-@story(StartedPlan, mode=BUILDER_MODE)
+@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_reaction_leaves_a_followed_plan_as_it_was(story):
     message = story.user_sends_message("how far is the plan?")
     story.agent_reads_message(message)

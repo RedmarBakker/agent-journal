@@ -4,12 +4,13 @@ from journal.features.tasks.states.working import Working
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.build_wait import BuildWait
 from tests.stories.fixtures.main.started_task import StartedTask
 
 
-@story(BuildWait, mode=BUILDER_MODE)
+@story(BuildWait, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
     story.agent_stops()
     story.expect_allowed()
@@ -17,7 +18,7 @@ def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
     story.expect_stack(Ready, Working, ExternalWait)
 
 
-@story(BuildWait, mode=BUILDER_MODE)
+@story(BuildWait, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
     story.agent_runs(f"task test {story.start.started_task}")
     story.agent_stops()
@@ -27,7 +28,7 @@ def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
     story.expect_stack(Ready, Working, ExternalWait)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_working_again_ends_the_wait(story):
     story.agent_runs("await 'the build' --until false")
     story.agent_writes("a.py")
@@ -35,7 +36,7 @@ def test_working_again_ends_the_wait(story):
     story.expect_stack(Ready, Working)
 
 
-@story(StartedTask, mode=BUILDER_MODE)
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_wait_that_names_nothing_to_wait_on_is_refused(story):
     story.agent_runs("await 'the build'")
     story.expect_command_refused()

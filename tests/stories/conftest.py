@@ -14,7 +14,9 @@ from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.story_marks import PROVIDER_MARK, SETTINGS_MARK, START_MARK
 from tests.stories.builder.void_provider import VoidProvider
 from tests.test_features import booted
+from journal.app import App
 from journal.config import Config
+from journal.providers.support.helper_runner import HelperRunner
 from journal.support.agent_role import AgentRole
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.features.faults.support.story_transitions import StoryTransitions
@@ -40,7 +42,16 @@ def pytest_configure(config) -> None:
 
 @pytest.fixture(scope="module")
 def boot():
-    return booted
+    return story_booted
+
+
+def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
+    """The journal a story runs against: booted as the tests boot it, and a reviewer or verifier the journal sends is never started, its launch kept on the app with the variables its program would have had, its token among them, so the story plays its hooks instead."""
+    launches: list[dict[str, str]] = []
+    patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
+    app = booted(root, patch)
+    app.helper_launches = launches
+    return app
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +72,7 @@ def story(app, monkeypatch, request, copies):
     for mark in request.node.iter_markers(START_MARK):
         played.reach(mark.args[0])
         played.plays_in(request.param if isinstance(mark.args[1], tuple) else mark.args[1])
-    played.scope = AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
+    played.scope = story_scope(request)
     for mark in request.node.iter_markers(SETTINGS_MARK):
         played.user_sets(*mark.args)
     yield played
@@ -108,6 +119,12 @@ def pytest_sessionfinish(session, exitstatus) -> None:
         reporter.write_line(line, red=is_failure)
     if record.failures():
         session.exitstatus = 1
+
+
+def story_scope(request) -> AgentRole:
+    named, folder = request.node.get_closest_marker(START_MARK).args[2], AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
+    assert named == folder, f"{request.node.originalname} names scope {named.value} on its mark but lives under {folder.value}/: the mark and the folder say the same scope"
+    return named
 
 
 def stashed_record(config) -> StoryRunRecord:

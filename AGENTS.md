@@ -201,8 +201,9 @@ assert appears in it; every assert lives inside an expect method of the builder.
   `worker/` the agent checks read the worker's lines and stack, and the main agent is named (`expect_main_told`). Fixtures
   live in `tests/stories/fixtures/<scope>/`.
 - **It closes on its stack**: every story's last line is `story.expect_stack(...)`, and the run fails one that does not.
-- **It names its work mode**: `@story(StartedTask, mode=BUILDER_MODE)`, never left to a default; a list, or `ALL_MODES`,
-  runs it once per mode, and its stack names the mode's bottom state as `ModeFloor`.
+- **It names its work mode and its scope**: `@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)`, never left
+  to a default; a mode list, or `ALL_MODES`, runs it once per mode, its stack naming the mode's bottom state as
+  `ModeFloor`; the scope on the mark must be the scope of its folder, and the run fails one where they differ.
 - **What it needs, it sets**: `@setting(option, value)`, and the story fails if the journal never reads the setting.
   No `@values`: each case is a story of its own, from a fixture.
 - **Numbers come from the code**, never copied.

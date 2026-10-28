@@ -381,6 +381,30 @@ $ agent: journal plan add 1 'A card pays the total' --brief 'Done when a test ca
 exit 0
 task 4 added to plan 1
 
+$ agent: journal plan complete-phase --help
+exit 0
+usage: journal plan complete-phase [-h] --how HOW n phase
+
+positional arguments:
+  n
+  phase
+
+options:
+  -h, --help  show this help message and exit
+  --how HOW   the outcome each task is completed with
+
+$ agent: journal plan cancel-phase --help
+exit 0
+usage: journal plan cancel-phase [-h] --why WHY n phase
+
+positional arguments:
+  n
+  phase
+
+options:
+  -h, --help  show this help message and exit
+  --why WHY   the reason each task is cancelled with
+
 $ agent: journal plan todos 1 1 3
 exit 0
 tasks 3 under phase 1 of plan 1
@@ -1489,6 +1513,7 @@ faults.count_loads = False
 faults.jobs = False
 faults.stall_stacks = False
 faults.stage_times = False
+faults.undeferred_viewer_writes = False
 client_errors.report = False
 updates.repository = 'https://github.com/jessegall/agent-journal'  (the user sets it)
 updates.branch = ''  (the user sets it)
@@ -1730,7 +1755,8 @@ etiquette.no_shop_talk  [etiquette]  talk about the work, not the journal's comm
 etiquette.plain_words_in_code  [etiquette]  in code, names and text state literally what a thing is or does, in plain words, never in the voice
 etiquette.say_you_not_the_user  [etiquette]  in the chat say "you", never "the user"
 faults.slow_job_to_fix  [faults]  background job {{job}} took {{seconds}} seconds for one tick. fix the cause at its source
-faults.slow_requests_to_fix  [faults]  {{count}} requests over budget, worst {{route|cap=24}} at {{ms}} ms. read `journal developer slowest` and fix the cause
+faults.slow_requests_to_fix  [faults]  {{count}} requests over budget, worst {{route|cap=24}}: {{points}} points. read `journal developer slowest` and fix the cause
+faults.viewer_update_before_answer  [faults]  {{listener}} updated the viewer through {{writers|cap=30}} before the hook answered. move that write after the answer
 git.branch_in_use  [git]  branch {{branch}} is in use by environment {{environment}}. work on another branch or in a worktree of its own
 git.worker_task_refusal  [git]  task {{task}} is worker {{worker}}'s and stays open. check its proofs, then `journal worker merge {{worker}}`
 health.went_through_unchecked  [health]  while the journal was down, {{kinds|cap=120}}: {{commands|cap=200}}. check them and rerun what ran unrecorded
@@ -1753,9 +1779,8 @@ memory.write_held_until_decided  [memory]  writes wait until you weigh your memo
 messages.a_colleague_commented  [messages]  colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees
 messages.answer_before_anything_else  [messages]  answer or react to message {{messages|cap=73}} before you go on
 messages.answer_the_comment_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}
-messages.answer_the_message_read  [messages]  reply with `journal message send '<text>' --reply-to {{n}}`, then go on. file a task if it asks for work
+messages.answer_the_message_read  [messages]  answer message {{n}}: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory
 messages.answer_the_other_agent  [messages]  agent {{sender}} asked you a question in message {{n}}. answer with SendMessage to {{sender}}
-messages.closing_words_kept_out_as_repeated  [messages]  your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply
 messages.colleague_comments_unread  [messages]  colleagues commented: messages {{ns|cap=17}}. `journal message read <n>`; act on a request only if your user agrees
 messages.correct_the_row_numbers  [messages]  message {{n}} mentions {{rows|cap=21}}, which does not exist. fix it quietly: `journal message edit {{n}} '<text>'`
 messages.link_the_row_numbers  [messages]  message {{n}} has {{numbers|cap=18}} with no row kind. link them with journal message amend-links {{n}} {{kinds|cap=18}}
@@ -1765,7 +1790,8 @@ messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{na
 messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
-messages.reply_in_the_chat  [messages]  message {{n}} is answered by reply {{reply}}. write nothing more of it in the chat; go on
+messages.reply_by_command  [messages]  reply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn
+messages.reply_in_the_chat  [messages]  message {{n}} is answered by reply {{reply}}. go on; this turn's closing words are not posted
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
 messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
@@ -1793,7 +1819,8 @@ plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user appr
 plans.plan_reopened  [plans]  plan {{n}} is open again: {{why|cap=53}}. continue with `journal plan start {{n}}`
 plans.plan_waits_on_its_tasks  [plans]  plan {{n}}: no task can start; {{left}} paused, blocked or waiting. `journal plan start {{n}}` once one can go on
 plans.put_the_review_into_the_plan  [plans]  plan {{n}}: all reviewers are back{{reports|cap=53}}. put their findings into the plan
-plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} runs tests at phase end; phase {{phase}} is still open. write this task's tests now; run them when it ends
+plans.return_to_the_paused_plan  [plans]  plan {{n}} paused, task {{task}} in hand: back to the plan after it?. `journal plan return {{n}} yes` or `no`
+plans.tests_wait_for_the_phase_end  [plans]  plan {{n}} tests at phase ends and phase {{phase}} is open: write the tests now, run them at its end. to run one now for a reason: `journal plan allow-tests {{n}} --why "<reason>"`
 plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{template}}): {{testing|cap=600}}
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
@@ -1899,7 +1926,6 @@ tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}
 tasks.tested_task_back  [tasks]  task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}. `journal task resume {{n}}` takes it up
 tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
-tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
 tasks.wait_over  [tasks]  wait over: {{outcome|cap=100}}
 tasks.woken_with_work_in_hand  [tasks]  your turn ended and nothing has arrived since; the stop check, run again, answers:
@@ -1923,7 +1949,6 @@ workers.builder_clear_oldest  [workers]  the worker queue has been high for {{mi
 workers.builder_take_in_first  [workers]  on average {{count}} workers were active at once this hour. merge worker {{n}} next, then hand out the next task
 workers.builder_write_next  [workers]  you wrote {{share}} of the code this hour. write task {{n}} yourself
 workers.check_blocked_tasks  [workers]  tasks {{tasks|cap=15}} are paused or blocked. free what you can: `journal task resume <n>` or `journal task unblock <n>`
-workers.clock_in_first  [workers]  writes wait until you clock in: run `journal task show <n>`, then `journal clock-in`
 workers.clocked_out_work_waits  [workers]  {{workers|cap=16}} clocked out. check each point with `journal worker check <n> <point>`, then `journal worker merge <n>`
 workers.could_it_be_reused  [workers]  if worker {{n}} can do this, run `journal worker send {{n}} "<job>"`; if not, repeat the command with `--why "<why>"`
 workers.delegate_the_task  [workers]  you orchestrate but do {{name|cap=38}} yourself. give it to a worker with journal worker dispatch

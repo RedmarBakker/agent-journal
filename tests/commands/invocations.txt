@@ -68,6 +68,8 @@ agent plan review 1
 agent plan ready 1 --changed "nothing changed in review"
 user plan approve 1
 agent plan start 1
+agent plan allow-tests 1 --why "one test of the cart, to check the guard"
+agent plan return 1 no
 agent plan priorities "task 3 first: the cart comes before paying"
 agent plan block 1 "waits on the payment provider"
 agent plan unblock 1

@@ -4,12 +4,13 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
+from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.outside_task import OutsideTask
 from tests.stories.fixtures.main.paused_plan import PausedPlan
 
 
-@story(OutsideTask, mode=BUILDER_MODE)
+@story(OutsideTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_user_pausing_the_plan_meanwhile_leaves_the_outside_task_in_hand(story):
     story.user_pauses_plan(story.start.plan)
     story.expect_plan(story.start.plan, state=PlanState.PAUSED)
@@ -20,7 +21,7 @@ def test_the_user_pausing_the_plan_meanwhile_leaves_the_outside_task_in_hand(sto
     story.expect_stack(Ready)
 
 
-@story(OutsideTask, mode=BUILDER_MODE)
+@story(OutsideTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_plan_carries_on_after_the_outside_task_completes(story):
     story.agent_runs(f"task complete {story.start.outside_task} --how done")
     story.expect_task(story.start.outside_task, state=TaskState.COMPLETED)
@@ -28,7 +29,7 @@ def test_the_plan_carries_on_after_the_outside_task_completes(story):
     story.expect_stack(Ready, FollowingPlan)
 
 
-@story(PausedPlan, mode=BUILDER_MODE)
+@story(PausedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_plan_the_user_paused_stays_quiet_at_the_stop(story):
     story.agent_stops()
     story.expect_allowed()
