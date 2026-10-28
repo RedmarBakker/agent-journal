@@ -2,7 +2,7 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.scenarios.builder.story_values import starts_from
+from tests.scenarios.builder.story_values import starts_from, values
 from tests.scenarios.state_fixtures.plan_just_started import PlanJustStarted
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
@@ -38,3 +38,22 @@ def test_a_test_run_on_a_long_task_suggests_testing(scenario):
 
     scenario.agent_runs_in_the_shell("pytest -q")
     scenario.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
+
+
+@starts_from(TaskInHand)
+def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(scenario):
+    header = scenario.agent_creates_task("the header")
+    scenario.agent_runs(f"task block {header} --on task:{scenario.task_in_hand}")
+    scenario.expect_task(header, state=TaskState.BLOCKED)
+    scenario.agent_runs(f"task complete {scenario.task_in_hand} --how done")
+    scenario.expect_task(header, state=TaskState.STARTED)
+    scenario.expect_agent_told(TasksNudges.TASK_REOPENED, n=header)
+
+
+@starts_from(TaskInHand)
+@values([0, 3])
+def test_a_task_in_testing_follows_its_run(scenario, value):
+    scenario.agent_runs(f"task test {scenario.task_in_hand}")
+    run = scenario.agent_runs_a_command(f"sh -c 'seq 1 300; exit {value}'")
+    scenario.agent_runs(f"output test {run}")
+    scenario.expect_task(scenario.task_in_hand, state=TaskState.PAUSED if value else TaskState.COMPLETED)
