@@ -43,8 +43,11 @@ class UserSteps:
         self.user_posted(f"/journal/plans/{plan}/testing", {"title": title}, f"user sets the plan testing to {title}")
 
     def user_opens(self, route: str) -> None:
-        get_answer(self.app, route, MAIN)
+        self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         self.observed(f"user opens {route}", None, None)
+
+    def first_shown(self, key: str) -> int:
+        return self.viewer_answer[key][0]["id"]
 
     def user_pauses_the_agent(self) -> None:
         self.user_posted(f"/journal/agents/{self.main_agent_id()}/pause", {}, "user pauses the agent")

@@ -1916,24 +1916,14 @@ def test_words_written_before_a_tool_call_reach_the_chat_at_that_call_and_the_di
     assert len([m for m in messages.scoped() if m.author == "agent" and m.text == "Here, Sir Jesse, and writing."]) == 1, "the display hook's copy of the same block is no second message"
 
 
-def test_an_edit_is_a_row_of_its_own_kept_to_the_last_five_hundred_and_a_shell_parts_change_is_one_too(app: App):
+def test_the_edits_kept_are_the_newest_five_hundred(app: App):
     from journal.models.edit import Edit
     from journal.repositories.edits import EDIT_ROWS, Edits
-    hook(app, "SessionStart")
-    hook(app, "PostToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"}, tool_response={"structuredPatch": [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]})
-    app.runtime().deferred.drain()
     edits = app.container.get(Edits)
-    stored = edits.agent_edits("s1", 0, 50)
-    assert [e.path for e in stored] == ["a.py"] and stored[0].added == 1 and stored[0].removed == 1 and stored[0].first_line == 7 and [r["line_type"] for r in stored[0].rows] == ["ctx", "del", "add", "ctx"]
-    (app.config.root / "b.py").write_text("x = 1\ny = 2\n")
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i '' s/x/y/ b.py"}, tool_response="")
-    stored = edits.agent_edits("s1", 0, 50)
-    assert [e.path for e in stored] == ["a.py", "b.py"] and stored[1].added == 2 and stored[1].removed == 0 and stored[1].command.startswith("sed") and [r["line_type"] for r in stored[1].rows] == ["add", "add"], "a shell line's edit is read from the call's written paths when the call ends, against the file as the journal saw it last"
-    for i in range(EDIT_ROWS):
+    for i in range(EDIT_ROWS + 2):
         edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
     assert edits.stored_count() == EDIT_ROWS, "the oldest go as new ones come"
-    assert edits.rows()[0].path == "f0.py" and edits.rows()[-1].path == f"f{EDIT_ROWS - 1}.py", "the two oldest went"
-
+    assert edits.rows()[0].path == "f2.py" and edits.rows()[-1].path == f"f{EDIT_ROWS + 1}.py", "the two oldest went"
 
 
 def test_a_session_silent_for_an_hour_is_ended(app: App):
@@ -2237,24 +2227,6 @@ def test_the_foreground_limit_is_fifteen_seconds_or_ten_while_a_message_waits(ap
 
 
 
-def test_the_edits_pane_pages_back_through_the_kept_edits_with_an_older_flag(app: App):
-    from urllib.request import urlopen
-    from journal.models.edit import Edit
-    from journal.repositories.edits import Edits
-    hook(app, "SessionStart")
-    edits = app.container.get(Edits)
-    for i in range(120):
-        edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
-    base = f"http://127.0.0.1:{app.server().port}/journal/agents/1/edits?env=main"
-    page = json.load(urlopen(HttpRequest(base), timeout=5))
-    seen = [e["path"] for e in page["edits"]]
-    assert len(seen) == 50 and seen[-1] == "f119.py" and page["older"] is True, "the newest fifty, with older ones kept"
-    page = json.load(urlopen(HttpRequest(f"{base}&before={page['edits'][0]['id']}"), timeout=5))
-    seen = [e["path"] for e in page["edits"]] + seen
-    assert len(page["edits"]) == 50 and page["older"] is True
-    page = json.load(urlopen(HttpRequest(f"{base}&before={page['edits'][0]['id']}"), timeout=5))
-    seen = [e["path"] for e in page["edits"]] + seen
-    assert len(page["edits"]) == 20 and page["older"] is False and seen == [f"f{i}.py" for i in range(120)], "paging back reaches the first edit and says there is no more"
 
 
 
@@ -3274,18 +3246,6 @@ def test_each_review_round_is_kept_on_the_plan_with_its_reviewers_report_and_cha
     assert (open_["changed"], open_["report_ids"]) == (None, []), "the round in progress is first, still open"
 
 
-def test_the_page_reads_a_cancelled_plan_and_its_task_as_abandoned(app: App):
-    import json as j
-    from urllib.request import urlopen
-    console = app.console()
-    console.run(["plan", "create", "old", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "its own"], USER)
-    console.run(["plan", "cancel", "1"], USER)
-    for table in ("plans", "tasks"):
-        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{table}?closed=1", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-            assert reply.status == 200, f"cancelled {table} are read by the page"
-            rows = j.loads(reply.read())["rows"]
-            assert rows and all(row["state"] == "cancelled" for row in rows), "a cancelled plan and its task are closed, shown with the closed ones"
 
 def test_the_rules_doc_rules_on_every_state_the_engine_knows(app: App):
     from pathlib import Path

@@ -104,6 +104,17 @@ class StoryChecks:
         marks = sorted(row["text"] for row in rows)
         assert marks == sorted(texts), f"the chat's {shows} marks are {marks}, not {sorted(texts)}: {rows}"
 
+    def expect_viewer_shows(self, name: str, value: object) -> None:
+        assert self.viewer_answer.get(name) == value, f"the viewer was given {name} {self.viewer_answer.get(name)!r}, not {value!r}"
+
+    def expect_viewer_rows(self, key: str, field: str, values: list) -> None:
+        shown = [row.get(field) for row in self.viewer_answer.get(key, [])]
+        assert shown == values, f"the viewer was given {key} with {field} {shown}, not {values}"
+
+    def expect_viewer_count(self, key: str, count: int) -> None:
+        shown = self.viewer_answer.get(key, [])
+        assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

@@ -92,6 +92,10 @@ class AgentSteps:
     def agent_writes(self, path: str) -> None:
         self.hooked("agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
 
+    def agent_has_edited(self, path: str) -> None:
+        patch = [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]
+        self.hooked("agent has edited", "PostToolUse", tool_name=self.tools.write, tool_input={"file_path": str(self.app.config.root / path), "content": "y"}, tool_response={"structuredPatch": patch})
+
     def agent_runs_in_the_shell(self, line: str) -> None:
         self.hooked(f"agent runs in the shell {line.split()[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": line})
 
