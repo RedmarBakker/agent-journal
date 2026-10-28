@@ -15,6 +15,9 @@ class UserSteps:
     def user_comments_on(self, table: str, row: int, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "on": f"{table}:{row}", "idempotency": uuid.uuid4().hex})["id"]
 
+    def user_answers(self, question: int, answer: str) -> None:
+        self.user_posted(f"/journal/questions/{question}/answer", {"answer": answer})
+
     def user_creates_plan(self, title: str, brief: str) -> int:
         return self.user_posted("/journal/plans", {"title": title, "brief": brief})["id"]
 

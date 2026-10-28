@@ -10,3 +10,10 @@ def test_a_new_session_takes_over_the_agent_with_its_task(scenario):
     scenario.expect_agent_told(BriefingNudges.TAKEOVER)
     scenario.expect_agent_session("s2")
     scenario.expect_task(scenario.task_in_hand, state=TaskState.STARTED)
+
+
+@starts_from(TaskInHand)
+def test_a_session_of_the_other_provider_takes_over_the_same_agent(scenario):
+    scenario.other_provider_session_starts()
+    scenario.expect_agent_session("s3")
+    scenario.expect_task(scenario.task_in_hand, state=TaskState.STARTED)

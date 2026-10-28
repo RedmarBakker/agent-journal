@@ -18,6 +18,10 @@ class AgentActions:
         self.agent_runs(f"doc create '{title}' --file '{source}' --abstract '{title}'")
         return int(re.search(r"doc (\d+)", self.command.text)[1])
 
+    def agent_asks(self, question: str, *options: str) -> int:
+        self.agent_runs(f"question ask '{question}' --options " + " ".join(f"'{option}'" for option in options))
+        return int(re.search(r"question (\d+)", self.command.text)[1])
+
     def agent_answers(self, message: int, text: str) -> None:
         self.agent_runs(f"message read {message}")
         self.agent_replies(message, text)
