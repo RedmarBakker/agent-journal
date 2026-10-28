@@ -20,6 +20,7 @@ from journal.events.agent.session_ended import SessionEnded
 from journal.events.bus import Bus
 from journal.events.listener import Listener
 from journal.support.decision import Decision
+from journal.support.hook_measure import HookMeasure
 from journal.support.listener_queue import ListenerQueue
 from journal.support.hook import Hook
 from journal.hooks.support.transcript_turns import TranscriptTurns
@@ -84,8 +85,9 @@ class Receiver:
             if self.is_unknown_session_end(event):
                 return Decision()
             decision = self._blocking(event, self.bus.answer_listeners(type(event)))
-            self.entries.save(entry.with_merged("data", self.recorded_outcome(hook, decision)), Actor.agent(hook.session))
+            entry = self.refusal_recorded(entry, decision, hook)
             self._defer(event)
+            self.measure_stored(entry, hook)
             self.subagent_moved(hook, environment)
         return decision
 
@@ -126,21 +128,29 @@ class Receiver:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
 
-    def recorded_outcome(self, hook: Hook, decision: Decision) -> dict:
-        recorded = {} if decision.allowed else {"refused": decision.reason}
+    def refusal_recorded(self, entry: Entry, decision: Decision, hook: Hook) -> Entry:
+        if decision.allowed:
+            return entry
+        return self.entries.save(entry.with_merged("data", {"refused": decision.reason}), Actor.agent(hook.session))
+
+    def measure_stored(self, entry: Entry, hook: Hook) -> None:
         if not hook.started_ms:
-            return recorded
-        elapsed = int(self.time_source.seconds() * 1000) - hook.started_ms
-        self.slow.measured(HOOK, f"/hooks/{hook.hook_type.value}", elapsed)
-        boot_wait = {"boot_wait_ms": round(hook.boot_wait_seconds * 1000)} if hook.boot_wait_seconds else {}
-        return {**recorded, "hook_ms": elapsed, **boot_wait}
+            return
+        measure = HookMeasure(elapsed_ms=int(self.time_source.seconds() * 1000) - hook.started_ms, boot_wait_ms=round(hook.boot_wait_seconds * 1000))
+        self.slow.measured(HOOK, f"/hooks/{hook.hook_type.value}", measure.elapsed_ms)
+        self.deferred.add(partial(self.measure_saved, entry, measure, hook.session))
+
+    def measure_saved(self, entry: Entry, measure: HookMeasure, session: str) -> None:
+        self.entries.save(entry.with_merged("data", measure.recorded()), Actor.agent(session))
 
     def is_unknown_session_end(self, event: AgentEvent) -> bool:
         return isinstance(event, SessionEnded) and not self.agents.matching(session=event.session)
 
     def _immediate(self, event: AgentEvent) -> None:
-        for listener in self.bus.listeners(type(event)):
+        for listener in self.bus.answer_listeners(type(event)):
             listener.handle(event)
+        for listener in self.bus.background_listeners(type(event)):
+            self.deferred.add(partial(self.timed_handle, listener, event))
 
     def _blocking(self, event: AgentEvent, listeners: list[Listener]) -> Decision:
         decision = Decision()
@@ -158,7 +168,7 @@ class Receiver:
         writers = self.phase.writers()
         if not writers:
             return decision
-        self.fault_log.reported(f"listener {name} before the hook's answer", UndeferredViewerWrite(f"{name} updated the viewer through {', '.join(writers)} before the hook answered"))
+        self.deferred.add(partial(self.fault_log.reported, f"listener {name} before the hook's answer", UndeferredViewerWrite(f"{name} updated the viewer through {', '.join(writers)} before the hook answered")))
         if not self.settings.option(FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING):
             return decision
         line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), FaultsNudges.UNDEFERRED_VIEWER_WRITE.create(listener=name, writers=", ".join(writers)))
@@ -170,10 +180,13 @@ class Receiver:
             return answered if isinstance(answered, Decision) else None
         except Exception as fault:
             text = f"{type(listener).__name__} raised {type(fault).__name__}: {fault}"
-            self.entries.save(Entry(environment_id=event.environment_id, entry_type=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": type(listener).__name__, "fault": f"{type(fault).__name__}: {fault}"}), Actor.system())
-            self.bus.dispatch(GuardFailed(environment_id=event.environment_id, session=event.session, text=text))
+            self.deferred.add(partial(self.guard_failure_recorded, event, type(listener).__name__, f"{type(fault).__name__}: {fault}", text))
             line = self.nudger.refuse_with(self.sessions.agent(event.session, event.environment_id), EngineNudges.GUARD_FAILED.create(text=text))
             return Decision.allowed_with(line) if line else None
+
+    def guard_failure_recorded(self, event: AgentEvent, listener: str, fault: str, text: str) -> None:
+        self.entries.save(Entry(environment_id=event.environment_id, entry_type=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": listener, "fault": fault}), Actor.system())
+        self.bus.dispatch(GuardFailed(environment_id=event.environment_id, session=event.session, text=text))
 
     def _defer(self, event: AgentEvent) -> None:
         for listener in self.bus.background_listeners(type(event)):

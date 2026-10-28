@@ -1,4 +1,5 @@
 from journal.support.card_outcome import CardOutcome
+from functools import partial
 from pathlib import Path
 import re
 import time
@@ -60,15 +61,17 @@ class SlowRequests:
         if path.startswith(UNMEASURED_PATHS) or not self.settings.option(FaultsOptions.DEVELOPER):
             return
         loads = LoadTally.ended()
-        self.counted(method, path, round(ms), loads)
+        self.deferred.add(partial(self.stored, method, path, round(ms), loads))
+
+    def stored(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
+        self.counted(method, path, ms, loads)
         self.check_gathered(self.clock.time())
         route = self.route(path)
         if not self.judging() or self.is_outward(route):
             return
         budget, points = self.budget(method), loads.points()
-        if not budget or points <= budget:
-            return
-        self.deferred.add(lambda: self.flagged(f"{method} {route}", points))
+        if budget and points > budget:
+            self.flagged(f"{method} {route}", points)
 
     @staticmethod
     def route(path: str) -> str:

@@ -149,6 +149,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
+    app.container.get(ListenerQueue).drain()
     failed = [e for e in app.container.get(Entries).scoped() if e.entry_type == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
     assert any("A safety check failed, so the agent was not stopped" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
@@ -299,6 +300,7 @@ def test_the_developer_numbers_are_kept_in_memory_and_written_to_no_row(app: App
     connection.execute = lambda sql, params=(): statements.append(sql) or execute(sql, params)
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 100)
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 300)
+    app.container.get(ListenerQueue).drain()
     connection.execute = execute
     assert not [sql for sql in statements if "timings" in sql or "developer." in sql], "no statement writes a developer number"
     assert connection.one("SELECT name FROM sqlite_master WHERE name = 'timings'") is None, "and no table holds the log"
