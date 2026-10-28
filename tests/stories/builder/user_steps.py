@@ -14,6 +14,9 @@ class UserSteps:
     def user_sends_message(self, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "idempotency": uuid.uuid4().hex})["id"]
 
+    def user_deletes_message(self, message: int) -> None:
+        self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
+
     def user_comments_on(self, table: str, row: int, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "on": f"{table}:{row}", "idempotency": uuid.uuid4().hex})["id"]
 

@@ -88,6 +88,10 @@ class StoryChecks:
         places = [next((k for k, line in enumerate(lines) if part in line), -1) for part in parts]
         assert -1 not in places and places == sorted(places), f"the command printed {', '.join(parts)} out of this order: {self.command.text}"
 
+    def expect_command_line_count(self, count: int) -> None:
+        lines = self.command.text.strip().splitlines()
+        assert len(lines) == count, f"the command printed {len(lines)} lines, not {count}: {self.command.text}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

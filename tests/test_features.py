@@ -1862,23 +1862,6 @@ def test_wispr_flow_is_among_the_suggested_mcp_services():
 
 
 
-def test_journal_search_finds_rows_holding_every_word_and_marks_the_chat(app: App):
-    from journal.repositories.messages import Messages
-    console = app.console()
-    console.run(["task", "create", "Scope the reads", "--brief", "the base repository adds the environment"], AGENT)
-    console.run(["plan", "create", "release", "--brief", "ship the base Repository change"], USER)
-    console.run(["message", "send", "make it laravel style: the scope applies by itself"], USER)
-    console.run(["reminder", "create", "the base model is data only"], AGENT)
-    output = console.run(["search", "base", "REPOSITORY"], AGENT).text
-    assert "task 1: Scope the reads" in output and "plan 1: release" in output, "every word, any case, in any text field"
-    assert "reminder" not in output and "message" not in output.split("Searched")[0], "a row missing a word is not found"
-    assert console.run(["search", "find", "100%"], AGENT).text == "nothing here holds all of: 100%\n", "a % is a letter, not a wildcard, and the verb may be named"
-    thresholds = [m for m in app.container.get(Messages).scoped() if m.data.get("kind") == "search"]
-    assert thresholds[0].text == 'Searched for "base REPOSITORY"' and any("task 1: Scope the reads" in line for line in thresholds[0].data["lines"]), "the mark opens what was found"
-    console.run(["check", "create", "Lint the base repository", "--command", "true", "--every", "0"], AGENT)
-    assert "check 1: Lint the base repository" in console.run(["search", "base", "repository"], AGENT).text, "every model with words of its own is searched, a check among them"
-    only = console.run(["search", "base", "repository", "--model", "plan,check"], AGENT).text
-    assert "plan 1: release" in only and "check 1" in only and "task 1" not in only, "--model narrows to the models named"
 
 
 def test_words_the_hooks_missed_are_swept_from_the_transcript_into_the_chat_once(app: App, monkeypatch, tmp_path):
@@ -2509,15 +2492,6 @@ def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_
 
 
 
-def test_reading_a_message_the_user_deleted_says_so_and_leaves_nothing_to_do(app: App):
-    from journal.repositories.messages import Messages
-    console, main = app.console(), {"X-Journal-Env": "main"}
-    assert console.run(["message", "send", "never mind this"], USER).code == 0
-    sent = app.container.get(Messages).all()[-1]
-    posted(app, f"/journal/messages/{sent.id}/delete", {}, main)
-    read = console.run(["message", "read", str(sent.id)], AGENT)
-    assert read.code == 0 and read.text.strip() == f"message {sent.id} was deleted by the user; nothing to do", read.error
-    assert console.run(["message", "read", "999999"], AGENT).code != 0, "a message that never was is still not found"
 
 
 
@@ -3733,16 +3707,6 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     finally:
         second.runtime().stop()
 
-def test_a_report_about_several_rows_links_each_and_refuses_one_it_cannot_read(app: App):
-    console = app.console()
-    for title in ("one", "two"):
-        console.run(["plan", "create", title, "--brief", "b"], USER)
-    produced = console.run(["report", "create", "Both", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1,plans:2"], USER)
-    assert produced.code == 0 and "about plans:1, plans:2" in produced.text, "rows apart by commas are each linked"
-    spaced = console.run(["report", "create", "Both again", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1", "plans:2"], USER)
-    assert spaced.code == 0 and "about plans:1, plans:2" in spaced.text, "and so are rows apart by spaces"
-    refused = console.run(["report", "create", "Wrong", "--abstract", "What it says, in one line", "--body", "words", "--about", "plans:1,the second plan"], USER)
-    assert refused.code == 1 and "not a row: the second plan" in refused.error, "a row it cannot read is refused by name, and no report is made"
 
 def test_the_mcp_page_shows_a_servers_state_as_last_checked_and_check_all_reads_it_anew(app: App, monkeypatch):
     import json as j
@@ -5412,15 +5376,6 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
     assert outputs.background("s1") == [], "a command that ended is no longer in the background"
 
 
-def test_a_second_reply_with_the_same_words_to_the_same_message_is_not_sent_and_the_agent_is_told(app: App):
-    from journal.repositories.messages import Messages
-    console = app.console()
-    console.run(["message", "send", "Can you look?"], USER)
-    first = console.run(["message", "send", "Looking now.", "--reply-to", "1"], AGENT)
-    repeat = console.run(["message", "send", "Looking now.", "--reply-to", "1"], AGENT)
-    assert first.code == 0 and repeat.code == 0 and "already has this reply in the chat: not sent again" in repeat.text
-    assert [m.text for m in app.container.get(Messages).recent(10) if m.reply_target == 1] == ["Looking now."], "the chat shows the reply once"
-    assert "sent" in console.run(["message", "send", "Found it.", "--reply-to", "1"], AGENT).text, "other words to the same message are sent"
 
 
 def test_a_reply_by_command_edited_since_is_known_by_its_key_and_never_sent_again(app: App):
@@ -15554,15 +15509,6 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
     assert marks() == ["Committed a change on development", "Switched to branch phone", "Pushed phone"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
 
 
-def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words(app: App):
-    hook(app, "SessionStart")
-    console = app.console()
-    for n in range(45):
-        console.run(["task", "create", f"needle number {n}"], AGENT)
-    for n in range(5):
-        console.run(["reminder", "create", f"a needle reminder {n}"], AGENT)
-    found = console.run(["search", "needle"], AGENT).text.strip().splitlines()
-    assert len(found) == 40 and found[0].startswith("task "), "the newest rows of the first kinds fill the forty and the later kinds are not read"
 
 
 def test_a_long_build_whose_card_showed_nothing_moving_is_told_how_to_show_progress_with_its_tools_advice(app: App):
