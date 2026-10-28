@@ -75,6 +75,9 @@ class AgentSteps:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": "a.py"})
         self.hook_observed("agent reads after the journal was down", *self.session_posted_hook(self.scoped_session(), headers, "PreToolUse", call))
 
+    def agent_has_run_in_the_shell(self, line: str) -> None:
+        self.hooked(f"agent has run in the shell {line.split()[0]}", "PostToolUse", tool_name=self.tools.shell, tool_input={"command": line}, tool_response={"stdout": self.shell_text, "stderr": ""})
+
     def agent_has_read(self, path: str = "a.py") -> None:
         self.hooked("agent has read", "PostToolUse", tool_name=self.tools.read, tool_input={"file_path": path}, tool_response={})
 
