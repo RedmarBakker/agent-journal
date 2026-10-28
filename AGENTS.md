@@ -181,7 +181,8 @@ Run the whole suite after every change; it is cheap.
 
 Scenario stories are the preferred way to test behaviour here: what an agent is told, what it may do, where its stack
 ends. A unit test still fits a single part on its own, a parser or a model's pure method; a behaviour is tested by a
-story. The older behaviour tests in `tests/` are being replaced by stories and are not added to.
+story. The older behaviour tests in `tests/` are looked over one by one: those a story now covers are removed, and
+no new behaviour test is added there.
 
 A new feature starts as its requirements, written as scenario stories in `tests/scenarios/`, before any of its code. The skill
 `writing-scenario-tests` says how, step by step; load it before writing a feature.

@@ -9,7 +9,8 @@ A feature starts as its requirements, written as stories in `tests/scenarios/`, 
 are the specification: a case without a story is a case nobody decided.
 
 Stories are the preferred way to test behaviour. A unit test still fits a single part on its own, a parser or a
-model's pure method; the older behaviour tests in `tests/` are being replaced by stories and are not added to.
+model's pure method; the older behaviour tests in `tests/` are looked
+over one by one, those a story now covers are removed, and no new behaviour test is added there.
 
 ## 1. Think every case through first
 
