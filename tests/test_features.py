@@ -14368,10 +14368,13 @@ def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go
     from journal.models.task import Task
     from journal.repositories.plans import PLAN_LINK, Plans
     from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "planned"], USER)
+    from journal.models.plan import Plan
+    from journal.repositories.links import Links
     tasks, plans = app.container.get(Tasks), app.container.get(Plans)
+    with app.container.get(Scope).environment(MAIN):
+        made = plans.save(Plan(environment_id=MAIN, title="p", brief="b"), Actor.user(1))
+        planned = tasks.save(Task(environment_id=MAIN, title="planned"), Actor.user(1))
+        app.container.get(Links).linked(Ref.build(planned), Ref.build(made), PLAN_LINK, Actor.user(1))
 
     class LinkReadingIndex(Controller[Task]):
         def __init__(self, repository: Tasks) -> None:
