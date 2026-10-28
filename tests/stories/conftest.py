@@ -86,6 +86,8 @@ def story(app, monkeypatch, request, copies):
     for mark in request.node.iter_markers(SETTINGS_MARK):
         played.user_sets(*mark.args)
     yield played
+    for close in played.closers:
+        close()
     if request.node.rep_call.failed:
         return
     assert played.is_stack_checked_last(), f"{request.node.originalname} does not close with story.expect_stack(...) after its last step: every story says the stack it ends on"

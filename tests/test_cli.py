@@ -532,27 +532,6 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
         team.close(server)
 
 
-def test_a_journal_connects_to_a_library_sees_its_status_and_disconnects(app: App, tmp_path: Path):
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert "run this line yourself" in console.run(["library", "connect", address, "--email", "ada@example.com"], user).error, "no password, no connection"
-        connected = console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user)
-        assert connected.code == 0 and "as Ada, admin" in connected.text, connected.error
-        key = team.details.answer().key
-        assert (app.config.home / "libraries" / f"{key}.json").is_file(), "the connection is kept by the library's key"
-        assert f"library {address}, as Ada (admin)" in console.run(["library", "status"], user).text
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--password", "x"], user).code != 0, "one library at a time"
-        assert console.run(["library", "login", "--email", "ada@example.com", "--password", "correct horse battery"], user).code == 0, "a machine logs in again"
-        assert "disconnected" in console.run(["library", "disconnect"], user).text
-        assert "connected to no library" in console.run(["library", "status"], user).text
-    finally:
-        team.close(server)
 
 
 def test_a_sequence_published_twice_is_version_two_of_its_named_item_with_the_publishers_account(app: App, tmp_path: Path):

@@ -42,6 +42,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.shell_text, self.shell_exit, self.shell_outputs = "", 0, 0
         self.runner_threads: list = []
         self.viewer_status, self.viewer_answer = 0, {}
+        self.closers: list = []
         self.mode = BUILDER_MODE
 
     def reach(self, fixture: type[StateFixture]) -> None:
