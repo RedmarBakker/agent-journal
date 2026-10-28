@@ -54,6 +54,13 @@ def story_booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     return app
 
 
+def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:
+    (root / "home" / ".local" / "bin").mkdir(parents=True, exist_ok=True)
+    patch.setenv("HOME", str(root / "home"))
+    patch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    patch.delenv("CODEX_HOME", raising=False)
+
+
 @pytest.fixture(scope="module")
 def copies(request):
     fixture_copies = FixtureCopies()
@@ -63,6 +70,7 @@ def copies(request):
 
 @pytest.fixture
 def story(app, monkeypatch, request, copies):
+    home_inside_the_story_folder(app.config.root, monkeypatch)
     typing_capture(app, monkeypatch, [])
     pinned_clock(app, monkeypatch)
     reads = SettingReads()

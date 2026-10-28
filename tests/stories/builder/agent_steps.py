@@ -311,6 +311,12 @@ class AgentSteps:
     def project_root(self) -> str:
         return str(self.app.config.root)
 
+    def project_file_holding(self, name: str, text: str) -> None:
+        path = self.app.config.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        self.observed(f"the project holds {name}", None, None)
+
     def project_file(self, name: str, line_count: int) -> str:
         path = self.app.config.root / name
         path.write_text("".join(f"line {number}\n" for number in range(line_count)))

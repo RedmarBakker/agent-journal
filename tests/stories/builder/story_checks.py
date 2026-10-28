@@ -133,6 +133,19 @@ class StoryChecks:
         shown = {name: changed.get(name) for name in fields}
         assert shown == fields, f"the tool's input was changed to {changed}, not to hold {fields}"
 
+    def expect_project_file(self, path: str, *parts: str) -> None:
+        file = self.app.config.root / path
+        text = file.read_text() if file.is_file() else ""
+        missing = [part for part in parts if part not in text]
+        assert file.is_file() and not missing, f"{path} does not hold {missing}: {text[:400]!r}"
+
+    def expect_project_file_without(self, path: str, part: str) -> None:
+        text = (self.app.config.root / path).read_text()
+        assert part not in text, f"{path} still holds {part!r}"
+
+    def expect_project_file_is(self, path: str, text: str) -> None:
+        assert (self.app.config.root / path).read_text() == text, f"{path} changed"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

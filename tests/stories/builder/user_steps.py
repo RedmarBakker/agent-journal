@@ -1,7 +1,9 @@
 import re
+import shlex
 import uuid
 
 from journal.features.workers.workers_options import WorkersOptions
+from journal.support.caller import Caller
 from journal.support.option import Option
 from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
@@ -23,6 +25,13 @@ class UserSteps:
 
     def viewer_logs_a_console_error(self, message: str, stack: str) -> None:
         self.user_posted("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")
+
+    def user_types(self, line: str) -> None:
+        arguments = shlex.split(line)
+        self.record_command(f"user types {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.user("main")))
+
+    def project_text(self, path: str) -> str:
+        return (self.app.config.root / path).read_text()
 
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
