@@ -60,15 +60,14 @@ async function dock(output) {
     display: flex;
 }
 
-/* drawn like a docked card, its border and its raised ground, but low and only as wide as what it says */
+/* plain text with its icon in front, no card around it */
 .run-menu-strip {
     display: inline-flex;
-    gap: 6px;
+    gap: 5px;
     align-items: center;
-    padding: 2px 9px;
-    border: 1px solid var(--border-2);
-    border-radius: 7px;
-    background: var(--raised);
+    padding: 2px 0;
+    border: 0;
+    background: none;
     color: var(--text-3);
     font: inherit;
     font-size: 11px;
