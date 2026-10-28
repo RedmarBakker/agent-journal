@@ -160,11 +160,16 @@ class AgentSteps:
         self.agent_runs(f"task create '{title}' --start")
         return self.task_number()
 
-    def agent_writes_a_document(self, title: str, text: str) -> int:
+    def agent_writes_a_document(self, title: str, abstract: str, text: str) -> int:
         source = self.app.config.root / f"{title}.md"
         source.write_text(text)
-        self.agent_runs(f"doc create '{title}' --file '{source}' --abstract '{title}'")
+        self.agent_runs(f"doc create '{title}' --file '{source}' --abstract '{abstract}'")
         return int(re.search(r"doc (\d+)", self.command.text)[1])
+
+    def agent_rewrites_the_document(self, document: int, text: str) -> None:
+        source = self.app.config.root / f"document {document} rewritten.md"
+        source.write_text(text)
+        self.agent_runs(f"doc update {document} --file '{source}'")
 
     def agent_asks(self, question: str, *options: str) -> int:
         self.agent_runs(f"question ask '{question}' --options " + " ".join(f"'{option}'" for option in options))

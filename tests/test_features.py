@@ -3708,15 +3708,6 @@ def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: A
 
 
 
-def test_a_document_is_written_anew_from_a_file(app: App, tmp_path):
-    first, second = tmp_path / "first.md", tmp_path / "second.md"
-    first.write_text("## One\n\nthe first words")
-    second.write_text("## One\n\nthe words as ruled")
-    console = app.console()
-    produced = re.search(r"doc (\d+):", console.run(["doc", "create", "A proposal", "--file", str(first), "--abstract", "what it proposes"], USER).text).group(1)
-    assert console.run(["doc", "update", produced, "--file", str(second)], USER).text == f"doc {produced} written anew: A proposal\n"
-    shown = console.run(["doc", "show", produced, "--section", "1"], USER).text
-    assert "the words as ruled" in shown and "what it proposes" in shown, "the text is the file's, the title and the abstract kept"
 
 def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, monkeypatch):
     import sqlite3
