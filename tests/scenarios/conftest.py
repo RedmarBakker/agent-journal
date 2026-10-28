@@ -8,7 +8,7 @@ from tests.scenarios.builder.coverage_gaps import CoverageGaps
 from tests.scenarios.builder.path_overlay import PathOverlay
 from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
-from tests.scenarios.builder.story_values import ENDS_IN_MARK, STARTS_FROM_MARK
+from tests.scenarios.builder.story_values import ENDS_IN_MARK, SETTINGS_MARK, STARTS_FROM_MARK
 from tests.test_features import booted
 from journal.config import Config
 from journal.engine.nudge_registry import NudgeRegistry
@@ -37,6 +37,8 @@ def scenario(app, monkeypatch, request):
     played = Scenario(app, request.param, reads)
     for mark in request.node.iter_markers(STARTS_FROM_MARK):
         played.starts_from(mark.args[0])
+    for mark in reversed(list(request.node.iter_markers(SETTINGS_MARK))):
+        played.user_sets(*mark.args)
     yield played
     for mark in request.node.iter_markers(ENDS_IN_MARK):
         played.expect_stack(*(played.end_stack if played.end_stack is not None else mark.args))

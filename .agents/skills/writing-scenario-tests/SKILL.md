@@ -35,8 +35,14 @@ Before a line of a story, write down for yourself what the feature does in each 
 - Start each story from the fixture whose rows it uses (`@scenario(TaskInHand, end=[IDLE])`); `end` is the stack the
   story leaves, bottom first.
 - Play the agent through `scenario.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
+- A setting the story needs is set with `@settings(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting:
+  the user sets it through the viewer's route after the start fixture and before the first step, and the story fails
+  when the journal never reads it. A story that tries several values uses `@values_of(option)` (a switch off and on,
+  a number none, one, a middle and its default) or `@values(...)` with `scenario.user_sets(option, value)` inside.
+- Numbers come from the code, never copied: `@values(MemoryThresholds.CONTEXT)`, `scenario.setting(option) + 1`,
+  `scenario.agent_consumes(option)` for as many tool uses as a setting allows.
 - Check what reaches the agent (`expect_agent_told`, `expect_refused`), the rows (`expect_task`, `task_numbers_in`) and
-  the stack. Values come from the settings themselves, never a copied number.
+  the stack.
 - A step the builder lacks is added to the builder in `tests/scenarios/builder/`, once, for every story to use.
 
 ## 3. Run them together, see them fail

@@ -23,6 +23,8 @@ def values(choices: Iterable) -> pytest.MarkDecorator:
 STARTS_FROM_MARK = "starts_from"
 # the marker naming the stack a story ends on
 ENDS_IN_MARK = "ends_in"
+# the marker naming a setting the user sets before the story's first step
+SETTINGS_MARK = "settings"
 
 
 def values_of(option: Option) -> pytest.MarkDecorator:
@@ -41,6 +43,11 @@ def sample(population: Iterable[int], count: int) -> list[int]:
 def starts_from(fixture: type) -> pytest.MarkDecorator:
     """The state a story starts from, seeded through the real path before the story's first step."""
     return getattr(pytest.mark, STARTS_FROM_MARK).with_args(fixture)
+
+
+def settings(option: Option, value: object) -> pytest.MarkDecorator:
+    """A setting the user sets through the viewer's route before the story's first step; the story fails when the journal never reads it."""
+    return getattr(pytest.mark, SETTINGS_MARK).with_args(option, value)
 
 
 def ends_in(*stack: str) -> pytest.MarkDecorator:

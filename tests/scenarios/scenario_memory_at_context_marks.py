@@ -1,12 +1,13 @@
 from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.memory.memory_nudges import MemoryNudges
+from journal.features.memory.memory_thresholds import MemoryThresholds
 from tests.scenarios.builder.stack_states import IDLE, WEIGHING_MEMORIES
 from tests.scenarios.builder.story_values import scenario, values
 from tests.scenarios.state_fixtures.agent_at_work import AgentAtWork
 
 
 @scenario(AgentAtWork)
-@values([50, 80, 90])
+@values(MemoryThresholds.CONTEXT)
 def test_each_context_mark_holds_writes_until_the_memories_are_weighed(scenario, value):
     scenario.agent_consumes_context(value)
     scenario.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=value)

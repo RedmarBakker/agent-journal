@@ -2,15 +2,14 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.task_state import TaskState
 from tests.scenarios.builder.stack_states import IDLE
-from tests.scenarios.builder.story_values import scenario, values
+from tests.scenarios.builder.story_values import scenario, settings, values
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
 @scenario(TaskInHand)
+@settings(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
+@settings(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
 def test_a_test_run_on_a_long_task_suggests_testing(scenario):
-    scenario.user_sets(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
-    scenario.user_sets(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
-
     scenario.agent_runs_in_the_shell("pytest -q")
     scenario.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
 
