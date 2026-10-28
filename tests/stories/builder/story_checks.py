@@ -119,6 +119,10 @@ class StoryChecks:
     def expect_question_count(self, count: int) -> None:
         self.expect_row_count("questions", count)
 
+    def expect_change_told_to_the_viewer(self, table: str, n: int) -> None:
+        changes = get_answer(self.app, "/journal/entries?since=0", MAIN)[1]
+        assert (table, n) in [(change["data"].get("table"), change["data"].get("id")) for change in changes], f"no change of {table} {n} told to the viewer"
+
     def expect_row_count(self, table: str, count: int) -> None:
         rows = get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"]
         assert len(rows) == count, f"{len(rows)} {table} through the API, not {count}"

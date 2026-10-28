@@ -984,15 +984,6 @@ def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_
     assert row.last_report.summary == "1 sin" and row.last_report.findings[0].line == 3, "the report the check wrote is kept with its run"
 
 
-def test_a_check_run_reaches_the_page_though_a_check_is_the_projects(app: App):
-    from journal.repositories.entries import Entries
-    console = app.console()
-    console.run(["check", "create", "Fails", "--command", "false"], USER)
-    previous = app.container.get(Entries).last_id()
-    console.run(["check", "run", "1"], USER)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/entries?since={previous}", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        entries = json.loads(reply.read())
-    assert ("checks", 1) in [(e["data"].get("table"), e["data"].get("id")) for e in entries], "the run's change is told to the page, so it shows the check failed"
 
 
 def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch):

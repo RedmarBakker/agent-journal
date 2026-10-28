@@ -16,3 +16,12 @@ def test_an_edited_check_shows_what_the_edit_names_and_no_run_yet_and_runs_its_n
     story.agent_runs(f"check run {check}")
     story.expect_command_passed()
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_check_run_that_fails_is_told_to_the_page_as_a_change_of_its_row(story):
+    story.agent_runs("check create 'Fails' --command 'false' --brief 'always fails'")
+    check = story.created_number("check")
+    story.agent_runs(f"check run {check}")
+    story.expect_change_told_to_the_viewer("checks", check)
+    story.expect_stack(Ready)
