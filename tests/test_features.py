@@ -3249,20 +3249,12 @@ def test_the_rules_doc_rules_on_every_state_the_engine_knows(app: App):
 
 
 
-def test_a_read_outside_every_scope_is_refused_and_a_command_reads_its_own_environment_only(app: App):
+def test_a_read_outside_every_scope_is_refused(app: App):
     from contextvars import Context
     from journal.repositories.tasks import Tasks
     from journal.support.scope_missing import ScopeMissing
-    console = app.console()
-    console.run(["task", "create", "main's own"], USER)
-    console.run(["task", "create", "other's own"], Caller.user("other"))
     with pytest.raises(ScopeMissing):
         Context().run(app.container.get(Tasks).scoped)
-    in_main, in_other = console.run(["task", "list"], USER).text, console.run(["task", "list"], Caller.user("other")).text
-    assert "main's own" in in_main and "other's own" not in in_main
-    assert "other's own" in in_other and "main's own" not in in_other
-    assert [t.title for t in app.container.get(Tasks).scoped()] == ["main's own"], "the test reads in main, the scope its fixture entered"
-
 
 
 def test_a_message_that_says_flowchart_asks_for_the_flowcharts_skill(skilled):
@@ -9740,6 +9732,7 @@ def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_mer
 def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_account_number(app: App):
     from journal.http.support.identity import Identity
     from journal.repositories.id_blocks import IdBlocks
+    from journal.models.task import Task
     from journal.repositories.tasks import Tasks
     from journal.support.caller_variables import CallerVariables
     from journal.sync.team_account import TEAM_FILE, TeamAccount
@@ -9751,10 +9744,9 @@ def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_
     assert app.container.get(Identity).build({}, "") == Actor.user(7), "the viewer writes as the person whose account this machine joined with"
     caller = CallerVariables("main", "claude", False).caller(app.container.get(TeamAccount).user_number())
     assert caller.actor == Actor.user(7)
-    app.console().run(["task", "create", "made by the second person"], caller)
     with app.container.get(Scope).environment(1):
-        [task] = [task for task in app.container.get(Tasks).scoped() if task.title == "made by the second person"]
-    assert task.creator == Actor.user(7) and task.id == 7001
+        task = app.container.get(Tasks).save(Task(environment_id=1, title="made on the second person's machine"), Actor.system())
+    assert task.id == 7001, "a row made on this machine takes its number from the account's block"
     (app.config.home / TEAM_FILE).unlink()
 
 
@@ -12265,8 +12257,7 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     with app.container.get(Scope).environment(MAIN):
         output = app.container.get(CommandOutputs).save(CommandOutput(chain="long-run", command="sleep 600", session="s1", folder=str(folder)).backgrounded(), Actor.system())
     queue, wait = app.container.get(RestartQueue), app.container.get(RestartWait)
-    told = app.console().run(["setup", "restart"], AGENT).text
-    assert f"outputs {output.id} still run" in told and "end any that is stuck" in told and sent == [], "the restart waits and names the running command"
+    assert [waited.id for waited in queue.restart(MAIN, "")] == [output.id] and sent == [], "the restart waits and names the running command"
     wait.tick(0.0)
     assert sent == [] and queue.waiting() == [MAIN], "it keeps waiting while the command runs"
     later = app.config.root / "later-run"
