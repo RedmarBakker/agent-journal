@@ -58,13 +58,7 @@ class SupervisorLink:
         return self.typed.is_paused(environment_id) or self.typed.is_waiting(environment_id) or self.is_batching(environment_id)
 
     def is_batching(self, environment_id: int) -> bool:
-        if not self.typed.is_working(environment_id):
-            return self.is_batch_open(environment_id)
         return self.typed.is_recent(environment_id, self.batch_seconds()) or self.is_queue_open(environment_id)
-
-    def is_batch_open(self, environment_id: int) -> bool:
-        oldest = self.typed.batch_start(environment_id)
-        return oldest is not None and self.time_source.seconds() - oldest < self.batch_seconds()
 
     def is_queue_open(self, environment_id: int) -> bool:
         oldest = self.typed.queue_start(environment_id)

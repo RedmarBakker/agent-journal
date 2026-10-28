@@ -2476,8 +2476,9 @@ def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
     assert f"new message {number}" not in added, "the line the prompt carries is not added again"
 
 
-def test_lines_for_a_stopped_agent_wait_five_seconds_from_the_first_and_are_typed_together_each_once(app: App, monkeypatch):
+def test_the_first_line_for_a_stopped_agent_goes_at_once_and_the_lines_after_it_wait_five_seconds_and_go_together_each_once(app: App, monkeypatch):
     from journal.engine.clock import Clock
+    from journal.support.typed_lines import TypedLines
     from journal.support.time_source import TimeSource
     keystrokes = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
@@ -2488,12 +2489,15 @@ def test_lines_for_a_stopped_agent_wait_five_seconds_from_the_first_and_are_type
     clock, link = app.container.get(TimeSource), app.container.get(SupervisorLink)
     start = clock.seconds()
     clock.pin(start)
+    link.type(1, "a test passed")
+    assert len(keystrokes) == 1 and "a test passed" in keystrokes[0], "with nothing typed just before, the first line goes at once"
+    app.container.get(TypedLines).confirm(1, keystrokes[0])
     for line in ("the build finished", "the build finished", "a check failed"):
         link.type(1, line)
-        assert keystrokes == [], "the first line starts the wait; nothing is typed before it is up"
+    assert len(keystrokes) == 1, "the lines after it wait out the five seconds from the line typed"
     clock.pin(start + 6)
     app.container.get(Clock).tick(start + 6)
-    assert len(keystrokes) == 1 and keystrokes[0].count("the build finished") == 1 and "a check failed" in keystrokes[0], "once it is up, every held line is typed as one message, each once: " + str(keystrokes)
+    assert len(keystrokes) == 2 and keystrokes[1].count("the build finished") == 1 and "a check failed" in keystrokes[1], "once they are up, every held line is typed as one message, each once: " + str(keystrokes)
     clock.unpin()
 
 
@@ -4281,10 +4285,10 @@ def test_a_typed_line_is_confirmed_by_its_prompt_and_typed_again_when_it_was_los
     link.type(1, "after it")
     assert "[journal] after it" not in [s["line"] for s in transmitted], "a line waits while an earlier one is on its way"
     hook(app, "Stop")
-    for later in (120, 150, 200, 300, 500, 900):
+    for later in (120, 150, 200, 300, 500):
         tick(later)
     lines = [s["line"] for s in transmitted]
-    assert lines[2:] and set(lines[2:]) == {"[journal] while at work | after it"}, "at the turn's end the waiting lines are typed as one, and typed again until seen back"
+    assert lines[2:] and set(lines[2:]) == {"[journal] while at work | after it"}, "at the turn's end the waiting lines are typed as one, and typed again until seen back, before the wake check's ten minutes"
 
 
 def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
@@ -9745,8 +9749,9 @@ def test_a_read_that_asks_a_server_outside_is_not_judged_against_the_budget(app:
     assert measured == ["/journal/near"], "the tunnel's answer waits on the network, so only the journal's own reads are held to a budget"
 
 
-def test_commands_that_end_together_are_typed_as_one_message(app: App, monkeypatch):
+def test_commands_that_end_together_are_typed_the_first_at_once_and_the_rest_as_one_message(app: App, monkeypatch):
     from journal.events.agent.ticked import Ticked
+    from journal.support.typed_lines import TypedLines
     from journal.events.bus import Bus
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -9761,12 +9766,14 @@ def test_commands_that_end_together_are_typed_as_one_message(app: App, monkeypat
         ShellVerbs(app).moved(chain, "make", f"/tmp/out/{chain}")
         ShellVerbs(app).ended(chain, status, f"/tmp/out/{chain}", "")
     app.runtime().deferred.drain()
-    assert not [line for line in keystrokes if "output 1:" in line], "each end is named at once into the queue, which holds the first for the batch time"
+    first = [line for line in keystrokes if "output 1:" in line]
+    assert len(first) == 1 and "output 2:" not in first[0], f"the first end is typed at once: {keystrokes}"
+    app.container.get(TypedLines).confirm(1, first[0])
     clock.pin(start + 6)
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=start + 6, silence_seconds=6.0))
     clock.unpin()
-    ended = [line for line in keystrokes if "output 1:" in line]
-    assert len(ended) == 1 and all(part in ended[0] for part in ("output 1: completed", "output 2: completed", "output 3: failed")), f"three ends in a busy stretch are typed as one message: {ended}"
+    later = [line for line in keystrokes if "output 2:" in line]
+    assert len(later) == 1 and "output 3: failed" in later[0], f"the ends after it, in the cooldown, are typed together as one message: {keystrokes}"
     user_set(app, "delivery.batch_seconds", 0)
 
 
@@ -10062,7 +10069,7 @@ def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
     assert held is not None and held.line.startswith("[journal] HOOK /hooks/Stop") and held.line.endswith("Stop7 took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source"), "the rest waits, whole, until the first is seen back"
 
 
-def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still_the_journals():
+def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still_the_journals(app: App):
     import time as timing
     from journal.support.typed_line import TypedLine
     from journal.features.checks.support.check_output import CheckOutput
@@ -10075,12 +10082,12 @@ def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still
     assert " ".join(segment.removeprefix("[journal] ") for segment in segments) == issues
     slow = " | ".join(f"HOOK /hooks/Stop{n} took 79 ms, over its budget of 50 ms: find what made it slow and fix it at its source" for n in range(8))
     assert all(segment.endswith("at its source") for segment in TypedLine.split("[journal] " + slow, "[journal]")), "lines typed together are split between lines, never inside one"
-    both = TypedLines()
+    both = TypedLines(app.container.get(TimeSource))
     both.typed(1, "[journal] first line")
     both.typed(1, "[journal] second line")
     assert both.confirm(1, "[journal] first line\n[journal] second line") and not both.is_waiting(1), "a prompt carrying two typed lines confirms both"
     line = segments[0]
-    keystrokes = TypedLines()
+    keystrokes = TypedLines(app.container.get(TimeSource))
     keystrokes.typed(1, line)
     first = keystrokes.overdue(1, timing.time())[0]
     keystrokes._recent = []
@@ -10549,7 +10556,7 @@ def test_journal_update_follow_sets_the_branch_the_journal_follows_and_unfollow_
     assert console.run(["update", "unfollow"], AGENT).text == "following the releases again\n" and updating.branch() == "", "unfollow clears the branch"
 
 
-def test_a_stopped_agent_gets_its_lines_after_the_batch_time_and_a_working_one_gets_them_batched(app: App, monkeypatch):
+def test_a_stopped_agent_gets_its_first_line_at_once_and_a_working_one_gets_them_batched(app: App, monkeypatch):
     from journal.engine.clock import Clock
     keystrokes = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append(fields["line"]))
@@ -10562,9 +10569,7 @@ def test_a_stopped_agent_gets_its_lines_after_the_batch_time_and_a_working_one_g
         clock.unpin()
 
     link.type(1, "new message 2")
-    assert keystrokes == [], "a stopped agent's first line waits the batch time for others to join it"
-    waited()
-    assert keystrokes == ["[journal] new message 2"]
+    assert keystrokes == ["[journal] new message 2"], "a stopped agent's first line goes at once"
     hook(app, "UserPromptSubmit", prompt="[journal] new message 2")
     app.runtime().deferred.drain()
     link.resting(1)
