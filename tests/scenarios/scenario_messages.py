@@ -32,3 +32,11 @@ def test_arriving_messages_count_down_to_the_write_hold(scenario, value):
     scenario.agent_runs("message unread")
     for message in sent:
         scenario.expect_agent_told(MessagesNudges.MESSAGE_READ, n=message)
+
+
+@starts_from(TaskInHand)
+def test_a_comment_on_a_document_asks_for_the_change_in_the_document(scenario):
+    document = scenario.agent_writes_a_document("the footer", "## Layout\n\nThe footer holds the links.\n")
+    comment = scenario.user_comments_on("docs", document, "put the copyright in the footer too")
+    scenario.agent_runs(f"message read {comment}")
+    scenario.expect_agent_told(MessagesNudges.COMMENT_READ, n=comment)

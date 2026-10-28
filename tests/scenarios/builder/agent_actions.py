@@ -12,6 +12,12 @@ class AgentActions:
         self.agent_runs(f"task create '{title}' --start")
         return self.task_number()
 
+    def agent_writes_a_document(self, title: str, text: str) -> int:
+        source = self.app.config.root / f"{title}.md"
+        source.write_text(text)
+        self.agent_runs(f"doc create '{title}' --file '{source}' --abstract '{title}'")
+        return int(re.search(r"doc (\d+)", self.command.text)[1])
+
     def agent_answers(self, message: int, text: str) -> None:
         self.agent_runs(f"message read {message}")
         self.agent_replies(message, text)
