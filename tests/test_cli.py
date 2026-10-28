@@ -534,55 +534,8 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
 
 
 
-def test_a_sequence_published_twice_is_version_two_of_its_named_item_with_the_publishers_account(app: App, tmp_path: Path):
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        created = console.run(["sequence", "create", "Release Flow!", "--steps", "tag it | push it"], user)
-        number = created.text.split()[1].rstrip(":")
-        assert console.run(["library", "publish", "sequence", number, "--note", "first"], user).code == 0
-        second = console.run(["library", "publish", "sequence", number, "--note", "second"], user)
-        assert second.code == 0 and "version 2" in second.text, second.error
-        [entry] = team.library.listed("sequence", None)
-        assert entry.item.name == "release-flow" and entry.version.number == 2 and entry.version.publisher_id == team.accounts.verified("ada@example.com", "correct horse battery").id, "named from its title, with the publisher's account"
-        assert console.run(["library", "publish", "template", "nine"], user).code != 0, "a template is published by its number"
-    finally:
-        team.close(server)
 
 
-def test_a_library_sequence_is_imported_unlocked_joined_to_its_item_and_listed_with_the_version_held(app: App, tmp_path: Path):
-    from journal.repositories.library_items import LibraryItems
-    from journal.repositories.sequences import Sequences
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        number = console.run(["sequence", "create", "Ship Week", "--steps", "tag it | push it"], user).text.split()[1].rstrip(":")
-        assert console.run(["library", "publish", "sequence", number], user).code == 0
-        imported = console.run(["library", "import", "sequence", "ship-week"], user)
-        assert imported.code == 0 and "version 1" in imported.text, imported.error
-        copies = app.container.get(Sequences).titled("Ship Week (from the library)")
-        assert copies and not copies[0].locked, "a title the journal already has gets the words from the library, and the copy is editable"
-        item = app.container.get(LibraryItems).imported(team.details.answer().key, "sequence", "ship-week")
-        assert item.version == 1 and [str(ref) for ref in app.container.get(LibraryItems).local_rows(item)] == [f"sequences:{copies[0].id}"]
-        assert "imported already" in console.run(["library", "import", "sequence", "ship-week"], user).error
-        assert console.run(["library", "publish", "sequence", number], user).code == 0
-        assert "sequence ship-week: version 2, you have 1" in console.run(["library", "list"], user).text
-        team.library.publish(team.accounts.find(1), "template", "future", "needs more", '{"title": "x"}', "99.0.0", "", 1.0)
-        assert "needs journal 99.0.0" in console.run(["library", "import", "template", "future"], user).error, "an item that needs a newer journal is refused"
-    finally:
-        team.close(server)
 
 
 def test_an_unedited_library_copy_updates_and_an_edited_one_waits_for_replace(app: App, tmp_path: Path):

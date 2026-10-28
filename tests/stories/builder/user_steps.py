@@ -36,6 +36,11 @@ class UserSteps:
         self.observed("a library server runs", None, None)
         return f"http://127.0.0.1:{server.server_address[1]}"
 
+    def user_connects_to_a_library(self) -> str:
+        library = self.a_library_server_runs()
+        self.user_types(f"library connect {library} --email ada@example.com --name Ada --password 'correct horse battery'")
+        return library
+
     def user_types(self, line: str) -> None:
         arguments = shlex.split(line)
         self.record_command(f"user types {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.user("main")))
