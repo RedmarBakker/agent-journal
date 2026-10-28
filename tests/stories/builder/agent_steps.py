@@ -117,6 +117,16 @@ class AgentSteps:
     def subagent_writes(self, subagent: str, path: str) -> None:
         self.hooked("a subagent writes", "PreToolUse", agent_id=subagent, tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
 
+    def agent_sends_subagent_in_the_background(self, role: str, job: str, subagent: str) -> None:
+        call = f"dispatch-{subagent}"
+        self.hooked("agent sends a subagent in the background", "PreToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={"subagent_type": role, "description": job, "prompt": job, "model": SUBAGENT_MODEL})
+        self.hooked("the subagent goes to the background", "PostToolUse", tool_name=self.tools.subagent, tool_use_id=call, tool_input={}, tool_response={"isAsync": True, "agentId": subagent})
+
+    def agent_messages_subagent(self, subagent: str, text: str) -> None:
+        call, words = f"message-{subagent}", {"to": subagent, "message": text}
+        self.hooked("agent messages a subagent", "PreToolUse", tool_name="SendMessage", tool_use_id=call, tool_input=words)
+        self.hooked("the message reaches the subagent", "PostToolUse", tool_name="SendMessage", tool_use_id=call, tool_input=words, tool_response={})
+
     def subagent_ends(self, subagent: str) -> None:
         self.hooked("a subagent ends", "SubagentStop", agent_id=subagent)
 
