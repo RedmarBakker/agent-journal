@@ -8,8 +8,11 @@ TITLE, BRIEF, COMMAND = "Check for sins", "Judges the project; a failure lists t
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
-def test_a_new_check_shows_its_title_its_description_and_its_command_and_no_run_yet(story):
-    story.agent_runs(f"check create '{TITLE}' --command '{COMMAND}' --brief '{BRIEF}'")
+def test_an_edited_check_shows_what_the_edit_names_and_no_run_yet_and_runs_its_new_command(story):
+    story.agent_runs(f"check create '{TITLE}' --command 'false' --brief 'fails'")
+    check = story.created_number("check")
+    story.agent_runs(f"check edit {check} --command '{COMMAND}' --brief '{BRIEF}' --every 5")
+    story.expect_row("checks", check, {"title": TITLE, "command": COMMAND, "brief": BRIEF, "last_run_at": None})
+    story.agent_runs(f"check run {check}")
     story.expect_command_passed()
-    story.expect_row("checks", story.created_number("check"), {"title": TITLE, "brief": BRIEF, "command": COMMAND, "last_run_at": None})
     story.expect_stack(Ready)

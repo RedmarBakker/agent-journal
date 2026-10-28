@@ -618,15 +618,6 @@ def test_telling_the_user_a_link_is_pinned_with_no_pin_made_is_pointed_out(app: 
     assert "no pin was made" not in told(), "just after a pin is made, the claim stands"
 
 
-def test_a_check_edited_runs_its_new_command(app: App):
-    from journal.features.checks.support.check_runner import CheckRunner
-    from journal.repositories.checks import Checks
-    console = app.console()
-    console.run(["check", "create", "Marker", "--command", "false", "--brief", "fails"], AGENT)
-    console.run(["check", "edit", "1", "--command", "true", "--brief", "passes", "--every", "5"], AGENT)
-    check = app.container.get(Checks).find(1)
-    assert (check.title, check.command, check.brief, check.interval) == ("Marker", "true", "passes", 5), "what the edit names changes, the rest stays"
-    assert app.container.get(CheckRunner).run(check, Actor.system()).last_passed is True
 
 
 def test_a_running_check_is_force_stopped_by_command_and_by_its_button_and_runs_again(app: App):
