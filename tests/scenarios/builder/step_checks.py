@@ -21,6 +21,12 @@ class StepChecks:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
         self.expect_agent_told(nudge, **values)
 
+    def expect_refused_if(self, condition: bool, nudge: Nudge, **values) -> None:
+        if condition:
+            self.expect_refused(nudge, **values)
+        else:
+            self.expect_allowed()
+
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
 

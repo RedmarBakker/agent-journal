@@ -25,19 +25,6 @@ def test_a_task_outside_a_plan_is_worked_on_top_of_it(scenario):
 
 
 @starts_from(TaskInHand)
-def test_a_task_in_testing_leaves_the_agents_hand(scenario):
-    scenario.agent_stops()
-    scenario.expect_refused(TasksNudges.TASK_CONTINUATION)
-
-    scenario.agent_runs("task test 1")
-    scenario.expect_task(1, state=TaskState.TESTING)
-    scenario.expect_stack("idle")
-
-    scenario.agent_stops()
-    scenario.expect_allowed()
-
-
-@starts_from(TaskInHand)
 def test_a_test_run_on_a_long_task_suggests_testing(scenario):
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)

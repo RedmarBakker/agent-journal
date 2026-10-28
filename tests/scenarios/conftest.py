@@ -1,14 +1,18 @@
 import pytest
 
-from tests.replay import PROVIDERS, catch_typed
+from tests.replay import PROVIDERS, catch_typed, drive_the_clock
+from tests.scenarios.builder.coverage_gaps import CoverageGaps
 from tests.scenarios.builder.path_overlay import PathOverlay
 from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
 from tests.scenarios.builder.story_values import STARTS_FROM_MARK
 from tests.test_features import booted
+from journal.engine.nudge_registry import NudgeRegistry
+from journal.features.registry import Registry
 
 OVERLAYS = pytest.StashKey[dict[str, PathOverlay]]()
 SCENARIOS_RUN = pytest.StashKey[int]()
+GAPS = pytest.StashKey[CoverageGaps]()
 
 
 @pytest.fixture(scope="module")
@@ -20,6 +24,7 @@ def boot():
 def scenario(app, monkeypatch, request):
     """A story played for each provider in turn on the module's journal from the state its starts_from names, lines typed to the agent caught and seen back at once; its path is kept for the run's overlay once it ends, and a story fails when a setting it set was never read by the journal after."""
     catch_typed(app, monkeypatch, [])
+    drive_the_clock(app, monkeypatch)
     reads = SettingReads()
     reads.watch(monkeypatch)
     played = Scenario(app, request.param, reads)
@@ -28,13 +33,16 @@ def scenario(app, monkeypatch, request):
     yield played
     unread = played.settings_never_read()
     assert not unread, f"set by the story but never read by the journal after: {', '.join(unread)}"
+    gaps = request.config.stash.setdefault(GAPS, CoverageGaps())
+    gaps.known([nudge.key for nudge in app.container.get(NudgeRegistry).all()], [option.key for option in app.container.get(Registry).options()])
+    gaps.played({step.removeprefix("said ") for step in played.path if step.startswith("said ")}, set(reads.keys))
     overlays = request.config.stash.setdefault(OVERLAYS, {})
     overlays.setdefault(request.param, PathOverlay()).add(request.node.originalname, played.path)
     request.config.stash[SCENARIOS_RUN] = request.config.stash.get(SCENARIOS_RUN, 0) + 1
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:
-    """Once every scenario of the run has played, their paths are laid over each other per provider: a story reaching nothing of its own, or two walking one path, fail the run with what to do."""
+    """Once every scenario of the run has played, the run prints the nudges no story made the journal say and the settings none made it read, by feature, and lays their paths over each other per provider: a story reaching nothing of its own, or two walking one path, fail the run with what to do."""
     collected = [item for item in session.items if "scenario" in getattr(item, "fixturenames", ())]
     if not collected or session.config.stash.get(SCENARIOS_RUN, 0) < len(collected) or session.config.option.keyword:
         return
@@ -43,6 +51,8 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     for provider, overlay in session.config.stash.get(OVERLAYS, {}).items():
         failures += [f"[{provider}] {line}" for line in overlay.failures()]
         warnings += [f"[{provider}] {line}" for line in overlay.warnings()]
+    for line in session.config.stash.get(GAPS, CoverageGaps()).lines():
+        reporter.write_line(line)
     for line in warnings:
         reporter.write_line(f"scenario paths, drifting together: {line}")
     for line in failures:

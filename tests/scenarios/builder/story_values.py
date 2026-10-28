@@ -9,6 +9,8 @@ from journal.support.option import Option
 # the seed a drawn sample starts from unless SCENARIO_SEED names another, so a run can be played again exactly
 SEED_VARIABLE = "SCENARIO_SEED"
 DEFAULT_SEED = 7
+# the option type of a setting that is on or off
+SWITCH = "switch"
 
 
 def values(choices: Iterable) -> pytest.MarkDecorator:
@@ -22,7 +24,9 @@ STARTS_FROM_MARK = "starts_from"
 
 
 def values_of(option: Option) -> pytest.MarkDecorator:
-    """A story run for the values of a whole-number setting worth trying: none, one, a middle and its default."""
+    """A story run for the values of a setting worth trying: a switch off and on, a whole number none, one, a middle and its default."""
+    if option.option_type == SWITCH:
+        return values([False, True])
     default = int(option.default)
     return values(sorted({0, 1, default // 2, default}))
 
