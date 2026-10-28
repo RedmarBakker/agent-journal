@@ -52,6 +52,18 @@ def test_the_environment_is_made_on_first_use(app: App):
     assert app.container.get(Tasks).find(1).environment_id == app.container.get(Environments).lookup("other").id
 
 
+def test_a_task_is_transferred_with_its_log_to_another_environment(app: App):
+    from journal.repositories.environments import Environments
+    for line in (["task", "create", "t", "--start"], ["task", "log", "1", "half done"], ["task", "pause", "1", "the other one first"]):
+        app.console().run(line, MAIN)
+    app.console().run(["task", "create", "x"], Caller.user("other"))
+    task = app.container.get(Tasks).find(1)
+    outcome = app.console().run(["task", "transfer", "1", "other"], MAIN)
+    other = app.container.get(Environments).existing("other").id
+    assert outcome.code == 0 and app.container.get(Tasks).find(1).environment_id == other, outcome.error
+    assert {log.environment_id for log in app.container.get(TaskLogs).logs(task)} == {other}
+
+
 def test_bad_arguments_answer_with_usage_not_an_exit(app: App):
     outcome = app.console().run(["task", "nope"], MAIN)
     assert outcome.code == 2 and "usage: journal task" in outcome.error and "usage: journal [-h]" not in outcome.error, "the noun's own usage, once"

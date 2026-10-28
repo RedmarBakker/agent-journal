@@ -65,6 +65,17 @@ options:
   -h, --help       show this help message and exit
   --output OUTPUT  the run that tests it, by its output number
 
+$ agent: journal task transfer --help
+exit 0
+usage: journal task transfer [-h] n environment
+
+positional arguments:
+  n
+  environment  the name of the environment it moves to
+
+options:
+  -h, --help   show this help message and exit
+
 $ agent: journal task block 2 'waits on the tax rates'
 exit 0
 task 2 blocked, waiting on: waits on the tax rates
@@ -1882,7 +1893,7 @@ tasks.task_points_changed  [tasks]  task {{n}}: brief point {{points|cap=15}} re
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take it up with `journal task start {{n}}`
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
-tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, failed: {{outcome|cap=40}}. `journal task resume {{n}}` takes it up
+tasks.tested_task_back  [tasks]  task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}. `journal task resume {{n}}` takes it up
 tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends

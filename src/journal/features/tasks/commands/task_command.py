@@ -25,6 +25,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, Plans
 from journal.repositories.questions import Questions
+from journal.repositories.environments import Environments
 from journal.repositories.tasks import Tasks
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.tasks.support.task_test_runs import TaskTestRuns
@@ -47,7 +48,8 @@ class TaskCommand(Command):
     noun = "task"
     uncut_verbs = frozenset({"show", "start", "resume", "complete"})
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_tasks: NextTaskReader, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination, time_source: TimeSource, assigners: AssignerResolution, sessions: SessionAgents, scope: Scope, agents: Agents, outputs: CommandOutputs, test_runs: TaskTestRuns, environments: Environments) -> None:
+        self.environments = environments
         self.assigners, self.sessions, self.scope, self.agents, self.outputs, self.test_runs = assigners, sessions, scope, agents, outputs, test_runs
         self.clock, self.next_tasks, self.reminder, self.time_source = clock, next_tasks, reminder, time_source
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
@@ -57,6 +59,9 @@ class TaskCommand(Command):
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
         creation.add_argument("title")
+        transfer = self.verb(verbs, "transfer", "move a task, with its log, to another environment of this project")
+        transfer.add_argument("n", type=int)
+        transfer.add_argument("environment", help="the name of the environment it moves to")
         rename = self.verb(verbs, "rename", "a task's title written again, when the first one was wrong")
         rename.add_argument("n", type=int)
         rename.add_argument("title")
@@ -148,6 +153,16 @@ class TaskCommand(Command):
 
     def start(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "started")
+
+    def transfer(self, args: Namespace, caller: Caller) -> int:
+        task, environment = self.tasks.find(args.n), self.environments.existing(args.environment)
+        if task.is_started():
+            raise Rejection(f"task {task.id} is in hand: pause it first with `journal task pause {task.id}`")
+        for line in self.logs.logs(task):
+            self.logs.save(line.with_(environment_id=environment.id), caller.actor)
+        self.tasks.save(task.with_(environment_id=environment.id), caller.actor)
+        print(f"task {task.id} moved to environment {environment.name}")
+        return 0
 
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
