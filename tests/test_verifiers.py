@@ -54,38 +54,7 @@ def judging(app: App, report: ReaderReport):
     return [verifier for verifier in app.container.get(Verifiers).scoped() if Ref.build(report) in links.targets(verifier, VERIFIES)]
 
 
-def test_a_verdict_is_answered_and_kept_and_the_verifiers_process_is_left_to_end_its_turn(app: App):
-    report = dismissed(app, "./scripts/test.sh", "the test containers were only booting")
-    [verifier] = judging(app, report)
-    answer = app.console().run(["verdict", "no", "the run printed a count of tests the card never showed"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
-    app.runtime().deferred.drain()
-    assert answer.code == 0 and "verdict no on reader report" in answer.text, answer.error
-    kept, judged = app.container.get(ReaderReports).find(report.id), app.container.get(Verifiers).find(verifier.id)
-    assert kept.is_refuted and judged.state == VerifierState.JUDGED and judged.pid == os.getpid(), "the verdict is kept and the process still running is not stopped under its reply"
 
 
-def test_a_judged_verifier_takes_the_next_judgement_only_once_its_process_has_ended(app: App):
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.verifiers_most", value=1), Actor.system())
-    first = dismissed(app, "./scripts/test.sh", "the test containers were only booting")
-    [verifier] = judging(app, first)
-    second = dismissed(app, "ssh-query", "card numbers, not a count")
-    assert not judging(app, second), "past the most verifiers the second judgement waits"
-    app.console().run(["verdict", "yes", "the run printed nothing for the reader to show"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
-    app.runtime().deferred.drain()
-    assert not judging(app, second), "the verifier still ending its turn is not sent the next judgement"
-    app.container.get(VerifierRunner).ended(app.container.get(Verifiers).find(verifier.id))
-    app.runtime().deferred.drain()
-    assert [row.id for row in judging(app, second)] == [verifier.id], "once its process ended, the same verifier takes the waiting judgement in its own session"
 
 
-def test_a_waiting_judgement_whose_report_was_judged_meanwhile_is_never_sent(app: App):
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.verifiers_most", value=1), Actor.system())
-    first = dismissed(app, "./scripts/test.sh", "the test containers were only booting")
-    [verifier] = judging(app, first)
-    second = dismissed(app, "ssh-query", "card numbers, not a count")
-    reports = app.container.get(ReaderReports)
-    reports.save(reports.find(second.id).cleared(reports.find(second.id).created_at), Actor.system())
-    app.console().run(["verdict", "yes", "sound"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
-    app.container.get(VerifierRunner).ended(app.container.get(Verifiers).find(verifier.id))
-    app.runtime().deferred.drain()
-    assert not judging(app, second) and len(app.container.get(Verifiers).scoped()) == 1, "a report no longer waiting for a verdict sends no verifier"

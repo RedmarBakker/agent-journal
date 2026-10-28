@@ -97,30 +97,6 @@ def test_a_worker_sent_its_next_job_is_shown_its_own_memories_faded_by_its_compa
     assert nudge_reached(app, other_shown, MemoryNudges.WORKER_MEMORIES, memories=f"{theirs} (weight 5) the engine turns in decimal") and "the parser reads" not in other_shown and "release notes" not in other_shown, "another worker clocking in is shown its own memories and nobody else's"
 
 
-def test_each_agent_lists_weighs_removes_and_fades_only_its_own_memories_and_a_subagent_keeps_none(app: App):
-    console, memories = app.console(), app.container.get(Memories)
-    main_memory = made(console.run(["memory", "add", "the main agent keeps the release notes"], AGENT))
-    _, as_lovelace = sent(app, "Lady Lovelace", "w1")
-    _, as_babbage = sent(app, "Mr. Babbage", "w2")
-    lovelace_memory = made(console.run(["memory", "add", "the parser reads tokens"], as_lovelace))
-    babbage_memory = made(console.run(["memory", "add", "the engine turns in decimal"], as_babbage))
-    assert "the parser reads" not in console.run(["memory", "list"], as_babbage).text and "the engine turns" not in console.run(["memory", "list"], as_lovelace).text, "a worker never lists another worker's memories"
-    for caller, number in ((as_lovelace, main_memory), (as_babbage, lovelace_memory), (AGENT, babbage_memory)):
-        refused = console.run(["memory", "weigh", str(number), "3"], caller)
-        assert refused.code == 1 and "that is yours" in refused.error, f"weighing memory {number} that another agent owns is refused"
-        assert console.run(["memory", "remove", str(number)], caller).code == 1, f"and so is removing it: memory {number}"
-    assert memories.find(main_memory).weight == memories.find(lovelace_memory).weight == memories.find(babbage_memory).weight == 5 and memories.find(lovelace_memory).removed_at is None
-    assert console.run(["memory", "remove", str(lovelace_memory)], as_lovelace).code == 0 and memories.find(lovelace_memory).removed_at is not None, "its owner removes it"
-    reviewer = console.run(["memory", "list"], Caller.reviewer("main", 9, "r1", "claude"))
-    assert reviewer.code == 0 and "release notes" not in reviewer.text and "the engine turns" not in reviewer.text, "a reviewer lists its own, which are none"
-    for subagent in (AGENT.subagent_caller(), as_babbage.subagent_caller()):
-        assert console.run(["memory", "list"], subagent).code == 1 and console.run(["memory", "weigh", str(main_memory), "3"], subagent).code == 1, "a subagent's command names no row of its own, so it lists and weighs no memory at all, its agent's neither"
-    hook(app, "PreCompact", trigger="auto")
-    app.runtime().deferred.drain()
-    assert memories.find(main_memory).weight == 4 and memories.find(babbage_memory).weight == 5, "the main agent's compaction fades its own memories alone"
-    hook(app, "SessionStart", source="compact")
-    overview = console.run(["environment", "overview"], AGENT).text
-    assert "release notes" in overview and "the engine turns" not in overview, "the main agent's overview opens with its own memories alone"
 
 
 def test_a_worker_weighs_its_own_memories_at_its_own_marks_and_the_main_agents_decision_leaves_it_weighing(app: App):

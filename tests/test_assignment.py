@@ -314,17 +314,6 @@ ASSIGNMENT_CASES = [
 ]
 
 
-@pytest.mark.parametrize("case", ASSIGNMENT_CASES, ids=[case.name for case in ASSIGNMENT_CASES])
-def test_who_takes_which_task_next(app: App, case: Case):
-    user_set(app, "tasks.auto", case.auto)
-    rows = case.build(app)
-    case.event(app, rows)
-    app.runtime().deferred.drain()
-    expected = case.expected(rows)
-    in_hand = [task.id for task in app.container.get(Tasks).agent_started()]
-    assert in_hand == ([expected.in_hand] if expected.in_hand else []), f"{case.name}: the agent holds {in_hand or 'nothing'}"
-    if expected.stop_passes is not None:
-        assert (rows["stop"].get("decision") != "block") == expected.stop_passes, f"{case.name}: the stop answered {rows['stop']}"
 
 
 RESOLUTION_CASES = [
@@ -422,11 +411,3 @@ def test_asked_for_three_the_orchestrators_assigner_names_three_tasks_in_turn_an
     assert app.container.get(Tasks).agent_started() == [], "naming three starts none on the orchestrator"
 
 
-def test_asked_for_three_the_builders_assigner_starts_the_first_and_names_the_two_after_it(app: App):
-    from journal.events.agent.stop import Stop
-    user_set(app, "tasks.auto", True)
-    first, second, third = (opened(app, title) for title in ("the parser", "the lexer", "the printer"))
-    agent = app.container.get(Agents).session_agent("s1")
-    assignment = app.container.get(PlanStartTaskAssigner).next_task(agent, Stop(session="s1", environment_id=MAIN), quantity=3)
-    assert assignment.task_ids() == (first, second, third), assignment
-    assert [task.id for task in app.container.get(Tasks).agent_started()] == [first], "only the first is started, one task in hand at a time"

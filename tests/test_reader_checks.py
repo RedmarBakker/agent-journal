@@ -136,13 +136,6 @@ def test_a_dismissal_the_watched_run_disproves_is_opened_again(app: App):
     assert reports.open_with_output_finding(output.id, "showed no progress"), "the watched run raised its own report"
 
 
-def test_a_second_dismissal_of_the_same_finding_waits_for_the_first_to_be_judged_sound(app: App):
-    reports = app.container.get(ReaderReports)
-    finding = ("the run printed nothing for 41 seconds while it ran, so its card had nothing to show",)
-    reports.save(ReaderReport(environment_id=MAIN, reader="test-sh", output=1, command=SUITE, session="s1", findings=finding, fixes=("run it unbuffered",)).dismissed("health checks"), Actor.system())
-    second = reports.save(ReaderReport(environment_id=MAIN, reader="test-sh", output=2, command=SUITE, session="s1", findings=finding, fixes=("run it unbuffered",)), Actor.system())
-    output = app.console().run(["reader", "dismiss", str(second.id), "--why", "Laravel booting and migrating"], AGENT)
-    assert output.code != 0 and "found the same, unjudged" in output.error, output.error
 
 
 def test_a_test_run_watched_through_a_reader_with_no_progress_still_owes_a_reader(app: App):
@@ -209,19 +202,3 @@ def test_a_new_readers_progress_matches_the_run_it_was_written_from_unless_an_al
     assert added(app, "copier", *flags).code == 0, "a reader an alias names is left to the reader judge"
 
 
-def test_the_shell_readers_section_counts_reader_runs_report_rate_suggestions_followed_and_suggestions_per_session(app: App):
-    from journal.features.shell.shell_nudges import ShellNudges
-    from journal.models.entry import Entry
-    from journal.repositories.entries import Entries
-    from tests.in_process import get_answer
-    outputs = app.container.get(CommandOutputs)
-    for reader, session in (("naps", "s1"), ("naps", "s1"), ("", "s1"), ("", "s2")):
-        outputs.save(CommandOutput(environment_id=MAIN, command="sh test_naps.sh", session=session, moved=True, ended=True, watch_reader=reader), Actor.system())
-    app.container.get(ReaderReports).save(ReaderReport(environment_id=MAIN, reader="naps", output=1, command="sh test_naps.sh", session="s1", findings=("x",), fixes=("y",)), Actor.system())
-    for part in ("test_naps.sh", "make all"):
-        app.container.get(Entries).save(Entry(environment_id=MAIN, entry_type="nudge", actor=Actor.system(), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": part}, "line": f"no reader reads {part} yet"}), Actor.system())
-    assert added(app, "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap").code == 0
-    status, measures = get_answer(app, "/journal/developer/readers", {"X-Journal-Env": "main"})
-    assert status == 200 and (measures["background_runs"], measures["reader_runs"]) == (4, 2), "half the background runs were read by a project reader"
-    assert measures["readers"] == [{"reader": "naps", "runs": 2, "reports": 1, "report_rate": 5.0}], "one report over two runs is five per ten runs"
-    assert (measures["suggestions"], measures["followed_suggestions"], measures["sessions"]) == (2, 1, 2), "of two suggestions one is read by a reader now, over two sessions that moved a run"

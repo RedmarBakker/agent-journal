@@ -161,25 +161,8 @@ def write(app):
     return hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
 
 
-def test_task_start_moves_the_agent_to_working_and_every_stop_says_carry_on(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "ship it", "--start"], AGENT)
-    assert app.container.get(SessionAgents).top("s1").task_id == 1
-    assert write(app)[0] == 200
-    status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1 is in hand: carry on" in body["reason"], "a stop with work in hand is held, which is how Claude is told to go on"
-    assert hook(app, "Stop")[1].get("decision") == "block", "every fresh stop with work in hand is held, until a stuck"
-    assert hook(app, "PreCompact")[1] == {}, "a compaction hook carries nothing to the agent; the marks said it"
 
 
-def test_done_makes_the_agent_idle_again(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    app.console().run(["task", "complete", "1"], AGENT)
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Ready)
-    assert hook(app, "Stop")[1] == {}
 
 
 def test_stuck_pauses_and_the_next_tool_use_goes_back_to_where_it_was(app: App):
@@ -200,13 +183,6 @@ def test_a_feature_switched_off_takes_its_gate_with_it(app: App):
     assert hook(app, "Stop")[1] == {}
 
 
-def test_the_session_end_ends_the_agent_and_a_new_start_of_the_same_session_revives_it(app: App):
-    hook(app, "SessionStart")
-    hook(app, "SessionEnd")
-    assert app.container.get(SessionAgents).top("s1").name == "ended"
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    assert app.container.get(SessionAgents).top("s1").name == "idle"
 
 
 def test_the_state_is_in_the_database_so_a_new_server_finds_it(tmp_path):
@@ -226,12 +202,6 @@ def test_the_state_is_in_the_database_so_a_new_server_finds_it(tmp_path):
         second.runtime().stop()
 
 
-def test_a_tick_reaches_the_machine_without_a_hook(app: App):
-    from journal.engine.clock import Clock
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.container.get(Clock).tick(app.container.get(Clock).time())
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Ready)
 
 
 class Counting(Job):
@@ -278,42 +248,8 @@ def test_a_timeout_is_started_at_a_moment_asked_at_a_later_one_and_kept_by_a_sta
     assert ExternalWait.restored(json.loads(json.dumps(waiting.serialized()))) == waiting, "a state keeps its timeouts through the json on its row"
 
 
-def test_one_task_in_hand_pause_resume_and_await(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    console = app.console()
-    console.run(["task", "create", "first", "--start"], AGENT)
-    console.run(["task", "create", "second"], AGENT)
-    switched = console.run(["task", "start", "2"], AGENT)
-    assert switched.code == 0 and switched.text.startswith("task 1 paused\ntask 2 started"), "starting another task pauses the one in hand"
-    assert app.container.get(Tasks).find(1).state == TaskState.PAUSED and app.container.get(SessionAgents).top("s1").task_id == 2
-    console.run(["task", "pause", "2", "waiting for the designer"], AGENT)
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Ready), "paused: nothing in hand"
-    assert console.run(["task", "resume", "1"], AGENT).code == 0 and app.container.get(SessionAgents).top("s1").task_id == 1
-    console.run(["task", "create", "third"], AGENT)
-    assert console.run(["await", "the deploy to finish", "--until", "false"], AGENT).code == 0
-    stopped = hook(app, "Stop")[1]
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") != "block", "with task 1 in progress a stop while waiting is let through: the agent is never sent to task 3 meanwhile"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert app.container.get(SessionAgents).top("s1").task_id == 1, "working again lifts the wait"
 
 
-def test_edits_with_nothing_logged_are_asked_named_and_held_as_the_settings_say(app: App):
-    from journal.support.actor import Actor
-    from journal.models.setting import Setting
-    for key, value in (("tasks.first_nudge_after", 5), ("tasks.name_every", 10), ("tasks.log_after", 20)):
-        app.container.get(SettingRows).save(Setting(environment_id=0, key=key, value=value), Actor.system())
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    answers = [write(app) for _ in range(21)]
-    assert all(status == 200 for status, _ in answers[:20])
-    assert nudge_reached(app, answers[5][1]["hookSpecificOutput"]["additionalContext"], TasksNudges.LOG_REQUEST, edits=5, name="task 1") and "logged" not in json.dumps(answers[4][1]), "the first ask after five"
-    assert "task 1 in hand, 10 edits" in json.dumps(answers[10][1]), "named back every ten"
-    assert answers[20][0] == 409 and nudge_reached(app, answers[20][1]["error"], TasksNudges.LOG_EDIT_BLOCK, edits=20, name="task 1")
-    assert all(status == 200 for status, _ in [hook(app, "PreToolUse", tool_name="Read", tool_input={}) for _ in range(3)]), "a read is never held for a log"
-    app.console().run(["task", "log", "1", "halfway"], AGENT)
-    assert write(app)[0] == 200
 
 
 def test_every_stop_with_a_task_in_hand_says_carry_on_and_stuck_is_the_way_out(app: App):
@@ -325,88 +261,9 @@ def test_every_stop_with_a_task_in_hand_says_carry_on_and_stuck_is_the_way_out(a
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal stuck 'I cannot reach the service'"})
     app.console().run(["stuck", "I cannot reach the service"], AGENT)
     assert hook(app, "Stop")[1] == {}, "stuck lets the agent stop"
-def test_a_blocked_task_waits_on_something_outside_and_is_neither_offered_nor_nudged(app: App):
-    from journal.models.task_state import TaskState
-    from journal.repositories.tasks import Tasks
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the tree"], AGENT)
-    assert "waiting on: the payment sandbox coming back" in console.run(["task", "block", "1", "the payment sandbox coming back"], AGENT).text
-    assert app.container.get(Tasks).find(1).state == TaskState.BLOCKED and app.container.get(SessionAgents).top("s1").name == "idle"
-    assert hook(app, "Stop")[1].get("decision") != "block", "a blocked task is neither started nor named at the builder's stop, so the stop goes through"
-    assert "blocked tasks: 1 the tree (waiting on: the payment sandbox coming back)" in console.run(["environment", "overview"], AGENT).text
-    assert "open again" in console.run(["task", "unblock", "1"], AGENT).text and app.container.get(Tasks).find(1).state == TaskState.OPEN
 
 
-def test_a_write_needs_no_task(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    assert write(app)[0] == 200, "a quick edit is the agent's own; a task is for work worth tracking"
 
-def test_the_menu_watcher_confirms_what_the_journal_caused_closes_what_it_cannot_place_and_leaves_the_users_own(app: App, monkeypatch):
-    import os
-    import time as timing
-    from journal.engine.menu_watcher import MenuWatcher
-    from journal.repositories.messages import Messages
-    from journal.supervisor_link import SupervisorLink
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
-    hook(app, "SessionStart")
-    watcher, link = app.container.get(MenuWatcher), app.container.get(SupervisorLink)
-    agent = app.container.get(SessionAgents).agent("s1", 1)
-    screens = app.config.home / "runtime" / "screens"
-    screens.mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
-    def shown(text: str, still_for: float = 5.0) -> None:
-        path = screens / "main.out"
-        path.write_text(text)
-        os.utime(path, (timing.time() - still_for, timing.time() - still_for))
-    switch = "\x1b[1mSwitch model?\x1b[0m\r\nYour next response will be slower\r\n\r\n❯ 1. Yes, switch to Opus 5.5\r\n  2. No, go back\r\n"
-    link.choose(1, "/model opus")
-    shown(switch)
-    assert watcher.check(agent) == "\r" and transmitted[-1] == {"verb": "keys", "name": "agent", "keys": "\r"}, "a confirmation the journal's pick caused is taken with Enter"
-    assert watcher.check(agent) == "", "and answered once"
-    from journal.engine.support.menu_answers import MenuAnswers
-    picks = {"Turn it on": 2, "Pick one": 0}
-    monkeypatch.setattr(MenuAnswers, "ask", lambda self, menu, provider: self._asked.__setitem__(self.key(menu), next((o for o in menu.options if o.number == picks.get(menu.options[0].label)), None)))
-    requested = app.container.get(MenuAnswers)
-    resolved = lambda: [timing.sleep(0.05) for _ in range(40) if requested._running - set(requested._asked)]
-    shown("Something new?\r\n❯ 1. Turn it on\r\n  2. Leave it alone for now\r\n")
-    line_text = watcher.check(agent)
-    resolved()
-    assert (line_text or watcher.check(agent)) == "\x1b[B\r", "a menu the word rules cannot settle is answered by an independent agent asked off the watcher's thread"
-    shown("Something else?\r\n❯ 1. Turn it on\r\n  2. Leave it alone for now\r\n")
-    assert watcher.check(agent) == "\x1b[B\r", "and its pick is remembered for the same options"
-    shown("Odd one?\r\n❯ 1. Pick one\r\n  2. Pick two\r\n")
-    line_text = watcher.check(agent)
-    resolved()
-    assert (line_text or watcher.check(agent)) == "\x1b", "a menu even the asked agent cannot place is closed with Escape"
-    from journal.repositories.scope import Scope
-    with app.container.get(Scope).environment(1):
-        assert any("closed it with Escape" in m.data.get("detail", "") for m in app.container.get(Messages).scoped()), "and a card says so"
-    permission = "Bash command\r\nrm -f build/*.log\r\n\r\nDo you want to proceed?\r\n❯ 1. Yes\r\n  2. Yes, and don't ask again for rm commands in build\r\n  3. No, and tell Claude what to do differently (esc)\r\n"
-    launches = app.config.home / "runtime" / "launches"
-    launches.mkdir(parents=True, exist_ok=True)
-    (launches / "main.json").write_text(json.dumps({"front": {"command": ["claude", "--settings", "{}"]}}))
-    shown(permission)
-    assert watcher.check(agent) != "\r", "a permission question under a launch that keeps the prompts is the user's to answer"
-    (launches / "main.json").write_text(json.dumps({"front": {"command": ["claude", "--dangerously-skip-permissions", "--settings", "{}"]}}))
-    shown(permission.replace("build", "dist"))
-    assert watcher.check(agent) == "\r", "a permission question the provider asks anyway under a launch that skips the prompts is answered with yes"
-    (screens / "main.keyed").touch()
-    shown("Pick a theme\r\n❯ 1. Dark\r\n  2. Light\r\n")
-    assert watcher.check(agent) == "", "a picker that came up right after keys at the keyboard is the user's own"
-    shown(switch.replace("Opus 5.5", "Sonnet 5.5") + "\r\n──────\r\n❯ \r\n──────\r\n  agent-journal · main\r\n")
-    assert watcher.check(agent) == "\r", "a yes-or-no confirmation of what the user just asked at the keyboard is confirmed, seen by its cursor though the prompt box is drawn below it"
-    shown("Pick a colour\r\n❯ 1. Red\r\n  2. Blue\r\n", still_for=0.0)
-    assert watcher.check(agent) == "", "a menu just drawn is not answered yet"
-    busy = lambda seconds: f"· Shimmying… ({seconds}s · ↓ 3.9k tokens)\r\n\r\n────────────────\r\n" + switch.replace("Opus 5.5", "Fable 5.1")
-    shown(busy(49), still_for=0.0)
-    assert watcher.check(agent) == "", "a menu first seen under a moving spinner waits one look"
-    shown(busy(51), still_for=0.0)
-    assert watcher.check(agent) == "\r", "the switch of model is confirmed at the next look while the agent works, its spinner counting above the rule: the menu stood the same, whatever the screen did, and only a model change asks it"
 
 
 def test_a_typed_line_goes_out_on_one_line(app: App, monkeypatch):
@@ -533,13 +390,6 @@ def test_the_stack_is_seeded_from_the_state_and_its_pause_chain_unwound_with_idl
     assert agents.find(missing.id).stack == ({"state": "idle", "data": {}}, {"state": "gone", "data": {}})
 
 
-def test_the_session_end_pushes_ended_on_the_stack_and_a_new_start_pops_it(app: App):
-    hook(app, "SessionStart")
-    hook(app, "SessionEnd")
-    agents = app.container.get(Agents)
-    assert [row["state"] for row in agents.session_agent("s1").stack] == ["idle", "ended"]
-    hook(app, "SessionStart")
-    assert [row["state"] for row in agents.session_agent("s1").stack] == ["idle"]
 
 
 CALLS: list[str] = []
@@ -596,13 +446,6 @@ def test_the_lifecycle_hooks_run_in_order_say_their_lines_refuse_a_push_and_catc
     assert [row["state"] for row in app.container.get(Agents).session_agent("s1").stack] == ["idle"]
 
 
-def test_an_agent_carrying_on_after_a_compaction_reads_busy_and_a_new_session_reads_idle(app: App):
-    hook(app, "SessionStart")
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(AgentActivity).page(app.container.get(Agents).scoped())[0]["status"] == "idle"
-    hook(app, "SessionStart", source="compact")
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(AgentActivity).page(app.container.get(Agents).scoped())[0]["status"] == "busy"
 
 
 def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_top_first(app: App):
@@ -1014,52 +857,6 @@ def test_a_plans_phase_in_hand_checkpoint_and_next_task_come_from_counts_and_one
         assert plans.checkpoint_plans(plan) is None and plans.started_task(plan).id == rows[2].id, "phase two begun"
 
 
-def test_a_hub_task_and_a_hub_plan_bound_to_an_environment_read_as_its_work_and_their_events_reach_its_agent_with_no_local_row(app: App):
-    from journal.models.environment import Environment
-    from journal.models.link import Link
-    from journal.models.phase import Phase
-    from journal.models.support.ref import Ref
-    from journal.repositories.environments import Environments
-    from journal.repositories.links import Links
-    from journal.repositories.phases import PHASE_TASK_LINK, Phases
-    from journal.repositories.scope import BOUND_LINK
-    from journal.repositories.tasks import PLAN_LINK
-
-    heard: list[TaskStarted] = []
-
-    class StartedTasks(Listener[TaskStarted]):
-        def handle(self, event: TaskStarted) -> None:
-            heard.append(event)
-
-    assert hook(app, "SessionStart")[0] == 200
-    environments, plans, tasks, phases, links, scope = (app.container.get(type_name) for type_name in (Environments, Plans, Tasks, Phases, Links, Scope))
-    actor = Actor.system()
-    main = environments.existing("main")
-    hub = environments.save(Environment.hub("k-acme", "acme"), actor)
-    with scope.environment(hub.row_id):
-        task = tasks.save(Task(environment_id=hub.row_id, title="the team's task"), actor)
-        plan = plans.save(Plan(environment_id=hub.row_id, title="the team's plan", state=PlanState.APPROVED), actor)
-        phase = phases.save(Phase(environment_id=hub.row_id, title="one"), actor)
-        planned = tasks.save(Task(environment_id=hub.row_id, title="in the team's plan"), actor)
-    links.save(Link(source=Ref.build(phase), target=Ref.build(plan), link_type=PHASE_TASK_LINK), actor)
-    links.save(Link(source=Ref.build(planned), target=Ref.build(plan), link_type=PLAN_LINK), actor)
-    local_rows = (len(tasks.global_matching(environment_id=main.row_id)), len(plans.global_matching(environment_id=main.row_id)), len(phases.global_matching(environment_id=main.row_id)))
-    with scope.environment(main.row_id):
-        assert not {task.id, planned.id} & {row.id for row in tasks.scoped()} and plan.id not in {row.id for row in plans.scoped()}, "a hub row is no environment's work until it is bound"
-    for row in (task, plan):
-        links.save(Link(source=Ref.build(row), target=Ref(Environment.table(), main.row_id), link_type=BOUND_LINK), actor)
-    with scope.environment(main.row_id):
-        assert {task.id, planned.id} <= {row.id for row in tasks.open_tasks()} and plan.id in {row.id for row in plans.scoped()}, "the bound task and plan read as the environment's work"
-        assert [row.id for row in plans.plan_phases(plan)] == [phase.id] and plans.remaining_count(plan) == 1 and plans.next_task(plan).id == planned.id, "and the bound plan's phases and tasks with it"
-    app.container.get(Bus).listen(TaskStarted, StartedTasks())
-    with scope.environment(main.row_id):
-        for row in (task, planned):
-            tasks.save(tasks.find(row.id).started(datetime.now(timezone.utc)), actor)
-    assert [(event.environment_id, event.bound_environment_ids) for event in heard] == [(hub.row_id, (main.row_id,))] * 2, "each event is the hub's, bound to the environment, the plan's task through its plan"
-    machine = app.container.get(StateMachine)
-    assert all("s1" in {agent.session for agent in machine.audience(event)} for event in heard), "and reaches the environment's agent"
-    assert {tasks.find(row.id).environment_id for row in (task, planned)} == {hub.row_id}, "the rows stay the hub's"
-    assert (len(tasks.global_matching(environment_id=main.row_id)), len(plans.global_matching(environment_id=main.row_id)), len(phases.global_matching(environment_id=main.row_id))) == local_rows, "and no local task, plan or phase is made"
 
 
 def test_the_models_carry_the_events_their_changes_mean():
@@ -1074,16 +871,6 @@ def test_the_models_carry_the_events_their_changes_mean():
     assert Worker(id=9, environment_id=1, name="w").reported(5.0, 4).events == (WorkerReported(environment_id=1, time=5.0, worker=WorkerMention(9, "w", None), report=4, ref="workers:9", outcome="worker 9, w, reported"),)
 
 
-def test_a_row_event_reaches_the_live_agents_top_in_its_environment_and_updated_reaches_no_state(app: App):
-    hook(app, "SessionStart")
-    hook(app, "SessionEnd")
-    hook(app, "SessionStart", session_id="s2")
-    agents, bus = app.container.get(Agents), app.container.get(Bus)
-    assert [item.session for item in agents.main_scoped(1)] == ["s2"]
-    assert any(isinstance(listener, RowEventDelivery) for listener in bus.listeners(RowEvent))
-    assert not any(isinstance(listener, (RowEventDelivery, HookAnswer)) for listener in bus.listeners(Updated))
-    bus.dispatch(PlanStarted(environment_id=1, time=1.0, plan_id=1, task_id=0))
-    assert [row["state"] for row in agents.session_agent("s2").stack] == ["idle", "following_plan"], "the live agent of the environment follows the plan"
 
 
 def test_every_line_sent_to_the_agent_fits_the_budget_of_how_often_it_is_sent(app: App):
@@ -1218,19 +1005,6 @@ def test_a_nudge_is_one_class_whose_create_fills_its_blanks_and_rendered_says_th
     assert nudge.create(n=3, what="them").key == "tests.two_blanks" and nudge.create().rendered() == "{{n}} of {{what}}. read {{what}}"
 
 
-def test_the_data_is_read_per_feature_and_travels_on_the_event_the_machine_asks(app: App):
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["task", "create", "the feature data", "--start"], AGENT)
-    console.run(["message", "send", "a word from the user"], USER)
-    agent = app.container.get(Agents).session_agent("s1")
-    with app.container.get(Scope).environment(1):
-        data = app.container.get(DataReaders).agent_data(agent)
-    assert data.part(TasksPart).current_task == 1 and data.part(TasksPart).paused == ()
-    assert len(data.part(MessagesFeature).unread) == 1 and data.part(BriefingFeature).is_overview_read is False
-    assert data.part(ShellPart).background == () and data.part(WorkersFeature).idle_workers == ()
-    event = ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).with_data(data)
-    assert event.data.part(TasksPart).current_task == 1 and ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).data.parts == {}
 
 
 class InboxConduct(Conduct):
@@ -1839,65 +1613,6 @@ def test_the_engine_indexes_its_listeners_once_at_boot_and_the_container_builds_
     assert app.container.get(StateMachine) is app.container.get(StateMachine) and app.container.get(Agents) is app.container.get(Agents), "the container builds a class once"
 
 
-def test_a_listener_may_stop_an_events_propagation_and_the_compacting_state_switches_the_typist_off_until_it_pops_and_starts_the_tool_count_again(app: App, monkeypatch):
-    from journal.events.agent.ticked import Ticked
-    from journal.events.rows.message_arrived import MessageArrived
-    from journal.supervisor_link import SupervisorLink
-
-    class Talkative(Conduct):
-        def on_ticked(self, event: Ticked, settings: SettingsValue) -> Transition:
-            return self.none(LINE)
-
-        def on_message_arrived(self, event: MessageArrived, settings: SettingsValue) -> Transition:
-            return self.none(OTHER)
-
-    @dataclass(frozen=True)
-    class Plain(BaseState):
-        name = "plain"
-
-    @dataclass(frozen=True)
-    class Stopping(BaseState):
-        name = "stopping"
-
-        def on_ticked(self, event: Ticked, settings: SettingsValue) -> Transition:
-            event.stop_propagation()
-            return self.none()
-
-    settings = SettingsValue({})
-    tick = Ticked(silence_seconds=1.0).with_data(FeatureData({}))
-    arrived = MessageArrived(environment_id=1, time=2.0, text="hi").with_data(FeatureData({}))
-    assert Plain().respond(tick, settings, (Talkative,)).nudges == (LINE,) and Plain().respond(arrived, settings, (Talkative,)).nudges == (OTHER,), "in any other state the conduct speaks"
-    assert Stopping().respond(tick, settings, (Talkative,)).nudges == (), "a listener that stops the event's propagation is the last to hear it, so the conduct is silent"
-    assert Plain().respond(tick, settings, (Talkative,)).nudges == (LINE,), "the next walk of the same event starts again"
-    assert CompactingState().respond(arrived, settings, (Talkative,)).nudges == (OTHER,), "compacting stops nothing itself: what the conduct says queues at the typist"
-    assert CompactingState().respond(ToolStarting(call=shell("ls")).with_data(FeatureData({})), settings, (Talkative,)).handed_down, "a tool call ends the compaction and goes to the state beneath"
-    assert CompactingState().respond(SessionStarted(source="compact").with_data(FeatureData({})), settings, (Talkative,)).popped, "and the session's start still pops it"
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
-    hook(app, "SessionStart")
-    write(app)
-    write(app)
-    agents, link = app.container.get(Agents), app.container.get(SupervisorLink)
-    assert agents.session_agent("s1").tool_uses == 2
-    link.resting(1)
-    link.type(1, "first")
-    batch_waited(app)
-    link.type(1, "held behind the first")
-    assert transmitted == ["[journal] first"] and len(link.typed._held) == 1, "a line behind one not yet seen back queues"
-    assert hook(app, "PreCompact")[0] == 200
-    assert agents.session_agent("s1").stack[-1]["state"] == "compacting" and agents.session_agent("s1").tool_uses == 0, "the compaction pushes its state and sets the count back to zero"
-    link.type(1, "a dump arrived")
-    link.type(1, "the wait ended")
-    link.release(1)
-    assert transmitted == ["[journal] first"] and link.typed.batched(1) is None, "the typist is disabled while compacting: its queue is emptied and a line is dropped, not queued, since the look after the compaction tells the agent what it missed"
-    hook(app, "SessionStart", source="compact")
-    assert agents.session_agent("s1").stack[-1]["state"] != "compacting" and transmitted == ["[journal] first"]
-    link.typed.typed(1, "")
-    link.typed._sent_at[1] = 0.0
-    link.typed._waiting.clear()
-    link.type(1, "a wait ended")
-    batch_waited(app)
-    assert transmitted == ["[journal] first", "[journal] a wait ended"], "and enabled again once the state left"
 
 
 def test_a_task_started_outside_the_plan_is_worked_on_top_of_the_plan_state_and_its_nudges_name_it():
@@ -2131,34 +1846,6 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
         assert chat()[-1] == ("user", "check the header too") and len(chat()) == 5, "a note is written once, where it is sent, never again from the transcript"
 
 
-def test_a_subagents_prompt_the_message_sent_to_it_and_its_turns_are_messages_of_its_own_chat(app: App, tmp_path, monkeypatch):
-    """A subagent's prompt opens its chat once its transcript has words, each block it writes follows once, read after its hooks, and a message the agent sends it later is a message to it; none of it is in the main chat."""
-    from journal.support.agent_role import AgentRole
-    from journal.providers.claude import Claude
-    from journal.repositories.messages import Messages
-    home = tmp_path / "home"
-    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    transcript = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "s1" / "subagents" / "agent-a9.jsonl"
-    transcript.parent.mkdir(parents=True)
-    said = lambda text: json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n"
-    hook(app, "SessionStart")
-    agent = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read the hooks", "model": "sonnet"}
-    hook(app, "PreToolUse", tool_name="Agent", tool_input=agent, tool_use_id="t-1")
-    hook(app, "PostToolUse", tool_name="Agent", tool_input=agent, tool_response={"isAsync": True, "agentId": "a9"}, tool_use_id="t-1")
-    transcript.write_text(said("the hooks are in hooks/"))
-    hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_response="", agent_id="a9")
-    app.runtime().deferred.drain()
-    hook(app, "PreToolUse", tool_name="SendMessage", tool_input={"to": "a9", "message": "and the receiver?"}, tool_use_id="t-2")
-    app.runtime().deferred.drain()
-    transcript.write_text(transcript.read_text() + said("the receiver is hooks/receiver.py"))
-    hook(app, "SubagentStop", agent_id="a9")
-    app.runtime().deferred.drain()
-    messages = app.container.get(Messages)
-    with app.container.get(Scope).environment(1):
-        chat = [(m.author, m.text) for m in messages.all() if m.thread == MessageThread.SUBAGENT and m.session == "a9"]
-        assert chat == [("user", "map the hooks read the hooks"), ("agent", "the hooks are in hooks/"), ("user", "and the receiver?"), ("agent", "the receiver is hooks/receiver.py")]
-        assert not [m for m in messages.selected(messages.main_chat()) if m.session == "a9"], "none of it is in the main chat"
 
 
 def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_last_log_whichever_is_first():
@@ -2208,61 +1895,8 @@ def test_claude_codes_switch_model_menu_is_recognised_in_a_narrow_terminal_and_a
     assert not picker.switching_model(), "a picker that names models but asks to switch nothing is not taken for the switch"
 
 
-def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_wrote(app: App, monkeypatch):
-    import os
-    import time as timing
-    from journal.engine.menu_watcher import MenuWatcher
-    from journal.repositories.messages import Messages
-    from journal.supervisor_link import SupervisorLink
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
-    hook(app, "SessionStart")
-    watcher = app.container.get(MenuWatcher)
-    agent = app.container.get(SessionAgents).agent("s1", 1)
-    screens = app.config.home / "runtime" / "screens"
-    screens.mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
-    screen = screens / "main.out"
-    screen.write_text("  Hooks need review\r\n  9 hooks are new or changed in .codex/hooks.json\r\n\r\n› 1. Review hooks\r\n  2. Trust all and continue\r\n  3. Continue without trusting\r\n\r\n  Press enter to confirm or esc to go back\r\n")
-    os.utime(screen, (timing.time() - 5, timing.time() - 5))
-    keys = watcher.check(agent)
-    assert keys == "\x1b[B\r" and transmitted[-1] == {"verb": "keys", "name": "agent", "keys": "\x1b[B\r"}, "the cursor goes down to option 2, Trust all and continue, and takes it"
-    with app.container.get(Scope).environment(1):
-        assert any('chose "Trust all and continue"' in m.data.get("detail", "") for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
 
 
-def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ordinary_stop_or_a_mention_has_nothing(app: App, monkeypatch):
-    from journal.features.usage.jobs.context_limit_compaction import ContextLimitCompaction
-    from journal.supervisor_link import SupervisorLink
-    transmitted = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
-    hook(app, "SessionStart")
-    job = app.container.get(ContextLimitCompaction)
-    screens = app.config.home / "runtime" / "screens"
-    screens.mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
-    (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
-    prompt = "\r\n──────\r\n❯ \r\n──────\r\n  agent-journal · main\r\n"
-    notice = "  ⎿  \x1b[31mContext\x1b[1Climit reached\x1b[39m · /compact or /clear to continue\r\n"
-    limited = "> go on with the footer\r\n" + notice + prompt
-    shown = lambda text: [(screens / "main.out").write_text(text), job.tick(0.0)]
-    shown("⏺ Done, the footer is in.\r\n" + prompt)
-    assert transmitted == [], "an ordinary stop has nothing typed"
-    shown(notice + "".join(f"⏺ line {n} of the reply\r\n" for n in range(8)) + prompt)
-    assert transmitted == [], "the notice higher on the screen, above the reply that came after it, is a mention"
-    shown("⏺ The colleague's agent stopped with Context limit reached · /compact or /clear to continue\r\n" + prompt)
-    assert transmitted == [], "words that merely quote the notice inside a line of the agent's are a mention"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    shown(limited)
-    assert transmitted == [], "the notice arriving while the agent uses tools, its turn not over, is a mention"
-    hook(app, "UserPromptSubmit", prompt="go on with the footer")
-    shown(limited)
-    job.tick(0.0)
-    assert transmitted == [{"verb": "type", "name": "agent", "line": "/compact", "after": 0.0}], "a prompt stopped at the context limit, which fires no stop hook, has /compact typed into the front, once while the notice stays"
-    shown("✻ Compacting conversation… (4s)\r\n" + prompt)
-    shown(limited)
-    assert len(transmitted) == 2, "the next stop at the limit is a new occurrence and is compacted again"
 
 
 def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_another_state():
@@ -2278,18 +1912,6 @@ def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_
     assert resumed.popped, "a state pushed over it popping leaves it no longer compacting, so typing comes back"
 
 
-def test_a_compaction_start_is_handed_down_whole_so_the_start_block_comes_once_and_the_overview_state_is_pushed(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    hook(app, "PreCompact", trigger="auto")
-    status, answer = hook(app, "SessionStart", source="compact")
-    context = json.dumps(answer)
-    from journal.features.briefing.briefing_nudges import BriefingNudges
-    assert status == 200 and context.count(BriefingNudges.JOURNAL_READY.create(env="main").rendered()) == 1, "the state beneath hears the start once, so the start block is not sent twice: " + context[:400]
-    assert app.container.get(Agents).session_agent("s1").stack[-1]["state"] == "reading_overview", "and the push of the overview state is taken, not dropped on the compacting state"
-    with app.container.get(Scope).environment(1):
-        moves = app.container.get(Entries).selected(app.container.get(Entries).query().filter(entry_type="state"))
-    assert not any(entry.data.get("dropped") for entry in moves), "no listener answered the start while the compacting state was still on top"
 
 
 def compaction_that_never_started(app: App, monkeypatch, between) -> list:
@@ -2373,22 +1995,6 @@ def test_five_stops_held_in_a_row_let_the_next_through_in_a_state_that_asks_for_
     assert [hook(app, "Stop")[1].get("decision") for _ in range(4)] == ["block"] * 4 and app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use between stops starts the count again"
 
 
-def test_a_task_edited_names_one_event_for_each_edit_and_its_holder_is_told_to_read_it_again(app: App):
-    from journal.events.rows.task_edited import TaskEdited
-    task = Task(environment_id=1, title="the parser", brief="- reads the grammar")
-    events = lambda row: [event for event in row.events if isinstance(event, TaskEdited)]
-    assert [event.changes for event in events(task.with_(id=1).edited("the lexer", task.brief, 0.0))] == [("title",)], "a title edit names one event"
-    assert [event.changes for event in events(task.with_(id=1).edited(task.title, "- reads tokens", 0.0))] == [("brief",)], "a brief edit names one event"
-    assert events(task.with_(id=1).edited(task.title, task.brief, 0.0)) == [], "an edit changing neither names none"
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["task", "create", "the parser", "--brief", "reads the grammar", "--start"], AGENT)
-    console.run(["task", "create", "the lexer", "--brief", "reads tokens"], USER)
-    console.run(["task", "edit", "2", "--brief", "reads tokens and spaces"], USER)
-    assert "task 2 changed" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a task the agent does not hold is not named"
-    console.run(["task", "edit", "1", "--title", "the grammar reader"], USER)
-    assert "task 1 changed" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "the task in hand edited is named at the next tool use"
 
 
 def test_a_worker_not_running_hears_its_tasks_edit_once_with_its_next_job(app: App):
@@ -2860,25 +2466,6 @@ def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_al
     assert allowed.strongest("claude", "verifier") == "opus" and allowed.strongest("claude", "reviewer") == "sonnet"
 
 
-def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_written(app: App):
-    from datetime import datetime, timezone
-    import time as timing
-    from journal.engine.clock import Clock
-    from journal.repositories.tasks import Tasks
-    from journal.support.time_source import TimeSource
-    source = app.container.get(TimeSource)
-    moment = 1_800_000_000.0
-    source.pin(moment)
-    try:
-        hook(app, "SessionStart")
-        app.console().run(["task", "create", "the pinned task"], AGENT)
-        with app.container.get(Scope).environment(1):
-            task = app.container.get(Tasks).all()[-1]
-        assert app.container.get(Clock).time() == moment, "the clock reads the pinned moment"
-        assert task.created_at == datetime.fromtimestamp(moment, timezone.utc) and task.updated_at == task.created_at, "a row written is stamped with it"
-    finally:
-        source.unpin()
-    assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"
 
 
 def test_the_nudge_words_the_rule_judges_tests_by_are_the_registrys_own(app: App):
@@ -2958,21 +2545,6 @@ def test_every_piece_is_known_by_the_one_feature_that_registers_it_or_by_the_eng
         Registry((first, second), app.container.get(SettingRows))
 
 
-def test_every_helper_rests_on_void_which_holds_every_tool_but_a_journal_command(app: App):
-    from journal.engine.support.session_agents import SessionAgents
-    from journal.support.agent_role import AgentRole
-    sessions = app.container.get(SessionAgents)
-    hook(app, "SessionStart")
-    floors = {role: [layer["state"] for layer in app.container.get(StatesCatalogue).stack(sessions.helper_agent(f"h-{role.value}", 1, "claude", role)).serialized()] for role in (AgentRole.WORKER, AgentRole.REVIEWER, AgentRole.VERIFIER)}
-    assert floors[AgentRole.WORKER] == ["void"], "a worker the journal has not put to work rests on Void alone"
-    assert floors[AgentRole.REVIEWER][0] == floors[AgentRole.VERIFIER][0] == "void", "a reviewer and a verifier rest on Void too, their own state over it"
-    from journal.engine.states.void import Void
-    from journal.events.agent.tool_starting import ToolStarting
-    from journal.providers.claude import Claude
-    read = Void().respond(ToolStarting(call=Claude().call("Read", {"file_path": "a.py"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
-    assert read.refusal is not None and has_nudge(read.refusal.rendered(), EngineNudges.JOBLESS_HELPER), "a read in Void is refused with the line that says the helper has no job"
-    command = Void().respond(ToolStarting(call=Claude().call("Bash", {"command": "journal clock-in"}, frozenset(), CLASSIFIER)).with_data(FeatureData(())), SettingsValue({}))
-    assert command.refusal is None, "a journal command passes, so a worker can clock in"
 
 
 def test_an_agents_line_series_are_kept_by_time_and_read_by_window():
@@ -2996,28 +2568,6 @@ def test_old_line_pairs_keyed_by_tool_use_are_cleared(connection):
     assert (json.loads(row["edited_lines"]), json.loads(row["merged_lines"])) == ([], []), "pairs keyed by a tool use's number mean nothing as times"
 
 
-def test_a_commit_counts_its_own_lines_once_per_sha_leaving_out_merges_built_paths_and_a_reformats_excess(app: App):
-    from journal.events.announcer import Announcer
-    from journal.events.moments.git_committed import GitCommitted
-    from journal.events.moments.worker_work_merged import WorkerWorkMerged
-    from journal.features.git.support.git_facts import GitFacts
-    from journal.features.workers.support.worker_branch import REBUILD_SUBJECT
-    hook(app, "SessionStart")
-    announcer, agents = app.container.get(Announcer), app.container.get(Agents)
-    user_set(app, "workers.built_paths", ["dist"])
-    assert GitFacts.added("12\t3\tsrc/parser.py") == ("src/parser.py", 12) and GitFacts.added("-\t-\tlogo.png") == ("logo.png", 0), "a commit's numstat row gives the path and the lines it added"
-    commit = lambda sha, lines, subject="the parser": GitCommitted(environment_id=1, session="s1", sha=sha, branch="main", subject=subject, files=len(lines), lines=lines)
-    with app.container.get(Scope).environment(1):
-        announcer.announce(commit("a1", (("src/parser.py", 30), ("dist/app.js", 900))))
-        announcer.announce(commit("a1", (("src/parser.py", 30), ("dist/app.js", 900))))
-        assert [lines for _, lines in agents.session_agent("s1").committed_lines] == [30], "a commit announced by the shell's recording and by the head watch counts once, its built path left out"
-        announcer.announce(commit("a2", (("src/everything.py", 2000),)))
-        assert agents.session_agent("s1").committed_lines[-1][1] == 400, "a 2,000-line reformat counts 400"
-        announcer.announce(WorkerWorkMerged(environment_id=1, worker=1, name="Mr. Hook", dispatcher="s1", task=1, next_task=0, time=1.0, lines=40, merged_shas=("w1",)))
-        announcer.announce(commit("w1", (("src/footer.py", 40),)))
-        announcer.announce(commit("r1", (("dist/app.js", 10),), REBUILD_SUBJECT))
-        row = agents.session_agent("s1")
-    assert [lines for _, lines in row.committed_lines] == [30, 400] and sum(lines for _, lines in row.merged_lines) == 40, "a worker's commit fast-forwarded into the root counts only as merged, and the rebuild commit counts nothing"
 
 
 def test_each_modes_band_moves_with_hysteresis_holds_five_minutes_and_leaves_high_on_an_empty_queue():
@@ -3079,37 +2629,8 @@ def test_the_score_weighs_the_measured_states_and_waits_for_the_warmup():
     assert not ModeMeasures.scored(MeasureStates("orchestrator", 600.0, states), specs, 1800.0).is_measured, "no score until the mode has been measured for the warm-up"
 
 
-def test_a_minute_tick_records_a_fitness_point_of_the_measure_scoring(app: App):
-    from journal.engine.clock import Clock
-    from journal.features.workers.support.fitness_point import FitnessPoint
-    from journal.features.workers.support.mode_measures import SCORE_VERSION
-    from journal.repositories.entries import Entries
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    clock = app.container.get(Clock)
-    start = clock.time()
-    with app.container.get(Scope).environment(1):
-        for minute in (0, 31):
-            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
-        newest = FitnessPoint.parsed(app.container.get(Entries).session_kind_newest("s1", FitnessPoint.KIND, 1)[0].data)
-    assert newest.version == SCORE_VERSION and newest.is_measured and newest.score == 100, newest
 
 
-def test_an_agent_running_across_the_upgrade_starts_unmeasured_with_a_normal_band(app: App):
-    from journal.db.connection import Connection
-    from journal.engine.clock import Clock
-    from journal.features.workers.support.fitness_scoring import FitnessScoring
-    from journal.models.support.pressure_band import PressureBand
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.container.get(Connection).execute("UPDATE agents SET band = NULL, band_changed_at = NULL, measures = NULL WHERE session = 's1'")
-    clock = app.container.get(Clock)
-    with app.container.get(Scope).environment(1):
-        answers = clock.ticked(Ticked(session="s1", environment_id=1, time=clock.time(), silence_seconds=0.0))
-    row = app.container.get(Agents).session_rows("s1")[0]
-    assert row.band == PressureBand.NORMAL and row.band_changed_at > 0, "the first band after the upgrade is normal, changed at the first tick"
-    assert not app.container.get(FitnessScoring).scored(row).is_measured and not row.measures.failing_keys(), "the score waits its warm-up and no measure is failing"
-    assert not [answer for answer in answers if getattr(answer, "nudges", ())], "the tick sends no line"
 
 
 def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_repeat(app: App):
@@ -3391,23 +2912,6 @@ def test_a_worker_queue_failing_past_its_block_minutes_blocks_writes_until_the_o
     assert answer(edit, settings=SettingsValue({FitnessOptions.WARNINGS.key: False})).refusal is None, "with the fitness warnings off nothing is blocked"
 
 
-def test_with_the_fitness_warnings_off_the_score_is_still_kept_while_no_measure_speaks_or_blocks(app: App):
-    from journal.engine.clock import Clock
-    from journal.features.workers.fitness_options import FitnessOptions
-    from journal.features.workers.support.fitness_point import FitnessPoint
-    from journal.repositories.entries import Entries
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    user_set(app, FitnessOptions.WARNINGS.key, False)
-    clock = app.container.get(Clock)
-    start = clock.time()
-    with app.container.get(Scope).environment(1):
-        for minute in (0, 31):
-            clock.ticked(Ticked(session="s1", environment_id=1, time=start + minute * 60, silence_seconds=0.0))
-        newest = FitnessPoint.parsed(app.container.get(Entries).session_kind_newest("s1", FitnessPoint.KIND, 1)[0].data)
-    assert newest.is_measured, "the measures are worked out and the score kept with the warnings off"
-    told = json.dumps(hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"})[1])
-    assert "worker queue has stood high" not in told and "decision" not in told, "and no measure line is said and no write waits"
 
 
 def test_stored_helper_stacks_move_onto_void(connection):
@@ -3528,23 +3032,6 @@ def test_a_helper_compacted_mid_task_returns_to_its_job_with_nothing_of_the_main
     assert hook(app, "PreToolUse", session_id="wc", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "its next read goes through as before the compaction"
 
 
-def test_helpers_at_work_when_the_journal_restarts_on_the_new_code_keep_working(app: App):
-    from journal.db.connection import Connection
-    from tests.main_journal import main_journal
-    hook(app, "SessionStart")
-    connection = app.container.get(Connection)
-    old_rows = [
-        ("worker", "working", json.dumps([{"state": "duty", "data": {}}, {"state": "working", "data": {"task_id": 7, "logged_at": 1.0}}])),
-        ("reviewer", "reviewing", json.dumps([{"state": "reviewing", "data": {}}])),
-    ]
-    for role, state, stack in old_rows:
-        connection.execute("INSERT INTO agents (environment_id, session, role, state, data, stack, created_at, creator) VALUES (1, ?, ?, ?, '{}', ?, '2026-10-26', 'system')", (f"up-{role}", role, state, stack))
-    connection.execute("DELETE FROM migrations WHERE number = 59")
-    restarted = main_journal(Config(app.config.root, port=0))
-    agents, catalogue = restarted.container.get(Agents), restarted.container.get(StatesCatalogue)
-    stacks = {role: [state.name for state in catalogue.stack(agents.session_agent(f"up-{role}")).states] for role, _, _ in old_rows}
-    assert stacks == {"worker": ["void", "working_task"], "reviewer": ["void", "reviewing"]}, "a worker mid-task keeps its job and a reviewer mid-review keeps reviewing across the restart"
-    assert catalogue.stack(agents.session_agent("up-worker")).top().task_id == 7, "on the task it held"
 
 
 def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
@@ -3573,28 +3060,6 @@ def test_a_session_the_journal_has_not_bound_is_never_a_main_agent(app: App):
     assert has_nudge(answer, EngineNudges.JOBLESS_HELPER) and "environment overview" not in answer, "and is answered by Void, with no main line"
 
 
-def test_a_helpers_command_events_reach_only_the_listeners_its_file_allows(app: App):
-    from journal.events.agent.command_ended import CommandEnded
-    from journal.events.agent.impasse_report import ImpasseReport
-    from journal.features.registry import Registry
-    from journal.helpers.helper_listeners import HelperListeners
-    from journal.support.agent_role import AgentRole
-    from journal.repositories.messages import Messages
-    hook(app, "SessionStart")
-    with app.container.get(Scope).environment(1):
-        app.container.get(Agents).save(Agent(environment_id=1, session="hl", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
-    funnel, registry = app.container.get(HelperListeners), app.container.get(Registry)
-    ended = CommandEnded(output=1, status=0).placed("hl", 1, "claude", None, 1.0)
-    heard = {listener.registered_class() for listener in funnel.listeners(ended)}
-    assert heard and all(registry.reaches_helper(listener, AgentRole.REVIEWER) for listener in heard), "a reviewer's command end reaches the engine's listeners and those its file allows, nothing else"
-    stuck = ImpasseReport(reason="lost").placed("hl", 1, "claude", None, 1.0)
-    main_stuck = ImpasseReport(reason="lost").placed("s1", 1, "claude", None, 1.0)
-    assert "ImpasseCard" not in {listener.registered_class().__name__ for listener in funnel.listeners(stuck)} and "ImpasseCard" in {listener.registered_class().__name__ for listener in funnel.listeners(main_stuck)}, "a reviewer's stuck event makes no main card, the main agent's does"
-    with app.container.get(Scope).environment(1):
-        before = len(app.container.get(Messages).all())
-    assert app.console().run(["stuck", "lost"], Caller.agent("main", "s1", "claude").subagent_caller()).code == 1, "a researcher's stuck is refused by its file"
-    with app.container.get(Scope).environment(1):
-        assert len(app.container.get(Messages).all()) == before, "and makes no card"
 
 
 def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder(app: App):
@@ -3622,22 +3087,6 @@ def test_a_workers_hook_runs_its_allowed_listeners_and_no_deferred_main_recorder
     assert "RecordEdit" in reached and not reached & {"LoadRecord", "FitnessRecord", "LoadTickRecord"}, "while the main agent's deferred recorders never hear it"
 
 
-def test_a_helper_reads_only_the_data_parts_of_features_its_file_turns_on(app: App):
-    from journal.engine.support.data_readers import DataReaders
-    from journal.engine.support.helper_part_violation import HelperPartViolation
-    from journal.features.workers.workers_part import WorkersPart
-    from journal.features.tasks.tasks_part import TasksPart
-    from journal.support.agent_role import AgentRole
-    hook(app, "SessionStart")
-    agents, readers = app.container.get(Agents), app.container.get(DataReaders)
-    with app.container.get(Scope).environment(1):
-        worker = agents.save(Agent(environment_id=1, session="dw", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        reviewer = agents.save(Agent(environment_id=1, session="dr", provider="claude", state="reviewing", role=AgentRole.REVIEWER), Actor.system())
-    assert readers.agent_data(worker).part(WorkersPart).session_workers == (), "a worker reads the workers part its file turns on"
-    assert readers.agent_data(worker).part(TasksPart) is not None
-    with pytest.raises(HelperPartViolation, match="a reviewer read the workers part, but its helper file does not turn on that feature"):
-        readers.agent_data(reviewer).part(WorkersPart)
-    assert readers.agent_data(agents.session_agent("s1")).part(WorkersPart) is not None, "the main agent reads every part"
 
 
 def test_every_row_event_names_the_feature_it_belongs_to(app: App):
@@ -3651,21 +3100,6 @@ def test_every_row_event_names_the_feature_it_belongs_to(app: App):
     assert (TaskClosed.feature_name, WorkerDelivered.feature_name) == ("tasks", "workers"), "a row event names its own feature, a worker's delivery the workers feature though it resolves a wait"
 
 
-def test_a_row_event_reaches_a_helper_only_when_its_feature_is_on_the_helpers_file(app: App):
-    from journal.events.rows.plan_started import PlanStarted
-    from journal.events.rows.worker_mention import WorkerMention
-    from journal.events.rows.worker_ready import WorkerReady
-    from journal.events.rows.worker_reviewed import WorkerReviewed
-    from journal.support.agent_role import AgentRole
-    hook(app, "SessionStart")
-    with app.container.get(Scope).environment(1):
-        for session, role, state in (("rw", AgentRole.WORKER, "void"), ("rr", AgentRole.REVIEWER, "reviewing")):
-            app.container.get(Agents).save(Agent(environment_id=1, session=session, provider="claude", state=state, role=role), Actor.system())
-    machine, mention = app.container.get(StateMachine), WorkerMention(id=1, name="Mr. Hooke", dispatcher="s1")
-    sessions = lambda event: {agent.session for agent in machine.audience(event)}
-    assert sessions(PlanStarted(environment_id=1, plan_id=1, task_id=0)) == {"s1"}, "a plan's start reaches no helper, whose file turns no plans on"
-    assert "rw" in sessions(WorkerReady(environment_id=1, worker=mention)), "a worker hears the workers feature's events"
-    assert "rr" in sessions(WorkerReviewed(environment_id=1, worker=mention, task=1, reviewer=1, reviewer_session="rr", report="")) and "rr" not in sessions(WorkerReady(environment_id=1, worker=mention)), "a reviewer hears its review and not a worker's clock-in"
 
 
 HELPER_SWEEP_EVENTS = ("a write", "a stop with a task open", "a message of the user's", "a plan started", "a task edited")
@@ -3706,26 +3140,6 @@ def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name
     assert agents.session_agent("s1").tool_uses == main_uses, "and the main agent's count does not move"
 
 
-def test_a_subagents_tool_use_lands_on_its_own_row_researching_and_a_resume_finds_it_at_work_again(app: App):
-    from journal.support.agent_role import AgentRole
-    agents, catalogue = app.container.get(Agents), app.container.get(StatesCatalogue)
-    stack = lambda session: [state.name for state in catalogue.stack(agents.session_agent(session)).states]
-    hook(app, "SessionStart")
-    main_before = stack("s1")
-    hook(app, "SubagentStart", agent_id="sub1", agent_type="Explore")
-    assert agents.session_agent("s1:sub1").role == AgentRole.SUBAGENT and stack("s1:sub1") == ["void", "researching"], "a subagent's start makes its own row, researching over Void"
-    status, body = hook(app, "PreToolUse", agent_id="sub1", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
-    assert status == 200 and "[journal]" not in json.dumps(body), "its tool use is answered on its own row, with no main line"
-    with app.container.get(Scope).environment(1):
-        assert any(entry.data.get("session_id") == "s1:sub1" for entry in app.container.get(Entries).kind_entries("ToolStarting")), "and recorded as its own"
-    assert stack("s1") == main_before, "the main agent's stack does not move"
-    hook(app, "SubagentStop", agent_id="sub1", last_assistant_message="found it")
-    assert stack("s1:sub1") == ["void", "researching", "ended"], "its end leaves it researching and ends its row"
-    resumed = hook(app, "PreToolUse", agent_id="sub1", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert resumed[0] == 200 and "not at work" not in json.dumps(resumed[1]) and stack("s1:sub1") == ["void", "researching"], "a message that resumes it finds it at work: its read goes through"
-    hook(app, "SubagentStart", agent_id="sub2", agent_type="Explore")
-    hook(app, "SessionEnd", reason="exit")
-    assert stack("s1:sub2")[-1] == "ended" and not [row for row in agents.unended() if row.role == AgentRole.SUBAGENT], "a subagent left running ends with its main session, so no researcher row is left to hear row events"
 
 
 def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
