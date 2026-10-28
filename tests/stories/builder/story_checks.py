@@ -133,6 +133,9 @@ class StoryChecks:
         first = self.viewer_answer[0] if self.viewer_answer else {}
         assert first.get("id") == n and part in first.get("text", ""), f"the viewer's first hit is {first}, not {n} holding {part!r}"
 
+    def expect_viewer_list_count(self, count: int) -> None:
+        assert len(self.viewer_answer) == count, f"the viewer was given {len(self.viewer_answer)} rows, not {count}: {self.viewer_answer}"
+
     def expect_viewer_count(self, key: str, count: int) -> None:
         shown = self.viewer_answer.get(key, [])
         assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"
