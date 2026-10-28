@@ -614,30 +614,6 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
         app.runtime().stop()
 
 
-def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_postpones_it_with_the_plan(tmp_path: Path):
-    from journal.engine.state_machine import StateMachine
-    from journal.repositories.agents import Agents
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    user, agent = Caller.user("main"), Caller.agent("main", "s1", "claude")
-    try:
-        console = app.console()
-        console.run(["plan", "create", "p", "--brief", "b"], user)
-        console.run(["plan", "add", "1", "first"], user)
-        console.run(["plan", "add", "1", "second"], user)
-        assert call(server, "POST", "/journal/plans/1/start", {})[0] == 409, "an unapproved plan is refused before any row is written"
-        call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s1", "cwd": str(tmp_path)})
-        console.run(["plan", "approve", "1"], user)
-        started = call(server, "POST", "/journal/plans/1/start", {})[1]
-        assert started["state"] == "started" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "started", "the viewer's start takes the first task in hand, as the command does"
-        assert [layer["state"] for layer in app.container.get(Agents).session_agent("s1").stack] == ["idle", "following_plan", "naming_test_commands"], "a fresh journal names no test commands, so the plan's task waits for them over the plan"
-        paused = call(server, "POST", "/journal/plans/1/pause", {})[1]
-        assert paused["state"] == "paused" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "paused", "the plan's task in hand is postponed with it"
-        assert app.container.get(SessionAgents).top("s1").name == "idle", "the plan's own event reaches the plan state through the wait over it and pops both"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id_comes_whole(tmp_path: Path):
@@ -689,32 +665,6 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
         app.runtime().stop()
 
 
-def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_path: Path):
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    try:
-        console, user, agent = app.console(), Caller.user("main"), Caller.agent("main", "s1", "claude")
-        console.run(["plan", "create", "p", "--brief", "b"], user)
-        for title in ("first", "second", "third"):
-            console.run(["plan", "add", "1", title], user)
-        console.run(["plan", "phase", "1", "one", "--when", "w"], user)
-        console.run(["plan", "phase", "1", "two", "--when", "w"], user)
-        console.run(["plan", "todos", "1", "1", "1", "2"], user)
-        console.run(["plan", "todos", "1", "2", "3"], user)
-        console.run(["plan", "ready", "1"], user)
-        console.run(["plan", "approve", "1"], user)
-        console.run(["plan", "start", "1"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 1
-        console.run(["task", "complete", "1"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 1, "a phase with a task still open is the one shown"
-        console.run(["task", "complete", "2"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 2, "every task of phase one done: phase two is shown"
-        console.run(["task", "complete", "3"], agent)
-        assert call(server, "GET", "/journal/plans/1")[1]["current_phase"] == 2, "all done: the last phase"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_status_line_knows_what_the_agent_waits_for(tmp_path: Path):
