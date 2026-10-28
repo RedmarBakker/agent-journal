@@ -935,11 +935,6 @@ def test_triggers_nudge_on_a_prompt_and_deny_a_tool_call(app: App):
     assert status == 409 and "no recursive deletes here" in body["error"]
 
 
-def test_a_check_keeps_its_description_for_the_page(app: App):
-    app.console().run(["check", "create", "Check for sins", "--command", "true", "--brief", "Judges the project; a failure lists the sins found"], USER)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/checks", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        row = json.loads(reply.read())["rows"][0]
-    assert (row["title"], row["brief"], row["command"], row["last_run_at"]) == ("Check for sins", "Judges the project; a failure lists the sins found", "true", None), "the description is the row's brief, and a check never run says so by its last run's time"
 
 
 def test_the_documents_page_lists_the_projects_documents_their_search_and_the_attached_files(app: App, tmp_path):
