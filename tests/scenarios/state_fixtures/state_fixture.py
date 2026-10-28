@@ -4,12 +4,6 @@ class StateFixture:
     builds_on: "type[StateFixture] | None" = None
     stack: tuple[str, ...] = ()
 
-    def seed(self, scenario) -> None:
-        if self.builds_on is not None:
-            self.builds_on().seed(scenario)
-        self.steps(scenario)
-        self.expected(scenario)
-
     def steps(self, scenario) -> None:
         raise NotImplementedError
 

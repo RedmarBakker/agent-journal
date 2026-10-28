@@ -4,6 +4,7 @@ from tests.in_process import posted
 from tests.replay import TOOLS
 from tests.scenarios.builder.agent_actions import AgentActions
 from tests.scenarios.builder.agent_steps import AgentSteps
+from tests.scenarios.builder.fixture_copies import FixtureCopies
 from tests.scenarios.builder.developer_steps import DeveloperSteps
 from tests.scenarios.builder.hook_verdict import HookVerdict
 from tests.scenarios.builder.journal_log import JournalLog
@@ -21,7 +22,8 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, ShellSteps, TimeSteps, DeveloperSteps, StepChecks, StorySugar):
     """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and the rows its start made are noted as the story uses them, to ask whether it used them all."""
 
-    def __init__(self, app, program: type, reads: SettingReads) -> None:
+    def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies) -> None:
+        self.copies = copies
         self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
         self.agent = Caller.agent("main", "s1", program.name)
@@ -36,9 +38,9 @@ class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, S
         self.end_stack: list[str] | None = None
 
     def starts_from(self, fixture: type[StateFixture]) -> None:
-        fixture().seed(self)
+        self.copies.reached(self, fixture)
         self.observed("", None, None)
-        self.path, self.rows_used, self.start = [], set(), fixture
+        self.path, self.rows_used, self.start, self.set_positions = [], set(), fixture, {}
 
     def provide(self, maker: type, name: str, number: int) -> None:
         self.rows[name], self.row_makers[name] = number, maker

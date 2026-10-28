@@ -5,6 +5,7 @@ import pytest
 
 from tests.replay import catch_typed, drive_the_clock
 from tests.scenarios.builder.coverage_gaps import CoverageGaps
+from tests.scenarios.builder.fixture_copies import FixtureCopies
 from tests.scenarios.builder.path_overlay import PathOverlay
 from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
@@ -29,15 +30,20 @@ def boot():
     return booted
 
 
+@pytest.fixture(scope="module")
+def copies():
+    return FixtureCopies()
+
+
 @pytest.fixture
-def scenario(app, monkeypatch, request):
+def scenario(app, monkeypatch, request, copies):
     """A story played once, on the VoidProvider or the provider its @provider names, on the module's journal from the state its starts_from names, lines typed to the agent caught and seen back at once; its path is kept for the run's overlay once it ends, and a story fails when a setting it set was never read by the journal after."""
     catch_typed(app, monkeypatch, [])
     drive_the_clock(app, monkeypatch)
     reads = SettingReads()
     reads.watch(monkeypatch)
     program = request.node.get_closest_marker(PROVIDER_MARK)
-    played = Scenario(app, program.args[0] if program else VoidProvider, reads)
+    played = Scenario(app, program.args[0] if program else VoidProvider, reads, copies)
     for mark in request.node.iter_markers(STARTS_FROM_MARK):
         played.starts_from(mark.args[0])
     for mark in reversed(list(request.node.iter_markers(SETTINGS_MARK))):
