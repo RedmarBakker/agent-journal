@@ -206,7 +206,7 @@ class Entries(ScopedRepository[Entry]):
     def session_kind_newest(self, session: str, type_name: str, last: int) -> list[Entry]:
         return self.selected(self.query().filter(entry_type=type_name).filter_json("data->session", session).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
-    def kind_entries_after(self, entry_id: int, kinds: tuple[str, ...]) -> list[Entry]:
+    def later_kind_entries(self, entry_id: int, kinds: tuple[str, ...]) -> list[Entry]:
         return self.selected(self.query().filter_greater("id", entry_id).filter_listed("entry_type", list(kinds)).order("id"))
 
     def kind_entries_scoped(self, last: int = 400) -> list[Entry]:

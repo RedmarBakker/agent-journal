@@ -20,7 +20,7 @@ class JournalLog:
 
     def unread_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
-            unread_entries = self.app.container.get(Entries).kind_entries_after(self.last_read_id, (NUDGE, StackHistory.KIND))
+            unread_entries = self.app.container.get(Entries).later_kind_entries(self.last_read_id, (NUDGE, StackHistory.KIND))
         self.last_read_id = max((entry.row_id for entry in unread_entries), default=self.last_read_id)
         lines = tuple(NudgeRecord(entry.data["key"], entry.data.get("values", {}), entry.data.get("session", "")) for entry in unread_entries if entry.entry_type == NUDGE)
         steps = tuple(self.step(entry) for entry in unread_entries)

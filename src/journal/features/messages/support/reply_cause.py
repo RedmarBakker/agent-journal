@@ -22,9 +22,10 @@ class ReplyCause:
         self.messages, self.links = messages, links
 
     def created(self, row: Model, actor: Actor) -> None:
-        if self.links.sources(row, Messages.SUBJECT_LINK):
+        requested_messages = self.requested(row, actor)
+        if requested_messages and self.links.sources(row, Messages.SUBJECT_LINK):
             return
-        for requested in self.requested(row, actor):
+        for requested in requested_messages:
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 
     def edited(self, row: Model, actor: Actor) -> None:
