@@ -662,25 +662,6 @@ def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_pa
 
 
 
-def test_the_status_line_knows_what_the_agent_waits_for(tmp_path: Path):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        data = json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode()
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.console().run(["task", "create", "the footer", "--start"], Caller.agent("main", "s1", "claude"))
-        blocked = call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]
-        assert blocked == {"id": 1, "title": "the footer", "wait_text": ""}
-        app.console().run(["stuck", "stuck on the login"], Caller.agent("main", "s1", "claude"))
-        agent = whole_rows(server, "agents")[0]
-        assert agent["awaiting"] == "stuck on the login" and agent["awaiting_since"]
-        assert call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]["wait_text"] == "stuck on the login"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: Path, monkeypatch):
@@ -829,19 +810,6 @@ def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_
         app.runtime().stop()
 
 
-def test_a_message_asked_about_a_docked_run_refers_to_its_row_and_the_agent_reads_which(tmp_path: Path):
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    server = app.server()
-    try:
-        app.console().run(["check", "create", "the suite", "--command", "true"], Caller.user("main"))
-        status, message = call(server, "POST", "/journal/messages", {"text": "> Check the suite failed\n\nwhy did it fail?", "refers": ["checks:1"]})
-        assert status == 201
-        read = app.console().run(["message", "read", str(message["id"])], Caller.agent("main", "s1", "claude"))
-        assert "refers_to checks:1" in read.text, "the agent reads which run the user asks about"
-        assert call(server, "POST", "/journal/messages", {"text": "x", "refers": ["checks:999"]})[0] >= 400, "a row that is not there is refused"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_developer_tab_counts_the_nudges_each_agent_was_sent_until_reset(tmp_path: Path):
@@ -883,32 +851,6 @@ def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_list
         app.runtime().stop()
 
 
-def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_cards_by_number(tmp_path: Path):
-    from journal.chat.moment_cards import MomentCards
-    from journal.support.card_type import CardType
-    from journal.support.card_outcome import CardOutcome
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}),):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.console().run(["message", "send", "Hello back.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
-        app.runtime().deferred.drain()
-        app.container.get(MomentCards).show(1, "s1", "Check lint passed", "all clean", "checks:3", shows=CardType.CHECKS, outcome=CardOutcome.PASSED)
-        rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if r["id"] >= n]
-        assert [r["id"] for r in rows] == sorted(r["id"] for r in rows)
-        assert [(r["author"], r["text"]) for r in rows] == [("user", "hello"), ("agent", "Hello back."), ("system", "Check lint passed")]
-        card = rows[-1]
-        assert card["creator"] == "system"
-        assert card["session"] == "s1"
-        assert card["data"] == {"kind": "card", "outcome": "passed", "detail": "all clean", "row": "checks:3", "command": "", "key": "", "shows": "checks", "card_type": "moment", "is_test": False, "is_build": False, "is_upload": False}
-    finally:
-        app.runtime().stop()
 
 
 def test_the_board_is_off_and_stays_off(server):

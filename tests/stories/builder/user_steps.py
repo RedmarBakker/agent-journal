@@ -86,6 +86,10 @@ class UserSteps:
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
 
+    def user_asks_about(self, rows: list[str], text: str) -> None:
+        self.viewer_status, self.viewer_answer = posted(self.app, "/journal/messages", {"text": text, "refers": rows, "idempotency": uuid.uuid4().hex}, MAIN)
+        self.observed("user asks about a row in the chat", None, None)
+
     def user_comments_on(self, table: str, row: int, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "on": f"{table}:{row}", "idempotency": uuid.uuid4().hex})["id"]
 
