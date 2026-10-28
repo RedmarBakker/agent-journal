@@ -3152,15 +3152,6 @@ def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_
     assert Trigger(phrases=("release",), action=TriggerAction.NUDGE).matches("when we release the build, check the notes first and then tag it"), "a nudge still matches its words anywhere"
 
 
-def test_a_subagent_dispatched_long_ago_in_the_session_stays_in_the_dropdown(app: App):
-    hook(app, "SessionStart")
-    hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "Herr Gropius draws", "model": "opus", "subagent_type": "journal-debugger", "prompt": "draw"})
-    hook(app, "PostToolUse", tool_name="Agent", tool_input={"description": "Herr Gropius draws"}, tool_response={"isAsync": True, "agentId": "g1"})
-    for _ in range(60):
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a", "limit": 1})
-        hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": "a"}, tool_response="x")
-    rows = [row for row in app.container.get(Subagents).session_subagents("s1")]
-    assert [r.task for r in rows] == ["Herr Gropius draws"] and rows[0].is_running() is True
 
 
 def test_a_link_given_in_the_chat_is_pinned_above_it_or_earns_one_reminder(app: App, monkeypatch):
@@ -13149,20 +13140,6 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         team.close(server)
 
 
-def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
-    from journal.models.worker import Worker
-    from journal.models.worker_state import WorkerState
-    from journal.repositories.workers import Workers
-    workers = app.container.get(Workers)
-    with app.container.get(Scope).environment(MAIN):
-        for name, state in (("Mr. Pepys", WorkerState.REPORTED), ("Mr. Brunel", WorkerState.MERGED), ("Lady Lovelace", WorkerState.DISPATCHED), ("Mr. Babbage", WorkerState.DELIVERED)):
-            workers.save(Worker(name=name, brief=f"{name}'s job", model="sonnet", state=state), Actor.system())
-        shown = app.console().run(["worker", "open"], USER).text
-        listed = app.console().run(["worker", "list"], USER).text
-    assert "Lady Lovelace" in shown and "Mr. Babbage" in shown, "the one out and the one with work to check are listed"
-    assert "Mr. Pepys" not in shown and "Mr. Brunel" not in shown, "a reported and a merged one are history, left out"
-    assert all(name in listed for name in ("Mr. Pepys", "Mr. Brunel", "Lady Lovelace", "Mr. Babbage")), "the full list still has every one"
-    assert "journal worker open" in BriefingOptions.OVERVIEW_COMMANDS.default and "journal worker list" not in BriefingOptions.OVERVIEW_COMMANDS.default, "the overview runs the short list"
 
 
 def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):

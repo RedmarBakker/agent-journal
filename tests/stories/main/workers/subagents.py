@@ -37,3 +37,12 @@ def test_a_running_limit_of_zero_lets_every_subagent_through(story):
     story.agent_sends_subagent(REVIEWER, "review the parser plan")
     story.expect_allowed()
     story.expect_stack(Ready)
+
+
+@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_subagent_sent_long_ago_in_the_session_is_still_listed_as_running(story):
+    story.agent_reads(count=60)
+    story.agent_runs("worker list")
+    story.expect_command_line("find where the parser is called")
+    story.expect_subagent_stack(story.start.subagent, Void, Researching)
+    story.expect_stack(Ready)
