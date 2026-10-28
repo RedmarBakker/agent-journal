@@ -33,6 +33,9 @@ class UserSteps:
     def project_text(self, path: str) -> str:
         return (self.app.config.root / path).read_text()
 
+    def user_edits_message(self, message: int, text: str) -> None:
+        self.user_posted(f"/journal/messages/{message}", {"text": text}, "user edits a message")
+
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
 

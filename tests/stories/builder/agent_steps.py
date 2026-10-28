@@ -78,6 +78,12 @@ class AgentSteps:
     def agent_has_run_in_the_shell(self, line: str) -> None:
         self.hooked(f"agent has run in the shell {line.split()[0]}", "PostToolUse", tool_name=self.tools.shell, tool_input={"command": line}, tool_response={"stdout": self.shell_text, "stderr": ""})
 
+    def agent_has_run_printing(self, line: str, printed: str) -> None:
+        self.hooked(f"agent has run in the shell {line.split()[0]}", "PostToolUse", tool_name=self.tools.shell, tool_input={"command": line}, tool_response={"stdout": printed, "stderr": ""})
+
+    def agent_has_edited_a_file_holding(self, path: str, text: str) -> None:
+        self.hooked("agent has edited", "PostToolUse", tool_name=self.tools.write, tool_input={"file_path": str(self.app.config.root / path), "content": text}, tool_response={"originalFile": text})
+
     def agent_has_read(self, path: str = "a.py") -> None:
         self.hooked("agent has read", "PostToolUse", tool_name=self.tools.read, tool_input={"file_path": path}, tool_response={})
 

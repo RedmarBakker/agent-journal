@@ -5191,17 +5191,6 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
 
 
 
-def test_a_reply_by_command_edited_since_is_known_by_its_key_and_never_sent_again(app: App):
-    from journal.repositories.messages import Messages
-    console, messages = app.console(), app.container.get(Messages)
-    console.run(["message", "send", "Can you look?"], USER)
-    console.run(["message", "send", "Looking at the footer now.", "--reply-to", "1"], AGENT)
-    reply = [m for m in messages.recent(10) if m.reply_target == 1][0]
-    with app.container.get(Scope).environment(MAIN):
-        messages.save(reply.with_(text="Looking at the footer, task 3, now."), Actor.system())
-    repeat = console.run(["message", "send", "Looking at the footer now.", "--reply-to", "1"], AGENT)
-    assert "already has this reply in the chat: not sent again" in repeat.text, "the reply keeps the key of the words it was sent with, so an edit of its text never lets them be sent again"
-    assert [m.text for m in messages.recent(10) if m.reply_target == 1] == ["Looking at the footer, task 3, now."], "the chat shows the edited reply once"
 
 
 def test_a_message_linked_to_one_task_by_two_recorders_has_one_link(app: App):
@@ -5673,22 +5662,6 @@ def test_a_commit_made_in_a_worktree_closes_its_task_at_once_and_the_merge_that_
     assert status == 200, "a merge that brings nothing new closes nothing twice"
 
 
-def test_a_link_in_a_commands_output_is_suggested_as_a_pin_and_again_only_after_fifty_tool_uses(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    produced = lambda: hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "gh pr create"}, tool_response={"stdout": "https://github.com/acme/shop/pull/27"})[1]
-    edited = hook(app, "PostToolUse", tool_name="Edit", tool_input={"file_path": "a.py"}, tool_response={"originalFile": "see https://example.com/docs/one"})[1]
-    assert "if the user will return to it" not in str(edited), "an edit's answer carries the file it changed, so its links are never suggested"
-    first = produced()
-    assert '--link "https://github.com/acme/shop/pull/27"' in str(first), "a pull request's address in a command's output is suggested as a pin"
-    assert "if the user will return to it" not in str(produced()), "not again at once"
-    for _ in range(50):
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert "if the user will return to it" in str(produced()), "suggested again after fifty of the agent's tool uses"
-    app.console().run(["notice", "create", "Pull request 27", "--link", "https://github.com/acme/shop/pull/27", "--label", "Open it"], AGENT)
-    for _ in range(50):
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert "if the user will return to it" not in str(produced()), "a pinned link is never suggested"
 
 
 def test_dispatches_past_the_most_at_once_wait(app: App):
