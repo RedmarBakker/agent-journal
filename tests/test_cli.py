@@ -540,7 +540,7 @@ def test_the_library_link_publishes_an_item_with_its_file_and_reads_it_back_from
 
 
 
-def test_the_library_withdraws_an_item_its_admin_deletes_a_version_and_a_member_cannot_invite(app: App, tmp_path: Path):
+def test_a_library_member_cannot_invite(app: App, tmp_path: Path):
     from dataclasses import replace
     from journal.features.library.support.library_account import LibraryAccount
     from sync_server.team_server import TeamServer
@@ -552,17 +552,6 @@ def test_the_library_withdraws_an_item_its_admin_deletes_a_version_and_a_member_
     console, user = app.console(), Caller.user("main")
     try:
         assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        number = console.run(["sequence", "create", "Night Run", "--steps", "go"], user).text.split()[1].rstrip(":")
-        assert console.run(["library", "publish", "sequence", number], user).code == 0
-        assert console.run(["library", "import", "sequence", "night-run"], user).code == 0
-        assert console.run(["library", "withdraw", "sequence", "night-run"], user).code == 0
-        assert "no items in the library" in console.run(["library", "list"], user).text, "a withdrawn item leaves the list"
-        assert "version 1" in console.run(["library", "show", "sequence", "night-run"], user).text, "while the version imported still reads"
-        assert console.run(["library", "publish", "sequence", number], user).code == 0
-        assert "deleted for good" in console.run(["library", "delete", "sequence", "night-run", "2"], user).text
-        invited = console.run(["library", "invite", "bob@example.com"], user)
-        assert invited.code == 0 and "code=" in invited.text, invited.error
-        assert "Ada" in console.run(["library", "people"], user).text and console.run(["library", "devices"], user).code == 0
         team.accounts.create("carl@example.com", "Carl", "correct horse battery", "member", 2.0)
         _, member_token = team.devices.login("carl@example.com", "correct horse battery", "laptop", "127.0.0.1", 2.0)
         account = LibraryAccount(app.config)
@@ -601,28 +590,3 @@ def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_updat
 
 
 
-def test_the_viewer_reads_the_library_imports_and_publishes_through_the_same_steps_as_the_command(app: App, tmp_path: Path):
-    from tests.in_process import get_answer, posted
-    from sync_server.team_server import TeamServer
-
-    main = {"X-Journal-Env": "main"}
-    assert get_answer(app, "/journal/library", main)[1] == {"connected": False}
-    (tmp_path / "team").mkdir()
-    team = TeamServer(tmp_path / "team")
-    server = team.started("127.0.0.1", 0)
-    address = f"http://127.0.0.1:{server.server_address[1]}"
-    console, user = app.console(), Caller.user("main")
-    try:
-        assert console.run(["library", "connect", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], user).code == 0
-        status = get_answer(app, "/journal/library", main)[1]
-        assert status["connected"] and status["name"] == "Ada" and status["token"] == "", "the viewer never sees the token"
-        number = console.run(["sequence", "create", "Morning Check", "--steps", "look"], user).text.split()[1].rstrip(":")
-        published = posted(app, "/journal/library/items/sequence/publish", {"reference": number, "note": "first"}, main)
-        assert published[0] == 200 and published[1]["number"] == 1, published
-        assert posted(app, "/journal/library/items/sequence/morning-check/import", {}, main)[0] == 200
-        [entry] = get_answer(app, "/journal/library/items?type=sequence", main)[1]["items"]
-        assert entry["item"]["name"] == "morning-check" and entry["imported_version"] == 1
-        assert get_answer(app, "/journal/library/items/sequence/morning-check", main)[1]["versions"][0]["note"] == "first"
-        assert posted(app, "/journal/library/items/sequence/morning-check/update", {}, main)[0] != 200, "an item at the latest version has nothing to update"
-    finally:
-        team.close(server)

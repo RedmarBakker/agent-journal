@@ -108,6 +108,10 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, {"X-Journal-Env": environment})
         self.observed(f"user opens {route} in {environment}", None, None)
 
+    def user_presses(self, path: str, body: dict) -> None:
+        self.viewer_status, self.viewer_answer = posted(self.app, path, body, MAIN)
+        self.observed(f"user presses {re.sub(r'/\d+', '/{n}', path)}", None, None)
+
     def card_number(self, key: str) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == key)
 
