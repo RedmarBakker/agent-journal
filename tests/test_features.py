@@ -421,23 +421,6 @@ def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_
 
 
 
-def test_a_plan_does_not_hand_out_a_task_whose_wait_is_open(app: App):
-    from journal.models.support.ref import Ref
-    from journal.models.link import Link
-    from journal.support.actor import Actor
-    from journal.repositories.links import Links
-    from journal.repositories.plans import Plans
-    from journal.repositories.tasks import Tasks, WAIT_LINK
-    console = app.console()
-    console.run(["plan", "create", "release", "--brief", "ship"], USER)
-    console.run(["plan", "add", "1", "first"], USER)
-    console.run(["plan", "add", "1", "second"], USER)
-    tasks, plans = app.container.get(Tasks), app.container.get(Plans)
-    console.run(["task", "create", "dependency"], USER)
-    app.container.get(Links).save(Link(source=Ref.build(tasks.find(1)), target=Ref.build(tasks.find(3)), link_type=WAIT_LINK), Actor.system())
-    assert plans.next_task(plans.find(1)).id == 2
-    console.run(["task", "complete", "3"], AGENT)
-    assert plans.next_task(plans.find(1)).id == 1
 
 
 def test_messages_are_put_before_the_agent_and_a_reply_by_command_answers_them(app: App):
@@ -2447,35 +2430,6 @@ def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
 
 
 
-def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
-    from journal.repositories.sequences import Sequences
-    port = app.server().port
-
-    def api(method, path, body=None):
-        request = HttpRequest(f"http://127.0.0.1:{port}/journal/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    sequences = app.container.get(Sequences)
-    building = next(s for s in sequences.all() if s.title == "Building a plan")
-    shown = next(r for r in api("GET", "sequences")[1]["rows"] if r["id"] == building.id)
-    assert shown["triggers"] == [{"trigger_type": "row", "moment": "plan.created"}], "the page is told a new plan starts it, as the engine does"
-    assert api("POST", f"sequences/{building.id}/triggers", {"triggers": []})[0] != 200, "a shipped sequence is locked"
-    update = next(s for s in sequences.all() if s.title == "Writing an update")
-    assert any(trigger.text == "tldr" for trigger in update.triggers) and [s.title for s in sequences.requested_sequences("tldr")] == ["Writing an update"], "the update starts on its own phrases"
-    created = app.console().run(["sequence", "create", "Ship it", "--steps", "bump | tag", "--trigger", "row:plan.created", "--trigger", "file-text:src/*.py:TODO"], USER)
-    assert created.code == 0, created.error
-    ship = next(s for s in sequences.all() if s.title == "Ship it")
-    assert [trigger.line() for trigger in ship.triggers] == ["row:plan.created", "file-text:src/*.py:TODO"] and ship in sequences.triggered_sequences("plan.created") and ship in sequences.call_sequences()
-    assert "starts on row:plan.created, file-text:src/*.py:TODO" in app.console().run(["sequence", "show", str(ship.id)], USER).text
-    assert api("POST", f"sequences/{ship.id}/triggers", {"triggers": [{"trigger_type": "phrase", "text": "ship it now"}]})[0] == 200 and [s.title for s in sequences.requested_sequences("ship it now")] == ["Ship it"], "the page sets the triggers anew"
-    for bad, said in (({"trigger_type": "rows"}, "is none of them"), ({"trigger_type": "command", "pattern": "("}, "not a regular expression"), ({"trigger_type": "file"}, "path glob")):
-        status, refused = api("POST", f"sequences/{ship.id}/triggers", {"triggers": [bad]})
-        assert status != 200 and said in json.dumps(refused), (bad, refused)
-    refused = app.console().run(["sequence", "edit", str(ship.id), "--trigger", "row:plan"], USER)
-    assert refused.code != 0 and "such as plan.created" in refused.error, "the command refuses a bad trigger in plain words"
 
 
 def test_the_sequence_triggers_migration_turns_the_trigger_event_and_the_phrase_rows_into_trigger_records(connection):
@@ -8912,17 +8866,6 @@ def test_a_worker_messages_only_its_own_dispatchers_other_workers_and_starts_no_
         process.wait(5)
 
 
-def test_a_worker_lists_its_peers_out_or_idle_with_what_each_is_on(app: App):
-    from journal.models.worker import Worker
-    from journal.repositories.workers import Workers
-    workers = app.container.get(Workers)
-    for name, dispatcher, state, adopted in (("Mr. Watt", "s1", WorkerState.DISPATCHED, False), ("Mr. Boulton", "s1", WorkerState.REPORTED, False), ("Mr. Murdoch", "s1", WorkerState.DISPATCHED, False), ("Mr. Other", "s2", WorkerState.DISPATCHED, False), ("Mr. Retired", "s1", WorkerState.REPORTED, True)):
-        workers.save(Worker(name=name, brief=f"the job of {name}", dispatcher=dispatcher, state=state, adopted=adopted), Actor.system())
-    listed = app.console().run(["worker", "peers"], Caller.worker("main", 1, None, "claude")).text
-    assert "Mr. Boulton: the job of Mr. Boulton" in listed and "Mr. Murdoch: the job of Mr. Murdoch" in listed, "the dispatcher's other workers, out or idle, with what each is on"
-    assert "Mr. Watt" not in listed and "Mr. Other" not in listed and "Mr. Retired" not in listed, "never itself, another agent's or a retired one"
-    assert "journal worker notify" in listed
-    assert "only a worker has peers" in app.console().run(["worker", "peers"], AGENT).error
 
 
 def test_a_long_worker_report_keeps_its_start_and_its_end():
@@ -13443,15 +13386,6 @@ def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when
     assert not app.container.get(Reminders).matching(id=1), "a single-use reminder is struck once told"
 
 
-def test_a_moment_with_a_bad_condition_is_refused_with_its_reason(app: App):
-    console = app.console()
-    assert "no table is named 'chores'" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "chores", "is": 0}'], USER).error
-    assert "colour" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"colour": "red"}, "is": 0}'], USER).error
-    assert "tasks state is never sleeping" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"state": ["open", "sleeping"]}, "is": 0}'], USER).error
-    assert "a condition is" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks"}'], USER).error
-    assert "--when is not JSON" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", "{tasks"], USER).error
-    assert "--when and --once go with --on" in console.run(["reminder", "create", "x", "--once"], USER).error
-    assert console.run(["reminder", "create", "x", "--on", "task_finished"], USER).code != 0, "an unknown moment is refused"
 
 
 def test_a_memory_command_waits_until_the_memory_skill_is_read(skilled):

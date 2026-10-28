@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 
 from journal.engine.nudge import Nudge
@@ -91,6 +92,12 @@ class StoryChecks:
     def expect_command_line_count(self, count: int) -> None:
         lines = self.command.text.strip().splitlines()
         assert len(lines) == count, f"the command printed {len(lines)} lines, not {count}: {self.command.text}"
+
+    def expect_viewer_passed(self) -> None:
+        assert self.viewer_status < 300, f"the viewer's request was refused: {self.viewer_answer}"
+
+    def expect_viewer_refused(self, part: str) -> None:
+        assert self.viewer_status >= 300 and part in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, not a refusal saying {part!r}"
 
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"

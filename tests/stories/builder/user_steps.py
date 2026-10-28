@@ -91,6 +91,13 @@ class UserSteps:
         assert stored == value, f"{option.key} was set to {value!r} in the viewer but the journal holds {stored!r}"
         self.set_positions[option.key] = self.reads.position()
 
+    def user_sets_sequence_triggers(self, sequence: int, triggers: list[dict]) -> None:
+        self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/sequences/{sequence}/triggers", {"triggers": triggers}, MAIN)
+        self.observed("user sets the sequence's triggers", None, None)
+
+    def sequence_number(self, title: str) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/sequences", MAIN)[1]["rows"] if row["title"] == title)
+
     def user_posted(self, path: str, body: dict, action: str = "") -> dict:
         status, answer = posted(self.app, path, body, MAIN)
         assert status < 300, f"the viewer's request {path} was refused: {answer}"

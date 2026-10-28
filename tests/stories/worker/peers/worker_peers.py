@@ -14,6 +14,8 @@ def test_a_worker_lists_the_other_workers_of_its_dispatcher(story):
     story.agent_runs("worker peers")
     story.expect_command_passed()
     story.expect_command_text(PEER_NAME)
+    story.expect_command_text("journal worker notify")
+    story.expect_command_text_without("Lady Lovelace")
     story.expect_worker(story.start.peer, state=WorkerState.READY)
     story.expect_task(story.start.peer_task, delegated=True)
     story.expect_stack(Void, WorkingTask)
