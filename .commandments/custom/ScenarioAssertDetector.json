@@ -1,0 +1,20 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "judges": ["tests/scenarios/stories"],
+    "find": {
+        "reject": [],
+        "select": "kind:Assert",
+        "where": [
+            {
+                "file": "tests/scenarios/stories/**"
+            }
+        ]
+    },
+    "sin": {
+        "description": "A scenario story contains an assert statement.",
+        "name": "scenario-assert",
+        "rule": "Call a reusable expect method in the scenario builder; keep assertions inside that method.",
+        "skill": "tests-drive-the-real-path"
+    }
+}

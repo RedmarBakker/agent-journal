@@ -3,12 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from tests.replay import PROVIDERS, catch_typed, drive_the_clock
+from tests.replay import catch_typed, drive_the_clock
 from tests.scenarios.builder.coverage_gaps import CoverageGaps
 from tests.scenarios.builder.path_overlay import PathOverlay
 from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
-from tests.scenarios.builder.story_values import ENDS_IN_MARK, SETTINGS_MARK, STARTS_FROM_MARK
+from tests.scenarios.builder.story_values import ENDS_IN_MARK, PROVIDER_MARK, SETTINGS_MARK, STARTS_FROM_MARK
+from tests.scenarios.builder.void_provider import VoidProvider
 from tests.test_features import booted
 from journal.config import Config
 from journal.engine.nudge_registry import NudgeRegistry
@@ -20,6 +21,7 @@ SCENARIOS_RUN = pytest.StashKey[int]()
 GAPS = pytest.StashKey[CoverageGaps]()
 WALKED = pytest.StashKey[set[str]]()
 REPOSITORY = Path(__file__).resolve().parents[2]
+STORIES = Path(__file__).parent / "stories"
 
 
 @pytest.fixture(scope="module")
@@ -27,14 +29,15 @@ def boot():
     return booted
 
 
-@pytest.fixture(params=PROVIDERS)
+@pytest.fixture
 def scenario(app, monkeypatch, request):
-    """A story played for each provider in turn on the module's journal from the state its starts_from names, lines typed to the agent caught and seen back at once; its path is kept for the run's overlay once it ends, and a story fails when a setting it set was never read by the journal after."""
+    """A story played once, on the VoidProvider or the provider its @provider names, on the module's journal from the state its starts_from names, lines typed to the agent caught and seen back at once; its path is kept for the run's overlay once it ends, and a story fails when a setting it set was never read by the journal after."""
     catch_typed(app, monkeypatch, [])
     drive_the_clock(app, monkeypatch)
     reads = SettingReads()
     reads.watch(monkeypatch)
-    played = Scenario(app, request.param, reads)
+    program = request.node.get_closest_marker(PROVIDER_MARK)
+    played = Scenario(app, program.args[0] if program else VoidProvider, reads)
     for mark in request.node.iter_markers(STARTS_FROM_MARK):
         played.starts_from(mark.args[0])
     for mark in reversed(list(request.node.iter_markers(SETTINGS_MARK))):
@@ -50,7 +53,7 @@ def scenario(app, monkeypatch, request):
     gaps.known([nudge.key for nudge in app.container.get(NudgeRegistry).all()], [option.key for option in app.container.get(Registry).options()])
     gaps.played(played.said_keys, set(reads.keys))
     overlays = request.config.stash.setdefault(OVERLAYS, {})
-    overlays.setdefault(request.param, PathOverlay()).add(request.node.originalname, played.path)
+    overlays.setdefault(played.program.__name__, PathOverlay()).add(request.node.originalname, played.path)
     request.config.stash.setdefault(WALKED, set()).update(played.log.walked)
     request.config.stash[SCENARIOS_RUN] = request.config.stash.get(SCENARIOS_RUN, 0) + 1
 
@@ -60,7 +63,7 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     collected = [item for item in session.items if "scenario" in getattr(item, "fixturenames", ())]
     if not collected or session.config.stash.get(SCENARIOS_RUN, 0) < len(collected) or session.config.option.keyword:
         return
-    if {Path(item.fspath) for item in collected} >= set(Path(__file__).parent.glob("scenario_*.py")):
+    if {Path(item.fspath) for item in collected} >= set(STORIES.glob("*/*.py")) - set(STORIES.glob("*/__init__.py")):
         write_walked(session.config.stash.get(WALKED, set()))
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     failures, warnings = [], []

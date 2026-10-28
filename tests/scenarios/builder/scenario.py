@@ -21,10 +21,10 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, ShellSteps, TimeSteps, DeveloperSteps, StepChecks, StorySugar):
     """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and the rows its start made are noted as the story uses them, to ask whether it used them all."""
 
-    def __init__(self, app, provider: str, reads: SettingReads) -> None:
-        self.app, self.provider, self.tools, self.reads = app, provider, TOOLS[provider], reads
+    def __init__(self, app, program: type, reads: SettingReads) -> None:
+        self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
-        self.agent = Caller.agent("main", "s1", provider)
+        self.agent = Caller.agent("main", "s1", program.name)
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []

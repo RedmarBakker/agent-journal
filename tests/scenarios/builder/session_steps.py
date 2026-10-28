@@ -3,7 +3,8 @@ from journal.repositories.environments import Environments
 from journal.support.caller import Caller
 from tests.full_project import MAIN
 from tests.in_process import got, posted
-from tests.replay import PROVIDERS
+from journal.providers.claude import Claude
+from journal.providers.codex import Codex
 from tests.scenarios.builder.hook_verdict import HookVerdict
 
 
@@ -39,7 +40,7 @@ class SessionSteps:
         self.session_starts_with(self.provider, session)
 
     def other_provider_session_starts(self, session: str = "s3") -> None:
-        self.session_starts_with(next(provider for provider in PROVIDERS if provider != self.provider), session)
+        self.session_starts_with(next(program.name for program in (Claude, Codex) if program.name != self.provider), session)
 
     def session_starts_with(self, provider: str, session: str) -> None:
         status, answer = posted(self.app, f"/hooks/{provider}", {"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}, MAIN)

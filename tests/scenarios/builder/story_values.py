@@ -1,22 +1,8 @@
-import os
-import random
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 
 import pytest
 
 from journal.support.option import Option
-
-# the seed a drawn sample starts from unless SCENARIO_SEED names another, so a run can be played again exactly
-SEED_VARIABLE = "SCENARIO_SEED"
-DEFAULT_SEED = 7
-# the option type of a setting that is on or off
-SWITCH = "switch"
-
-
-def values(choices: Iterable) -> pytest.MarkDecorator:
-    """A story run once for each value, each run from a fresh journal, the value handed to the story as value."""
-    chosen = list(choices)
-    return pytest.mark.parametrize("value", chosen, ids=[str(choice) for choice in chosen])
 
 
 # the marker naming the state a story starts from
@@ -25,19 +11,8 @@ STARTS_FROM_MARK = "starts_from"
 ENDS_IN_MARK = "ends_in"
 # the marker naming a setting the user sets before the story's first step
 SETTINGS_MARK = "settings"
-
-
-def values_of(option: Option) -> pytest.MarkDecorator:
-    """A story run for the values of a setting worth trying: a switch off and on, a whole number none, one, a middle and its default."""
-    if option.option_type == SWITCH:
-        return values([False, True])
-    default = int(option.default)
-    return values(sorted({0, 1, default // 2, default}))
-
-
-def sample(population: Iterable[int], count: int) -> list[int]:
-    """Values drawn from a range from the run's seed, the same each run until SCENARIO_SEED names another."""
-    return sorted(random.Random(int(os.environ.get(SEED_VARIABLE, DEFAULT_SEED))).sample(list(population), count))
+# the marker naming the provider a story runs on, where the provider is what it tests
+PROVIDER_MARK = "provider"
 
 
 def starts_from(fixture: type) -> pytest.MarkDecorator:
@@ -48,6 +23,11 @@ def starts_from(fixture: type) -> pytest.MarkDecorator:
 def settings(option: Option, value: object) -> pytest.MarkDecorator:
     """A setting the user sets through the viewer's route before the story's first step; the story fails when the journal never reads it."""
     return getattr(pytest.mark, SETTINGS_MARK).with_args(option, value)
+
+
+def provider(program: type) -> pytest.MarkDecorator:
+    """The provider a story runs on, Claude or Codex, only where the provider changes what the story tests; every other story runs on the VoidProvider."""
+    return getattr(pytest.mark, PROVIDER_MARK).with_args(program)
 
 
 def ends_in(*stack: str) -> pytest.MarkDecorator:
