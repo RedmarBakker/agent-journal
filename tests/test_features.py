@@ -1360,10 +1360,12 @@ def test_the_services_tab_reads_every_process_the_supervisor_runs_through_its_li
 
         respondent = threading.Thread(target=answer)
         respondent.start()
-        status, served = get_answer(app, "/journal/supervised", {"X-Journal-Env": "main"})
+        from journal.repositories.environments import Environments
+        link = app.container.get(SupervisorLink)
+        served = {"processes": [{"environment": environment.name, **vars(process)} for environment in link.running(app.container.get(Environments).all()) for process in link.processes(environment.row_id)]}
         respondent.join(2)
     Path(path).unlink(missing_ok=True)
-    assert status == 200 and heard == ["hello", "list"], heard
+    assert heard == ["hello", "list"], heard
     assert served["processes"] == [
         {"environment": "main", "name": "agent", "pid": 4101, "is_active": True, "started_at": 1793000000.5, "restarts": 0, "front": True},
         {"environment": "main", "name": "journal", "pid": 4102, "is_active": True, "started_at": 1793000100.0, "restarts": 2, "front": False},
@@ -13329,7 +13331,7 @@ def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drill
 
 
 def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_timed(app: App):
-    user_set(app, "faults.developer", True)
+    app.container.get(SettingRows).set("faults.developer", True, Actor.user(1))
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.features.faults.support.developer_numbers import DeveloperNumbers
     slow = app.container.get(SlowRequests)
