@@ -4034,28 +4034,6 @@ def test_the_plugins_page_previews_installs_lists_configures_and_removes(app: Ap
 
 
 
-def test_a_plugins_dashboard_is_drawn_from_the_lines_it_wrote(app: App):
-    from journal.repositories.plugins import Plugins
-    console = app.console()
-    console.run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
-    plugin = app.container.get(Plugins).lookup("echo")
-    as_echo = Caller.plugin("main", "echo")
-    assert "written by its plugin's program" in console.run(["dashboard", "set", "a.py", "a.py"], AGENT).error, "only a plugin writes its dashboard"
-    console.run(["dashboard", "set", "a.py", "a.py", "--badge", "2 sins", "--tone", "warn", "--heading", "Files"], as_echo)
-    console.run(["dashboard", "set", "b.py", "b.py", "--badge", "clean", "--tone", "good", "--heading", "Files"], as_echo)
-    console.run(["dashboard", "set", "a.py", "a.py", "--badge", "1 sin", "--tone", "warn", "--heading", "Files"], as_echo)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/plugins/{plugin.id}/dashboard", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        document = json.loads(reply.read())
-    view = document["pages"]["start"]
-    assert view["title"] == "Echoes" and view["view"]["children"] == [{"type": "heading", "text": "Files", "level": 3}, {"type": "list", "items": [{"label": "a.py", "badge": "1 sin", "tone": "warn", "note": ""}, {"label": "b.py", "badge": "clean", "tone": "good", "note": ""}]}], "one line per key, rewritten in place"
-    saved = app.config.home / "plugin-data" / "echo" / "dashboards" / "echoes.json"
-    saved.parent.mkdir(parents=True, exist_ok=True)
-    saved.write_text(json.dumps({"title": "Echoes", "start": "overview", "pages": {"overview": {"title": "Echoes", "view": {"type": "text", "body": "written by echo"}}}}))
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/plugins/{plugin.id}/dashboard", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        assert json.loads(reply.read())["start"] == "overview", "a document the plugin wrote in its data folder is its dashboard"
-    console.run(["plugin", "remove", "echo", "--purge"], USER)
-    from journal.repositories.dashboard_rows import DashboardRows
-    assert app.container.get(DashboardRows).plugin_rows("echo") == [], "purged with its plugin"
 
 
 

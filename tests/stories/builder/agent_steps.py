@@ -268,6 +268,13 @@ class AgentSteps:
     def task_states_in(self, environment: str) -> dict[int, str]:
         return {row["id"]: row["state"] for row in get_answer(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
 
+    def plugin_runs(self, plugin: str, line: str) -> None:
+        arguments = shlex.split(line)
+        self.record_command(f"the plugin runs {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.plugin("main", plugin)))
+
+    def plugin_number(self, plugin: str) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/plugins", {"X-Journal-Env": "main"})[1]["rows"] if row["name"] == plugin)
+
     def agent_in_runs(self, environment: str, session: str, line: str) -> None:
         arguments = shlex.split(line)
         self.record_command(f"the agent in {environment} runs {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.agent(environment, session, self.provider)))
