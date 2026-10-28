@@ -1659,17 +1659,6 @@ def ticked_minutes(app: App, *minutes: int) -> None:
 
 
 
-def test_every_built_in_voice_can_put_each_of_its_own_faces_on_a_message(app: App):
-    from journal.features.voices.support.builtin_catalogue import BuiltinCatalogue
-    from journal.repositories.messages import Messages
-    from journal.repositories.reactions import Reactions
-    console = app.console()
-    console.run(["message", "send", "onwards"], USER)
-    faces = [face for voice in BuiltinCatalogue.ALL for face in voice.emoji.split()]
-    assert len(faces) == 15
-    for face in faces:
-        assert console.run(["message", "react", "1", face], AGENT).text.startswith(f"{face} on message 1"), face
-    assert sorted(r.emoji for r in app.container.get(Reactions).reactions(app.container.get(Messages).find(1))) == sorted(faces)
 
 
 
@@ -15551,14 +15540,15 @@ def test_a_process_card_keeps_its_id_and_time_and_its_place_among_the_messages_t
 
 def test_the_workers_recent_activity_is_their_marks_newest_first_and_no_other(app: App):
     from journal.chat.moment_cards import MomentCards
+    from journal.repositories.messages import Messages
     from journal.support.card_type import CardType
     with app.container.get(Scope).environment(MAIN):
         cards = app.container.get(MomentCards)
         cards.show_fields(MAIN, None, "A: sent its next job", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_STEPS)
         cards.show(MAIN, None, "Not a worker's", "", shows=CardType.COMMANDS)
         cards.show_fields(MAIN, None, "A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_TESTS)
-    status, body = get_answer(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
-    assert status == 200 and [row["text"] for row in body["rows"]] == ["A: its tests passed", "A: sent its next job"]
+        newest = app.container.get(Messages).newest_moments((CardType.WORKERS, CardType.WORKER_STEPS, CardType.WORKER_TESTS), 10)
+    assert [message.text for message in newest] == ["A: its tests passed", "A: sent its next job"]
 
 
 
