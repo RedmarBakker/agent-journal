@@ -36,6 +36,12 @@ class UserSteps:
         get_answer(self.app, route, MAIN)
         self.observed(f"user opens {route}", None, None)
 
+    def user_pauses_the_agent(self) -> None:
+        self.user_posted(f"/journal/agents/{self.main_agent_id()}/pause", {}, "user pauses the agent")
+
+    def user_resumes_the_agent(self) -> None:
+        self.user_posted(f"/journal/agents/{self.main_agent_id()}/resume", {}, "user resumes the agent")
+
     def user_skips_the_step(self) -> None:
         self.user_posted(f"/journal/agents/{self.main_agent_id()}/skip-step", {}, "user skips the sequence step")
 
