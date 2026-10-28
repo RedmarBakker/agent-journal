@@ -31,15 +31,15 @@ class LibraryUpdate:
             self.items.delete(item, actor)
             item = None
         if item is None:
-            raise Rejection(f"{item_type} {name} is not imported here, or its copy was deleted: journal library import {item_type} {name}")
+            raise Rejection(f"{item_type} {name} is not here: journal library import {item_type} {name}")
         latest = self.link.item(item_type, name).versions[-1]
         if latest.number <= item.version:
             raise Rejection(f"{item_type} {name} is at version {item.version} here, the library's latest")
         if Release(latest.lowest_version).is_newer(Release(VERSION)):
-            raise Rejection(f"{item_type} {name} version {latest.number} needs journal {latest.lowest_version}: update the journal with journal update apply first")
+            raise Rejection(f"{item_type} {name} {latest.number} needs journal {latest.lowest_version}: journal update apply")
         edited = self.edited_fields(item)
         if edited and not replacing:
-            raise Rejection(f"{item_type} {name} was edited here ({', '.join(edited)} changed since version {item.version}): journal library update {item_type} {name} --replace takes version {latest.number} over your edits")
+            raise Rejection(f"{item_type} {name} has edits here to {', '.join(edited)}: --replace takes version {latest.number} over them")
         return self.items.save(item.with_(version=latest.number, body=self.local_copy_replaced(item, latest.body, actor)), actor)
 
     def edited_fields(self, item: LibraryItem) -> list[str]:

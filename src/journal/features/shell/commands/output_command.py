@@ -138,7 +138,7 @@ class OutputCommand(Command):
     def testing_task(self, n: int) -> Task:
         task = self.tasks.find(n)
         if not task.is_testing():
-            raise Rejection(f"task {n} is {task.state}, not waiting in testing: put it there first with `journal task test {n}`")
+            raise Rejection(f"task {n} is {task.state}, not in testing: `journal task test {n}` puts it there")
         return task
 
     def watch(self, args: Namespace, caller: Caller) -> int:

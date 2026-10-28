@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from tests.replay import PROVIDERS, catch_typed, drive_the_clock
@@ -7,12 +10,16 @@ from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
 from tests.scenarios.builder.story_values import ENDS_IN_MARK, STARTS_FROM_MARK
 from tests.test_features import booted
+from journal.config import Config
 from journal.engine.nudge_registry import NudgeRegistry
+from journal.features.faults.support.scenario_transitions import ScenarioTransitions
 from journal.features.registry import Registry
 
 OVERLAYS = pytest.StashKey[dict[str, PathOverlay]]()
 SCENARIOS_RUN = pytest.StashKey[int]()
 GAPS = pytest.StashKey[CoverageGaps]()
+WALKED = pytest.StashKey[set[str]]()
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +49,7 @@ def scenario(app, monkeypatch, request):
     gaps.played(played.said_keys, set(reads.keys))
     overlays = request.config.stash.setdefault(OVERLAYS, {})
     overlays.setdefault(request.param, PathOverlay()).add(request.node.originalname, played.path)
+    request.config.stash.setdefault(WALKED, set()).update(played.log.walked)
     request.config.stash[SCENARIOS_RUN] = request.config.stash.get(SCENARIOS_RUN, 0) + 1
 
 
@@ -50,6 +58,8 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     collected = [item for item in session.items if "scenario" in getattr(item, "fixturenames", ())]
     if not collected or session.config.stash.get(SCENARIOS_RUN, 0) < len(collected) or session.config.option.keyword:
         return
+    if {Path(item.fspath) for item in collected} >= set(Path(__file__).parent.glob("scenario_*.py")):
+        write_walked(session.config.stash.get(WALKED, set()))
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     failures, warnings = [], []
     for provider, overlay in session.config.stash.get(OVERLAYS, {}).items():
@@ -63,3 +73,10 @@ def pytest_sessionfinish(session, exitstatus) -> None:
         reporter.write_line(f"scenario paths, failed: {line}", red=True)
     if failures:
         session.exitstatus = 1
+
+
+def write_walked(walked: set[str]) -> None:
+    """The kinds of stack change every story of a whole run walked, for journal developer transitions to mark the ones none walks."""
+    walked_path = ScenarioTransitions.walked_path(Config(root=REPOSITORY))
+    walked_path.parent.mkdir(parents=True, exist_ok=True)
+    walked_path.write_text(json.dumps(sorted(walked)))

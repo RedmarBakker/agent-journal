@@ -4,6 +4,7 @@ from tests.in_process import posted
 from tests.replay import TOOLS
 from tests.scenarios.builder.agent_actions import AgentActions
 from tests.scenarios.builder.agent_steps import AgentSteps
+from tests.scenarios.builder.developer_steps import DeveloperSteps
 from tests.scenarios.builder.hook_verdict import HookVerdict
 from tests.scenarios.builder.journal_log import JournalLog
 from tests.scenarios.builder.session_steps import SessionSteps
@@ -17,7 +18,7 @@ from tests.scenarios.builder.user_steps import UserSteps
 from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
-class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, ShellSteps, TimeSteps, StepChecks, StorySugar):
+class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, ShellSteps, TimeSteps, DeveloperSteps, StepChecks, StorySugar):
     """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and the rows its start made are noted as the story uses them, to ask whether it used them all."""
 
     def __init__(self, app, provider: str, reads: SettingReads) -> None:

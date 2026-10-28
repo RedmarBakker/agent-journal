@@ -1044,7 +1044,7 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
         manifest = call(server, "GET", "/journal/manifest")[1]
         matched = [f["name"] for f in manifest["features"]]
         tasks = next(f for f in manifest["features"] if f["name"] == "tasks")
-        assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
+        assert [s["name"] for s in tasks["options"]] == ["auto", "wake_minutes", "wake_count", "wait_out_seconds", "testing_suggestion_minutes", "testing_suggestion_tool_uses", "priority_remind_tasks", "priority_block_tasks", "first_nudge_after", "name_every", "log_after", "log_old_after_minutes", "block_batch_seconds"], "a feature's options, in its words"
         assert all(f in matched for f in ("messages", "shell", "voices")) and "kanban" not in matched, "version 3's leftovers are gone"
         assert "faults" in matched, "slow requests are a setting in every project, off by default and switched on where the journal develops itself"
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"

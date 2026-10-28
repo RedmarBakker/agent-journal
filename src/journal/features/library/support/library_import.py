@@ -29,14 +29,14 @@ class LibraryImport:
     def version(self, item_type: str, name: str, number: int | None) -> ItemVersion:
         version = self.link.version(item_type, name, number) if number is not None else self.link.item(item_type, name).versions[-1]
         if Release(version.lowest_version).is_newer(Release(VERSION)):
-            raise Rejection(f"{item_type} {name} version {version.number} needs journal {version.lowest_version} and this is {VERSION}: update the journal with journal update apply, then import it")
+            raise Rejection(f"{item_type} {name} {version.number} needs journal {version.lowest_version}: journal update apply")
         return version
 
     def imported(self, item_type: str, name: str, number: int | None, actor: Actor, accepted: bool) -> LibraryItem:
         key = self.account.connection().key
         existing = self.items.imported(key, item_type, name)
         if existing is not None:
-            raise Rejection(f"{item_type} {name} is imported already, version {existing.version}: journal library update {item_type} {name} brings a newer one")
+            raise Rejection(f"{item_type} {name} is imported already: journal library update {item_type} {name}")
         version = self.version(item_type, name, number)
         item = self.items.save(LibraryItem(library_key=key, item_type=item_type, name=name, version=version.number, body=version.body), actor)
         writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file}

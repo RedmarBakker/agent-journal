@@ -119,7 +119,7 @@ class LibraryLink:
         except TeamRefusal as refused:
             raise Rejection(str(refused)) from refused
         except urllib.error.URLError as unreached:
-            raise Rejection(f"the library at {address} did not answer ({unreached.reason}): check the connection, or connect again with journal library connect") from unreached
+            raise Rejection(f"the library at {address} did not answer ({unreached.reason}): journal library connect") from unreached
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float, method: str | None = None) -> bytes:
         request = urllib.request.Request(address + path, data=body, headers=self.headers(), method=method)

@@ -34,6 +34,7 @@ from journal.models.agent import Agent
 from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
+from journal.engine.support.stack_changes import StackChanges
 from journal.engine.support.stack_history import StackHistory
 from journal.engine.listener_index import ListenerIndex
 from journal.engine.support.session_agents import SessionAgents
@@ -45,8 +46,8 @@ JOURNAL_START = "the journal started, so no compaction is still running"
 class StateMachine:
     """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks the task assigner in force before the stack answers a hook event, so a stop meets the task it starts, and, through RowAssignment, after every listener of a row event has heard it, so a closed task is let go and marked first, asks the state the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, a tool use's answer taking at most three lines and queuing the rest for the next hook, which the delivery carries out; it reaches no terminal itself."""
 
-    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery) -> None:
-        self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners, self.delivery = agents, states, nudger, bus, tracker, assigners, delivery
+    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery, changes: StackChanges) -> None:
+        self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners, self.delivery, self.changes = agents, states, nudger, bus, tracker, assigners, delivery, changes
         self.listener_index = ListenerIndex({})
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
 
@@ -223,7 +224,7 @@ class StateMachine:
         resolved = self.agents.save(agent.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())), actor)
         self.delivery.moved(agent.environment_id, typist.moves)
         if self.is_moved(agent, stack):
-            self.entries.save(StackHistory.entry(agent, stack.serialized(), cause, actor), actor)
+            self.changes.moved(agent, stack.serialized(), cause, actor)
         return resolved
 
     @staticmethod

@@ -18690,7 +18690,7 @@ def test_a_task_waiting_in_testing_completes_when_its_run_passes_and_is_paused_f
     assert parked.code == 0 and task(2).state == TaskState.TESTING, "with no run named the task waits in testing"
     assert "carry on" not in json.dumps(hook(app, "Stop")[1]), "a task waiting in testing is out of the agent's hand"
     refused = app.console().run(["output", "test", str(output_of("seq 1 300")), "--tasks", "1"], AGENT)
-    assert refused.code != 0 and "not waiting in testing" in refused.error, "a finished task is refused"
+    assert refused.code != 0 and "not in testing" in refused.error, "a finished task is refused"
     failing = threading.Thread(target=lambda: shell("sh -c 'seq 1 300; sleep 1; exit 3'"), daemon=True)
     failing.start()
     attached = app.console().run(["output", "test", str(output_of("sh -c 'seq 1 300; sleep 1; exit 3'"))], AGENT)

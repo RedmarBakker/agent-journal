@@ -253,7 +253,8 @@ class Failing(Counting):
 def test_the_job_runner_ticks_each_job_at_its_own_interval_on_a_driven_clock(app: App):
     from journal.engine.clock import Clock
     from journal.engine.job_runner import JobRunner
-    runner = JobRunner(app.container.get(Clock), Bus())
+    from journal.support.fault_log import FaultLog
+    runner = JobRunner(app.container.get(Clock), Bus(), app.container.get(FaultLog))
     every_second, every_three_seconds, failing = Counting(1.0), Counting(3.0), Failing(2.0)
     for job in (every_second, every_three_seconds, failing):
         runner.register(job)
@@ -3348,7 +3349,7 @@ def test_each_orchestrator_measure_line_speaks_where_its_measure_fails_in_its_ba
     def said(failing: tuple[str, ...], value: float, band: PressureBand, refs=("messages:4", "workers:12"), idle=(), out=(Worker(environment_id=1, id=6),), next_open=task, open_count: int = 3, command: str = "ls") -> list[str]:
         measures = MeasureStates("orchestrator", 0.0, tuple(MeasureState(key, value, is_measured=True, is_failing=True, measured_at=1000.0) for key in failing))
         workers = WorkersData(tuple(out), tuple(idle), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=refs, waiting_items=len(refs), measured_at=1000.0), measures=measures, band=band)
-        tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=next_open, last_commands=(), open_count=open_count)
+        tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=next_open, last_commands=(), open_count=open_count, open_work=next_open)
         return [line.rendered() for line in measure_check(Ready(), ToolStarting(call=shell(command)).with_data(FeatureData({"workers": workers, "tasks": tasks})), settings).nudges]
     assert said(("high_queue_minutes",), 16.0, PressureBand.HIGH) == [WorkersNudges.ORCHESTRATOR_QUEUE_LINE.create(minutes=16, n=12).rendered()]
     assert said(("high_queue_minutes",), 16.0, PressureBand.NORMAL) == [] and said(("high_queue_minutes",), 16.0, PressureBand.HIGH, refs=("messages:4",)) == [], "high only, and silent with no worker item waiting"

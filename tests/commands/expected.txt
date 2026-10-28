@@ -54,6 +54,17 @@ $ agent: journal task skip-paused
 exit 0
 paused work set aside until your next close: your next stop takes up the next open task, or start one now with journal task start <n>
 
+$ agent: journal task test --help
+exit 0
+usage: journal task test [-h] [--output OUTPUT] n
+
+positional arguments:
+  n
+
+options:
+  -h, --help       show this help message and exit
+  --output OUTPUT  the run that tests it, by its output number
+
 $ agent: journal task block 2 'waits on the tax rates'
 exit 0
 task 2 blocked, waiting on: waits on the tax rates
@@ -975,6 +986,18 @@ options:
   --grep GREP      the lines matching a pattern, with their numbers
   --reader READER  the lines a reader of the project's picks, by its name
 
+$ agent: journal output test --help
+exit 0
+usage: journal output test [-h] [--tasks TASKS [TASKS ...]] n
+
+positional arguments:
+  n
+
+options:
+  -h, --help            show this help message and exit
+  --tasks TASKS [TASKS ...]
+                        only these tasks, by number
+
 $ agent: journal output watch --help
 exit 0
 usage: journal output watch [-h] [--reader READER] [--title TITLE] n
@@ -1729,7 +1752,7 @@ messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{na
 messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
-messages.reply_in_the_chat  [messages]  you answered message {{n}}: reply {{reply}} is in the chat. write nothing more about it in the chat; go on with the work
+messages.reply_in_the_chat  [messages]  message {{n}} is answered by reply {{reply}}. write nothing more of it in the chat; go on
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
 messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
@@ -1859,7 +1882,7 @@ tasks.task_points_changed  [tasks]  task {{n}}: brief point {{points|cap=15}} re
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take it up with `journal task start {{n}}`
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
-tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, did not pass: {{outcome|cap=60}}. take it up with `journal task resume {{n}}`
+tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, failed: {{outcome|cap=40}}. `journal task resume {{n}}` takes it up
 tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
@@ -2338,6 +2361,15 @@ positional arguments:
 options:
   -h, --help   show this help message and exit
   --page PAGE  which page of its requests, from 1
+
+$ agent: journal developer transitions --help
+exit 0
+usage: journal developer transitions [-h] [--hours HOURS]
+
+options:
+  -h, --help     show this help message and exit
+  --hours HOURS  only the kinds seen in the last this many hours; 0 for every
+                 kind
 
 $ agent: journal developer reset
 exit 0

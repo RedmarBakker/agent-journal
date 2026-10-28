@@ -73,3 +73,8 @@ class StepChecks:
 
     def account(self) -> str:
         return f"told {[(said.key, said.values) for said in self.said]}; stack {self.stack()}"
+
+    def expect_command_line(self, *parts: str) -> str:
+        lines = [line for line in self.command.text.splitlines() if all(part in line for part in parts)]
+        assert lines, f"no line of the command says {', '.join(parts)}: {self.command.text}"
+        return lines[0]
