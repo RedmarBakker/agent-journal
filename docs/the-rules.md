@@ -65,7 +65,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | etiquette | etiquette.no_em_dashes | your chat used em dashes | EtiquetteConduct.on_turn_displayed_etiquette |
 | etiquette | etiquette.blank_lines_between_paragraphs | your last message had no blank lines between paragraphs | EtiquetteConduct.on_turn_displayed_etiquette |
 | etiquette | etiquette.a_line_is_an_instruction | chat etiquette: a line from the journal is an instruction, not a message | EtiquetteDataReader.read, EtiquetteConduct.on_tool_finished_etiquette |
-| faults | faults.slow_request_to_fix | {{method}} {{route}} took {{ms}} ms, over its budget of {{budget}} ms: find what made it slow and fix it at its source | SlowRequests.flagged |
+| faults | faults.slow_request_to_fix | {{method}} {{route}} took {{ms}} ms, over its budget of {{budget}} ms: find what made it slow and fix it at its source | RequestTimeRecorder.flagged |
 | laws | laws.name_the_model | the dispatch names no model | LawsConduct.on_tool_starting_laws |
 | laws | laws.name_a_profile | the dispatch names no profile of this project: {{asked}} | LawsConduct.on_tool_starting_laws |
 | laws | laws.bind_the_job | the dispatch binds the agent to no concrete job | LawsConduct.on_tool_starting_laws |

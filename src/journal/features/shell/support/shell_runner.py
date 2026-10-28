@@ -33,7 +33,7 @@ from journal.support.chain import Chain
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.stage_times import StageTimes
-from journal.features.faults.support.slow_requests import SlowRequests
+from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
@@ -54,12 +54,12 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own. While a restart waits, a command that goes to the background at once would be cut off by it, so it is not started; a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit, and any other runs in the foreground until it passes the limit; a run whose card shows, or will, keeps its output for the card to open."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
         self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope = config, caps, limits, worker, record, scope
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
-        self.stages, self.slow, self.guess, self.card, self.restarts = stages, slow, guess, card, restarts
+        self.stages, self.recorder, self.guess, self.card, self.restarts = stages, recorder, guess, card, restarts
         self.wrappers_told: set[str] = set()
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
@@ -71,7 +71,7 @@ class ShellRunner:
             folder.split(request.line, [self.lines.part_with_code_read(part) for part in Chain.parts(request.line)], self.classifier)
             if not cap.is_whole() and not cap.is_direct():
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller, request.cwd))
-        self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
+        self.recorder.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         if self.is_held(request, caller, environment):
             yield f"{RESTART_HOLD}\n{EXIT} 1\n".encode()
             return

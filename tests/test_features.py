@@ -1217,9 +1217,9 @@ def ticked_minutes(app: App, *minutes: int) -> None:
 def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_averages_from_the_tabs_numbers_and_resets_them(app: App):
     user_set(app, "faults.developer", True)
     from collections import Counter
-    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     from journal.models.support.request_loads import RequestLoads
-    slow = app.container.get(SlowRequests)
+    slow = app.container.get(RequestTimeRecorder)
     slow.counted("HOOK", "/hooks/PreToolUse", 41, RequestLoads.tallied(Counter({"tasks": 60, "links": 12, "plans": 3})))
     slow.counted("GET", "/journal/tasks", 7, RequestLoads())
     slow.counted("HOOK", "/hooks/Stop", 90, RequestLoads())
@@ -4935,9 +4935,9 @@ def test_a_read_that_asks_a_server_outside_is_not_judged_against_the_budget(app:
     from journal.http.router import Router
     from journal.http.support.request import Request
     from journal.support.response import Response
-    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     measured = []
-    monkeypatch.setattr(SlowRequests, "measured", lambda self, method, path, ms: measured.append(path))
+    monkeypatch.setattr(RequestTimeRecorder, "measured", lambda self, method, path, ms: measured.append(path))
     router = app.container.get(Router)
     router.get_outward("/journal/far", lambda request: Response.json({}))
     router.get("/journal/near", lambda request: Response.json({}))
@@ -12089,19 +12089,19 @@ def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_an
     from types import SimpleNamespace
     from journal.support.listener_queue import ListenerQueue
     from journal.features.faults.support.developer_tally import DeveloperTally
-    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     from journal.features.shell.support.reader_backfill import ReaderBackfill
     from journal.models.support.request_loads import RequestLoads
     from journal.models.timing import Timing
     from journal.repositories.reader_reports import ReaderReports
     user_set(app, "faults.count_loads", True)
-    slow, tally = app.container.get(SlowRequests), app.container.get(DeveloperTally)
+    slow, tally = app.container.get(RequestTimeRecorder), app.container.get(DeveloperTally)
     for path in ("/cli/plugin upgrade", "/journal/plans"):
         slow.windowed("developer.requests", f"POST {path}", Timing(method="POST", route=path, ms=40, time=0.0, loads=RequestLoads()))
     assert [part["name"] for part in tally.point_parts() if "plugin upgrade" in part["name"]] == [], "the plugin upgrade, which reaches outside, is no part of the points"
     assert any(part["name"] == "POST /journal/plans" for part in tally.point_parts()), "and an ordinary answer still is"
     from collections import Counter
-    from journal.features.faults.support.slow_requests import COSTLY_POINTS
+    from journal.features.faults.support.request_time_recorder import COSTLY_POINTS
     costly = RequestLoads.measured(Counter({"entries": COSTLY_POINTS}), Counter({"entries": 2048}), Counter())
     slow.windowed("developer.hooks", "Stop", Timing(method="HOOK", route="/hooks/claude/Stop", ms=900, time=0.0, loads=costly))
     slow.windowed("developer.hooks", "PreToolUse", Timing(method="HOOK", route="/hooks/claude/PreToolUse", ms=9, time=0.0, loads=RequestLoads()))
@@ -12131,10 +12131,10 @@ def test_an_outward_route_is_left_out_of_the_points_a_costly_answer_is_logged_an
 
 def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
     user_set(app, "faults.developer", True)
-    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     from journal.models.support.request_loads import RequestLoads
     console = app.console()
-    slow = app.container.get(SlowRequests)
+    slow = app.container.get(RequestTimeRecorder)
     with app.container.get(Scope).environment(MAIN):
         for n in range(14):
             slow.counted("GET", f"/journal/route{n}", 100 + n, RequestLoads())
@@ -12152,14 +12152,16 @@ def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drill
 
 def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_timed(app: App):
     app.container.get(SettingRows).set("faults.developer", True, Actor.user(1))
-    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
     from journal.features.faults.support.developer_numbers import DeveloperNumbers
-    slow = app.container.get(SlowRequests)
+    from journal.support.listener_queue import ListenerQueue
+    slow = app.container.get(RequestTimeRecorder)
     with app.container.get(Scope).environment(MAIN):
         slow.measured("GET", "/journal/developer", 900)
         slow.measured("GET", "/cli/developer slowest", 900)
         slow.measured("GET", "/journal/sync/batch", 5000)
         slow.measured("GET", "/journal/tasks", 40)
+        app.container.get(ListenerQueue).drain()
     routes = [timing.route for timing in app.container.get(DeveloperNumbers).recent()]
     assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route or "/sync/" in route], "nor the sync carrier's doors, whose batch waits for a commit"
 

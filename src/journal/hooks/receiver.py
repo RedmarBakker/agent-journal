@@ -35,7 +35,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
-from journal.features.faults.support.slow_requests import HOOK, SlowRequests
+from journal.features.faults.support.request_time_recorder import HOOK, RequestTimeRecorder
 from journal.support.hook_type import HookType
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
@@ -50,16 +50,16 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
         self.time_source, self.phase, self.fault_log, self.settings = time_source, phase, fault_log, settings
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
-        self.transcript, self.slow = transcript, slow
+        self.transcript, self.recorder = transcript, recorder
         self.worker_hooks, self.checker_hooks, self.helper_listeners, self.researchers = worker_hooks, checker_hooks, helper_listeners, researchers
 
     def receive(self, raw_hook: Hook) -> Decision:
-        self.slow.begin(self.time_source.seconds())
+        self.recorder.begin(self.time_source.seconds())
         researcher = raw_hook.is_researcher()
         hook = raw_hook.researcher_hook() if researcher else self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
@@ -85,7 +85,7 @@ class Receiver:
             if self.is_unknown_session_end(event):
                 return Decision()
             decision = self._blocking(event, self.bus.answer_listeners(type(event)))
-            entry = self.refusal_recorded(entry, decision, hook)
+            entry = self.answer_recorded(entry, decision, hook)
             self._defer(event)
             self.measure_stored(entry, hook)
             self.subagent_moved(hook, environment)
@@ -128,16 +128,14 @@ class Receiver:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
 
-    def refusal_recorded(self, entry: Entry, decision: Decision, hook: Hook) -> Entry:
-        if decision.allowed:
-            return entry
-        return self.entries.save(entry.with_merged("data", {"refused": decision.reason}), Actor.agent(hook.session))
+    def answer_recorded(self, entry: Entry, decision: Decision, hook: Hook) -> Entry:
+        return self.entries.save(entry.with_merged("data", {} if decision.allowed else {"refused": decision.reason}), Actor.agent(hook.session))
 
     def measure_stored(self, entry: Entry, hook: Hook) -> None:
         if not hook.started_ms:
             return
         measure = HookMeasure(elapsed_ms=int(self.time_source.seconds() * 1000) - hook.started_ms, boot_wait_ms=round(hook.boot_wait_seconds * 1000))
-        self.slow.measured(HOOK, f"/hooks/{hook.hook_type.value}", measure.elapsed_ms)
+        self.recorder.measured(HOOK, f"/hooks/{hook.hook_type.value}", measure.elapsed_ms)
         self.deferred.add(partial(self.measure_saved, entry, measure, hook.session))
 
     def measure_saved(self, entry: Entry, measure: HookMeasure, session: str) -> None:

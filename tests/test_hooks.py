@@ -284,6 +284,7 @@ def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_
 def test_a_hook_that_stamps_its_start_has_its_elapsed_time_on_its_entry(app: App):
     import time
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, started_ms=int(time.time() * 1000) - 120)
+    app.container.get(ListenerQueue).drain()
     entry = app.container.get(Entries).scoped()[-1]
     assert entry.data["hook_ms"] >= 120, "the server measures from the script's stamp to its answer, so the shell side counts too"
     post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})

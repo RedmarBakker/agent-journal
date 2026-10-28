@@ -42,7 +42,7 @@ OUTWARD_ROUTES = ("/journal/plugins/preview", "/journal/plugins/{n}/remove", "/j
 OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin propose", "/cli/setup update", "/cli/update ", "/cli/worker dispatch", "/cli/check run", "/cli/mcp ")
 
 
-class SlowRequests:
+class RequestTimeRecorder:
     """Times each request and counts its points, a row loaded, a write and a started kilobyte loaded, where the journal develops itself, never while it boots; one whose points pass its kind's points budget is counted in memory, each route's count and worst points, so the report rests on what a request does, never on the machine's speed or load; once ten have gathered or thirty seconds passed without another, asked at most every five seconds of the journal's clock as requests come, and again only once the set minutes have passed since the agent was last informed, it tells the agent in one line how many gathered and the worst, and writes the chat mark with the counts then, never at each request."""
 
     def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, lifecycle: Lifecycle) -> None:

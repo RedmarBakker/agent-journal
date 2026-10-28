@@ -11,7 +11,7 @@ import pytest
 from journal.app import App
 from journal.features.workers.workers_options import WorkersOptions
 from journal.db.connection import Connection
-from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
+from journal.features.faults.support.request_time_recorder import UNMEASURED_PATHS, RequestTimeRecorder
 from journal.models.support.request_loads import RequestLoads
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
@@ -130,7 +130,7 @@ def key(route: Route) -> str:
 
 
 def is_left_out(route: Route) -> bool:
-    return route.outward or key(route) in LEFT_OUT or route.pattern.startswith(UNMEASURED_PATHS) or SlowRequests.is_outward(route.pattern.replace("{id}", "{n}"))
+    return route.outward or key(route) in LEFT_OUT or route.pattern.startswith(UNMEASURED_PATHS) or RequestTimeRecorder.is_outward(route.pattern.replace("{id}", "{n}"))
 
 
 def is_list(route: Route) -> bool:
