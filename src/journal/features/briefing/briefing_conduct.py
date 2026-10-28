@@ -1,3 +1,4 @@
+from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
@@ -15,15 +16,16 @@ COMPACT = "compact"
 
 
 class BriefingConduct(Conduct):
-    """The briefing feature's conduct in every state: the start block at every session start but a resume, whose conversation already holds it, ready, quiet, the laws, a takeover, the rules, memories and reminders and what waits, then the overview required before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the pending skills through until it has run; a write and a stop blocked until the agent has looked at what is in flight. A session started in another folder than its launch named is warned, since it works in one checkout while the journal looks at another."""
+    """The briefing feature's conduct in every state: the start block at every session start but a resume, whose conversation already holds it, ready, quiet, the laws, a takeover, the rules, memories and reminders and what waits, then the overview required before the first write, and after a compaction the push of ReadingOverview, once, since a second compaction before the overview finds it still on the stack, which lets nothing but the overview and the pending skills through until it has run; a write and a stop blocked until the agent has looked at what is in flight. A session started in another folder than its launch named is warned, since it works in one checkout while the journal looks at another."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if event.is_resume():
             return self.none()
         lines = [*start_block(event.data.part(BriefingPart), event.source), *folder_check(event)]
         if event.is_compaction_start():
-            return self.push(ReadingOverview(), *lines, BriefingNudges.OVERVIEW_FIRST.create())
+            return compaction_start(self, event, lines)
         return self.none(*lines, BriefingNudges.OVERVIEW_REQUEST.create())
+
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         if not event.call.writes or event.data.part(BriefingPart).is_overview_read:
@@ -60,3 +62,9 @@ def start_block(briefing: BriefingData, source: str) -> list[Nudge]:
         (briefing.waiting, lambda: BriefingNudges.PENDING_ITEMS.create(rows=briefing.waiting)),
     )
     return [BriefingNudges.JOURNAL_READY.create(env=briefing.environment), BriefingNudges.JOURNAL_DISCRETION.create(), BriefingNudges.JOURNAL_LAWS.create(), *(line() for matched, line in optional if matched)]
+
+
+def compaction_start(state: BaseState, event: SessionStarted, lines: list) -> Transition:
+    if not event.data.part(BriefingPart).is_overview_read:
+        return state.none(*lines, BriefingNudges.OVERVIEW_FIRST.create())
+    return state.push(ReadingOverview(), *lines, BriefingNudges.OVERVIEW_FIRST.create())

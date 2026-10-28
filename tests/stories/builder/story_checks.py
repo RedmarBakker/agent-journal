@@ -4,8 +4,9 @@ from journal.engine.nudge import Nudge
 from tests.full_project import MAIN
 from journal.support.researcher_session import ResearcherSession
 from tests.in_process import get_answer
-from tests.stories.builder.main_session import MAIN_SESSION
 from tests.stories.builder.worker_steps import worker_session
+from journal.features.workers.feature import Workers
+from tests.stories.builder.mode_floor import ModeFloor
 
 
 class StoryChecks:
@@ -15,7 +16,7 @@ class StoryChecks:
         self.expect_told_to(self.scoped_session(), nudge, values)
 
     def expect_main_told(self, nudge: Nudge, **values) -> None:
-        self.expect_told_to(MAIN_SESSION, nudge, values)
+        self.expect_told_to(self.main_session(), nudge, values)
 
     def expect_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
         assert any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} not told {nudge.key} {values}; {self.account()}"
@@ -23,14 +24,14 @@ class StoryChecks:
     def expect_worker_told(self, worker: int, nudge: Nudge, **values) -> None:
         self.expect_told_to(worker_session(worker), nudge, values)
 
-    def expect_agent_not_told(self, nudge: Nudge) -> None:
-        self.expect_not_told_to(self.scoped_session(), nudge)
+    def expect_agent_not_told(self, nudge: Nudge, **values) -> None:
+        self.expect_not_told_to(self.scoped_session(), nudge, values)
 
     def expect_main_not_told(self, nudge: Nudge) -> None:
-        self.expect_not_told_to(MAIN_SESSION, nudge)
+        self.expect_not_told_to(self.main_session(), nudge, {})
 
-    def expect_not_told_to(self, session: str, nudge: Nudge) -> None:
-        assert not any(lines.key == nudge.key and lines.session == session for lines in self.said), f"{session} told {nudge.key}; {self.account()}"
+    def expect_not_told_to(self, session: str, nudge: Nudge, values: dict) -> None:
+        assert not any(lines.matches(nudge.key, values) and lines.session == session for lines in self.said), f"{session} told {nudge.key} {values}; {self.account()}"
 
     def expect_agent_told_nothing(self) -> None:
         assert not self.said, f"told something; {self.account()}"
@@ -42,18 +43,37 @@ class StoryChecks:
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
 
+    def expect_shell_text(self, *parts: str) -> None:
+        assert all(part in self.shell_text for part in parts), f"the command showed {self.shell_text!r}, not {parts}"
+
+    def expect_shell_text_without(self, part: str) -> None:
+        assert part not in self.shell_text, f"the command showed {part!r}: {self.shell_text!r}"
+
+    def expect_shell_exit(self, code: int) -> None:
+        assert self.shell_exit == code, f"the command ended {self.shell_exit}, not {code}"
+
+    def expect_no_new_output(self) -> None:
+        assert not self.shell_outputs, f"the command kept output {self.newest_output()}"
+
+    def expect_new_output(self) -> None:
+        assert self.shell_outputs, "the command kept no output"
+
+    def expect_output_count(self, count: int) -> None:
+        assert self.output_count() == count, f"{self.output_count()} outputs are kept, not {count}"
+
     def expect_command_passed(self) -> None:
         assert self.command is not None and self.command.code == 0, f"the command was refused: {self.command.error or self.command.text if self.command else ''}"
+
+    def expect_command_text(self, part: str) -> None:
+        assert self.command is not None and part in self.command.text, f"the command printed {self.command.text if self.command else ''!r}, not {part!r}"
 
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 
     def expect_stack(self, *states: type) -> None:
         stack = self.stack()
-        assert stack == [state.name for state in states], f"the stack is {stack}; told {[line.key for line in self.said]}"
-
-    def expect_end(self, *states: type) -> None:
-        self.end_stack = list(states)
+        assert stack == [self.floor().name if state is ModeFloor else state.name for state in states], f"the stack is {stack}; told {[line.key for line in self.said]}"
+        self.stack_checked_at = len(self.path)
 
     def expect_task_in(self, environment: str, n: int, state: str) -> None:
         states = self.task_states_in(environment)
@@ -94,11 +114,19 @@ class StoryChecks:
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
+    def expect_task_logged(self, n: int, part: str) -> None:
+        shown = self.app.console().run(["task", "show", str(n)], self.agent).text
+        assert part in shown, f"task {n} has no log line holding {part!r}: {shown}"
+
     def expect_worker(self, n: int, **fields) -> None:
         self.expect_row("workers", n, fields)
 
     def expect_plan(self, n: int, **fields) -> None:
         self.expect_row("plans", n, fields)
+
+    def expect_row_absent(self, table: str, n: int) -> None:
+        rows = get_answer(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]
+        assert not rows, f"{table} {n} is still listed through the API: {rows[0]}"
 
     def expect_row(self, table: str, n: int, fields: dict) -> None:
         row = self.api_row(table, n)
@@ -111,8 +139,11 @@ class StoryChecks:
         assert stack == [state.name for state in states], f"worker {worker}'s stack is {stack}; told {[line.key for line in self.said]}"
 
     def expect_subagent_stack(self, subagent: str, *states: type) -> None:
-        stack = self.session_stack(ResearcherSession.joined(MAIN_SESSION, subagent))
+        stack = self.session_stack(ResearcherSession.joined(self.main_session(), subagent))
         assert stack == [state.name for state in states], f"subagent {subagent}'s stack is {stack}; told {[line.key for line in self.said]}"
+
+    def floor(self) -> type:
+        return Workers.modes.states[self.mode]
 
     def stack(self) -> list[str]:
         return self.session_stack(self.scoped_session())

@@ -104,7 +104,7 @@ class ExternalWait(Wait):
         work = self.other_work(data)
         seconds = round(remaining)
         if remaining <= settings.integer(TasksOptions.SHORT_WAIT_SECONDS) or work is None:
-            return self.swap(replace(self, decided=True), TasksNudges.WAIT_SHORT.create(what=self.focus, seconds=seconds))
+            return self.swap(replace(self, decided=True))
         return self.pop(TasksNudges.WAIT_LONG.create(what=self.focus, seconds=seconds, n=work.id), *self.lifted_lines(data))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:

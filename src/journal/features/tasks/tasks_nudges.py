@@ -37,7 +37,6 @@ class TasksNudges:
     PRIORITIES_REFUSAL = Nudge("tasks", "tasks_wait_for_their_priority", "writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`", "", repeat=Timeout.seconds(0), longest_characters=140, longest_reason="a hold that must name both ways out of it")
     TESTING_SUGGESTION = Nudge("tasks", "testing_offered", "task {{n}} is in progress and a test run starts", "testing it? `journal task test {{n}}`, then `journal output test <n>`", repeat=Timeout.tool_uses(25))
     TEST_FAILURE = Nudge("tasks", "tested_task_back", "task {{n}}'s run, output {{output}}, failed: {{outcome|cap=28}}", "`journal task resume {{n}}` takes it up", repeat=Timeout.seconds(0))
-    WAIT_SHORT = Nudge("tasks", "wait_it_out", "{{what|cap=19}} has about {{seconds}} seconds left and you already wait on it", "end your turn; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_LONG = Nudge("tasks", "park_the_wait", "{{what|cap=18}} has about {{seconds}} seconds left, too long to wait", "carry on with task {{n}}; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_PAUSED_TASK = Nudge("tasks", "paused_task_while_waiting", "while you wait for {{what}}, resume paused task {{n}}: `journal task resume {{n}}`", "", repeat=Timeout.seconds(0))
     WAIT_NEXT_TASK = Nudge("tasks", "next_task_while_waiting", "while you wait for {{what}}, work on task {{n}}; you are informed when the wait ends", "", repeat=Timeout.seconds(0))

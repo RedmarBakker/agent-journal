@@ -32,7 +32,17 @@ class PlansDataReader:
             "started": lambda: self.started(),
             "started_plans": lambda: self.statuses.started(),
             "review_reports": lambda: self.review_reports(),
+            "agent_paused_plan": lambda: self.agent_paused_plan(),
+            "agent_paused_tasks": lambda: self.agent_paused_tasks(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
+
+    def agent_paused_plan(self) -> int:
+        paused = self.plans.agent_paused()
+        return paused[0].row_id if paused else 0
+
+    def agent_paused_tasks(self) -> tuple[int, ...]:
+        paused = self.plans.agent_paused()
+        return tuple(self.plans.plan_task_ids(paused[0])) if paused else ()
 
     def started(self) -> LazyFacts | None:
         started = next(iter(self.plans.running_plans()), None)
@@ -68,7 +78,7 @@ class PlansDataReader:
         titles = {template.title for template in self.testing.chosen(plan)}
         if PLAN_ZERO_TESTS.title in titles:
             return True
-        return PLAN_PHASE_TESTS.title in titles and not pausing and self.is_mid_phase(plan)
+        return PLAN_PHASE_TESTS.title in titles and not pausing and not plan.allowed_test_runs and self.is_mid_phase(plan)
 
     def is_mid_phase(self, plan: Plan) -> bool:
         phases = self.plans.phase_states(plan)

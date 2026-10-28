@@ -10,6 +10,7 @@ from journal.features.plans.listeners.count_plan_reviewers import CountPlanRevie
 from journal.support.skill import Skill
 from journal.features.plans.commands.plan_command import PlanCommand
 from journal.features.plans.listeners.advance_plan import AdvancePlan
+from journal.features.plans.listeners.allowed_test_run_use import AllowedTestRunUse
 from journal.features.plans.listeners.reopen_finished_plan import ReopenFinishedPlan
 from journal.features.plans.listeners.plan_reopening import PlanReopening
 from journal.features.plans.listeners.driven_row_closures import DrivenRowClosures
@@ -23,6 +24,7 @@ from journal.features.plans.plans_conduct import PlansConduct
 from journal.features.plans.listeners.builder_plan_focus import BuilderPlanFocus
 from journal.features.plans.listeners.started_plan_focus import StartedPlanFocus
 from journal.features.plans.seeds.closed_plans import ClosedPlans
+from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.plans.states.plans_working import PlansWorking
@@ -39,16 +41,16 @@ class Plans(Feature[PlansData]):
     name = PlansPart.name
     title = "Plans"
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
-    states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands)
+    states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn)
     commands = (PlanCommand,)
-    listeners = (BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart, SubagentPlanCard)
+    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart, SubagentPlanCard)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS)
-    nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
+    nudges = (PlansNudges.PLAN_RETURN_QUESTION, PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.PLAN_APPROVED_WITH_COMMENT, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans

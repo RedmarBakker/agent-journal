@@ -34,13 +34,19 @@ Before a line of a story, write down for yourself what the feature does in each 
 
 ## 2. Write every story in one file, in one go
 
-- One folder per subject under `tests/stories/` (`messages/`, `tasks/`, `plans/`, `workers/`, `agent/`, `shell/`,
-  `sequences/`, `developer/`), one file per behaviour, named for it: `tasks/task_transfer.py`, never `environments.py`. It holds every
-  case of that behaviour and nothing else; another concern gets its own small file.
+- File it by scope, then subject: `tests/stories/<scope>/<subject>/<behaviour>.py`, the scope being whose point of view
+  its expectations take (`main`, `worker`, `subagent`, `reviewer`, `verifier`), read from the folder; one file per
+  behaviour, named for it: `main/tasks/task_transfer.py`, never `environments.py`. It holds every case of that behaviour
+  and nothing else; another concern gets its own small file. Fixtures go in `tests/stories/fixtures/<scope>/`.
 - One story per case, its name the sentence of what happens:
   `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
-- Start each story from the fixture whose rows it uses (`@story(TaskInHand, end=[IDLE])`); `end` is the stack the
-  story leaves, bottom first.
+- Start each story from the fixture whose rows it uses and name the work mode it plays in
+  (`@story(StartedTask, mode=BUILDER_MODE)`; a list or `ALL_MODES` runs it once per mode, its stack's bottom written
+  `ModeFloor`), and close it with
+  `story.expect_stack(Ready, Working)`, the stack it leaves, bottom first; the run fails a story that does not close on it.
+- Under a helper scope the agent checks read that helper: `expect_agent_told` is the worker's line under `worker/`;
+  name the main agent with `expect_main_told`, `expect_main_not_told`; under `main/`, name a worker with
+  `expect_worker_told` and `expect_worker_stack`.
 - Play the agent through `story.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
 - A setting the story needs is set with `@setting(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting, repeated for more:
   the user sets it through the viewer's route after the start fixture and before the first step, and the story fails
@@ -57,7 +63,7 @@ Before a line of a story, write down for yourself what the feature does in each 
 
 ## 3. Run them together, see them fail
 
-Run the file once: `journal suite tests/stories/<subject>/<behaviour>.py -q`. Every new case should fail for the
+Run the file once: `journal suite tests/stories/<scope>/<subject>/<behaviour>.py -q`. Every new case should fail for the
 reason you expect. A story that passes before the code exists tests nothing new; a story failing for another reason is
 fixed first.
 

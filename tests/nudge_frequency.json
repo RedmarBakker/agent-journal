@@ -1211,12 +1211,6 @@
         "runs": 0,
         "sent": 0
     },
-    "tasks.wait_it_out": {
-        "actions": 4374,
-        "most_in_a_run": 0,
-        "runs": 0,
-        "sent": 0
-    },
     "tasks.wait_lifted": {
         "actions": 4374,
         "most_in_a_run": 0,

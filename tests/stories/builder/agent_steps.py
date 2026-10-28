@@ -1,5 +1,7 @@
 import re
 import shlex
+import threading
+import time
 from collections.abc import Callable
 from journal.engine.nudge import Nudge
 from journal.providers.claude import Claude
@@ -9,11 +11,19 @@ from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.option import Option
+from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
+from journal.features.shell.support.shell_runner import EXIT
+from journal.support.caller import AGENT_SHELL
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
 from tests.replay import pass_time
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
+
+# the longest a story waits on a background run, and how often it looks
+RUN_END_TIMEOUT_SECONDS, RUN_END_POLL_SECONDS = 15, 0.1
+# the thread the shell runner runs a chain on, whose end is the run's last word
+RUNNER_THREAD = "shell-chain"
 
 SUBAGENT_MODEL = "haiku"
 # how much later a new turn starts than the step before it
@@ -54,6 +64,17 @@ class AgentSteps:
     def agent_reads(self, path: str = "a.py", count: int = 1) -> None:
         for _ in range(count):
             self.hooked("agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
+
+    def agent_has_read(self, path: str = "a.py") -> None:
+        self.hooked("agent has read", "PostToolUse", tool_name=self.tools.read, tool_input={"file_path": path}, tool_response={})
+
+    def agent_reads_part(self, path: str, limit: int) -> None:
+        self.hooked("agent reads part of a file", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path, "limit": limit})
+
+    def agent_reads_a_skill(self, folder: str) -> None:
+        call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
+        self.hooked("agent reads a skill", "PreToolUse", **call)
+        self.hooked("agent has read the skill", "PostToolUse", **call, tool_response={})
 
     def agent_writes(self, path: str) -> None:
         self.hooked("agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
@@ -148,14 +169,43 @@ class AgentSteps:
         return int(re.search(r"task (\d+)", self.command.text)[1])
 
     def agent_runs_a_command(self, line: str) -> int:
-        raw = f"JOURNAL_ENV=main\0\0{line}\n"
+        raw = f"JOURNAL_ENV=main\0JOURNAL_SESSION={self.main_session_id}\0{AGENT_SHELL}=1\0\0{line}\n"
         request = HttpRequest(f"http://127.0.0.1:{self.app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(self.app.config.root), "X-Journal-Shell": "sh"})
-        urlopen(request, timeout=30).read()
+        newest, runners = self.newest_output(), self.running_runners()
+        text, _, code = urlopen(request, timeout=30).read().decode().rpartition(EXIT)
+        self.runner_threads = [*self.runner_threads, *(self.running_runners() - runners)]
+        self.shell_text, self.shell_exit = text, int(code.split()[0])
+        self.shell_outputs = self.newest_output() - newest
+        self.observed(f"agent runs a command {line.split()[0]}, {'failing' if self.shell_exit else 'passing'}", None, None)
+        return self.newest_output()
+
+    @staticmethod
+    def running_runners() -> set[threading.Thread]:
+        return {thread for thread in threading.enumerate() if thread.name == RUNNER_THREAD}
+
+    def newest_output(self) -> int:
         with self.app.container.get(Scope).environment(1):
             outputs = self.app.container.get(CommandOutputs)
-            output = outputs.selected(outputs.query().order_descending("id").limit(1))[0]
-        self.observed(f"agent runs a command {line.split()[0]}, {'failing' if output.status else 'passing'}", None, None)
-        return output.row_id
+            rows = outputs.selected(outputs.query().order_descending("id").limit(1))
+        return rows[0].row_id if rows else 0
+
+    def background_run_ends(self, output: int) -> None:
+        deadline = time.monotonic() + RUN_END_TIMEOUT_SECONDS
+        while not self.is_output_ended(output):
+            assert time.monotonic() < deadline, f"output {output} still runs after {RUN_END_TIMEOUT_SECONDS} seconds"
+            time.sleep(RUN_END_POLL_SECONDS)
+        for runner in self.runner_threads:
+            runner.join(RUN_END_TIMEOUT_SECONDS)
+        self.observed("the background run ends", None, None)
+
+    def is_output_ended(self, output: int) -> bool:
+        with self.app.container.get(Scope).environment(1):
+            return bool(self.app.container.get(CommandOutputs).find(output).ended)
+
+    def output_count(self) -> int:
+        with self.app.container.get(Scope).environment(1):
+            outputs = self.app.container.get(CommandOutputs)
+            return outputs.counted(outputs.query())
 
     def another_environment(self, name: str) -> str:
         self.app.container.get(Environments).lookup(name)
@@ -190,6 +240,7 @@ class AgentSteps:
 
     def session_starts_with(self, provider: str, session: str) -> None:
         status, answer = posted(self.app, f"/hooks/{provider}", {"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}, MAIN)
+        self.replace_main_session(session, provider)
         self.observed(f"a {'second' if provider == self.provider else 'another provider'}'s session starts", HookVerdict(provider, status, answer if isinstance(answer, dict) else {}), None)
 
     def expect_agent_session(self, session: str) -> None:
@@ -213,3 +264,11 @@ class AgentSteps:
         for part in option.key.split("."):
             settings_tree = settings_tree.get(part, {}) if isinstance(settings_tree, dict) else {}
         return option.default if settings_tree == {} else settings_tree
+
+    def project_root(self) -> str:
+        return str(self.app.config.root)
+
+    def project_file(self, name: str, line_count: int) -> str:
+        path = self.app.config.root / name
+        path.write_text("".join(f"line {number}\n" for number in range(line_count)))
+        return str(path)

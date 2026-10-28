@@ -5,7 +5,7 @@ from journal.events.bus import Bus
 from journal.support.actor import Actor
 from journal.models.link import Link
 from journal.models.phase import Phase
-from journal.models.plan import Plan
+from journal.models.plan import AGENT_PAUSER, Plan
 from journal.models.plan_state import PlanState
 from journal.support.rejection import Rejection
 from journal.models.task import Task
@@ -151,6 +151,9 @@ class Plans(ScopedRepository[Plan]):
     def reviewed(self) -> list[Plan]:
         return self.selected(self.query().filter(state=PlanState.REVIEWING, reviewers=0).order("id"))
 
+    def agent_paused(self) -> list[Plan]:
+        return self.matching(state=PlanState.PAUSED, pauser=AGENT_PAUSER)
+
     def approved(self) -> list[Plan]:
         return self.matching(state=PlanState.APPROVED)
 
@@ -169,6 +172,9 @@ class Plans(ScopedRepository[Plan]):
 
     def running_plans(self) -> list[Plan]:
         return self.matching(state=PlanState.STARTED)
+
+    def allowing_test_runs(self) -> list[Plan]:
+        return self.selected(self.query().filter(state=PlanState.STARTED).filter_greater("allowed_test_runs", 0))
 
     def running_plans_beside(self, plan_id: int) -> list[Plan]:
         return self.selected(self.query().filter(state=PlanState.STARTED).filter_unequal("id", plan_id))

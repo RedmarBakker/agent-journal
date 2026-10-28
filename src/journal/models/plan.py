@@ -9,6 +9,7 @@ from journal.events.rows.plan_review_started import PlanReviewStarted
 from journal.events.rows.plan_readied import PlanReadied
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_postponed import PlanPostponed
+from journal.events.rows.plan_return_answer import PlanReturnAnswer
 from journal.events.rows.plan_delegated import PlanDelegated
 from journal.events.rows.plan_reopened import PlanReopened
 from journal.events.rows.plan_finished import PlanFinished
@@ -25,10 +26,12 @@ from journal.models.support.commentable import Commentable
 
 USER_PAUSER = "user"
 AGENT_PAUSER = "agent"
+# a plan the agent paused and said it does not return to once its outside task is done
+DECLINED_RETURN_PAUSER = "agent, no return"
 
 @dataclass(frozen=True)
 class Plan(Scoped, Commentable):
-    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase."""
+    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase, and the test runs the agent was allowed mid-phase and has not yet used."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
 
@@ -44,6 +47,13 @@ class Plan(Scoped, Commentable):
     priorities_phase: int = 0
     is_dismissed: bool = False
     pauser: str = ""
+    allowed_test_runs: int = 0
+
+    def with_test_run_allowed(self) -> "Plan":
+        return self.with_(allowed_test_runs=self.allowed_test_runs + 1)
+
+    def with_allowed_test_run_used(self) -> "Plan":
+        return self.with_(allowed_test_runs=max(self.allowed_test_runs - 1, 0))
 
     def waiting_reason(self) -> str:
         return self.block_reason
@@ -95,6 +105,12 @@ class Plan(Scoped, Commentable):
 
     def postponed(self, time: float, user_origin: bool) -> "Plan":
         return self.moved(PlanState.PAUSED).with_(pauser=USER_PAUSER if user_origin else AGENT_PAUSER).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+
+    def with_return(self, time: float) -> "Plan":
+        return self.with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=True))
+
+    def without_return(self, time: float) -> "Plan":
+        return self.with_(pauser=DECLINED_RETURN_PAUSER).with_event(PlanReturnAnswer(environment_id=self.environment_id, time=time, plan_id=self.row_id, returning=False))
 
     def blocked(self, reason: str, time: float) -> "Plan":
         return self.moved(PlanState.BLOCKED).with_(block_reason=reason).with_event(PlanBlocked(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))

@@ -1,3 +1,6 @@
+from journal.features.tasks.tasks_part import TasksPart
+from journal.features.plans.states.choosing_plan_return import ChoosingPlanReturn
+from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.events.rows.plan_testing_changed import PlanTestingChanged
 from journal.engine.nudge import Nudge
@@ -62,12 +65,7 @@ class PlansConduct(Conduct):
         return self.none(*lines) if test_commands(settings).programs else self.push(NamingTestCommands(task_id=event.task_id), *lines)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if not event.call.test_runs() and not any(test_commands(settings).reads(part.text) for part in event.call.parts):
-            return self.none()
-        started = event.data.part(PlansPart).started
-        if started is None or not started.refuses_test_runs:
-            return self.none()
-        return self.refuse(PlansNudges.MID_PHASE_TESTS.create(n=started.plan_id, phase=started.current_phase))
+        return Transition.merged(self, [plan_return_check(self, event), mid_phase_test_check(self, event, settings)])
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         started = event.data.part(PlansPart).started
@@ -96,3 +94,20 @@ def next_task_lines(event: TaskStarted, started: StartedPlan | None) -> tuple[Nu
 
 def is_started_plan_task(event: TaskStarted, started: StartedPlan | None) -> bool:
     return started is not None and started.started_task == event.task_id
+
+
+def mid_phase_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    if not event.call.test_runs() and not any(test_commands(settings).reads(part.text) for part in event.call.parts):
+        return state.none()
+    started = event.data.part(PlansPart).started
+    if started is None or not started.refuses_test_runs:
+        return state.none()
+    return state.refuse(PlansNudges.MID_PHASE_TESTS.create(n=started.plan_id, phase=started.current_phase))
+
+
+def plan_return_check(state: BaseState, event: ToolStarting) -> Transition:
+    plans, current = event.data.part(PlansPart), event.data.part(TasksPart).current_task
+    if not event.call.writes or not plans.agent_paused_plan or not current or current in plans.agent_paused_tasks or not state.takes_pushes():
+        return state.none()
+    choice = ChoosingPlanReturn(plan_id=plans.agent_paused_plan, task_id=current)
+    return Transition.merged(state, [state.push(choice), state.refuse(choice.question())])

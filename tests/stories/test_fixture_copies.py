@@ -2,8 +2,9 @@ from tests.replay import typing_capture, pinned_clock
 from tests.stories.builder.story import Story
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.void_provider import VoidProvider
-from tests.stories.fixtures.working_agent import WorkingAgent
-from tests.stories.fixtures.started_task import StartedTask
+from tests.stories.fixtures.main.new_session import NewSession
+from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.main.started_task import StartedTask
 
 
 def test_a_fixture_is_seeded_once_and_its_copy_is_the_state_the_seeder_reached(app, journal, monkeypatch, copies):
@@ -12,7 +13,7 @@ def test_a_fixture_is_seeded_once_and_its_copy_is_the_state_the_seeder_reached(a
     seeded = Story(app, VoidProvider, SettingReads(), copies)
     seeded.reach(StartedTask)
     reached = (seeded.start.started_task, seeded.stack(), seeded.api_row("tasks", seeded.start.started_task)["state"])
-    assert set(copies.copies) == {(WorkingAgent, VoidProvider.name), (StartedTask, VoidProvider.name)}, "the fixture and the one it builds on are each kept once"
+    assert set(copies.copies) == {(NewSession, VoidProvider.name), (WorkingAgent, VoidProvider.name), (StartedTask, VoidProvider.name)}, "the fixture and each one it builds on are kept once"
 
     journal.reset()
     copied = Story(app, VoidProvider, SettingReads(), copies)

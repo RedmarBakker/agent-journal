@@ -1,6 +1,7 @@
 from journal.console.support.outcome import Outcome
 from journal.support.agent_role import AgentRole
 from journal.support.caller import Caller
+from journal.features.workers.workers_options import BUILDER_MODE
 from tests.in_process import posted
 from tests.replay import TOOLS
 from tests.stories.builder.agent_steps import AgentSteps
@@ -24,33 +25,43 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.copies = copies
         self.app, self.program, self.provider, self.tools, self.reads = app, program, program.name, TOOLS[program.name], reads
         self.set_positions: dict[str, int] = {}
+        self.main_session_id = MAIN_SESSION
         self.agent = Caller.agent("main", MAIN_SESSION, program.name)
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
         self.line_keys: set[str] = set()
         self.start = StateFixture()
-        self.end_stack: list[type] | None = None
         self.scope = AgentRole.MAIN
+        self.stack_checked_at = -1
+        self.shell_text, self.shell_exit, self.shell_outputs = "", 0, 0
+        self.runner_threads: list = []
+        self.mode = BUILDER_MODE
 
     def reach(self, fixture: type[StateFixture]) -> None:
         self.start = self.copies.reached(self, fixture)
         self.observed("", None, None)
         self.path = [f"starts from {fixture.__name__}"]
+        self.stack_checked_at = -1
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
-        return self.session_posted_hook(MAIN_SESSION, {}, type_name, body)
+        return self.session_posted_hook(self.main_session_id, {}, type_name, body)
 
     def session_posted_hook(self, session: str, headers: dict, type_name: str, body: dict) -> tuple[int, object]:
         return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main", **headers})
 
+    def is_stack_checked_last(self) -> bool:
+        return self.stack_checked_at == len(self.path)
+
     def scoped_session(self) -> str:
         return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session}[self.scope]()
 
-    @staticmethod
-    def main_session() -> str:
-        return MAIN_SESSION
+    def main_session(self) -> str:
+        return self.main_session_id
+
+    def replace_main_session(self, session: str, provider: str) -> None:
+        self.main_session_id, self.agent = session, Caller.agent("main", session, provider)
 
     def worker_scope_session(self) -> str:
         return worker_session(self.start.worker)

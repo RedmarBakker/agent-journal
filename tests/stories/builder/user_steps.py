@@ -1,9 +1,11 @@
 import re
 import uuid
 
+from journal.features.workers.workers_options import WorkersOptions
 from journal.support.option import Option
+from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
-from tests.in_process import posted
+from tests.in_process import get_answer, posted
 
 
 class UserSteps:
@@ -27,6 +29,9 @@ class UserSteps:
     def user_adds_plan_task(self, plan: int, title: str) -> int:
         return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title, "brief": f"- {title} is done"})["id"]
 
+    def user_sets_plan_testing(self, plan: int, title: str) -> None:
+        self.user_posted(f"/journal/plans/{plan}/testing", {"title": title}, f"user sets the plan testing to {title}")
+
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})
 
@@ -44,6 +49,15 @@ class UserSteps:
 
     def user_cancels_task(self, task: int, reason: str) -> None:
         self.user_posted(f"/journal/tasks/{task}/cancel", dict(why=reason), "user cancels a task")
+
+    def user_switches_on(self, feature: type) -> None:
+        switches = get_answer(self.app, "/journal/settings", MAIN)[1][FEATURES]
+        self.user_posted("/journal/settings", {FEATURES: {**switches, feature.name: True}}, f"user switches on {feature.name}")
+
+    def plays_in(self, mode: str) -> None:
+        self.mode = mode
+        if self.setting(WorkersOptions.MODE) != mode:
+            self.user_sets(WorkersOptions.MODE, mode)
 
     def user_sets(self, option: Option, value: object) -> None:
         top, _, name = option.key.partition(".")

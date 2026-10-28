@@ -95,6 +95,10 @@ class ShellConduct(Conduct):
         return self.none(ShellNudges.REPORT_REFUTED.create(verdicts=f"reader report {event.row_id}: {event.reason}"))
 
 
+# the times the shown lines a file read in one go may hold before it must be read in parts
+READ_LIMIT_FACTOR = 2
+
+
 def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
     outcomes: dict[str, list[int]] = {}
     for output in ended:
@@ -106,7 +110,7 @@ def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
 
 def partial_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     cap = settings.integer(ShellOptions.SHOWN)
-    return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > 2 * cap else state.none()
+    return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > READ_LIMIT_FACTOR * cap else state.none()
 
 
 def journal_poll_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

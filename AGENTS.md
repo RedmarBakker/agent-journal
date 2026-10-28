@@ -196,8 +196,13 @@ assert appears in it; every assert lives inside an expect method of the builder.
 
 - **One case per story**, its name the sentence of what happens: `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
 - **One behaviour per file**, its name saying which: `agent_replies_to_every_message.py`, `task_transfer.py`.
-- **One subject per folder** under `tests/stories/`: `messages/`, `tasks/`, `plans/`, `workers/`, `agent/`,
-  `shell/`, `sequences/`, `developer/`.
+- **Filed by scope, then subject**: `tests/stories/<scope>/<subject>/<behaviour>.py`. The scope is whose point of
+  view the expectations take, `main`, `worker`, `subagent`, `reviewer` or `verifier`, and is read from the folder: under
+  `worker/` the agent checks read the worker's lines and stack, and the main agent is named (`expect_main_told`). Fixtures
+  live in `tests/stories/fixtures/<scope>/`.
+- **It closes on its stack**: every story's last line is `story.expect_stack(...)`, and the run fails one that does not.
+- **It names its work mode**: `@story(StartedTask, mode=BUILDER_MODE)`, never left to a default; a list, or `ALL_MODES`,
+  runs it once per mode, and its stack names the mode's bottom state as `ModeFloor`.
 - **What it needs, it sets**: `@setting(option, value)`, and the story fails if the journal never reads the setting.
   No `@values`: each case is a story of its own, from a fixture.
 - **Numbers come from the code**, never copied.

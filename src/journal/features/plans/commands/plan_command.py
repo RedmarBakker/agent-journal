@@ -30,17 +30,21 @@ from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.support.work_mode import WorkMode
 from journal.support.time_source import TimeSource
+from journal.models.task_log import TaskLog
+from journal.repositories.task_logs import TaskLogs
 CURRENT = "current"
 
 
 APPROVAL_REFUSAL = "only the user approves this plan: ask, then wait for their word"
+RETURN_ANSWERS = ("yes", "no")
+
 
 class PlanCommand(Command):
     noun = "plan"
     uncut_verbs = frozenset({"start", "show", "priorities"})
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: WorkMode, time_source: TimeSource, logs: TaskLogs) -> None:
+        self.time_source, self.logs = time_source, logs
         self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
@@ -93,6 +97,13 @@ class PlanCommand(Command):
         self.verb(verbs, "approve", "the user's word: the plan may start").add_argument("n", type=int)
         self.verb(verbs, "start", "follow an approved plan, or go on past a checkpoint: its next open task is started").add_argument("n", type=int)
         self.verb(verbs, "pause", "put a plan aside").add_argument("n", type=int)
+        returning = self.verb(verbs, "return", "say whether you return to the plan you paused once the task you took up outside it is done")
+        returning.add_argument("n", type=int)
+        returning.add_argument("answer", choices=RETURN_ANSWERS)
+        allowance = self.verb(verbs, "allow-tests", "let the next test run through while the plan runs its tests at phase ends, for a single test or a guard that is wrong; the reason goes on the task log")
+        allowance.set_defaults(verb="allow_tests")
+        allowance.add_argument("n", type=int)
+        allowance.add_argument("--why", required=True, help="why this test run cannot wait for the phase end")
         self.verb(verbs, "card", "show a plan the user dismissed on the plan card above the chat again").add_argument("n", type=int)
         block = self.verb(verbs, "block", "a started plan waits on one thing before any of its work can go on; a plan whose every task left is blocked blocks itself")
         block.add_argument("n", type=int)
@@ -263,9 +274,36 @@ class PlanCommand(Command):
         print(self.drives.release_line(self.drives.release(self.plans.find(args.n), caller.actor)))
         return 0
 
+    def allow_tests(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.save(self.plans.find(args.n).with_test_run_allowed(), caller.actor)
+        current = self.tasks.holder_task(self.taking.holder(caller))
+        if current is not None:
+            self.logs.save(TaskLog.build(current, f"test run allowed mid-phase: {args.why}", self.time_source.moment().timestamp()), caller.actor)
+        print(f"plan {plan.id}: the next test run goes through")
+        return 0
+
     def pause(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.postpone(self.plans.find(args.n), caller.actor)
         print(f"plan {plan.id} paused")
+        return 0
+
+    def return_(self, args: Namespace, caller: Caller) -> int:
+        plan, moment = self.plans.find(args.n), self.time_source.moment()
+        if args.answer == RETURN_ANSWERS[1]:
+            self.plans.save(plan.without_return(moment.timestamp()), caller.actor)
+            print(f"plan {plan.id} stays paused; the task in hand goes on by itself")
+            return 0
+        return self.plan_return(plan, caller)
+
+    def plan_return(self, plan: Plan, caller: Caller) -> int:
+        moment = self.time_source.moment()
+        current_task = self.tasks.holder_task(self.taking.holder(caller))
+        self.plans.save(plan.with_return(moment.timestamp()), caller.actor)
+        self.tasks.save(current_task.paused(f"plan {plan.id} goes first", moment), caller.actor)
+        self.plans.start(plan, self.taking.holder(caller), caller.actor)
+        self.taking.paused_current(current_task, caller)
+        self.taking.start(self.tasks.find(current_task.id), caller)
+        print(f"plan {plan.id} started again under task {current_task.id}, which stays in hand; the plan goes on once it is done")
         return 0
 
     def card(self, args: Namespace, caller: Caller) -> int:
