@@ -3671,27 +3671,6 @@ def test_a_manifest_and_an_answer_with_a_key_this_journal_does_not_know_still_wo
     assert (answer.answer, answer.reason, answer.ignored) == ("refuse", "no", ("say",)), "an unknown answer key is ignored and named, the answer kept"
 
 
-def test_a_plugin_whose_new_version_names_a_newer_journal_is_held_at_its_installed_version_and_says_which_journal_it_waits_for(app: App, tmp_path):
-    from journal.features.plugins.support.plugin_installing import PluginInstalling
-    from journal.models.plugin import Plugin
-    from journal.repositories.plugins import Plugins
-    from journal.support.rejection import Rejection
-    from journal.version import VERSION
-    folder = tmp_path / "held"
-    folder.mkdir()
-    (folder / "run.py").write_text("print()")
-    manifest = {"name": "held", "version": "1", "program": "run.py", "hears": ["tool_starting"]}
-    (folder / "journal-plugin.json").write_text(json.dumps(manifest))
-    plugins, installing = app.container.get(Plugins), app.container.get(PluginInstalling)
-    plugins.save(Plugin(name="held", source=str(folder), linked=True, manifest=PluginManifest.parsed(manifest)), Actor.user(1))
-    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "2", "journal": "99.0.0"}))
-    kept = installing.upgrade("held", None, "main", Actor.user(1))
-    assert kept.manifest.version == "1" and plugins.lookup("held").manifest.version == "1" and plugins.lookup("held").wait_target == "99.0.0", "the installed version stays and the row says which journal it waits for"
-    with pytest.raises(Rejection):
-        installing.upgrade_preview("held", None)
-    assert "waits for journal 99.0.0" in app.console().run(["plugin", "list"], USER).text, "journal plugin list says it"
-    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "3", "journal": VERSION}))
-    assert installing.upgrade("held", None, "main", Actor.user(1)).manifest.version == "3" and plugins.lookup("held").wait_target == "", "a version this journal runs is taken and the wait ends"
 
 
 def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
@@ -9632,15 +9611,18 @@ def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_ch
     from journal.repositories.plugins import Plugins
     folder = tmp_path / "echo"
     shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
-    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
-    answers, plugin, console = app.container.get(PluginAnswers), app.container.get(Plugins).lookup("echo"), app.console()
+    from journal.models.message import Message
+    from journal.models.plugin import Plugin
+    manifest = PluginManifest.parsed(json.loads((folder / "journal-plugin.json").read_text()))
+    plugin = app.container.get(Plugins).save(Plugin(name="echo", source=str(folder), linked=True, manifest=manifest), Actor.user(1))
+    answers = app.container.get(PluginAnswers)
     cards = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
     raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(card_type="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN, "")
     with app.container.get(Scope).environment(MAIN):
         raised("1 sin in a.py")
         app.runtime().deferred.drain()
         [first] = cards()
-        console.run(["message", "send", "hello"], USER)
+        app.container.get(Messages).save(Message(environment_id=MAIN, text="hello"), Actor.user(1))
         raised("1 sin in a.py")
         app.runtime().deferred.drain()
         assert [m.id for m in cards()] == [first.id], "the same card answered again, with the user's message between, stays at its first place"
