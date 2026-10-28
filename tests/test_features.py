@@ -2189,14 +2189,19 @@ def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent(app:
 
 
 def test_the_foreground_limit_is_fifteen_seconds_or_ten_while_a_message_waits(app: App):
-    console = app.console()
     assert ShellVerbs(app).limit() == "15"
     wrapped = "source /s 2>/dev/null || true && eval 'journal task list && journal message unread' < /dev/null && pwd -P >| /tmp/cwd"
     assert ShellVerbs(app).limit(wrapped) == "0", "a line of journal commands alone is never moved to the background"
     assert ShellVerbs(app).limit(wrapped.replace("journal message unread", "sleep 60")) == "15"
-    console.run(["message", "send", "are you there?"], USER)
+    from datetime import datetime, timezone
+    from journal.models.message import Message
+    from journal.repositories.messages import Messages
+    messages = app.container.get(Messages)
+    with app.container.get(Scope).environment(1):
+        waiting = messages.save(Message(environment_id=1, text="are you there?"), Actor.user(1))
     assert ShellVerbs(app).limit() == "10"
-    console.run(["message", "read", "1"], AGENT)
+    with app.container.get(Scope).environment(1):
+        messages.save(waiting.with_(read_at=datetime.now(timezone.utc)), Actor.agent("s1"))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=5), Actor.system())
     assert ShellVerbs(app).limit() == "5"
 
@@ -2320,7 +2325,6 @@ def test_a_task_finished_while_a_skill_is_owed_leaves_the_debt_data_until_the_re
 
 def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
     import threading
-    console = app.console()
     outs = {}
     def run(n):
         outs[n] = ShellVerbs(app).cap() if n % 2 else ShellVerbs(app).limit()
