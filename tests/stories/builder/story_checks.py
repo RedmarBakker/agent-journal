@@ -117,6 +117,14 @@ class StoryChecks:
             part = part[key]
         assert part == value, f"the viewer was given {part!r} at {'/'.join(map(str, path))}, not {value!r}"
 
+    def expect_viewer_count_at_most(self, key: str, count: int) -> None:
+        shown = self.viewer_answer.get(key, [])
+        assert len(shown) <= count, f"the viewer was given {len(shown)} {key}, more than {count}"
+
+    def expect_viewer_rows_newer(self, key: str, n: int) -> None:
+        older = [row["id"] for row in self.viewer_answer.get(key, []) if row["id"] <= n]
+        assert not older, f"the viewer was given {key} {older}, not newer than {n}"
+
     def expect_viewer_count(self, key: str, count: int) -> None:
         shown = self.viewer_answer.get(key, [])
         assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"

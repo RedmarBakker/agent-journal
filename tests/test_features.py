@@ -13596,17 +13596,6 @@ def test_one_line_raised_twice_for_one_hook_answer_reaches_the_agent_once():
     assert held.reason == "hold on"
 
 
-def test_a_change_since_an_old_moment_reads_at_most_a_page_of_the_rows_held_and_newer(app: App):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.repositories.messages import Messages
-    with app.container.get(Scope).environment(1):
-        for n in range(60):
-            app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text=f"m{n}"), Actor.user(1))
-    status, body = get_answer(app, "/journal/messages?limit=25&since=1", {"X-Journal-Env": "main"})
-    assert status == 200 and len(body["rows"]) <= 26 and body["is_last_page"] is False, "a change since long ago is a page at most, and says there is more, so the viewer reads the newest page instead"
-    status, body = get_answer(app, "/journal/messages?limit=25&since=1&after=50", {"X-Journal-Env": "main"})
-    assert all(row["id"] > 50 for row in body["rows"]), "only the rows the viewer holds and newer ones, never one it never loaded"
 
 
 
