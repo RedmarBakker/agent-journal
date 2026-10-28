@@ -6,6 +6,7 @@ from tests.scenarios.builder.agent_actions import AgentActions
 from tests.scenarios.builder.agent_steps import AgentSteps
 from tests.scenarios.builder.hook_verdict import HookVerdict
 from tests.scenarios.builder.journal_log import JournalLog
+from tests.scenarios.builder.setting_reads import SettingReads
 from tests.scenarios.builder.step_checks import StepChecks
 from tests.scenarios.builder.story_sugar import StorySugar
 from tests.scenarios.builder.user_steps import UserSteps
@@ -13,10 +14,11 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class Scenario(AgentSteps, AgentActions, UserSteps, StepChecks, StorySugar):
-    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on."""
+    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after."""
 
-    def __init__(self, app, provider: str) -> None:
-        self.app, self.provider, self.tools = app, provider, TOOLS[provider]
+    def __init__(self, app, provider: str, reads: SettingReads) -> None:
+        self.app, self.provider, self.tools, self.reads = app, provider, TOOLS[provider], reads
+        self.set_positions: dict[str, int] = {}
         self.agent = Caller.agent("main", "s1", provider)
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
@@ -32,6 +34,9 @@ class Scenario(AgentSteps, AgentActions, UserSteps, StepChecks, StorySugar):
 
     def ran(self, action: str, result: Outcome) -> None:
         self.observed(action, None, result)
+
+    def is_read_since_set(self, key: str) -> bool:
+        return key in self.set_positions and self.reads.is_read_since(key, self.set_positions[key])
 
     def observed(self, action: str, verdict: HookVerdict | None, result: Outcome | None) -> None:
         self.said, steps = self.log.since_last()

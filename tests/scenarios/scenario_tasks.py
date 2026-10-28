@@ -2,12 +2,13 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
+from tests.scenarios.builder.story_values import starts_from
 from tests.scenarios.state_fixtures.plan_just_started import PlanJustStarted
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
-def test_a_task_outside_a_plan_is_worked_on_top_of_the_plan_and_the_plan_stays_paused(scenario):
-    scenario.starts_from(PlanJustStarted)
+@starts_from(PlanJustStarted)
+def test_a_task_outside_a_plan_is_worked_on_top_of_it(scenario):
     scenario.agent_runs("task pause 1 'something else first'")
     scenario.agent_runs("task create outside --start")
     scenario.expect_stack("idle", "following_plan", "working")
@@ -23,8 +24,8 @@ def test_a_task_outside_a_plan_is_worked_on_top_of_the_plan_and_the_plan_stays_p
     scenario.expect_plan(1, state=PlanState.PAUSED)
 
 
-def test_a_task_put_in_testing_leaves_the_agents_hand_and_a_stop_is_let_through(scenario):
-    scenario.starts_from(TaskInHand)
+@starts_from(TaskInHand)
+def test_a_task_in_testing_leaves_the_agents_hand(scenario):
     scenario.agent_stops()
     scenario.expect_refused(TasksNudges.TASK_CONTINUATION)
 
@@ -36,8 +37,8 @@ def test_a_task_put_in_testing_leaves_the_agents_hand_and_a_stop_is_let_through(
     scenario.expect_allowed()
 
 
-def test_a_test_run_on_a_task_long_in_progress_asks_once_whether_it_tests_that_task(scenario):
-    scenario.starts_from(TaskInHand)
+@starts_from(TaskInHand)
+def test_a_test_run_on_a_long_task_suggests_testing(scenario):
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
 

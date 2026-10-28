@@ -1,12 +1,12 @@
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
-from tests.scenarios.builder.story_values import values, values_of
+from tests.scenarios.builder.story_values import starts_from, values, values_of
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
+@starts_from(TaskInHand)
 @values_of(MessagesOptions.TOOL_BLOCK_LIMIT)
-def test_a_message_read_and_not_answered_holds_every_tool_after_its_grace_uses_until_the_agent_replies(scenario, value):
-    scenario.starts_from(TaskInHand)
+def test_an_unanswered_message_holds_tools_until_the_reply(scenario, value):
     scenario.user_sets(MessagesOptions.TOOL_BLOCK_LIMIT, value)
     message = scenario.user_sends_message("are you there?")
     scenario.expect_agent_told(MessagesNudges.NEW_MESSAGE, n=message)
@@ -23,9 +23,9 @@ def test_a_message_read_and_not_answered_holds_every_tool_after_its_grace_uses_u
     scenario.expect_allowed()
 
 
+@starts_from(TaskInHand)
 @values(range(1, 4))
-def test_each_message_that_arrives_while_the_agent_works_is_counted_down_to_the_write_hold_at_its_next_tool_use(scenario, value):
-    scenario.starts_from(TaskInHand)
+def test_arriving_messages_count_down_to_the_write_hold(scenario, value):
     sent = [scenario.user_sends_message(f"message {count}") for count in range(value)]
     scenario.agent_reads()
     scenario.expect_agent_told(MessagesNudges.INBOX_COUNTDOWN, messages=", ".join(str(message) for message in sent))
