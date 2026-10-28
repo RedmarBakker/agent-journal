@@ -40,6 +40,9 @@ class StepChecks:
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
+    def expect_worker(self, n: int, **fields) -> None:
+        self.expect_row("workers", n, fields)
+
     def expect_plan(self, n: int, **fields) -> None:
         self.expect_row("plans", n, fields)
 
@@ -53,6 +56,9 @@ class StepChecks:
         agents = got(self.app, "/journal/agents", MAIN)[1]["rows"]
         main = [row for row in agents if row.get("session") == "s1"]
         return [state["name"] for state in reversed(self.api_row("agents", main[0]["id"])["stack"])] if main else []
+
+    def newest(self, table: str) -> int:
+        return max(row["id"] for row in got(self.app, f"/journal/{table}", MAIN)[1]["rows"])
 
     def api_row(self, table: str, n: int) -> dict:
         rows = got(self.app, f"/journal/{table}?ids={n}", MAIN)[1]["rows"]

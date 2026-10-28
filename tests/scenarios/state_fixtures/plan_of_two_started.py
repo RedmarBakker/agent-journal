@@ -5,17 +5,17 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class PlanOfTwoStarted(StateFixture):
-    """The user made plan 1 with two tasks and approved it in the viewer, and the agent at work started it, so its first task is in hand."""
+    """The user made a plan with two tasks and approved it in the viewer, and the agent at work started it: scenario.plan, its first task in hand as scenario.task_in_hand and the next as scenario.next_plan_task."""
 
     builds_on = AgentAtWork
 
     def steps(self, scenario) -> None:
-        plan = scenario.user_creates_plan("p", "b")
-        scenario.user_adds_plan_task(plan, "first")
-        scenario.user_adds_plan_task(plan, "second")
-        scenario.user_approves_plan(plan)
-        scenario.agent_runs(f"plan start {plan}")
+        scenario.plan = scenario.user_creates_plan("p", "b")
+        scenario.task_in_hand = scenario.user_adds_plan_task(scenario.plan, "first")
+        scenario.next_plan_task = scenario.user_adds_plan_task(scenario.plan, "second")
+        scenario.user_approves_plan(scenario.plan)
+        scenario.agent_runs(f"plan start {scenario.plan}")
 
     def expected(self, scenario) -> None:
-        scenario.expect_plan(1, state=PlanState.STARTED)
-        scenario.expect_task(1, state=TaskState.STARTED)
+        scenario.expect_plan(scenario.plan, state=PlanState.STARTED)
+        scenario.expect_task(scenario.task_in_hand, state=TaskState.STARTED)

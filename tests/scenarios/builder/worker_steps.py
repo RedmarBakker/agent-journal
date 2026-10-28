@@ -22,4 +22,6 @@ class WorkerSteps:
 
     def worker_runs(self, worker: int, line: str) -> None:
         words = shlex.split(line)
-        self.ran(f"worker runs {words[0]}", self.app.console().run(words, Caller.worker("main", worker, f"w{worker}", self.provider)))
+        result = self.app.console().run(words, Caller.worker("main", worker, f"w{worker}", self.provider))
+        self.ran(f"worker runs {words[0]}", result)
+        assert result.code == 0, f"the worker's {line} was refused: {result.error or result.text}"

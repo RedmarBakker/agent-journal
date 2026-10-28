@@ -9,19 +9,19 @@ from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 @values_of(TasksOptions.AUTO)
 def test_auto_mode_decides_whether_the_next_task_starts(scenario, value):
     scenario.user_sets(TasksOptions.AUTO, value)
-    scenario.agent_runs("task create 'the header'")
-    scenario.agent_runs("task complete 1 --how done")
-    scenario.expect_task(2, state=TaskState.STARTED if value else TaskState.OPEN)
+    header = scenario.agent_creates_task("the header")
+    scenario.agent_runs(f"task complete {scenario.task_in_hand} --how done")
+    scenario.expect_task(header, state=TaskState.STARTED if value else TaskState.OPEN)
 
     scenario.agent_stops()
-    scenario.expect_refused_if(value, TasksNudges.TASK_CONTINUATION, name="task 2")
+    scenario.expect_refused_if(value, TasksNudges.TASK_CONTINUATION, name=f"task {header}")
 
 
 @starts_from(TaskInHand)
 def test_a_paused_task_is_offered_as_a_choice(scenario):
     scenario.user_sets(TasksOptions.AUTO, True)
-    scenario.agent_runs("task create 'the header'")
-    scenario.agent_runs("task pause 1 'the header first'")
+    scenario.agent_creates_task("the header")
+    scenario.agent_runs(f"task pause {scenario.task_in_hand} 'the header first'")
 
     scenario.agent_stops()
     scenario.expect_refused(TasksNudges.PAUSED_CHOICE)

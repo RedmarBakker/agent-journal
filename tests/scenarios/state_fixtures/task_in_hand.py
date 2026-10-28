@@ -4,13 +4,13 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class TaskInHand(StateFixture):
-    """The agent at work has created task 1, the footer, and started it."""
+    """The agent at work has created the footer and started it, named to the story as scenario.task_in_hand."""
 
     builds_on = AgentAtWork
 
     def steps(self, scenario) -> None:
-        scenario.agent_runs("task create 'the footer' --start")
+        scenario.task_in_hand = scenario.agent_takes_a_task("the footer")
 
     def expected(self, scenario) -> None:
-        scenario.expect_task(1, state=TaskState.STARTED)
+        scenario.expect_task(scenario.task_in_hand, state=TaskState.STARTED)
         scenario.expect_stack("idle", "working")

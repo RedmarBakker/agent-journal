@@ -5,17 +5,17 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class PlanJustStarted(StateFixture):
-    """The user made plan 1 with one task and approved it in the viewer, and the agent at work started it, so task 1 is in hand under the plan."""
+    """The user made a plan with one task and approved it in the viewer, and the agent at work started it, so its task is in hand: scenario.plan and scenario.task_in_hand."""
 
     builds_on = AgentAtWork
 
     def steps(self, scenario) -> None:
-        plan = scenario.user_creates_plan("p", "b")
-        scenario.user_adds_plan_task(plan, "first")
-        scenario.user_approves_plan(plan)
-        scenario.agent_runs(f"plan start {plan}")
+        scenario.plan = scenario.user_creates_plan("p", "b")
+        scenario.task_in_hand = scenario.user_adds_plan_task(scenario.plan, "first")
+        scenario.user_approves_plan(scenario.plan)
+        scenario.agent_runs(f"plan start {scenario.plan}")
 
     def expected(self, scenario) -> None:
-        scenario.expect_plan(1, state=PlanState.STARTED)
-        scenario.expect_task(1, state=TaskState.STARTED)
+        scenario.expect_plan(scenario.plan, state=PlanState.STARTED)
+        scenario.expect_task(scenario.task_in_hand, state=TaskState.STARTED)
         scenario.expect_stack("idle", "following_plan")

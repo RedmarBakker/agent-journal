@@ -9,19 +9,19 @@ from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 @starts_from(PlanJustStarted)
 def test_a_task_outside_a_plan_is_worked_on_top_of_it(scenario):
-    scenario.agent_runs("task pause 1 'something else first'")
-    scenario.agent_runs("task create outside --start")
+    scenario.agent_runs(f"task pause {scenario.task_in_hand} 'something else first'")
+    outside = scenario.agent_takes_a_task("outside")
     scenario.expect_stack("idle", "following_plan", "working")
 
-    scenario.user_pauses_plan(1)
-    scenario.expect_plan(1, state=PlanState.PAUSED)
+    scenario.user_pauses_plan(scenario.plan)
+    scenario.expect_plan(scenario.plan, state=PlanState.PAUSED)
 
     scenario.agent_stops()
     scenario.expect_refused(TasksNudges.TASK_CONTINUATION)
 
-    scenario.agent_runs("task complete 2 --how done")
-    scenario.expect_task(2, state=TaskState.COMPLETED)
-    scenario.expect_plan(1, state=PlanState.PAUSED)
+    scenario.agent_runs(f"task complete {outside} --how done")
+    scenario.expect_task(outside, state=TaskState.COMPLETED)
+    scenario.expect_plan(scenario.plan, state=PlanState.PAUSED)
 
 
 @starts_from(TaskInHand)
@@ -34,7 +34,7 @@ def test_a_test_run_on_a_long_task_suggests_testing(scenario):
 
     scenario.agent_reads("a.py")
     scenario.agent_runs_in_the_shell("pytest -q")
-    scenario.expect_agent_told(TasksNudges.TESTING_SUGGESTION, n=1)
+    scenario.expect_agent_told(TasksNudges.TESTING_SUGGESTION, n=scenario.task_in_hand)
 
     scenario.agent_runs_in_the_shell("pytest -q")
     scenario.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
