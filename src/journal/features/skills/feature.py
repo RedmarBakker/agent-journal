@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import AGENT
@@ -28,7 +29,8 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    listeners = (SkillObligation, SkillReadRecord, SkillLoadedCard, CompactionReset, SkillTriggers)
+    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.NEXT_DECISION), (CompactionReset, Blocking.NEXT_DECISION))
+    listeners = (SkillLoadedCard, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
 

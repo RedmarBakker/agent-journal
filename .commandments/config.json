@@ -86,7 +86,6 @@
         "PollerKeyNotWrittenDetector",
         "MarkWrittenOutsideListenerDetector",
         "SystemMessageOutsideListenerDetector",
-        "ViewerWriteInBlockingListenerDetector",
         "SessionPurityRoleCheckedDetector",
         "SessionPurityActorTypeCheckedDetector",
         "SessionPurityHookKindComparedDetector",

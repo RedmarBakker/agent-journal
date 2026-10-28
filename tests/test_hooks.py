@@ -29,15 +29,11 @@ MAIN = 1
 
 
 class RefuseWrites(AgentListener[ToolStarting]):
-    blocking = Blocking.ANSWER
-
     def handle(self, event):
         return Decision.refuse("no work declared") if event.call.tool == "Write" else Decision.allowed_with("carry on")
 
 
 class RefuseEveryStop(AgentListener[Stop]):
-    blocking = Blocking.ANSWER
-
     def handle(self, event):
         return Decision.refuse("finish the task in hand first")
 
@@ -81,7 +77,7 @@ def test_a_hook_lands_as_an_entry_and_answers_200(app: App):
 
 
 def test_a_blocking_listener_refuses_with_409_and_tells_with_context(app: App):
-    app.container.get(Bus).listen(ToolStarting, RefuseWrites())
+    app.container.get(Bus).add_answer_listener(ToolStarting, RefuseWrites(), Blocking.ANSWER)
     hook = {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}}
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 409 and body["error"] == "no work declared"
@@ -140,8 +136,6 @@ def test_a_session_whose_status_has_no_plan_limits_yet_shows_the_newest_the_acco
 
 
 class Raising(AgentListener[ToolStarting]):
-    blocking = Blocking.ANSWER
-
     def handle(self, event):
         raise RuntimeError("the guard broke")
 
@@ -151,7 +145,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     from journal.repositories.messages import Messages
     from journal.events.moments.fault_moment import FaultMoment
     from journal.features.record.listeners.fault_cards import FaultCards
-    app.container.get(Bus).listen(ToolStarting, Raising())
+    app.container.get(Bus).add_answer_listener(ToolStarting, Raising(), Blocking.ANSWER)
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 200 and nudge_reached(app, body["hookSpecificOutput"]["additionalContext"], EngineNudges.GUARD_FAILED, text="Raising raised RuntimeError: the guard broke"), "the tool runs and the agent is told"
@@ -393,8 +387,8 @@ def test_each_providers_tool_calls_decode_into_the_operations_the_features_read(
 
 @pytest.mark.parametrize("provider", ["claude", "codex"])
 def test_a_hold_answers_409_and_a_refused_stop_the_block_json_for_both_providers(app: App, provider: str):
-    app.container.get(Bus).listen(ToolStarting, RefuseWrites())
-    app.container.get(Bus).listen(Stop, RefuseEveryStop())
+    app.container.get(Bus).add_answer_listener(ToolStarting, RefuseWrites(), Blocking.ANSWER)
+    app.container.get(Bus).add_answer_listener(Stop, RefuseEveryStop(), Blocking.ANSWER)
     status, body = post_as(app, provider, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 409 and body["error"] == "no work declared"
     quiet = {"claude": {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no work declared"}}}

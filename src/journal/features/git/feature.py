@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
@@ -28,7 +29,8 @@ class Git(Feature[GitData]):
     card_types = (CardTypeEntry(CardType.COMMITS, "Commits", "git"), CardTypeEntry(CardType.WORKTREES, "Worktrees", "git"), CardTypeEntry(CardType.PUSHES, "Pushes", "git"), CardTypeEntry(CardType.BRANCH_SWITCHES, "Branch switches", "git"),)
     title = "Git"
     help = "Every commit the agent makes is a badge in the chat."
-    listeners = (CommitDetection, CommitCard, PushCard, BranchChangeCard, WorktreeSessionLink, WorktreeTipRecord, RenamedWorktreeFolders)
+    answer_listeners = ((CommitDetection, Blocking.ANSWER),)
+    listeners = (CommitCard, PushCard, BranchChangeCard, WorktreeSessionLink, WorktreeTipRecord, RenamedWorktreeFolders)
     data = (GitDataReader, BranchEnvironmentsReader)
     conduct = (GitConduct,)
     commands = (WorktreeCommand,)

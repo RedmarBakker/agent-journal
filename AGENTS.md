@@ -134,11 +134,12 @@ conduct, and the numbers it reads are the Settings page's. What the agent must d
 it may write or stop is set as a fact on its row by a feature's recording listener and enforced by the
 feature's conduct; the events `SkillRead`, `OverviewRead` and `MarkDecided` complete it.
 
-**Hooks decide nothing; listeners are deferred unless they say otherwise.** The hook script
+**Hooks decide nothing; listeners are deferred unless their feature lists them first.** The hook script
 posts and prints. The server records the entry, asks the state machine, which answers with the
 block or the lines, replies, then runs the recording listeners on one worker thread. A listener
-runs before the answer only when its result is part of it, and says why: `blocking = Blocking.ANSWER`
-for a refusal or a line, `Blocking.NEXT_DECISION` for a row the next decision reads. Everything that
+runs before the answer only when its result is part of it, and its feature names it in `answer_listeners`
+with the reason beside it: `Blocking.ANSWER` for a refusal or a line, `Blocking.NEXT_DECISION` for a row
+the next decision reads; every other listener is in `listeners`. Everything that
 only updates the viewer or measures, a card, a chat mark, an edit row, a count, a timing, runs after
 the answer; the card writers report a write made before it as a fault. A deferred listener can never
 refuse, by construction.

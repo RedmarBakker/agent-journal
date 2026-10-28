@@ -3,13 +3,10 @@ from journal.events.agent.compacting import Compacting
 from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
 from journal.repositories.agents import Agents
-from journal.events.blocking import Blocking
 
 
 class CompactionReset(AgentListener[Compacting]):
     """A compacted window no longer contains the skills it read; they must be read again."""
-
-    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, sessions: SessionAgents, agents: Agents) -> None:
         self.sessions, self.agents = sessions, agents

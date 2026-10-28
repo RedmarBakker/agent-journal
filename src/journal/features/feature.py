@@ -8,6 +8,7 @@ from journal.engine.base_state import BaseState
 from journal.engine.job import Job
 from journal.engine.support.modes import Modes
 from journal.support.agent_role import AgentRole
+from journal.events.blocking import Blocking
 from journal.events.data_source import DataSource
 from journal.events.listener import Listener
 from journal.engine.nudge import Nudge
@@ -32,6 +33,7 @@ class Feature[D](DataSource[D]):
     nudges: ClassVar[tuple[Nudge, ...]] = ()
     demands: ClassVar[tuple[Demand, ...]] = ()
     options: ClassVar[tuple[Option, ...]] = ()
+    answer_listeners: ClassVar[tuple[tuple[type[Listener], Blocking], ...]] = ()
     listeners: ClassVar[tuple[type[Listener], ...]] = ()
     data: ClassVar[tuple[type, ...]] = ()
     conduct: ClassVar[tuple[type[Conduct], ...]] = ()

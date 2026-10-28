@@ -36,6 +36,7 @@ class Registry:
     def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
         names: dict[type, str] = {}
         for feature in features:
+            Registry.refuse_a_listener_in_both_lists(feature)
             for registered in Registry.registered_classes(feature):
                 if registered in names:
                     raise DoubleRegistration(f"{registered.__name__} is registered by the features {names[registered]} and {feature.name}")
@@ -43,10 +44,16 @@ class Registry:
         return names
 
     @staticmethod
+    def refuse_a_listener_in_both_lists(feature: type[Feature]) -> None:
+        twice = {listener for listener, _ in feature.answer_listeners} & set(feature.listeners)
+        if twice:
+            raise DoubleRegistration(f"{', '.join(sorted(listener.__name__ for listener in twice))} is in both listener lists of the feature {feature.name}")
+
+    @staticmethod
     def registered_classes(feature: type[Feature]) -> set[type]:
         helper_conducts = {conduct for conducts in feature.helper_conduct.values() for conduct in conducts}
         mode_conducts = {conduct for mode_state, conduct in feature.mode_conduct}
-        return {*feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
+        return {*(listener for listener, _ in feature.answer_listeners), *feature.listeners, *feature.conduct, *helper_conducts, *mode_conducts, *feature.commands, *feature.states, *feature.jobs, *feature.seeds, *feature.process_cards, *feature.host_writers}
 
     def helper_files(self, helpers: tuple[type[Helper], ...]) -> dict[AgentRole, type[Helper]]:
         for role in AgentRole.helpers():

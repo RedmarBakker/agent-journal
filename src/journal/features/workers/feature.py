@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
@@ -107,7 +108,8 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorkerMemoryWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (WorkerProgressRecord, MergedTestRunStop, WorkerAssignment, WorkerSessionAssignment, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
+    answer_listeners = ((SilentWorkerRecord, Blocking.ANSWER),)
+    listeners = (WorkerProgressRecord, MergedTestRunStop, WorkerAssignment, WorkerSessionAssignment, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, MergedLinesRecord, CommittedLinesRecord, FirstReportRecord, WorkerMergeRefusalCard, DispatchRefusalCards, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord, MeasureLineRecord)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     mode_conduct = ((Orchestrating, OrchestratorConduct), (PlansReady, BuilderConduct), (Soloing, SoloConduct))

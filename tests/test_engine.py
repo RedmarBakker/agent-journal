@@ -3055,3 +3055,24 @@ def test_an_agent_left_stopped_has_its_stop_check_run_again_after_the_set_minute
     assert tick(300.0, turn_finished=True).next_event is None, "not before the set minutes"
     assert tick(600.0, turn_finished=False).next_event is None, "an agent still in its turn, as in a long tool call, is never woken"
     assert tick(600.0, turn_finished=True, wake_count=3).next_event is None, "and it is woken at most the set number of times in a row"
+
+
+def test_a_listener_named_in_both_lists_of_a_feature_stops_the_boot(app: App):
+    from journal.events.blocking import Blocking
+    from journal.features.double_registration import DoubleRegistration
+    from journal.features.registry import Registry
+    from journal.features.skills.feature import Skills
+    from journal.features.skills.listeners.skill_obligation import SkillObligation
+    from journal.repositories.setting_rows import SettingRows
+    twice = type("TwiceListed", (Skills,), {"name": "twice", "answer_listeners": ((SkillObligation, Blocking.NEXT_DECISION),), "listeners": (SkillObligation,)})
+    with pytest.raises(DoubleRegistration):
+        Registry((twice,), app.container.get(SettingRows))
+
+
+def test_no_listener_that_runs_before_the_answer_writes_a_card_for_the_viewer(app: App):
+    import inspect
+    import re
+    from journal.features.registry import Registry
+    card_write = re.compile(r"\.(cards|processes|moments)\.(show|show_fields|show_recent|show_role_card)\(")
+    writing = [listener.__name__ for feature in app.container.get(Registry).features for listener, _ in feature.answer_listeners if any(card_write.search(inspect.getsource(cls)) for cls in listener.__mro__ if cls.__module__.startswith("journal."))]
+    assert writing == [], f"these listeners run before the answer and write a card, which only the viewer shows: {writing}"

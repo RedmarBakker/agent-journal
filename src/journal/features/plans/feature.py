@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.events.rows.plan_approved import PlanApproved
 from journal.features.feature import Feature
 from journal.features.plans.support.plans_data_reader import PlansDataReader
@@ -43,7 +44,8 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn)
     commands = (PlanCommand,)
-    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart, SubagentPlanCard)
+    answer_listeners = ((EndedDriveWriteGuard, Blocking.ANSWER), (SessionStartPlanStart, Blocking.NEXT_DECISION))
+    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, PlanFinishedPlanStart, SubagentPlanCard)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)

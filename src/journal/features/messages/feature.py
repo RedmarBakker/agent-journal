@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
 from journal.support.card_type_catalogue import WORK
@@ -41,7 +42,8 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage, StartInboxDelivery)
+    answer_listeners = ((StartInboxDelivery, Blocking.ANSWER),)
+    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 

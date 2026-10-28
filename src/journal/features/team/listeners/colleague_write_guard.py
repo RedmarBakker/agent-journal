@@ -4,15 +4,12 @@ from journal.events.models.model_event import ModelEvent
 from journal.events.models.saving import Saving
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.rejection import Rejection
-from journal.events.blocking import Blocking
 
 GUARDED = (Saving, Deleting)
 
 
 class ColleagueWriteGuard(Listener[ModelEvent]):
     """A person's save or deletion in an environment a colleague owns is refused before it is made, but for a message."""
-
-    blocking = Blocking.ANSWER
 
     def __init__(self, owners: EnvironmentOwners) -> None:
         self.owners = owners

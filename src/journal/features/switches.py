@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.events.event import Event
 from journal.features.feature import Feature
 from journal.events.listener import Listener
@@ -5,19 +6,19 @@ from journal.features.registry import Registry
 from journal.models.scoped import Scoped
 from journal.repositories.scope import Scope
 from journal.repositories.scope import PROJECT
-from journal.events.blocking import Blocking
 
 
 class Switches(Listener[Event]):
-    """A feature's listener on the bus, which runs only where its feature is on, and in the environment its event happened in; so a feature switched off has no listener running, by construction."""
+    """A feature's listener on the bus, which runs only where its feature is on, and in the environment its event happened in, with the reason it runs before the answer when its feature lists it there; so a feature switched off has no listener running, by construction. RecordEdit alone still says for itself, by its blocking property, whether an edit a plugin holds is recorded before the answer, until it is split."""
 
-    def __init__(self, feature: type[Feature], inner: Listener, registry: Registry, scope: Scope) -> None:
-        self.feature, self.inner, self.registry, self.scope = feature, inner, registry, scope
-        self.asked_while_free = getattr(inner, "asked_while_free", False)
+    def __init__(self, feature: type[Feature], inner: Listener, registry: Registry, scope: Scope, reason: Blocking | None = None) -> None:
+        self.feature, self.inner, self.registry, self.scope, self.reason = feature, inner, registry, scope, reason
 
     @property
     def blocking(self) -> Blocking | None:
-        return getattr(self.inner, "blocking", None)
+        if self.reason is not None:
+            return self.reason
+        return self.inner.blocking if isinstance(getattr(type(self.inner), "blocking", None), property) else None
 
     def registered_class(self) -> type:
         return type(self.inner)

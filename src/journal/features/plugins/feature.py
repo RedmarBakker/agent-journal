@@ -1,3 +1,4 @@
+from journal.events.blocking import Blocking
 from journal.support.agent_role import AgentRole
 from journal.support.card_family import CardFamily
 from journal.support.card_type_entry import CardTypeEntry
@@ -37,7 +38,8 @@ class PluginsFeature(Feature[PluginsData]):
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.CLOCK_OUT_WINDOW_SECONDS, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)
     process_cards = (PluginProcessCard,)
-    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
+    answer_listeners = ((PluginAgentRelay, Blocking.ANSWER),)
+    listeners = (PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
     nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP, PluginsNudges.PLUGIN_BROKEN)

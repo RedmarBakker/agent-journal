@@ -13,7 +13,16 @@ class HelperListeners:
         self.bus, self.registry, self.agents = bus, registry, agents
 
     def listeners(self, event: AgentEvent) -> list[Listener]:
-        bus_listeners, role = self.bus.listeners(type(event)), self.role(event)
+        return [*self.answer_listeners(event), *self.background_listeners(event)]
+
+    def answer_listeners(self, event: AgentEvent) -> list[Listener]:
+        return self.reaching(event, self.bus.answer_listeners(type(event)))
+
+    def background_listeners(self, event: AgentEvent) -> list[Listener]:
+        return self.reaching(event, self.bus.background_listeners(type(event)))
+
+    def reaching(self, event: AgentEvent, bus_listeners: list[Listener]) -> list[Listener]:
+        role = self.role(event)
         if not role.is_helper():
             return bus_listeners
         return [listener for listener in bus_listeners if self.registry.reaches_helper(listener.registered_class(), role)]

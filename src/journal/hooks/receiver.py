@@ -83,7 +83,7 @@ class Receiver:
                 entry = self.recorded(hook, environment, event)
             if self.is_unknown_session_end(event):
                 return Decision()
-            decision = self._blocking(event, self._split(self.bus.listeners(type(event)))[0])
+            decision = self._blocking(event, self.bus.answer_listeners(type(event)))
             self.entries.save(entry.with_merged("data", self.recorded_outcome(hook, decision)), Actor.agent(hook.session))
             self._defer(event)
             self.subagent_moved(hook, environment)
@@ -105,12 +105,11 @@ class Receiver:
     def sent_recorded(self, hook: Hook, environment: Environment) -> Decision:
         if hook.silence_start:
             returned = self.translation.returned(hook, environment)
-            self._blocking(returned, self._split(self.helper_listeners.listeners(returned))[0])
+            self._blocking(returned, self.helper_listeners.answer_listeners(returned))
         event = self.translation.event(hook, environment)
         self.recorded(hook, environment, event)
-        blocking, deferred = self._split(self.helper_listeners.listeners(event))
-        decision = self._blocking(event, blocking)
-        for listener in deferred:
+        decision = self._blocking(event, self.helper_listeners.answer_listeners(event))
+        for listener in self.helper_listeners.background_listeners(event):
             self.deferred.add(partial(listener.handle, event))
         return decision
 
@@ -140,16 +139,12 @@ class Receiver:
         return isinstance(event, SessionEnded) and not self.agents.matching(session=event.session)
 
     def _immediate(self, event: AgentEvent) -> None:
-        blocking, deferred = self._split(self.bus.listeners(type(event)))
-        for listener in [*blocking, *deferred]:
+        for listener in self.bus.listeners(type(event)):
             listener.handle(event)
 
     def _blocking(self, event: AgentEvent, listeners: list[Listener]) -> Decision:
         decision = Decision()
         for listener in listeners:
-            if not decision.allowed and getattr(listener, "asked_while_free", False):
-                self.deferred.add(partial(listener.handle, event))
-                continue
             name = listener.registered_class().__name__
             with self.stages.timed(f"listener {name}"), self.phase.running(name):
                 line_text = self._guarded(listener, event)
@@ -181,14 +176,10 @@ class Receiver:
             return Decision.allowed_with(line) if line else None
 
     def _defer(self, event: AgentEvent) -> None:
-        for listener in self._split(self.bus.listeners(type(event)))[1]:
+        for listener in self.bus.background_listeners(type(event)):
             self.deferred.add(partial(self.timed_handle, listener, event))
 
     def timed_handle(self, listener: Listener, event: AgentEvent) -> None:
         with self.stages.timed(f"deferred {listener.registered_class().__name__}"):
             listener.handle(event)
 
-    @staticmethod
-    def _split(listeners: list[Listener]) -> tuple[list[Listener], list[Listener]]:
-        blocking = sorted((l for l in listeners if getattr(l, "blocking", False)), key=lambda l: getattr(l, "rank", 1))
-        return blocking, [l for l in listeners if not getattr(l, "blocking", False)]
