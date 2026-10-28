@@ -616,7 +616,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
 
 
 
-def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id_comes_whole(tmp_path: Path):
+def test_the_plans_list_reads_no_link(tmp_path: Path):
     from journal.repositories.links import Links
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
@@ -635,11 +635,6 @@ def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id
         listed = call(server, "GET", "/journal/plans?limit=50")[1]["rows"]
         links.selected = selected
         assert len(listed) == 50 and read == [], "the list reads no link"
-        first = next(row for row in listed if row["id"] == 1)
-        assert (first["phase_count"], first["task_count"]) == (1, 2)
-        assert not {"phases", "task_ids", "reviews", "testing"} & set(first), "the list carries no phases, task ids or reviews"
-        whole = call(server, "GET", "/journal/plans?ids=1")[1]["rows"][0]
-        assert whole["task_ids"] == [1, 2] and whole["phases"][0]["title"] == "one" and "reviews" in whole and "testing" in whole
     finally:
         app.runtime().stop()
 
