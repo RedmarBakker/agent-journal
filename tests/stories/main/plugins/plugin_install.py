@@ -1,13 +1,11 @@
 import json
-from pathlib import Path
-
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.installed_plugin import ECHO
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
-ECHO = Path(__file__).parents[3] / "plugins" / "echo"
 BAD_MANIFEST = {"name": "bad", "version": "1", "program": "run.py", "hears": ["nothing"]}
 
 

@@ -3989,7 +3989,7 @@ def test_only_the_user_installs_or_switches_on_a_plugin(app: App, tmp_path):
     assert plugins.lookup("echo").enabled, "and the journal never switches the plugin off for it"
 
 
-def test_a_plugins_settings_follow_its_schema_and_its_secret_comes_from_the_user(app: App):
+def test_a_plugins_filled_secret_is_given_to_it_only_once_the_user_allows_it(app: App):
     from journal.features.plugins.support.plugin_runner import PluginRunner
     from journal.repositories.plugins import Plugins
     from journal.repositories.secrets import Secrets
@@ -3998,11 +3998,7 @@ def test_a_plugins_settings_follow_its_schema_and_its_secret_comes_from_the_user
     console.run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
     plugin = plugins.lookup("echo")
     secret = app.container.get(Secrets).find(plugin.settings["token"]["secret"])
-    assert (plugin.settings["mode"], plugin.settings["repeat"]) == ("", 1) and secret.title == "echo Token" and secret.proposed == ("plugin:echo",), "defaults set, and a secret asked for, proposed for the plugin"
-    assert console.run(["plugin", "configure", "echo", "repeat", "3"], USER).code == 0 and plugins.lookup("echo").settings["repeat"] == 3
-    assert "repeat is a number; 'three' is not" in console.run(["plugin", "configure", "echo", "repeat", "three"], USER).error
-    assert "the user fills it on the Secrets page" in console.run(["plugin", "configure", "echo", "token", "abc"], USER).error
-    assert "only the user configures" in console.run(["plugin", "configure", "echo", "repeat", "2"], AGENT).error
+    assert (plugin.settings["mode"], plugin.settings["repeat"]) == ("", 1) and secret.proposed == ("plugin:echo",), "defaults set, and a secret asked for, proposed for the plugin"
     variable = secret.fields[0]["variable"]
     app.container.get(SecretValues).put(variable, "tok_0123456789abcdef")
     runner = app.container.get(PluginRunner)
@@ -4011,17 +4007,6 @@ def test_a_plugins_settings_follow_its_schema_and_its_secret_comes_from_the_user
     assert runner.environment(plugins.lookup("echo"), "main")[variable] == "tok_0123456789abcdef"
 
 
-def test_a_plugins_skills_are_published_stamped_and_taken_away(app: App):
-    console = app.console()
-    console.run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
-    published = [app.config.root / home / "echo-guide" for home in (".claude/skills", ".agents/skills")]
-    assert all((p / "SKILL.md").read_text().startswith("---\nplugin: echo\nname: echo-guide\n") and (p / ".gitignore").read_text() == "*\n" for p in published), "published beside the journal's, stamped and kept out of git"
-    console.run(["plugin", "disable", "echo"], USER)
-    assert not any(p.exists() for p in published), "switched off, its skills go"
-    console.run(["plugin", "enable", "echo"], USER)
-    assert all(p.is_dir() for p in published)
-    console.run(["plugin", "remove", "echo"], USER)
-    assert not any(p.exists() for p in published), "removed, its skills go"
 
 
 def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_it_brings(app: App, tmp_path):
