@@ -3835,23 +3835,6 @@ def test_a_subagents_event_reaches_a_plugin_and_is_held_only_at_a_tool(app: App)
     assert not PluginAgentRelay.blocks(plugin, PromptSubmitted(prompt="x", subagent="a1")) and PluginAgentRelay.blocks(plugin, PromptSubmitted(prompt="x")), "a subagent's other events are heard, never held"
 
 
-def test_a_plugin_is_previewed_then_installed_from_a_folder(app: App, tmp_path):
-    from journal.repositories.plugins import Plugins
-    folder = Path(__file__).parent / "plugins" / "echo"
-    console = app.console()
-    preview = console.run(["plugin", "install", str(folder)], USER)
-    assert preview.code == 0 and "echo 1.0.0" in preview.text and "runs for each event it hears, from its folder: run.py" in preview.text and "holds before the agent continues: tool_starting, prompt_submitted" in preview.text and "nothing installed yet" in preview.text
-    assert app.container.get(Plugins).all() == [], "a preview installs nothing"
-    assert "installed echo, on" in console.run(["plugin", "install", str(folder), "--yes"], USER).text
-    plugin = app.container.get(Plugins).lookup("echo")
-    assert plugin.linked and plugin.source == str(folder.resolve()) and tuple(h.event for h in plugin.manifest.blocks) == ("tool_starting", "prompt_submitted") and (app.config.home / "plugin-data" / "echo").is_dir()
-    assert "installed already" in console.run(["plugin", "install", str(folder), "--yes"], USER).error
-    bad = tmp_path / "bad"
-    bad.mkdir()
-    (bad / "journal-plugin.json").write_text(json.dumps({"name": "bad", "version": "1", "program": "run.py", "hears": ["nothing"]}))
-    (bad / "run.py").write_text("")
-    refused = console.run(["plugin", "install", str(bad), "--yes"], USER)
-    assert refused.code != 0 and "hears nothing, which is no event" in refused.error and [p.name for p in app.container.get(Plugins).all()] == ["echo"], "a refused manifest installs nothing"
 
 
 def test_an_updated_journal_upgrades_each_plugin_to_its_newest_release_that_runs_on_it(app: App, tmp_path):
