@@ -5,7 +5,7 @@ from tests.full_project import MAIN
 from tests.in_process import got
 
 
-class ScenarioChecks:
+class StepChecks:
     """The checks a scenario makes on what its last step brought: what the agent was told, by registry key and values, whether the hook let it through, whether the command passed, the stack and the rows, read through the API; a failing check says what was said instead and the stack."""
 
     def expect_agent_told(self, nudge: Nudge, **values) -> None:

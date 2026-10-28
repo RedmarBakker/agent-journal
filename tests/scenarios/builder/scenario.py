@@ -5,12 +5,12 @@ from tests.replay import TOOLS
 from tests.scenarios.builder.agent_steps import AgentSteps
 from tests.scenarios.builder.hook_verdict import HookVerdict
 from tests.scenarios.builder.nudge_log import NudgeLog
-from tests.scenarios.builder.scenario_checks import ScenarioChecks
+from tests.scenarios.builder.step_checks import StepChecks
 from tests.scenarios.builder.user_steps import UserSteps
 from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
-class Scenario(AgentSteps, UserSteps, ScenarioChecks):
+class Scenario(AgentSteps, UserSteps, StepChecks):
     """One story played against a journal in-process for one provider: each step plays a real hook or command and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it."""
 
     def __init__(self, app, provider: str) -> None:

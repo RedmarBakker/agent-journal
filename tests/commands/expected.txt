@@ -1860,7 +1860,7 @@ tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason|cap=51}}. take 
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
 tasks.tasks_wait_for_their_priority  [tasks]  writes wait: tasks {{tasks|cap=20}} need a priority, `journal task edit <n> --priority <level>` or `journal task priorities confirm`
 tasks.tested_task_back  [tasks]  task {{n}}'s test run, output {{output}}, did not pass: {{outcome|cap=60}}. take it up with `journal task resume {{n}}`
-tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. if it tests the task: `journal task test {{n}}`, then `journal output test <n>`
+tasks.testing_offered  [tasks]  task {{n}} is in progress and a test run starts. testing it? `journal task test {{n}}`, then `journal output test <n>`
 tasks.wait_check_passed  [tasks]  {{what|cap=30}} is done: {{lines|cap=78}}
 tasks.wait_it_out  [tasks]  {{what|cap=19}} has about {{seconds}} seconds left and you already wait on it. end your turn; you are informed when it ends
 tasks.wait_lifted  [tasks]  your wait on {{what|cap=19}} was lifted; check {{n}} still runs. remove it if not needed: `journal check remove {{n}}`
