@@ -123,6 +123,11 @@ class StoryChecks:
         shown = sorted(row["title"] for row in get_answer(self.app, "/journal/plans", {"X-Journal-Env": environment})[1]["rows"])
         assert shown == sorted(titles), f"the plans of {environment} are {shown}, not {sorted(titles)}"
 
+    def expect_card(self, n: int, **data) -> None:
+        shown = self.api_row("messages", n).get("data") or {}
+        fields = {name: shown.get(name) for name in data}
+        assert fields == data, f"card {n} holds {fields}, not {data}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

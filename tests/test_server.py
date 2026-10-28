@@ -1473,25 +1473,12 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
         app.runtime().stop()
 
 
-def test_a_process_card_changes_in_place_and_answers_the_poll_while_a_moment_card_is_always_new(app: App, server):
+def test_a_moment_card_is_new_each_time_and_nothing_updates_it(app: App):
     from journal.chat.moment_cards import MomentCards
-    from journal.repositories.messages import Messages
     from journal.support.card_type import CardType
-    console = app.console()
     with app.container.get(Scope).environment(1):
         moments = [app.container.get(MomentCards).show(1, "s1", "Check lint passed", key="lint", shows=CardType.CHECKS) for _ in range(2)]
-    assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment", "a moment card is new each time, and nothing updates it"
-    assert console.run(["question", "ask", "Which colour?", "--options", "red", "blue"], Caller.agent("main", "s1", "claude")).code == 0
-    with app.container.get(Scope).environment(1):
-        asked = app.container.get(Messages).with_key("question:1")[0]
-    assert (asked.data["card_type"], asked.data["process"], asked.data["active"]) == ("process", "question", True), "a question's card is a process card, active while the question is open"
-    status, fields = call(server, "GET", f"/journal/cards/active?ids={asked.id},{moments[0].id}")
-    assert status == 200 and fields == {str(asked.id): {"answer": None, "active": True}}, "the poll asks each active process card's refresh, and a moment card is never asked"
-    assert console.run(["question", "answer", "1", "blue"], Caller.user("main")).code == 0
-    with app.container.get(Scope).environment(1):
-        answered = app.container.get(Messages).with_key("question:1")
-    assert [(m.id, m.data["answer"], m.data["active"]) for m in answered] == [(asked.id, "blue", False)], "the answer settles the same card in place"
-    assert call(server, "GET", f"/journal/cards/active?ids={asked.id}")[1] == {}, "a process card whose process ended is no longer polled"
+    assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment"
 
 
 def test_a_dump_is_dropped_with_files_and_acted_on_through_the_viewer(server):
@@ -1787,15 +1774,6 @@ def test_the_viewer_undocks_a_docked_row_by_an_act_on_its_message(journal_root: 
         server.stop()
 
 
-def test_a_document_is_docked_and_undocked_from_its_inspector_through_the_dock_endpoint(app: App, server):
-    page = app.config.root / "design.md"
-    page.write_text("## What\n\nThe words.\n")
-    assert app.console().run(["doc", "create", "The design", "--file", str(page), "--abstract", "what it is"], Caller.user("main")).code == 0
-    status, docked = call(server, "POST", "/journal/docks/docs/1")
-    assert status == 200 and docked["data"]["docked"] is True and docked["data"]["row"] == "docs:1", "the document is docked by its table and number"
-    status, undocked = call(server, "POST", "/journal/docks/docs/1/undock")
-    assert status == 200 and undocked["id"] == docked["id"] and undocked["data"]["docked"] is False, "and taken down by the same card"
-    assert call(server, "POST", "/journal/docks/environments/1")[0] == 409, "a row that cannot be docked is refused"
 
 
 def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(server):

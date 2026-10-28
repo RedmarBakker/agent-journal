@@ -55,6 +55,23 @@ class UserSteps:
         self.viewer_status, self.viewer_answer = get_answer(self.app, route, MAIN)
         self.observed(f"user opens {route}", None, None)
 
+    def card_number(self, key: str) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("key") == key)
+
+    def user_docks(self, table: str, n: int) -> None:
+        self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/docks/{table}/{n}", {}, MAIN)
+        self.observed(f"user docks a row of {table}", None, None)
+
+    def docked_card(self) -> int:
+        return self.viewer_answer["id"]
+
+    def user_undocks(self, table: str, n: int) -> None:
+        self.viewer_status, self.viewer_answer = posted(self.app, f"/journal/docks/{table}/{n}/undock", {}, MAIN)
+        self.observed(f"user undocks a row of {table}", None, None)
+
+    def user_closes_the_plan_card(self, plan: int) -> None:
+        self.user_posted(f"/journal/plans/{plan}/dismiss", {}, "user closes the plan's card")
+
     def first_shown(self, key: str) -> int:
         return self.viewer_answer[key][0]["id"]
 

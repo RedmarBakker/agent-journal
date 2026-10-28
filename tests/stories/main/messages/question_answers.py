@@ -17,8 +17,15 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 def test_an_answered_question_is_told_to_the_agent_and_ends_its_wait(story):
     question = story.agent_asks("which footer?", "The agent writes the short one", "The agent writes the long one")
     story.expect_stack(Ready, Waiting)
+    card = story.card_number(f"question:{question}")
+    story.expect_card(card, card_type="process", process="question", active=True)
+    story.user_opens(f"/journal/cards/active?ids={card}")
+    story.expect_viewer_shows(str(card), {"answer": None, "active": True})
     story.user_answers(question, "The agent writes the short one")
     story.expect_agent_told(QuestionsNudges.QUESTION_ANSWERED, n=question)
+    story.expect_card(card, answer="The agent writes the short one", active=False)
+    story.user_opens(f"/journal/cards/active?ids={card}")
+    story.expect_viewer_shows(str(card), None)
     story.agent_reads()
     story.expect_stack(Ready)
 

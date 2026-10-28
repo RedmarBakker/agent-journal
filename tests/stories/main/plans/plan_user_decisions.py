@@ -37,3 +37,13 @@ def test_a_plan_the_user_cancelled_and_its_tasks_are_shown_with_the_closed_ones(
     story.user_opens(f"/journal/tasks?closed=1&ids={story.start.first_task},{story.start.second_task}")
     story.expect_viewer_rows("rows", "state", ["cancelled", "cancelled"])
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_plan_closed_on_its_card_stays_a_draft_and_the_agent_brings_the_card_back(story):
+    plan = story.user_creates_plan("the floors", "the floors are laid")
+    story.user_closes_the_plan_card(plan)
+    story.expect_plan(plan, is_dismissed=True, state=PlanState.DRAFT)
+    story.agent_runs(f"plan card {plan}")
+    story.expect_plan(plan, is_dismissed=False)
+    story.expect_stack(Ready)
