@@ -1,11 +1,13 @@
 from journal.features.plans.states.following_plan import FollowingPlan
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.states.orchestrating import Orchestrating
+from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.started_plan import StartedPlan
 
 
@@ -37,3 +39,13 @@ def test_a_builder_with_a_plan_task_in_hand_is_refused_a_second_plan(story):
     story.expect_task(story.start.second_task, state=TaskState.OPEN)
     story.expect_task(third_task, state=TaskState.OPEN)
     story.expect_stack(Ready, FollowingPlan)
+
+
+@story(PlanApproved, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
+def test_an_orchestrator_starting_a_plan_follows_it_by_handing_its_tasks_out(story):
+    story.agent_runs(f"plan start {story.start.plan}")
+    story.expect_command_passed()
+    story.expect_plan(story.start.plan, state=PlanState.STARTED)
+    story.expect_task(story.start.first_task, state=TaskState.OPEN)
+    story.expect_task(story.start.second_task, state=TaskState.OPEN)
+    story.expect_stack(Orchestrating, OrchestratingPlan)

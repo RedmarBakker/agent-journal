@@ -51,3 +51,12 @@ def test_a_stop_while_stuck_goes_through(story):
     story.agent_stops()
     story.expect_allowed()
     story.expect_stack(Ready, Impasse)
+
+
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_an_agent_stuck_on_its_task_in_hand_waits_over_it_until_its_next_tool_use(story):
+    story.agent_runs("stuck 'the build fails on the footer'")
+    story.expect_stack(Ready, Working, Impasse)
+    story.agent_reads()
+    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_stack(Ready, Working)
