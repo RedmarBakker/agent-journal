@@ -29,3 +29,11 @@ def test_a_reader_the_journal_ships_cannot_be_removed(story):
     story.agent_runs("reader remove worker-merge")
     story.expect_command_text("locked")
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_reader_for_a_search_alone_is_refused(story):
+    story.agent_runs("reader add greps --about 'a search' --pattern . --commands grep")
+    story.expect_command_refused()
+    story.expect_command_text("gets no reader")
+    story.expect_stack(Ready)

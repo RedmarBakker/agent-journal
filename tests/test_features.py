@@ -2048,7 +2048,6 @@ def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_o
     ]
     assert [line for line in stored if lines.part_with_code_read(Part(line)).cut()] == [], "a read of the project's own code keeps its tail and runs as written"
     assert [line for line in cut if not lines.part_with_code_read(Part(line)).cut()] == [], "a test run, a build, a log, a file outside the project and a read that writes keep their tail cut"
-    console = app.console()
     for i, line in enumerate(stored[:4]):
         folder = app.config.root / f"code{i}"
         folder.mkdir()
@@ -6043,24 +6042,10 @@ def test_a_long_typed_line_goes_in_whole_pieces_and_a_piece_typed_again_is_still
     assert keystrokes.confirm(1, segment) and not keystrokes.is_waiting(1), "a piece arriving is the line arriving, so it is not typed a third time"
 
 
-def test_a_status_a_program_answered_or_a_number_with_a_unit_is_never_named_a_missing_link(app: App):
-    from journal.models.author import Author
-    from journal.models.message import Message
-    from journal.models.task import Task
-    from journal.repositories.messages import Messages
-    from journal.repositories.tasks import Tasks
-    from journal.support.voice_key import VoiceKey
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
+def test_a_status_a_program_answered_or_a_number_with_a_unit_is_never_named_a_missing_link():
+    from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     text = "the server answered 200 in 2 ms, HTTP 404 for the old path, and the build took 300 s"
-    with app.container.get(Scope).environment(MAIN):
-        tasks = app.container.get(Tasks)
-        while tasks.save(Task(environment_id=MAIN, title="a task", brief="b"), Actor.system()).id < 404:
-            pass
-        app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.AGENT, thread=MessageThread.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
-    app.runtime().deferred.drain()
-    line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert "with no row kind" not in line, f"a status, a status code and a time are no row, though tasks 200 and 404 exist: {line}"
+    assert UnlinkedRowNumbers.numbers(text) == [], "a status, a status code and a time are no row"
 
 
 def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_told_once_and_linked_by_one_command(app: App, monkeypatch):
@@ -13902,7 +13887,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
 
 def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     from journal.features.shell.support.readers import Readers
-    console, readers = app.console(), app.container.get(Readers)
+    readers = app.container.get(Readers)
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_commands import ReaderCommands
     for name, commands in (("naps", "sleep"), ("tests", "tox"), ("rewrites", "git filter-repo")):
@@ -14016,8 +14001,6 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
     names = {reader.name for reader in readers.all()}
     assert "git-pushing" not in names and "search-hits" not in names, "a reader kept for git or for searches alone is removed at boot"
     assert "builds" in names, "a build's reader stays"
-    refused = app.console().run(["reader", "add", "greps", "--about", "a search", "--pattern", ".", "--commands", "grep"], AGENT)
-    assert refused.code != 0 and "gets no reader" in refused.error, "and a new one for a search is refused"
 
 
 def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words(app: App):
