@@ -20,20 +20,11 @@ def test_a_test_run_mid_phase_is_refused_with_the_plan_testing_and_how_to_run_it
 
 
 @story(MidPhaseTestPlan, mode=BUILDER_MODE)
-def test_a_test_run_allowed_with_a_reason_goes_through_and_the_reason_is_logged(story):
-    story.agent_runs(f"plan allow-tests {story.start.plan} --why 'one test of the parser, to check the guard'")
-    story.expect_command_passed()
-    story.agent_runs_in_the_shell("pytest -q tests/test_parser.py")
-    story.expect_allowed()
-    story.expect_task_logged(story.start.second_task, "one test of the parser, to check the guard")
-    story.expect_task(story.start.third_task, state=TaskState.OPEN)
-    story.expect_stack(Ready, FollowingPlan)
-
-
-@story(MidPhaseTestPlan, mode=BUILDER_MODE)
 def test_an_allowance_lets_one_test_run_through_and_the_next_is_refused_again(story):
     story.agent_runs(f"plan allow-tests {story.start.plan} --why 'one test of the parser'")
     story.agent_runs_in_the_shell("pytest -q tests/test_parser.py")
+    story.expect_allowed()
+    story.expect_task_logged(story.start.second_task, "one test of the parser")
     story.agent_runs_in_the_shell("pytest -q tests/test_parser.py")
     story.expect_refused(PlansNudges.MID_PHASE_TESTS, n=story.start.plan, phase=FIRST_PHASE)
     story.expect_task(story.start.second_task, state=TaskState.STARTED)

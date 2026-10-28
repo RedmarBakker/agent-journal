@@ -3,7 +3,6 @@ from pathlib import Path
 import re
 import time
 from journal.features.faults.support.request_timer import RequestTimer
-from journal.features.faults.support.machine_busy import MachineBusy
 
 from journal.config import Config
 from journal.events.announcer import Announcer
@@ -43,34 +42,33 @@ OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin p
 
 
 class SlowRequests:
-    """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included but a wait for the journal's boot, and never while it boots, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and counts one over it in memory, each route's worst time and count; once ten have gathered or thirty seconds passed without another, asked at most every five seconds as requests come, and again only once the set minutes have passed since the agent was last informed, it tells the agent in one line how many gathered and the worst, and writes the chat mark with the counts then, never at each slow request."""
+    """Times each request and counts its points, a row loaded, a write and a started kilobyte loaded, where the journal develops itself, never while it boots; one whose points pass its kind's points budget is counted in memory, each route's count and worst points, so the report rests on what a request does, never on the machine's speed or load; once ten have gathered or thirty seconds passed without another, asked at most every five seconds of the journal's clock as requests come, and again only once the set minutes have passed since the agent was last informed, it tells the agent in one line how many gathered and the worst, and writes the chat mark with the counts then, never at each request."""
 
-    def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, machine: MachineBusy, lifecycle: Lifecycle) -> None:
+    def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, lifecycle: Lifecycle) -> None:
         self.config, self.settings, self.announcer, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, announcer, agents, environments, scope, nudges, clock, deferred
         self.tally = tally
-        self.machine, self.lifecycle = machine, lifecycle
-        self.measured_routes: set[str] = set()
+        self.lifecycle = lifecycle
         self.checked_at = 0.0
         self.slow_tally = SlowRequestTally()
 
     def begin(self, request_at: float) -> RequestTimer:
-        if self.settings.option(FaultsOptions.LOADS):
+        if self.settings.option(FaultsOptions.DEVELOPER):
             LoadTally.begin()
         return RequestTimer(request_at)
 
     def measured(self, method: str, path: str, ms: float) -> None:
-        loads = LoadTally.ended() if self.settings.option(FaultsOptions.LOADS) else RequestLoads()
         if path.startswith(UNMEASURED_PATHS) or not self.settings.option(FaultsOptions.DEVELOPER):
             return
+        loads = LoadTally.ended()
         self.counted(method, path, round(ms), loads)
-        self.check_gathered(time.monotonic())
+        self.check_gathered(self.clock.time())
         route = self.route(path)
-        if self.is_first(f"{method} {route}") or not self.judging() or self.is_outward(route):
+        if not self.judging() or self.is_outward(route):
             return
-        budget = self.budget(method)
-        if not budget or ms <= budget:
+        budget, points = self.budget(method), loads.points()
+        if not budget or points <= budget:
             return
-        self.deferred.add(lambda: self.flagged(f"{method} {route}", round(ms)))
+        self.deferred.add(lambda: self.flagged(f"{method} {route}", points))
 
     @staticmethod
     def route(path: str) -> str:
@@ -101,11 +99,6 @@ class SlowRequests:
         with (self.config.home / "runtime" / "costly-answers.log").open("a") as log:
             log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {type_name} {timing.loads.points()} points in {timing.ms} ms: {timing.loads.line()}\n")
 
-    def is_first(self, route: str) -> bool:
-        first = route not in self.measured_routes
-        self.measured_routes.add(route)
-        return first
-
     @staticmethod
     def is_outward(route: str) -> bool:
         return route.startswith(OUTWARD_COMMANDS) or route in OUTWARD_ROUTES
@@ -114,14 +107,14 @@ class SlowRequests:
         return self.settings.integer(FaultsOptions.EDIT_BUDGET if method == "POST" else FaultsOptions.REQUEST)
 
     def judging(self) -> bool:
-        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not self.machine.is_busy()
+        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted()
 
     def environment_id(self) -> int:
         agent = self.agents.all_current()
         return agent.environment_id if agent else self.environments.all()[0].row_id
 
-    def flagged(self, route: str, ms: int) -> None:
-        self.slow_tally = self.slow_tally.flagged(route, ms, self.clock.time())
+    def flagged(self, route: str, points: int) -> None:
+        self.slow_tally = self.slow_tally.flagged(route, points, self.clock.time())
 
     def check_gathered(self, moment: float) -> None:
         if moment - self.checked_at < CHECK_INTERVAL_SECONDS or not self.settings.option(FaultsOptions.REPORT):
@@ -137,7 +130,7 @@ class SlowRequests:
             agent = self.agents.current()
             if agent is None:
                 return
-            self.nudges.type_line(agent, FaultsNudges.SLOW_REQUESTS.create(count=tally.gathered, route=tally.slowest_route, ms=tally.slowest_ms))
+            self.nudges.type_line(agent, FaultsNudges.SLOW_REQUESTS.create(count=tally.gathered, route=tally.costliest_route, points=tally.worst_points))
             self.slow_tally = tally.reported(moment)
             self.show(tally, self.budget("GET"), moment)
 

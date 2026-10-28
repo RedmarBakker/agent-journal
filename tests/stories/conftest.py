@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ from tests.stories.builder.coverage_gaps import CoverageGaps
 from tests.stories.builder.fixture_copies import FixtureCopies
 from tests.stories.builder.path_overlay import PathOverlay
 from tests.stories.builder.story import Story
+from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE, StoryRunRecord
 from tests.stories.builder.setting_reads import SettingReads
 from tests.stories.builder.story_marks import PROVIDER_MARK, SETTINGS_MARK, START_MARK
 from tests.stories.builder.void_provider import VoidProvider
@@ -27,6 +29,9 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 STORIES = Path(__file__).parent
 SUPPORT_FOLDERS = ("builder", "fixtures")
 collect_ignore = list(SUPPORT_FOLDERS)
+# a story file named *_run.py drives a process (git, a worker's worktree) and runs only when this variable asks for it
+PROCESS_STORIES = "JOURNAL_PROCESS_STORIES"
+collect_ignore_glob = [] if os.environ.get(PROCESS_STORIES) else ["*/*/*_run.py"]
 
 
 def pytest_configure(config) -> None:
@@ -57,7 +62,7 @@ def story(app, monkeypatch, request, copies):
         played.reach(mark.args[0])
         played.plays_in(request.param if isinstance(mark.args[1], tuple) else mark.args[1])
     played.scope = AgentRole(Path(request.node.path).relative_to(STORIES).parts[0])
-    for mark in reversed(list(request.node.iter_markers(SETTINGS_MARK))):
+    for mark in request.node.iter_markers(SETTINGS_MARK):
         played.user_sets(*mark.args)
     yield played
     if request.node.rep_call.failed:
@@ -92,28 +97,30 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     collected = [item for item in session.items if "story" in getattr(item, "fixturenames", ())]
     if not collected or session.config.stash.get(SCENARIOS_RUN, 0) < len(collected) or session.config.option.keyword:
         return
-    if {Path(item.fspath) for item in collected} >= {path for path in STORIES.glob("*/*/*.py") if path.parent.parent.name not in SUPPORT_FOLDERS and path.name != "__init__.py"}:
-        record_walked_kinds(session.config.stash.get(WALKED, set()))
+    record = stashed_record(session.config)
+    if os.environ.get(STORY_RECORDS_VARIABLE):
+        record.saved(Path(os.environ[STORY_RECORDS_VARIABLE]) / f"stories-{os.getpid()}.json")
+        return
+    if {Path(item.fspath) for item in collected} >= story_files():
+        record_walked_kinds(record.walked)
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
-    failures, warnings = [], []
-    for provider, overlay in session.config.stash.get(OVERLAYS, {}).items():
-        failures += [f"[{provider}] {line}" for line in overlay.failures()]
-        warnings += [f"[{provider}] {line}" for line in overlay.warnings()]
-    fixtures: dict[str, PathOverlay] = {}
-    for fixture_copies in session.config.stash[SEEDINGS]:
-        for (fixture, provider), path in fixture_copies.seedings.items():
-            fixtures.setdefault(provider, PathOverlay()).add(fixture.__name__, path)
-    for provider, overlay in fixtures.items():
-        failures += [f"[fixtures on {provider}] {line}" for line in overlay.failures() if " reaches nothing " not in line]
-        failures += [f"[fixtures on {provider}] {name} adds no step to the fixture it starts from" for name, path in overlay.paths.items() if len(path) < 2]
-    for line in session.config.stash.get(GAPS, CoverageGaps()).lines():
-        reporter.write_line(line)
-    for line in warnings:
-        reporter.write_line(f"story paths, drifting together: {line}")
-    for line in failures:
-        reporter.write_line(f"story paths, failed: {line}", red=True)
-    if failures:
+    for line, is_failure in record.report_lines():
+        reporter.write_line(line, red=is_failure)
+    if record.failures():
         session.exitstatus = 1
+
+
+def stashed_record(config) -> StoryRunRecord:
+    fixture_paths: dict[str, dict[str, list[str]]] = {}
+    for fixture_copies in config.stash[SEEDINGS]:
+        for (fixture, provider), path in fixture_copies.seedings.items():
+            fixture_paths.setdefault(provider, {})[fixture.__name__] = path
+    story_paths = {key: overlay.paths for key, overlay in config.stash.get(OVERLAYS, {}).items()}
+    return StoryRunRecord(story_paths, fixture_paths, config.stash.get(GAPS, CoverageGaps()), config.stash.get(WALKED, set()))
+
+
+def story_files() -> set[Path]:
+    return {path for path in STORIES.glob("*/*/*.py") if path.parent.parent.name not in SUPPORT_FOLDERS and path.name != "__init__.py" and not path.name.endswith("_run.py")}
 
 
 def record_walked_kinds(walked: set[str]) -> None:

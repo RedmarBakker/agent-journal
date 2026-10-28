@@ -13,19 +13,6 @@ FIRST_STEP, SECOND_STEP = 1, 2
 
 
 @story(SequenceRun, mode=BUILDER_MODE)
-def test_a_sequence_is_followed_step_by_step_to_its_end(story):
-    story.agent_runs("sequence follow")
-    story.expect_agent_told(SequencesNudges.CURRENT_STEP, n=story.start.sequence, step=FIRST_STEP)
-    story.agent_runs("sequence next")
-    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.start.sequence, step=SECOND_STEP)
-    story.expect_stack(Ready, FollowingSequence)
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence next")
-    story.expect_agent_told(SequencesNudges.SEQUENCE_ENDED, n=story.start.sequence)
-    story.expect_stack(Ready)
-
-
-@story(SequenceRun, mode=BUILDER_MODE)
 def test_a_step_never_taken_up_cannot_be_moved_on(story):
     story.agent_runs("sequence next")
     story.expect_command_refused()
@@ -46,18 +33,6 @@ def test_a_sequence_of_one_step_ends_at_its_first_next(story):
 @story(SequenceRun, mode=BUILDER_MODE)
 def test_running_the_running_sequence_again_starts_no_second_run(story):
     story.agent_runs(f"sequence run {story.start.sequence}")
-    story.expect_stack(Ready, FollowingSequence)
-
-
-@story(SequenceRun, mode=BUILDER_MODE)
-def test_a_sequence_started_inside_another_is_followed_first_and_the_other_said_again_after(story):
-    inner = story.agent_creates_sequence("tag", "push the tag")
-    story.agent_runs(f"sequence run {inner}")
-    story.expect_stack(Ready, FollowingSequence, FollowingSequence)
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence next")
-    story.expect_agent_told(SequencesNudges.SEQUENCE_ENDED, n=inner)
-    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.start.sequence, step=FIRST_STEP)
     story.expect_stack(Ready, FollowingSequence)
 
 

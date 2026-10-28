@@ -29,6 +29,7 @@ from journal.models.setting import Setting
 from journal.support.actor import Actor
 from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
+from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
 from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
 
@@ -157,8 +158,10 @@ def recorded_seconds() -> dict[str, float]:
 
 
 def dealt_unit(nodeid: str) -> str:
-    """What a shard is dealt: a test on its own, but the stories all together, since their paths are laid over each other at the end of the run that played them."""
-    return STORIES_FOLDER if nodeid.startswith(STORIES_FOLDER) else nodeid
+    """What a shard is dealt: a test on its own, but the stories all together, since their paths are laid over each other at the end of the run that played them, unless each shard writes its paths for the run that started it, when a story file is dealt on its own."""
+    if not nodeid.startswith(STORIES_FOLDER):
+        return nodeid
+    return nodeid.split("::", 1)[0] if os.environ.get(STORY_RECORDS_VARIABLE) else STORIES_FOLDER
 
 
 def pytest_collection_modifyitems(config, items):
@@ -169,7 +172,8 @@ def pytest_collection_modifyitems(config, items):
     index, count = (int(part) for part in shard.split("/"))
     seconds = recorded_seconds()
     dealt = {item.nodeid: dealt_unit(item.nodeid) for item in items}
-    unit_seconds = {unit: sum(seconds.get(nodeid, 0.0) for nodeid, owner in dealt.items() if owner == unit) for unit in set(dealt.values())} if seconds else {}
+    totals = {unit: sum(seconds.get(nodeid, 0.0) for nodeid, owner in dealt.items() if owner == unit) for unit in set(dealt.values())} if seconds else {}
+    unit_seconds = {unit: total for unit, total in totals.items() if total}
     mine = set(ShardDeal(unit_seconds).shards(sorted(set(dealt.values())), count)[index])
     kept = [item for item in items if dealt[item.nodeid] in mine]
     config.hook.pytest_deselected(items=[item for item in items if item.nodeid not in mine])

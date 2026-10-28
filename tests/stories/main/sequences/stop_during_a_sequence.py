@@ -5,6 +5,7 @@ from journal.features.sequences.states.following_sequence import FollowingSequen
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.stories.builder.story_marks import setting, story
+from tests.stories.fixtures.main.paused_sequence_run import PausedSequenceRun
 from tests.stories.fixtures.main.sequence_run import SequenceRun
 
 FIRST_STEP = 1
@@ -26,10 +27,8 @@ def test_a_stop_right_after_the_step_was_said_goes_through(story):
     story.expect_stack(Ready, FollowingSequence)
 
 
-@story(SequenceRun, mode=BUILDER_MODE)
+@story(PausedSequenceRun, mode=BUILDER_MODE)
 def test_a_paused_run_may_stop(story):
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence pause --why 'the user wants the footer first'")
     story.agent_stops()
     story.expect_allowed()
     story.expect_agent_not_told(SequencesNudges.PENDING_STEP, n=story.start.sequence)

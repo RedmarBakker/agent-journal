@@ -24,13 +24,13 @@ class TimeSteps:
         silent_tick(self.app, seconds + 1)
         self.observed(f"{agent_kind} is quiet past {seconds} seconds", None, None)
 
-    def time_passes(self, minutes: float) -> None:
-        pass_time(self.app, minutes * 60)
-        self.observed(f"{minutes} minutes pass", None, None)
+    def time_travel(self, seconds: float = 0, minutes: float = 0) -> None:
+        pass_time(self.app, seconds + minutes * 60)
+        self.observed(f"the clock moves on {seconds + minutes * 60} seconds", None, None)
 
     def context_reaches(self, percent: int) -> None:
         self.app.config.status_home.mkdir(parents=True, exist_ok=True)
-        (self.app.config.status_home / "s1.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
+        (self.app.config.status_home / f"{self.scoped_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
         self.observed(f"context reaches {percent}%", None, None)
 
     def agent_consumes_context(self, percent: int) -> None:

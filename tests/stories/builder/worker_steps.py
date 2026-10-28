@@ -11,6 +11,11 @@ class WorkerSteps:
         self.agent_runs(f"worker dispatch '{name}' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests'")
         return self.created_number("worker")
 
+    def agent_dispatches_worktree_worker(self, name: str, task: int) -> int:
+        self.agent_runs(f"worker dispatch '{name}' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests' --worktree --no-libraries")
+        self.expect_command_passed()
+        return self.created_number("worker")
+
     def agent_dispatches_worker_on_plan(self, name: str, plan: int) -> int:
         self.agent_runs(f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
         self.expect_command_passed()

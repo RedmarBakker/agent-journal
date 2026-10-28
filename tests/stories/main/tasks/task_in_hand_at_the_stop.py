@@ -12,7 +12,7 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 @story(StartedTask, mode=BUILDER_MODE)
 @setting(TasksOptions.LOG_AGE_LIMIT, 10)
 def test_a_stop_after_the_log_age_limit_asks_for_a_log_first(story):
-    story.time_passes(minutes=story.setting(TasksOptions.LOG_AGE_LIMIT) + 1)
+    story.time_travel(minutes=story.setting(TasksOptions.LOG_AGE_LIMIT) + 1)
     story.agent_stops()
     story.expect_refused(TasksNudges.STOP_LOG_REQUEST)
     story.agent_runs(f"task log {story.start.started_task} 'the footer has its links'")

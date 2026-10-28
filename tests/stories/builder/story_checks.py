@@ -27,6 +27,10 @@ class StoryChecks:
     def expect_agent_not_told(self, nudge: Nudge, **values) -> None:
         self.expect_not_told_to(self.scoped_session(), nudge, values)
 
+    def expect_main_stack(self, *states: type) -> None:
+        stack = self.session_stack(self.main_session())
+        assert stack == [state.name for state in states], f"the main agent's stack is {stack}"
+
     def expect_main_not_told(self, nudge: Nudge) -> None:
         self.expect_not_told_to(self.main_session(), nudge, {})
 
@@ -39,6 +43,10 @@ class StoryChecks:
     def expect_refused(self, nudge: Nudge, **values) -> None:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
         self.expect_agent_told(nudge, **values)
+
+    def expect_main_refused(self, nudge: Nudge, **values) -> None:
+        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
+        self.expect_main_told(nudge, **values)
 
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"

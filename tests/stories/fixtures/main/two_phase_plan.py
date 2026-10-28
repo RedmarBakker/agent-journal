@@ -3,7 +3,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
 from tests.stories.fixtures.state_fixture import StateFixture
-from tests.stories.fixtures.main.draft_plan import DraftPlan
+from tests.stories.fixtures.main.manual_draft_plan import ManualDraftPlan
 
 
 class TwoPhasePlan(StateFixture):
@@ -11,11 +11,9 @@ class TwoPhasePlan(StateFixture):
 
     stack = (Ready, FollowingPlan)
 
-    parent = DraftPlan
+    parent = ManualDraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs("sequence follow")
-        story.agent_runs("sequence abandon --why 'the plan is built step by step right here' --sure")
         story.agent_runs(f"plan phase {self.plan} 'Layout' --when 'the layout stands' --checkpoint")
         story.agent_runs(f"plan phase {self.plan} 'Content' --when 'the pages hold their words'")
         self.first_phase_task = story.agent_adds_plan_task(self.plan, "the grid")

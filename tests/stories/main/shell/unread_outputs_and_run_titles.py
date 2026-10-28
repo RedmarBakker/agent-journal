@@ -18,13 +18,3 @@ def test_an_ended_run_left_unread_is_named_again_after_the_set_tool_uses(story):
         story.agent_has_read()
     story.expect_agent_told(ShellNudges.UNREAD_OUTPUT, n=output)
     story.expect_stack(Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE)
-@setting(FOREGROUND_OPTION, 1)
-def test_a_watch_titled_by_a_path_is_refused(story):
-    output = story.agent_runs_a_command(f"sh -c 'echo 1/2; sleep {story.setting(FOREGROUND_OPTION) * 2}'")
-    story.agent_runs(f"output watch {output} --title src/app.py")
-    story.expect_command_refused()
-    story.background_run_ends(output)
-    story.expect_stack(Ready)

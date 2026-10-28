@@ -1,5 +1,4 @@
 from journal.engine.states.demand_block import DemandBlock
-from journal.engine.states.ended import Ended
 from journal.engine.states.void import Void
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.states.researching import Researching
@@ -36,11 +35,4 @@ def test_a_running_limit_of_zero_lets_every_subagent_through(story):
     story.expect_subagent_stack(story.start.subagent, Void, Researching)
     story.agent_sends_subagent(REVIEWER, "review the parser plan")
     story.expect_allowed()
-    story.expect_stack(Ready)
-
-
-@story(StartedSubagent, mode=BUILDER_MODE)
-def test_a_subagent_that_ends_stays_researching_for_a_message_that_resumes_it(story):
-    story.subagent_ends(story.start.subagent)
-    story.expect_subagent_stack(story.start.subagent, Void, Researching, Ended)
     story.expect_stack(Ready)

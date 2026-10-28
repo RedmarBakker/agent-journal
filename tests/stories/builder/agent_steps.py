@@ -1,5 +1,6 @@
 import re
 import shlex
+import subprocess
 import threading
 import time
 from collections.abc import Callable
@@ -13,7 +14,8 @@ from journal.support.caller import Caller
 from journal.support.option import Option
 from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
 from journal.features.shell.support.shell_runner import EXIT
-from journal.support.caller import AGENT_SHELL
+from journal.engine.clock import Clock
+from journal.http.controllers.hooks import SILENCE_HEADER
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
 from tests.replay import pass_time
@@ -22,6 +24,8 @@ from urllib.request import Request as HttpRequest, urlopen
 
 # the longest a story waits on a background run, and how often it looks
 RUN_END_TIMEOUT_SECONDS, RUN_END_POLL_SECONDS = 15, 0.1
+# the longest a story waits on one git command of its own setup
+GIT_TIMEOUT_SECONDS = 30
 # the thread the shell runner runs a chain on, whose end is the run's last word
 RUNNER_THREAD = "shell-chain"
 
@@ -64,6 +68,12 @@ class AgentSteps:
     def agent_reads(self, path: str = "a.py", count: int = 1) -> None:
         for _ in range(count):
             self.hooked("agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
+
+    def agent_reads_after_the_journal_was_down(self, seconds: float) -> None:
+        silence_start = self.app.container.get(Clock).held_at - seconds
+        headers = {**self.scoped_headers(), SILENCE_HEADER: str(silence_start)}
+        call = dict(tool_name=self.tools.read, tool_input={"file_path": "a.py"})
+        self.hook_observed("agent reads after the journal was down", *self.session_posted_hook(self.scoped_session(), headers, "PreToolUse", call))
 
     def agent_has_read(self, path: str = "a.py") -> None:
         self.hooked("agent has read", "PostToolUse", tool_name=self.tools.read, tool_input={"file_path": path}, tool_response={})
@@ -125,6 +135,9 @@ class AgentSteps:
     def main_agent_writes(self, path: str) -> None:
         self.main_hooked("main agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
 
+    def main_agent_ends_the_session(self) -> None:
+        self.main_hooked("main agent ends its session", "SessionEnd", reason="exit")
+
     def main_agent_stops(self) -> None:
         self.main_hooked("main agent stops", "Stop")
 
@@ -185,7 +198,7 @@ class AgentSteps:
         return int(re.search(r"task (\d+)", self.command.text)[1])
 
     def agent_runs_a_command(self, line: str) -> int:
-        raw = f"JOURNAL_ENV=main\0JOURNAL_SESSION={self.main_session_id}\0{AGENT_SHELL}=1\0\0{line}\n"
+        raw = "".join(f"{name}={value}\0" for name, value in self.scoped_shell_variables().items()) + f"\0{line}\n"
         request = HttpRequest(f"http://127.0.0.1:{self.app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(self.app.config.root), "X-Journal-Shell": "sh"})
         newest, runners = self.newest_output(), self.running_runners()
         text, _, code = urlopen(request, timeout=30).read().decode().rpartition(EXIT)
@@ -276,10 +289,9 @@ class AgentSteps:
         return float(self.setting(option)) * 60
 
     def setting(self, option: Option) -> object:
-        settings_tree = get_answer(self.app, "/journal/settings", MAIN)[1]
-        for part in option.key.split("."):
-            settings_tree = settings_tree.get(part, {}) if isinstance(settings_tree, dict) else {}
-        return option.default if settings_tree == {} else settings_tree
+        top, _, name = option.key.partition(".")
+        group = get_answer(self.app, "/journal/settings", MAIN)[1].get(top, {})
+        return group.get(name, option.default)
 
     def project_root(self) -> str:
         return str(self.app.config.root)
@@ -288,3 +300,8 @@ class AgentSteps:
         path = self.app.config.root / name
         path.write_text("".join(f"line {number}\n" for number in range(line_count)))
         return str(path)
+
+    def project_is_a_git_repository(self) -> None:
+        for arguments in (["init", "-q", "-b", "main"], ["-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "--allow-empty", "-m", "start"]):
+            subprocess.run(["git", *arguments], cwd=self.app.config.root, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=True)
+        self.observed("the project is a git repository", None, None)

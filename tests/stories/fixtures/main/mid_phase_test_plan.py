@@ -3,7 +3,7 @@ from journal.features.templates.shipped import PLAN_PHASE_TESTS
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.stories.fixtures.main.draft_plan import DraftPlan
+from tests.stories.fixtures.main.manual_draft_plan import ManualDraftPlan
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
@@ -12,11 +12,9 @@ class MidPhaseTestPlan(StateFixture):
 
     stack = (Ready, FollowingPlan)
 
-    parent = DraftPlan
+    parent = ManualDraftPlan
 
     def steps(self, story) -> None:
-        story.agent_runs("sequence follow")
-        story.agent_runs("sequence abandon --why 'the plan is built step by step right here' --sure")
         story.agent_runs(f"plan phase {self.plan} 'Pages' --when 'every page stands'")
         first_task = story.agent_adds_plan_task(self.plan, "the grid")
         self.second_task = story.agent_adds_plan_task(self.plan, "the about page")

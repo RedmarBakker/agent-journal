@@ -3,18 +3,15 @@ from journal.features.sequences.states.following_sequence import FollowingSequen
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.paused_sequence_run import PausedSequenceRun
 from tests.stories.fixtures.main.sequence_run import SequenceRun
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 FIRST_STEP = 1
 
 
-@story(SequenceRun, mode=BUILDER_MODE)
+@story(PausedSequenceRun, mode=BUILDER_MODE)
 def test_a_paused_run_keeps_its_state_and_following_again_says_the_step(story):
-    story.agent_runs("sequence follow")
-    story.agent_runs("sequence pause --why 'the user wants the footer first'")
-    story.expect_command_passed()
-    story.expect_stack(Ready, FollowingSequence)
     story.agent_runs("sequence follow")
     story.expect_agent_told(SequencesNudges.CURRENT_STEP, n=story.start.sequence, step=FIRST_STEP)
     story.expect_stack(Ready, FollowingSequence)
@@ -60,6 +57,7 @@ def test_an_abandon_before_the_step_is_taken_up_is_refused(story):
 def test_an_abandoned_inner_sequence_gives_the_outer_back_with_its_step(story):
     inner = story.agent_creates_sequence("tag", "push the tag | write the notes")
     story.agent_runs(f"sequence run {inner}")
+    story.expect_stack(Ready, FollowingSequence, FollowingSequence)
     story.agent_runs("sequence follow")
     story.agent_runs("sequence abandon --why 'the tag waits for the review' --sure")
     story.expect_agent_told(SequencesNudges.SEQUENCE_ABANDONED, n=inner)

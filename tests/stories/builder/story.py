@@ -1,6 +1,7 @@
 from journal.console.support.outcome import Outcome
 from journal.support.agent_role import AgentRole
-from journal.support.caller import Caller
+from journal.support.caller import ACTOR, AGENT_SHELL, Caller
+from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.in_process import posted
 from tests.replay import TOOLS
@@ -46,7 +47,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
-        return self.session_posted_hook(self.scoped_session(), self.scoped_headers(), type_name, body)
+        return self.session_posted_hook(self.scoped_hook_session(), self.scoped_headers(), type_name, {**self.scoped_hook_fields(), **body})
 
     def main_posted_hook(self, type_name: str, **body) -> tuple[int, object]:
         return self.session_posted_hook(self.main_session_id, {}, type_name, body)
@@ -58,7 +59,16 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return self.stack_checked_at == len(self.path)
 
     def scoped_session(self) -> str:
-        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session}[self.scope]()
+        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session, AgentRole.SUBAGENT: self.subagent_scope_session}[self.scope]()
+
+    def subagent_scope_session(self) -> str:
+        return ResearcherSession.joined(self.main_session(), self.start.subagent)
+
+    def scoped_hook_session(self) -> str:
+        return self.main_session() if self.scope == AgentRole.SUBAGENT else self.scoped_session()
+
+    def scoped_hook_fields(self) -> dict:
+        return {"agent_id": self.start.subagent} if self.scope == AgentRole.SUBAGENT else {}
 
     def main_session(self) -> str:
         return self.main_session_id
@@ -70,13 +80,17 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return worker_session(self.start.worker)
 
     def scoped_headers(self) -> dict:
-        return {AgentRole.MAIN: dict, AgentRole.WORKER: self.worker_scope_headers}[self.scope]()
+        return {AgentRole.MAIN: dict, AgentRole.WORKER: self.worker_scope_headers, AgentRole.SUBAGENT: dict}[self.scope]()
 
     def worker_scope_headers(self) -> dict:
         return {"X-Journal-Actor": f"worker:{self.start.worker}"}
 
+    def scoped_shell_variables(self) -> dict[str, str]:
+        variables = {"JOURNAL_ENV": "main", "JOURNAL_SESSION": self.scoped_session(), AGENT_SHELL: "1"}
+        return {AgentRole.MAIN: lambda: variables, AgentRole.WORKER: lambda: {**variables, ACTOR: f"worker:{self.start.worker}"}, AgentRole.SUBAGENT: lambda: {**variables, "JOURNAL_SESSION": self.main_session()}}[self.scope]()
+
     def scoped_caller(self) -> Caller:
-        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: self.worker_scope_caller}[self.scope]()
+        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: self.worker_scope_caller, AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session())}[self.scope]()
 
     def worker_scope_caller(self) -> Caller:
         return Caller.worker("main", self.start.worker, worker_session(self.start.worker), self.provider)

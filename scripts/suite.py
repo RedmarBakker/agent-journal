@@ -39,6 +39,9 @@ TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests
 # a run of the simulator's files keeps the machine busy for minutes, so it runs at a lower priority than the journal beside it
 SIMULATION_FILE = "simulation"
 MATRIX_OPTION = "--update-matrix"
+# the stories alone, sharded, with their overlay checked over every shard
+STORIES_OPTION = "--stories"
+STORIES_FOLDER = "tests/stories"
 COVERAGE_OPTION = "--coverage-map"
 # which source files each test runs, read by scripts/affected_tests.py
 COVERAGE_MAP_FILE = ROOT / ".journal" / "runtime" / "test-coverage.json"
@@ -74,9 +77,9 @@ def memory_line(count: int, available: int) -> str:
     return f"the suite takes {count} shards, not {core_shards()}: only {available // 2**20} MB of memory is free, and a shard takes about {SHARD_BYTES // 2**20} MB"
 
 
-def started(index: int, count: int, folder: Path, arguments: tuple[str, ...] = ()) -> tuple[subprocess.Popen, Path]:
+def started(index: int, count: int, folder: Path, arguments: tuple[str, ...] = (), variables: dict[str, str] | None = None) -> tuple[subprocess.Popen, Path]:
     output = folder / f"shard-{index}.txt"
-    environ = {**os.environ, SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1", DURATIONS_IN_VARIABLE: str(DURATIONS_FILE), DURATIONS_OUT_VARIABLE: str(folder / f"shard-{index}.seconds.json")}
+    environ = {**os.environ, **(variables or {}), SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1", DURATIONS_IN_VARIABLE: str(DURATIONS_FILE), DURATIONS_OUT_VARIABLE: str(folder / f"shard-{index}.seconds.json")}
     process = subprocess.Popen([*PYTEST, *arguments], cwd=ROOT, env=environ, stdout=output.open("w"), stderr=subprocess.STDOUT)
     return process, output
 
@@ -153,6 +156,25 @@ def whole_suite() -> int:
         return 1 if sinful or failed else 0
 
 
+# the stories alone, in shards: each shard writes what its stories leave to be checked, and the paths are laid over each other here once every shard has ended
+def story_run(options: tuple[str, ...]) -> int:
+    with tempfile.TemporaryDirectory() as folder:
+        records = Path(folder) / "story-records"
+        records.mkdir()
+        failed = sharded_run(Path(folder), shard_count(available_bytes()), (STORIES_FOLDER, *options), "the stories", {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
+        record_class = story_record_module().StoryRunRecord
+        record = record_class.merged([record_class.loaded(path) for path in sorted(records.glob("*.json"))])
+        for line, _ in record.report_lines():
+            print(line)
+        return 1 if failed or record.failures() else 0
+
+
+# the story record lives beside the stories in tests/, which reads the journal's own source
+def story_record_module():
+    sys.path[:0] = [str(ROOT), str(ROOT / "src")]
+    return importlib.import_module("tests.stories.builder.story_run_record")
+
+
 # every pair of releases is a test of its own, so the update matrix splits over a few processes however many cores there are
 def update_matrix(release) -> int:
     if os.environ.get(MATRIX_SKIP_VARIABLE):
@@ -177,9 +199,9 @@ def update_release():
     return importlib.import_module("tests.update_release").UpdateRelease.current()
 
 
-def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str) -> bool:
+def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str, variables: dict[str, str] | None = None) -> bool:
     began = time.monotonic()
-    shards = [started(index, count, folder, arguments) for index in range(count)]
+    shards = [started(index, count, folder, arguments, variables) for index in range(count)]
     print(f"running {name} in {count} shards side by side", flush=True)
     progress_shown(shards)
     totals: dict[str, int] = {}
@@ -280,6 +302,8 @@ def scoped_run(arguments: list[str]) -> int:
 
 
 def main(arguments: list[str]) -> int:
+    if arguments[:1] == [STORIES_OPTION]:
+        return story_run(tuple(arguments[1:]))
     if arguments == [MATRIX_OPTION]:
         return update_matrix(update_release())
     if arguments == [COVERAGE_OPTION]:
