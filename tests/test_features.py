@@ -4341,6 +4341,22 @@ def test_a_fresh_start_asks_whether_old_rules_and_reminders_still_hold(app: App)
     assert "check they still hold" not in compacted, "never after a compaction"
 
 
+def test_released_waits_unlink_the_row_and_retire_the_check_its_block_made(app: App):
+    from journal.features.tasks.support.waits import Waits
+    from journal.models.task import Task
+    from journal.repositories.checks import Checks
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    with app.container.get(Scope).environment(1):
+        tasks, waits = app.container.get(Tasks), app.container.get(Waits)
+        task = tasks.save(Task(environment_id=1, title="ship it"), USER.actor)
+        waits.linked(task, [], "false", 2, USER.actor)
+        assert tasks.reason(task).startswith("check "), "the block names the check it made"
+        waits.released(task, USER.actor)
+        assert tasks.reason(task) == "", "no wait is left on it"
+        assert all(check.is_retired for check in app.container.get(Checks).rows() if check.wait_target), "the check its block made runs no more"
+
+
 def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
     from datetime import datetime, timezone
     from journal.db.migrations.finish_cancelled_tasks import FinishCancelledTasks
@@ -5039,16 +5055,6 @@ def test_a_worker_report_not_acted_on_is_named_until_it_is(app: App):
     assert "not acted on it" not in json.dumps(hook(app, "Stop")[1]), "once acted on it is named no more"
 
 
-def test_the_tasks_list_and_its_open_count_leave_out_a_plans_tasks(app: App):
-    from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["task", "create", "loose"], USER)
-    console.run(["plan", "create", "p", "--brief", "b"], USER)
-    console.run(["plan", "add", "1", "planned"], USER)
-    assert app.container.get(Tasks).unfinished_count() == 1, "the plan's task is counted on its plan"
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks?ids=1,2", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        rows = {row["title"]: row["plan_id"] for row in json.loads(reply.read())["rows"]}
-    assert rows == {"loose": None, "planned": 1}, "each task names the plan it is in, so the Tasks list leaves it to its plan"
 
 
 def test_an_update_never_overwrites_a_setting_the_user_set(app: App):
@@ -6482,18 +6488,6 @@ def test_a_removed_check_runs_no_more_leaves_the_list_and_opens_a_task_that_wait
     assert "removed already" in console.run(["check", "remove", "1"], USER).error
 
 
-def test_an_unblocked_task_waits_on_nothing_and_the_check_its_block_made_is_retired(app: App):
-    from journal.repositories.checks import Checks
-    from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["task", "create", "ship it"], USER)
-    console.run(["task", "block", "1", "the build", "--until", "false"], USER)
-    assert console.run(["task", "unblock", "1"], USER).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        tasks = app.container.get(Tasks)
-        assert tasks.reason(tasks.find(1)) == "" and tasks.open_waits(tasks.find(1)) == [], "no wait is left on it"
-        assert all(check.is_retired for check in app.container.get(Checks).rows() if check.wait_target), "the check its block made runs no more"
 
 
 
@@ -6647,12 +6641,6 @@ def test_a_stopped_agent_gets_its_first_line_at_once_and_a_working_one_gets_them
 
 
 
-def test_a_tasks_brief_is_written_anew(app: App):
-    from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["task", "create", "the footer", "--brief", "done when it stays at the bottom"], AGENT)
-    assert console.run(["task", "brief", "1", "done when it stays at the bottom on every page"], AGENT).text == "task 1 brief written anew\n"
-    assert app.container.get(Tasks).find(1).brief == "done when it stays at the bottom on every page"
 
 
 def test_a_running_codex_workers_transcript_is_found_by_its_rollouts_folder_before_its_session_is_known(app: App, tmp_path, monkeypatch):
@@ -13467,22 +13455,6 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
     assert [o.row_id for o in app.container.get(CommandOutputs).backgrounded("w-1")] in ([], [output.row_id]) and read(f"outputs/{output.row_id}")["command"] == "pytest -q", "its outputs are kept by its session"
 
 
-def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
-    from journal.repositories.tasks import Tasks
-    with app.container.get(Scope).environment(MAIN):
-        app.console().run(["task", "create", "the docs"], USER)
-        app.console().run(["task", "create", "the outage", "--priority", "critical"], USER)
-        app.console().run(["task", "create", "the tidy up", "--priority", "low"], USER)
-        app.console().run(["task", "create", "the odd one", "--priority", "120"], USER)
-        tasks = app.container.get(Tasks)
-        outage = next(t for t in tasks.scoped() if t.title == "the outage")
-        listed = app.console().run(["task", "list"], USER).text.splitlines()
-        assert [line.split("  ")[-1] if "[" in line else "" for line in listed[:4]] == ["[critical]", "[120]", "", "[low]"], listed
-        assert tasks.next_open_task().id == outage.id, "the next task is the most urgent one"
-        refused = app.console().run(["task", "edit", str(outage.id), "--priority", "soon"], USER)
-        assert "no such priority: soon" in refused.error
-        app.console().run(["task", "edit", str(outage.id), "--priority", "normal"], USER)
-        assert tasks.find(outage.id).priority == 100
 
 
 def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_reaches_the_main_chat(app: App):
@@ -13519,18 +13491,6 @@ def test_a_codex_session_start_answers_the_briefing_in_codexs_shape_and_its_hook
     assert output["hookEventName"] == "SessionStart" and nudge_reached(app, output["additionalContext"], BriefingNudges.JOURNAL_READY, env="main"), "the briefing comes back as Codex reads it, hookSpecificOutput.additionalContext"
 
 
-def test_a_task_given_up_is_cancelled_with_why_and_leaves_the_list(app: App):
-    from journal.models.task_state import TaskState
-    from journal.repositories.scope import Scope
-    from journal.repositories.tasks import Tasks
-    console = app.console()
-    console.run(["task", "create", "the shared avatar"], AGENT)
-    assert console.run(["task", "cancel", "1"], AGENT).code != 0, "a task is given up only with why"
-    assert "task 1 cancelled" in console.run(["task", "cancel", "1", "--why", "screens differ in size"], AGENT).text
-    with app.container.get(Scope).environment(1):
-        task = app.container.get(Tasks).find(1)
-    assert (task.state, task.outcome) == (TaskState.CANCELLED, "screens differ in size")
-    assert "the shared avatar" not in console.run(["task", "list"], AGENT).text
 
 
 

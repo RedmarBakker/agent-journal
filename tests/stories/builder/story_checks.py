@@ -79,6 +79,15 @@ class StoryChecks:
         printed = f"{self.command.text}{self.command.error}" if self.command else ""
         assert part in printed, f"the command printed {printed!r}, not {part!r}"
 
+    def expect_command_text_without(self, part: str) -> None:
+        printed = f"{self.command.text}{self.command.error}" if self.command else ""
+        assert part not in printed, f"the command printed {part!r}: {printed!r}"
+
+    def expect_command_lines_in_order(self, *parts: str) -> None:
+        lines = self.command.text.splitlines()
+        places = [next((k for k, line in enumerate(lines) if part in line), -1) for part in parts]
+        assert -1 not in places and places == sorted(places), f"the command printed {', '.join(parts)} out of this order: {self.command.text}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

@@ -28,3 +28,4 @@ def test_a_task_blocked_by_hand_opens_when_unblocked(story):
     story.expect_task(logo, state=TaskState.OPEN)
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
+
