@@ -174,6 +174,10 @@ class StoryChecks:
     def expect_project_file_is(self, path: str, text: str) -> None:
         assert (self.app.config.root / path).read_text() == text, f"{path} changed"
 
+    def expect_typed_last(self, line: str) -> None:
+        last = self.typed[-1] if self.typed else ""
+        assert last == line, f"the last line typed into the agent's terminal is {last!r}, not {line!r}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

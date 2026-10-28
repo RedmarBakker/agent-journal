@@ -73,12 +73,14 @@ def copies(request):
 @pytest.fixture
 def story(app, monkeypatch, request, copies):
     home_inside_the_story_folder(app.config.root, monkeypatch)
-    typing_capture(app, monkeypatch, [])
+    typed: list[str] = []
+    typing_capture(app, monkeypatch, typed)
     pinned_clock(app, monkeypatch)
     reads = SettingReads()
     reads.watch(monkeypatch)
     program = request.node.get_closest_marker(PROVIDER_MARK)
     played = Story(app, program.args[0] if program else VoidProvider, reads, copies)
+    played.typed = typed
     for mark in request.node.iter_markers(START_MARK):
         played.reach(mark.args[0])
         played.plays_in(request.param if isinstance(mark.args[1], tuple) else mark.args[1])

@@ -737,29 +737,6 @@ def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_
         app.runtime().stop()
 
 
-def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_what_it_answers(tmp_path: Path, monkeypatch):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    from journal.supervisor_link import SupervisorLink
-    keystrokes = []
-    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        controls = call(server, "GET", "/journal/agents/controls/claude?model=opus&effort=high")[1]
-        assert [g["key"] for g in controls["groups"]] == ["model", "effort", "context"] and controls["groups"][0]["current"] == "opus"
-        n = call(server, "POST", "/journal/messages", {"text": "is the footer fixed?\nand the header?", "idempotency": "q"})[1]["id"]
-        urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "s1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        assert call(server, "POST", "/journal/agents/1/control", {"action": "effort", "value": "max"})[1]["queued"] is True and keystrokes[-1] == "/effort max"
-        assert call(server, "POST", "/journal/agents/1/control", {"action": "model", "value": "gpt"})[0] == 409
-        app.console().run(["message", "send", "Both are.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
-        app.runtime().deferred.drain()
-        reply = call(server, "GET", "/journal/messages")[1]["rows"][-1]
-        assert reply["text"] == "Both are." and reply["reply_target"] == n
-    finally:
-        app.runtime().stop()
 
 
 
