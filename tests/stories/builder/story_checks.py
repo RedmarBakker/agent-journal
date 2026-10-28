@@ -115,6 +115,10 @@ class StoryChecks:
         shown = self.viewer_answer.get(key, [])
         assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"
 
+    def expect_docked_cards(self, *texts: str) -> None:
+        docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("docked"))
+        assert docked == sorted(texts), f"the cards docked above the chat are {docked}, not {sorted(texts)}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

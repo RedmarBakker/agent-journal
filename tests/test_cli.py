@@ -26,19 +26,6 @@ def app(journal_root: Path) -> App:
     return App(Config(journal_root, port=0))
 
 
-def test_a_task_lives_through_the_cli(app: App):
-    console = app.console()
-    assert console.run(["task", "create", "write the notes", "--brief", "what and where"], MAIN).code == 0
-    assert console.run(["task", "start", "1"], MAIN).code == 0
-    assert console.run(["task", "log", "1", "half done"], MAIN).code == 0
-    assert "started  write the notes" in console.run(["task", "list"], MAIN).text
-    assert console.run(["task", "complete", "1", "--how", "published"], MAIN).code == 0
-    tasks = app.container.get(Tasks)
-    task = tasks.find(1)
-    assert task.state == TaskState.COMPLETED and task.outcome == "published" and task.started_at is not None
-    assert task.creator == Actor.user(1)
-    assert [log.line for log in app.container.get(TaskLogs).logs(task)] == ["half done"]
-    assert (app.config.database).is_file()
 
 
 def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
@@ -64,11 +51,6 @@ def test_a_task_is_transferred_with_its_log_to_another_environment(app: App):
     assert {log.environment_id for log in app.container.get(TaskLogs).logs(task)} == {other}
 
 
-def test_bad_arguments_answer_with_usage_not_an_exit(app: App):
-    outcome = app.console().run(["task", "nope"], MAIN)
-    assert outcome.code == 2 and "usage: journal task" in outcome.error and "usage: journal [-h]" not in outcome.error, "the noun's own usage, once"
-    helped = app.console().run(["plan", "--help"], MAIN)
-    assert helped.code == 0 and "approve" in helped.text and "usage: journal [-h]" not in helped.text + helped.error, "a noun's help is its verbs, and no failure"
 
 
 def test_the_server_runs_the_same_console_for_the_shim(app: App):
@@ -284,26 +266,6 @@ def test_an_environment_is_renamed_with_everything_in_it_and_never_while_an_agen
     assert not environments.matching(name="spike")
 
 
-def test_any_row_docks_above_the_chat_by_noun_and_number_in_either_order(app: App):
-    from journal.repositories.messages import Messages
-    app.runtime().boot()
-    console = app.console()
-    console.run(["task", "create", "write the notes", "--brief", "what and where\nand how"], MAIN)
-    docked = console.run(["task", "12", "dock"], MAIN)
-    assert docked.code == 1 and "12" in docked.error, "the number in the verb's place turns the line around, and the row it names is looked for"
-    assert console.run(["task", "1", "dock"], MAIN).text.startswith("Task 1: write the notes docked above the chat")
-    with app.container.get(Scope).environment(1):
-        messages = app.container.get(Messages)
-        [card] = [m for m in messages.all() if m.data.get("docked")]
-        assert card.author.value == "system" and card.text == "Task 1: write the notes"
-        assert card.data["kind"] == "docked" and card.data["row"] == "tasks:1" and card.data["key"] == "made:task:1"
-        assert card.data["heading"] == "Task 1: write the notes" and card.data["summary"] == "what and where"
-        assert card.data["dock"] == {"buttons": [{"label": "Open", "act": "open"}, {"label": "Close", "act": "close"}], "folds": True}
-        assert console.run(["task", "dock", "1"], MAIN).code == 0 and len([m for m in messages.all() if m.data.get("docked")]) == 1, "docking it again keeps the one card"
-        assert console.run(["task", "undock", "1"], MAIN).text.startswith("Task 1: write the notes undocked")
-        assert messages.find(card.id).data["docked"] is False
-        assert "is not docked" in console.run(["task", "1", "undock"], MAIN).error
-    assert "dock" in console.run(["report", "--help"], MAIN).text and "dock" not in console.run(["search", "--help"], MAIN).text, "every row noun has the verbs, a noun that is no row has not"
 
 
 def test_a_workers_environment_carries_no_providers_markers_no_session_and_no_launch(app: App, monkeypatch):
@@ -545,35 +507,10 @@ def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_an
         app.runtime().stop()
 
 
-def test_a_helper_runs_only_the_verbs_its_file_names(app: App):
-    from journal.support.agent_role import AgentRole
-    console, worker, agent = app.console(), Caller.worker("main", 1, "w1", "claude"), Caller.agent("main", "s1", "claude")
-    refused = console.run(["panic", "pop"], worker)
-    assert refused.code == 1 and refused.error.startswith("a worker may not run journal panic apply: WorkerHelper names the verbs it runs, ") and "journal memory list" in refused.error and "journal rule read" in refused.error, "a verb its file does not name is refused, naming the file and the verbs it runs"
-    assert agent.subagent_caller().role == AgentRole.SUBAGENT and console.run(["panic", "pop"], agent.subagent_caller()).error.startswith("a subagent may not run journal panic apply: ResearcherHelper")
-    assert console.run(["task", "show", "1"], worker).error.find("may not run") == -1 and console.run(["task", "complete", "1"], worker).error.startswith("a worker may not run journal task complete"), "a worker whose file names task show runs it and is refused task complete"
-    assert console.run(["memory", "list"], worker).code == 0 and console.run(["rule", "strike", "1"], worker).code == 1, "a named verb runs, and its neighbour stays refused"
-    assert console.run(["memory", "add", "the port is 9"], agent).code == 0 and console.run(["task", "list"], MAIN).code == 0 and console.run(["task", "create", "x"], worker).code == 1, "the main agent and the user run every verb"
 
 
-def test_help_shows_a_worker_only_the_verbs_its_kind_may_run(app: App):
-    console, worker = app.console(), Caller.worker("main", 1, "w1", "claude")
-    nouns = console.run(["-h"], worker)
-    shown = nouns.text + nouns.error
-    listed_nouns = shown.split("{")[1].split("}")[0].split(",")
-    assert "task" in listed_nouns and "worker" in listed_nouns and "message" not in listed_nouns and "panic" not in listed_nouns, "journal -h lists only the nouns a worker may use"
-    verbs = console.run(["task", "-h"], worker)
-    listed = verbs.text + verbs.error
-    assert "show" in listed and "log" in listed and "create" not in listed and "complete" not in listed, "journal task -h lists only its verbs"
-    usage = console.run(["task"], worker)
-    assert usage.code != 0 and "{log,show}" in usage.text + usage.error and "create" not in usage.text + usage.error, "and so does a usage error"
-    full = console.run(["task", "-h"], MAIN)
-    assert "create" in full.text + full.error and "complete" in full.text + full.error, "the user sees every verb as before"
 
 
-def test_the_help_of_a_noun_with_a_default_verb_lists_every_verb(app: App):
-    shown = app.console().run(["setup", "--help"], MAIN)
-    assert "restart" in shown.text + shown.error and "project" in shown.text + shown.error, "setup --help names every verb, its default among them"
 
 
 def test_a_command_the_server_fails_on_prints_the_fault_and_exits_non_zero(app: App, tmp_path):

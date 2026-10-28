@@ -47,3 +47,10 @@ def test_a_subagent_may_not_send_a_worker(story):
     story.agent_runs("worker dispatch 'Mr. Babbage' --task 1 --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_command_refused()
     story.expect_stack(Void, Researching)
+
+
+@story(StartedSubagent, mode=BUILDER_MODE, scope=AgentRole.SUBAGENT)
+def test_a_verb_the_subagents_file_does_not_name_is_refused_naming_the_file(story):
+    story.agent_runs("panic pop")
+    story.expect_command_text("a subagent may not run journal panic apply: ResearcherHelper")
+    story.expect_stack(Void, Researching)
