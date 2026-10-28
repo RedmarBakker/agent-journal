@@ -28,7 +28,8 @@ Before a line of a story, write down for yourself what the feature does in each 
 
 ## 2. Write every story in one file, in one go
 
-- One file per behaviour, named for it: `scenario_task_transfer.py`, never `scenario_environments.py`. It holds every
+- One folder per subject under `tests/scenarios/stories/` (`messages/`, `tasks/`, `plans/`, `workers/`, `agent/`, `shell/`,
+  `sequences/`, `developer/`), one file per behaviour, named for it: `tasks/task_transfer.py`, never `environments.py`. It holds every
   case of that behaviour and nothing else; another concern gets its own small file.
 - One story per case, its name the sentence of what happens:
   `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
@@ -37,9 +38,12 @@ Before a line of a story, write down for yourself what the feature does in each 
 - Play the agent through `scenario.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
 - A setting the story needs is set with `@settings(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting:
   the user sets it through the viewer's route after the start fixture and before the first step, and the story fails
-  when the journal never reads it. A story that tries several values uses `@values_of(option)` (a switch off and on,
-  a number none, one, a middle and its default) or `@values(...)` with `scenario.user_sets(option, value)` inside.
-- Numbers come from the code, never copied: `@values(MemoryThresholds.CONTEXT)`, `scenario.setting(option) + 1`,
+  when the journal never reads it. No `@values`: each case is a story of its own, from a fixture.
+- A story runs once, on a VoidProvider that sends and expects nothing of Claude or Codex; `@provider("codex")` marks the
+  few stories where the provider is what is tested.
+- A story holds no assert: every check is an expect method of the builder, which holds the assert. The
+  ScenarioAssertDetector flags an assert in `tests/scenarios/stories/`.
+- Numbers come from the code, never copied: `MemoryThresholds.CONTEXT[0]`, `scenario.setting(option) + 1`,
   `scenario.agent_consumes(option)` for as many tool uses as a setting allows.
 - Check what reaches the agent (`expect_agent_told`, `expect_refused`), the rows (`expect_task`, `task_numbers_in`) and
   the stack.
@@ -47,7 +51,7 @@ Before a line of a story, write down for yourself what the feature does in each 
 
 ## 3. Run them together, see them fail
 
-Run the file once: `journal suite tests/scenarios/scenario_<behaviour>.py -q`. Every new case should fail for the
+Run the file once: `journal suite tests/scenarios/stories/<subject>/<behaviour>.py -q`. Every new case should fail for the
 reason you expect. A story that passes before the code exists tests nothing new; a story failing for another reason is
 fixed first.
 

@@ -179,21 +179,33 @@ Run the whole suite after every change; it is cheap.
 
 ## Scenarios first
 
-Scenario stories are the preferred way to test behaviour here: what an agent is told, what it may do, where its stack
-ends. A unit test still fits a single part on its own, a parser or a model's pure method; a behaviour is tested by a
-story. The older behaviour tests in `tests/` are looked over one by one: those a story now covers are removed, and
+**A scenario test is one story of what happens to an agent.** It starts from a named state, a fixture whose rows it
+uses; it plays real steps the way they really happen, the agent through its hooks and commands and the user through the
+viewer's routes; and it ends on a known stack. It reads as a story, not as code: steps say who does what, expectations
+say what the journal did (what the agent was told, what was refused, which rows changed, where the stack ended), and no
+assert appears in it; every assert lives inside an expect method of the builder.
+
+- **One case per story**, its name the sentence of what happens: `test_a_paused_task_arrives_paused_and_is_no_longer_offered_here`.
+- **One behaviour per file**, its name saying which: `agent_replies_to_every_message.py`, `task_transfer.py`.
+- **One subject per folder** under `tests/scenarios/stories/`: `messages/`, `tasks/`, `plans/`, `workers/`, `agent/`,
+  `shell/`, `sequences/`, `developer/`.
+- **What it needs, it sets**: `@settings(option, value)`, and the story fails if the journal never reads the setting.
+  No `@values`: each case is a story of its own, from a fixture.
+- **Numbers come from the code**, never copied.
+- **One run per story**, on a VoidProvider that sends and expects nothing of Claude or Codex; `@provider` marks the
+  few stories where the provider is what is tested.
+- **Its own path**: a story walks a path no other story walks, and the run's overlay fails two that walk the same one.
+
+Stories are the preferred way to test behaviour. A unit test still fits a single part on its own, a parser or a model's
+pure method. The older behaviour tests in `tests/` are looked over one by one: those a story now covers are removed, and
 no new behaviour test is added there.
 
-A new feature starts as its requirements, written as scenario stories in `tests/scenarios/`, before any of its code. The skill
-`writing-scenario-tests` says how, step by step; load it before writing a feature.
-Think each case through first: what the proper behaviour is, what happens to an agent that is in the middle of it
-(a task in hand, a plan it follows, a worker that holds the row), and how no agent is left stuck. Write every story,
-every edge case among them, in that one file in one go, run them together and see them fail, then write the code that makes them pass. The stories are the
-feature's specification; a case without a story is a case nobody decided.
-
-A story file is named for the one behaviour its stories test, `scenario_task_transfer.py`, `scenario_plan_following.py`,
-never for a broad subject such as environments or tasks, and holds only the stories of that behaviour. Files stay small:
-a behaviour that grows a second concern gets a second file.
+A new feature starts as its stories, before any of its code; the skill `writing-scenario-tests` says how, step by step,
+and is loaded before writing a feature. Think each case through first: the proper behaviour, what happens to an agent in
+the middle of it (a task in hand, a plan it follows, a worker that holds the row), and how no agent is left stuck. Write
+every case, every edge case among them, in the behaviour's one file in one go, run them together and see them fail,
+then write the code that makes them pass. The stories are the feature's specification; a case without a story is a case
+nobody decided.
 
 ## Layout
 
