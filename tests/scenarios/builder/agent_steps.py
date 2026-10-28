@@ -34,4 +34,5 @@ class AgentSteps:
 
     def hooked(self, action: str, type_name: str, **body) -> None:
         status, answer = self.posted_hook(type_name, **body)
-        self.observed(action, HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None)
+        verdict = HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {})
+        self.observed(f"{action}, {'refused' if verdict.refused() else 'let through'}", verdict, None)
