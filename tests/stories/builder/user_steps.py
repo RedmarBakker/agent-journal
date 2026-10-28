@@ -41,6 +41,22 @@ class UserSteps:
         self.user_types(f"library connect {library} --email ada@example.com --name Ada --password 'correct horse battery'")
         return library
 
+    def a_library_holds_a_sequence_imported_here(self, title: str, steps: str) -> int:
+        library = self.a_library_server_runs()
+        console, user = self.app.console(), Caller.user("main")
+        lines = (["library", "connect", library, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ["sequence", "create", title, "--steps", steps])
+        outcomes = [console.run(line, user) for line in lines]
+        sequence = int(re.search(r"sequence (\d+)", outcomes[-1].text)[1])
+        outcomes += [console.run(line, user) for line in (["library", "publish", "sequence", str(sequence)], ["library", "import", "sequence", re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")])]
+        refused = [outcome.error for outcome in outcomes if outcome.code]
+        assert not refused, f"the library setup was refused: {refused}"
+        self.observed("a library holds a sequence imported here", None, None)
+        return sequence
+
+    def library_server_stops(self) -> None:
+        self.closers.pop()()
+        self.observed("the library server stops", None, None)
+
     def user_types(self, line: str) -> None:
         arguments = shlex.split(line)
         self.record_command(f"user types {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.user("main")))
