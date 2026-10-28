@@ -21,6 +21,7 @@ OVERLAYS = pytest.StashKey[dict[str, PathOverlay]]()
 SCENARIOS_RUN = pytest.StashKey[int]()
 GAPS = pytest.StashKey[CoverageGaps]()
 WALKED = pytest.StashKey[set[str]]()
+SEEDINGS = pytest.StashKey[list[FixtureCopies]]()
 REPOSITORY = Path(__file__).resolve().parents[2]
 STORIES = Path(__file__).parent
 SUPPORT_FOLDERS = ("builder", "fixtures")
@@ -33,8 +34,10 @@ def boot():
 
 
 @pytest.fixture(scope="module")
-def copies():
-    return FixtureCopies()
+def copies(request):
+    made = FixtureCopies()
+    request.config.stash.setdefault(SEEDINGS, []).append(made)
+    return made
 
 
 @pytest.fixture
@@ -76,6 +79,13 @@ def pytest_sessionfinish(session, exitstatus) -> None:
     for provider, overlay in session.config.stash.get(OVERLAYS, {}).items():
         failures += [f"[{provider}] {line}" for line in overlay.failures()]
         warnings += [f"[{provider}] {line}" for line in overlay.warnings()]
+    fixtures: dict[str, PathOverlay] = {}
+    for made in session.config.stash.get(SEEDINGS, []):
+        for (fixture, provider), path in made.seedings.items():
+            fixtures.setdefault(provider, PathOverlay()).add(fixture.__name__, path)
+    for provider, overlay in fixtures.items():
+        failures += [f"[fixtures on {provider}] {line}" for line in overlay.failures() if " reaches nothing " not in line]
+        failures += [f"[fixtures on {provider}] {name} adds no step to the fixture it starts from" for name, path in overlay.paths.items() if len(path) < 2]
     for line in session.config.stash.get(GAPS, CoverageGaps()).lines():
         reporter.write_line(line)
     for line in warnings:

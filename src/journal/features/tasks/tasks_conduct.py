@@ -153,6 +153,8 @@ def wake_check(state: BaseState, event: Ticked, settings: Settings) -> Transitio
     minutes = settings.integer(TasksOptions.WAKE_MINUTES)
     if not minutes or not tasks.turn_finished or tasks.wake_count >= settings.integer(TasksOptions.WAKE_COUNT):
         return state.none()
+    if not state.takes_pushes() or not (tasks.current_task or tasks.open_work):
+        return state.none()
     if event.silence_seconds < minutes * 60:
         return state.none()
     return state.follow(Stop(session=event.session, environment_id=event.environment_id, prior_refusal=False, time=event.time), TasksNudges.STOPPED_WITH_WORK.create())

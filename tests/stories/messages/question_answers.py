@@ -35,7 +35,7 @@ def test_a_question_asked_while_a_plan_is_followed_returns_to_the_plan(story):
     story.expect_stack(Ready, FollowingPlan, Waiting)
     story.user_answers(question, "The agent writes the short one")
     story.agent_reads()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.start.first_task, state=TaskState.STARTED)
     story.expect_plan(story.start.plan, state=PlanState.STARTED)
 
 

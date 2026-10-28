@@ -179,6 +179,12 @@ Run the whole suite after every change; it is cheap.
 
 ## Stories first
 
+**Behaviour that drives the agent is written as a story before it is built.** Anything that changes what the journal
+tells the agent, what it lets the agent do or refuses, or where the agent's stack goes, is a behaviour that drives the
+agent. Its stories come first: every case it can meet, written and run red, then the code that makes them pass. This is
+how every such feature, fix and change is made here, in a plan or outside one. The parts beneath it, the engine, a
+repository, a parser, a model's pure method, are not stories: they get unit tests of their own, or none.
+
 **A story test is one story of what happens to an agent.** It starts from a named state, a fixture whose rows it
 uses; it plays real steps the way they really happen, the agent through its hooks and commands and the user through the
 viewer's routes; and it ends on a known stack. It reads as a story, not as code: steps say who does what, expectations
@@ -189,7 +195,7 @@ assert appears in it; every assert lives inside an expect method of the builder.
 - **One behaviour per file**, its name saying which: `agent_replies_to_every_message.py`, `task_transfer.py`.
 - **One subject per folder** under `tests/stories/`: `messages/`, `tasks/`, `plans/`, `workers/`, `agent/`,
   `shell/`, `sequences/`, `developer/`.
-- **What it needs, it sets**: `@settings(option, value)`, and the story fails if the journal never reads the setting.
+- **What it needs, it sets**: `@setting(option, value)`, and the story fails if the journal never reads the setting.
   No `@values`: each case is a story of its own, from a fixture.
 - **Numbers come from the code**, never copied.
 - **One run per story**, on a VoidProvider that sends and expects nothing of Claude or Codex; `@provider` marks the

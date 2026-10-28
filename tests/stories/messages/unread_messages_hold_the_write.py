@@ -4,13 +4,13 @@ from journal.features.messages.messages_options import MessagesOptions
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
-from tests.stories.builder.story_marks import settings, story
+from tests.stories.builder.story_marks import setting, story
 from tests.stories.fixtures.working_agent import WorkingAgent
 from tests.stories.fixtures.started_task import StartedTask
 
 
 @story(WorkingAgent, end=[Ready])
-@settings(MessagesOptions.EDIT_BLOCK_LIMIT, 2)
+@setting(MessagesOptions.EDIT_BLOCK_LIMIT, 2)
 def test_the_countdown_to_the_write_hold_ends_in_a_last_use_line(story):
     message = story.user_sends_message("is the footer done?")
     story.agent_reads()
@@ -20,7 +20,7 @@ def test_the_countdown_to_the_write_hold_ends_in_a_last_use_line(story):
 
 
 @story(WorkingAgent, end=[Ready])
-@settings(MessagesOptions.EDIT_BLOCK_LIMIT, 0)
+@setting(MessagesOptions.EDIT_BLOCK_LIMIT, 0)
 def test_the_next_write_waits_until_the_message_is_read(story):
     message = story.user_sends_message("is the footer done?")
     story.agent_writes("a.py")
@@ -36,7 +36,7 @@ def test_the_next_write_waits_until_the_message_is_read(story):
 
 
 @story(StartedTask, end=[Ready, Working])
-@settings(MessagesOptions.EDIT_BLOCK_LIMIT, 0)
+@setting(MessagesOptions.EDIT_BLOCK_LIMIT, 0)
 def test_the_write_hold_leaves_the_task_in_hand_as_it_was(story):
     message = story.user_sends_message("is the footer done?")
     story.agent_writes("a.py")

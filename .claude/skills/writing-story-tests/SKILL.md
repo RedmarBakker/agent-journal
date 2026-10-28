@@ -5,6 +5,12 @@ description: How a new feature or a change in behaviour starts in this project -
 
 # Writing story tests
 
+**Behaviour that drives the agent is written as a story before it is built.** Anything that changes what the journal
+tells the agent, what it lets the agent do or refuses, or where the agent's stack goes, is a behaviour that drives the
+agent. Its stories come first: every case it can meet, written and run red, then the code that makes them pass. This is
+how every such feature, fix and change is made here, in a plan or outside one. The parts beneath it, the engine, a
+repository, a parser, a model's pure method, are not stories: they get unit tests of their own, or none.
+
 A feature starts as its requirements, written as stories in `tests/stories/`, before any of its code. The stories
 are the specification: a case without a story is a case nobody decided.
 
@@ -36,7 +42,7 @@ Before a line of a story, write down for yourself what the feature does in each 
 - Start each story from the fixture whose rows it uses (`@story(TaskInHand, end=[IDLE])`); `end` is the stack the
   story leaves, bottom first.
 - Play the agent through `story.agent_runs(...)` and hooks, the user through the viewer's routes, never the CLI.
-- A setting the story needs is set with `@settings(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting:
+- A setting the story needs is set with `@setting(TasksOptions.WAKE_MINUTES, 10)` above the story, one per setting, repeated for more:
   the user sets it through the viewer's route after the start fixture and before the first step, and the story fails
   when the journal never reads it. No `@values`: each case is a story of its own, from a fixture.
 - A story runs once, on a VoidProvider that sends and expects nothing of Claude or Codex; `@provider("codex")` marks the

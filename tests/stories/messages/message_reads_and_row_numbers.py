@@ -1,3 +1,4 @@
+from tests.stories.fixtures.read_message import ReadMessage
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
@@ -21,17 +22,13 @@ def test_a_message_read_alone_goes_through(story):
     story.expect_allowed()
 
 
-@story(WorkingAgent, end=[Ready])
+@story(ReadMessage, end=[Ready])
 def test_a_reply_naming_a_row_that_does_not_exist_is_asked_to_correct_it(story):
-    message = story.user_sends_message("is the footer done?")
-    story.agent_reads_message(message)
-    reply = story.agent_replies_with_number(message, "yes, task 9999 is done")
+    reply = story.agent_replies_with_number(story.start.message, "yes, task 9999 is done")
     story.expect_agent_told(MessagesNudges.MISSING_ROWS, n=reply)
 
 
-@story(WorkingAgent, end=[Ready])
+@story(ReadMessage, end=[Ready])
 def test_the_users_own_message_cannot_be_linked_by_the_agent(story):
-    message = story.user_sends_message("see 3 and 4")
-    story.agent_reads_message(message)
-    story.agent_runs(f"message amend-links {message} task")
+    story.agent_runs(f"message amend-links {story.start.message} task")
     story.expect_command_refused()

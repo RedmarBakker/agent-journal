@@ -15,7 +15,7 @@ SETTINGS_MARK = "settings"
 PROVIDER_MARK = "provider"
 
 
-def settings(option: Option, value: object) -> pytest.MarkDecorator:
+def setting(option: Option, value: object) -> pytest.MarkDecorator:
     return getattr(pytest.mark, SETTINGS_MARK).with_args(option, value)
 
 

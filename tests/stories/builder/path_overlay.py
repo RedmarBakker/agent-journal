@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 FAILING_SHARE = 0.8
 # from this share on a pair is named in the report, drifting together
 WARNING_SHARE = 0.6
+# two stories from one fixture that open with this many of the same steps share them in a fixture of their own
+SHARED_OPENING_STEPS = 3
 
 
 @dataclass
@@ -16,7 +18,16 @@ class PathOverlay:
         self.paths[name] = path
 
     def failures(self) -> list[str]:
-        return [*self.redundant(), *self.alike_pairs(FAILING_SHARE)]
+        return [*self.redundant(), *self.alike_pairs(FAILING_SHARE), *self.shared_openings()]
+
+    def shared_openings(self) -> list[str]:
+        names, lines = sorted(self.paths), []
+        for index, first in enumerate(names):
+            for second in names[index + 1:]:
+                opening = self.common_start(self.paths[first], self.paths[second]) - 1
+                if self.paths[first][:1] == self.paths[second][:1] and opening >= SHARED_OPENING_STEPS:
+                    lines.append(f"{first} and {second} open with the same {opening} steps ({', '.join(self.paths[first][1:opening + 1])}): move them into a fixture both start from")
+        return lines
 
     def warnings(self) -> list[str]:
         return [line for line in self.alike_pairs(WARNING_SHARE) if line not in self.alike_pairs(FAILING_SHARE)]

@@ -1,16 +1,15 @@
+from tests.stories.fixtures.read_message import ReadMessage
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.tasks.states.ready import Ready
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.working_agent import WorkingAgent
 
 
-@story(WorkingAgent, end=[Ready])
+@story(ReadMessage, end=[Ready])
 def test_closing_words_that_say_something_new_reach_the_chat(story):
-    message = story.user_sends_message("is the footer done?")
-    story.agent_reads_message(message)
-    reply = story.agent_replies_with_number(message, "the footer is done")
-    story.expect_agent_told(MessagesNudges.REPLY_REPEAT_WARNING, n=message, reply=reply)
-    story.expect_message(reply, author="agent", reply_target=message)
+    reply = story.agent_replies_with_number(story.start.message, "the footer is done")
+    story.expect_agent_told(MessagesNudges.REPLY_REPEAT_WARNING, n=story.start.message, reply=reply)
+    story.expect_message(reply, author="agent", reply_target=story.start.message)
     story.agent_closes_its_turn("next I start the header, which waits on the logo")
     story.expect_agent_not_told(MessagesNudges.REPEATED_CLOSING_TEXT)
     story.expect_agent_messages(2)

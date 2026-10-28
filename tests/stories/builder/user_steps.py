@@ -33,6 +33,9 @@ class UserSteps:
     def user_pauses_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/pause", {})
 
+    def user_edits_task(self, task: int, title: str) -> None:
+        self.user_posted(f"/journal/tasks/{task}", {"title": title}, "user edits a task")
+
     def user_sets(self, option: Option, value: object) -> None:
         top, _, name = option.key.partition(".")
         self.user_posted("/journal/settings", {top: {name: value}}, f"user sets {option.key} to {value}")

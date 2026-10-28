@@ -37,6 +37,13 @@ class StoryChecks:
     def expect_end(self, *states: type) -> None:
         self.end_stack = list(states)
 
+    def expect_task_in(self, environment: str, n: int, state: str) -> None:
+        held = self.task_states_in(environment)
+        assert held.get(n) == state, f"task {n} in {environment} is {held.get(n)}, not {state}"
+
+    def expect_task_not_in(self, environment: str, n: int) -> None:
+        assert n not in self.task_numbers_in(environment), f"task {n} is still in {environment}"
+
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
 

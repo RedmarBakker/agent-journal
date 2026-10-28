@@ -1,6 +1,6 @@
 import json
 
-from tests.replay import silent_tick
+from tests.replay import pass_time, silent_tick
 
 
 class TimeSteps:
@@ -9,6 +9,10 @@ class TimeSteps:
     def agent_is_quiet_for(self, minutes: float) -> None:
         silent_tick(self.app, minutes * 60)
         self.observed(f"agent is quiet for {minutes} minutes", None, None)
+
+    def time_passes(self, minutes: float) -> None:
+        pass_time(self.app, minutes * 60)
+        self.observed(f"{minutes} minutes pass", None, None)
 
     def context_reaches(self, percent: int) -> None:
         self.app.config.status_home.mkdir(parents=True, exist_ok=True)
