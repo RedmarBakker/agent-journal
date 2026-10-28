@@ -21,6 +21,18 @@ class AgentSteps:
     def agent_starts_a_session(self) -> None:
         self.hooked("agent starts a session", "SessionStart", source="startup")
 
+    def agent_resumes_the_session(self) -> None:
+        self.hooked("agent resumes its session", "SessionStart", source="resume")
+
+    def agent_ends_the_session(self) -> None:
+        self.hooked("agent ends its session", "SessionEnd", reason="exit")
+
+    def agent_closes_its_turn(self, text: str) -> None:
+        self.hooked("agent closes its turn", "MessageDisplay", delta=text, message_id=f"turn-{len(self.path)}", index=0, final=True)
+
+    def agent_is_prompted(self, text: str) -> None:
+        self.hooked("the user prompts the agent", "UserPromptSubmit", prompt=text)
+
     def agent_looks_at_the_overview(self) -> None:
         self.agent_runs("environment overview")
 

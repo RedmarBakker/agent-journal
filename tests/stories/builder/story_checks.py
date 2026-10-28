@@ -43,6 +43,13 @@ class StoryChecks:
     def expect_end(self, *states: type) -> None:
         self.end_stack = list(states)
 
+    def expect_message(self, n: int, **fields) -> None:
+        self.expect_row("messages", n, fields)
+
+    def expect_agent_messages(self, count: int) -> None:
+        shown = [row for row in got(self.app, "/journal/messages", MAIN)[1]["rows"] if row.get("author") == "agent"]
+        assert len(shown) == count, f"the chat holds {len(shown)} messages of the agent, not {count}"
+
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 

@@ -8,7 +8,7 @@ WARNING_SHARE = 0.6
 
 @dataclass
 class PathOverlay:
-    """The paths of a run's stories laid over each other, one provider at a time: a story whose every step, and every step taken right after another, another story also makes reaches nothing of its own, so a stop let through after a wait differs from one refused after it; and two that share most of their distinct steps walk one path; each finding names the stories and where their paths part."""
+    """The paths of a run's stories laid over each other, one provider at a time: a story whose every step, and every step taken right after another, another story also makes reaches nothing of its own, so a stop let through after a wait differs from one refused after it, and the same steps from another fixture are a path of their own; and two that share most of their distinct steps walk one path; each finding names the stories and where their paths part."""
 
     paths: dict[str, list[str]] = field(default_factory=dict)
 
@@ -46,7 +46,8 @@ class PathOverlay:
 
     @staticmethod
     def elements(path: list[str]) -> set[str]:
-        return set(path) | {f"{step} then {following}" for step, following in zip(path, path[1:])}
+        start = path[0] if path else ""
+        return {f"{start}: {step}" for step in path} | {f"{start}: {step} then {following}" for step, following in zip(path, path[1:])}
 
     @staticmethod
     def common_start(first: list[str], second: list[str]) -> int:
