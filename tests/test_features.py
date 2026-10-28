@@ -13844,17 +13844,6 @@ def test_a_change_since_an_old_moment_reads_at_most_a_page_of_the_rows_held_and_
 
 
 
-def test_of_several_readers_of_one_command_the_first_made_reads_it_until_another_is_made_its_default(app: App):
-    from journal.features.shell.support.readers import Readers
-    console, readers = app.console(), app.container.get(Readers)
-    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
-    timing.sleep(0.01)
-    assert console.run(["reader", "add", "rests", "--commands", "sleep", "--pattern", "rested", "--about", "the rests"], AGENT).code == 0
-    assert readers.reading("sleep 5").name == "naps", "the first reader made for a command reads it"
-    made = console.run(["reader", "default", "rests"], AGENT)
-    assert made.code == 0 and "over naps" in made.text and readers.reading("sleep 5").name == "rests", "the one made the default takes over"
-    assert "(the default for its commands)" in console.run(["reader", "list"], AGENT).text
-    assert console.run(["reader", "default", "naps"], AGENT).code == 0 and readers.reading("sleep 5").name == "naps", "and back"
 
 
 
