@@ -68,7 +68,7 @@ class Entries(ScopedRepository[Entry]):
         return self.line_moment(self.lines(session).filter_listed("data->key", keys))
 
     def line_moment(self, query: Query) -> Moment | None:
-        newest = self.selected(query.with_columns("data").without_keys("data", "line").order_descending("id").limit(1))
+        newest = self.selected(query.with_columns("data").without_keys("data", "line", "values", "key", "session").order_descending("id").limit(1))
         return Moment(seconds=newest[0].data.get("time", 0.0), tool_uses=newest[0].data.get("tool_use", 0)) if newest else None
 
     def last_lines(self, session: str, key: str) -> float:
