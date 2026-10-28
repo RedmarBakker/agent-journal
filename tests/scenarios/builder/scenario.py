@@ -27,6 +27,7 @@ class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, S
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
+        self.said_keys: set[str] = set()
 
     def starts_from(self, fixture: type[StateFixture]) -> None:
         fixture().seed(self)
@@ -44,5 +45,6 @@ class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, S
 
     def observed(self, action: str, verdict: HookVerdict | None, result: Outcome | None) -> None:
         self.said, steps = self.log.since_last()
+        self.said_keys |= {said.key for said in self.said}
         self.verdict, self.command = verdict, result
         self.path += [action, *steps] if action else list(steps)

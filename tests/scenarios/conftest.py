@@ -35,7 +35,7 @@ def scenario(app, monkeypatch, request):
     assert not unread, f"set by the story but never read by the journal after: {', '.join(unread)}"
     gaps = request.config.stash.setdefault(GAPS, CoverageGaps())
     gaps.known([nudge.key for nudge in app.container.get(NudgeRegistry).all()], [option.key for option in app.container.get(Registry).options()])
-    gaps.played({step.removeprefix("said ") for step in played.path if step.startswith("said ")}, set(reads.keys))
+    gaps.played(played.said_keys, set(reads.keys))
     overlays = request.config.stash.setdefault(OVERLAYS, {})
     overlays.setdefault(request.param, PathOverlay()).add(request.node.originalname, played.path)
     request.config.stash[SCENARIOS_RUN] = request.config.stash.get(SCENARIOS_RUN, 0) + 1

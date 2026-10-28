@@ -30,6 +30,9 @@ class StepChecks:
     def expect_allowed(self) -> None:
         assert self.verdict is not None and not self.verdict.refused(), f"refused; {self.account()}"
 
+    def expect_command_passed(self) -> None:
+        assert self.command is not None and self.command.code == 0, f"the command was refused: {self.command.error or self.command.text if self.command else ''}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

@@ -1,15 +1,25 @@
-from journal.features.workers.workers_nudges import WorkersNudges
-from journal.models.worker_state import WorkerState
-from tests.scenarios.builder.story_values import starts_from
+from journal.models.task_state import TaskState
+from tests.scenarios.builder.story_values import starts_from, values
 from tests.scenarios.state_fixtures.task_with_points_open import TaskWithPointsOpen
+from tests.scenarios.state_fixtures.worker_delivered import WorkerDelivered
 
 
 @starts_from(TaskWithPointsOpen)
-def test_a_worker_proves_each_point_and_its_work_waits_for_the_check(scenario):
+@values(["task create 'more work'", "plan create p --brief b", "message send hello", "settings set tasks.auto off", "question ask 'go on?' --options yes no"])
+def test_a_worker_runs_only_the_verbs_its_helper_file_names(scenario, value):
     worker = scenario.agent_dispatches_worker("Lady Lovelace", scenario.open_task)
     scenario.worker_clocks_in(worker)
-    scenario.worker_proves(worker, 1, "parser.py:12, test_reads passes")
-    scenario.worker_proves(worker, 2, "parser.py:30, test_names passes")
-    scenario.worker_clocks_out(worker, "the parser is done")
-    scenario.expect_worker(worker, state=WorkerState.DELIVERED)
-    scenario.expect_agent_told(WorkersNudges.WORK_READY)
+    scenario.worker_tries(worker, value)
+    scenario.expect_command_refused()
+
+
+
+@starts_from(WorkerDelivered)
+def test_checked_proofs_let_the_work_be_merged(scenario):
+    scenario.agent_runs(f"worker check {scenario.worker} 1")
+    scenario.expect_command_passed()
+    scenario.agent_runs(f"worker check {scenario.worker} 2")
+    scenario.expect_command_passed()
+    scenario.agent_runs(f"worker merge {scenario.worker}")
+    scenario.expect_command_passed()
+    scenario.expect_task(scenario.open_task, state=TaskState.COMPLETED)
