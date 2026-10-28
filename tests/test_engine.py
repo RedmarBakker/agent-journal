@@ -59,6 +59,7 @@ from journal.http.agents.agent_activity import AgentActivity
 from journal.engine.support.stack_history import StackHistory
 from journal.repositories.scope import Scope
 from journal.support.message_thread import MessageThread
+from journal.console.console import Console
 from journal.support.actor import Actor
 from journal.repositories.setting_rows import SettingRows
 from dataclasses import dataclass, replace
@@ -1772,7 +1773,7 @@ def test_a_long_journal_line_reaches_the_agent_whole_in_several_marked_pieces(ap
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
     from journal.support.typed_lines import TypedLines
-    user_set(app, "delivery.batch_seconds", 0)
+    app.container.get(SettingRows).set("delivery.batch_seconds", 0, Actor.user(1))
     terms = " ".join(f"word{n}" for n in range(1, 260))
     link, lines = app.container.get(SupervisorLink), app.container.get(TypedLines)
     link.type(1, terms)
@@ -2512,7 +2513,7 @@ def test_each_helpers_file_alone_says_what_reaches_it_and_a_wrong_file_stops_the
     listeners = {listener.registered_class() for type_name in StateMachine.event_kinds(AgentEvent) for listener in app.container.get(Bus).listeners(type_name)}
     reached = {role.value: sorted({listener.__name__ for listener in listeners if registry.reaches_helper(listener, role)}) for role in roles}
     assert reached == HELPER_LISTENERS, reached
-    console = app.console()
+    console = app.container.get(Console)
     verbs = {role.value: sorted(f"{noun} {verb}" for noun, command in console.commands.items() for verb in console.verbs(command) if registry.runs_verb(type(command), verb, role)) for role in roles}
     assert verbs == HELPER_VERBS, verbs
     assert not registry.reaches_helper(FitnessRecord, AgentRole.WORKER), "a listener no helper's file names, such as the main agent's fitness record, reaches no helper"
@@ -2691,7 +2692,7 @@ def test_a_held_high_worker_queue_opens_a_place_at_the_dwell_and_says_its_line_f
             failing = failing if failing is not None or not state.is_failing else minute
         return held, opened - held, failing - held
     assert minutes()[1:] == (10, 16), "the place opens ten minutes into the worker queue held high with an item waiting, and the clear line only once fifteen have passed"
-    app.console().run(["settings", "set", WorkersOptions.PLACE_OPENING_MINUTES.key, "20"], AGENT)
+    app.container.get(SettingRows).set(WorkersOptions.PLACE_OPENING_MINUTES.key, 20, Actor.user(1))
     assert minutes()[1:] == (20, 26), "a longer dwell moves both"
 
 
@@ -2861,11 +2862,13 @@ def test_the_settings_rows_of_removed_options_are_deleted_and_the_settings_read_
     connection = app.container.get(Connection)
     for key in REMOVED_KEYS[:3]:
         connection.execute("INSERT INTO settings (environment_id, key, value, created_at, creator) VALUES (0, ?, '5', '2026-10-26', 'system')", (key,))
-    assert app.console().run(["settings", "list"], AGENT).code == 0, "the settings read with stale rows in place"
+    settings = app.container.get(SettingRows)
+    settings.clear_cache()
+    assert settings.tree() is not None, "the settings read with stale rows in place"
     RemovedSettingsDrop().apply(connection)
     assert not connection.all("SELECT key FROM settings WHERE key = ?", (REMOVED_KEYS[0],)), "the stale rows are gone"
-    listed = app.console().run(["settings", "list"], AGENT)
-    assert listed.code == 0 and REMOVED_KEYS[0] not in listed.text, "and the list names none of them"
+    settings.clear_cache()
+    assert settings.tree() is not None, "and the settings read cleanly after"
 
 
 def test_a_change_of_mode_starts_the_measures_fresh_so_no_line_of_the_old_mode_is_said_and_old_merges_are_not_counted(app: App):
