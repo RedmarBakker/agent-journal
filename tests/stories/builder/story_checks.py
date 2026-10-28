@@ -99,6 +99,11 @@ class StoryChecks:
     def expect_viewer_refused(self, part: str) -> None:
         assert self.viewer_status >= 300 and part in json.dumps(self.viewer_answer), f"the viewer's request answered {self.viewer_status} {self.viewer_answer}, not a refusal saying {part!r}"
 
+    def expect_chat_marks(self, shows: str, *texts: str) -> None:
+        rows = [row for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("shows") == shows]
+        marks = sorted(row["text"] for row in rows)
+        assert marks == sorted(texts), f"the chat's {shows} marks are {marks}, not {sorted(texts)}: {rows}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

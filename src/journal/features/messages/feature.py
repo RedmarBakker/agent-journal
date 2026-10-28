@@ -18,6 +18,7 @@ from journal.features.messages.listeners.task_mention_links import TaskMentionLi
 from journal.features.messages.listeners.created_row_cause import CreatedRowCause
 from journal.features.messages.listeners.edited_row_cause import EditedRowCause
 from journal.features.messages.listeners.dump_item_card import DumpItemCard
+from journal.features.messages.listeners.receipt_link_removal import ReceiptLinkRemoval
 from journal.features.messages.support.receipt_process_card import ReceiptProcessCard
 from journal.features.messages.listeners.inbox_arrival_card import InboxArrivalCard
 from journal.features.messages.listeners.record_turn import RecordTurn
@@ -40,7 +41,7 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, DeliverMessage, StartInboxDelivery)
+    listeners = (UnlinkedNumberRecord, InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, ReceiptLinkRemoval, DeliverMessage, StartInboxDelivery)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 

@@ -22,6 +22,8 @@ class ReplyCause:
         self.messages, self.links = messages, links
 
     def created(self, row: Model, actor: Actor) -> None:
+        if self.links.sources(row, Messages.SUBJECT_LINK):
+            return
         for requested in self.requested(row, actor):
             self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)
 

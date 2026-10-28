@@ -2079,65 +2079,8 @@ def test_a_command_that_reads_the_projects_code_runs_as_written_and_answers_at_o
         assert ShellVerbs(app).cap(line) == "direct 0", f"it runs in the shell as written, nothing captured: {line}"
 
 
-def test_reading_a_message_names_its_files_links_and_captions(app: App):
-    import json as j
-    from urllib.request import Request as R, urlopen as u
-    console = app.console()
-    console.run(["message", "send", "see the picture"], USER)
-    boundary = "b1"
-    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"shot one.png\"\r\nContent-Type: image/png\r\n\r\nPNG\r\n--{boundary}--\r\n").encode()
-    u(R(f"http://127.0.0.1:{app.server().port}/journal/messages/1/files", data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "X-Journal-Env": "main"}), timeout=5).read()
-    with u(f"http://127.0.0.1:{app.server().port}/journal/messages/1/files/shot%20one.png?env=main", timeout=5) as reply:
-        assert reply.read() == b"PNG", "a file name with a space is found"
-    shown = console.run(["message", "read", "1"], AGENT).text
-    assert "file " in shown and "shot one.png" in shown and "`journal message tag 1 \"shot one.png\"" in shown
-    assert "something to do? file it" not in shown, "how to answer a message comes after the tool use, not in what the read prints"
-    assert "(from message 1)" in console.run(["task", "create", "look at the picture", "--from", "1"], AGENT).text
-    console.run(["task", "create", "crop it", "--from", "1"], AGENT)
-    from journal.repositories.messages import Messages
-    filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Linked task 1, task 2 from your message"], "what is linked to a message is one mark in the chat, naming each row"
-    [card] = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert card.data["row"] == "tasks:1", "a click opens the first row it created, not the message"
-    console.run(["message", "send", "filed it as task 1, cropping next", "--reply-to", "1"], AGENT)
-    filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Linked task 1, task 2 from your message"], "a row the agent's reply names stays in the mark: creating is an event"
-    console.run(["message", "send", "and task 2 crops it", "--reply-to", "1", "--confirm"], AGENT)
-    assert len([m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]) == 1, "and so does the mark once the replies name every row"
-    assert console.run(["message", "tag", "1", "shot one.png", "the footer overlapping the form"], AGENT).code == 0
-    assert "the footer overlapping the form" in console.run(["message", "read", "1"], AGENT).text
-    console.run(["message", "react", "1", "👍"], USER)
-    assert "reacts" in console.run(["message", "read", "1"], AGENT).text
 
 
-def test_a_row_the_agent_writes_right_after_replying_to_a_message_is_linked_to_it_without_from(app: App):
-    from journal.models.support.ref import Ref
-    from journal.repositories.links import Links
-    from journal.repositories.messages import Messages
-    console = app.console()
-    console.run(["message", "send", "please fix the footer and the header"], USER)
-    console.run(["task", "create", "the header"], AGENT)
-    console.run(["task", "create", "the menu"], AGENT)
-    links, messages = app.container.get(Links), app.container.get(Messages)
-    assert links.targets(messages.find(1), Messages.SUBJECT_LINK) == [], "a task made before any reply is linked to nothing"
-    console.run(["message", "send", "on it", "--reply-to", "1"], AGENT)
-    console.run(["task", "create", "the footer"], AGENT)
-    assert Ref("tasks", 3) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created right after the reply is linked to the message it answers"
-    console.run(["task", "edit", "1", "--title", "the header, redone"], AGENT)
-    assert Ref("tasks", 1) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "and so is a task edited right after it"
-    assert Ref("tasks", 1) in links.targets(messages.find(1), Messages.EDIT_LINK), "a task edited right after it is marked edited from the message, never created"
-    console.run(["task", "edit", "3", "--brief", "the footer, all of it"], AGENT)
-    assert Ref("tasks", 3) not in links.targets(messages.find(1), Messages.EDIT_LINK), "a task created from the message and then edited stays created from it"
-    console.run(["task", "edit", "2", "--priority", "high"], AGENT)
-    assert Ref("tasks", 2) not in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a change of priority alone, often asked by the journal, is never put down to the message"
-    created = console.run(["task", "create", "the sidebar", "--from", "1"], AGENT)
-    assert created.code == 0 and Ref("tasks", 4) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created with --from right after the reply is linked once, never refused for the link the reply already made"
-    console.run(["message", "send", "and the sidebar's width"], USER)
-    width = messages.last_user_message().id
-    console.run(["message", "send", "noted", "--reply-to", "1"], AGENT)
-    other = console.run(["task", "create", "the width", "--from", str(width)], AGENT)
-    assert other.code == 0, "a task created with --from right after a reply to another message is no fault: " + other.error
-    assert Ref("tasks", 5) in links.targets(messages.find(width), Messages.SUBJECT_LINK) and Ref("tasks", 5) not in links.targets(messages.find(1), Messages.SUBJECT_LINK), "the message it names is its source, not the one the reply answered"
 
 
 
@@ -15617,20 +15560,6 @@ def test_each_work_mode_takes_the_tasks_of_the_running_plans_its_own_way(app: Ap
         assert [task.title for task in round_robin.offers()] == ["a2", "b1", "b2"], "the orchestrator hands out the plans' tasks in turn"
         assert round_robin.ordered_plans(plans.running_plans(), 1)[0].row_id == 2, "and after a task of the first plan closes the second plan goes first"
 
-def test_a_task_created_from_a_message_and_edited_from_another_has_one_created_mark_and_one_edited_mark_and_a_linked_receipt_under_each_message(app: App):
-    from journal.repositories.messages import Messages
-    console = app.console()
-    console.run(["message", "send", "write the notes"], USER)
-    console.run(["message", "send", "also the tags"], USER)
-    assert console.run(["task", "create", "write the notes", "--from", "1"], AGENT).code == 0
-    assert console.run(["task", "edit", "1", "--title", "write the notes and tags", "--from", "2"], AGENT).code == 0
-    app.runtime().deferred.drain()
-    with app.container.get(Scope).environment(MAIN):
-        everything = app.container.get(Messages).all()
-        filed = sorted(m.text for m in everything if m.data.get("shows") == "filed")
-        moves = [m.text for m in everything if m.data.get("shows") == "task_moves"]
-    assert filed == ["Linked task 1 from your message", "Linked task 1 from your message"], "each message the task is tied to carries a linked receipt"
-    assert [text for text in moves if text.startswith(("Created", "Edited"))] == ["Created task 1: write the notes", "Edited task 1: write the notes and tags"], "the creation and the edit are one mark each, on the agent's side"
 
 
 def test_a_wait_lifted_by_working_tells_the_agent_when_its_check_passes_and_a_cleared_await_removes_its_check(app: App):

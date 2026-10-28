@@ -5,7 +5,7 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.support.option import Option
 from journal.http.controllers.settings import FEATURES
 from tests.full_project import MAIN
-from tests.in_process import get_answer, posted
+from tests.in_process import answered, get_answer, posted
 
 
 class UserSteps:
@@ -13,6 +13,13 @@ class UserSteps:
 
     def user_sends_message(self, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "idempotency": uuid.uuid4().hex})["id"]
+
+    def user_attaches_file(self, message: int, name: str, content: bytes) -> None:
+        boundary = "story"
+        raw = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode() + content + f"\r\n--{boundary}--\r\n".encode()
+        status, answer = answered(self.app, "POST", f"/journal/messages/{message}/files", raw, {**MAIN, "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        assert status < 300, f"the viewer's upload was refused: {answer}"
+        self.observed("user attaches a file", None, None)
 
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
