@@ -7,13 +7,12 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.started_task import StartedTask
-from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.main.written_document import WrittenDocument
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_comment_on_a_document_asks_for_the_reply_and_the_change_in_the_document(story):
-    document = story.agent_writes_a_document("the footer", "the footer", "## Layout\n\nThe footer holds the links.\n")
-    comment = story.user_comments_on("docs", document, "put the copyright in the footer too")
+    comment = story.user_comments_on("docs", story.start.document, "put the copyright in the footer too")
     story.agent_reads_message(comment)
     story.expect_agent_told(MessagesNudges.COMMENT_READ, n=comment)
     story.expect_agent_not_told(MessagesNudges.MESSAGE_READ)

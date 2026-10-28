@@ -21,6 +21,9 @@ class UserSteps:
         assert status < 300, f"the viewer's upload was refused: {answer}"
         self.observed("user attaches a file", None, None)
 
+    def viewer_logs_a_console_error(self, message: str, stack: str) -> None:
+        self.user_posted("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")
+
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
 

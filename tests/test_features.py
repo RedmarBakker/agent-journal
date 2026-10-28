@@ -14484,29 +14484,6 @@ def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(a
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 
-def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty_tool_uses_and_end_when_cleared(app: App, monkeypatch):
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    use = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
-    post = lambda message, stack: posted(app, "/journal/client-errors", {"message": message, "stack": stack}, {"X-Journal-Env": "main"})
-    assert post("y is null", "at Bar.vue:3")[0] == 200 and keystrokes == [], "with the setting off, as it is outside the journal's own development, the agent hears nothing of the viewer's errors"
-    assert app.console().run(["developer", "client-errors", "--clear"], AGENT).code == 0
-    user_set(app, "client_errors.report", True)
-    assert post("x is undefined", "at Chat.vue:12")[0] == 200
-    assert post("x is undefined", "at Chat.vue:12")[0] == 200
-    assert keystrokes == [f"[journal] {ClientErrorsNudges.LOGGED.create(errors='a console error').rendered()}"], "the first error is told at once, and the same error again is counted and not told"
-    for _ in range(49):
-        assert "still unhandled:" not in str(use())
-    assert "a console error in the viewer" in str(use()), "reminded at the fiftieth tool use after the line"
-    assert "still unhandled:" not in str(use()), "never more often"
-    listed = app.console().run(["developer", "client-errors"], AGENT).text
-    assert "2x x is undefined" in listed and "at Chat.vue:12" in listed and listed.count("x is undefined") == 1
-    assert "cleared" in app.console().run(["developer", "client-errors", "--clear"], AGENT).text
-    assert "no console errors" in app.console().run(["developer", "client-errors"], AGENT).text
-    for _ in range(60):
-        assert "still unhandled:" not in str(use()), "a cleared store ends the reminders"
 
 
 def test_a_server_is_added_and_removed_through_the_agent_programs_cli_from_the_pages_routes_and_the_journal_keeps_answering(app: App, monkeypatch, tmp_path):

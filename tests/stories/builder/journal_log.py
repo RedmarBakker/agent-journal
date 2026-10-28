@@ -11,7 +11,7 @@ class JournalLog:
     """What the journal did in the main environment since the step before, read from its entries once the worker thread has settled: the lines the nudger gave, by key and values, and each move of a stack as a path step, the top before, the top after and its cause."""
 
     def __init__(self, app) -> None:
-        self.app, self.read_count = app, 0
+        self.app, self.last_read_id = app, 0
         self.walked: set[str] = set()
 
     def new_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
@@ -20,8 +20,8 @@ class JournalLog:
 
     def unread_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
-            entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.entry_type in (NUDGE, StackHistory.KIND)]
-        unread_entries, self.read_count = entries[self.read_count:], len(entries)
+            unread_entries = self.app.container.get(Entries).kind_entries_after(self.last_read_id, (NUDGE, StackHistory.KIND))
+        self.last_read_id = max((entry.row_id for entry in unread_entries), default=self.last_read_id)
         lines = tuple(NudgeRecord(entry.data["key"], entry.data.get("values", {}), entry.data.get("session", "")) for entry in unread_entries if entry.entry_type == NUDGE)
         steps = tuple(self.step(entry) for entry in unread_entries)
         self.walked |= {self.step(entry) for entry in unread_entries if entry.entry_type == StackHistory.KIND and not {"refused", "dropped"} & entry.data.keys()}
