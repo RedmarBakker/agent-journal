@@ -865,25 +865,6 @@ def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_wha
         app.runtime().stop()
 
 
-def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_path: Path):
-    from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
-    app = main_journal(Config(tmp_path, port=0))
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
-    app.runtime().start()
-    server = app.server()
-    try:
-        n = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "c1"})[1]["id"]
-        for type_name, extra in (("SessionStart", {}),):
-            urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/hooks/claude", data=json.dumps({"hook_event_name": type_name, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        app.console().run(["message", "send", "Hello back.", "--reply-to", str(n)], Caller.agent("main", "s1", "claude"))
-        app.runtime().deferred.drain()
-        rows = [r for r in call(server, "GET", "/journal/messages")[1]["rows"] if n in (r["id"], r["reply_target"])]
-        assert [(r["author"], r["reply_target"], r["text"]) for r in rows] == [("user", None, "hello"), ("agent", n, "Hello back.")]
-        assert rows[0]["creator"].startswith("user") and rows[1]["creator"] == "agent:s1" and rows[1]["acknowledgement"] is False
-        assert call(server, "GET", "/journal/messages?comments=1")[1]["rows"] == [], "a reply is no comment"
-    finally:
-        app.runtime().stop()
 
 
 def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_is_taken_too(tmp_path: Path):
@@ -1647,26 +1628,6 @@ def test_a_comment_is_deleted_from_its_column(server):
     assert produced["id"] not in [c["id"] for c in call(server, "GET", "/journal/messages?comments=1")[1]["rows"]], "the comment is gone from the column"
 
 
-def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_is_talk(tmp_path: Path):
-    from journal.support.caller import Caller
-    app = main_journal(Config(tmp_path, port=0))
-    app.runtime().start()
-    unowed(app)
-    server = app.server()
-    try:
-        call(server, "POST", "/journal/tasks", {"title": "the footer"})
-        status, comment = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "is the footer fixed?"})
-        status, reply = call(server, "POST", "/journal/messages", {"on": "tasks:1", "text": "and the header?", "reply_target": comment["id"]})
-        assert status == 201 and reply["reply_target"] == comment["id"] and reply["comments_on"] == ["tasks:1"], "a reply written in the column hangs under its comment, on the same row"
-        app.console().run(["message", "send", "Yes, both are fixed.", "--reply-to", str(comment["id"])], Caller.agent("main", "s1", "claude"))
-        app.runtime().deferred.drain()
-        rows = call(server, "GET", "/journal/messages?comments=1")[1]["rows"]
-        assert [(r["author"], r["reply_target"], r["comments_on"]) for r in rows] == [("user", None, ["tasks:1"]), ("user", comment["id"], ["tasks:1"])], "the agent's reply in the chat is a plain reply, linked to the comment it answers and to no row"
-        answered = call(server, "POST", "/journal/messages", {"text": "Good, then the menu next.", "reply_target": comment["id"]})[1]
-        assert answered["reply_target"] == comment["id"] and answered["comments_on"] == [] and not answered["text"].startswith(">"), "a word typed in the chat is a chat message whatever it replies to: no comment on the row, no passage carried over"
-        assert len(call(server, "GET", "/journal/messages?comments=1")[1]["rows"]) == 2, "only the comment box files a comment"
-    finally:
-        app.runtime().stop()
 
 
 def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_streams_what_the_agent_sees(tmp_path: Path):

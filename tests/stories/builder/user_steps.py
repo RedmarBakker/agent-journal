@@ -79,6 +79,12 @@ class UserSteps:
     def user_comments_on(self, table: str, row: int, text: str) -> int:
         return self.user_posted("/journal/messages", {"text": text, "on": f"{table}:{row}", "idempotency": uuid.uuid4().hex})["id"]
 
+    def user_replies_in_the_column(self, table: str, row: int, comment: int, text: str) -> int:
+        return self.user_posted("/journal/messages", {"text": text, "on": f"{table}:{row}", "reply_target": comment, "idempotency": uuid.uuid4().hex}, "user replies in the comment column")["id"]
+
+    def user_replies_in_the_chat(self, message: int, text: str) -> int:
+        return self.user_posted("/journal/messages", {"text": text, "reply_target": message, "idempotency": uuid.uuid4().hex}, "user replies in the chat")["id"]
+
     def user_answers(self, question: int, answer: str) -> None:
         self.user_posted(f"/journal/questions/{question}/answer", {"answer": answer})
 
