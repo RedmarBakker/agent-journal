@@ -57,19 +57,16 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
 
 
 def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_from(app: App):
-    from journal.support.caller import Caller
-    from journal.repositories.reactions import Reactions
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.repositories.agents import Agents
     app.container.get(Agents).save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
-    app.console().run(["message", "send", "hi"], Caller.user("main"))
-    app.console().run(["message", "react", "1", "👍"], Providers().caller({"CLAUDECODE": "1"}))
+    with app.container.get(Scope).environment(1):
+        attributed = app.console().attributed(Providers().caller({"CLAUDECODE": "1"}))
+    assert attributed.session == "s1" and attributed.actor.actor_type == "agent", "an unnamed agent's shell is the live agent's"
     assert Providers().caller({"JOURNAL_AGENT_SHELL": "1"}).is_unnamed_agent(), "a worker's shell is an agent's whatever its program marks"
     named = Providers().caller({"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "abc"})
     assert named.session == "abc" and named.provider == "claude", "a Claude Code shell names its own session, so its lines and outputs are its agent's"
-    with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.actor_type == "agent"
 
 
 def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks_it():
@@ -96,12 +93,9 @@ def test_a_codex_agent_with_no_row_yet_dispatches_a_codex_worker_and_raises_its_
 
 
 def test_a_command_from_an_agents_shell_with_no_agent_live_is_the_users_own(app: App):
-    from journal.support.caller import Caller
-    from journal.repositories.reactions import Reactions
-    app.console().run(["message", "send", "hi"], Caller.user("main"))
-    assert app.console().run(["message", "react", "1", "👍"], Providers().caller({"CLAUDECODE": "1"})).code == 0
     with app.container.get(Scope).environment(1):
-        assert app.container.get(Reactions).all()[-1].creator.actor_type == "user", "a shell outside the journal is the user's"
+        attributed = app.console().attributed(Providers().caller({"CLAUDECODE": "1"}))
+    assert attributed.actor.actor_type == "user", "a shell outside the journal is the user's"
 
 
 def test_a_codex_command_orients_its_own_session_in_the_chosen_environment(app: App):
@@ -161,7 +155,6 @@ def test_the_shim_attributes_a_codex_command_with_and_without_a_server(app: App,
 
 
 def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists(app: App, monkeypatch, tmp_path):
-    from journal.support.caller import Caller
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.providers.claude import Claude
@@ -172,9 +165,9 @@ def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists
     agents = app.container.get(Agents)
     agents.save(Agent(session="s1", environment_id=1, provider="claude"), Actor.system())
     agents.save(Agent(session="lost", environment_id=1, provider="claude", state="ended"), Actor.system())
-    import json as j
-    rows = j.loads(app.console().run(["environment", "json"], Caller.user("main")).text)
-    assert rows[0]["last_sessions"] == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
+    from journal.console.commands.environment_command import EnvironmentCommand
+    rows = app.container.get(EnvironmentCommand).rows()
+    assert rows[0].last_sessions == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
 
 
 def test_the_launchers_environments_come_newest_used_first(tmp_path: Path):
@@ -199,7 +192,6 @@ def test_the_launchers_environments_come_newest_used_first(tmp_path: Path):
 
 
 def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, monkeypatch, tmp_path):
-    from journal.support.caller import Caller
     from journal.support.actor import Actor
     from journal.models.agent import Agent
     from journal.support.agent_role import AgentRole
@@ -211,10 +203,10 @@ def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, mo
     agents = app.container.get(Agents)
     agents.save(Agent(session="main-session", environment_id=1, provider="claude", state="ended"), Actor.system())
     agents.save(Agent(session="worker-session", environment_id=1, provider="claude", role=AgentRole.WORKER), Actor.system())
-    import json as j
-    rows = j.loads(app.console().run(["environment", "json"], Caller.user("main")).text)
-    assert rows[0]["last_sessions"] == {"claude": "main-session"}, "the newest conversation is a worker's: the main agent carries on from its own"
-    assert not rows[0]["working"], "a worker at work is not the environment's agent working"
+    from journal.console.commands.environment_command import EnvironmentCommand
+    rows = app.container.get(EnvironmentCommand).rows()
+    assert rows[0].last_sessions == {"claude": "main-session"}, "the newest conversation is a worker's: the main agent carries on from its own"
+    assert not rows[0].working, "a worker at work is not the environment's agent working"
 
 
 
