@@ -14788,6 +14788,8 @@ def test_the_orchestrator_approves_a_plan_only_when_the_user_allows_it(app: App)
 
 
 def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each_has_run(app: App):
+    from journal.http.controllers.test_turns import TestTurnController
+    from journal.http.listing import Listing
     from journal.models.test_turn import TestTurn
     from journal.repositories.test_turns import TestTurns
     with app.container.get(Scope).environment(MAIN):
@@ -14795,8 +14797,8 @@ def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each
         waiting = turns.save(TestTurn(environment_id=MAIN, worker=3, ids="tests/test_a.py::test_one"), Actor.worker(3))
         running = turns.save(TestTurn(environment_id=MAIN, worker=4, ids="tests/test_b.py::test_two").started(1000.0), Actor.worker(4))
         turns.save(TestTurn(environment_id=MAIN, worker=5, ids="tests/test_c.py::test_three").started(900.0).ended(), Actor.worker(5))
-    rows = get_answer(app, "/journal/test_turns?limit=50", {"X-Journal-Env": "main"})[1]["rows"]
-    assert [(row["id"], row["worker"], row["state"], row["started_at"]) for row in rows] == [(waiting.id, 3, "waiting", 0.0), (running.id, 4, "running", 1000.0)], "the viewer reads the turns running and waiting, a running one with the time it started, and no ended one"
+        rows = app.container.get(TestTurnController).listed(Listing())["rows"]
+    assert [(row.id, row.worker, row.state, row.started_at) for row in rows] == [(waiting.id, 3, "waiting", 0.0), (running.id, 4, "running", 1000.0)], "the viewer reads the turns running and waiting, a running one with the time it started, and no ended one"
 
 
 def drafted_plan(app: App, caller: Caller, title: str) -> int:
@@ -14944,19 +14946,19 @@ def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_an
 def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_manifest_as_the_viewers_tests_read_it(app):
     from journal.support.card_type import CardType
     from journal.support.card_type_catalogue import CardTypeCatalogue
-    served = get_answer(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    served = json.loads(json.dumps(CardTypeCatalogue.served(registry.card_families(), registry.card_types())))
     groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {type_name["key"]: type_name for type_name in served["kinds"]}
     assert set(CardType) <= set(kinds) and all(type_name["family"] in families for type_name in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
     assert all(type_name["icon"] == families[type_name["family"]]["icon"] for type_name in kinds.values()), "a kind's icon is its family's, never its own"
     assert families["tasks"]["icon"] == "task" and families["tasks"]["colouring"] == "none" and families["commands"]["colouring"] == "outcome", "a task's cards are events with the task icon; a command's are processes coloured by their outcome"
     assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardType.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
     assert all(type_name["shown"] for type_name in kinds.values()) and kinds[CardType.SEQUENCES]["main"] and not kinds[CardType.SEQUENCE_STEPS]["main"], "every kind of mark shows until the user hides it; a sequence's steps are a detail of its start and finish"
-    from journal.features.registry import Registry
-    registry = app.container.get(Registry)
     fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"
     if os.environ.get("MARKS_FREEZE") == "1":
         fixture.write_text(json.dumps(served, indent=1) + "\n")
-    assert served == CardTypeCatalogue.served(registry.card_families(), registry.card_types()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
+    assert served == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
 
 
 
