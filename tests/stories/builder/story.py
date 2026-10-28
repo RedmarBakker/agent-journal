@@ -1,6 +1,10 @@
 from journal.console.support.outcome import Outcome
 from journal.support.agent_role import AgentRole
-from journal.support.caller import ACTOR, AGENT_SHELL, Caller
+from journal.http.controllers.hooks import ACTOR_HEADER, ACTOR_TOKEN_HEADER
+from journal.repositories.reviewers import Reviewers
+from journal.repositories.scope import Scope
+from journal.repositories.verifiers import Verifiers
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.researcher_session import ResearcherSession
 from journal.features.workers.workers_options import BUILDER_MODE
 from tests.in_process import posted
@@ -59,7 +63,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return self.stack_checked_at == len(self.path)
 
     def scoped_session(self) -> str:
-        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session, AgentRole.SUBAGENT: self.subagent_scope_session}[self.scope]()
+        return {AgentRole.MAIN: self.main_session, AgentRole.WORKER: self.worker_scope_session, AgentRole.SUBAGENT: self.subagent_scope_session, AgentRole.REVIEWER: lambda: self.checker_session(Reviewers, self.start.reviewer), AgentRole.VERIFIER: lambda: self.checker_session(Verifiers, self.start.verifier)}[self.scope]()
 
     def subagent_scope_session(self) -> str:
         return ResearcherSession.joined(self.main_session(), self.start.subagent)
@@ -80,7 +84,7 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return worker_session(self.start.worker)
 
     def scoped_headers(self) -> dict:
-        return {AgentRole.MAIN: dict, AgentRole.WORKER: self.worker_scope_headers, AgentRole.SUBAGENT: dict}[self.scope]()
+        return {AgentRole.MAIN: dict, AgentRole.WORKER: self.worker_scope_headers, AgentRole.SUBAGENT: dict, AgentRole.REVIEWER: lambda: self.checker_headers(f"reviewer:{self.start.reviewer}"), AgentRole.VERIFIER: lambda: self.checker_headers(f"verifier:{self.start.verifier}")}[self.scope]()
 
     def worker_scope_headers(self) -> dict:
         return {"X-Journal-Actor": f"worker:{self.start.worker}"}
@@ -90,7 +94,17 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         return {AgentRole.MAIN: lambda: variables, AgentRole.WORKER: lambda: {**variables, ACTOR: f"worker:{self.start.worker}"}, AgentRole.SUBAGENT: lambda: {**variables, "JOURNAL_SESSION": self.main_session()}}[self.scope]()
 
     def scoped_caller(self) -> Caller:
-        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: self.worker_scope_caller, AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session())}[self.scope]()
+        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: self.worker_scope_caller, AgentRole.SUBAGENT: lambda: self.agent.subagent_caller(self.subagent_scope_session()), AgentRole.REVIEWER: lambda: Caller.reviewer("main", self.start.reviewer, self.scoped_session(), self.provider), AgentRole.VERIFIER: lambda: Caller.verifier("main", self.start.verifier, self.scoped_session(), self.provider)}[self.scope]()
+
+    def checker_session(self, rows: type, number: int) -> str:
+        with self.app.container.get(Scope).environment(1):
+            return self.app.container.get(rows).find(number).session
+
+    def checker_headers(self, stamp: str) -> dict:
+        return {ACTOR_HEADER: stamp, ACTOR_TOKEN_HEADER: self.helper_token(stamp)}
+
+    def helper_token(self, stamp: str) -> str:
+        return next(launch[ACTOR_TOKEN] for launch in reversed(self.app.helper_launches) if launch.get(ACTOR) == stamp)
 
     def worker_scope_caller(self) -> Caller:
         return Caller.worker("main", self.start.worker, worker_session(self.start.worker), self.provider)

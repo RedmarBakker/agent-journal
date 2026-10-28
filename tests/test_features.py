@@ -31,6 +31,7 @@ from journal.config import Config
 from journal.supervisor_link import SupervisorLink
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.providers.support.helper_runner import HelperRunner
 from journal.models.environment_type import EnvironmentType
 from journal.models.worker_state import WorkerState
 from journal.support.actor import Actor
@@ -120,10 +121,13 @@ def boot():
 
 
 def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-    """A journal started on a free port; no worker process starts, since a dispatched worker would run its provider headless and file what it printed, or that it could not start, beside the test's own report."""
+    """A journal started on a free port; no worker, reviewer or verifier process starts, since one would run its provider headless and file what it printed, or that it could not start, beside the test's own report; a reviewer or verifier launch is kept on the app with the variables its process would have had, its token among them."""
     patch.setattr(Config, "status_home", property(lambda self: root / "status"))
     patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    launches: list[dict[str, str]] = []
+    patch.setattr(HelperRunner, "run", lambda self, helper, command, environ: launches.append(environ))
     app = main_journal(Config(root, port=0))
+    app.helper_launches = launches
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())

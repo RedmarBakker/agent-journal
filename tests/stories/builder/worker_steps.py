@@ -1,6 +1,8 @@
 import re
 import shlex
 
+from journal.repositories.reviewers import Reviewers
+from journal.repositories.verifiers import Verifiers
 from journal.support.caller import Caller
 
 
@@ -20,6 +22,14 @@ class WorkerSteps:
         self.agent_runs(f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
         self.expect_command_passed()
         return self.newest("workers")
+
+    def reviewer_session_starts(self, reviewer: int) -> None:
+        stamp = f"reviewer:{reviewer}"
+        self.hook_observed("the reviewer session starts", *self.session_posted_hook(self.checker_session(Reviewers, reviewer), self.checker_headers(stamp), "SessionStart", {"source": "startup"}))
+
+    def verifier_session_starts(self, verifier: int) -> None:
+        stamp = f"verifier:{verifier}"
+        self.hook_observed("the verifier session starts", *self.session_posted_hook(self.checker_session(Verifiers, verifier), self.checker_headers(stamp), "SessionStart", {"source": "startup"}))
 
     def worker_session_starts(self, worker: int) -> None:
         self.worker_hooked(worker, "worker session starts", "SessionStart", source="startup")

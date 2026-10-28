@@ -27,6 +27,9 @@ class StoryChecks:
     def expect_agent_not_told(self, nudge: Nudge, **values) -> None:
         self.expect_not_told_to(self.scoped_session(), nudge, values)
 
+    def told_number(self, nudge: Nudge, name: str) -> int:
+        return int(next(line.values[name] for line in reversed(self.said) if line.key == nudge.key))
+
     def expect_main_stack(self, *states: type) -> None:
         stack = self.session_stack(self.main_session())
         assert stack == [state.name for state in states], f"the main agent's stack is {stack}"
