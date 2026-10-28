@@ -18,11 +18,21 @@ class UserSteps:
         return self.user_posted("/journal/messages", {"text": text, "idempotency": uuid.uuid4().hex})["id"]
 
     def user_attaches_file(self, message: int, name: str, content: bytes) -> None:
+        self.user_uploads(f"/journal/messages/{message}/files", name, content)
+        assert self.viewer_status < 300, f"the viewer's upload was refused: {self.viewer_answer}"
+        self.observed("user attaches a file", None, None)
+
+    def user_starts_a_dump(self, brief: str) -> int:
+        return self.user_posted("/journal/dumps", {"brief": brief}, "user starts a dump")["id"]
+
+    def user_drops_a_file_in_the_dump(self, dump: int, name: str, content: bytes) -> None:
+        self.user_uploads(f"/journal/dumps/{dump}/files", name, content)
+        self.observed("user drops a file in the dump", None, None)
+
+    def user_uploads(self, path: str, name: str, content: bytes) -> None:
         boundary = "story"
         raw = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode() + content + f"\r\n--{boundary}--\r\n".encode()
-        status, answer = answered(self.app, "POST", f"/journal/messages/{message}/files", raw, {**MAIN, "Content-Type": f"multipart/form-data; boundary={boundary}"})
-        assert status < 300, f"the viewer's upload was refused: {answer}"
-        self.observed("user attaches a file", None, None)
+        self.viewer_status, self.viewer_answer = answered(self.app, "POST", path, raw, {**MAIN, "Content-Type": f"multipart/form-data; boundary={boundary}"})
 
     def viewer_logs_a_console_error(self, message: str, stack: str) -> None:
         self.user_posted("/journal/client-errors", {"message": message, "stack": stack}, "the viewer logs a console error")

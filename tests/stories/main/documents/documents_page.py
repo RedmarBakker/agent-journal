@@ -4,6 +4,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.message_with_file import FILE, MessageWithFile
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 FINDINGS = "# Findings\n\nThe cleanup pluralises the wrong noun.\n"
@@ -30,12 +31,13 @@ def test_version_3_documents_are_brought_in_once_for_the_whole_project_and_found
     story.expect_stack(Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(MessageWithFile, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_file_attached_to_a_message_is_listed_on_the_documents_page_by_its_type_and_words(story):
-    message = story.user_sends_message("the screenshot of the bar")
-    story.user_attaches_file(message, "bar.png", b"png")
     story.user_opens("/journal/attachments?file_type=images")
     story.expect_viewer_shows("total", 1)
+    story.expect_viewer_part(("files", 0, "name"), FILE)
+    story.user_opens(f"/journal/messages?ids={story.start.message}")
+    story.expect_viewer_part(("rows", 0, "files"), [FILE])
     story.user_opens("/journal/attachments?file_type=other")
     story.expect_viewer_shows("total", 0)
     story.user_opens("/journal/attachments?search=screenshot")

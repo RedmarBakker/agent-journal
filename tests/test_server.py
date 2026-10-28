@@ -1428,28 +1428,6 @@ def test_a_moment_card_is_new_each_time_and_nothing_updates_it(app: App):
     assert moments[0].id != moments[1].id and moments[0].data["card_type"] == "moment"
 
 
-def test_a_dump_is_dropped_with_files_and_acted_on_through_the_viewer(server):
-    def upload(n: int, name: str, text: str):
-        boundary = "b0undary"
-        body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: text/plain\r\n\r\n{text}\r\n--{boundary}--\r\n").encode()
-        request = HttpRequest(f"http://127.0.0.1:{server.port}/journal/dumps/{n}/files", data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "X-Journal-Env": "main"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-
-    n = call(server, "POST", "/journal/dumps", {"brief": "some ideas"})[1]["id"]
-    row = upload(n, "a.txt", "hello")[1]
-    assert row["title"] == f"Dump {n}" and row["brief"] == "some ideas" and row["files"] == ["a.txt"] and row["completed_at"] == 0
-    with urlopen(HttpRequest(f"http://127.0.0.1:{server.port}/journal/dumps/{n}/files/a.txt?env=main"), timeout=5) as reply:
-        assert reply.read() == b"hello"
-    assert call(server, "POST", f"/journal/dumps/{n}/name", {"title": "Ideas"})[1]["title"] == "Ideas"
-    stopped = call(server, "POST", f"/journal/dumps/{n}/stop")[1]
-    assert stopped["completed_at"] > 0 and stopped["stopped"] and stopped["outcome"] == "stopped, 0 filed, 2 left out"
-    assert 400 <= upload(n, "b.txt", "more")[0] < 500, "a closed dump takes no more files"
-    assert [r["id"] for r in call(server, "GET", "/journal/dumps?limit=5")[1]["rows"]] == [n]
-    assert call(server, "POST", f"/journal/dumps/{n}/dismiss")[1]["dismissed"] is True
 
 
 WEB = Path(__file__).resolve().parents[1] / "src" / "web" / "src"
