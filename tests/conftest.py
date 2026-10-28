@@ -27,6 +27,7 @@ from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.models.setting import Setting
 from journal.support.actor import Actor
+from tests.behaviour_record import BehaviourRecord
 from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
 from tests.stories.builder.story_run_record import STORY_RECORDS_VARIABLE
@@ -221,3 +222,21 @@ def pytest_runtest_protocol(item, nextitem):
 
 def pytest_runtest_logreport(report) -> None:
     seconds_taken[report.nodeid] = seconds_taken.get(report.nodeid, 0.0) + report.duration
+
+
+BEHAVIOUR = BehaviourRecord()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    asked = BehaviourRecord.is_asked() and "app" in getattr(item, "funcargs", {}) and not item.nodeid.startswith(STORIES_FOLDER)
+    start = BEHAVIOUR.started(item.funcargs["app"]) if asked else 0
+    yield
+    if asked:
+        BEHAVIOUR.read(item.nodeid, item.funcargs["app"], start)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config) -> None:
+    if BehaviourRecord.is_asked():
+        BEHAVIOUR.saved()

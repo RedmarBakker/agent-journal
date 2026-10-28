@@ -16,6 +16,9 @@ class JournalLog:
 
     def new_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
         self.app.runtime().deferred.drain()
+        return self.unread_entries()
+
+    def unread_entries(self) -> tuple[tuple[NudgeRecord, ...], tuple[str, ...]]:
         with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup("main").id):
             entries = [entry for entry in reversed(self.app.container.get(Entries).kind_entries_scoped(1000)) if entry.entry_type in (NUDGE, StackHistory.KIND)]
         unread_entries, self.read_count = entries[self.read_count:], len(entries)

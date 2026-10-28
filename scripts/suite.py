@@ -42,6 +42,8 @@ MATRIX_OPTION = "--update-matrix"
 # the stories alone, sharded, with their overlay checked over every shard
 STORIES_OPTION = "--stories"
 STORIES_FOLDER = "tests/stories"
+# the merged record of the last story run, read by scripts/old_test_coverage.py
+STORY_RECORD_FILE = ROOT / ".journal" / "runtime" / "story-record.json"
 COVERAGE_OPTION = "--coverage-map"
 # which source files each test runs, read by scripts/affected_tests.py
 COVERAGE_MAP_FILE = ROOT / ".journal" / "runtime" / "test-coverage.json"
@@ -164,6 +166,7 @@ def story_run(options: tuple[str, ...]) -> int:
         failed = sharded_run(Path(folder), shard_count(available_bytes()), (STORIES_FOLDER, *options), "the stories", {story_record_module().STORY_RECORDS_VARIABLE: str(records)})
         record_class = story_record_module().StoryRunRecord
         record = record_class.merged([record_class.loaded(path) for path in sorted(records.glob("*.json"))])
+        record.saved(STORY_RECORD_FILE)
         for line, _ in record.report_lines():
             print(line)
         return 1 if failed or record.failures() else 0
