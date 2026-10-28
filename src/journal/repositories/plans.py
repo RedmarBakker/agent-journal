@@ -54,6 +54,10 @@ class Plans(ScopedRepository[Plan]):
     def is_shared(self, task: Task, plan: Plan) -> bool:
         return any(ref.id != plan.id and self.find(ref.id).state != PlanState.CANCELLED for ref in self.links.targets(task, PLAN_LINK))
 
+    def remove_task(self, plan: Plan, task: Task, actor: Actor) -> None:
+        for link in [link for counterpart in [plan, *self.plan_phases(plan)] for link in self.links.connecting(task, counterpart)]:
+            self.links.delete(link, actor)
+
     def plan_states(self, task: Task) -> set[PlanState]:
         return {plan.state for plan in self.containing(task)}
 

@@ -57,6 +57,14 @@ Unset means the orchestrator's own model, which is the wrong default. The journa
 
 Every dispatch prompt says the subagent never runs tests: it writes the test that proves its change and names it in its report, and the main agent runs it.
 
+## Scenarios first
+
+A new feature starts as its requirements, written as scenario stories in `tests/scenarios/`, before any of its code.
+Think each case through first: what the proper behaviour is, what happens to an agent that is in the middle of it
+(a task in hand, a plan it follows, a worker that holds the row), and how no agent is left stuck. Write every story
+in one go, run them together and see them fail, then write the code that makes them pass. The stories are the
+feature's specification; a case without a story is a case nobody decided.
+
 <!-- BEGIN: code-commandments briefing (auto-generated, run `composer update`) -->
 ## Code Commandments — the disciplines in force here
 

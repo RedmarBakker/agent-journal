@@ -159,11 +159,8 @@ class PlanCommand(Command):
 
     def remove(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        counterparts = [plan, *self.plans.plan_phases(plan)]
         for n in args.tasks:
-            task = self.tasks.find(n)
-            for link in [link for counterpart in counterparts for link in self.links.connecting(task, counterpart)]:
-                self.links.delete(link, caller.actor)
+            self.plans.remove_task(plan, self.tasks.find(n), caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} taken out of plan {plan.id}")
         return 0
 

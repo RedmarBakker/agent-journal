@@ -16,7 +16,9 @@ from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.models.plan import Plan
 from journal.models.task import Task
+from journal.support.actor import Actor
 from journal.models.worker import Worker
 from journal.support.task_priority import NORMAL, TaskPriority
 from journal.models.task_log import TaskLog
@@ -62,6 +64,7 @@ class TaskCommand(Command):
         transfer = self.verb(verbs, "transfer", "move a task, with its log, to another environment of this project")
         transfer.add_argument("n", type=int)
         transfer.add_argument("environment", help="the name of the environment it moves to")
+        transfer.add_argument("--force", action="store_true", help="move a task in progress, paused first, or a task of a plan here, taken out of the plan")
         rename = self.verb(verbs, "rename", "a task's title written again, when the first one was wrong")
         rename.add_argument("n", type=int)
         rename.add_argument("title")
@@ -156,13 +159,27 @@ class TaskCommand(Command):
 
     def transfer(self, args: Namespace, caller: Caller) -> int:
         task, environment = self.tasks.find(args.n), self.environments.existing(args.environment)
-        if task.is_started():
-            raise Rejection(f"task {task.id} is in hand: pause it first with `journal task pause {task.id}`")
+        plans = self.plans.containing(task)
+        self.refuse_transfer(task, plans, args.force)
+        task = self.let_go(task, plans, environment.name, caller.actor)
         for line in self.logs.logs(task):
             self.logs.save(line.with_(environment_id=environment.id), caller.actor)
         self.tasks.save(task.with_(environment_id=environment.id), caller.actor)
         print(f"task {task.id} moved to environment {environment.name}")
         return 0
+
+    def refuse_transfer(self, task: Task, plans: list[Plan], force: bool) -> None:
+        if task.delegated:
+            raise Rejection(f"task {task.id} is worker {self.tasks.holder(task).id}'s: release the worker first")
+        if not force and task.is_started():
+            raise Rejection(f"task {task.id} is in progress: pause it first, or --force pauses it and moves it")
+        if not force and plans:
+            raise Rejection(f"task {task.id} is in plan {plans[0].id}: --force takes it out of the plan and moves it")
+
+    def let_go(self, task: Task, plans: list[Plan], environment: str, actor: Actor) -> Task:
+        for plan in plans:
+            self.plans.remove_task(plan, task, actor)
+        return self.tasks.save(task.paused(f"moved to environment {environment}", self._time()), actor) if task.is_started() else task
 
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)

@@ -67,7 +67,7 @@ options:
 
 $ agent: journal task transfer --help
 exit 0
-usage: journal task transfer [-h] n environment
+usage: journal task transfer [-h] [--force] n environment
 
 positional arguments:
   n
@@ -75,6 +75,8 @@ positional arguments:
 
 options:
   -h, --help   show this help message and exit
+  --force      move a task in progress, paused first, or a task of a plan
+               here, taken out of the plan
 
 $ agent: journal task block 2 'waits on the tax rates'
 exit 0
