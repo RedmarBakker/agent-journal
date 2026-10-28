@@ -1,3 +1,4 @@
+from journal.repositories.environments import Environments
 from tests.full_project import MAIN
 from tests.in_process import got, posted
 from tests.replay import PROVIDERS
@@ -5,7 +6,15 @@ from tests.scenarios.builder.hook_verdict import HookVerdict
 
 
 class SessionSteps:
-    """Sessions in a story: another session starting in the same environment, of the scenario's provider or of the other, and the agent's row read through the API to see which session holds it."""
+    """Sessions in a story: another session starting in the same environment, of the scenario's provider or of the other, another environment of the project as its launcher makes one, and the agent's row read through the API to see which session holds it."""
+
+    def another_environment(self, name: str) -> str:
+        self.app.container.get(Environments).lookup(name)
+        self.observed(f"the project has another environment, {name}", None, None)
+        return name
+
+    def task_numbers_in(self, environment: str) -> set[int]:
+        return {row["id"] for row in got(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
 
     def second_session_starts(self, session: str = "s2") -> None:
         self.session_starts_with(self.provider, session)
