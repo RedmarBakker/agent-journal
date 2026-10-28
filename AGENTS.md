@@ -211,8 +211,10 @@ assert appears in it; every assert lives inside an expect method of the builder.
   few stories where the provider is what is tested.
 - **Its own path**: a story walks a path no other story walks, and the run's overlay fails two that walk the same one.
 
-Stories are the preferred way to test behaviour. A unit test still fits a single part on its own, a parser or a model's
-pure method. The older behaviour tests in `tests/` are looked over one by one: those a story now covers are removed, and
+Stories are the way to test behaviour, what an agent meets and what a person does through the viewer and the console
+alike: a user story plays the user's steps through the viewer's routes and checks rows and printed text. A unit test
+still fits a single part on its own, a parser or a model's pure method; a test outside tests/stories/ that drives the
+journal by a hook, a route or a command is flagged (BehaviourTestOutsideStoriesDetector). The older behaviour tests in `tests/` are looked over one by one: those a story now covers are removed, and
 no new behaviour test is added there.
 
 A new feature starts as its stories, before any of its code; the skill `writing-story-tests` says how, step by step,
