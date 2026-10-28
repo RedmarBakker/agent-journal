@@ -179,11 +179,20 @@ Run the whole suite after every change; it is cheap.
 
 ## Scenarios first
 
-A new feature starts as its requirements, written as scenario stories in `tests/scenarios/`, before any of its code.
+Scenario stories are the preferred way to test behaviour here: what an agent is told, what it may do, where its stack
+ends. A unit test still fits a single part on its own, a parser or a model's pure method; a behaviour is tested by a
+story. The older behaviour tests in `tests/` are being replaced by stories and are not added to.
+
+A new feature starts as its requirements, written as scenario stories in `tests/scenarios/`, before any of its code. The skill
+`writing-scenario-tests` says how, step by step; load it before writing a feature.
 Think each case through first: what the proper behaviour is, what happens to an agent that is in the middle of it
-(a task in hand, a plan it follows, a worker that holds the row), and how no agent is left stuck. Write every story
-in one go, run them together and see them fail, then write the code that makes them pass. The stories are the
+(a task in hand, a plan it follows, a worker that holds the row), and how no agent is left stuck. Write every story,
+every edge case among them, in that one file in one go, run them together and see them fail, then write the code that makes them pass. The stories are the
 feature's specification; a case without a story is a case nobody decided.
+
+A story file is named for the one behaviour its stories test, `scenario_task_transfer.py`, `scenario_plan_following.py`,
+never for a broad subject such as environments or tasks, and holds only the stories of that behaviour. Files stay small:
+a behaviour that grows a second concern gets a second file.
 
 ## Layout
 

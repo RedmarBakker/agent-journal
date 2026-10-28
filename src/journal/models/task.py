@@ -7,6 +7,8 @@ from journal.events.event import Event
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_arrived import TaskArrived
+from journal.events.rows.task_transferred import TaskTransferred
 from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.support.timespan import Timespan
 from journal.events.rows.task_opened import TaskOpened
@@ -115,6 +117,14 @@ class Task(Scoped, Commentable):
 
     def released(self, time: float) -> "Task":
         return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
+
+    def transferred(self, environment_id: int, source: str, destination: str, time: datetime) -> "Task":
+        transfer_event = TaskTransferred(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, destination=destination)
+        arrival_event = TaskArrived(environment_id=environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, source=source, state=self.state)
+        return self.with_(environment_id=environment_id).with_event(transfer_event).with_event(arrival_event)
+
+    def is_active(self) -> bool:
+        return self.is_started() or self.is_testing()
 
     def paused(self, reason: str, time: datetime) -> "Task":
         if not self.is_started():

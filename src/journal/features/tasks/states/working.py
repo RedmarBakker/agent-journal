@@ -10,6 +10,7 @@ from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_transferred import TaskTransferred
 from journal.events.rows.task_logged import TaskLogged
 from journal.events.feature_data import FeatureData
 from journal.support.permission import Permission
@@ -115,6 +116,9 @@ class Working(BaseState):
         return self.swap(self.logged(event.time)) if event.task_id == self.task_id else self.none()
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
+        return self.pop() if event.task_id == self.task_id else self.none()
+
+    def on_task_transferred(self, event: TaskTransferred, settings: Settings) -> Transition:
         return self.pop() if event.task_id == self.task_id else self.none()
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:

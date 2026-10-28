@@ -1887,6 +1887,7 @@ tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks|cap=51}}. resume o
 tasks.paused_wait_ended  [tasks]  task {{n}}'s wait is over: {{reason|cap=61}}. run `journal task resume {{n}}`
 tasks.paused_work_to_choose  [tasks]  paused: {{tasks|cap=15}}{{blocked}}. `journal task resume <n>`, or `journal task skip-paused` to take the open task
 tasks.stop_polling  [tasks]  you ran {{command|cap=50}} {{times}} times in a row. stop polling; wait for it
+tasks.task_arrived  [tasks]  task {{n}} came here from environment {{source}}, {{state}}. read it with `journal task show {{n}}`
 tasks.task_changed  [tasks]  task {{n}} changed. read it again with `journal task show {{n}}`
 tasks.task_in_hand_repeated  [tasks]  {{name}} in hand, {{edits}} edits
 tasks.task_open_with_nothing_logged  [tasks]  task {{n}} has nothing logged. log where it stands with `journal task log {{n}} "<where it stands>"`
@@ -1982,7 +1983,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-291 nudges
+292 nudges
 
 $ agent: journal worker list
 exit 0

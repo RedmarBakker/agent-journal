@@ -1,5 +1,5 @@
-from journal.models.task_state import TaskState
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.models.task_state import TaskState
 from tests.scenarios.builder.stack_states import AWAITING, IDLE, WORKING
 from tests.scenarios.builder.story_values import scenario
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand

@@ -1,5 +1,4 @@
 from journal.features.briefing.briefing_nudges import BriefingNudges
-from journal.features.memory.memory_nudges import MemoryNudges
 from tests.scenarios.builder.stack_states import IDLE, READING_OVERVIEW
 from tests.scenarios.builder.story_values import scenario
 from tests.scenarios.state_fixtures.agent_at_work import AgentAtWork
@@ -23,4 +22,3 @@ def test_a_compaction_lowers_each_memory_by_one_and_shows_them_again(scenario):
     scenario.context_is_compacted()
     scenario.expect_agent_told(BriefingNudges.ENVIRONMENT_MEMORIES)
     scenario.expect_row("memories", memory, {"weight": 4})
-

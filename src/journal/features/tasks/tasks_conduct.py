@@ -13,6 +13,7 @@ from journal.events.agent.ticked import Ticked
 from journal.events.agent.stop import Stop
 from journal.events.rows.row_resolved import RowResolved
 from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_arrived import TaskArrived
 from journal.events.rows.task_reopened import TaskReopened
 from journal.events.rows.task_test_failed import TaskTestFailed
 from journal.features.tasks.tasks_nudges import TasksNudges
@@ -61,6 +62,9 @@ class TasksConduct(Conduct):
         if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         return self.none(TasksNudges.TEST_FAILURE.create(n=event.task_id, output=event.output_id, outcome=event.outcome))
+
+    def on_task_arrived(self, event: TaskArrived, settings: Settings) -> Transition:
+        return self.none(TasksNudges.TASK_ARRIVED.create(n=event.task_id, source=event.source, state=event.state))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         tasks = event.data.part(TasksPart)

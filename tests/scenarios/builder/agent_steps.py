@@ -15,7 +15,8 @@ class AgentSteps:
     def agent_runs(self, line: str) -> None:
         words = shlex.split(line)
         flags = [word for word in words if word.startswith("--")]
-        self.ran(f"agent runs {' '.join(words[:2] + flags)}", self.app.console().run(words, self.agent))
+        result = self.app.console().run(words, self.agent)
+        self.ran(f"agent runs {' '.join(words[:2] + flags)}{', refused' if result.code else ''}", result)
 
     def agent_reads(self, path: str = "a.py", times: int = 1) -> None:
         for _ in range(times):

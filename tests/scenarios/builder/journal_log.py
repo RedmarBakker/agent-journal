@@ -24,6 +24,12 @@ class JournalLog:
         self.walked |= {self.step(entry) for entry in fresh if entry.entry_type == StackHistory.KIND and not {"refused", "dropped"} & entry.data.keys()}
         return said, steps
 
+    def said_in(self, environment: str) -> list[SaidNudge]:
+        self.app.runtime().deferred.drain()
+        with self.app.container.get(Scope).environment(self.app.container.get(Environments).lookup(environment).id):
+            entries = self.app.container.get(Entries).kind_entries_scoped(1000)
+        return [SaidNudge(entry.data["key"], entry.data.get("values", {})) for entry in entries if entry.entry_type == NUDGE]
+
     @staticmethod
     def step(entry) -> str:
         if entry.entry_type == NUDGE:

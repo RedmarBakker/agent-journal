@@ -47,6 +47,7 @@ class TasksNudges:
     WAIT_REASON_REQUEST = Nudge("tasks", "await_needs_its_reason", "{{what|cap=24}} runs {{left}}; to wait anyway, say why", "add --why \"<why it must wait now>\" to the await", repeat=Timeout.seconds(0))
     WAIT_REASON_LINE = Nudge("tasks", "await_with_its_reason", "waiting because {{why|cap=48}}", "do any open work that does not depend on it meanwhile", repeat=Timeout.seconds(0))
     OUTPUT_POLL_REFUSAL = Nudge("tasks", "output_polled", "do not poll output {{n}}", "wait for it: `journal await \"<what>\" --output {{n}}`", repeat=Timeout.seconds(0))
+    TASK_ARRIVED = Nudge("tasks", "task_arrived", "task {{n}} came here from environment {{source}}, {{state}}", "read it with `journal task show {{n}}`", repeat=Timeout.seconds(0))
     TASK_OPENED = Nudge("tasks", "task_opened", "task {{n}} is open", "take it up with `journal task start {{n}}`", repeat=Timeout.seconds(0))
     PAUSE_WAIT_END = Nudge("tasks", "paused_wait_ended", "task {{n}}'s wait is over: {{reason|cap=61}}", "run `journal task resume {{n}}`", repeat=Timeout.seconds(0))
     TASK_REOPENED = Nudge("tasks", "task_reopened", "task {{n}} is open again: {{reason|cap=51}}", "take it up with `journal task start {{n}}`", repeat=Timeout.seconds(0))

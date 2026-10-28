@@ -129,6 +129,9 @@ class Tasks(ScopedRepository[Task]):
         planned = self.links.query().filter(link_type=PLAN_LINK).filter_ref("source", self.query())
         return self.selected(self.query().filter(state=TaskState.OPEN, delegated=False, priority=NORMAL, priority_set=False).filter_prefix("creator", AGENT_CREATOR).filter_absent(planned).order("id"))
 
+    def environment_started_tasks(self, environment_id: int) -> list[Task]:
+        return self.selected_globally(self.query().filter(environment_id=environment_id, state=TaskState.STARTED).order("id"))
+
     def agent_started(self) -> list[Task]:
         return self.selected(self.query().filter(state=TaskState.STARTED, delegated=False).order("id"))
 

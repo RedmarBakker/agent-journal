@@ -16,6 +16,7 @@ from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.models.environment import Environment
 from journal.models.plan import Plan
 from journal.models.task import Task
 from journal.support.actor import Actor
@@ -161,25 +162,27 @@ class TaskCommand(Command):
         task, environment = self.tasks.find(args.n), self.environments.existing(args.environment)
         plans = self.plans.containing(task)
         self.refuse_transfer(task, plans, args.force)
-        task = self.let_go(task, plans, environment.name, caller.actor)
+        for plan in plans:
+            self.plans.remove_task(plan, task, caller.actor)
+        task = self.paused_beside_work(task, environment, caller.actor)
         for line in self.logs.logs(task):
             self.logs.save(line.with_(environment_id=environment.id), caller.actor)
-        self.tasks.save(task.with_(environment_id=environment.id), caller.actor)
+        self.tasks.save(task.transferred(environment.id, self.environments.find(task.environment_id).name, environment.name, self._time()), caller.actor)
         print(f"task {task.id} moved to environment {environment.name}")
         return 0
 
     def refuse_transfer(self, task: Task, plans: list[Plan], force: bool) -> None:
         if task.delegated:
             raise Rejection(f"task {task.id} is worker {self.tasks.holder(task).id}'s: release the worker first")
-        if not force and task.is_started():
-            raise Rejection(f"task {task.id} is in progress: pause it first, or --force pauses it and moves it")
+        if not force and task.is_active():
+            raise Rejection(f"task {task.id} is in progress: pause it first, or --force moves it as it is")
         if not force and plans:
             raise Rejection(f"task {task.id} is in plan {plans[0].id}: --force takes it out of the plan and moves it")
 
-    def let_go(self, task: Task, plans: list[Plan], environment: str, actor: Actor) -> Task:
-        for plan in plans:
-            self.plans.remove_task(plan, task, actor)
-        return self.tasks.save(task.paused(f"moved to environment {environment}", self._time()), actor) if task.is_started() else task
+    def paused_beside_work(self, task: Task, environment: Environment, actor: Actor) -> Task:
+        if not task.is_started() or not self.tasks.environment_started_tasks(environment.id):
+            return task
+        return self.tasks.save(task.paused(f"moved to environment {environment.name}, where a task is in progress", self._time()), actor)
 
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
