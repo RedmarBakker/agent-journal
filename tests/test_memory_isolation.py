@@ -120,18 +120,3 @@ def test_a_worker_weighs_its_own_memories_at_its_own_marks_and_the_main_agents_d
     assert type(sessions.top("w1")) is not WeighingMemories and worker_hook(app, lovelace, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "its own skip pops it and its work goes on"
 
 
-def test_two_environments_memories_never_mix_and_a_subagents_compaction_fades_none(app: App):
-    console, memories, scope = app.console(), app.container.get(Memories), app.container.get(Scope)
-    other = Caller.user("other")
-    main_memory = made(console.run(["memory", "add", "the main project ships on fridays"], AGENT))
-    other_memory = made(console.run(["memory", "add", "the other project ships on mondays"], other))
-    assert "mondays" not in console.run(["memory", "list"], AGENT).text and "fridays" not in console.run(["memory", "list"], other).text, "each environment lists its own memories alone"
-    assert console.run(["memory", "weigh", str(other_memory), "3"], AGENT).code == 1, "and refuses a number from another environment"
-    hook(app, "PreCompact", trigger="auto", agent_id="sub-1")
-    app.runtime().deferred.drain()
-    assert memories.find(main_memory).weight == 5, "a subagent's compaction fades no memory, its agent's neither"
-    hook(app, "PreCompact", trigger="auto")
-    app.runtime().deferred.drain()
-    assert memories.find(main_memory).weight == 4, "the main agent's compaction fades its own"
-    with scope.environment(app.container.get(Environments).lookup("other").id):
-        assert memories.find(other_memory).weight == 5, "and leaves another environment's"

@@ -37,6 +37,9 @@ class TimeSteps:
         self.context_reaches(percent)
         self.agent_reads()
 
+    def subagent_compaction_begins(self, subagent: str) -> None:
+        self.hooked("a subagent's compaction begins", "PreCompact", trigger="auto", agent_id=subagent)
+
     def compaction_begins(self) -> None:
         self.hooked("a compaction begins", "PreCompact")
 
