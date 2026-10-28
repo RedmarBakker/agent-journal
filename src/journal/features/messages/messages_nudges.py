@@ -25,7 +25,7 @@ class MessagesNudges:
     UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages|cap=60}}; tool calls wait until you do", "", repeat=Timeout.seconds(0), chat_answerable=True)
     FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "run `journal message read <n>` and `journal question show <n>` alone, without a pipe", "", repeat=Timeout.seconds(0))
     RETIRED_TAGS = Nudge("messages", "tags_run_nothing", "tags run nothing any more", "reply with `journal message send '<text>' --reply-to <n>`, act by command", repeat=Timeout.minutes(60))
-    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "reply {{reply}} to message {{n}} is in the chat", "never say it again in your own words; go on", repeat=Timeout.seconds(0), is_remark=True)
+    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "you answered message {{n}}: reply {{reply}} is in the chat", "write nothing more about it in the chat; go on with the work", repeat=Timeout.seconds(0), is_remark=True)
     REPEATED_CLOSING_TEXT = Nudge("messages", "closing_words_kept_out_as_repeated", "your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply", repeat=Timeout.seconds(0), is_remark=True)
     PEER_QUESTION = Nudge("messages", "answer_the_other_agent", "agent {{sender}} asked you a question in message {{n}}", "answer with SendMessage to {{sender}}", repeat=Timeout.seconds(300))
 

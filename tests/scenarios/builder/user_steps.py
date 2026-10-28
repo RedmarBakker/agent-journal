@@ -27,6 +27,8 @@ class UserSteps:
     def user_sets(self, option: Option, value: object) -> None:
         top, _, name = option.key.partition(".")
         self.user_posted("/journal/settings", {top: {name: value}})
+        held = self.setting(option)
+        assert held == value, f"{option.key} was set to {value!r} in the viewer but the journal holds {held!r}"
 
     def user_posted(self, path: str, body: dict) -> dict:
         status, answer = posted(self.app, path, body, MAIN)

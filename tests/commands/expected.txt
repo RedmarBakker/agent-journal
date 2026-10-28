@@ -1729,7 +1729,7 @@ messages.new_teammate_message_to_answer  [messages]  new message {{n}} from {{na
 messages.next_tool_held_until_answered  [messages]  reply to message {{messages|cap=62}} now; your next tool call waits for it
 messages.next_write_held_until_read  [messages]  read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it
 messages.read_the_words_whole  [messages]  run `journal message read <n>` and `journal question show <n>` alone, without a pipe
-messages.reply_in_the_chat  [messages]  reply {{reply}} to message {{n}} is in the chat. never say it again in your own words; go on
+messages.reply_in_the_chat  [messages]  you answered message {{n}}: reply {{reply}} is in the chat. write nothing more about it in the chat; go on with the work
 messages.reply_was_only_a_face  [messages]  a reply of only {{emoji}} is not posted. react instead: `journal message react <n> "{{emoji}}"`
 messages.tags_run_nothing  [messages]  tags run nothing any more. reply with `journal message send '<text>' --reply-to <n>`, act by command
 messages.the_user_reacted  [messages]  the user put {{emoji}} on message {{n}}. act on it if it asks for something; never mention it
