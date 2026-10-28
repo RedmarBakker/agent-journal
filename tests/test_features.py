@@ -4225,34 +4225,6 @@ def test_the_agent_is_kept_out_of_the_secrets_and_the_mcp_keys(app: App, tmp_pat
     assert "`journal secret run <n> -- <program>`" in hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(values)})[1]["error"]
 
 
-def test_the_secret_commands_make_ask_for_change_list_show_and_delete_and_none_takes_a_value(app: App, tmp_path, monkeypatch):
-    from journal.repositories.messages import Messages
-    from journal.repositories.scope import Scope
-    monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
-    console = app.console()
-    import shutil
-    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
-    produced = console.run(["secret", "create", "Github", "--kind", "api key", "--brief", "Run `curl -H @- https://api.github.com/user` or `bash -c x`, with GITHUB_KEY"], AGENT)
-    assert produced.code == 0 and "secret 1 made: Github, waiting for the user to fill key on the Secrets page; proposed for the user to allow: curl" in produced.text, "a shell named in the instructions is never proposed"
-    assert console.run(["secret", "request", "Stripe", "--why", "to read the invoices"], AGENT).code == 0
-    with app.container.get(Scope).environment(1):
-        assert any("Please fill in the secret Stripe on the Secrets page" in m.text and "secret 2" in m.text for m in app.container.get(Messages).scoped())
-    assert "filled by the user on the Secrets page, never by a command" in console.run(["secret", "fill", "1"], AGENT).error
-    listed = console.run(["secret", "list"], AGENT).text
-    assert "Github  waiting for the user" in listed and "Stripe" in listed
-    shown = console.run(["secret", "show", "1"], AGENT).text
-    assert "GITHUB_KEY" in shown and "waiting for the user, hidden" in shown and "proposed: curl" in shown
-    assert console.run(["secret", "update", "1", "--title", "GitHub"], AGENT).code == 0 and "GitHub" in console.run(["secret", "list"], AGENT).text
-    assert console.run(["secret", "folder"], AGENT).text.strip().endswith(".env")
-    produced = tmp_path / "made.txt"
-    produced.write_text("  generated-password-value  \n")
-    assert console.run(["secret", "store", "1", "key", str(produced)], AGENT).code == 0 and not produced.exists()
-    from journal.support.secret_values import SecretValues
-    assert app.container.get(SecretValues).values()["GITHUB_KEY"] == "generated-password-value"
-    console.run(["secret", "delete", "2"], AGENT)
-    assert "Stripe" not in console.run(["secret", "list"], AGENT).text
-    console.run(["secret", "restore", "2"], AGENT)
-    assert "Stripe" in console.run(["secret", "list"], AGENT).text
 
 
 def test_secrets_kept_as_files_in_the_project_folder_become_rows_once(app: App):

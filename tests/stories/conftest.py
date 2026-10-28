@@ -59,6 +59,8 @@ def home_inside_the_story_folder(root: Path, patch: pytest.MonkeyPatch) -> None:
     patch.setenv("HOME", str(root / "home"))
     patch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     patch.delenv("CODEX_HOME", raising=False)
+    patch.delenv("XDG_CONFIG_HOME", raising=False)
+    patch.delenv("AGENT_JOURNAL_SECRETS", raising=False)
 
 
 @pytest.fixture(scope="module")

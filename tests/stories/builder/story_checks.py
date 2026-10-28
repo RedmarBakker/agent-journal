@@ -143,6 +143,9 @@ class StoryChecks:
         text = (self.app.config.root / path).read_text()
         assert part not in text, f"{path} still holds {part!r}"
 
+    def expect_no_project_file(self, path: str) -> None:
+        assert not (self.app.config.root / path).exists(), f"{path} is still in the project"
+
     def expect_project_file_is(self, path: str, text: str) -> None:
         assert (self.app.config.root / path).read_text() == text, f"{path} changed"
 
