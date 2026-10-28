@@ -5,7 +5,7 @@ from datetime import datetime
 from journal.console.command import Command
 from journal.features.client_errors.support.client_error_store import ClientErrorStore
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
-from journal.features.faults.support.scenario_transitions import ScenarioTransitions
+from journal.features.faults.support.story_transitions import StoryTransitions
 from journal.features.faults.support.thread_sampler import ThreadSampler
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.timing import Timing
@@ -25,7 +25,7 @@ class DeveloperCommand(Command):
 
     noun = "developer"
 
-    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans, large_reads: LargeReads, client_errors: ClientErrorStore, transitions: ScenarioTransitions) -> None:
+    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans, large_reads: LargeReads, client_errors: ClientErrorStore, transitions: StoryTransitions) -> None:
         self.viewer_errors, self.transition_kinds = client_errors, transitions
         self.numbers, self.sampler, self.statements, self.plans, self.large_reads = numbers, sampler, queries, plans, large_reads
 
@@ -45,7 +45,7 @@ class DeveloperCommand(Command):
         errors = self.verb(verbs, "client-errors", "the console errors the viewer posted, each with its stack and how many times it came, until they are cleared")
         errors.set_defaults(verb="client_errors")
         errors.add_argument("--clear", action="store_true", help="empty the list, which ends the reminders")
-        transitions = self.verb(verbs, "transitions", "each kind of change of an agent's stack counted here, the top state before, the top state after and its cause, the rarest first, marked when no scenario story walks it")
+        transitions = self.verb(verbs, "transitions", "each kind of change of an agent's stack counted here, the top state before, the top state after and its cause, the rarest first, marked when no story walks it")
         transitions.add_argument("--hours", type=float, default=0.0, help="only the kinds seen in the last this many hours; 0 for every kind")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
         profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")

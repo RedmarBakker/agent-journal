@@ -33,7 +33,7 @@ from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
 
 # the folder whose stories go to one shard together
-SCENARIOS_FOLDER = "tests/scenarios/"
+STORIES_FOLDER = "tests/stories/"
 
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
@@ -157,8 +157,8 @@ def recorded_seconds() -> dict[str, float]:
 
 
 def dealt_unit(nodeid: str) -> str:
-    """What a shard is dealt: a test on its own, but the scenarios all together, since their paths are laid over each other at the end of the run that played them."""
-    return SCENARIOS_FOLDER if nodeid.startswith(SCENARIOS_FOLDER) else nodeid
+    """What a shard is dealt: a test on its own, but the stories all together, since their paths are laid over each other at the end of the run that played them."""
+    return STORIES_FOLDER if nodeid.startswith(STORIES_FOLDER) else nodeid
 
 
 def pytest_collection_modifyitems(config, items):
