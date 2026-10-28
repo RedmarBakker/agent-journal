@@ -5,7 +5,7 @@ from tests.scenarios.builder.coverage_gaps import CoverageGaps
 from tests.scenarios.builder.path_overlay import PathOverlay
 from tests.scenarios.builder.scenario import Scenario
 from tests.scenarios.builder.setting_reads import SettingReads
-from tests.scenarios.builder.story_values import STARTS_FROM_MARK
+from tests.scenarios.builder.story_values import ENDS_IN_MARK, STARTS_FROM_MARK
 from tests.test_features import booted
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.features.registry import Registry
@@ -31,6 +31,10 @@ def scenario(app, monkeypatch, request):
     for mark in request.node.iter_markers(STARTS_FROM_MARK):
         played.starts_from(mark.args[0])
     yield played
+    for mark in request.node.iter_markers(ENDS_IN_MARK):
+        played.expect_stack(*(played.end_stack if played.end_stack is not None else mark.args))
+    unused = played.rows_never_used()
+    assert not unused, f"starts from {played.start.__name__} but never used {', '.join(unused)}: start from a fixture whose rows it uses"
     unread = played.settings_never_read()
     assert not unread, f"set by the story but never read by the journal after: {', '.join(unread)}"
     gaps = request.config.stash.setdefault(GAPS, CoverageGaps())

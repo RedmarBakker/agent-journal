@@ -2,12 +2,14 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.models.plan_state import PlanState
 from journal.models.task_state import TaskState
-from tests.scenarios.builder.story_values import starts_from, values
+from tests.scenarios.builder.stack_states import IDLE
+from tests.scenarios.builder.story_values import scenario, values
 from tests.scenarios.state_fixtures.plan_just_started import PlanJustStarted
+from tests.scenarios.state_fixtures.agent_at_work import AgentAtWork
 from tests.scenarios.state_fixtures.task_in_hand import TaskInHand
 
 
-@starts_from(PlanJustStarted)
+@scenario(PlanJustStarted, end=[IDLE])
 def test_a_task_outside_a_plan_is_worked_on_top_of_it(scenario):
     scenario.agent_runs(f"task pause {scenario.task_in_hand} 'something else first'")
     outside = scenario.agent_takes_a_task("outside")
@@ -24,7 +26,7 @@ def test_a_task_outside_a_plan_is_worked_on_top_of_it(scenario):
     scenario.expect_plan(scenario.plan, state=PlanState.PAUSED)
 
 
-@starts_from(TaskInHand)
+@scenario(TaskInHand)
 def test_a_test_run_on_a_long_task_suggests_testing(scenario):
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_MINUTES, 0)
     scenario.user_sets(TasksOptions.TESTING_SUGGESTION_TOOL_USES, 3)
@@ -40,7 +42,7 @@ def test_a_test_run_on_a_long_task_suggests_testing(scenario):
     scenario.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
 
 
-@starts_from(TaskInHand)
+@scenario(TaskInHand)
 def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(scenario):
     header = scenario.agent_creates_task("the header")
     scenario.agent_runs(f"task block {header} --on task:{scenario.task_in_hand}")
@@ -50,10 +52,26 @@ def test_a_task_blocked_on_another_is_taken_up_when_that_one_closes(scenario):
     scenario.expect_agent_told(TasksNudges.TASK_REOPENED, n=header)
 
 
-@starts_from(TaskInHand)
+@scenario(TaskInHand, end=[IDLE])
 @values([0, 3])
 def test_a_task_in_testing_follows_its_run(scenario, value):
     scenario.agent_runs(f"task test {scenario.task_in_hand}")
     run = scenario.agent_runs_a_command(f"sh -c 'seq 1 300; exit {value}'")
     scenario.agent_runs(f"output test {run}")
     scenario.expect_task(scenario.task_in_hand, state=TaskState.PAUSED if value else TaskState.COMPLETED)
+
+
+@scenario(AgentAtWork)
+def test_tasks_left_at_the_default_priority_are_asked_about(scenario):
+    scenario.user_sets(TasksOptions.PRIORITY_REMIND_TASKS, 2)
+    scenario.agent_creates_task("the header")
+    scenario.agent_creates_task("the menu")
+    scenario.agent_reads()
+    scenario.expect_agent_told(TasksNudges.PRIORITIES_REMINDER)
+
+
+@scenario(AgentAtWork)
+def test_stuck_with_tasks_open_is_refused(scenario):
+    scenario.agent_creates_task("the header")
+    scenario.agent_runs_in_the_shell("journal stuck 'the build fails'")
+    scenario.expect_refused(TasksNudges.IMPASSE_REFUSAL)

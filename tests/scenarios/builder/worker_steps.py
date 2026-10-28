@@ -11,6 +11,11 @@ class WorkerSteps:
         self.agent_runs(f"worker dispatch '{name}' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests'")
         return int(re.search(r"worker (\d+)", self.command.text)[1])
 
+    def agent_dispatches_worker_on_plan(self, name: str, plan: int) -> int:
+        self.agent_runs(f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
+        self.expect_command_passed()
+        return self.newest("workers")
+
     def worker_clocks_in(self, worker: int) -> None:
         self.worker_runs(worker, "clock-in")
 

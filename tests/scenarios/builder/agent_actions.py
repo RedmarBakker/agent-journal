@@ -22,6 +22,18 @@ class AgentActions:
         self.agent_runs(f"question ask '{question}' --options " + " ".join(f"'{option}'" for option in options))
         return int(re.search(r"question (\d+)", self.command.text)[1])
 
+    def agent_replies_with_number(self, message: int, text: str) -> int:
+        self.agent_replies(message, text)
+        return int(re.search(r"message (\d+)", self.command.text)[1])
+
+    def agent_creates_sequence(self, title: str, steps: str) -> int:
+        self.agent_runs(f"sequence create '{title}' --steps '{steps}'")
+        return int(re.search(r"sequence (\d+)", self.command.text)[1])
+
+    def agent_adds_memory(self, text: str, weight: int) -> int:
+        self.agent_runs(f"memory add '{text}' --weight {weight}")
+        return int(re.search(r"memory (\d+)", self.command.text)[1])
+
     def agent_answers(self, message: int, text: str) -> None:
         self.agent_runs(f"message read {message}")
         self.agent_replies(message, text)

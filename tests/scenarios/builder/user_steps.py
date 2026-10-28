@@ -18,11 +18,14 @@ class UserSteps:
     def user_answers(self, question: int, answer: str) -> None:
         self.user_posted(f"/journal/questions/{question}/answer", {"answer": answer})
 
+    def user_reacts(self, message: int, emoji: str) -> None:
+        self.user_posted(f"/journal/messages/{message}/react", {"emoji": emoji})
+
     def user_creates_plan(self, title: str, brief: str) -> int:
         return self.user_posted("/journal/plans", {"title": title, "brief": brief})["id"]
 
-    def user_adds_plan_task(self, plan: int, title: str) -> int:
-        return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title})["id"]
+    def user_adds_plan_task(self, plan: int, title: str, brief: str = "") -> int:
+        return self.user_posted(f"/journal/plans/{plan}/tasks", {"title": title, "brief": brief})["id"]
 
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})

@@ -18,7 +18,7 @@ from tests.scenarios.state_fixtures.state_fixture import StateFixture
 
 
 class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, ShellSteps, TimeSteps, StepChecks, StorySugar):
-    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after."""
+    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and the rows its start made are noted as the story uses them, to ask whether it used them all."""
 
     def __init__(self, app, provider: str, reads: SettingReads) -> None:
         self.app, self.provider, self.tools, self.reads = app, provider, TOOLS[provider], reads
@@ -28,11 +28,29 @@ class Scenario(AgentSteps, AgentActions, UserSteps, WorkerSteps, SessionSteps, S
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
         self.said_keys: set[str] = set()
+        self.rows: dict[str, int] = {}
+        self.row_makers: dict[str, type] = {}
+        self.rows_used: set[str] = set()
+        self.start: type | None = None
+        self.end_stack: list[str] | None = None
 
     def starts_from(self, fixture: type[StateFixture]) -> None:
         fixture().seed(self)
         self.observed("", None, None)
-        self.path = []
+        self.path, self.rows_used, self.start = [], set(), fixture
+
+    def provide(self, maker: type, name: str, number: int) -> None:
+        self.rows[name], self.row_makers[name] = number, maker
+
+    def __getattr__(self, name: str) -> int:
+        rows = self.__dict__.get("rows", {})
+        if name not in rows:
+            raise AttributeError(name)
+        self.rows_used.add(name)
+        return rows[name]
+
+    def rows_never_used(self) -> list[str]:
+        return [name for name, maker in self.row_makers.items() if maker is self.start and name not in self.rows_used]
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
         return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})

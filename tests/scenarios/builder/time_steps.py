@@ -15,6 +15,10 @@ class TimeSteps:
         (self.app.config.status_home / "s1.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
         self.observed(f"context reaches {percent}%", None, None)
 
+    def agent_consumes_context(self, percent: int) -> None:
+        self.context_reaches(percent)
+        self.agent_reads()
+
     def context_is_compacted(self) -> None:
         self.posted_hook("PreCompact")
         self.hooked("context is compacted", "SessionStart", source="compact")

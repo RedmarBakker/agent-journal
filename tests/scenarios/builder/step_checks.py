@@ -40,6 +40,9 @@ class StepChecks:
         shown = self.stack()
         assert shown == list(names), f"the stack is {shown}; told {[said.key for said in self.said]}"
 
+    def expect_end(self, *names: str) -> None:
+        self.end_stack = list(names)
+
     def expect_task(self, n: int, **fields) -> None:
         self.expect_row("tasks", n, fields)
 
@@ -57,8 +60,8 @@ class StepChecks:
 
     def stack(self) -> list[str]:
         agents = got(self.app, "/journal/agents", MAIN)[1]["rows"]
-        main = [row for row in agents if row.get("session") == "s1"]
-        return [state["name"] for state in reversed(self.api_row("agents", main[0]["id"])["stack"])] if main else []
+        main = sorted(row["id"] for row in agents if row.get("role") in (None, "main"))
+        return [state["name"] for state in reversed(self.api_row("agents", main[-1])["stack"])] if main else []
 
     def newest(self, table: str) -> int:
         return max(row["id"] for row in got(self.app, f"/journal/{table}", MAIN)[1]["rows"])
