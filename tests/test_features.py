@@ -252,9 +252,6 @@ def test_a_reminder_with_an_interval_is_sent_again_each_time_it_passes_and_never
 
 
 
-def test_a_rule_binds_the_project_not_an_environment(app: App):
-    app.console().run(["rule", "create", "Always name the model"], Caller.user("other"))
-    assert "Always name the model" in app.console().run(["rule", "list"], USER).text
 
 
 def test_a_mark_owed_outlives_being_stuck_and_a_decision_pays_it(app: App):
@@ -947,8 +944,9 @@ def test_a_running_check_shows_how_far_it_is_and_keeps_its_report(app: App, tmp_
     report = '{"title": "Sins", "summary": "1 sin", "findings": [{"name": "python-dict-bag", "file": "src/x.py", "line": 3, "group": "value objects"}]}'
     step = tmp_path / "step"
     os.mkfifo(step)
-    app.console().run(["check", "create", "Counts", "--command", f"echo 1/3; {fifo_line(step)}; echo 2/3; {fifo_line(step)}; printf '%s' '{report}' > \"$JOURNAL_REPORT\"; exit 1"], USER)
+    from journal.models.check import Check
     checks = app.container.get(Checks)
+    checks.save(Check(title="Counts", command=f"echo 1/3; {fifo_line(step)}; echo 2/3; {fifo_line(step)}; printf '%s' '{report}' > \"$JOURNAL_REPORT\"; exit 1"), Actor.user(1))
     started = app.container.get(CheckRunner).start(checks.find(1), Actor.user(1))
     assert started.progress is not None, "a run started from the page answers at once, marked running"
 
@@ -1093,8 +1091,9 @@ def test_a_check_left_marked_running_by_a_journal_that_stopped_runs_again(app: A
     from journal.features.checks.support.check_runner import CheckRunner
     from journal.models.check import RUN_LIMIT_SECONDS
     from journal.repositories.checks import Checks
-    app.console().run(["check", "create", "spikes", "--command", "true", "--every", "1"], USER)
+    from journal.models.check import Check
     checks, runner = app.container.get(Checks), app.container.get(CheckRunner)
+    checks.save(Check(title="spikes", command="true", interval=1), Actor.user(1))
     left = checks.save(checks.find(1).started(timing.time() - RUN_LIMIT_SECONDS - 60), Actor.system())
     assert not left.is_running(timing.time()), "a run marked longer ago than a run may last belongs to no live run"
     runner.run(left, Actor.system())

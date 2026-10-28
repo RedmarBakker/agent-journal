@@ -268,6 +268,10 @@ class AgentSteps:
     def task_states_in(self, environment: str) -> dict[int, str]:
         return {row["id"]: row["state"] for row in get_answer(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
 
+    def agent_in_runs(self, environment: str, session: str, line: str) -> None:
+        arguments = shlex.split(line)
+        self.record_command(f"the agent in {environment} runs {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.agent(environment, session, self.provider)))
+
     def agent_in_starts_task(self, environment: str, session: str, title: str) -> int:
         self.session_starts_in(environment, session)
         outcome = self.app.console().run(["task", "create", title, "--start"], Caller.agent(environment, session, self.provider))
