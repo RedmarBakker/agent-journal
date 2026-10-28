@@ -40,7 +40,7 @@ def hook_as(app, provider: str, type_name: str, session: str = "s1", **body):
     return posted(app, f"/hooks/{provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main"})
 
 
-def catch_typed(app, monkeypatch, keystrokes: list) -> None:
+def typing_capture(app, monkeypatch, keystrokes: list) -> None:
     """Catches each line typed to the agent into typed and confirms it at once, as the agent's prompt hook would, so the next is not held behind it."""
     lines = app.container.get(TypedLines)
 
@@ -51,7 +51,7 @@ def catch_typed(app, monkeypatch, keystrokes: list) -> None:
     monkeypatch.setattr(SupervisorLink, "_send", seen_back)
 
 
-def drive_the_clock(app, monkeypatch) -> None:
+def pinned_clock(app, monkeypatch) -> None:
     """The journal's time source pinned at the whole second the replay starts, so every hook and every row notes its time there, a tick says how long after it was, and each later moment is exact."""
     clock = app.container.get(Clock)
     clock.held_at = float(int(timing.time()))
@@ -65,7 +65,7 @@ def pass_time(app, seconds: float) -> None:
     app.container.get(TimeSource).pin(clock.held_at)
 
 
-def tick_after(app, silent: float) -> list:
+def silent_tick(app, silent: float) -> list:
     """A tick so many seconds after the held moment, the agent silent all that time."""
     return tick_at(app, silent, silent)
 
@@ -92,8 +92,8 @@ class Replay:
         """On a started journal, the lines typed to its agent caught."""
         self.app, self.typed, self.steps = app, [], []
         self.observer = Observer(app, self.typed)
-        catch_typed(app, monkeypatch, self.typed)
-        drive_the_clock(app, monkeypatch)
+        typing_capture(app, monkeypatch, self.typed)
+        pinned_clock(app, monkeypatch)
 
     def step(self, name: str, answer=None) -> None:
         """Closes a step: the hook's answer when the step was a hook, the lines typed since the last step, the nudges said since and the stack, read by the observer the simulator shares."""

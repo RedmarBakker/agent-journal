@@ -7,7 +7,7 @@ from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.support.machine_load import MachineLoad
 from journal.support.time_source import TimeSource
 from tests.observation import Observation, Observer
-from tests.replay import catch_typed, hook_as
+from tests.replay import typing_capture, hook_as
 from tests.simulation.commit_ledger import CommitLedger
 
 START_SECONDS = 1_800_000_000.0
@@ -27,7 +27,7 @@ class Simulator:
         monkeypatch.setattr(CommitDetection, "head", lambda detection, folder: self.ledger.head())
         monkeypatch.setattr(WorkerBranch, "merged_lines", lambda branch, worker: MERGED_LINES)
         app.runtime().jobs.stop()
-        catch_typed(app, monkeypatch, self.typed)
+        typing_capture(app, monkeypatch, self.typed)
         self.source = app.container.get(TimeSource)
         self.source.pin(START_SECONDS)
         self.app.container.get(Clock).held_at = START_SECONDS

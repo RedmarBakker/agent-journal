@@ -2,7 +2,7 @@ from journal.features.tasks.states.ready import Ready
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class AgentAtWork(StateFixture):
+class WorkingAgent(StateFixture):
     """The main agent has started its session and read the overview, so its writes go through."""
 
     stack = (Ready,)

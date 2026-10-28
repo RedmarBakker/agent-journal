@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class SaidNudge:
+class NudgeRecord:
     """One line the nudger gave the agent, by its registry key and the values it was made with."""
 
     key: str

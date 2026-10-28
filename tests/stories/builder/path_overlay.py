@@ -16,21 +16,21 @@ class PathOverlay:
         self.paths[name] = path
 
     def failures(self) -> list[str]:
-        return [*self.redundant(), *self.pairs_from(FAILING_SHARE)]
+        return [*self.redundant(), *self.alike_pairs(FAILING_SHARE)]
 
     def warnings(self) -> list[str]:
-        return [line for line in self.pairs_from(WARNING_SHARE) if line not in self.pairs_from(FAILING_SHARE)]
+        return [line for line in self.alike_pairs(WARNING_SHARE) if line not in self.alike_pairs(FAILING_SHARE)]
 
     def redundant(self) -> list[str]:
         lines = []
         for name, path in self.paths.items():
-            others = set().union(*(self.elements(other) for other_name, other in self.paths.items() if other_name != name))
-            if path and self.elements(path) <= others:
-                covering = [other_name for other_name, other in self.paths.items() if other_name != name and self.elements(path) & self.elements(other)]
+            neighbour_elements = set().union(*(self.elements(neighbour) for neighbour_name, neighbour in self.paths.items() if neighbour_name != name))
+            if path and self.elements(path) <= neighbour_elements:
+                covering = [neighbour_name for neighbour_name, neighbour in self.paths.items() if neighbour_name != name and self.elements(path) & self.elements(neighbour)]
                 lines.append(f"{name} reaches nothing the other stories do not; covered by {', '.join(covering)}")
         return lines
 
-    def pairs_from(self, share: float) -> list[str]:
+    def alike_pairs(self, share: float) -> list[str]:
         names, lines = sorted(self.paths), []
         for index, first in enumerate(names):
             for second in names[index + 1:]:
@@ -51,4 +51,4 @@ class PathOverlay:
 
     @staticmethod
     def common_start(first: list[str], second: list[str]) -> int:
-        return next((index for index, (one, other) in enumerate(zip(first, second)) if one != other), min(len(first), len(second)))
+        return next((index for index, (first_step, second_step) in enumerate(zip(first, second)) if first_step != second_step), min(len(first), len(second)))

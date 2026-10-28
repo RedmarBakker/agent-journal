@@ -51,8 +51,8 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.user_settings import user_set
-from tests.replay import catch_typed, drive_the_clock, tick_after, tick_at
-from tests.in_process import answered, got, posted
+from tests.replay import typing_capture, pinned_clock, silent_tick, tick_at
+from tests.in_process import answered, get_answer, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.shell.shell_nudges import ShellNudges
@@ -152,8 +152,8 @@ def hook(app, type_name: str, **body):
 
 def agent_rows(app) -> list[dict]:
     """The agents' rows read whole, by id, as the viewer reads one with its activity; their list carries their own fields alone."""
-    ids = ",".join(str(row["id"]) for row in got(app, "/journal/agents", {"X-Journal-Env": "main"})[1]["rows"])
-    return got(app, f"/journal/agents?ids={ids}", {"X-Journal-Env": "main"})[1]["rows"] if ids else []
+    ids = ",".join(str(row["id"]) for row in get_answer(app, "/journal/agents", {"X-Journal-Env": "main"})[1]["rows"])
+    return get_answer(app, f"/journal/agents?ids={ids}", {"X-Journal-Env": "main"})[1]["rows"] if ids else []
 
 
 def context(app, percent: int):
@@ -345,17 +345,17 @@ def test_a_reminder_with_an_interval_is_sent_again_each_time_it_passes_and_never
 
 def test_the_user_adds_weighs_and_removes_a_memory_in_the_viewer_and_each_change_is_a_card(app: App):
     from journal.repositories.messages import Messages
-    from tests.in_process import got, posted
+    from tests.in_process import get_answer, posted
     env = {"X-Journal-Env": "main"}
     hook(app, "SessionStart")
     status, made = posted(app, "/journal/memories", {"text": "the release goes out on fridays", "weight": 6}, env)
     assert status == 201 and made["weight"] == 6 and made["creator"].startswith("user"), "the user adds a memory, saved as the user"
     assert posted(app, "/journal/memories", {"text": "too heavy", "weight": 11}, env)[0] >= 400, "a weight past 10 is refused"
     assert posted(app, f"/journal/memories/{made['id']}", {"weight": 9}, env)[1]["weight"] == 9, "the user weighs it"
-    status, listed = got(app, "/journal/memories", env)
+    status, listed = get_answer(app, "/journal/memories", env)
     assert [row["id"] for row in listed["rows"]] == [made["id"]], "the list holds the memories still shown"
     assert posted(app, f"/journal/memories/{made['id']}/remove", {}, env)[1]["removed_at"], "the user removes it; it stays on its row"
-    assert got(app, "/journal/memories", env)[1]["rows"] == [], "a removed memory is no longer listed"
+    assert get_answer(app, "/journal/memories", env)[1]["rows"] == [], "a removed memory is no longer listed"
     app.runtime().deferred.drain()
     labels = [m.text for m in app.container.get(Messages).scoped() if m.data.get("shows") == "memories"]
     assert labels == [f"Memory {made['id']} recorded, weight 6", f"Memory {made['id']}: importance set to 9 of 10", f"Memory {made['id']} removed"], labels
@@ -416,7 +416,7 @@ def test_a_plan_is_followed_task_by_task_to_its_end(app: App):
 
 def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -443,7 +443,7 @@ def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeyp
 
 def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_beside_the_one_in_hand(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -465,7 +465,7 @@ def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked
     from journal.repositories.checks import Checks
     from journal.repositories.plans import Plans
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -562,7 +562,7 @@ def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_
     from journal.repositories.checks import Checks
     from journal.repositories.tasks import Tasks
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -623,7 +623,7 @@ def test_a_plan_with_a_blocked_task_waits_and_is_not_done(app: App, monkeypatch)
     from journal.models.plan_state import PlanState
     from journal.repositories.plans import Plans
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     console = app.console()
     console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
@@ -701,7 +701,7 @@ def test_messages_are_put_before_the_agent_and_a_reply_by_command_answers_them(a
 def test_an_old_tag_in_a_turn_is_stripped_runs_nothing_and_tells_the_agent_once(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["message", "send", "first"], USER)
@@ -781,7 +781,7 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     folder = app.config.root / "run"
@@ -850,7 +850,7 @@ def test_a_worker_read_by_id_carries_the_context_its_session_reported_and_none_i
         silent = workers.save(Worker(environment_id=MAIN, name="Mr. Boulton", brief="w", session="wb"), Actor.system())
     app.config.status_home.mkdir(parents=True, exist_ok=True)
     (app.config.status_home / "ww.json").write_text(json.dumps({"context_window": {"used_percentage": 35}}))
-    rows = got(app, f"/journal/workers?ids={watt.id},{silent.id}", {"X-Journal-Env": "main"})[1]["rows"]
+    rows = get_answer(app, f"/journal/workers?ids={watt.id},{silent.id}", {"X-Journal-Env": "main"})[1]["rows"]
     context = {row["name"]: row["context"] for row in rows}
     assert context == {"Mr. Watt": 35, "Mr. Boulton": None}, "a worker carries the context its session reported, and none when it reported nothing"
 
@@ -870,7 +870,7 @@ def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(
 
 def test_telling_the_user_a_link_is_pinned_with_no_pin_made_is_pointed_out(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
 
@@ -1322,7 +1322,7 @@ def test_a_check_run_reaches_the_page_though_a_check_is_the_projects(app: App):
 
 def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["check", "create", "it is fine", "--command", "true"], USER)
@@ -1370,7 +1370,7 @@ def test_a_running_check_is_a_docked_card_with_its_progress_that_becomes_its_res
 
 def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_stuck(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["check", "create", "it is broken", "--command", "exit 1"], USER)
@@ -1419,7 +1419,7 @@ def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_fo
 
 def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -1447,7 +1447,7 @@ def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_
 
 def test_a_task_the_user_opens_is_told_at_once_to_an_idle_agent_and_frees_a_stuck_one(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -1595,7 +1595,7 @@ def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: Ap
 
 def test_shop_talk_and_the_third_person_are_named(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     hook(app, "MessageDisplay", message="I ran journal task start 3 because the user wants it.")
     app.runtime().deferred.drain()
@@ -1793,7 +1793,7 @@ def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_min
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     user_set(app, "features.faults", True)
     user_set(app, "faults.report", True)
@@ -2048,7 +2048,7 @@ def test_the_services_tab_reads_every_process_the_supervisor_runs_through_its_li
 
         respondent = threading.Thread(target=answer)
         respondent.start()
-        status, served = got(app, "/journal/supervised", {"X-Journal-Env": "main"})
+        status, served = get_answer(app, "/journal/supervised", {"X-Journal-Env": "main"})
         respondent.join(2)
     Path(path).unlink(missing_ok=True)
     assert status == 200 and heard == ["hello", "list"], heard
@@ -2097,7 +2097,7 @@ def test_the_journals_boot_starts_no_sync_service_and_leaves_every_team_it_joine
 
 def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["voice", "address", "--title", "Sir", "--name", "Example"], USER)
     text = hook(app, "SessionStart")[1]["hookSpecificOutput"]["additionalContext"]
@@ -2123,7 +2123,7 @@ def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypat
 def test_a_message_reaches_a_working_agent_on_its_next_tool_use_and_an_idle_one_typed_at_once(app: App, monkeypatch):
     """A message that comes while the agent is at work waits for its next tool use, shown to the user too, and nothing is typed; one that comes while it sits at its prompt is typed at once."""
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "UserPromptSubmit", prompt="go on")
@@ -2146,7 +2146,7 @@ def test_a_message_reaches_a_working_agent_on_its_next_tool_use_and_an_idle_one_
 def test_a_stop_the_journal_holds_keeps_the_turn_so_a_line_waits_for_the_next_tool_use(app: App, monkeypatch):
     """A held stop sends the agent back to work, so a line that comes then is queued for its next tool use, never typed."""
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "the footer", "--start"], AGENT)
@@ -2165,7 +2165,7 @@ def test_a_finished_output_left_unread_is_named_again_after_five_tool_uses_and_q
     from journal.events.bus import Bus
     from journal.repositories.command_outputs import CommandOutputs
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     folder = app.config.root / "unread"
@@ -2194,7 +2194,7 @@ def test_a_finished_output_left_unread_is_named_again_after_five_tool_uses_and_q
 def test_a_remark_waits_for_the_next_hook_and_a_line_queued_twice_goes_once(app: App, monkeypatch):
     """A remark asks for nothing now, so an idle agent is not woken for it: it rides on the next tool use; the same line queued twice is said once."""
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "MessageDisplay", message="The footer — the one on the phone page — is fixed.")
@@ -2626,7 +2626,7 @@ def test_reactions_go_both_ways_and_a_face_alone_is_not_posted(app: App, monkeyp
     from journal.repositories.messages import Messages
     from journal.repositories.reactions import Reactions
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["message", "send", "thanks, carry on"], USER)
     hook(app, "SessionStart")
@@ -2649,7 +2649,7 @@ def test_reactions_go_both_ways_and_a_face_alone_is_not_posted(app: App, monkeyp
 def test_a_turn_that_only_answers_a_journal_line_is_an_acknowledgement(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     transmitted = []
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart", source="startup")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "UserPromptSubmit", prompt=f"[journal] {BriefingNudges.JOURNAL_READY.create(env='main').rendered()}")
@@ -2673,7 +2673,7 @@ def test_a_turn_that_only_answers_a_journal_line_is_an_acknowledgement(app: App,
 
 def test_em_dashes_and_run_together_paragraphs_are_pointed_out(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     hook(app, "MessageDisplay", message="The build — the one from last night — is green.")
     hook(app, "MessageDisplay", message=("The build is green. " * 25).strip())
@@ -2714,7 +2714,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     import subprocess
     from journal.repositories.tasks import Tasks
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "Ship the footer\n\nJournal: tasks done 1 and 2 with the margin fixed"], cwd=root, check=True)
@@ -2907,7 +2907,7 @@ def test_a_plan_task_waits_for_the_test_commands_and_a_plan_that_tests_at_phase_
     from journal.features.plans.plans_options import PlansOptions
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     keystrokes: list[str] = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     named = lambda: [line for line in keystrokes if "the plan waits for test commands" in line]
     hook(app, "SessionStart")
@@ -2965,7 +2965,7 @@ def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: 
     from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -3002,7 +3002,7 @@ def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: 
 def test_a_line_typed_in_the_terminal_reaches_the_chat_and_a_face_answers_any_message(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "UserPromptSubmit", prompt="a face is a reply, whatever the length of the message")
@@ -3498,7 +3498,7 @@ def test_the_agent_a_supervisor_runs_stays_live_however_long_it_is_idle_and_is_t
     from journal.events.agent.ticked import Ticked
     from journal.events.bus import Bus
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=36000.0))
@@ -3529,7 +3529,7 @@ def test_memories_are_added_weighed_listed_and_removed_in_one_line_each_and_each
 
 def test_a_keyword_brings_a_fact_back_once_as_a_whisper_and_a_fresh_rule_is_questioned(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["reminder", "create", "the login uses the old session store", "--keywords", "login,session"], USER)
     hook(app, "MessageDisplay", message="I will look at the login next.")
@@ -3558,7 +3558,7 @@ def test_the_record_trim_runs_on_the_clock_outside_any_environment_and_keeps_the
 
 def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struck_fact_is_never_whispered(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     app.container.get(SettingRows).save(Setting(environment_id=0, key="record.kept", value=30), Actor.system())
@@ -3931,7 +3931,7 @@ def test_a_chains_parts_are_recorded_and_a_moved_chain_reports_when_it_ends(app:
     from urllib.request import urlopen
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     console, port = app.console(), app.server().port
     folder = app.config.root / "c1"
@@ -4432,7 +4432,7 @@ def test_a_task_added_first_goes_before_the_plans_tasks(app: App):
 def test_a_plan_is_built_in_phases_made_ready_approved_by_the_user_and_followed_phase_by_phase(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     console = app.console()
@@ -4838,7 +4838,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     assert status == 200, "the orchestrator's own suite goes at once while a turn waits: the budget gates only workers' turns"
     budget = app.console().run(["tests", "budget", "1", "10"], AGENT)
     assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TEST_ID_LIMIT) == 10
-    page = got(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
+    page = get_answer(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
     assert (page["test_runs"], page["tests_per_run"]) == (1, 10), "the Settings page shows the budget the command set"
     assert next(row for row in settings.project_rows() if row.key == WorkersOptions.TEST_RUNS.key).updater == AGENT.actor, "written with the caller as its actor"
     gates[101].set()
@@ -4875,7 +4875,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     from journal.repositories.workers import Workers
     monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
     user_set(app, WorkersOptions.MODE.key, "orchestrator")
     user_set(app, WorkersOptions.MODEL_FIT_SAMPLE.key, 1)
@@ -5399,7 +5399,7 @@ def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claud
 def test_words_start_a_sequence_from_a_prompt_or_from_the_users_message(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -5603,7 +5603,7 @@ def test_a_subagent_dispatched_long_ago_in_the_session_stays_in_the_dropdown(app
 def test_a_link_given_in_the_chat_is_pinned_above_it_or_earns_one_reminder(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     hook(app, "MessageDisplay", message="The design is at https://design.example/p/1 and the docs at http://127.0.0.1:8420/#/x.")
@@ -5623,7 +5623,7 @@ def test_a_link_given_in_the_chat_is_pinned_above_it_or_earns_one_reminder(app: 
 
 def test_an_answer_names_the_command_that_shows_the_question_whole_and_that_read_is_never_piped(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -5640,7 +5640,7 @@ def test_an_answer_names_the_command_that_shows_the_question_whole_and_that_read
 
 def test_a_message_left_from_the_viewer_while_the_agent_sits_idle_is_named_to_it_at_once(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "Stop")
@@ -5681,7 +5681,7 @@ def test_a_subagents_tool_use_does_not_lift_the_agents_own_wait(app: App):
 def test_a_row_event_walks_about_every_agent_of_the_environment_and_speaks_once(app: App, monkeypatch):
     keystrokes = []
     from journal.support.caller import Caller
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -6007,7 +6007,7 @@ def test_a_worker_not_at_work_starts_no_sequence_and_the_agent_is_not_given_one(
     from journal.repositories.workers import Workers
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Pitman", session="s2"), Actor.system())
@@ -6044,7 +6044,7 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
     from journal.events.bus import Bus
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -6101,7 +6101,7 @@ def test_a_run_is_abandoned_with_its_reason_or_ends_when_its_row_or_sequence_is_
     from journal.repositories.sequences import Sequences
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -6130,7 +6130,7 @@ def test_a_run_is_abandoned_with_its_reason_or_ends_when_its_row_or_sequence_is_
 def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -6160,7 +6160,7 @@ def test_runs_nest_never_in_themselves_and_only_the_users_words_start_one(app: A
 def test_the_agents_panel_shows_the_run_and_the_user_can_skip_a_step_or_end_it(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
 
     def api(method: str, path: str):
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=b"{}" if method == "POST" else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
@@ -6396,7 +6396,7 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     from journal.models.plugin import Plugin
     from journal.repositories.plugins import Plugins
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     folder = tmp_path / "lint"
@@ -6405,7 +6405,7 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_a
     manifest.write_text('{"name": "lint"}')
     plugins = app.container.get(Plugins)
     plugins.save(Plugin(name="lint", source=str(folder), linked=True, manifest=PluginManifest(name="lint")), Actor.user(1))
-    drive_the_clock(app, monkeypatch)
+    pinned_clock(app, monkeypatch)
 
     def tick(after: float) -> list[str]:
         tick_at(app, after, 10.0)
@@ -7471,8 +7471,8 @@ def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
 
 def test_an_agent_waiting_with_no_task_in_hand_is_pointed_to_the_next_task_after_a_quiet_minute(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -7480,7 +7480,7 @@ def test_an_agent_waiting_with_no_task_in_hand_is_pointed_to_the_next_task_after
     console.run(["task", "create", "the header"], AGENT)
     console.run(["task", "test", "1"], AGENT)
     console.run(["await", "the suite", "--until", "false"], AGENT)
-    tick_after(app, 70.0)
+    silent_tick(app, 70.0)
     app.runtime().deferred.drain()
     assert any(nudge_reached(app, line, TasksNudges.WAIT_NEXT_TASK, what="the suite", n=2) for line in keystrokes), keystrokes
 
@@ -7571,7 +7571,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
 def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: App, monkeypatch):
     import subprocess
     from journal.repositories.tasks import Tasks
-    catch_typed(app, monkeypatch, [])
+    typing_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     old = {"GIT_COMMITTER_DATE": "2020-01-01T00:00:00", "GIT_AUTHOR_DATE": "2020-01-01T00:00:00"}
@@ -7803,7 +7803,7 @@ def test_each_agent_holds_its_own_task_and_a_workers_task_never_moves_the_main_a
 def test_one_task_is_started_whatever_starts_it_a_paused_plan_pauses_its_task_and_resuming_that_task_starts_the_plan_again_on_purpose(app: App, monkeypatch):
     from journal.models.task_state import TaskState
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks
@@ -8651,7 +8651,7 @@ def test_a_dump_is_filed_item_by_item_told_to_the_agent_and_closes_itself(app: A
     from journal.features.dumps.support.dump_filer import DumpFiler
     from journal.repositories.dumps import Dumps
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     console, sorting = app.console(), app.container.get(DumpFiler)
@@ -8687,8 +8687,8 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
     from journal.support.heartbeat import Heartbeat
     from journal.support.time_source import TimeSource
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     started_at = app.container.get(TimeSource).seconds()
@@ -8698,11 +8698,11 @@ def test_a_command_in_the_background_past_five_minutes_is_named_to_the_agent_at_
     ShellVerbs(app).split("python3 -m pytest -q", str(folder))
     ShellVerbs(app).moved("c1", "python3 -m pytest -q", str(folder / "out"))
     active = outputs.chain_output("c1")
-    tick_after(app, 30.0)
+    silent_tick(app, 30.0)
     assert not any("still running" in line for line in keystrokes), "a command moved to the background a moment ago is left to run"
     for later in (360.0, 370.0):
         Heartbeat(folder).write(started_at + later - 5)
-        tick_after(app, later)
+        silent_tick(app, later)
     matched = [line for line in keystrokes if "still running" in line]
     assert len(matched) == 1 and f"output {active.id} still running" in matched[0] and "pytest" not in matched[0], "past five minutes the agent is told to look at it, once until five more pass"
     assert [o.id for o in outputs.background("s1")] == [active.id], "a chain that beats is still in the background"
@@ -9055,7 +9055,7 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     assert posted(app, f"/journal/environments/{environment.row_id}/remove", {}, {"X-Journal-Env": "main"})[0] == 200
     listed = console.run(["worktree", "list"], USER).text
     assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed and "team" not in listed, listed
-    status, answer = got(app, "/journal/worktrees", {"X-Journal-Env": "main"})
+    status, answer = get_answer(app, "/journal/worktrees", {"X-Journal-Env": "main"})
     assert status == 200 and answer["worktrees"] == [{"name": "calm-river", "branch": "worktree-calm-river"}], "the viewer lists the worktree whose environment is gone, and no other"
     status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
     assert status == 200 and "removed the worktree" in removed["line"] and not (root / ".claude" / "worktrees" / "calm-river").exists(), "and removes it through the same checks"
@@ -9308,7 +9308,7 @@ def test_a_worktree_held_on_another_machine_is_launched_and_removed_only_there_a
     Worktree(root, "keen-otter").created()
     assert "is on the machine ada-laptop: launch it there" in app.container.get(StartRule).refusal(synced, 1), "only the machine holding its folder launches into it"
     assert "is on the machine ada-laptop: remove it there" in console.run(["worktree", "remove", "keen-otter"], USER).error, "or removes it"
-    listed = {row["name"]: row["worktree"] for row in got(app, "/journal/environments", {"X-Journal-Env": "main"})[1]["rows"]}
+    listed = {row["name"]: row["worktree"] for row in get_answer(app, "/journal/environments", {"X-Journal-Env": "main"})[1]["rows"]}
     assert listed["keen-otter"] == "worktree on ada-laptop" and listed["calm-river"] == "worktree on worktree-calm-river", "the viewer shows a colleague's worktree as on their machine"
     assert "keen-otter" not in {WorktreeNames(root).unused({environment.name for environment in environments.all()}) for _ in range(60)}, "a made-up name avoids every environment the team knows"
 
@@ -9668,7 +9668,7 @@ def test_a_package_install_of_code_commandments_is_suggested_once_as_the_journal
 def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["message", "send", "is the idle agent left waiting?"], USER)
     hook(app, "SessionStart")
@@ -9754,7 +9754,7 @@ def test_commands_that_end_together_are_typed_the_first_at_once_and_the_rest_as_
     from journal.support.typed_lines import TypedLines
     from journal.events.bus import Bus
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     user_set(app, "delivery.batch_seconds", 5)
     hook(app, "SessionStart")
     clock = app.container.get(TimeSource)
@@ -9833,7 +9833,7 @@ def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows
 def test_a_task_closed_by_a_commit_names_a_paused_task_at_once(app: App, monkeypatch):
     import subprocess
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
@@ -10732,7 +10732,7 @@ def test_a_short_output_with_no_pipe_keeps_no_output_row(app: App):
 def test_a_paused_agent_reads_and_messages_through_the_pause_its_words_reach_the_chat_and_it_is_told_its_messages_on_resume(app: App, monkeypatch):
     from journal.repositories.agents import Agents
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     agent_id = app.container.get(Agents).session_agent("s1").id
@@ -11972,7 +11972,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).delegated for n in (2, 3)] == [True, True] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
     assert "only an open task" in console.run(["worker", "queue", "1", "2", "--report", "each"], AGENT).error, "a task already delegated waits in no second queue"
-    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     [shown] = page["rows"]
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
     assert shown["finished"] == [], "and the tasks it finished on its queue, none yet, for its place in it"
@@ -11982,7 +11982,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     for chain, line, caller in (("t", "python3 -m pytest -q tests/test_notes.py", Caller.worker("main", 1, "w-1", "claude")), ("m", "journal worker merge 1", AGENT)):
         (app.config.root / chain).mkdir()
         app.container.get(OutputLog).start(chain, line, app.config.root / chain, caller)
-    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     [shown] = page["rows"]
     assert shown["runs"] == ["testing"] and shown["merging"] is True, f"the worker's answer names its runs going on and a merge taking its work in, for what its inspector says it is doing now (task 3664): {shown['runs']}, {shown['merging']}"
     with app.container.get(Scope).environment(MAIN):
@@ -12005,7 +12005,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith(": merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).delegated, "the merge sends the worker its next queued task by itself; the one after waits"
-    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    status, page = get_answer(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     assert [(row["id"], row["state"]) for row in page["rows"][0]["worked"]] == [(1, "merged"), (2, "in hand")], "a finished task stays in the worker's list with its state, beside the one it holds now"
     given = console.run(["worker", "drain", "1"], AGENT)
     with app.container.get(Scope).environment(MAIN):
@@ -12396,7 +12396,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     import subprocess
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
-    catch_typed(app, monkeypatch, [])
+    typing_capture(app, monkeypatch, [])
     root = app.config.root
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     commit = lambda message, moment: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", message], cwd=root, check=True, env={**os.environ, "GIT_COMMITTER_DATE": moment, "GIT_AUTHOR_DATE": moment})
@@ -12420,7 +12420,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
 def test_a_fact_rule_or_reminder_is_handed_over_once_per_context_window_by_the_start_block_the_look_or_a_read(app: App, monkeypatch):
     from journal.repositories.reminders import Reminders
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console, reminders = app.console(), app.container.get(Reminders)
     console.run(["reminder", "create", "run the suite before a push", "--keywords", "push"], USER)
     hook(app, "SessionStart")
@@ -13393,7 +13393,7 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
 def test_a_task_blocked_on_the_user_with_a_reason_is_named_neither_as_standing_still_nor_at_the_stop(app: App, monkeypatch):
     from journal.repositories.entries import NUDGE, Entries
     console = app.console()
-    drive_the_clock(app, monkeypatch)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     for title in ("the colour", "the parser"):
@@ -13450,7 +13450,7 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     from journal.repositories.entries import NUDGE, Entries
     from journal.repositories.plans import Plans
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    drive_the_clock(app, monkeypatch)
+    pinned_clock(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["plan", "create", "release", "--brief", "ship"], USER)
@@ -13683,8 +13683,8 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
@@ -13693,7 +13693,7 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
     app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": call}), Actor.system())
-    tick_after(app, 11 * 60)
+    silent_tick(app, 11 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [] and workers.find(1).silence.is_reported, "at ten minutes the worker itself is told to log, not yet the agent that sent it"
     worker_caller = Caller.worker("main", 1, "w1", "claude")
@@ -13702,10 +13702,10 @@ def test_a_worker_that_logs_nothing_is_told_at_ten_minutes_and_its_dispatcher_at
     console.run(["todo", "add", "read the clock"], worker_caller)
     assert workers.find(1).silence.timeout.start > 0.0 and not workers.find(1).silence.is_reported, "a to-do it writes is progress: its quiet span starts again"
     workers.save(workers.find(1).with_(silence=restarted.silence), Actor.system())
-    tick_after(app, 16 * 60)
+    silent_tick(app, 16 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and has_nudge(quiet()[0], WorkersNudges.SILENT_WORKER, n=1, minutes=15) and "journal task log" in quiet()[0] and workers.find(1).silence.is_split_advised, "at fifteen the agent that sent it is told, with its last tool call and what to do"
-    tick_after(app, 60 * 60)
+    silent_tick(app, 60 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1, "and no more"
 
@@ -13717,8 +13717,8 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
     from journal.repositories.environments import Environments
     from journal.repositories.workers import Workers
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
@@ -13760,8 +13760,8 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers, clock = app.console(), app.container.get(Workers), app.container.get(Clock)
     console.run(["environment", "overview"], AGENT)
@@ -13772,8 +13772,8 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
     assert quiet() == [] and not workers.find(1).silence.is_reported, "a tick runs at the moment it takes its turn, not the one its run began with"
     worker = workers.touch(workers.find(1), Actor.system(), session="w1")
     app.container.get(Entries).save(Entry(environment_id=worker.environment_id, entry_type="ToolStarting", actor=Actor.agent("w1"), data={"call": {"command": "python3 scripts/suite.py"}}), Actor.system())
-    tick_after(app, 11 * 60)
-    tick_after(app, 16 * 60)
+    silent_tick(app, 11 * 60)
+    silent_tick(app, 16 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and "last: python3 scripts" in quiet()[0], "so the worker is named once it is quiet, with its last call"
 
@@ -13781,23 +13781,23 @@ def test_a_tick_the_clock_job_began_at_a_later_moment_carries_the_moment_it_take
 def test_a_worker_that_logs_nothing_for_fifteen_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
-    drive_the_clock(app, monkeypatch)
+    typing_capture(app, monkeypatch, keystrokes)
+    pinned_clock(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     quiet = lambda: [line for line in keystrokes if "worker 1 silent 15 min" in line]
-    tick_after(app, 9 * 60)
+    silent_tick(app, 9 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [], "nine minutes is not yet quiet"
-    tick_after(app, 11 * 60)
+    silent_tick(app, 11 * 60)
     app.runtime().deferred.drain()
     assert quiet() == [], "at ten the worker is told, not yet the agent that sent it"
-    tick_after(app, 16 * 60)
+    silent_tick(app, 16 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1
-    tick_after(app, 25 * 60)
+    silent_tick(app, 25 * 60)
     app.runtime().deferred.drain()
     assert len(quiet()) == 1 and workers.find(1).silence.is_reported, "it is named once for each quiet span"
 
@@ -14152,7 +14152,7 @@ def test_the_runners_note_is_never_typed_to_an_idle_agent(app: App, monkeypatch)
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     link = app.container.get(SupervisorLink)
@@ -15748,7 +15748,7 @@ def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_
     from journal.events.agent.ticked import Ticked
     from journal.repositories.agents import Agents
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     hook(app, "SessionStart")
     console = app.console()
@@ -18641,13 +18641,13 @@ def test_the_run_strip_lists_every_process_running_and_none_once_it_ends(app: Ap
     running.start()
     listed = []
     for _ in range(40):
-        listed = got(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"]
+        listed = get_answer(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"]
         if listed:
             break
         timing.sleep(0.05)
     assert [(entry["command"], entry["docked"], entry["card"]) for entry in listed] == [("sleep 2", False, 0)], "a process running is listed, not docked, before it has a card"
     running.join(timeout=10)
-    assert got(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
+    assert get_answer(app, "/journal/outputs/running", {"X-Journal-Env": "main"})[1]["outputs"] == [], "a process that ended is no longer listed"
 
 
 def test_a_task_waiting_in_testing_completes_when_its_run_passes_and_is_paused_for_its_agent_when_its_run_fails(app: App, monkeypatch):
@@ -18677,7 +18677,7 @@ def test_a_task_waiting_in_testing_completes_when_its_run_passes_and_is_paused_f
             return app.container.get(Tasks).find(n)
 
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "the footer", "--start"], AGENT)
@@ -18910,7 +18910,7 @@ def test_a_worker_sent_and_started_shows_one_mark_a_moment_and_none_says_clocked
 def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewers_are_out_hold_them_while_findings_go_in_and_end_when_it_is_readied(app: App, monkeypatch):
     from journal.repositories.agents import Agents
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -18955,7 +18955,7 @@ def test_a_plan_review_is_a_sequence_whose_steps_let_edits_through_while_reviewe
 def test_a_subagent_resumed_to_review_a_plan_counts_as_its_reviewer_until_it_ends(app: App, monkeypatch):
     from journal.repositories.plans import Plans
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -18990,7 +18990,7 @@ def test_a_review_round_counts_only_the_reviewers_sent_in_it_and_a_subagent_sent
     from journal.events.rows.plan_reviewed import PlanReviewed
     from journal.models.plan_state import PlanState
     from journal.repositories.plans import Plans
-    catch_typed(app, monkeypatch, [])
+    typing_capture(app, monkeypatch, [])
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "first"], USER)
@@ -19606,7 +19606,7 @@ def test_a_job_whose_tool_answer_arrives_twice_is_recorded_once(app: App):
 def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_to_delete_it(app: App, monkeypatch):
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    catch_typed(app, monkeypatch, transmitted)
+    typing_capture(app, monkeypatch, transmitted)
 
     def api(method: str, path: str):
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=b"{}" if method == "POST" else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
@@ -19792,7 +19792,7 @@ def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when
     from journal.repositories.rules import Rules
     from journal.repositories.reminders import Reminders
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -20512,7 +20512,7 @@ def test_every_commentable_rows_noun_lists_its_comments_with_where_the_passage_s
 def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -20535,7 +20535,7 @@ def test_an_agent_left_stopped_with_a_task_in_hand_is_typed_what_its_stop_check_
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -20564,9 +20564,9 @@ def test_a_change_since_an_old_moment_reads_at_most_a_page_of_the_rows_held_and_
     with app.container.get(Scope).environment(1):
         for n in range(60):
             app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text=f"m{n}"), Actor.user(1))
-    status, body = got(app, "/journal/messages?limit=25&since=1", {"X-Journal-Env": "main"})
+    status, body = get_answer(app, "/journal/messages?limit=25&since=1", {"X-Journal-Env": "main"})
     assert status == 200 and len(body["rows"]) <= 26 and body["is_last_page"] is False, "a change since long ago is a page at most, and says there is more, so the viewer reads the newest page instead"
-    status, body = got(app, "/journal/messages?limit=25&since=1&after=50", {"X-Journal-Env": "main"})
+    status, body = get_answer(app, "/journal/messages?limit=25&since=1&after=50", {"X-Journal-Env": "main"})
     assert all(row["id"] > 50 for row in body["rows"]), "only the rows the viewer holds and newer ones, never one it never loaded"
 
 
@@ -21049,7 +21049,7 @@ def test_every_line_of_the_command_corpus_is_labelled_by_what_its_working_part_d
     from journal.features.shell.support.activity_label import ActivityLabel
     labels = app.container.get(ActivityLabel)
     rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
-    wrong = [(n, row["line"][:100], row["reading"]["label"], got) for n, row in enumerate(rows, 1) if (got := labels.line_label(row["line"])) != row["reading"]["label"]]
+    wrong = [(n, row["line"][:100], row["reading"]["label"], get_answer) for n, row in enumerate(rows, 1) if (got := labels.line_label(row["line"])) != row["reading"]["label"]]
     assert not wrong, f"{len(wrong)} corpus lines are labelled otherwise than their reading names, the first: {wrong[:3]}"
 
 
@@ -21427,7 +21427,7 @@ def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(a
 
 def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty_tool_uses_and_end_when_cleared(app: App, monkeypatch):
     keystrokes = []
-    catch_typed(app, monkeypatch, keystrokes)
+    typing_capture(app, monkeypatch, keystrokes)
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     use = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
@@ -21535,7 +21535,7 @@ def test_every_tables_index_lists_its_own_rows_and_reads_no_relationship(app: Ap
     routes = app.container.get(Router).routes
     indexes = sorted(route.pattern for route in routes if route.method == "GET" and getattr(route.handler, "__name__", "") == "index" and isinstance(getattr(route.handler, "__self__", None), Controller))
     assert {"/journal/tasks", "/journal/plans", "/journal/workers", "/journal/agents", "/journal/docs", "/journal/reactions", "/journal/shares"} <= set(indexes), indexes
-    listed = {path: got(app, path, main) for path in indexes}
+    listed = {path: get_answer(app, path, main) for path in indexes}
     assert all(status == 200 for status, _ in listed.values()), {path: body for path, (status, body) in listed.items() if status != 200}
     assert all(listed[f"/journal/{table}"][1]["rows"] for table in ("tasks", "plans", "workers", "agents", "docs", "reactions")), "each index listed its rows, and no read of a relationship raised"
     worker, task = listed["/journal/workers"][1]["rows"][0], listed["/journal/tasks"][1]["rows"][0]
@@ -21809,11 +21809,11 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert kept_verifier.id == verifier.id and kept_verifier.session == verifier.session and len(verifiers.scoped()) == 1 and kept_verifier.brief != verifier.brief, "the idle verifier takes the next judgement in its own session, with its new brief"
     verifier_hook(kept_verifier, "SessionStart")
     assert sessions.top(kept_verifier.session).name == "verifying", "and rests on Verifying again"
-    from in_process import got
-    listed = got(app, "/journal/verifiers", {"X-Journal-Env": "main"})[1]["rows"]
-    shown = got(app, f"/journal/verifiers?ids={verifier.id}", {"X-Journal-Env": "main"})[1]["rows"][0]
+    from in_process import get_answer
+    listed = get_answer(app, "/journal/verifiers", {"X-Journal-Env": "main"})[1]["rows"]
+    shown = get_answer(app, f"/journal/verifiers?ids={verifier.id}", {"X-Journal-Env": "main"})[1]["rows"][0]
     assert [row["id"] for row in listed] == [verifier.id] and shown["judged"] == [f"reader_reports:{report.id}", f"reader_reports:{sound.id}"] and shown["session"] == verifier.session, "the viewer lists the verifier with its session, and reads the reports it judged in order"
-    assert got(app, f"/journal/verifiers/{verifier.id}/transcript", {"X-Journal-Env": "main"})[0] == 200, "and its transcript"
+    assert get_answer(app, f"/journal/verifiers/{verifier.id}/transcript", {"X-Journal-Env": "main"})[0] == 200, "and its transcript"
     console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.verifier("main", kept_verifier.id, kept_verifier.session, "claude"))
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
@@ -22514,7 +22514,7 @@ def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each
         waiting = turns.save(TestTurn(environment_id=MAIN, worker=3, ids="tests/test_a.py::test_one"), Actor.worker(3))
         running = turns.save(TestTurn(environment_id=MAIN, worker=4, ids="tests/test_b.py::test_two").started(1000.0), Actor.worker(4))
         turns.save(TestTurn(environment_id=MAIN, worker=5, ids="tests/test_c.py::test_three").started(900.0).ended(), Actor.worker(5))
-    rows = got(app, "/journal/test_turns?limit=50", {"X-Journal-Env": "main"})[1]["rows"]
+    rows = get_answer(app, "/journal/test_turns?limit=50", {"X-Journal-Env": "main"})[1]["rows"]
     assert [(row["id"], row["worker"], row["state"], row["started_at"]) for row in rows] == [(waiting.id, 3, "waiting", 0.0), (running.id, 4, "running", 1000.0)], "the viewer reads the turns running and waiting, a running one with the time it started, and no ended one"
 
 
@@ -22645,13 +22645,13 @@ def test_documents_and_reports_list_ten_at_a_time_with_ten_open_rows_before_them
     for n in range(25):
         posted(app, "/journal/docs", {"abstract": "What it says, in one line", "title": f"doc {n}", "abstract": f"what doc {n} says", "body": "the body"}, env)
     posted(app, "/journal/reports", {"title": "the report", "abstract": "what was found", "body": "what was found"}, env)
-    page = got(app, "/journal/docs?limit=50", env)[1]
+    page = get_answer(app, "/journal/docs?limit=50", env)[1]
     assert [d["title"] for d in page["rows"]] == [f"doc {n}" for n in range(5, 25)] and not page["is_last_page"], "the newest ten and the ten open rows before them"
     assert not any("body" in d for d in page["rows"]), "a document is listed without its body"
-    older = got(app, f"/journal/docs?limit=50&before={page['rows'][0]['id']}", env)[1]
+    older = get_answer(app, f"/journal/docs?limit=50&before={page['rows'][0]['id']}", env)[1]
     assert [d["title"] for d in older["rows"]][-5:] == [f"doc {n}" for n in range(5)], "the older page on scrolling"
-    assert got(app, f"/journal/docs/{page['rows'][0]['id']}", env)[1]["body"] == "the body", "a document read by its number is whole"
-    report = got(app, "/journal/reports?limit=50", env)[1]["rows"][-1]
+    assert get_answer(app, f"/journal/docs/{page['rows'][0]['id']}", env)[1]["body"] == "the body", "a document read by its number is whole"
+    report = get_answer(app, "/journal/reports?limit=50", env)[1]["rows"][-1]
     assert report["title"] == "the report" and "body" not in report and "items" not in report, "a report is listed without its body and its items"
 
 
@@ -22676,7 +22676,7 @@ def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_an
 def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_manifest_as_the_viewers_tests_read_it(app):
     from journal.support.card_type import CardType
     from journal.support.card_type_catalogue import CardTypeCatalogue
-    served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
+    served = get_answer(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
     groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {type_name["key"]: type_name for type_name in served["kinds"]}
     assert set(CardType) <= set(kinds) and all(type_name["family"] in families for type_name in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
     assert all(type_name["icon"] == families[type_name["family"]]["icon"] for type_name in kinds.values()), "a kind's icon is its family's, never its own"
@@ -23040,7 +23040,7 @@ def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_th
     (hooks / "commit-msg").write_text("#!/bin/sh\n# a commit message names its task\ngrep -q Task \"$1\"\n")
     os.chmod(hooks / "commit-msg", 0o644)
     (hooks / "pre-commit.sample").write_text("#!/bin/sh\n")
-    status, listed = got(app, "/journal/git-hooks", {"X-Journal-Env": "main"})
+    status, listed = get_answer(app, "/journal/git-hooks", {"X-Journal-Env": "main"})
     by_name = {hook["name"]: hook for hook in listed}
     assert status == 200 and sorted(by_name) == ["commit-msg", "pre-push"], "each hook by its name, the samples left out"
     assert by_name["pre-push"]["is_active"] is True and by_name["commit-msg"]["is_active"] is False, "a hook that is not executable is listed as not running"
@@ -23049,7 +23049,7 @@ def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_th
     (root / "tools" / "hooks").mkdir(parents=True)
     (root / "tools" / "hooks" / "post-commit").write_text("#!/bin/sh\necho done\n")
     os.chmod(root / "tools" / "hooks" / "post-commit", 0o755)
-    assert [hook["name"] for hook in got(app, "/journal/git-hooks", {"X-Journal-Env": "main"})[1]] == ["post-commit"], "core.hooksPath names the folder git uses"
+    assert [hook["name"] for hook in get_answer(app, "/journal/git-hooks", {"X-Journal-Env": "main"})[1]] == ["post-commit"], "core.hooksPath names the folder git uses"
 
 
 def test_a_hook_sent_again_is_answered_from_its_entry_and_reaches_no_listener(app: App):
@@ -23294,22 +23294,22 @@ def test_the_git_page_reads_branches_with_their_distance_from_the_base_the_recen
     git("add", "b.txt")
     git("commit", "-qm", "a base commit")
     headers = {"X-Journal-Env": "main"}
-    status, page = got(app, "/journal/git/branches", headers)
+    status, page = get_answer(app, "/journal/git/branches", headers)
     rows = {row["name"]: row for row in page["rows"]}
     assert status == 200 and page["is_last_page"] and (rows["feature"]["extra_commits"], rows["feature"]["missing_commits"]) == (1, 1), "a branch is shown with the commits it has beyond development and those it lacks"
     assert rows["development"]["current"] and not rows["feature"]["current"] and rows["feature"]["subject"] == "a feature commit"
-    status, first = got(app, "/journal/git/commits?last=1", headers)
+    status, first = get_answer(app, "/journal/git/commits?last=1", headers)
     assert [row["subject"] for row in first["rows"]] == ["a base commit"] and not first["is_last_page"], "the recent commits of the current branch come a page at a time"
-    status, rest = got(app, "/journal/git/commits?last=5&skip=1", headers)
+    status, rest = get_answer(app, "/journal/git/commits?last=5&skip=1", headers)
     assert [row["subject"] for row in rest["rows"]] == ["start"] and rest["is_last_page"]
     from journal.http.git.git_finished import GitFinished
     listing = "7\tfalse\tAPPROVED\tSUCCESS,FAILURE,IN_PROGRESS\tfeature\tjesse\thttps://example.com/7\tAdd the page\n"
     monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/gh")
     monkeypatch.setattr(GitOverview, "run", lambda self, *command: GitFinished(True, listing))
-    status, pulls = got(app, "/journal/git/pulls", headers)
+    status, pulls = get_answer(app, "/journal/git/pulls", headers)
     assert pulls["available"] and [(row["number"], row["title"], row["review"], row["checks_passed"], row["checks_failed"], row["checks_pending"]) for row in pulls["rows"]] == [(7, "Add the page", "APPROVED", 1, 1, 1)]
     monkeypatch.setattr("shutil.which", lambda name: None)
-    assert got(app, "/journal/git/pulls", headers)[1] == {"available": False, "rows": []}, "without gh the page says so and lists nothing"
+    assert get_answer(app, "/journal/git/pulls", headers)[1] == {"available": False, "rows": []}, "without gh the page says so and lists nothing"
 
 
 def test_a_message_sent_by_the_agent_with_a_file_lists_it_and_the_route_serves_its_bytes(app: App):
@@ -23377,7 +23377,7 @@ def test_the_workers_recent_activity_is_their_marks_newest_first_and_no_other(ap
         cards.show_fields(MAIN, None, "A: sent its next job", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_STEPS)
         cards.show(MAIN, None, "Not a worker's", "", shows=CardType.COMMANDS)
         cards.show_fields(MAIN, None, "A: its tests passed", {"kind": "card", "row": "workers:1", "command": ""}, Actor.system(), CardType.WORKER_TESTS)
-    status, body = got(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
+    status, body = get_answer(app, "/journal/workers/activity", {"X-Journal-Env": "main"})
     assert status == 200 and [row["text"] for row in body["rows"]] == ["A: its tests passed", "A: sent its next job"]
 
 

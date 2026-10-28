@@ -10,7 +10,7 @@ from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.option import Option
 from tests.full_project import MAIN
-from tests.in_process import got, posted
+from tests.in_process import get_answer, posted
 from tests.stories.builder.hook_verdict import HookVerdict
 from urllib.request import Request as HttpRequest, urlopen
 
@@ -37,13 +37,13 @@ class AgentSteps:
         self.agent_runs("environment overview")
 
     def agent_runs(self, line: str) -> None:
-        words = shlex.split(line)
-        flags = [word for word in words if word.startswith("--")]
-        result = self.app.console().run(words, self.agent)
-        self.ran(f"agent runs {' '.join(words[:2] + flags)}{', refused' if result.code else ''}", result)
+        arguments = shlex.split(line)
+        flags = [word for word in arguments if word.startswith("--")]
+        outcome = self.app.console().run(arguments, self.agent)
+        self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
 
-    def agent_reads(self, path: str = "a.py", times: int = 1) -> None:
-        for _ in range(times):
+    def agent_reads(self, path: str = "a.py", count: int = 1) -> None:
+        for _ in range(count):
             self.hooked("agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
 
     def agent_writes(self, path: str) -> None:
@@ -59,18 +59,22 @@ class AgentSteps:
         self.agent_runs(f"message read {message}")
 
     def agent_reacts(self, message: int, emoji: str) -> None:
-        self.ran("agent reacts", self.app.console().run(["message", "react", str(message), emoji], self.agent))
+        self.record_command("agent reacts", self.app.console().run(["message", "react", str(message), emoji], self.agent))
 
     def agent_replies(self, message: int, text: str) -> None:
-        self.ran("agent replies", self.app.console().run(["message", "send", text, "--reply-to", str(message)], self.agent))
+        self.record_command("agent replies", self.app.console().run(["message", "send", text, "--reply-to", str(message)], self.agent))
 
     def hooked(self, action: str, type_name: str, **body) -> None:
         status, answer = self.posted_hook(type_name, **body)
         verdict = HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {})
         self.observed(f"{action}, {'refused' if verdict.refused() else 'let through'}", verdict, None)
 
-    def agent_creates_task(self, title: str, brief: str = "") -> int:
-        self.agent_runs(f"task create '{title}'" + (f" --brief '{brief}'" if brief else ""))
+    def agent_creates_task(self, title: str) -> int:
+        self.agent_runs(f"task create '{title}'")
+        return self.task_number()
+
+    def agent_creates_briefed_task(self, title: str, brief: str) -> int:
+        self.agent_runs(f"task create '{title}' --brief '{brief}'")
         return self.task_number()
 
     def agent_takes_a_task(self, title: str) -> int:
@@ -93,7 +97,10 @@ class AgentSteps:
 
     def agent_creates_sequence(self, title: str, steps: str) -> int:
         self.agent_runs(f"sequence create '{title}' --steps '{steps}'")
-        return int(re.search(r"sequence (\d+)", self.command.text)[1])
+        return self.created_number("sequence")
+
+    def created_number(self, noun: str) -> int:
+        return int(re.search(rf"{noun} (\d+)", self.command.text)[1])
 
     def agent_adds_memory(self, text: str, weight: int) -> int:
         self.agent_runs(f"memory add '{text}' --weight {weight}")
@@ -124,12 +131,12 @@ class AgentSteps:
         return set(self.task_states_in(environment))
 
     def task_states_in(self, environment: str) -> dict[int, str]:
-        return {row["id"]: row["state"] for row in got(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
+        return {row["id"]: row["state"] for row in get_answer(self.app, "/journal/tasks", {"X-Journal-Env": environment})[1]["rows"]}
 
     def agent_in_starts_task(self, environment: str, session: str, title: str) -> int:
         self.session_starts_in(environment, session)
-        result = self.app.console().run(["task", "create", title, "--start"], Caller.agent(environment, session, self.provider))
-        assert result.code == 0, result.error
+        outcome = self.app.console().run(["task", "create", title, "--start"], Caller.agent(environment, session, self.provider))
+        assert outcome.code == 0, outcome.error
         return max(self.task_numbers_in(environment))
 
     def session_starts_in(self, environment: str, session: str) -> None:
@@ -137,8 +144,8 @@ class AgentSteps:
         self.observed(f"a session starts in {environment}", HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {}), None)
 
     def expect_told_in(self, environment: str, nudge: Nudge, **values) -> None:
-        said = self.log.said_in(environment)
-        assert any(line.matches(nudge.key, values) for line in said), f"the agent in {environment} was not told {nudge.key} {values}: told {[(line.key, line.values) for line in said]}"
+        lines = self.log.environment_lines(environment)
+        assert any(line.matches(nudge.key, values) for line in lines), f"the agent in {environment} was not told {nudge.key} {values}: told {[(line.key, line.values) for line in lines]}"
 
     def second_session_starts(self, session: str = "s2") -> None:
         self.session_starts_with(self.provider, session)
@@ -151,11 +158,11 @@ class AgentSteps:
         self.observed(f"a {'second' if provider == self.provider else 'another provider'}'s session starts", HookVerdict(provider, status, answer if isinstance(answer, dict) else {}), None)
 
     def expect_agent_session(self, session: str) -> None:
-        sessions = [row.get("session") for row in got(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("role") in (None, "main")]
+        sessions = [row.get("session") for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("role") in (None, "main")]
         assert sessions == [session], f"the environment's agents hold the sessions {sessions}, not only {session}"
 
-    def repeat(self, times: int, step: Callable[[], None]) -> None:
-        for _ in range(times):
+    def repeat(self, count: int, step: Callable[[], None]) -> None:
+        for _ in range(count):
             step()
 
     def agent_consumes(self, option: Option) -> None:
@@ -164,7 +171,7 @@ class AgentSteps:
             self.expect_allowed()
 
     def setting(self, option: Option) -> object:
-        tree = got(self.app, "/journal/settings", MAIN)[1]
+        settings_tree = get_answer(self.app, "/journal/settings", MAIN)[1]
         for part in option.key.split("."):
-            tree = tree.get(part, {}) if isinstance(tree, dict) else {}
-        return option.default if tree == {} else tree
+            settings_tree = settings_tree.get(part, {}) if isinstance(settings_tree, dict) else {}
+        return option.default if settings_tree == {} else settings_tree

@@ -27,7 +27,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.engine.clock import Clock
 from journal.support.heartbeat import Heartbeat
-from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, tick_after
+from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, silent_tick
 from tests.user_settings import user_set
 from tests.test_features import AGENT, MAIN, USER, context
 from tests.main_journal import main_journal
@@ -147,7 +147,7 @@ def the_clock_ticks(app, replay: Replay, provider: str) -> None:
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the header", "--brief", "the header names the shop"], USER)
-    tick = lambda silent: tick_after(app, silent)
+    tick = lambda silent: silent_tick(app, silent)
     hook_as(app, provider, "Stop")
     replay.step("the stop starts task 1")
     for name, silent in (("a minute", 60.0), ("half an hour", 1800.0), ("half an hour again", 1800.0)):
@@ -455,7 +455,7 @@ def test_the_phone_is_heard_as_the_user_is(journal, monkeypatch):
 
 def tick(app, silent: float) -> None:
     """A tick as the clock gives it, dispatched to every listener; the machine types what a state says on it."""
-    tick_after(app, silent)
+    silent_tick(app, silent)
 
 
 def working_rules(app, replay: Replay, provider: str) -> None:

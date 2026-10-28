@@ -30,7 +30,7 @@ from journal.support.hook_type import HookType
 from journal.support.response import Response
 from tests.full_project import unpacked
 from tests.user_settings import user_set
-from tests.in_process import got
+from tests.in_process import get_answer
 
 MAIN = {"X-Journal-Env": "main"}
 JSON, RAW = "application/json", "application/octet-stream"
@@ -307,7 +307,7 @@ def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_bu
 
 
 def test_a_settings_save_of_a_whole_group_with_the_mode_changed_answers_within_its_budget(full_project: App):
-    group = {**got(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
+    group = {**get_answer(full_project, "/journal/settings", MAIN)[1]["workers"], "mode": ORCHESTRATOR}
     saved = over(recorded({"POST /journal/settings a group": answer_loads(full_project, "POST", "/journal/settings", (JSON, json.dumps({"workers": group}).encode()))}))
     assert not saved, "\n".join(saved)
 

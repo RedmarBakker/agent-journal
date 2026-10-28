@@ -1,13 +1,13 @@
 import json
 
-from tests.replay import tick_after
+from tests.replay import silent_tick
 
 
 class TimeSteps:
     """Time and the context window in a story: the agent quiet for a while, as the clock's tick finds it, the context reaching a share of its window, as the statusline writes it, and a compaction, as the provider's hooks bring it."""
 
     def agent_is_quiet_for(self, minutes: float) -> None:
-        tick_after(self.app, minutes * 60)
+        silent_tick(self.app, minutes * 60)
         self.observed(f"agent is quiet for {minutes} minutes", None, None)
 
     def context_reaches(self, percent: int) -> None:

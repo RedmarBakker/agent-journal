@@ -10,13 +10,13 @@ class FixtureCopy:
 
     journal: SharedJournal
     fixture: StateFixture
-    said_keys: frozenset[str]
+    line_keys: frozenset[str]
 
     @staticmethod
-    def taken(story, fixture: StateFixture) -> "FixtureCopy":
-        return FixtureCopy(SharedJournal(story.app), fixture, frozenset(story.said_keys))
+    def journal_copy(story, fixture: StateFixture) -> "FixtureCopy":
+        return FixtureCopy(SharedJournal(story.app), fixture, frozenset(story.line_keys))
 
-    def put_back(self, story) -> StateFixture:
+    def restore(self, story) -> StateFixture:
         self.journal.put_back()
-        story.said_keys |= self.said_keys
+        story.line_keys |= self.line_keys
         return self.fixture.copied()

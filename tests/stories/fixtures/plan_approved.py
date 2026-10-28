@@ -1,6 +1,6 @@
 from journal.features.tasks.states.ready import Ready
 from journal.models.plan_state import PlanState
-from tests.stories.fixtures.agent_at_work import AgentAtWork
+from tests.stories.fixtures.working_agent import WorkingAgent
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
@@ -9,7 +9,7 @@ class PlanApproved(StateFixture):
 
     stack = (Ready,)
 
-    builds_on = AgentAtWork
+    parent = WorkingAgent
 
     def steps(self, story) -> None:
         self.plan = story.user_creates_plan("p", "b")

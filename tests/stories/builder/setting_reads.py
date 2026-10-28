@@ -35,5 +35,5 @@ class SettingReads:
     def position(self) -> int:
         return len(self.keys)
 
-    def is_read_since(self, key: str, position: int) -> bool:
+    def is_read(self, key: str, position: int) -> bool:
         return key in self.keys[position:]

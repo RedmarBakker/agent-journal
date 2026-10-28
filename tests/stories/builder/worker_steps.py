@@ -9,7 +9,7 @@ class WorkerSteps:
 
     def agent_dispatches_worker(self, name: str, task: int) -> int:
         self.agent_runs(f"worker dispatch '{name}' --task {task} --changes 'the files of its task' --profile journal-medior --model sonnet --tests 'Scoped tests'")
-        return int(re.search(r"worker (\d+)", self.command.text)[1])
+        return self.created_number("worker")
 
     def agent_dispatches_worker_on_plan(self, name: str, plan: int) -> int:
         self.agent_runs(f"worker dispatch '{name}' --plan {plan} --changes 'the files of its tasks' --profile journal-medior --model sonnet --tests 'Scoped tests'")
@@ -30,5 +30,5 @@ class WorkerSteps:
         assert self.command.code == 0, f"the worker's {line} was refused: {self.command.error or self.command.text}"
 
     def worker_tries(self, worker: int, line: str) -> None:
-        words = shlex.split(line)
-        self.ran(f"worker runs {' '.join(words[:2])}", self.app.console().run(words, Caller.worker("main", worker, f"w{worker}", self.provider)))
+        arguments = shlex.split(line)
+        self.record_command(f"worker runs {' '.join(arguments[:2])}", self.app.console().run(arguments, Caller.worker("main", worker, f"w{worker}", self.provider)))

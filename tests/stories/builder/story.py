@@ -16,7 +16,7 @@ from tests.stories.fixtures.state_fixture import StateFixture
 
 
 class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, StoryChecks):
-    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines said, the hook's verdict and the command's result, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its start is the fixture it began from, whose rows the story reads as start.<row>, asked at the end whether the story used them all."""
+    """One story played against a journal in-process for one provider: each step plays a real hook, command or viewer request and keeps what it brought, the lines the journal gave, the hook's verdict and the command's outcome, for the checks after it, and adds its action and what the journal did to the story's path, which counts from the fixture's state on; the settings it sets are noted with the place they were set, to ask whether the journal read them after, and its start is the fixture it began from, whose rows the story reads as start.<row>, asked at the end whether the story used them all."""
 
     def __init__(self, app, program: type, reads: SettingReads, copies: FixtureCopies) -> None:
         self.copies = copies
@@ -26,11 +26,11 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.log = JournalLog(app)
         self.said, self.verdict, self.command = (), None, None
         self.path: list[str] = []
-        self.said_keys: set[str] = set()
+        self.line_keys: set[str] = set()
         self.start = StateFixture()
         self.end_stack: list[type] | None = None
 
-    def starts_from(self, fixture: type[StateFixture]) -> None:
+    def reach(self, fixture: type[StateFixture]) -> None:
         self.start = self.copies.reached(self, fixture)
         self.observed("", None, None)
         self.path, self.set_positions = [f"starts from {fixture.__name__}"], {}
@@ -38,14 +38,14 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
         return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
-    def ran(self, action: str, result: Outcome) -> None:
-        self.observed(action, None, result)
+    def record_command(self, action: str, outcome: Outcome) -> None:
+        self.observed(action, None, outcome)
 
-    def settings_never_read(self) -> list[str]:
-        return [key for key, position in self.set_positions.items() if not self.reads.is_read_since(key, position)]
+    def unread_settings(self) -> list[str]:
+        return [key for key, position in self.set_positions.items() if not self.reads.is_read(key, position)]
 
-    def observed(self, action: str, verdict: HookVerdict | None, result: Outcome | None) -> None:
-        self.said, steps = self.log.since_last()
-        self.said_keys |= {said.key for said in self.said}
-        self.verdict, self.command = verdict, result
+    def observed(self, action: str, verdict: HookVerdict | None, outcome: Outcome | None) -> None:
+        self.said, steps = self.log.new_entries()
+        self.line_keys |= {line.key for line in self.said}
+        self.verdict, self.command = verdict, outcome
         self.path += [action, *steps] if action else list(steps)

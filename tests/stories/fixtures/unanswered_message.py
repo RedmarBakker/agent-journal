@@ -2,16 +2,16 @@ from journal.engine.states.demand_block import DemandBlock
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_options import MessagesOptions
 from journal.features.tasks.states.ready import Ready
-from tests.stories.fixtures.agent_at_work import AgentAtWork
+from tests.stories.fixtures.working_agent import WorkingAgent
 from tests.stories.fixtures.state_fixture import StateFixture
 
 
-class HeldForAnAnswer(StateFixture):
+class UnansweredMessage(StateFixture):
     """The user, holding every tool from the first use after a read, sent a message the agent read and left unanswered, so its next tool was refused: start.message."""
 
     stack = (Ready, DemandBlock)
 
-    builds_on = AgentAtWork
+    parent = WorkingAgent
 
     def steps(self, story) -> None:
         story.user_sets(MessagesOptions.TOOL_BLOCK_LIMIT, 0)

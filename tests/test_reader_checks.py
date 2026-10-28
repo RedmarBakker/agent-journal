@@ -213,7 +213,7 @@ def test_the_shell_readers_section_counts_reader_runs_report_rate_suggestions_fo
     from journal.features.shell.shell_nudges import ShellNudges
     from journal.models.entry import Entry
     from journal.repositories.entries import Entries
-    from tests.in_process import got
+    from tests.in_process import get_answer
     outputs = app.container.get(CommandOutputs)
     for reader, session in (("naps", "s1"), ("naps", "s1"), ("", "s1"), ("", "s2")):
         outputs.save(CommandOutput(environment_id=MAIN, command="sh test_naps.sh", session=session, moved=True, ended=True, watch_reader=reader), Actor.system())
@@ -221,7 +221,7 @@ def test_the_shell_readers_section_counts_reader_runs_report_rate_suggestions_fo
     for part in ("test_naps.sh", "make all"):
         app.container.get(Entries).save(Entry(environment_id=MAIN, entry_type="nudge", actor=Actor.system(), data={"session": "s1", "key": ShellNudges.READER_DRAFT.key, "values": {"part": part}, "line": f"no reader reads {part} yet"}), Actor.system())
     assert added(app, "naps", "--commands", "test_naps.sh", "--pattern", "FAILED|passed|failed", "--finished", "passed", "--failed", "failed", "--about", "the naps", "--label", "Taking a nap").code == 0
-    status, measures = got(app, "/journal/developer/readers", {"X-Journal-Env": "main"})
+    status, measures = get_answer(app, "/journal/developer/readers", {"X-Journal-Env": "main"})
     assert status == 200 and (measures["background_runs"], measures["reader_runs"]) == (4, 2), "half the background runs were read by a project reader"
     assert measures["readers"] == [{"reader": "naps", "runs": 2, "reports": 1, "report_rate": 5.0}], "one report over two runs is five per ten runs"
     assert (measures["suggestions"], measures["followed_suggestions"], measures["sessions"]) == (2, 1, 2), "of two suggestions one is read by a reader now, over two sessions that moved a run"

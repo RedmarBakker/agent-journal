@@ -5,7 +5,7 @@ BOOKKEEPING = ("own_rows", "rows_used")
 class StateFixture:
     """A state a story starts from, reached by its seeder through the real hooks and commands, never written by hand, and checked once reached: a seeder that cannot reach it fails the story there, naming the fixture. Its fields are the rows it made, read by the story as start.<row>, the rows of the fixture it builds on with them; it names the stack it leaves the agent on, bottom first, a story's end unless the story names another."""
 
-    builds_on: "type[StateFixture] | None" = None
+    parent: "type[StateFixture] | None" = None
     stack: tuple[type, ...] = ()
 
     def __init__(self) -> None:
@@ -35,7 +35,7 @@ class StateFixture:
         copy.own_rows.update(self.own_rows)
         return copy
 
-    def rows_never_used(self) -> list[str]:
+    def unused_rows(self) -> list[str]:
         return sorted(self.own_rows - self.rows_used)
 
     def steps(self, story) -> None:

@@ -12,7 +12,7 @@ def posted(app, path: str, body: dict, headers: dict) -> tuple[int, dict]:
     return answered(app, "POST", path, json.dumps(body).encode(), headers)
 
 
-def got(app, path: str, headers: dict) -> tuple[int, dict]:
+def get_answer(app, path: str, headers: dict) -> tuple[int, dict]:
     """A GET answered by the journal's own router in this process, as posted answers a POST."""
     return answered(app, "GET", path, b"", headers)
 
