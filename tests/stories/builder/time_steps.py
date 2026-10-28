@@ -1,5 +1,7 @@
 import json
+from datetime import datetime
 
+from journal.engine.clock import Clock
 from tests.replay import pass_time, silent_tick
 
 
@@ -32,6 +34,14 @@ class TimeSteps:
         self.app.config.status_home.mkdir(parents=True, exist_ok=True)
         (self.app.config.status_home / f"{self.scoped_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
         self.observed(f"context reaches {percent}%", None, None)
+
+    def local_moment(self, minutes: float) -> str:
+        return datetime.fromtimestamp(self.app.container.get(Clock).held_at + minutes * 60).strftime("%Y-%m-%d %H:%M")
+
+    def main_context_reaches(self, percent: int) -> None:
+        self.app.config.status_home.mkdir(parents=True, exist_ok=True)
+        (self.app.config.status_home / f"{self.main_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
+        self.observed(f"the main agent's context reaches {percent}%", None, None)
 
     def agent_consumes_context(self, percent: int) -> None:
         self.context_reaches(percent)

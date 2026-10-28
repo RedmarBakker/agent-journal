@@ -167,6 +167,12 @@ class UserSteps:
     def main_agent_id(self) -> int:
         return next(row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.main_session())
 
+    def user_approves_plan_with_a_comment(self, plan: int, text: str) -> int:
+        key = uuid.uuid4().hex
+        comment = self.user_posted("/journal/messages", {"text": text, "on": f"plans:{plan}", "idempotency": key}, "user comments on the plan")["id"]
+        self.user_posted(f"/journal/plans/{plan}/approve", {"comment_key": key}, "user approves the plan with the comment")
+        return comment
+
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})
 
@@ -175,6 +181,9 @@ class UserSteps:
 
     def user_edits_task(self, task: int, title: str) -> None:
         self.user_posted(f"/journal/tasks/{task}", {"title": title}, "user edits a task")
+
+    def user_rewrites_the_brief(self, task: int, brief: str) -> None:
+        self.user_posted(f"/journal/tasks/{task}", {"brief": brief}, "user rewrites a task's brief")
 
     def user_completes_task(self, task: int, outcome: str) -> None:
         self.user_posted(f"/journal/tasks/{task}/finish", dict(how=outcome), "user completes a task")

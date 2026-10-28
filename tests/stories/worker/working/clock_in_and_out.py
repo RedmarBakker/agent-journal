@@ -43,3 +43,19 @@ def test_a_worker_never_runs_git(story):
     story.expect_refused(WorkersNudges.WORKER_GIT_REFUSAL)
     story.expect_task(story.start.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
+def test_a_workers_to_do_list_reads_back_in_order_with_its_checked_item(story):
+    story.agent_runs("todo add 'write the grammar'")
+    story.agent_runs("todo add 'write the test'")
+    story.agent_runs("todo add 'run it'")
+    story.agent_runs("todo check 2")
+    story.agent_runs("todo check 7")
+    story.expect_command_text("has 3 items")
+    story.agent_runs("todo list")
+    story.expect_command_lines_in_order("[ ]  write the grammar", "[x]  write the test", "[ ]  run it")
+    story.main_agent_runs("todo list")
+    story.expect_command_text("only a worker on a task keeps one")
+    story.expect_stack(Void, WorkingTask)
+

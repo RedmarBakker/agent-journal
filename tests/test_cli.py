@@ -405,51 +405,6 @@ def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_an
         app.runtime().stop()
 
 
-def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_and_registers_no_agent(app: App):
-    import json
-    from urllib.request import Request as HttpRequest, urlopen
-    from journal.repositories.agents import Agents
-    from journal.repositories.entries import Entries
-    from journal.repositories.messages import Messages
-    launches = app.config.home / "runtime" / "launches"
-    launches.mkdir(parents=True, exist_ok=True)
-    (launches / "main.json").write_text(json.dumps({"launch": "launch-main"}))
-    (launches / "spike.json").write_text(json.dumps({"launch": "launch-spike"}))
-    app.runtime().start()
-    try:
-        def started(session: str, launch: str) -> int:
-            body = json.dumps({"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}).encode()
-            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Launch": launch})
-            with urlopen(request, timeout=5) as reply:
-                return reply.status
-
-        assert started("stray", "launch-spike") == 200 and started("bare", "") == 200, "a session without the launch id is let through, never refused"
-        agents = app.container.get(Agents)
-        assert not [agent for agent in agents.all_agents() if agent.session in ("stray", "bare")], "and never taken as the environment's agent"
-        with app.container.get(Scope).environment(1):
-            assert {entry.data["session_id"] for entry in app.container.get(Entries).kind_entries("unbound_session")} == {"stray", "bare"}, "its hooks are recorded"
-            assert any("could not match to this project" in message.text for message in app.container.get(Messages).all()), "and it is reported in the chat"
-        assert started("bound", "launch-main") == 200 and agents.session_agent("bound").environment_id == 1
-        from journal.support.agent_role import AgentRole
-        from journal.models.worker import Worker
-        from journal.repositories.workers import Workers
-        from journal.support.actor import Actor
-        from journal.support.agent_token import AgentToken
-        with app.container.get(Scope).environment(1):
-            worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
-
-        def worker_started(session: str, token: str) -> int:
-            body = json.dumps({"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}).encode()
-            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": token})
-            with urlopen(request, timeout=5) as reply:
-                return reply.status
-
-        assert worker_started("w-forged", "nope") == 200 and not [a for a in agents.all_agents() if a.session == "w-forged"], "a wrong token is no worker's: its hooks are unbound"
-        assert worker_started("w-real", "tok") == 200 and agents.session_agent("w-real").role == AgentRole.WORKER, "a worker's token stands in for the launch id, and its agent row is a worker's"
-        with app.container.get(Scope).environment(1):
-            assert app.container.get(Workers).find(worker.id).session == "w-real", "and its first hook binds the session its row did not name"
-    finally:
-        app.runtime().stop()
 
 
 

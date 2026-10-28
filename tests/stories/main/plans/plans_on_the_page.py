@@ -7,6 +7,7 @@ from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.plan_approved import PlanApproved
 from tests.stories.fixtures.main.two_phase_plan import TwoPhasePlan
+from tests.stories.fixtures.main.user_drafted_plan import UserDraftedPlan
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 
@@ -42,10 +43,9 @@ def test_a_started_plans_phase_shown_moves_on_once_its_tasks_are_done(story):
     story.expect_stack(Ready, FollowingPlan)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(UserDraftedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_plans_list_carries_counts_only_while_a_plan_read_by_number_comes_whole(story):
-    plan = story.user_creates_plan("p", "b")
-    first, second = story.user_adds_plan_task(plan, "first"), story.user_adds_plan_task(plan, "second")
+    plan, first, second = story.start.plan, story.start.first_task, story.start.second_task
     story.agent_runs(f"plan phase {plan} one --when w")
     story.user_opens("/journal/plans?limit=50")
     story.expect_viewer_rows("rows", "task_count", [2])

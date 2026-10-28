@@ -25,21 +25,6 @@ def app(tmp_path: Path, monkeypatch):
 
 
 
-def test_a_command_from_inside_an_agent_is_the_live_agents(app: App):
-    import json as js
-    from urllib.request import Request as HttpRequest, urlopen
-    from journal.support.actor import Actor
-    from journal.repositories.tasks import Tasks
-    app.runtime().start()
-    try:
-        port = app.server().port
-        hook = js.dumps({"hook_event_name": "SessionStart", "session_id": "live-1"}).encode()
-        urlopen(HttpRequest(f"http://127.0.0.1:{port}/hooks/claude", data=hook, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        body = js.dumps({"argv": ["task", "create", "from inside"], "env": "main", "session": "", "agent": True}).encode()
-        urlopen(HttpRequest(f"http://127.0.0.1:{port}/cli", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-        assert app.container.get(Tasks).find(1).creator == Actor.agent("live-1")
-    finally:
-        app.runtime().stop()
 
 
 def test_each_hooks_ready_state_is_read_from_the_projects_settings_and_codexs_trust(app: App, monkeypatch):

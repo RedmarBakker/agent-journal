@@ -40,6 +40,6 @@ def test_a_file_attached_to_a_message_is_listed_on_the_documents_page_by_its_typ
     story.expect_viewer_part(("rows", 0, "files"), [FILE])
     story.user_opens("/journal/attachments?file_type=other")
     story.expect_viewer_shows("total", 0)
-    story.user_opens("/journal/attachments?search=screenshot")
+    story.user_opens("/journal/attachments?search=footer")
     story.expect_viewer_shows("total", 1)
     story.expect_stack(Ready)

@@ -41,3 +41,21 @@ def test_a_priority_that_is_no_name_is_refused(story):
     story.agent_runs(f"task edit {outage} --priority soon")
     story.expect_command_text("no such priority: soon")
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@setting(TasksOptions.PRIORITY_REMIND_TASKS, 2)
+@setting(TasksOptions.PRIORITY_BLOCK_TASKS, 3)
+def test_enough_tasks_at_the_default_priority_hold_writes_until_their_priorities_are_set_or_confirmed(story):
+    first = story.agent_creates_task("more work")
+    story.repeat(int(story.setting(TasksOptions.PRIORITY_BLOCK_TASKS)) - 1, lambda: story.agent_creates_task("more work"))
+    story.agent_writes("a.py")
+    story.expect_refused(TasksNudges.PRIORITIES_REFUSAL)
+    story.agent_runs("task create 'urgent work' --priority high")
+    story.agent_writes("a.py")
+    story.expect_refused(TasksNudges.PRIORITIES_REFUSAL)
+    story.agent_runs(f"task edit {first} --priority low")
+    story.agent_runs("task priorities confirm")
+    story.agent_writes("a.py")
+    story.expect_allowed()
+    story.expect_stack(Ready)

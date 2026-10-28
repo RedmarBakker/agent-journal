@@ -48,6 +48,21 @@ class StoryChecks:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
         self.expect_agent_told(nudge, **values)
 
+    def expect_refused_by_anything(self) -> None:
+        assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
+
+    def expect_refusal_text(self, part: str) -> None:
+        said = str(self.verdict.body) if self.verdict else ""
+        assert part in said, f"the refusal does not say {part!r}: {said}"
+
+    def expect_refusal_without(self, part: str) -> None:
+        said = str(self.verdict.body) if self.verdict else ""
+        assert part not in said, f"the refusal says {part!r}: {said}"
+
+    def expect_newest_message_text(self, text: str) -> None:
+        newest = self.api_row("messages", self.newest("messages"))
+        assert newest["text"] == text, f"the newest message reads {newest['text']!r}, not {text!r}"
+
     def expect_main_refused(self, nudge: Nudge, **values) -> None:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
         self.expect_main_told(nudge, **values)

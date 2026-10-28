@@ -11,13 +11,6 @@ SUGGESTION_INTERVAL = 3
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
-def test_a_link_an_edited_file_holds_is_never_suggested_as_a_pin(story):
-    story.agent_has_edited_a_file_holding("a.py", "see https://example.com/docs/one")
-    story.expect_agent_not_told(PinsNudges.LINK_PIN_REQUEST)
-    story.expect_stack(Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(PinsOptions.PIN_SUGGESTION_INTERVAL, SUGGESTION_INTERVAL)
 def test_a_link_in_a_commands_output_is_suggested_as_a_pin_and_again_only_after_the_set_tool_uses(story):
     story.agent_has_run_printing("gh pr create", PULL_REQUEST)

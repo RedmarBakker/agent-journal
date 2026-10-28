@@ -46,6 +46,9 @@ class AgentSteps:
     def agent_ends_the_session(self) -> None:
         self.hooked("agent ends its session", "SessionEnd", reason="exit")
 
+    def agent_uses_the_providers_tool(self, tool: str, **tool_input) -> None:
+        self.hooked(f"agent uses {tool}", "PreToolUse", tool_name=tool, tool_input=tool_input)
+
     def agent_closes_its_turn(self, text: str) -> None:
         self.hooked("agent closes its turn", "MessageDisplay", delta=text, message_id=f"turn-{len(self.path)}", index=0, final=True)
 
@@ -90,6 +93,9 @@ class AgentSteps:
     def agent_reads_part(self, path: str, limit: int) -> None:
         self.hooked("agent reads part of a file", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path, "limit": limit})
 
+    def agent_loads_a_skill(self, name: str) -> None:
+        self.hooked("agent loads a skill by the skill tool", "PostToolUse", tool_name="Skill", tool_input={"skill": name}, tool_response="")
+
     def agent_reads_a_skill(self, folder: str) -> None:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
         self.hooked("agent reads a skill", "PreToolUse", **call)
@@ -116,6 +122,9 @@ class AgentSteps:
 
     def subagent_writes(self, subagent: str, path: str) -> None:
         self.hooked("a subagent writes", "PreToolUse", agent_id=subagent, tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
+
+    def agent_sends_subagent_with(self, **tool_input) -> None:
+        self.hooked("agent sends a subagent", "PreToolUse", tool_name=self.tools.subagent, tool_input=tool_input)
 
     def agent_sends_subagent_in_the_background(self, role: str, job: str, subagent: str) -> None:
         call = f"dispatch-{subagent}"

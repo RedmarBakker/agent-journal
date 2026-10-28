@@ -51,3 +51,30 @@ def test_with_no_start_skills_set_a_new_session_is_asked_for_none(story):
     story.agent_starts_a_session()
     story.expect_agent_not_told(SkillsNudges.SKILL_READ_REQUEST)
     story.expect_stack(Ready)
+
+
+@story(SessionOpening, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_start_skill_loaded_by_the_skill_tool_counts_as_read(story):
+    story.agent_loads_a_skill(JOURNAL_SKILL)
+    story.agent_loads_a_skill(ETIQUETTE_SKILL)
+    story.agent_looks_at_the_overview()
+    story.agent_writes("footer.py")
+    story.expect_allowed()
+    story.expect_stack(Ready)
+
+
+@story(SessionOpening, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_one_shell_line_printing_two_skill_files_reads_both(story):
+    story.agent_has_run_in_the_shell(f"cat .claude/skills/{JOURNAL_SKILL}/SKILL.md .claude/skills/{ETIQUETTE_SKILL}/SKILL.md | head -40")
+    story.agent_looks_at_the_overview()
+    story.agent_writes("footer.py")
+    story.expect_allowed()
+    story.expect_stack(Ready)
+
+
+@story(SessionOpening, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_shell_line_that_writes_a_skill_file_elsewhere_reads_nothing(story):
+    story.agent_has_run_in_the_shell(f"cat .claude/skills/{JOURNAL_SKILL}/SKILL.md > copy.md")
+    story.agent_reads("footer.py")
+    story.expect_refused(SkillsNudges.SKILL_READ_REQUEST)
+    story.expect_stack(Ready)

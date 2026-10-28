@@ -85,3 +85,18 @@ def test_options_that_say_I_or_we_are_refused(story):
     story.agent_runs("question ask 'which footer?' --options 'I write the short one' 'we write the long one'")
     story.expect_command_refused()
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_question_asked_from_outside_an_agents_session_is_refused(story):
+    story.user_types("question ask 'Which?'")
+    story.expect_command_refused()
+    story.expect_command_text("worker's report")
+    story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_the_providers_own_question_tool_is_refused_for_the_journals(story):
+    story.agent_uses_the_providers_tool("AskUserQuestion", question="which?")
+    story.expect_refused(QuestionsNudges.JOURNAL_QUESTION_TOOL)
+    story.expect_stack(Ready)

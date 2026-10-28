@@ -166,16 +166,6 @@ def write(app):
 
 
 
-def test_stuck_pauses_and_the_next_tool_use_goes_back_to_where_it_was(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    app.console().run(["stuck", "stuck on the login"], AGENT)
-    machine = app.container.get(StateMachine)
-    assert isinstance(app.container.get(SessionAgents).top("s1"), Impasse) and app.container.get(SessionAgents).top("s1").reason == "stuck on the login"
-    assert hook(app, "Stop")[1] == {}
-    hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    assert app.container.get(SessionAgents).top("s1").task_id == 1
 
 
 def test_a_feature_switched_off_takes_its_gate_with_it(app: App):
@@ -253,15 +243,6 @@ def test_a_timeout_is_started_at_a_moment_asked_at_a_later_one_and_kept_by_a_sta
 
 
 
-def test_every_stop_with_a_task_in_hand_says_carry_on_and_stuck_is_the_way_out(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    answers = [hook(app, "Stop", stop_hook_active=i > 0) for i in range(4)]
-    assert all(item[1].get("decision") == "block" and "task 1 is in hand: carry on" in item[1]["reason"] for item in answers), "there is no repeated-stop escape"
-    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal stuck 'I cannot reach the service'"})
-    app.console().run(["stuck", "I cannot reach the service"], AGENT)
-    assert hook(app, "Stop")[1] == {}, "stuck lets the agent stop"
 
 
 
@@ -449,25 +430,6 @@ def test_the_lifecycle_hooks_run_in_order_say_their_lines_refuse_a_push_and_catc
 
 
 
-def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_top_first(app: App):
-    hook(app, "SessionStart")
-    app.console().run(["task", "create", "t", "--start"], AGENT)
-    app.console().run(["stuck", "lost"], AGENT)
-    with app.container.get(Scope).environment(1):
-        row = next(item for item in app.container.get(AgentActivity).page(app.container.get(Agents).scoped()) if item["session"] == "s1")
-    assert [s["name"] for s in row["stack"]] == ["stuck", "working", "idle"] and row["stack"][0]["awaits"]
-    assert [(t["before"], t["after"]) for t in row["trail"]] == [([], ["idle"]), (["idle"], ["idle", "working"]), (["idle", "working"], ["idle", "working", "stuck"])]
-    write(app)
-    with app.container.get(Scope).environment(1):
-        trail = [e.data for e in app.container.get(Entries).kind_entries(StackHistory.KIND) if e.data["session"] == "s1"]
-    popped = next(e for e in trail if [row["state"] for row in e["before"]] == ["idle", "working", "stuck"])
-    assert popped["after"][-1]["state"] == "working" and popped["cause"]
-    before = app.container.get(Agents).session_agent("s1").data
-    for _ in range(3):
-        hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    with app.container.get(Scope).environment(1):
-        moves = [e.data for e in app.container.get(Entries).kind_entries(StackHistory.KIND) if e.data["session"] == "s1"]
-    assert app.container.get(Agents).session_agent("s1").data != before and len(moves) == len(trail), "a state whose counts change in place moves nothing, so the trail keeps only pushes and pops"
 
 
 def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_the_main_agents_conduct(app: App):
@@ -530,6 +492,8 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     stack = agents.session_agent("w1").stack
     app.container.get(Bus).dispatch(PlanStarted(environment_id=1, time=1.0, plan_id=1, task_id=0))
     assert agents.session_agent("w1").stack == stack and agents.session_agent("s1").stack[-1]["state"] == "following_plan", "a row event for the environment reaches the main agent alone"
+
+
 
 
 def test_a_worker_clocking_out_leaves_another_workers_stack_alone(app: App):
@@ -650,35 +614,6 @@ def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to
     assert actions.sent == [(3, CLOCK_OUT_REQUEST, Actor.system())] and "journal clock-out" in CLOCK_OUT_REQUEST, "the journal asks the worker to clock out, in its own words, the first time only, and only a worker that can go on in its session"
 
 
-def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
-    from journal.http.controllers.tasks import TaskController
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    scope, tasks = app.container.get(Scope), app.container.get(Tasks)
-    with scope.environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
-        task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
-        tasks.handover(task, Ref.build(worker), Actor.system())
-    babbage, console = Caller.worker("main", worker.id, "w1", "claude"), app.console()
-    assert console.run(["clock-in"], babbage).code == 0, "the worker clocks in on its task, so its stop is its working state's"
-    for item in ("write the grammar", "write the test", "run it"):
-        assert console.run(["todo", "add", item], babbage).code == 0
-    assert console.run(["todo", "check", "2"], babbage).code == 0 and "has 3 items" in console.run(["todo", "check", "7"], babbage).error
-    assert console.run(["todo", "list"], babbage).text.splitlines() == ["  1  [ ]  write the grammar", "  2  [x]  write the test", "  3  [ ]  run it"], "the items read back in order, one complete"
-    assert "only a worker on a task keeps one" in console.run(["todo", "list"], AGENT).error
-    with scope.environment(1):
-        shown = app.container.get(TaskController).shown_page([tasks.find(task.id)])[0]
-    assert [(item.text, item.complete) for item in shown["work"].todos] == [("write the grammar", False), ("write the test", True), ("run it", False)], "the task's payload carries the items with their flags"
-    data = json.dumps({"hook_event_name": "Stop", "session_id": "w1"}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
-    with urlopen(request, timeout=5) as reply:
-        answered = reply.read().decode()
-    assert "2 to-dos open: 1. write the grammar; 3. run it" in answered, "the worker's stop is told the items still open"
 
 
 def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: App):
@@ -781,18 +716,6 @@ def test_journal_panic_passes_every_hold_and_a_compaction_ends_at_the_journals_s
     assert [row["state"] for row in agents.session_agent("s1").stack] == ["idle"], "a journal start ends every compaction"
 
 
-def test_journal_panic_pushes_pops_and_empties_the_stack_by_hand_and_the_trail_names_the_agent(app: App):
-    hook(app, "SessionStart")
-    console, agents = app.console(), app.container.get(Agents)
-    assert console.run(["panic", "working", "focus=parsing"], AGENT).text.strip() == "the stack, bottom to top: idle, working(focus=parsing)"
-    assert console.run(["panic", "stuck", "reason=lost"], AGENT).text.startswith("the stack, bottom to top: idle, working(focus=parsing), stuck(")
-    assert console.run(["panic", "pop"], AGENT).text.strip().endswith("idle, working(focus=parsing)")
-    assert console.run(["panic", "nowhere"], AGENT).code != 0
-    assert console.run(["panic", "idle"], AGENT).text.strip() == "the stack, bottom to top: idle"
-    assert [row["state"] for row in agents.session_agent("s1").stack] == ["idle"]
-    with app.container.get(Scope).environment(1):
-        newest = app.container.get(Entries).kind_entries(StackHistory.KIND)[0]
-    assert newest.data["cause"] == "journal panic idle" and newest.actor == AGENT.actor
 
 
 class Hearing(Listener[PlanStarted]):
@@ -1976,24 +1899,6 @@ def test_a_demand_never_counts_or_blocks_a_journal_command_whatever_its_feature_
     assert Ready().respond(ToolStarting(call=shell("ls")).with_data(data), settings, (DemandConduct,)).refusal is not None
 
 
-def test_five_stops_held_in_a_row_let_the_next_through_in_a_state_that_asks_for_journal_panic_and_a_report(app: App, monkeypatch, tmp_path):
-    hook(app, "SessionStart")
-    held = [hook(app, "Stop")[1] for _ in range(5)]
-    assert all(body.get("decision") == "block" for body in held), "the overview not read holds each stop"
-    assert "journal panic report" in held[-1]["reason"], "the fifth held stop says the journal is likely stuck and how to get out"
-    assert app.container.get(SessionAgents).top("s1").name == "panicking"
-    assert hook(app, "Stop")[1].get("decision") != "block", "the sixth stop goes through"
-    console = app.console()
-    written = console.run(["panic", "report"], AGENT)
-    report = int(re.search(r"report (\d+) written", written.text).group(1))
-    body = app.container.get(Reports).find(report).body
-    assert "environment overview" in body and "panicking" in body and "## Version" in body, body
-    monkeypatch.setenv("PATH", str(tmp_path))
-    printed = console.run(["panic", "issue", str(report)], AGENT)
-    assert "gh is not installed: open https://github.com/jessegall/agent-journal/issues/new" in printed.text and "## What held the stops" in printed.text
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    assert app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use pops the state"
-    assert [hook(app, "Stop")[1].get("decision") for _ in range(4)] == ["block"] * 4 and app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use between stops starts the count again"
 
 
 
@@ -2033,70 +1938,8 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     assert not Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing()), SettingsValue({"tasks.auto": False}), (BriefingConduct,)).nudges, "a folder still there is no warning"
 
 
-def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App):
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    scope, workers, tasks = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks)
-    with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-        user_set(app, "workers.testing", "The journal runs them")
-
-    def worker_runs(command: str):
-        data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    for command in ("pytest tests/test_x.py", "npm test", "npx vitest run", "journal suite"):
-        status, body = worker_runs(command)
-        assert status == 409 and "name the tests: `journal clock-out" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
-    assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
-    with scope.environment(1):
-        user_set(app, "workers.testing", "Hand the tests over")
-    status, body = worker_runs("pytest tests/test_x.py")
-    assert status == 409 and "the merging agent runs them" in body["error"] and "proof" in body["error"], "with Hand the tests over a worker's test command is refused too"
-    with scope.environment(1):
-        user_set(app, "workers.testing", "Run the tests it wrote")
-    assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"
 
 
-def test_the_test_budget_choice_refuses_a_workers_direct_test_run_with_the_line_to_run_it_through_a_turn(app: App):
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    scope, workers, tasks = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks)
-    with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-
-    def worker_runs(command: str):
-        data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
-        try:
-            with urlopen(request, timeout=5) as reply:
-                return reply.status, json.loads(reply.read())
-        except HTTPError as error:
-            return error.code, json.loads(error.read())
-    with scope.environment(1):
-        user_set(app, "workers.testing", "Test budget")
-    for command in ("pytest tests/test_x.py", "npx vitest run"):
-        status, body = worker_runs(command)
-        assert status == 409 and "journal tests turn" in body["error"], f"{command} is refused with the line that names the turn"
-    assert worker_runs("ls")[0] == 200, "a command that runs no test passes"
 
 
 def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
@@ -3011,28 +2854,6 @@ def test_every_lifecycle_handler_runs_when_the_same_event_also_updates_the_state
     assert (entering.moves, leaving.moves) == (["pause"], ["resume"]), "on_enter and on_exit run on the stack a combined move leaves"
 
 
-def test_a_helper_compacted_mid_task_returns_to_its_job_with_nothing_of_the_main_agent(app: App):
-    from journal.support.agent_role import AgentRole
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    scope, workers, tasks, agents = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents)
-    states = lambda: [layer["state"] for layer in agents.session_agent("wc").stack]
-    with scope.environment(1):
-        agents.save(Agent(environment_id=1, session="wc", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        worker = workers.save(Worker(environment_id=1, name="Mr. Compact", brief="c", session="wc"), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the printer", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-    hook(app, "PreCompact", session_id="wc")
-    assert states() == ["void", "working_task", "compacting"], "the compaction goes over the helper's job"
-    started = hook(app, "SessionStart", session_id="wc", source="compact")[1]
-    assert states() == ["void", "working_task"], "and pops back to it, never pushing the main agent's overview"
-    context = json.dumps(started)
-    assert "environment overview" not in context and "read the journal skill" not in context, "no overview and no main skill debt reach the helper"
-    assert hook(app, "PreToolUse", session_id="wc", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200, "its next read goes through as before the compaction"
 
 
 
@@ -3145,17 +2966,6 @@ def test_each_helper_role_is_deaf_to_the_main_agents_conduct(app: App, role_name
 
 
 
-def test_a_helper_with_no_job_stops_from_void_and_its_row_ends(app: App):
-    from journal.support.agent_role import AgentRole
-    hook(app, "SessionStart")
-    agents = app.container.get(Agents)
-    with app.container.get(Scope).environment(1):
-        for session, role in (("hw", AgentRole.WORKER), ("hr", AgentRole.REVIEWER)):
-            agents.save(Agent(environment_id=1, session=session, provider="claude", state="void", role=role), Actor.system())
-    for session in ("hw", "hr"):
-        assert [hook(app, "Stop", session_id=session)[1].get("decision") for _ in range(6)] == [None] * 6, f"{session}: a helper in Void stops without a hold, so it never loops on its stop"
-        hook(app, "SessionEnd", session_id=session)
-        assert agents.session_agent(session).stack[-1]["state"] == "ended", f"{session}: its row ends with the session"
 
 
 def test_a_helper_reset_by_panic_or_swapped_keeps_void_and_its_job(app: App):
@@ -3202,34 +3012,6 @@ def test_a_time_span_is_never_read_as_a_total_and_one_slow_stretch_in_a_run_that
     assert ReaderJudge(None, None, lonely, None, None, None, None, None, None, None, None, SHAPES).stalled_progress(SimpleNamespace(row_id=5)), "a run whose count stood still from its first figure is still a finding"
 
 
-def test_a_worker_whose_journal_stopped_answering_is_locked_out_until_it_answers_steadily_and_ended_past_the_grace(app: App):
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    from journal.support.agent_token import AgentToken
-    hook(app, "SessionStart")
-    scope, workers, tasks, source = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(TimeSource)
-    with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-
-    def worker_hook(at: float, silence: str = "", type_name: str = "PreToolUse", command: str = "ls") -> tuple[int, dict]:
-        source.pin(at)
-        body = {"hook_event_name": type_name, "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}
-        return posted(app, "/hooks/claude", body, {"X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok", "X-Journal-Silence-Start": silence})
-    top = lambda: app.container.get(SessionAgents).top("w1").name
-    assert worker_hook(1000.0)[0] == 200, "a worker its journal answers goes on"
-    status, body = worker_hook(1020.0, silence="1000")
-    assert status == 409 and has_nudge(body["error"], EngineNudges.LOCKOUT_WAIT, seconds=20) and top() == "locked_out", "a hook answered after a silence locks the worker out"
-    assert worker_hook(1022.0, command="journal todo list")[0] == 409 and worker_hook(1023.0, type_name="PreCompact")[0] in (200, 409) and top() == "locked_out", "every tool is held, a journal command too, and nothing else moves it"
-    assert worker_hook(1026.0)[0] == 200 and top() != "locked_out", "once the journal has answered for a few seconds the state pops and the tool goes on"
-    status, body = worker_hook(2000.0, silence="1950")
-    assert status == 409 and has_nudge(body["error"], EngineNudges.LOCKOUT_END) and top() == "locked_out", "a silence past the grace ends the worker"
-    assert worker_hook(2100.0)[0] == 409 and top() == "locked_out", "and it never goes on"
-    assert worker_hook(2101.0, type_name="Stop")[1].get("decision") != "block", "its stop goes through"
 
 
 def test_a_stop_with_a_started_plan_and_no_task_in_hand_names_no_log_after_ten_edits():

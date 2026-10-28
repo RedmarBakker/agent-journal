@@ -36,3 +36,4 @@ def test_the_users_own_message_cannot_be_linked_by_the_agent(story):
     story.agent_runs(f"message amend-links {story.start.message} task")
     story.expect_command_refused()
     story.expect_stack(Ready)
+

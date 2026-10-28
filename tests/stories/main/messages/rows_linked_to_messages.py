@@ -2,6 +2,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
+from tests.stories.fixtures.main.read_message import ReadMessage
 from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 from tests.stories.fixtures.main.working_agent import WorkingAgent
 
@@ -31,11 +32,10 @@ def test_a_task_created_right_after_a_reply_is_linked_to_the_message_it_answers(
     story.expect_stack(Ready)
 
 
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_priority_change_right_after_a_reply_is_never_put_down_to_the_message(story):
     menu = story.agent_creates_task("the menu")
-    message = story.user_sends_message("please fix the footer")
-    story.agent_replies(message, "on it")
+    story.agent_replies(story.start.message, "on it")
     story.agent_runs(f"task edit {menu} --priority high")
     story.expect_chat_marks("filed")
     story.expect_stack(Ready)

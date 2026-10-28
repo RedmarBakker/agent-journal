@@ -31,3 +31,12 @@ def test_a_new_reader_without_what_it_picks_is_refused(story):
     story.agent_runs("reader add fresh-one --pattern x")
     story.expect_command_text("a new reader says what it picks with --about")
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_the_environment_overview_names_the_readers_kept_for_reading_outputs(story):
+    story.agent_runs("reader add failed-lines --pattern FAILED --about 'the failed tests of a pytest run'")
+    story.agent_looks_at_the_overview()
+    story.expect_command_text("== journal reader list ==")
+    story.expect_command_text("failed-lines: the failed tests of a pytest run")
+    story.expect_stack(Ready)

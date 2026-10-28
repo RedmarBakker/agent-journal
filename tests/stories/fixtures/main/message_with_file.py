@@ -1,19 +1,19 @@
 from journal.features.tasks.states.ready import Ready
-from tests.stories.fixtures.main.working_agent import WorkingAgent
+from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 from tests.stories.fixtures.state_fixture import StateFixture
 
 FILE = "shot one.png"
 
 
 class MessageWithFile(StateFixture):
-    """The user sent a message about a screenshot and attached the picture to it, not yet read: start.message."""
+    """The user attached a screenshot to the first of their two unread messages: start.message."""
 
     stack = (Ready,)
 
-    parent = WorkingAgent
+    parent = TwoUnreadMessages
 
     def steps(self, story) -> None:
-        self.message = story.user_sends_message("the screenshot of the bar")
+        self.message = self.first_message
         story.user_attaches_file(self.message, FILE, b"PNG")
 
     def expected(self, story) -> None:

@@ -37,3 +37,4 @@ def test_a_worker_may_not_send_itself_a_word(story):
     story.expect_worker(story.start.peer, state=WorkerState.READY)
     story.expect_task(story.start.peer_task, delegated=True)
     story.expect_stack(Void, WorkingTask)
+
