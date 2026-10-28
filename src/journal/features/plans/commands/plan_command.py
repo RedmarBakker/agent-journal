@@ -69,6 +69,16 @@ class PlanCommand(Command):
         phase.add_argument("title")
         phase.add_argument("--when", default="", help="what is true when the phase is complete")
         phase.add_argument("--checkpoint", action="store_true", help="the user looks before the plan goes on")
+        complete_phase = self.verb(verbs, "complete-phase", "complete every open task of a plan's phase at once, by the phase's number from 1")
+        complete_phase.set_defaults(verb="complete_phase")
+        complete_phase.add_argument("n", type=int)
+        complete_phase.add_argument("phase", type=int)
+        complete_phase.add_argument("--how", required=True, help="the outcome each task is completed with")
+        cancel_phase = self.verb(verbs, "cancel-phase", "cancel every open task of a plan's phase at once, by the phase's number from 1")
+        cancel_phase.set_defaults(verb="cancel_phase")
+        cancel_phase.add_argument("n", type=int)
+        cancel_phase.add_argument("phase", type=int)
+        cancel_phase.add_argument("--why", required=True, help="the reason each task is cancelled with")
         todos = self.verb(verbs, "todos", "put tasks under a phase of a plan, by the phase's number from 1")
         todos.add_argument("n", type=int)
         todos.add_argument("phase", type=int)
@@ -141,17 +151,33 @@ class PlanCommand(Command):
         print(f"phase {len(self.plans.plan_phases(plan))} of plan {plan.id}")
         return 0
 
+    def numbered_phase(self, plan: Plan, number: int) -> Phase:
+        phases = self.plans.plan_phases(plan)
+        if not 1 <= number <= len(phases):
+            raise Rejection(f"plan {plan.id} has {len(phases)} phases: name one by its number from 1")
+        return phases[number - 1]
+
+    def open_phase_tasks(self, args: Namespace) -> list[Task]:
+        return self.plans.unclosed_phase_tasks(self.numbered_phase(self.plans.find(args.n), args.phase))
+
+    def complete_phase(self, args: Namespace, caller: Caller) -> int:
+        completed_tasks = [self.tasks.save(task.completed(self.time_source.moment(), args.how), caller.actor) for task in self.open_phase_tasks(args)]
+        print(f"phase {args.phase} of plan {args.n}: tasks {', '.join(str(task.id) for task in completed_tasks) or 'none'} completed")
+        return 0
+
+    def cancel_phase(self, args: Namespace, caller: Caller) -> int:
+        cancelled = [self.tasks.save(task.cancelled(self.time_source.moment(), args.why), caller.actor) for task in self.open_phase_tasks(args)]
+        print(f"phase {args.phase} of plan {args.n}: tasks {', '.join(str(task.id) for task in cancelled) or 'none'} cancelled")
+        return 0
+
     def todos(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        phases = self.plans.plan_phases(plan)
-        if not 1 <= args.phase <= len(phases):
-            raise Rejection(f"plan {plan.id} has {len(phases)} phases: name one by its number from 1")
-        phase = phases[args.phase - 1]
+        phase = self.numbered_phase(plan, args.phase)
         for n in args.tasks:
             task = self.tasks.find(n)
             if not self.links.connecting(task, plan):
                 self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), caller.actor)
-            for link in [link for counterpart in phases for link in self.links.connecting(task, counterpart)]:
+            for link in [link for counterpart in self.plans.plan_phases(plan) for link in self.links.connecting(task, counterpart)]:
                 self.links.delete(link, caller.actor)
             self.links.save(Link(source=Ref.build(task), target=Ref.build(phase), link_type=PHASE_LINK), caller.actor)
         print(f"tasks {', '.join(str(n) for n in args.tasks)} under phase {args.phase} of plan {plan.id}")

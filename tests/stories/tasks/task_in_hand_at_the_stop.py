@@ -65,3 +65,14 @@ def test_a_new_session_start_names_the_task_in_hand(story):
     story.agent_starts_a_session()
     story.expect_agent_told(TasksNudges.TASK_CONTINUATION)
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
+
+
+@story(StartedTask, end=[Ready])
+@setting(TasksOptions.AUTO, False)
+def test_a_paused_task_is_named_once_at_the_stop_with_auto_mode_off(story):
+    story.agent_runs(f"task pause {story.start.started_task} 'the header first'")
+    story.agent_stops()
+    story.expect_refused(TasksNudges.PAUSED_TASKS)
+    story.agent_stops()
+    story.expect_allowed()
+    story.expect_task(story.start.started_task, state=TaskState.PAUSED)

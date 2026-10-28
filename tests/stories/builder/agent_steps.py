@@ -95,6 +95,14 @@ class AgentSteps:
         self.agent_replies(message, text)
         return int(re.search(r"message (\d+)", self.command.text)[1])
 
+    def agent_creates_plan(self, title: str, brief: str) -> int:
+        self.agent_runs(f"plan create '{title}' --brief '{brief}'")
+        return self.created_number("plan")
+
+    def agent_adds_plan_task(self, plan: int, title: str, brief: str) -> int:
+        self.agent_runs(f"plan add {plan} '{title}' --brief '{brief}'")
+        return self.created_number("task")
+
     def agent_creates_sequence(self, title: str, steps: str) -> int:
         self.agent_runs(f"sequence create '{title}' --steps '{steps}'")
         return self.created_number("sequence")

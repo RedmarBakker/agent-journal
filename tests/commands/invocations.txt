@@ -55,6 +55,8 @@ agent plan phase 1 "The cart" --when "the cart adds up"
 agent plan phase 1 "Paying" --when "a card pays" --checkpoint
 agent plan add 1 "The cart sums its lines" --brief "Done when the total is the sum"
 agent plan add 1 "A card pays the total" --brief "Done when a test card pays"
+agent plan complete-phase --help
+agent plan cancel-phase --help
 agent plan todos 1 1 3
 agent plan todos 1 2 4
 agent plan testing 1 "Tests at each phase end"

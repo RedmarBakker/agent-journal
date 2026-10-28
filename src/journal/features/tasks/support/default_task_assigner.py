@@ -88,9 +88,6 @@ class DefaultTaskAssigner:
     def is_auto(self) -> bool:
         return bool(self.settings.option(TasksOptions.AUTO))
 
-    def paused_work(self) -> list[Task]:
-        return self.tasks.paused_tasks() if self.is_auto() else []
-
     def blocked_work(self) -> list[Task]:
         return self.tasks.blocked_tasks() if self.is_auto() else []
 

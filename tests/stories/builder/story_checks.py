@@ -31,8 +31,8 @@ class StoryChecks:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 
     def expect_stack(self, *states: type) -> None:
-        agent_messages = self.stack()
-        assert agent_messages == [state.name for state in states], f"the stack is {agent_messages}; told {[lines.key for lines in self.said]}"
+        stack = self.stack()
+        assert stack == [state.name for state in states], f"the stack is {stack}; told {[line.key for line in self.said]}"
 
     def expect_end(self, *states: type) -> None:
         self.end_stack = list(states)
@@ -63,8 +63,8 @@ class StoryChecks:
     def expect_row(self, table: str, n: int, fields: dict) -> None:
         row = self.api_row(table, n)
         wanted = {name: value.value if isinstance(value, Enum) else value for name, value in fields.items()}
-        agent_messages = {name: row.get(name) for name in wanted}
-        assert agent_messages == wanted, f"{table} {n} has {agent_messages}, not {wanted}"
+        held_fields = {name: row.get(name) for name in wanted}
+        assert held_fields == wanted, f"{table} {n} has {held_fields}, not {wanted}"
 
     def stack(self) -> list[str]:
         agents = get_answer(self.app, "/journal/agents", MAIN)[1]["rows"]
