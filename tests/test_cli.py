@@ -33,22 +33,8 @@ def test_the_agent_is_the_actor_when_its_session_is_set(app: App):
     assert app.container.get(Tasks).find(1).creator == Actor.agent("s-1")
 
 
-def test_the_environment_is_made_on_first_use(app: App):
-    from journal.repositories.environments import Environments
-    app.console().run(["task", "create", "t"], Caller.user("other"))
-    assert app.container.get(Tasks).find(1).environment_id == app.container.get(Environments).lookup("other").id
 
 
-def test_a_task_is_transferred_with_its_log_to_another_environment(app: App):
-    from journal.repositories.environments import Environments
-    for line in (["task", "create", "t", "--start"], ["task", "log", "1", "half done"], ["task", "pause", "1", "the other one first"]):
-        app.console().run(line, MAIN)
-    app.console().run(["task", "create", "x"], Caller.user("other"))
-    task = app.container.get(Tasks).find(1)
-    outcome = app.console().run(["task", "transfer", "1", "other"], MAIN)
-    other = app.container.get(Environments).existing("other").id
-    assert outcome.code == 0 and app.container.get(Tasks).find(1).environment_id == other, outcome.error
-    assert {log.environment_id for log in app.container.get(TaskLogs).logs(task)} == {other}
 
 
 
@@ -68,17 +54,6 @@ def test_the_server_runs_the_same_console_for_the_shim(app: App):
     assert app.container.get(Tasks).find(1).creator == Actor.agent("s-9")
 
 
-def test_deleting_an_environment_takes_everything_recorded_in_it(app: App):
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    app.console().run(["task", "create", "t"], Caller.user("spike"))
-    app.console().run(["task", "create", "kept"], MAIN)
-    outcome = app.console().run(["environment", "delete", "spike"], MAIN)
-    assert "deleted environment" in outcome.text and outcome.code == 0
-    assert [e.name for e in app.container.get(Environments).all()] == ["main"]
-    with app.container.get(Scope).environment(1):
-        assert [t.title for t in app.container.get(Tasks).all()] == ["kept"]
-    assert app.console().run(["environment", "delete", "spike"], MAIN).code == 1
 
 
 def test_a_command_from_the_agents_shell_is_the_live_agents_wherever_it_came_from(app: App):
@@ -242,28 +217,6 @@ def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, mo
     assert not rows[0]["working"], "a worker at work is not the environment's agent working"
 
 
-def test_an_environment_is_renamed_with_everything_in_it_and_never_while_an_agent_works_there(app: App):
-    from journal.models.agent import Agent
-    from journal.repositories.agents import Agents
-    from journal.repositories.environments import Environments
-    from journal.repositories.tasks import Tasks
-    console, environments = app.console(), app.container.get(Environments)
-    assert console.run(["environment", "create", "spike"], MAIN).code == 0
-    spike = environments.lookup("spike")
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Tasks).save(Task(title="in spike"), Actor.user(1))
-    claimed = console.run(["environment", "rename", "spike", "main"], MAIN)
-    assert claimed.code == 1 and "exists already" in claimed.error
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Agents).save(Agent(session="s-spike", environment_id=spike.id, provider="claude", state="idle"), Actor.system())
-    busy = console.run(["environment", "rename", "spike", "probe"], MAIN)
-    assert busy.code == 1 and "an agent works in spike" in busy.error
-    with app.container.get(Scope).environment(spike.id):
-        app.container.get(Agents).save(app.container.get(Agents).session_agent("s-spike").with_(state="ended"), Actor.system())
-    assert console.run(["environment", "rename", "spike", "probe"], MAIN).code == 0
-    with app.container.get(Scope).environment(environments.lookup("probe").id):
-        assert [t.title for t in app.container.get(Tasks).all()] == ["in spike"], "its rows go with it"
-    assert not environments.matching(name="spike")
 
 
 

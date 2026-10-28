@@ -36,6 +36,12 @@ class UserSteps:
     def user_reacts(self, message: int, emoji: str) -> None:
         self.user_posted(f"/journal/messages/{message}/react", {"emoji": emoji})
 
+    def user_creates_plan_in(self, environment: str, title: str) -> int:
+        status, answer = posted(self.app, "/journal/plans", {"title": title, "brief": title}, {"X-Journal-Env": environment})
+        assert status < 300, f"the viewer's request to make a plan in {environment} was refused: {answer}"
+        self.observed(f"user makes a plan in {environment}", None, None)
+        return answer["id"]
+
     def user_creates_plan(self, title: str, brief: str) -> int:
         return self.user_posted("/journal/plans", {"title": title, "brief": brief})["id"]
 

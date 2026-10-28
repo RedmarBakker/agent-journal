@@ -119,6 +119,10 @@ class StoryChecks:
         docked = sorted(row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"] if (row.get("data") or {}).get("docked"))
         assert docked == sorted(texts), f"the cards docked above the chat are {docked}, not {sorted(texts)}"
 
+    def expect_plan_titles_in(self, environment: str, *titles: str) -> None:
+        shown = sorted(row["title"] for row in get_answer(self.app, "/journal/plans", {"X-Journal-Env": environment})[1]["rows"])
+        assert shown == sorted(titles), f"the plans of {environment} are {shown}, not {sorted(titles)}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 
