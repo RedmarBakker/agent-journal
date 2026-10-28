@@ -9,7 +9,7 @@ from journal.support.moment import Moment
 
 @dataclass(frozen=True)
 class DemandProgress:
-    """A demand as an agent stands with it: its requirement now, none once it is met, the moment it started and the moment of the tool use in hand, its span measured between the two; a journal command is never counted against it or blocked by it, since the journal commands are how a demand is met."""
+    """A demand as an agent stands with it: its requirement now, none once it is met, the moment it started and the moment of the tool use in hand, its span measured between the two, the tool use in hand not yet spent, so a span of two lets two through and holds the third; a journal command is never counted against it or blocked by it, since the journal commands are how a demand is met."""
 
     demand: Demand
     requirement: object | None = None
@@ -20,11 +20,11 @@ class DemandProgress:
         return self.requirement is not None
 
     def is_expired(self, settings: Settings) -> bool:
-        return self.is_active() and self.demand.span(settings).reset(self.start).has_passed(self.moment)
+        return self.is_active() and self.demand.span(settings).reset(self.start).has_passed(self.moment.previous_tool_use())
 
     def balance(self, settings: Settings) -> int:
         span = self.demand.span(settings)
-        return max(int(span.amount - (self.moment.value(span.unit) - self.start.value(span.unit))) - 1, 0)
+        return max(int(span.amount - (self.moment.value(span.unit) - self.start.value(span.unit))), 0)
 
     def has_announcement(self, settings: Settings) -> bool:
         return not self.is_expired(settings) and (self.demand.silence is None or self.demand.silence(settings).reset(self.start).has_passed(self.moment))

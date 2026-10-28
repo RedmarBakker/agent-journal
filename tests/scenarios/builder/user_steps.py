@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from journal.support.option import Option
@@ -30,5 +31,5 @@ class UserSteps:
     def user_posted(self, path: str, body: dict) -> dict:
         status, answer = posted(self.app, path, body, MAIN)
         assert status < 300, f"the viewer's request {path} was refused: {answer}"
-        self.observed(None, None)
+        self.observed(f"user posts {re.sub(r'/\d+', '/{n}', path)}", None, None)
         return answer

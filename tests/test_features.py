@@ -2754,7 +2754,7 @@ def test_an_unread_message_is_counted_down_at_every_tool_use_to_the_write_hold(a
         lines.append(json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]))
         assert "tool uses left" not in journal_said()
     countdown = ("writes wait after 3 more", "writes wait after 2 more", "writes wait after 1 more", "read message 1 now")
-    shown = [next((part for part in countdown if part in line), "") for line in lines[:4]]
+    shown = [next((part for part in countdown if part in line), "") for line in lines[1:5]]
     assert shown == list(countdown), "every tool use after the message came counts down to the hold"
     assert app.container.get(Agents).session_agent("s1").tool_uses == 7, "one counter on the agent's row: seven plain tool uses moved it by seven, the journal commands by nothing"
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
@@ -11342,7 +11342,7 @@ def test_every_hook_of_every_tool_arrives_is_recorded_and_answered_even_with_a_m
 
 
 def test_a_read_message_holds_a_tool_only_after_a_grace_of_tool_uses_with_a_reminder_first(app: App):
-    """A message read and not answered is said again at the fifth tool use since the read and holds the tenth; a reply starts the count over."""
+    """A message read and not answered is said again at the fifth tool use since the read and, ten let through, holds the eleventh; a reply starts the count over."""
     from journal.models.author import Author
     from journal.models.message import Message
     from journal.repositories.messages import Messages as MessageRows
@@ -11353,13 +11353,13 @@ def test_a_read_message_holds_a_tool_only_after_a_grace_of_tool_uses_with_a_remi
     answers = [hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"{n}.py")}) for n in range(1, 5)]
     assert all(status == 200 and "not answered" not in json.dumps(body) for status, body in answers), "four tool uses after the read pass in silence"
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "5.py")})
-    assert status == 200 and "reply to message 1; tool calls wait after 4 more" in body["hookSpecificOutput"]["additionalContext"], "the fifth is told the message waits, with the tool uses left"
-    for n in range(6, 10):
+    assert status == 200 and "reply to message 1; tool calls wait after 5 more" in body["hookSpecificOutput"]["additionalContext"], "the fifth is told the message waits, with the tool uses left"
+    for n in range(6, 11):
         assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"{n}.py")})[0] == 200
-    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "10.py")})
-    assert status == 409 and nudge_reached(app, body["error"], MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=1), "the tenth waits for the answer"
+    status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "11.py")})
+    assert status == 409 and nudge_reached(app, body["error"], MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=1), "ten tool uses go through and the eleventh waits for the answer"
     app.console().run(["message", "send", "nearly there", "--reply-to", "1"], AGENT)
-    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "11.py")})[0] == 200, "answered, the tools are free again"
+    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "12.py")})[0] == 200, "answered, the tools are free again"
 
 
 def test_a_workers_dispatch_mark_stays_and_each_later_standing_is_a_new_mark(app: App):

@@ -1429,10 +1429,10 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert read.refusal is None and [n.key for n in read.nudges] == ["messages.tools_held_soon_until_answered", "messages.writes_held_soon_until_read"], "asked for the answer after three uses, and both count down to their holds once named"
     their_file = Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": f"{tmp_path}/files/message/5/a.png"}, operation=Claude().operation("Read", {"file_path": f"{tmp_path}/files/message/5/a.png"}), read_paths=(f"{tmp_path}/files/message/5/a.png",))).with_data(owing(4, 3, parts["messages"])), settings, conducts)
     assert "messages.tools_held_soon_until_answered" not in [n.key for n in their_file.nudges], "a read of the message's own files passes in silence"
-    held_unanswered = owing(10, 0, MessagesData(unread=(), unanswered=(5,), unanswered_files=(), peer_questions=()))
+    held_unanswered = owing(11, 0, MessagesData(unread=(), unanswered=(5,), unanswered_files=(), peer_questions=()))
     assert Ready().respond(ToolStarting(call=shell("ls")).with_data(held_unanswered), settings, conducts).refusal.key == "messages.tools_held_until_answered"
     assert Ready().respond(ToolStarting(call=shell("journal task list")).with_data(held_unanswered), settings, conducts).refusal is None
-    held_unread = owing(0, 5, MessagesData(unread=(7,), unanswered=(), unanswered_files=(), peer_questions=()))
+    held_unread = owing(0, 6, MessagesData(unread=(7,), unanswered=(), unanswered_files=(), peer_questions=()))
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": "a.py"}, operation=Claude().operation("Edit", {"file_path": "a.py"}), writes=True)).with_data(held_unread), settings, conducts).refusal.key == "messages.write_held_until_read"
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"}))).with_data(held_unread), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal is None
     face = Ready().respond(ReactionAdded(environment_id=1, time=1.0, emoji="👍", message_id=7, user_origin=True).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))

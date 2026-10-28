@@ -32,6 +32,9 @@ from tests.shared_journal import SharedJournal
 from journal.features.voices.voices_options import VoicesOptions
 from journal.support.time_source import TimeSource
 
+# the folder whose stories go to one shard together
+SCENARIOS_FOLDER = "tests/scenarios/"
+
 
 os.environ["AGENT_JOURNAL_SECRETS"] = tempfile.mkdtemp(prefix="journal-test-values-")
 os.environ["AGENT_JOURNAL_MACHINE"] = tempfile.mkdtemp(prefix="journal-test-machine-")
@@ -153,14 +156,22 @@ def recorded_seconds() -> dict[str, float]:
     return json.loads(path.read_text()) if path.is_file() else {}
 
 
+def dealt_unit(nodeid: str) -> str:
+    """What a shard is dealt: a test on its own, but the scenarios all together, since their paths are laid over each other at the end of the run that played them."""
+    return SCENARIOS_FOLDER if nodeid.startswith(SCENARIOS_FOLDER) else nodeid
+
+
 def pytest_collection_modifyitems(config, items):
     """A run started as one shard of a parallel suite keeps the tests the deal by last run's seconds gives its shard."""
     shard = os.environ.get(SHARD_VARIABLE, "")
     if not shard:
         return
     index, count = (int(part) for part in shard.split("/"))
-    mine = set(ShardDeal(recorded_seconds()).shards([item.nodeid for item in items], count)[index])
-    kept = [item for item in items if item.nodeid in mine]
+    seconds = recorded_seconds()
+    dealt = {item.nodeid: dealt_unit(item.nodeid) for item in items}
+    unit_seconds = {unit: sum(seconds.get(nodeid, 0.0) for nodeid, owner in dealt.items() if owner == unit) for unit in set(dealt.values())} if seconds else {}
+    mine = set(ShardDeal(unit_seconds).shards(sorted(set(dealt.values())), count)[index])
+    kept = [item for item in items if dealt[item.nodeid] in mine]
     config.hook.pytest_deselected(items=[item for item in items if item.nodeid not in mine])
     items[:] = kept
 
