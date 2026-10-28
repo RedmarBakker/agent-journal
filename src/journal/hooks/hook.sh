@@ -1,4 +1,5 @@
 #!/bin/sh
+begun=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
 # The agent's hooks run this: the hook body on stdin goes to the running server, and the server's status decides.
 #   200  go on; the body is JSON in the agent's own hook shape, printed for it to read
 #   409  refused; a body that starts with the agent's own answer (a Claude tool call denied, a prompt blocked) is printed as it is,
@@ -19,7 +20,7 @@ port=$(cat "$root/.journal/port" 2>/dev/null)
 body=$(mktemp)
 sent=$(mktemp)
 cat > "$sent"
-started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
+started=$begun
 # the id of this firing, the same on a resend, so the journal records a hook it already took once
 firing="$$-$started"
 if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\|PostToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
@@ -85,10 +86,18 @@ fi
 if [ "$status" = 000 ] || [ "$status" = 0 ]; then
     held && { status=$(post) || status=0; }
 fi
+kind=$(sed -n 's/.*"hook_event_name": *"\([A-Za-z]*\)".*/\1/p' "$sent" | head -n 1)
 rm -f "$sent"
+# Claude shows a systemMessage to the user alone: each hook's answer carries how long the hook took, from this script's first line to
+# the moment its answer is printed, added to the line the journal already shows the user or standing alone.
+timed() {
+    [ "$agent" = claude ] && [ -n "$begun" ] || { cat; return; }
+    took="journal $kind hook: $(( $(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)') - begun )) ms"
+    sed -e "s/\"systemMessage\": \"/\"systemMessage\": \"$took. /;t" -e "s/^{}\$/{\"systemMessage\": \"$took\"}/;t" -e "s/^{/{\"systemMessage\": \"$took\", /"
+}
 case "$status" in
-    200) cat "$body" ;;
-    409) if grep -q '^{"answer": ' "$body"; then sed -e 's/^{"answer": \(.*\), "error": ".*$/\1/' "$body"; rm -f "$body"; exit 0; fi
+    200) timed < "$body" ;;
+    409) if grep -q '^{"answer": ' "$body"; then sed -e 's/^{"answer": \(.*\), "error": ".*$/\1/' "$body" | timed; rm -f "$body"; exit 0; fi
          sed -e 's/^{"error": *"//' -e 's/"}$//' -e 's/\\n/\n/g' "$body" >&2; rm -f "$body"; exit 2 ;;
 esac
 rm -f "$body"

@@ -43,6 +43,12 @@ class AgentSteps:
     def agent_stops(self) -> None:
         self.hooked("agent stops", "Stop")
 
+    def agent_reads_message(self, message: int) -> None:
+        self.agent_runs(f"message read {message}")
+
+    def agent_reacts(self, message: int, emoji: str) -> None:
+        self.ran("agent reacts", self.app.console().run(["message", "react", str(message), emoji], self.agent))
+
     def agent_replies(self, message: int, text: str) -> None:
         self.ran("agent replies", self.app.console().run(["message", "send", text, "--reply-to", str(message)], self.agent))
 
