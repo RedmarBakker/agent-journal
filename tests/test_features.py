@@ -9566,8 +9566,10 @@ def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_an
     from journal.repositories.plugins import Plugins
     folder = tmp_path / "echo"
     shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
-    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
-    relay, plugin = app.container.get(PluginRelay), app.container.get(Plugins).lookup("echo")
+    from journal.models.plugin import Plugin
+    manifest = PluginManifest.parsed(json.loads((folder / "journal-plugin.json").read_text()))
+    plugin = app.container.get(Plugins).save(Plugin(name="echo", source=str(folder), linked=True, manifest=manifest), Actor.user(1))
+    relay = app.container.get(PluginRelay)
     answer = PluginAnswer(cards=(PluginCard(card_type="sin-found", label="1 sin in src/a.py", key="sins:src/a.py"),))
     shown = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
     merge = WorkerMergeEvent(environment_id=MAIN, worker=1, name="Mr Faraday", task=1, branch="worker/1", worktree="w")
