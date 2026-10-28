@@ -7044,11 +7044,11 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileType.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
     assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
-    user_set(app, WorkersOptions.TESTING.key, WORKER_TESTING)
+    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
     assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
     assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
     from journal.features.workers.workers_options import TEST_BUDGET
-    user_set(app, WorkersOptions.TESTING.key, TEST_BUDGET)
+    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
     assert "journal tests turn" in files.worker_instructions("journal-medior") and "journal tests turn" in files.worker_instructions("cartographer"), "with Test budget a worker is told to test only through journal tests turn, hooks or none"
     assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
@@ -14297,7 +14297,7 @@ def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(a
     from journal.features.workers.workers_options import MERGER_TESTING, WORKER_TESTING
     command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
     assert settings.option(WorkersOptions.TESTING) == MERGER_TESTING and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    user_set(app, WorkersOptions.TESTING.key, WORKER_TESTING)
+    settings.set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 
@@ -14921,19 +14921,6 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
     assert len(told) == 2
 
 
-def test_documents_and_reports_list_ten_at_a_time_with_ten_open_rows_before_them_without_their_long_fields(app):
-    env = {"X-Journal-Env": "main"}
-    for n in range(25):
-        posted(app, "/journal/docs", {"abstract": "What it says, in one line", "title": f"doc {n}", "abstract": f"what doc {n} says", "body": "the body"}, env)
-    posted(app, "/journal/reports", {"title": "the report", "abstract": "what was found", "body": "what was found"}, env)
-    page = get_answer(app, "/journal/docs?limit=50", env)[1]
-    assert [d["title"] for d in page["rows"]] == [f"doc {n}" for n in range(5, 25)] and not page["is_last_page"], "the newest ten and the ten open rows before them"
-    assert not any("body" in d for d in page["rows"]), "a document is listed without its body"
-    older = get_answer(app, f"/journal/docs?limit=50&before={page['rows'][0]['id']}", env)[1]
-    assert [d["title"] for d in older["rows"]][-5:] == [f"doc {n}" for n in range(5)], "the older page on scrolling"
-    assert get_answer(app, f"/journal/docs/{page['rows'][0]['id']}", env)[1]["body"] == "the body", "a document read by its number is whole"
-    report = get_answer(app, "/journal/reports?limit=50", env)[1]["rows"][-1]
-    assert report["title"] == "the report" and "body" not in report and "items" not in report, "a report is listed without its body and its items"
 
 
 def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_and_its_worktree_deleted(app: App, monkeypatch):

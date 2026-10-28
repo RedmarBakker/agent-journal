@@ -125,6 +125,10 @@ class StoryChecks:
         older = [row["id"] for row in self.viewer_answer.get(key, []) if row["id"] <= n]
         assert not older, f"the viewer was given {key} {older}, not newer than {n}"
 
+    def expect_viewer_rows_without(self, key: str, field: str) -> None:
+        holding = [row["id"] for row in self.viewer_answer.get(key, []) if field in row]
+        assert not holding, f"the viewer was given {key} {holding} with their {field}"
+
     def expect_viewer_count(self, key: str, count: int) -> None:
         shown = self.viewer_answer.get(key, [])
         assert len(shown) == count, f"the viewer was given {len(shown)} {key}, not {count}"

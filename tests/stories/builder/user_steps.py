@@ -36,6 +36,12 @@ class UserSteps:
     def user_edits_message(self, message: int, text: str) -> None:
         self.user_posted(f"/journal/messages/{message}", {"text": text}, "user edits a message")
 
+    def user_writes_a_document(self, title: str, abstract: str, body: str) -> int:
+        return self.user_posted("/journal/docs", {"title": title, "abstract": abstract, "body": body}, "user writes a document")["id"]
+
+    def user_writes_a_report(self, title: str, abstract: str, body: str) -> int:
+        return self.user_posted("/journal/reports", {"title": title, "abstract": abstract, "body": body}, "user writes a report")["id"]
+
     def user_deletes_message(self, message: int) -> None:
         self.user_posted(f"/journal/messages/{message}/delete", {}, "user deletes a message")
 
