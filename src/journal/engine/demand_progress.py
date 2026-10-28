@@ -30,7 +30,7 @@ class DemandProgress:
         return not self.is_expired(settings) and (self.demand.silence is None or self.demand.silence(settings).reset(self.start).has_passed(self.moment))
 
     def exempts(self, event: ToolStarting) -> bool:
-        return event.call.is_journal or self.demand.exemption(event, self.requirement)
+        return event.call.is_journal or bool(event.call.skill_loaded) or self.demand.exemption(event, self.requirement)
 
     def blocks(self, event: ToolStarting) -> bool:
         return not self.exempts(event) and self.demand.block_scope(event)
