@@ -14,7 +14,7 @@ DISPATCHER_SECONDS = SILENCE.amount * DISPATCHER_SPAN_SHARE
 
 @story(SilentWorker, mode=BUILDER_MODE)
 def test_a_worker_is_told_to_log_once_in_a_quiet_span(story):
-    story.worker_is_quiet_past(0)
+    story.agent_is_quiet_past(0)
     story.expect_agent_not_told(WorkersNudges.WORKER_LOG_DUE)
     story.expect_worker(story.start.worker, state=WorkerState.READY)
     story.expect_stack(Void, WorkingTask)
@@ -22,7 +22,7 @@ def test_a_worker_is_told_to_log_once_in_a_quiet_span(story):
 
 @story(WorkerDelivered, mode=BUILDER_MODE)
 def test_a_worker_that_clocked_out_is_never_called_quiet(story):
-    story.worker_is_quiet_past(SILENCE.amount)
+    story.agent_is_quiet_past(SILENCE.amount)
     story.expect_agent_not_told(WorkersNudges.WORKER_LOG_DUE)
     story.expect_main_not_told(WorkersNudges.SILENT_WORKER)
     story.expect_worker(story.start.worker, state=WorkerState.DELIVERED)

@@ -46,6 +46,9 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
+        return self.session_posted_hook(self.scoped_session(), self.scoped_headers(), type_name, body)
+
+    def main_posted_hook(self, type_name: str, **body) -> tuple[int, object]:
         return self.session_posted_hook(self.main_session_id, {}, type_name, body)
 
     def session_posted_hook(self, session: str, headers: dict, type_name: str, body: dict) -> tuple[int, object]:
@@ -65,6 +68,18 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
 
     def worker_scope_session(self) -> str:
         return worker_session(self.start.worker)
+
+    def scoped_headers(self) -> dict:
+        return {AgentRole.MAIN: dict, AgentRole.WORKER: self.worker_scope_headers}[self.scope]()
+
+    def worker_scope_headers(self) -> dict:
+        return {"X-Journal-Actor": f"worker:{self.start.worker}"}
+
+    def scoped_caller(self) -> Caller:
+        return {AgentRole.MAIN: lambda: self.agent, AgentRole.WORKER: self.worker_scope_caller}[self.scope]()
+
+    def worker_scope_caller(self) -> Caller:
+        return Caller.worker("main", self.start.worker, worker_session(self.start.worker), self.provider)
 
     def record_command(self, action: str, outcome: Outcome) -> None:
         self.observed(action, None, outcome)

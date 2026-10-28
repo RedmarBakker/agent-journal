@@ -58,7 +58,7 @@ class AgentSteps:
     def agent_runs(self, line: str) -> None:
         arguments = shlex.split(line)
         flags = [word for word in arguments if word.startswith("--")]
-        outcome = self.app.console().run(arguments, self.agent)
+        outcome = self.app.console().run(arguments, self.scoped_caller())
         self.record_command(f"agent runs {' '.join(arguments[:2] + flags)}{', refused' if outcome.code else ''}", outcome)
 
     def agent_reads(self, path: str = "a.py", count: int = 1) -> None:
@@ -111,6 +111,22 @@ class AgentSteps:
 
     def hooked(self, action: str, type_name: str, **body) -> None:
         self.hook_observed(action, *self.posted_hook(type_name, **body))
+
+    def main_hooked(self, action: str, type_name: str, **body) -> None:
+        self.hook_observed(action, *self.main_posted_hook(type_name, **body))
+
+    def main_agent_runs(self, line: str) -> None:
+        arguments = shlex.split(line)
+        self.record_command(f"main agent runs {' '.join(arguments[:2])}", self.app.console().run(arguments, self.agent))
+
+    def main_agent_reads(self, path: str = "a.py") -> None:
+        self.main_hooked("main agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
+
+    def main_agent_writes(self, path: str) -> None:
+        self.main_hooked("main agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
+
+    def main_agent_stops(self) -> None:
+        self.main_hooked("main agent stops", "Stop")
 
     def hook_observed(self, action: str, status: int, answer: object) -> None:
         verdict = HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {})

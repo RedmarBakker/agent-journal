@@ -32,6 +32,19 @@ class UserSteps:
     def user_sets_plan_testing(self, plan: int, title: str) -> None:
         self.user_posted(f"/journal/plans/{plan}/testing", {"title": title}, f"user sets the plan testing to {title}")
 
+    def user_opens(self, route: str) -> None:
+        get_answer(self.app, route, MAIN)
+        self.observed(f"user opens {route}", None, None)
+
+    def user_skips_the_step(self) -> None:
+        self.user_posted(f"/journal/agents/{self.main_agent_id()}/skip-step", {}, "user skips the sequence step")
+
+    def user_ends_the_sequence(self) -> None:
+        self.user_posted(f"/journal/agents/{self.main_agent_id()}/end-sequence", {}, "user ends the sequence")
+
+    def main_agent_id(self) -> int:
+        return next(row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.main_session())
+
     def user_approves_plan(self, plan: int) -> None:
         self.user_posted(f"/journal/plans/{plan}/approve", {})
 
@@ -49,6 +62,9 @@ class UserSteps:
 
     def user_cancels_task(self, task: int, reason: str) -> None:
         self.user_posted(f"/journal/tasks/{task}/cancel", dict(why=reason), "user cancels a task")
+
+    def user_cancels_plan(self, plan: int) -> None:
+        self.user_posted(f"/journal/plans/{plan}/abandon", {}, "user cancels a plan")
 
     def user_switches_on(self, feature: type) -> None:
         switches = get_answer(self.app, "/journal/settings", MAIN)[1][FEATURES]

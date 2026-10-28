@@ -11,7 +11,7 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 @story(DispatchedWorker, mode=BUILDER_MODE)
 def test_a_worker_that_writes_before_it_clocks_in_is_refused(story):
-    story.worker_writes(story.start.worker, "parser.py")
+    story.agent_writes("parser.py")
     story.expect_refused(EngineNudges.JOBLESS_HELPER)
     story.expect_worker(story.start.worker, state=WorkerState.DISPATCHED)
     story.expect_stack(Void)
@@ -19,8 +19,8 @@ def test_a_worker_that_writes_before_it_clocks_in_is_refused(story):
 
 @story(WorkingWorker, mode=BUILDER_MODE)
 def test_a_worker_stop_with_open_todos_is_told_them(story):
-    story.worker_runs(story.start.worker, "todo add 'read the grammar'")
-    story.worker_stops(story.start.worker)
+    story.agent_runs("todo add 'read the grammar'")
+    story.agent_stops()
     story.expect_agent_told(WorkersNudges.OPEN_TODOS, count=1)
     story.expect_task(story.start.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
@@ -28,9 +28,9 @@ def test_a_worker_stop_with_open_todos_is_told_them(story):
 
 @story(WorkingWorker, mode=BUILDER_MODE)
 def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
-    story.worker_runs(story.start.worker, "todo add 'read the grammar'")
-    story.worker_runs(story.start.worker, "todo check 1")
-    story.worker_stops(story.start.worker)
+    story.agent_runs("todo add 'read the grammar'")
+    story.agent_runs("todo check 1")
+    story.agent_stops()
     story.expect_agent_not_told(WorkersNudges.OPEN_TODOS)
     story.expect_task(story.start.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
@@ -38,7 +38,7 @@ def test_a_worker_stop_with_every_todo_checked_is_told_nothing_of_them(story):
 
 @story(WorkingWorker, mode=BUILDER_MODE)
 def test_a_worker_never_runs_git(story):
-    story.worker_runs_in_the_shell(story.start.worker, "git commit -am done")
+    story.agent_runs_in_the_shell("git commit -am done")
     story.expect_refused(WorkersNudges.WORKER_GIT_REFUSAL)
     story.expect_task(story.start.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)

@@ -65,7 +65,8 @@ class StoryChecks:
         assert self.command is not None and self.command.code == 0, f"the command was refused: {self.command.error or self.command.text if self.command else ''}"
 
     def expect_command_text(self, part: str) -> None:
-        assert self.command is not None and part in self.command.text, f"the command printed {self.command.text if self.command else ''!r}, not {part!r}"
+        printed = f"{self.command.text}{self.command.error}" if self.command else ""
+        assert part in printed, f"the command printed {printed!r}, not {part!r}"
 
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
