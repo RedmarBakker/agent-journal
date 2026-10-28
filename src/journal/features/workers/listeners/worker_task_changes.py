@@ -4,6 +4,7 @@ from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.models.proof_state import ProofState
+from journal.models.task import Task
 from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
@@ -24,16 +25,22 @@ class WorkerTaskChanges(Listener[RowEvent]):
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskClosed) and event.outcome in RELEASING:
-            self.released(event)
+            self.closed(event, self.tasks.find(event.task_id))
         if isinstance(event, TaskClosed) and event.outcome == PAUSED and Actor.parse(event.actor).actor_type in DROPPING_ACTORS:
             self.dropped(event)
-        if isinstance(event, TaskClosed) and event.outcome in (*RELEASING, BLOCKED):
+        if isinstance(event, TaskClosed) and event.outcome == BLOCKED:
             self.tasks.unqueued_task(self.tasks.find(event.task_id), Actor.system())
         if isinstance(event, TaskEdited):
             self.edited(event)
 
-    def released(self, event: TaskClosed) -> None:
-        holder = self.tasks.holder(self.tasks.find(event.task_id))
+    def closed(self, event: TaskClosed, task: Task) -> None:
+        if not task.delegated:
+            return
+        self.released(event, task)
+        self.tasks.unqueued_task(task, Actor.system())
+
+    def released(self, event: TaskClosed, task: Task) -> None:
+        holder = self.tasks.holder(task)
         if holder is None or holder.type != "workers":
             return
         self.tasks.release_task(holder, event.task_id, Actor.system())
@@ -45,7 +52,7 @@ class WorkerTaskChanges(Listener[RowEvent]):
         holder = self.tasks.holder(task) if task.delegated else None
         if holder is None or holder.type != "workers":
             return
-        self.released(event)
+        self.released(event, task)
         worker = self.workers.find(holder.id)
         if not self.actions.notify_refusal(worker):
             self.actions.notified(worker, DROPPED_LINE.format(task=event.task_id), "the journal", Actor.system())
