@@ -7,12 +7,13 @@ from journal.models.support.ref import Ref
 from journal.models.user import User
 from journal.repositories.links import Links
 from journal.sync.team_account import TeamAccount
+from journal.events.blocking import Blocking
 
 
 class EnvironmentOwnerRecord(Listener[Created]):
     """An environment made on this machine is owned by this machine's person, linked from their user row; one pulled from a colleague's machine arrives with its own link, and the Team chat and a team's hub are owned by no one."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, links: Links, account: TeamAccount) -> None:
         self.links, self.account = links, account

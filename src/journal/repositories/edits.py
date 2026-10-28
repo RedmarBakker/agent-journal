@@ -6,6 +6,7 @@ from journal.models.edit import Edit
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.support.time_source import TimeSource
+from journal.support.answer_phase import AnswerPhase
 
 EDIT_ROWS = 500
 
@@ -13,10 +14,12 @@ EDIT_ROWS = 500
 class Edits(ScopedRepository[Edit]):
     model = Edit
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, time_source: TimeSource, phase: AnswerPhase) -> None:
         super().__init__(connection, bus, scope, time_source)
+        self.phase = phase
 
     def record(self, edit: Edit, actor: Actor) -> Edit:
+        self.phase.record_viewer_write(type(self).__name__)
         stored = self.save(edit, actor)
         for old in self.selected(self.query().with_columns("session").order_descending("id").offset(EDIT_ROWS)):
             self.delete(old, actor)

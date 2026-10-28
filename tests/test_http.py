@@ -84,7 +84,7 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     with app.container.get(Scope).environment(MAIN):
         [entry] = [entry for entry in app.container.get(Entries).scoped() if entry.entry_type == "ToolStarting" and "hook_ms" in entry.data]
     assert entry.data["boot_wait_ms"] >= 350, "the hook's entry says how long it waited for the boot"
-    assert entry.data["hook_ms"] < entry.data["boot_wait_ms"], "and its own time leaves the wait out"
+    assert entry.data["hook_ms"] >= entry.data["boot_wait_ms"], "and its time counts from the script's own start, the wait in it"
 
 
 def test_every_hook_event_carries_the_seconds_it_waited_for_the_boot():

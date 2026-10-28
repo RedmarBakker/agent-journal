@@ -8,6 +8,7 @@ from journal.support.decision import Decision
 from journal.repositories.messages import Messages
 from journal.features.messages.support.messages_data_reader import INBOX_LINE_IDS
 from journal.features.messages.messages_nudges import MessagesNudges
+from journal.events.blocking import Blocking
 
 E = TypeVar("E", bound=AgentEvent)
 
@@ -15,7 +16,7 @@ E = TypeVar("E", bound=AgentEvent)
 class InboxNotice(AgentListener[E]):
     """What the three moments share: what waits unread is named to the agent by number, so it reads and answers it before anything else."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def __init__(self, sessions: SessionAgents, nudger: Nudger, messages: Messages) -> None:
         self.sessions, self.nudger, self.messages = sessions, nudger, messages

@@ -3,6 +3,7 @@ import traceback
 
 from journal.events.event import Event
 from journal.events.listener import Listener
+from journal.events.blocking import Blocking
 
 
 class Bus:
@@ -13,6 +14,7 @@ class Bus:
         self._matched: dict[type[Event], list[Listener]] = {}
 
     def listen(self, type_name: type[Event], listener: Listener) -> None:
+        Blocking.check(listener.registered_class())
         self._listeners.append((type_name, listener))
         self._matched.clear()
 

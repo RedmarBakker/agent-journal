@@ -2,6 +2,7 @@ from journal.features.workers.support.handout_direction import HandoutDirection
 from journal.features.workers.support.line_band import LineBand
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.support.pressure_band import PressureBand
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE
 
 LOW, NORMAL, HIGH = PressureBand.LOW, PressureBand.NORMAL, PressureBand.HIGH
 INCREASE, DECREASE, NEUTRAL = HandoutDirection.INCREASE, HandoutDirection.DECREASE, HandoutDirection.NEUTRAL
@@ -11,14 +12,14 @@ class LineBands:
     """The one table of where each measure line speaks and which way it pushes, per mode: a line that asks for more handing out never shares a band with one that asks for less, and a line speaks only in its bands."""
 
     ROWS = (
-        LineBand("builder", WorkersNudges.BUILDER_CODE_SHARE_LINE.key, (LOW, NORMAL), DECREASE),
-        LineBand("builder", WorkersNudges.BUILDER_QUEUE_LINE.key, (HIGH,), DECREASE),
-        LineBand("builder", WorkersNudges.BUILDER_WORKER_LINE.key, (LOW, NORMAL, HIGH), DECREASE),
-        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_QUEUE_LINE.key, (HIGH,), DECREASE),
-        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_WAIT_LINE.key, (NORMAL, HIGH), NEUTRAL),
-        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key, (LOW, NORMAL), INCREASE),
-        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_REPORT_LINE.key, (LOW, NORMAL, HIGH), NEUTRAL),
-        LineBand("orchestrator", WorkersNudges.ORCHESTRATOR_DISPATCH_LINE.key, (HIGH,), DECREASE),
+        LineBand(BUILDER_MODE, WorkersNudges.BUILDER_CODE_SHARE_LINE.key, (LOW, NORMAL), DECREASE),
+        LineBand(BUILDER_MODE, WorkersNudges.BUILDER_QUEUE_LINE.key, (HIGH,), DECREASE),
+        LineBand(BUILDER_MODE, WorkersNudges.BUILDER_WORKER_LINE.key, (LOW, NORMAL, HIGH), DECREASE),
+        LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_QUEUE_LINE.key, (HIGH,), DECREASE),
+        LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_WAIT_LINE.key, (NORMAL, HIGH), NEUTRAL),
+        LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key, (LOW, NORMAL), INCREASE),
+        LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_REPORT_LINE.key, (LOW, NORMAL, HIGH), NEUTRAL),
+        LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_DISPATCH_LINE.key, (HIGH,), DECREASE),
     )
 
     @classmethod

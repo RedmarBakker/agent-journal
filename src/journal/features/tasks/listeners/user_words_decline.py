@@ -4,12 +4,13 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.features.tasks.states.choosing_paused_work import CHOOSING_PAUSED_WORK
 from journal.repositories.agents import Agents
 from journal.support.actor import Actor
+from journal.events.blocking import Blocking
 
 
 class UserWordsDecline(AgentListener[PromptSubmitted]):
     """The user's own words while the agent chooses its paused work set that work aside until the next close: the user said what comes next."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, sessions: SessionAgents, agents: Agents) -> None:
         self.sessions, self.agents = sessions, agents

@@ -7,12 +7,13 @@ from journal.features.skills.skills_conduct import start_option
 from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
+from journal.events.blocking import Blocking
 
 
 class SkillObligation(AgentListener[AgentEvent]):
     """The skills a start or a prompt calls for, as the skills conduct names them, are recorded as required on the agent's row, beside those already required, so a write waits until they are read."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, agents: Agents, reader: SkillsDataReader, settings: SettingRows) -> None:
         self.agents, self.reader, self.settings = agents, reader, settings

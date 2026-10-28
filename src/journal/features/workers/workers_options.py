@@ -7,6 +7,7 @@ MERGER_TESTING = "Hand the tests over"
 WORKER_TESTING = "Run the tests it wrote"
 TEST_BUDGET = "Test budget"
 JOURNAL_TESTING = "The journal runs them"
+BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE = "builder", "orchestrator", "solo"
 
 
 class WorkersOptions:
@@ -14,7 +15,7 @@ class WorkersOptions:
     MEMORY_LIMIT_MEGABYTES = Option("workers.memory_limit_megabytes", "Memory a worker's processes may use before it is stopped", "The resident memory, in megabytes, of a worker's whole process tree past which the worker is stopped, the reason written on it", 8192, unit="MB")
     MEMORY_TOTAL_MEGABYTES = Option("workers.memory_total_megabytes", "Memory all workers' processes may use together", "The resident memory, in megabytes, of every worker's process tree added up, past which the worker using the most is stopped; 0 for no limit", 16384, unit="MB")
     TIMEOUT = Option("workers.timeout_minutes", "Time limit of a worker run", "Minutes a worker may run before it is stopped and its report states that it was; 0 sets no limit", 60, unit="min")
-    MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", "builder", option_type="choice", choices=("builder", "orchestrator", "solo"), scope=OptionScope.PERSON, setter=USER)
+    MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", BUILDER_MODE, option_type="choice", choices=(BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE), scope=OptionScope.PERSON, setter=USER)
     REVIEWER_LIMIT = Option("workers.reviewers_most", "Reviewers: most out", "The most reviewers out at once, apart from the workers: the review queue adds a reviewer while reviews wait and fewer than this are out; they do not count toward the worker limits", 2, unit="reviewers")
     VERIFIER_LIMIT = Option("workers.verifiers_most", "Verifiers: most out", "The most verifiers out at once, apart from the workers: a verdict wanted past it waits for one to come free; they do not count toward the worker limits", 2, unit="verifiers")
     BUILDER_DISPATCH_ALLOWED = Option("workers.builder_may_dispatch", "Builder may dispatch workers", "On: in builder mode the agent may dispatch a worker with journal worker dispatch. Off: the line is refused", True, option_type="switch", scope=OptionScope.PERSON, setter=USER)

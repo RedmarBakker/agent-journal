@@ -2,6 +2,12 @@ from functools import partial
 import time
 
 from journal.support.stage_times import StageTimes
+from journal.support.answer_phase import AnswerPhase
+from journal.support.undeferred_viewer_write import UndeferredViewerWrite
+from journal.support.fault_log import FaultLog
+from journal.features.faults.faults_nudges import FaultsNudges
+from journal.features.faults.faults_options import FaultsOptions
+from journal.repositories.setting_rows import SettingRows
 
 from journal.engine.engine_nudges import EngineNudges
 from journal.engine.nudger import Nudger
@@ -43,8 +49,8 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
+        self.time_source, self.phase, self.fault_log, self.settings = time_source, phase, fault_log, settings
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
@@ -144,12 +150,24 @@ class Receiver:
             if not decision.allowed and getattr(listener, "asked_while_free", False):
                 self.deferred.add(partial(listener.handle, event))
                 continue
-            with self.stages.timed(f"listener {type(listener).__name__}"):
+            name = listener.registered_class().__name__
+            with self.stages.timed(f"listener {name}"), self.phase.running(name):
                 line_text = self._guarded(listener, event)
+            decision = self.viewer_writes_checked(name, event, decision)
             if line_text is None:
                 continue
             decision = decision.merged(Decision.allowed_with(line_text.reason) if not line_text.allowed and not decision.allowed else line_text)
         return decision
+
+    def viewer_writes_checked(self, name: str, event: AgentEvent, decision: Decision) -> Decision:
+        writers = self.phase.writers()
+        if not writers:
+            return decision
+        self.fault_log.reported(f"listener {name} before the hook's answer", UndeferredViewerWrite(f"{name} updated the viewer through {', '.join(writers)} before the hook answered"))
+        if not self.settings.option(FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING):
+            return decision
+        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), FaultsNudges.UNDEFERRED_VIEWER_WRITE.create(listener=name, writers=", ".join(writers)))
+        return decision.merged(Decision.allowed_with(line)) if line else decision
 
     def _guarded(self, listener: Listener, event: AgentEvent) -> Decision | None:
         try:
@@ -167,7 +185,7 @@ class Receiver:
             self.deferred.add(partial(self.timed_handle, listener, event))
 
     def timed_handle(self, listener: Listener, event: AgentEvent) -> None:
-        with self.stages.timed(f"deferred {type(listener).__name__}"):
+        with self.stages.timed(f"deferred {listener.registered_class().__name__}"):
             listener.handle(event)
 
     @staticmethod

@@ -37,7 +37,10 @@ class Story(AgentSteps, UserSteps, WorkerSteps, TimeSteps, DeveloperSteps, Story
         self.set_positions = {key: self.reads.position() for key in self.copies.settings_left.get((fixture, self.provider), ())}
 
     def posted_hook(self, type_name: str, **body) -> tuple[int, object]:
-        return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+        return self.session_posted_hook("s1", {}, type_name, body)
+
+    def session_posted_hook(self, session: str, headers: dict, type_name: str, body: dict) -> tuple[int, object]:
+        return posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": type_name, "session_id": session, **body}, {"X-Journal-Env": "main", **headers})
 
     def record_command(self, action: str, outcome: Outcome) -> None:
         self.observed(action, None, outcome)

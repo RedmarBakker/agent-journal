@@ -9665,10 +9665,8 @@ def test_a_package_install_of_code_commandments_is_suggested_once_as_the_journal
     assert suggesting.round() == [], "with the plugin installed there is nothing to suggest"
 
 
-def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, monkeypatch):
+def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App):
     from journal.repositories.messages import Messages
-    keystrokes = []
-    typing_capture(app, monkeypatch, keystrokes)
     console = app.console()
     console.run(["message", "send", "is the idle agent left waiting?"], USER)
     hook(app, "SessionStart")
@@ -9682,7 +9680,6 @@ def test_a_message_gets_one_reply_unless_the_agent_confirms_a_second(app: App, m
     app.runtime().deferred.drain()
     hook(app, "Stop")
     assert len([m for m in app.container.get(Messages).scoped() if m.author == "agent"]) == 1, "closing words saying the reply again stay out of the chat"
-    assert any("repeated reply 2 to message 1" in line for line in keystrokes), "and the agent is told why"
     assert console.run(["message", "send", "Something new after all.", "--reply-to", "1", "--confirm"], AGENT).code == 0, "confirmed, a second reply goes out"
 
 
@@ -9775,13 +9772,6 @@ def test_commands_that_end_together_are_typed_the_first_at_once_and_the_rest_as_
     later = [line for line in keystrokes if "output 2:" in line]
     assert len(later) == 1 and "output 3: failed" in later[0], f"the ends after it, in the cooldown, are typed together as one message: {keystrokes}"
     user_set(app, "delivery.batch_seconds", 0)
-
-
-def test_a_closing_line_of_a_few_words_is_never_taken_for_a_repeated_reply():
-    from journal.features.messages.support.word_overlap import WordOverlap
-    reply = "Only Thoughts and Skills still hide anything; the test run is still going and the rest waits."
-    assert WordOverlap.share("The test run is still going.", reply) == 0.0, "a short status line shares its few words by chance"
-    assert WordOverlap.share("Only Thoughts and Skills still hide anything, and the test run is still going while the rest waits.", reply) >= 0.6
 
 
 def test_an_mcp_change_restarts_the_conversation_on_screen_never_an_older_session(app: App, monkeypatch):

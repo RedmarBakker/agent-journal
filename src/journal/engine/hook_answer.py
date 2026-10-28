@@ -5,12 +5,13 @@ from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.agent_listener import AgentListener
 from journal.support.decision import Decision
+from journal.events.blocking import Blocking
 
 
 class HookAnswer(AgentListener[AgentEvent]):
     """The one blocking listener on every agent event: asks the state machine for its reply, has the delivery carry out what the reply asks of the terminal, and answers the hook with its decision; a worker's lines wait on its row for its next hook."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
 
     rank = 0
 

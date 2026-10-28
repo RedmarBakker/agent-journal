@@ -11,7 +11,8 @@ from journal.features.skills.support.skills_data import SkillsData
 from journal.support.skill import Skill
 from journal.features.skills.commands.skill_command import SkillCommand
 from journal.features.skills.listeners.compaction_reset import CompactionReset
-from journal.features.skills.listeners.skill_card import SkillCard
+from journal.features.skills.listeners.skill_loaded_card import SkillLoadedCard
+from journal.features.skills.listeners.skill_read_record import SkillReadRecord
 from journal.features.skills.skills_nudges import SkillsNudges
 from journal.features.skills.skills_options import SkillsOptions
 from journal.features.skills.skills_part import SkillsPart
@@ -27,7 +28,7 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    listeners = (SkillObligation, SkillCard, CompactionReset, SkillTriggers)
+    listeners = (SkillObligation, SkillReadRecord, SkillLoadedCard, CompactionReset, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
 

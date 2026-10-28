@@ -7,12 +7,19 @@ from tests.stories.fixtures.working_agent import WorkingAgent
 
 
 @story(ReadMessage, end=[Ready])
-def test_closing_words_that_say_something_new_reach_the_chat(story):
+def test_closing_words_after_a_reply_in_the_same_turn_are_kept_out(story):
     reply = story.agent_replies_with_number(story.start.message, "the footer is done")
     story.expect_agent_told(MessagesNudges.REPLY_REPEAT_WARNING, n=story.start.message, reply=reply)
     story.expect_message(reply, author="agent", reply_target=story.start.message)
     story.agent_closes_its_turn("next I start the header, which waits on the logo")
-    story.expect_agent_not_told(MessagesNudges.REPEATED_CLOSING_TEXT)
+    story.expect_newest_agent_message("the footer is done")
+
+
+@story(ReadMessage, end=[Ready])
+def test_closing_words_of_a_later_turn_reach_the_chat(story):
+    story.agent_replies(story.start.message, "the footer is done")
+    story.agent_is_prompted("go on")
+    story.agent_closes_its_turn("next I start the header, which waits on the logo")
     story.expect_newest_agent_message("next I start the header, which waits on the logo")
 
 

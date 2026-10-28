@@ -23,6 +23,7 @@ class Request:
     files: dict = field(default_factory=dict)
     request_at: float = field(default_factory=time.time)
     boot_wait_seconds: float = 0.0
+    arrived_at: float = field(default_factory=time.time)
 
     @staticmethod
     def request_time(headers: dict) -> float:
@@ -42,7 +43,7 @@ class Request:
         return int(waited) / 1000 if waited.isdigit() else 0.0
 
     def boot_delayed(self, seconds: float) -> "Request":
-        return replace(self, boot_wait_seconds=self.boot_wait_seconds + seconds, request_at=self.request_at + seconds)
+        return replace(self, boot_wait_seconds=self.boot_wait_seconds + seconds)
 
     def is_boot_delayed(self) -> bool:
         return self.boot_wait_seconds > 0

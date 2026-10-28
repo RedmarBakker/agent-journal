@@ -1,0 +1,57 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "call",
+        "where": [
+            {
+                "nameIn": [
+                    "show",
+                    "show_fields",
+                    "show_recent",
+                    "show_role_card"
+                ]
+            },
+            {
+                "of": "child:func",
+                "all": [
+                    {
+                        "is": "member-access"
+                    },
+                    {
+                        "of": "child:value",
+                        "nameIn": [
+                            "cards",
+                            "processes",
+                            "moments"
+                        ]
+                    }
+                ]
+            },
+            {
+                "of": "enclosingType",
+                "descendant": {
+                    "all": [
+                        {
+                            "is": "identifier"
+                        },
+                        {
+                            "name": "Blocking"
+                        }
+                    ]
+                }
+            }
+        ],
+        "reject": [
+            {
+                "testCode": true
+            }
+        ]
+    },
+    "sin": {
+        "name": "viewer-write-in-blocking-listener",
+        "description": "A listener that runs before the hook answers writes a card or a chat mark, which only the viewer shows, so the agent waits for it.",
+        "rule": "Only what is part of the answer runs before it: move the card into a listener that runs after the answer, and keep in the blocking one only the refusal, the line or the row the next decision reads.",
+        "skill": "marks-by-listeners"
+    }
+}

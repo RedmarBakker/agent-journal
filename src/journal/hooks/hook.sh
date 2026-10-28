@@ -20,9 +20,8 @@ port=$(cat "$root/.journal/port" 2>/dev/null)
 body=$(mktemp)
 sent=$(mktemp)
 cat > "$sent"
-started=$begun
 # the id of this firing, the same on a resend, so the journal records a hook it already took once
-firing="$$-$started"
+firing="$$-$begun"
 if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\|PostToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
 # Every hook that goes to the server first writes its time, whether or not the server takes it: the server's health compares it with
 # the last hook it took, and the supervisor warns an agent whose terminal moves while this file stands still.
@@ -41,7 +40,7 @@ post() {
         -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
         -H "X-Journal-Actor: ${JOURNAL_ACTOR:-agent}" \
         -H "X-Journal-Actor-Token: ${JOURNAL_ACTOR_TOKEN:-}" \
-        -H "X-Journal-Request-At: $started" \
+        -H "X-Journal-Request-At: $begun" \
         -H "X-Journal-Hook-Id: $firing" \
         -H "X-Journal-Boot-Wait-Ms: $waited" \
         -H "X-Journal-Silence-Start: $silence" \
@@ -65,7 +64,7 @@ held() {
     exit 0
 }
 waited=$(journal_boot_wait "$root/.journal")
-[ "$waited" = 0 ] || { port=$(cat "$root/.journal/port" 2>/dev/null); started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null); }
+[ "$waited" = 0 ] || port=$(cat "$root/.journal/port" 2>/dev/null)
 [ -n "$port" ] || held || { rm -f "$body" "$sent"; exit 0; }
 # a journal that does not answer its health in two seconds is gone around: the tool goes on, and the miss is noted for the journal to say
 if [ "$waited" = 0 ] && ! curl -s -o /dev/null --connect-timeout 2 --max-time 2 "http://127.0.0.1:$port/journal/health" && ! held; then
@@ -79,7 +78,6 @@ if [ "$status" = 000 ] || [ "$status" = 0 ]; then
         more=$(journal_boot_wait "$root/.journal")
         waited=$((waited + more))
         port=$(cat "$root/.journal/port" 2>/dev/null)
-        started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
         status=$(post) || status=0
     fi
 fi

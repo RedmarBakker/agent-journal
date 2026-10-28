@@ -5,7 +5,6 @@ from journal.support.timeout import Timeout
 class WorkersNudges:
     EDIT_LOCK = Nudge("workers", "worktree_being_rebased", "the journal is rebasing your worktree; writes wait until it is done", "wait a moment, then write again", repeat=Timeout.seconds(0))
     WORKER_GIT_REFUSAL = Nudge("workers", "worker_runs_no_git", "never run git; the journal commits at clock-out", "on a clash, fix the files, then `journal clock-out \"<report>\"`", repeat=Timeout.seconds(0))
-    READINESS = Nudge("workers", "clock_in_first", "writes wait until you clock in: run `journal task show <n>`, then `journal clock-in`", "", repeat=Timeout.seconds(0))
     TEST_BUDGET_REFUSAL = Nudge("workers", "tests_go_through_a_turn", "do not run {{command}} yourself", "run tests with `journal tests turn <test ids>`", repeat=Timeout.seconds(0))
     TEST_HANDOVER = Nudge("workers", "tests_are_handed_over", "do not run {{command|cap=27}}", "name each point's test and its command in the proof; the merging agent runs them", repeat=Timeout.seconds(0))
     JOURNAL_TESTS_REFUSAL = Nudge("workers", "the_journal_runs_the_tests", "do not run {{command|cap=34}}; name the tests: `journal clock-out \"<report>\" --tests \"<test arguments>\"`", "", repeat=Timeout.seconds(0))

@@ -1,12 +1,13 @@
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent_listener import AgentListener
 from journal.features.sequences.support.phrase_starts import PhraseStarts
+from journal.events.blocking import Blocking
 
 
 class PromptPhraseStart(AgentListener[PromptSubmitted]):
     """The user's own prompt that is a sequence's phrase starts that sequence, before the agent goes on."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, starts: PhraseStarts) -> None:
         self.starts = starts

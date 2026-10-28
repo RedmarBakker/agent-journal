@@ -7,7 +7,7 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.line_bands import LineBands
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.models.support.measure_state import MeasureState
 
@@ -62,9 +62,9 @@ class MeasureLines:
 
     @staticmethod
     def makers() -> dict[tuple[str, str], Callable[[MeasureState, FeatureData, Settings], tuple[Nudge, ...]]]:
-        return {("builder", "own_code_share"): MeasureLines.code_share_line, ("builder", "high_queue_minutes"): MeasureLines.oldest_worker_line, ("orchestrator", "high_queue_minutes"): MeasureLines.queue_line,
-                ("orchestrator", "clearing_wait"): MeasureLines.wait_line, ("orchestrator", "delegation"): MeasureLines.handout_line, ("orchestrator", "idle_places"): MeasureLines.handout_line,
-                ("orchestrator", "report_share"): MeasureLines.report_line}
+        return {(BUILDER_MODE, "own_code_share"): MeasureLines.code_share_line, (BUILDER_MODE, "high_queue_minutes"): MeasureLines.oldest_worker_line, (ORCHESTRATOR_MODE, "high_queue_minutes"): MeasureLines.queue_line,
+                (ORCHESTRATOR_MODE, "clearing_wait"): MeasureLines.wait_line, (ORCHESTRATOR_MODE, "delegation"): MeasureLines.handout_line, (ORCHESTRATOR_MODE, "idle_places"): MeasureLines.handout_line,
+                (ORCHESTRATOR_MODE, "report_share"): MeasureLines.report_line}
 
     @staticmethod
     def worker_refs(workers) -> list[str]:

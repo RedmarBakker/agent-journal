@@ -6,6 +6,7 @@ from journal.models.message import Message
 from journal.support.message_thread import MessageThread
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
+from journal.support.answer_phase import AnswerPhase
 
 PROCESS = "process"
 DOCKED = "docked"
@@ -21,8 +22,8 @@ FINAL = "final"
 class ProcessCards:
     """Writes every process card: one message per process, found again by its key and updated in place, found and written in one transaction so two shows of one card at once never make two, its data naming the process card class that refreshes it and whether its process still runs; a card whose process ran and ended, done or failed, is final and never written again but by a reader written anew reading its still kept output."""
 
-    def __init__(self, messages: Messages, agents: Agents) -> None:
-        self.messages, self.agents = messages, agents
+    def __init__(self, messages: Messages, agents: Agents, phase: AnswerPhase) -> None:
+        self.messages, self.agents, self.phase = messages, agents, phase
 
     def show(self, contents: ProcessCardContents) -> Message:
         with self.messages.writing():
@@ -36,6 +37,7 @@ class ProcessCards:
             return self.save_card(contents, self.messages.keyed(contents.key, contents.actor))
 
     def save_card(self, contents: ProcessCardContents, older: list[Message]) -> Message:
+        self.phase.record_viewer_write(type(self).__name__)
         data = {"row": "", **contents.data, **CardDetail.parts(contents.detail), **CardCategory.read(contents.label).fields(), "key": contents.key, "shows": str(contents.shows), "card_type": PROCESS, "process": contents.process, "active": contents.active}
         if older:
             open_card = older[0].data.get("active") or older[0].data.get(FINAL)

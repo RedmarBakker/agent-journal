@@ -65,7 +65,9 @@ class AgentSteps:
         self.record_command("agent replies", self.app.console().run(["message", "send", text, "--reply-to", str(message)], self.agent))
 
     def hooked(self, action: str, type_name: str, **body) -> None:
-        status, answer = self.posted_hook(type_name, **body)
+        self.hook_observed(action, *self.posted_hook(type_name, **body))
+
+    def hook_observed(self, action: str, status: int, answer: object) -> None:
         verdict = HookVerdict(self.provider, status, answer if isinstance(answer, dict) else {})
         self.observed(f"{action}, {'refused' if verdict.refused() else 'let through'}", verdict, None)
 

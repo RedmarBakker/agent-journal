@@ -9,7 +9,7 @@ from journal.features.workers.support.measure_range import MeasureRange
 from journal.features.workers.support.measure_source import MeasureSource
 from journal.features.workers.support.measure_spec import MeasureSpec
 from journal.features.workers.support.active_worker_measure import ActiveWorkerMeasure
-from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE, WorkersOptions
 from journal.models.agent import Agent
 from journal.models.support.measure_state import MeasureState
 from journal.models.support.measure_states import MeasureStates
@@ -23,7 +23,7 @@ BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSo
 COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0, label="Tasks completed an hour")
 MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3, label="Minutes the oldest message waited")
 MODE_SPECS = {
-    "solo": (MESSAGE_WAIT, COMPLETION_RATE),
+    SOLO_MODE: (MESSAGE_WAIT, COMPLETION_RATE),
 }
 ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3, label="Minutes the oldest worker waited"), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3, label="Your own share of the landed code"),
                       MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0, label="Minutes a place stood free"),
@@ -43,7 +43,7 @@ class ModeMeasures:
         orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, MESSAGE_WAIT, COMPLETION_RATE)
         worker_limit = self.settings.decimal(FitnessOptions.BUILDER_ACTIVE_WORKERS)
         builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), MESSAGE_WAIT, COMPLETION_RATE)
-        return {**MODE_SPECS, "builder": builder, "orchestrator": orchestrator}.get(mode, ())
+        return {**MODE_SPECS, BUILDER_MODE: builder, ORCHESTRATOR_MODE: orchestrator}.get(mode, ())
 
     def worked(self, agent: Agent, mode: str, time: float) -> MeasureStates:
         previous = agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)

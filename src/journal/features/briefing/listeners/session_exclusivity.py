@@ -3,12 +3,13 @@ from journal.events.agent_listener import AgentListener
 from journal.repositories.agents import Agents
 from journal.support.actor import Actor
 from journal.support.decision import Decision
+from journal.events.blocking import Blocking
 
 
 class SessionExclusivity(AgentListener[SessionStarted]):
     """Keeps one main agent session per provider in an environment: the session that starts takes the place, and every other session of its provider there ends once the briefing has named the takeover."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, agents: Agents) -> None:
         self.agents = agents

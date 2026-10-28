@@ -7,7 +7,6 @@ from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.agent_listener import AgentListener
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.features.messages.support.tags import Tags
-from journal.features.messages.support.word_overlap import WordOverlap
 from journal.features.registry import Registry
 from journal.support.actor import Actor
 from journal.models.author import Author
@@ -22,7 +21,6 @@ from journal.references import events
 
 JOURNAL_LINE = "[journal] "
 SHORT_CHARACTERS = 240
-REPEAT_OVERLAP_RATIO = 0.6
 
 
 
@@ -53,19 +51,14 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         if text != event.text.strip():
             self.typed(event, MessagesNudges.RETIRED_TAGS.create())
         key = VoiceKey.create("turn", event.session, text)
-        if not text or self.messages.sent_with(key) or self.is_repeat_reply(text, event):
+        if not text or self.messages.sent_with(key) or self.has_turn_reply(event):
             return
         acknowledgement = len(text) <= SHORT_CHARACTERS and "?" not in text and self._journal_answer(event)
         self.messages.save(Message(author=Author.AGENT, text=text, acknowledgement=acknowledgement, idempotency=key), actor)
 
-    def is_repeat_reply(self, text: str, event: TurnDisplayed) -> bool:
+    def has_turn_reply(self, event: TurnDisplayed) -> bool:
         prompt = self.turn_prompt(event)
-        if prompt is None:
-            return False
-        repeated = WordOverlap.repeats(text, self.messages.recent_replies(prompt.creation_time), REPEAT_OVERLAP_RATIO)
-        if repeated:
-            self.typed(event, MessagesNudges.REPEATED_CLOSING_TEXT.create(reply=repeated[0].id, n=repeated[0].reply_target))
-        return bool(repeated)
+        return bool(prompt and self.messages.recent_replies(prompt.creation_time))
 
     def turn_prompt(self, event: TurnDisplayed) -> Entry | None:
         prompts = self.entries.session_kind_entries(events.PROMPT_SUBMITTED, event.session)

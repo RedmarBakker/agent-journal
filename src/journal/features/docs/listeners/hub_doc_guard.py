@@ -10,12 +10,13 @@ from journal.sync.hosting import Hosting
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
+from journal.events.blocking import Blocking
 
 
 class HubDocGuard(Listener[Saving]):
     """A change to a document on the hub is refused before it is made unless the person making it may: anyone changes the text of one free to edit, only whoever put it on the hub or an admin changes the text of a read-only one or who may edit it. The person is this journal's own, or on the hosted journal the one a browser signed in as; an admin of another journal is found among the team's people. The journal's own writes, a sync's among them, pass."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def __init__(self, docs: Docs, account: TeamAccount, link: TeamServerLink, hosting: Hosting) -> None:
         self.docs, self.account, self.link, self.hosting = docs, account, link, hosting

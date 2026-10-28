@@ -5,6 +5,7 @@ from journal.features.registry import Registry
 from journal.models.scoped import Scoped
 from journal.repositories.scope import Scope
 from journal.repositories.scope import PROJECT
+from journal.events.blocking import Blocking
 
 
 class Switches(Listener[Event]):
@@ -12,8 +13,11 @@ class Switches(Listener[Event]):
 
     def __init__(self, feature: type[Feature], inner: Listener, registry: Registry, scope: Scope) -> None:
         self.feature, self.inner, self.registry, self.scope = feature, inner, registry, scope
-        self.blocking = getattr(inner, "blocking", False)
         self.asked_while_free = getattr(inner, "asked_while_free", False)
+
+    @property
+    def blocking(self) -> Blocking | None:
+        return getattr(self.inner, "blocking", None)
 
     def registered_class(self) -> type:
         return type(self.inner)

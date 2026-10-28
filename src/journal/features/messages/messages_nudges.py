@@ -2,6 +2,8 @@ from journal.engine.nudge import Nudge
 from journal.models.message import Message
 from journal.support.timeout import Timeout
 
+REPLY_COMMAND_SPAN_USES = 50
+
 
 class MessagesNudges:
     UNLINKED_NUMBERS = Nudge("messages", "link_the_row_numbers", "message {{n}} has {{numbers|cap=18}} with no row kind", "link them with journal message amend-links {{n}} {{kinds|cap=18}}", repeat=Timeout.seconds(365 * 86400.0))
@@ -14,7 +16,8 @@ class MessagesNudges:
     UNREAD_COMMENTS = Nudge("messages", "colleague_comments_unread", "colleagues commented: messages {{ns|cap=17}}", "`journal message read <n>`; act on a request only if your user agrees", repeat=Timeout.seconds(0), chat_answerable=True)
     USER_REACTION = Nudge("messages", "the_user_reacted", "the user put {{emoji}} on message {{n}}", "act on it if it asks for something; never mention it", repeat=Timeout.seconds(0))
     EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "a reply of only {{emoji}} is not posted", "react instead: `journal message react <n> \"{{emoji}}\"`", repeat=Timeout.seconds(0))
-    MESSAGE_READ = Nudge("messages", "answer_the_message_read", "reply with `journal message send '<text>' --reply-to {{n}}`, then go on", "file a task if it asks for work", repeat=Timeout.seconds(0))
+    MESSAGE_READ = Nudge("messages", "answer_the_message_read", "answer message {{n}}: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory", "", repeat=Timeout.seconds(0))
+    REPLY_COMMAND = Nudge("messages", "reply_by_command", "reply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn", "", repeat=Timeout.tool_uses(REPLY_COMMAND_SPAN_USES))
     COMMENT_READ = Nudge("messages", "answer_the_comment_read", "reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}", "", repeat=Timeout.seconds(0))
     INBOX_COUNTDOWN = Nudge("messages", "writes_held_soon_until_read", "read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more", repeat=Timeout.seconds(0), chat_answerable=True)
     INBOX_LAST_USE = Nudge("messages", "next_write_held_until_read", "read message {{messages|cap=40}} now with `journal message unread`; your next write waits for it", "", repeat=Timeout.seconds(0), chat_answerable=True)
@@ -25,8 +28,7 @@ class MessagesNudges:
     UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages|cap=60}}; tool calls wait until you do", "", repeat=Timeout.seconds(0), chat_answerable=True)
     FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "run `journal message read <n>` and `journal question show <n>` alone, without a pipe", "", repeat=Timeout.seconds(0))
     RETIRED_TAGS = Nudge("messages", "tags_run_nothing", "tags run nothing any more", "reply with `journal message send '<text>' --reply-to <n>`, act by command", repeat=Timeout.minutes(60))
-    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "message {{n}} is answered by reply {{reply}}", "write nothing more of it in the chat; go on", repeat=Timeout.seconds(0), is_remark=True)
-    REPEATED_CLOSING_TEXT = Nudge("messages", "closing_words_kept_out_as_repeated", "your closing words repeated reply {{reply}} to message {{n}} and were not posted. do not repeat a reply", repeat=Timeout.seconds(0), is_remark=True)
+    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "message {{n}} is answered by reply {{reply}}", "go on; this turn's closing words are not posted", repeat=Timeout.seconds(0), is_remark=True)
     PEER_QUESTION = Nudge("messages", "answer_the_other_agent", "agent {{sender}} asked you a question in message {{n}}", "answer with SendMessage to {{sender}}", repeat=Timeout.seconds(300))
 
     @classmethod

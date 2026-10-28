@@ -3,8 +3,10 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from journal.config import Config
+from journal.events.agent.file_edited import FileEdited
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent_listener import AgentListener
+from journal.events.blocking import Blocking
 from journal.features.edits.support.file_copies import STORED_CHARS, FileCopies
 from journal.features.edits.support.image_files import ImageFiles
 from journal.features.edits.support.file_modification_tracker import FileModificationTracker
@@ -13,6 +15,7 @@ from journal.support.part import Part
 from journal.support.actor import Actor
 from journal.models.edit import Edit
 from journal.repositories.edits import Edits
+from journal.repositories.plugins import Plugins
 from journal.support.file_edit import FileEdit
 from journal.support.file_write import FileWrite
 from journal.support.time_source import TimeSource
@@ -21,13 +24,15 @@ ROW_COUNT = 200
 
 
 class RecordEdit(AgentListener[ToolFinished]):
-    """When a call that writes files ends, each file it wrote is stored as an edit row before the hook answers, so the pane that polls next sees it: for the editor's tools from the patch they return, or from the file against its last copy when they return none, for a shell line from the call's written paths against the file as the journal last saw it; the file as it is now is stored, so the next change is compared against it. A script that writes files by paths it builds is found by the files whose modification time changed."""
+    """When a call that writes files ends, each file it wrote is stored as an edit row once the hook has answered, on the deferred worker, for the edits pane to show, and before it answers only while a plugin holds file_edited, so that plugin can refuse it: for the editor's tools from the patch they return, or from the file against its last copy when they return none, for a shell line from the call's written paths against the file as the journal last saw it; the file as it is now is stored, so the next change is compared against it. A script that writes files by paths it builds is found by the files whose modification time changed."""
 
-    blocking = True
-
-    def __init__(self, config: Config, edits: Edits, copies: FileCopies, modified_at: FileModificationTracker, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, config: Config, edits: Edits, copies: FileCopies, modified_at: FileModificationTracker, time_source: TimeSource, plugins: Plugins) -> None:
+        self.time_source, self.plugins = time_source, plugins
         self.config, self.edits, self.copies, self.modified_at = config, edits, copies, modified_at
+
+    @property
+    def blocking(self) -> Blocking | None:
+        return Blocking.ANSWER if self.plugins.has_hold(FileEdited.type_key()) else None
 
     def handle(self, event: ToolFinished) -> None:
         if event.call.is_journal:

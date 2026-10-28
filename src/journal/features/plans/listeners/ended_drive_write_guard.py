@@ -7,6 +7,7 @@ from journal.models.plan import Plan
 from journal.models.task import Task
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
+from journal.events.blocking import Blocking
 
 GUARDED = (Saving, Deleting)
 REFUSAL = "{name} is driven from here no longer, so it is not written here: journal {noun} drive {n} takes it again once it is free"
@@ -15,7 +16,7 @@ REFUSAL = "{name} is driven from here no longer, so it is not written here: jour
 class EndedDriveWriteGuard(Listener[ModelEvent]):
     """A save or deletion of a hub plan or task whose drive ended on this machine is refused before it is made, until the row is driven from here again."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def __init__(self, bindings: PlanBindings, labels: RowLabels) -> None:
         self.bindings, self.labels = bindings, labels

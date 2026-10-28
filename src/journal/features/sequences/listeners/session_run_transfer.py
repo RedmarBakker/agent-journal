@@ -1,12 +1,13 @@
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent_listener import AgentListener
 from journal.features.sequences.support.run_tracker import RunTracker
+from journal.events.blocking import Blocking
 
 
 class SessionRunTransfer(AgentListener[SessionStarted]):
     """A session that starts with no sequence running takes over the runs of the last session here that ended with some."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, active: RunTracker) -> None:
         self.running = active

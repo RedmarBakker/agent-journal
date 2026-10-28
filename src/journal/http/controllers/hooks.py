@@ -1,3 +1,5 @@
+import time
+
 from journal.repositories.setting_rows import SettingRows
 from journal.support.announced_commands import AnnouncedCommands
 from journal.support.actor import Actor
@@ -8,6 +10,7 @@ from journal.hooks.receiver import Receiver
 from journal.hooks.support.tool_calls import ToolCalls
 from journal.http.support.request import REQUEST_TIME_HEADER, Request
 from journal.support.response import Response
+from journal.support.stage_times import StageTimes
 from journal.providers.providers import Providers
 from journal.features.faults.faults_options import FaultsOptions
 
@@ -16,13 +19,21 @@ ACTOR_HEADER = "x-journal-actor"
 ACTOR_TOKEN_HEADER = "x-journal-actor-token"
 FIRING_HEADER = "x-journal-hook-id"
 SILENCE_HEADER = "x-journal-silence-start"
+ARRIVAL_STAGE, WAIT_STAGE, HANDLING_STAGE = "hook before the server read it", "hook before it was handled", "hook handling"
 
 
 class HookController:
-    def __init__(self, receiver: Receiver, providers: Providers, announced: AnnouncedCommands, calls: ToolCalls, settings: SettingRows, arrivals: HookArrivals) -> None:
+    def __init__(self, receiver: Receiver, providers: Providers, announced: AnnouncedCommands, calls: ToolCalls, settings: SettingRows, arrivals: HookArrivals, stages: StageTimes) -> None:
         self.receiver, self.providers, self.announced, self.calls, self.settings, self.arrivals = receiver, providers, announced, calls, settings, arrivals
+        self.stages = stages
 
     def receive(self, request: Request) -> Response:
+        self.stages.add(ARRIVAL_STAGE, request.arrived_at - request.request_at)
+        self.stages.add(WAIT_STAGE, time.time() - request.arrived_at)
+        with self.stages.timed(HANDLING_STAGE):
+            return self.answered(request)
+
+    def answered(self, request: Request) -> Response:
         self.arrivals.record_arrival(request.environment)
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)

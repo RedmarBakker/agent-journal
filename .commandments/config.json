@@ -53,8 +53,8 @@
         "DocstringInMethodDetector",
         "CommentAboveMethodDetector",
         "CommentInMethodDetector",
-        "StateNameComparedDetector",
-        "StateTypeCheckedDetector",
+        "SessionPurityStateNameComparedDetector",
+        "SessionPurityStateTypeCheckedDetector",
         "FieldDocstringDetector",
         "ConstantDocstringDetector",
         "StateMachineOutsideEngineDetector",
@@ -65,7 +65,7 @@
         "SupervisorImportOutsideLauncherDetector",
         "SyncServiceImportsJournalDetector",
         "SyncServiceOpensDatabaseDetector",
-        "ProviderNameComparedDetector",
+        "SessionPurityProviderNameComparedDetector",
         "ProviderKeyedTableDetector",
         "StateListenerNotOnDetector",
         "OnListenerWithoutEventTypeDetector",
@@ -85,7 +85,12 @@
         "RequestOutsideTransportDetector",
         "PollerKeyNotWrittenDetector",
         "MarkWrittenOutsideListenerDetector",
-        "SystemMessageOutsideListenerDetector"
+        "SystemMessageOutsideListenerDetector",
+        "ViewerWriteInBlockingListenerDetector",
+        "SessionPurityRoleCheckedDetector",
+        "SessionPurityActorTypeCheckedDetector",
+        "SessionPurityHookKindComparedDetector",
+        "SessionPurityAgentLookedUpAgainDetector"
     ],
     "parallel": 2,
     "configure": {

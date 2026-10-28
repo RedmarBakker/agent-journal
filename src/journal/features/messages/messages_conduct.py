@@ -54,7 +54,7 @@ class MessagesConduct(Conduct):
         if not event.is_agents(event.session):
             return self.none()
         if event.commented_writing is None:
-            return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id))
+            return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id), MessagesNudges.REPLY_COMMAND.create())
         return self.none(MessagesNudges.COMMENT_READ.create(n=event.row_id, writing=event.commented_writing))
 
     def on_reply_posted(self, event: ReplyPosted, settings: Settings) -> Transition:

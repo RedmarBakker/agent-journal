@@ -137,7 +137,10 @@ feature's conduct; the events `SkillRead`, `OverviewRead` and `MarkDecided` comp
 **Hooks decide nothing; listeners are deferred unless they say otherwise.** The hook script
 posts and prints. The server records the entry, asks the state machine, which answers with the
 block or the lines, replies, then runs the recording listeners on one worker thread. A listener
-that must answer before the agent continues declares `blocking = True`; a deferred one can never
+runs before the answer only when its result is part of it, and says why: `blocking = Blocking.ANSWER`
+for a refusal or a line, `Blocking.NEXT_DECISION` for a row the next decision reads. Everything that
+only updates the viewer or measures, a card, a chat mark, an edit row, a count, a timing, runs after
+the answer; the card writers report a write made before it as a fault. A deferred listener can never
 refuse, by construction.
 
 **Dependencies are declared in constructors.** A class names what it needs by type in

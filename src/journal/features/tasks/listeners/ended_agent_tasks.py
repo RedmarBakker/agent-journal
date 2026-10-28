@@ -6,6 +6,7 @@ from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.events.blocking import Blocking
 
 ENDED_REASON = "the session that held it ended"
 
@@ -13,7 +14,7 @@ ENDED_REASON = "the session that held it ended"
 class EndedAgentTasks(AgentListener[SessionStarted]):
     """When a main session starts, a task still started in the hand of a main agent of the environment whose session has ended is paused, so the agent that starts can resume it and no task is held by a session that will never work again; a session that starts again finds a task paused for its own end started again."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, tasks: Tasks, agents: Agents) -> None:
         self.tasks, self.agents = tasks, agents

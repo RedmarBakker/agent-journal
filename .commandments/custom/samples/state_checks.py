@@ -13,27 +13,27 @@ class Activity:
     """How an agent shows on the agent bar."""
 
     def question(self, agent) -> int:
-        # @sin StateNameComparedDetector
+        # @sin SessionPurityStateNameComparedDetector
         return agent.data.get("question_id", 0) if agent.state == "waiting" else 0
 
     def lines(self, settings) -> list:
-        # @sin StateNameComparedDetector
+        # @sin SessionPurityStateNameComparedDetector
         if settings.value(WorkersOptions.MODE) != "orchestrator":
             return []
         return ["hand the next task out"]
 
     def modes(self, mode: str) -> bool:
-        # @sin StateNameComparedDetector
+        # @sin SessionPurityStateNameComparedDetector
         return mode in ("builder", "solo")
 
     def command(self, words: list) -> bool:
-        # @righteous StateNameComparedDetector
+        # @righteous SessionPurityStateNameComparedDetector
         return words == ["journal", "stuck"]
 
     def resting(self, state) -> bool:
-        # @sin StateTypeCheckedDetector
+        # @sin SessionPurityStateTypeCheckedDetector
         return isinstance(state, Wait)
 
     def asked(self, state) -> int:
-        # @righteous StateTypeCheckedDetector
+        # @righteous SessionPurityStateTypeCheckedDetector
         return state.question_id()

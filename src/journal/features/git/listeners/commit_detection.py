@@ -20,6 +20,7 @@ from journal.features.git.support.git_facts import GitFacts
 from journal.features.tasks.support.next_task_reader import NextTaskReader
 from journal.support.decision import Decision
 from journal.support.time_source import TimeSource
+from journal.events.blocking import Blocking
 
 COMMIT_WINDOW_SECONDS = 60
 RECENT_TOOL_STARTS = 3
@@ -29,7 +30,7 @@ TRAILER = re.compile(r"^Journal: (?:tasks|todos) done ((?:\d+(?:[ ,]+(?:and +)?)
 class CommitDetection(AgentListener[ToolFinished]):
     """A shell command that committed is followed by a read of the head: the commit becomes a card in the chat, once, a Journal: tasks done line in its message finishes those tasks, and the bus is informed a commit was made with what it closed; what the agent is informed about it is the git conduct's, returned with the command's own answer. A commit whose own hook never arrived, lost to an install or a restart in the same line, is found at the next tool use because the head's log has changed, the first read after the journal starts counting as changed, and its tasks close when one of the session's last tool starts contained the commit."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
 
     def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_tasks: NextTaskReader, entries: Entries, announcer: Announcer, time_source: TimeSource) -> None:
         self.time_source = time_source

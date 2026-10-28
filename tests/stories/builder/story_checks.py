@@ -3,6 +3,7 @@ from enum import Enum
 from journal.engine.nudge import Nudge
 from tests.full_project import MAIN
 from tests.in_process import get_answer
+from tests.stories.builder.worker_steps import worker_session
 
 
 class StoryChecks:
@@ -71,10 +72,16 @@ class StoryChecks:
         row_fields = {name: row.get(name) for name in expected_fields}
         assert row_fields == expected_fields, f"{table} {n} has {row_fields}, not {expected_fields}"
 
+    def expect_worker_stack(self, worker: int, *states: type) -> None:
+        stack = self.session_stack(worker_session(worker))
+        assert stack == [state.name for state in states], f"worker {worker}'s stack is {stack}; told {[line.key for line in self.said]}"
+
     def stack(self) -> list[str]:
-        agents = get_answer(self.app, "/journal/agents", MAIN)[1]["rows"]
-        main = sorted(row["id"] for row in agents if row.get("role") in (None, "main"))
-        return [state["name"] for state in reversed(self.api_row("agents", main[-1])["stack"])] if main else []
+        return self.session_stack("s1")
+
+    def session_stack(self, session: str) -> list[str]:
+        agents = [row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == session]
+        return [state["name"] for state in reversed(self.api_row("agents", max(agents))["stack"])] if agents else []
 
     def newest(self, table: str) -> int:
         return max(row["id"] for row in get_answer(self.app, f"/journal/{table}", MAIN)[1]["rows"])

@@ -2,12 +2,13 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.listener import Listener
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.features.sequences.support.step_calls import StepCalls
+from journal.events.blocking import Blocking
 
 
 class StepCommandMatch(Listener[ToolStarting]):
     """A command the step in hand names, run by the agent, takes the step up before the command runs."""
 
-    blocking = True
+    blocking = Blocking.NEXT_DECISION
 
     def __init__(self, runs: RunTracker) -> None:
         self.runs = runs

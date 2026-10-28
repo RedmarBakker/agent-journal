@@ -19,6 +19,7 @@ from journal.features.plugins.support.plugin_answer import PluginAnswer
 from journal.repositories.edits import Edits
 from journal.repositories.setting_rows import SettingRows
 from journal.features.plugins.plugins_options import PluginsOptions
+from journal.events.blocking import Blocking
 
 LINE_EVENT_KEYS = ("tool_starting", "tool_finished", "prompt_submitted", "session_started")
 REFUSABLE = ("tool_starting", "command_starting", "file_edited", "idle")
@@ -27,7 +28,7 @@ REFUSABLE = ("tool_starting", "command_starting", "file_edited", "idle")
 class PluginAgentRelay(AgentListener[AgentEvent]):
     """The plugins that receive an agent event: those that can block it are asked at once, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest receive it after the reply, and so does every one once the event is blocked. It stays a listener on purpose: it is the one funnel through which a plugin's text and blocks reach the agent, and what it says is each plugin's, never the journal's conduct."""
 
-    blocking = True
+    blocking = Blocking.ANSWER
     free_request = True
     last_request = True
 

@@ -11,8 +11,14 @@ class TimeSteps:
         self.observed(f"agent is quiet for {minutes} minutes", None, None)
 
     def agent_is_quiet_past(self, seconds: float) -> None:
+        self.quiet_past("agent", seconds)
+
+    def worker_is_quiet_past(self, seconds: float) -> None:
+        self.quiet_past("worker", seconds)
+
+    def quiet_past(self, who: str, seconds: float) -> None:
         silent_tick(self.app, seconds + 1)
-        self.observed(f"agent is quiet past {seconds} seconds", None, None)
+        self.observed(f"{who} is quiet past {seconds} seconds", None, None)
 
     def time_passes(self, minutes: float) -> None:
         pass_time(self.app, minutes * 60)
