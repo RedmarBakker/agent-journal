@@ -35,8 +35,8 @@ class Scenario(AgentSteps, AgentActions, UserSteps, StepChecks, StorySugar):
     def ran(self, action: str, result: Outcome) -> None:
         self.observed(action, None, result)
 
-    def is_read_since_set(self, key: str) -> bool:
-        return key in self.set_positions and self.reads.is_read_since(key, self.set_positions[key])
+    def settings_never_read(self) -> list[str]:
+        return [key for key, position in self.set_positions.items() if not self.reads.is_read_since(key, position)]
 
     def observed(self, action: str, verdict: HookVerdict | None, result: Outcome | None) -> None:
         self.said, steps = self.log.since_last()
