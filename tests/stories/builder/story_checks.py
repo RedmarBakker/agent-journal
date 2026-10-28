@@ -2,6 +2,8 @@ import json
 from enum import Enum
 
 from journal.engine.nudge import Nudge
+from journal.repositories.entries import Entries
+from journal.repositories.scope import Scope
 from tests.full_project import MAIN
 from journal.support.researcher_session import ResearcherSession
 from tests.in_process import get_answer
@@ -47,6 +49,12 @@ class StoryChecks:
     def expect_refused(self, nudge: Nudge, **values) -> None:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"
         self.expect_agent_told(nudge, **values)
+
+    def expect_one_entry_of_firing(self, firing: str) -> None:
+        with self.app.container.get(Scope).environment(1):
+            entries = self.app.container.get(Entries)
+            count = entries.counted(entries.query().filter(idempotency=f"hook:{self.scoped_session()}:PreToolUse:{firing}"))
+        assert count == 1, f"firing {firing} has {count} entries, not one"
 
     def expect_refused_by_anything(self) -> None:
         assert self.verdict is not None and self.verdict.refused(), f"let through; {self.account()}"

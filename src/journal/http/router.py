@@ -55,7 +55,7 @@ class Router:
             return Response.absent(f"{request.method} {request.path}")
         route, params = matching
         try:
-            with self.scope.requested(lambda: request.environment) if route.scoped else nullcontext():
+            with self.scope.requested(lambda: request.environment, request.actor) if route.scoped else nullcontext():
                 if route.outward:
                     return route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
                 timer = self.recorder.begin(request.request_at)

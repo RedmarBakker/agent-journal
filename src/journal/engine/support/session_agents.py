@@ -16,24 +16,29 @@ class SessionAgents:
         self.agents, self.states, self.providers = agents, states, providers
 
     def agent(self, session: str, environment_id: int, provider: str | None = None) -> Agent:
-        return self.row(session, environment_id, provider, AgentRole.MAIN)
-
-    def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
-        return self.row(session, environment_id, caller.provider, caller.session_role)
-
-    def helper_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
-        return self.row(session, environment_id, provider, role)
-
-    def row(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
-        if not session:
-            raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
-        rows = self.agents.session_rows(session)
+        rows = self.session_rows(session)
         if rows:
             return rows[0]
-        current = self.agents.environment_main_agent(environment_id) if role == AgentRole.MAIN else None
+        current = self.agents.environment_main_agent(environment_id)
         if current is not None:
             return self.agents.save(current.with_session(session, provider or current.provider), Actor.system())
-        bottom = self.states.first() if role == AgentRole.MAIN else self.states.sent_first(role)
+        return self.created(session, environment_id, provider, self.states.first(), AgentRole.MAIN)
+
+    def caller_agent(self, caller: Caller, session: str, environment_id: int) -> Agent:
+        if caller.session_role.is_helper():
+            return self.helper_agent(session, environment_id, caller.provider, caller.session_role)
+        return self.agent(session, environment_id, caller.provider)
+
+    def helper_agent(self, session: str, environment_id: int, provider: str | None, role: AgentRole) -> Agent:
+        rows = self.session_rows(session)
+        return rows[0] if rows else self.created(session, environment_id, provider, self.states.sent_first(role), role)
+
+    def session_rows(self, session: str) -> list[Agent]:
+        if not session:
+            raise Rejection("no agent runs this, so there is no agent to move: only an agent's own session can")
+        return self.agents.session_rows(session)
+
+    def created(self, session: str, environment_id: int, provider: str | None, bottom: BaseState, role: AgentRole) -> Agent:
         return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
 
     def top(self, session: str) -> BaseState:

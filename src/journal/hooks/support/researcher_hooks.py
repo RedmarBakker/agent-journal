@@ -8,6 +8,7 @@ from journal.models.environment import Environment
 from journal.repositories.agents import Agents
 from journal.support.agent_role import AgentRole
 from journal.support.hook import Hook
+from journal.models.agent import Agent
 from journal.support.time_source import TimeSource
 
 
@@ -17,9 +18,10 @@ class ResearcherHooks:
     def __init__(self, sessions: SessionAgents, agents: Agents, listeners: HelperListeners, states: StatesCatalogue, time_source: TimeSource) -> None:
         self.sessions, self.agents, self.listeners, self.states, self.time_source = sessions, agents, listeners, states, time_source
 
-    def bind(self, hook: Hook, environment: Environment) -> None:
-        self.sessions.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
+    def bind(self, hook: Hook, environment: Environment) -> Agent:
+        agent = self.sessions.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.SUBAGENT)
         self.assign_work(hook.session, environment, hook.provider)
+        return agent
 
     def started(self, hook: Hook, environment: Environment) -> None:
         self.sessions.helper_agent(hook.researcher_session, environment.row_id, hook.provider, AgentRole.SUBAGENT)

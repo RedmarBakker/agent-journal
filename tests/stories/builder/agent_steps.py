@@ -15,7 +15,7 @@ from journal.support.option import Option
 from journal.features.skills.support.skill_files import HOMES, SKILL_FILE
 from journal.features.shell.support.shell_runner import EXIT
 from journal.engine.clock import Clock
-from journal.http.controllers.hooks import SILENCE_HEADER
+from journal.http.controllers.hooks import FIRING_HEADER, SILENCE_HEADER
 from tests.full_project import MAIN
 from tests.in_process import get_answer, posted
 from tests.replay import pass_time
@@ -71,6 +71,11 @@ class AgentSteps:
     def agent_reads(self, path: str = "a.py", count: int = 1) -> None:
         for _ in range(count):
             self.hooked("agent reads", "PreToolUse", tool_name=self.tools.read, tool_input={"file_path": path})
+
+    def agent_writes_in_one_firing(self, path: str, firing: str) -> None:
+        headers = {**self.scoped_headers(), FIRING_HEADER: firing}
+        call = dict(tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
+        self.hook_observed(f"agent writes in firing {firing}", *self.session_posted_hook(self.scoped_session(), headers, "PreToolUse", call))
 
     def agent_reads_after_the_journal_was_down(self, seconds: float) -> None:
         silence_start = self.app.container.get(Clock).held_at - seconds

@@ -524,6 +524,7 @@
         "a newer launch replaced the server on",
         "a reader showed a run poorly",
         "a reply of only",
+        "a sleep with nothing to wait on is refused",
         "a trigger denies this",
         "a version 3 journal is in .journal/version-3",
         "act on it and log it on the dump",
@@ -626,6 +627,7 @@
         "is not filed; what is left: `journal dump items",
         "is open: write the tests now, run them at its end",
         "is still open: log where it stands or finish it",
+        "it ends when `",
         "it needs none here",
         "its changes wait for an upgrade. tell your user once",
         "let it merge before the others",
@@ -802,6 +804,7 @@
         "wait for the journal to give you one, or run the journal command it gave you",
         "wait for the user, then `journal plan start",
         "wait with `journal await \"<what you wait for>\" --output",
+        "wait with `journal await \"<what>\" --until \"<script>\"`",
         "wait with `journal worker wait",
         "waits for the user: \"Orchestrator may release\" is off",
         "was never read or linked: act on it, or `journal",
@@ -838,6 +841,7 @@
         "your journal was down for",
         "your load stayed at",
         "your memories, heaviest first",
+        "your sleep loop is a wait now",
         "your turn ended and nothing has arrived since; the stop check, run again, answers"
     ],
     "event_and_hook_names": [

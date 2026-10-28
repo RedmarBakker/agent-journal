@@ -20,6 +20,7 @@ from journal.console.support.verb_rules import VerbRules
 from journal.support.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
+from journal.repositories.origin import Origin
 from journal.repositories.scope import Scope
 from journal.container import Container
 from journal.support.project_shell import ProjectShell
@@ -75,7 +76,8 @@ class Console:
         return self.run_into(argv, caller, StreamedOutput(pieces))
 
     def run_into(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
-        with self.scope.environment(self.names.resolved(caller.environment).row_id):
+        environment = self.names.resolved(caller.environment).row_id
+        with self.scope.entered(Origin(lambda: environment, caller.actor, caller.role, caller.session)):
             return self.captured(argv, caller, output, io.StringIO())
 
     def with_verb(self, argv: list[str]) -> list[str]:

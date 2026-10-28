@@ -13,7 +13,7 @@ class Origin:
     environment: Callable[[], int]
     actor: Actor
     role: AgentRole
-    session: str = ""
+    session: str | None = None
     agent: Agent | None = None
 
     @classmethod

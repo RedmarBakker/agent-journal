@@ -16,7 +16,6 @@ from journal.events.moments.guard_failed import GuardFailed
 from journal.events.moments.session_unbound import SessionUnbound
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.stop import Stop
-from journal.events.agent.session_ended import SessionEnded
 from journal.events.bus import Bus
 from journal.events.listener import Listener
 from journal.support.decision import Decision
@@ -31,12 +30,13 @@ from journal.hooks.support.worker_hooks import WorkerHooks
 from journal.hooks.translation import Translation
 from journal.support.actor import Actor
 from journal.models.entry import Entry
-from journal.repositories.agents import Agents
+from journal.hooks.support.hook_seats import HookSeats
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.features.faults.support.request_time_recorder import HOOK, RequestTimeRecorder
 from journal.support.hook_type import HookType
+from journal.repositories.origin import Origin
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
 from journal.sync.environment_names import EnvironmentNames
@@ -50,11 +50,11 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the engine's listeners and those the helper's file allows, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, seats: HookSeats, recorder: RequestTimeRecorder, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, helper_listeners: HelperListeners, researchers: ResearcherHooks, time_source: TimeSource, phase: AnswerPhase, fault_log: FaultLog, settings: SettingRows) -> None:
         self.time_source, self.phase, self.fault_log, self.settings = time_source, phase, fault_log, settings
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
-        self.agents, self.launches = agents, launches
+        self.seats, self.launches = seats, launches
         self.transcript, self.recorder = transcript, recorder
         self.worker_hooks, self.checker_hooks, self.helper_listeners, self.researchers = worker_hooks, checker_hooks, helper_listeners, researchers
 
@@ -64,31 +64,30 @@ class Receiver:
         hook = raw_hook.researcher_hook() if researcher else self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
-            hook_entries = self.entries.keyed(hook.key())
-            if hook_entries:
-                return self.replayed(hook_entries[0])
+            if self.is_resent(hook):
+                return self.resent_answer(hook)
             if not self.is_accepted(hook, environment):
                 return self.unbound(hook, environment)
-            if researcher:
-                self.researchers.bind(hook, environment)
-                return self.sent_recorded(hook, environment)
-            self.worker_hooks.bind(hook, environment)
-            self.checker_hooks.bind(hook, environment)
-            if hook.is_sent():
-                return self.sent_recorded(hook, environment)
-            with self.stages.timed("hook transcript"):
-                for saved in self.transcript.events(hook, environment):
-                    self._immediate(saved)
-            event = self.translation.event(hook, environment)
-            with self.stages.timed("hook entry"):
-                entry = self.recorded(hook, environment, event)
-            if self.is_unknown_session_end(event):
+            if self.seats.is_unknown_session_end(hook):
                 return Decision()
-            decision = self._blocking(event, self.bus.answer_listeners(type(event)))
-            entry = self.answer_recorded(entry, decision, hook)
-            self._defer(event)
-            self.measure_stored(entry, hook)
-            self.subagent_moved(hook, environment)
+            if researcher:
+                with self.scope.entered(Origin.agent_origin(self.seats.researcher_agent(hook, environment), hook.actor())):
+                    return self.sent_recorded(hook, environment)
+            with self.scope.entered(Origin.agent_origin(self.seats.agent(hook, environment), hook.actor())):
+                return self.sent_recorded(hook, environment) if hook.is_sent() else self.answered(hook, environment)
+
+    def answered(self, hook: Hook, environment: Environment) -> Decision:
+        with self.stages.timed("hook transcript"):
+            for saved in self.transcript.events(hook, environment):
+                self._immediate(saved)
+        event = self.translation.event(hook, environment)
+        with self.stages.timed("hook entry"):
+            entry = self.recorded(hook, environment, event)
+        decision = self._blocking(event, self.bus.answer_listeners(type(event)))
+        entry = self.answer_recorded(entry, decision, hook)
+        self._defer(event)
+        self.measure_stored(entry, hook)
+        self.subagent_moved(hook, environment)
         return decision
 
     def subagent_moved(self, hook: Hook, environment: Environment) -> None:
@@ -118,9 +117,12 @@ class Receiver:
     def recorded(self, hook: Hook, environment: Environment, event: AgentEvent) -> Entry:
         return self.entries.recorded(Entry(environment_id=environment.row_id, entry_type=type(event).__name__, actor=Actor.agent(hook.session), data={**hook.stored(), **event.recorded()}, idempotency=hook.key()), Actor.agent(hook.session))
 
-    @staticmethod
-    def replayed(entry: Entry) -> Decision:
-        return Decision.refuse(entry.data["refused"]) if entry.data.get("refused") else Decision()
+    def is_resent(self, hook: Hook) -> bool:
+        return bool(self.entries.keyed(hook.key()))
+
+    def resent_answer(self, hook: Hook) -> Decision:
+        refused = self.entries.keyed(hook.key())[0].data.get("refused")
+        return Decision.refuse(refused) if refused else Decision()
 
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
         self.entries.recorded(Entry(environment_id=environment.row_id, entry_type=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
@@ -140,9 +142,6 @@ class Receiver:
 
     def measure_saved(self, entry: Entry, measure: HookMeasure, session: str) -> None:
         self.entries.save(entry.with_merged("data", measure.recorded()), Actor.agent(session))
-
-    def is_unknown_session_end(self, event: AgentEvent) -> bool:
-        return isinstance(event, SessionEnded) and not self.agents.matching(session=event.session)
 
     def _immediate(self, event: AgentEvent) -> None:
         for listener in self.bus.answer_listeners(type(event)):

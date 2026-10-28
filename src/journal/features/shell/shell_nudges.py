@@ -21,6 +21,8 @@ class ShellNudges:
     SILENT_RUN_HINT = Nudge("shell", "silent_run_streams", "output {{n}} buffers: silent for {{seconds}} seconds", "run it with `stdbuf -oL`, `python -u` or its streaming flag", repeat=Timeout.seconds(0))
     PROJECT_PATH_REFUSAL = Nudge("shell", "project_path_refused", "do not use this project's absolute path; your shell is already in the project", "run: {{line|cap=300}}", repeat=Timeout.seconds(0), longest_characters=394, longest_reason="it contains the whole command line to run instead")
     JOURNAL_POLL = Nudge("shell", "journal_poll_refused", "do not poll journal commands in a shell loop", "wait with `journal await \"<what you wait for>\" --output {{n}}`", repeat=Timeout.seconds(0))
+    SLEEP_LOOP_WAIT = Nudge("shell", "sleep_loop_wait", "your sleep loop is a wait now: {{title|cap=30}}", "it ends when `{{script|cap=30}}` passes", repeat=Timeout.seconds(0))
+    SLEEP_LINE_REFUSAL = Nudge("shell", "sleep_line_refused", "a sleep with nothing to wait on is refused", "wait with `journal await \"<what>\" --until \"<script>\"`", repeat=Timeout.seconds(0))
     JOURNAL_COMMAND_ISOLATION = Nudge("shell", "journal_command_runs_alone", "run journal commands alone, not mixed with other commands", repeat=Timeout.seconds(0))
     BACKGROUND_CHECK = Nudge("shell", "check_the_background", "output {{background_outputs|cap=54}} still running", "check it; if it hangs, stop it and say why", repeat=Timeout.seconds(300), blocks_regardless=True)
     WATCH_VIEW = Nudge("shell", "watched_output", "output {{n}}: {{progress}}", repeat=Timeout.seconds(0))

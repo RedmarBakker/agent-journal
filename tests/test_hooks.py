@@ -33,6 +33,14 @@ class RefuseWrites(AgentListener[ToolStarting]):
         return Decision.refuse("no work declared") if event.call.tool == "Write" else Decision.allowed_with("carry on")
 
 
+class AgentReading(AgentListener[ToolStarting]):
+    def __init__(self, scope: Scope, read: list) -> None:
+        self.scope, self.read = scope, read
+
+    def handle(self, event):
+        self.read.append(self.scope.agent.row_id)
+
+
 class RefuseEveryStop(AgentListener[Stop]):
     def handle(self, event):
         return Decision.refuse("finish the task in hand first")
@@ -455,3 +463,14 @@ def test_a_foreground_command_kept_under_its_number_is_recorded_ended_so_no_rest
     kept = [output for output in outputs.selected_globally(outputs.query().order("id")) if "seq 1 3000" in output.command]
     assert kept and kept[-1].ended and not kept[-1].is_interrupted and kept[-1].status == 0, "the end of a foreground run is recorded as the run ends"
     assert all(output.id != kept[-1].id for output in outputs.unended()), "so the boot's cut-off seed finds nothing of it"
+
+
+def test_a_listener_reads_the_hooks_agent_from_the_scope_before_the_answer_and_after_it(app: App):
+    from journal.repositories.agents import Agents
+    scope, read, bus = app.container.get(Scope), [], app.container.get(Bus)
+    bus.add_answer_listener(ToolStarting, AgentReading(scope, read), Blocking.ANSWER)
+    bus.listen(ToolStarting, AgentReading(scope, read))
+    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}})
+    app.container.get(ListenerQueue).drain()
+    agent = app.container.get(Agents).session_rows("s1")[0]
+    assert read == [agent.row_id, agent.row_id], "the hook's agent is in the scope in the hook's thread and on the deferred worker"

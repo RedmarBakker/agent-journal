@@ -74,6 +74,9 @@
                 "file": "src/journal/hooks/translation.py"
             },
             {
+                "file": "src/journal/hooks/support/hook_seats.py"
+            },
+            {
                 "testCode": true
             }
         ]

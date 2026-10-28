@@ -18,6 +18,7 @@ from journal.engine.support.data_readers import DataReaders
 from journal.events.feature_data import FeatureData
 from journal.events.event import Event
 from journal.events.rows.row_event import RowEvent
+from journal.repositories.origin import Origin
 from journal.repositories.scope import Scope
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
@@ -86,7 +87,7 @@ class StateMachine:
     def row_replies(self, event: RowEvent) -> list[MachineReply]:
         replies = []
         for agent in self.audience(event):
-            with self.scope.environment(agent.environment_id):
+            with self.scope.entered(Origin.agent_origin(agent, self.scope.actor)):
                 replies.append(self.reply(agent, event.reaching(agent.session)))
         return replies
 
@@ -103,7 +104,7 @@ class StateMachine:
 
     def row_assignments(self, event: RowEvent) -> None:
         for agent in self.audience(event):
-            with self.scope.environment(agent.environment_id):
+            with self.scope.entered(Origin.agent_origin(agent, self.scope.actor)):
                 self.assigners.resolved(agent).next_task(agent, event.reaching(agent.session))
 
     def assigned(self, agent: Agent, event: AgentEvent) -> Agent:

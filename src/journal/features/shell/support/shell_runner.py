@@ -35,6 +35,8 @@ from journal.support.caller import Caller
 from journal.support.stage_times import StageTimes
 from journal.features.faults.support.request_time_recorder import RequestTimeRecorder
 from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.shell.support.sleep_loop import SleepLoop
+from journal.features.shell.support.sleep_loop_wait import SleepLoopWait
 from journal.models.command_output import CommandOutput
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.restart_queue import RestartQueue
@@ -54,8 +56,9 @@ RESTART_HOLD = "the journal restarts once the commands running now end, and this
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own. While a restart waits, a command that goes to the background at once would be cut off by it, so it is not started; a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit, and any other runs in the foreground until it passes the limit; a run whose card shows, or will, keeps its output for the card to open."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, guess: ReaderGuess, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, recorder: RequestTimeRecorder, nudger: Nudger, sessions: SessionAgents, card: OutputProcessCard, restarts: RestartQueue, time_source: TimeSource, classifier: CommandClassifier, lines: CommandLines, labels: ActivityLabel, shapes: CommandShape, git: GitCommands, loops: SleepLoopWait) -> None:
         self.time_source, self.classifier, self.lines, self.labels, self.shapes, self.git = time_source, classifier, lines, labels, shapes, git
+        self.loops = loops
         self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope = config, caps, limits, worker, record, scope
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
@@ -63,8 +66,20 @@ class ShellRunner:
         self.wrappers_told: set[str] = set()
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+        line = self.aliases.expanded(posted.line)
+        if SleepLoop.matches(line):
+            yield self.loop_waited(SleepLoop.parsed(line), caller, environment)
+            return
+        yield from self.chain_run(replace(posted, line=line), posted, caller, environment)
+
+    def loop_waited(self, loop: SleepLoop, caller: Caller, environment: int) -> bytes:
+        with self.scope.environment(environment):
+            wait_text = self.loops.declared(loop, caller)
+            notes = self.send_notes(caller, environment, [ShellNudges.SLEEP_LOOP_WAIT.create(title=loop.title, script=loop.script)])
+        return f"{wait_text}{notes}{EXIT} 0\n".encode()
+
+    def chain_run(self, request: ShellRequest, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
         began = time.perf_counter()
-        request = replace(posted, line=self.aliases.expanded(posted.line))
         with self.scope.environment(environment), self.stages.timed("shell setup"):
             cap = self.caps.build(request.line)
             folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")

@@ -1885,6 +1885,8 @@ shell.reader_report_raised  [shell]  reader report {{n}}: a reader showed a run 
 shell.run_counts_without_a_total  [shell]  output {{n}} prints no total, so it has no progress bar. give its reader a `--progress` pattern such as `(\d+)/(\d+)`
 shell.run_stands_at_100_percent  [shell]  output {{n}} at 100% for {{seconds}} seconds. read `journal output read {{n}}`; give its reader a pattern for that step
 shell.silent_run_streams  [shell]  output {{n}} buffers: silent for {{seconds}} seconds. run it with `stdbuf -oL`, `python -u` or its streaming flag
+shell.sleep_line_refused  [shell]  a sleep with nothing to wait on is refused. wait with `journal await "<what>" --until "<script>"`
+shell.sleep_loop_wait  [shell]  your sleep loop is a wait now: {{title|cap=30}}. it ends when `{{script|cap=30}}` passes
 shell.stop_with_a_run_going  [shell]  output {{outputs|cap=30}} still running. await it: `journal await "<what>" --output <n>`
 shell.test_run_piped_into_a_filter  [shell]  do not pipe a test run into {{filter}}. run `journal suite <args>`, then `journal output read <n> --reader pytest`
 shell.unread_output  [shell]  {{outputs|cap=72}}, unread. read it with `journal output read <n>`
@@ -2016,7 +2018,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-292 nudges
+294 nudges
 
 $ agent: journal worker list
 exit 0

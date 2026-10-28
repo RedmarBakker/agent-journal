@@ -58,6 +58,10 @@ from journal.repositories.entries import Entries
 from journal.http.agents.agent_activity import AgentActivity
 from journal.engine.support.stack_history import StackHistory
 from journal.repositories.scope import Scope
+from journal.repositories.origin import Origin
+from journal.events.models.created import Created
+from journal.support.agent_role import AgentRole
+from journal.support.listener_queue import ListenerQueue
 from journal.support.message_thread import MessageThread
 from journal.console.console import Console
 from journal.support.actor import Actor
@@ -3076,3 +3080,27 @@ def test_no_listener_that_runs_before_the_answer_writes_a_card_for_the_viewer(ap
     card_write = re.compile(r"\.(cards|processes|moments)\.(show|show_fields|show_recent|show_role_card)\(")
     writing = [listener.__name__ for feature in app.container.get(Registry).features for listener, _ in feature.answer_listeners if any(card_write.search(inspect.getsource(cls)) for cls in listener.__mro__ if cls.__module__.startswith("journal."))]
     assert writing == [], f"these listeners run before the answer and write a card, which only the viewer shows: {writing}"
+
+
+def test_work_queued_inside_an_origin_reads_that_origins_actor_and_role_after_the_queue_drains(app: App):
+    scope, queue, read = app.container.get(Scope), app.container.get(ListenerQueue), []
+    worker = Origin(environment=lambda: 1, actor=Actor.worker(7), role=AgentRole.WORKER, session="w-7")
+    with scope.entered(worker):
+        queue.add(lambda: read.append((scope.id, scope.actor, scope.role)))
+    queue.drain()
+    assert read == [(1, Actor.worker(7), AgentRole.WORKER)], "deferred work runs in the origin of the hook that queued it, not the worker thread's own"
+
+
+class OriginReading(Listener[Created]):
+    def __init__(self, scope: Scope, read: list) -> None:
+        self.scope, self.read = scope, read
+
+    def handle(self, event: Created) -> None:
+        self.read.append((self.scope.actor, self.scope.role))
+
+
+def test_a_command_runs_in_the_origin_of_its_caller(app: App):
+    scope, read = app.container.get(Scope), []
+    app.container.get(Bus).listen(Created, OriginReading(scope, read))
+    app.console().run(["task", "create", "lay the floors"], USER)
+    assert read and set(read) == {(USER.actor, USER.role)}, "every write a command makes runs in its caller's origin"
