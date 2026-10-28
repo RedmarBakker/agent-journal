@@ -63,11 +63,6 @@ def test_the_bare_suite_call_runs_through_the_runner_and_becomes_an_output_when_
     assert app.container.get(CommandOutputs).find(int(moved.group(1))).command == "./scripts/test.sh"
 
 
-def test_a_shell_call_claude_code_would_run_in_its_own_background_runs_in_the_foreground_through_the_journal(app: App):
-    status, answer = hook(app, "PreToolUse", tool_name="Bash", tool_input=SUITE_CALL)
-    output = answer["hookSpecificOutput"]
-    assert status == 200 and output["permissionDecision"] == "allow", answer
-    assert output["updatedInput"] == {**SUITE_CALL, "run_in_background": False}
 
 
 

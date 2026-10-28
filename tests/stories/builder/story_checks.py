@@ -128,6 +128,11 @@ class StoryChecks:
         fields = {name: shown.get(name) for name in data}
         assert fields == data, f"card {n} holds {fields}, not {data}"
 
+    def expect_tool_input_changed(self, **fields) -> None:
+        changed = (self.verdict.body.get("hookSpecificOutput") or {}).get("updatedInput") or {} if self.verdict else {}
+        shown = {name: changed.get(name) for name in fields}
+        assert shown == fields, f"the tool's input was changed to {changed}, not to hold {fields}"
+
     def expect_command_refused(self) -> None:
         assert self.command is not None and self.command.code != 0, f"the command passed: {self.command.text if self.command else ''}"
 

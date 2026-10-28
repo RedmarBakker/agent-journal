@@ -44,3 +44,11 @@ def test_a_test_run_moves_to_the_background_at_once_and_is_watched(story):
     output = story.agent_runs_a_command("pytest -q --co")
     story.expect_agent_told(ShellNudges.WATCH_VIEW, n=output)
     story.expect_stack(Ready)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_shell_call_the_agent_would_run_in_its_own_background_runs_in_the_foreground_through_the_journal(story):
+    story.agent_runs_in_its_own_background("./scripts/test.sh")
+    story.expect_allowed()
+    story.expect_tool_input_changed(command="./scripts/test.sh", run_in_background=False)
+    story.expect_stack(Ready)

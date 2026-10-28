@@ -96,6 +96,9 @@ class AgentSteps:
         patch = [{"oldStart": 7, "newStart": 7, "lines": [" before", "-x", "+y", " after"]}]
         self.hooked("agent has edited", "PostToolUse", tool_name=self.tools.write, tool_input={"file_path": str(self.app.config.root / path), "content": "y"}, tool_response={"structuredPatch": patch})
 
+    def agent_runs_in_its_own_background(self, line: str) -> None:
+        self.hooked(f"agent runs in its own background {line.split()[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": line, "run_in_background": True})
+
     def agent_runs_in_the_shell(self, line: str) -> None:
         self.hooked(f"agent runs in the shell {line.split()[0]}", "PreToolUse", tool_name=self.tools.shell, tool_input={"command": line})
 
