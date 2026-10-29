@@ -12,7 +12,7 @@ from tests.stories.fixtures.main.started_task import StartedTask
 @story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_session_silent_for_less_than_its_span_is_kept(story):
     story.agent_is_quiet_just_under(SILENCE_SECONDS)
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -22,5 +22,5 @@ def test_a_retired_session_that_speaks_again_is_back_at_its_work(story):
     story.expect_stack(Ready, Working, Ended)
     story.agent_reads()
     story.expect_allowed()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)

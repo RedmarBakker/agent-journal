@@ -38,5 +38,5 @@ def test_a_worker_whose_tests_the_journal_runs_names_them_instead_of_running_the
 def test_a_worker_that_runs_the_tests_it_wrote_may_run_them(story):
     story.agent_runs_in_the_shell(TEST_LINE)
     story.expect_allowed()
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)

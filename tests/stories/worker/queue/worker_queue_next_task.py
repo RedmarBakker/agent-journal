@@ -10,9 +10,9 @@ from tests.stories.fixtures.worker.plan_worker import PlanWorker
 
 @story(PlanWorker, mode=BUILDER_MODE, scope=AgentRole.WORKER)
 def test_a_queued_task_the_user_cancels_is_skipped_and_the_worker_delivers(story):
-    story.user_cancels_task(story.start.second_task, "the second page is no longer wanted")
+    story.user_cancels_task(story.fixture.second_task, "the second page is no longer wanted")
     story.agent_runs("proof 1 'first.py:3, test_first passes'")
     story.agent_runs("clock-out 'the first is done'")
-    story.expect_worker(story.start.worker, state=WorkerState.DELIVERED)
-    story.expect_task(story.start.second_task, state=TaskState.CANCELLED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED)
+    story.expect_task(story.fixture.second_task, state=TaskState.CANCELLED)
     story.expect_stack(Void)

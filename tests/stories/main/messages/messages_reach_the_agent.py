@@ -18,7 +18,7 @@ from tests.stories.fixtures.main.two_unread_messages import TwoUnreadMessages
 @story(TwoUnreadMessages, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_two_unread_messages_are_named_by_number_at_the_stop(story):
     story.agent_stops()
-    story.expect_agent_told(MessagesNudges.NEW_MESSAGES, ns=f"{story.start.first_message}, {story.start.second_message}")
+    story.expect_agent_told(MessagesNudges.NEW_MESSAGES, ns=f"{story.fixture.first_message}, {story.fixture.second_message}")
     story.expect_stack(Ready)
 
 
@@ -27,15 +27,15 @@ def test_four_unread_messages_are_named_by_their_count_at_the_stop(story):
     third = story.user_sends_message("one more thing")
     fourth = story.user_sends_message("and the last one")
     story.agent_stops()
-    story.expect_agent_told(MessagesNudges.UNREAD_MESSAGES, count=len((story.start.first_message, story.start.second_message, third, fourth)))
-    story.expect_message(story.start.first_message, author="user")
-    story.expect_message(story.start.second_message, author="user")
+    story.expect_agent_told(MessagesNudges.UNREAD_MESSAGES, count=len((story.fixture.first_message, story.fixture.second_message, third, fourth)))
+    story.expect_message(story.fixture.first_message, author="user")
+    story.expect_message(story.fixture.second_message, author="user")
     story.expect_stack(Ready)
 
 
 @story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_message_read_is_not_named_again_at_the_stop(story):
-    story.agent_replies(story.start.message, "it is")
+    story.agent_replies(story.fixture.message, "it is")
     story.agent_stops()
     story.expect_agent_not_told(MessagesNudges.NEW_MESSAGE)
     story.expect_stack(Ready)
@@ -61,7 +61,7 @@ def test_a_message_is_named_when_the_user_resumes_the_session(story):
 def test_a_message_to_an_agent_with_a_task_in_hand_leaves_its_task_as_it_was(story):
     story.user_sends_message("is the footer done?")
     story.agent_reads()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -69,8 +69,8 @@ def test_a_message_to_an_agent_with_a_task_in_hand_leaves_its_task_as_it_was(sto
 def test_a_message_to_an_agent_following_a_plan_leaves_the_plan_as_it_was(story):
     story.user_sends_message("how far is the plan?")
     story.agent_reads()
-    story.expect_task(story.start.first_task, state=TaskState.STARTED)
-    story.expect_plan(story.start.plan, state=PlanState.STARTED)
+    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
+    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
     story.expect_stack(Ready, FollowingPlan)
 
 
@@ -79,5 +79,5 @@ def test_the_users_prompt_ends_the_agents_wait(story):
     story.agent_runs("await 'the build' --until false")
     story.expect_stack(Ready, Working, ExternalWait)
     story.agent_is_prompted("look at the header meanwhile")
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)

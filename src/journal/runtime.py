@@ -113,7 +113,7 @@ class Runtime:
             for host_writer in feature.host_writers:
                 self.registered(host_writer)
         self.registered(AgentBarWrites)
-        self.bus.listen(TaskClosed, self.container.get(RowAssignment))
+        self.bus.add_answer_listener(TaskClosed, self.container.get(RowAssignment), Blocking.NEXT_DECISION)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
 

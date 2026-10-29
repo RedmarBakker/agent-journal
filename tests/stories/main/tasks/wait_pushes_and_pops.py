@@ -14,15 +14,15 @@ from tests.stories.fixtures.main.started_task import StartedTask
 def test_a_wait_with_a_task_in_progress_lets_the_stop_go_through(story):
     story.agent_stops()
     story.expect_allowed()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, ExternalWait)
 
 
 @story(BuildWait, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
-    story.agent_runs(f"task test {story.start.started_task}")
+    story.agent_runs(f"task test {story.fixture.started_task}")
     story.agent_stops()
-    story.expect_refused(TasksNudges.WAIT_NEXT_TASK, n=story.start.next_open)
+    story.expect_refused(TasksNudges.WAIT_NEXT_TASK, n=story.fixture.next_open)
     story.agent_stops()
     story.expect_allowed()
     story.expect_stack(Ready, Working, ExternalWait)
@@ -32,7 +32,7 @@ def test_a_task_started_during_a_wait_is_carried_on_with_once(story):
 def test_working_again_ends_the_wait(story):
     story.agent_runs("await 'the build' --until false")
     story.agent_writes("a.py")
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -40,5 +40,5 @@ def test_working_again_ends_the_wait(story):
 def test_a_wait_that_names_nothing_to_wait_on_is_refused(story):
     story.agent_runs("await 'the build'")
     story.expect_command_refused()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)

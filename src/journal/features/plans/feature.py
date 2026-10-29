@@ -44,8 +44,8 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, ChoosingPlanReturn)
     commands = (PlanCommand,)
-    answer_listeners = ((EndedDriveWriteGuard, Blocking.ANSWER), (SessionStartPlanStart, Blocking.NEXT_DECISION), (DrivenRowDeletions, Blocking.NEXT_DECISION), (DrivenRowClosures, Blocking.NEXT_DECISION))
-    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard)
+    answer_listeners = ((EndedDriveWriteGuard, Blocking.ANSWER), (SessionStartPlanStart, Blocking.NEXT_DECISION), (DrivenRowDeletions, Blocking.NEXT_DECISION), (DrivenRowClosures, Blocking.NEXT_DECISION), (AdvancePlan, Blocking.NEXT_DECISION))
+    listeners = (AllowedTestRunUse, BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, ReopenFinishedPlan, PlanReopening, PlanFinishedPlanStart, SubagentPlanCard)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)

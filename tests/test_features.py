@@ -8540,7 +8540,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         assert carriers[0].drained() == {"drained": True}
         assert a.container.get(TeamAccount).is_upgrader(), "an upgrade marks its journal the upgrader before the new version installs"
         monkeypatch.setattr(Schema, "version", lambda self: migrated)
-        monkeypatch.setattr("journal.sync.team_server_link.VERSION", pinned)
+        monkeypatch.setattr("journal.features.library.support.library_link.VERSION", pinned)
         b.container.get(Connection).execute("UPDATE tasks SET title = 'stamped by a migration on Bob''s machine'")
         carriers[0].upgrade_finished()
         link = a.container.get(TeamServerLink)
@@ -14002,9 +14002,10 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         signed, going = tasks.find(parser.id), workers.find(worker.id)
         holding = tasks.holder_task_ids(Ref.build(going))
     assert signed.state == TaskState.COMPLETED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
-    assert told_since(before) == [], "with no line to the orchestrator"
+    assert told_since(before) == [TasksNudges.WAIT_END.key], "the orchestrator is told only that its wait on the worker is over"
     again = clocked_out("lexer.py:4, test_splits passes")
     assert again.id == reviewer.id, "the same reviewer takes the next review"
+    before = newest()
     reviewed(again, "1 short: the lexer drops the last word. FAILED tests/test_lexer.py::test_last_word")
     with app.container.get(Scope).environment(MAIN):
         back, [proof] = workers.find(worker.id), proofs.task_proofs(tasks.find(lexer.id))

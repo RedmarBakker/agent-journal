@@ -12,7 +12,7 @@ WITH_RISKS = TEXT + "\n## Risks\n\nNone\n"
 @story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(DocsOptions.REVISION_WINDOW, 30)
 def test_edits_within_the_window_fold_into_one_revision_until_it_is_kept(story):
-    document = story.start.document
+    document = story.fixture.document
     story.agent_rewrites_the_document(document, WITH_RISKS)
     story.agent_rewrites_the_document(document, WITH_RISKS)
     story.agent_runs(f"doc revisions {document}")
@@ -35,7 +35,7 @@ def test_edits_within_the_window_fold_into_one_revision_until_it_is_kept(story):
 @story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(DocsOptions.REVISION_WINDOW, 0)
 def test_with_no_window_each_edit_opens_the_next_revision_and_the_page_cannot_keep_one_kept(story):
-    document = story.start.document
+    document = story.fixture.document
     story.agent_rewrites_the_document(document, WITH_RISKS)
     story.agent_rewrites_the_document(document, TEXT)
     story.user_opens(f"/journal/docs/{document}/revisions")

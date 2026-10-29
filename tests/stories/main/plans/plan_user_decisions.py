@@ -14,29 +14,29 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_users_approval_is_told_to_the_agent(story):
-    story.user_approves_plan(story.start.plan)
-    story.expect_agent_told(PlansNudges.PLAN_APPROVED, n=story.start.plan)
-    story.expect_plan(story.start.plan, state=PlanState.APPROVED)
-    story.expect_task(story.start.first_task, state=TaskState.OPEN)
-    story.expect_task(story.start.second_task, state=TaskState.OPEN)
+    story.user_approves_plan(story.fixture.plan)
+    story.expect_agent_told(PlansNudges.PLAN_APPROVED, n=story.fixture.plan)
+    story.expect_plan(story.fixture.plan, state=PlanState.APPROVED)
+    story.expect_task(story.fixture.first_task, state=TaskState.OPEN)
+    story.expect_task(story.fixture.second_task, state=TaskState.OPEN)
     story.expect_stack(Ready)
 
 
 @story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_agent_cancelling_its_plan_cancels_the_open_tasks_and_frees_the_stack(story):
-    story.agent_runs(f"plan cancel {story.start.plan}")
-    story.expect_plan(story.start.plan, state=PlanState.CANCELLED)
-    story.expect_task(story.start.first_task, state=TaskState.CANCELLED)
-    story.expect_task(story.start.second_task, state=TaskState.CANCELLED)
+    story.agent_runs(f"plan cancel {story.fixture.plan}")
+    story.expect_plan(story.fixture.plan, state=PlanState.CANCELLED)
+    story.expect_task(story.fixture.first_task, state=TaskState.CANCELLED)
+    story.expect_task(story.fixture.second_task, state=TaskState.CANCELLED)
     story.expect_stack(Ready)
 
 
 @story(PlanApproved, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_plan_the_user_cancelled_and_its_tasks_are_shown_with_the_closed_ones(story):
-    story.user_cancels_plan(story.start.plan)
+    story.user_cancels_plan(story.fixture.plan)
     story.user_opens("/journal/plans?closed=1")
     story.expect_viewer_rows("rows", "state", ["cancelled"])
-    story.user_opens(f"/journal/tasks?closed=1&ids={story.start.first_task},{story.start.second_task}")
+    story.user_opens(f"/journal/tasks?closed=1&ids={story.fixture.first_task},{story.fixture.second_task}")
     story.expect_viewer_rows("rows", "state", ["cancelled", "cancelled"])
     story.expect_stack(Ready)
 
@@ -66,7 +66,7 @@ def test_a_cancelled_plan_is_shown_with_its_phases_and_their_tasks(story):
 
 @story(UserDraftedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_cancelled_plan_takes_its_own_open_tasks_and_leaves_its_done_ones_and_those_another_plan_holds(story):
-    old, own, finished = story.start.plan, story.start.first_task, story.start.second_task
+    old, own, finished = story.fixture.plan, story.fixture.first_task, story.fixture.second_task
     story.agent_runs(f"task start {finished}")
     story.agent_runs(f"task complete {finished} --how done")
     new = story.user_creates_plan("new", "b")
@@ -82,10 +82,10 @@ def test_a_cancelled_plan_takes_its_own_open_tasks_and_leaves_its_done_ones_and_
 
 @story(ManualDraftPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_plan_approved_with_a_comment_tells_the_agent_to_read_that_comment(story):
-    story.agent_runs(f"plan phase {story.start.plan} Server --when 'it answers'")
-    tables = story.agent_adds_plan_task(story.start.plan, "Tables")
-    story.agent_runs(f"plan todos {story.start.plan} 1 {tables}")
-    story.agent_runs(f"plan ready {story.start.plan}")
-    comment = story.user_approves_plan_with_a_comment(story.start.plan, "go, but keep it small")
-    story.expect_agent_told(PlansNudges.PLAN_APPROVED_WITH_COMMENT, n=story.start.plan, comment=comment)
+    story.agent_runs(f"plan phase {story.fixture.plan} Server --when 'it answers'")
+    tables = story.agent_adds_plan_task(story.fixture.plan, "Tables")
+    story.agent_runs(f"plan todos {story.fixture.plan} 1 {tables}")
+    story.agent_runs(f"plan ready {story.fixture.plan}")
+    comment = story.user_approves_plan_with_a_comment(story.fixture.plan, "go, but keep it small")
+    story.expect_agent_told(PlansNudges.PLAN_APPROVED_WITH_COMMENT, n=story.fixture.plan, comment=comment)
     story.expect_stack(Ready)

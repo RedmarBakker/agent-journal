@@ -93,8 +93,8 @@ def story(app, monkeypatch, request, copies):
     if request.node.rep_call.failed:
         return
     assert played.is_stack_checked_last(), f"{request.node.originalname} does not close with story.expect_stack(...) after its last step: every story says the stack it ends on"
-    unused = played.start.unused_rows()
-    assert not unused, f"starts from {type(played.start).__name__} but never used {', '.join(unused)}: start from a fixture whose rows it uses"
+    unused = played.fixture.unused_rows()
+    assert not unused, f"starts from {type(played.fixture).__name__} but never used {', '.join(unused)}: start from a fixture whose rows it uses"
     unread = played.unread_settings()
     assert not unread, f"set by the story but never read by the journal after: {', '.join(unread)}"
     gaps = request.config.stash.setdefault(GAPS, CoverageGaps())

@@ -14,5 +14,5 @@ def test_the_agents_page_shows_the_stack_top_first_with_what_the_top_waits_for(s
     story.expect_viewer_part(("rows", 0, "stack", 0, "name"), Impasse.name)
     story.expect_viewer_part(("rows", 0, "stack", 1, "name"), Working.name)
     story.expect_viewer_part(("rows", 0, "stack", 2, "name"), Ready.name)
-    story.expect_task(story.start.started_task, state="started")
+    story.expect_task(story.fixture.started_task, state="started")
     story.expect_stack(Ready, Working, Impasse)

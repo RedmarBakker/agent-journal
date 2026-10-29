@@ -9,11 +9,11 @@ from tests.stories.fixtures.main.working_agent import WorkingAgent
 
 @story(WrittenDocument, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_document_is_docked_and_undocked_from_its_inspector_by_the_same_card(story):
-    story.user_docks("docs", story.start.document)
+    story.user_docks("docs", story.fixture.document)
     story.expect_viewer_passed()
     card = story.docked_card()
-    story.expect_card(card, docked=True, row=f"docs:{story.start.document}")
-    story.user_undocks("docs", story.start.document)
+    story.expect_card(card, docked=True, row=f"docs:{story.fixture.document}")
+    story.user_undocks("docs", story.fixture.document)
     story.expect_card(card, docked=False)
     story.expect_stack(Ready, FollowingSequence)
 

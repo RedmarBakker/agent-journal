@@ -23,8 +23,8 @@ def test_a_followed_plan_survives_a_compaction(story):
     story.agent_looks_at_the_overview()
     story.agent_writes("footer.py")
     story.expect_allowed()
-    story.expect_plan(story.start.plan, state=PlanState.STARTED)
-    story.expect_task(story.start.first_task, state=TaskState.STARTED)
+    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
+    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
     story.expect_stack(Ready, FollowingPlan)
 
 
@@ -32,7 +32,7 @@ def test_a_followed_plan_survives_a_compaction(story):
 def test_a_running_sequence_says_its_step_again_after_the_overview(story):
     story.context_is_compacted()
     story.agent_looks_at_the_overview()
-    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.start.sequence, step=1)
+    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=1)
     story.expect_stack(Ready, FollowingSequence)
 
 
@@ -41,7 +41,7 @@ def test_a_second_compaction_before_the_overview_asks_for_it_once(story):
     story.context_is_compacted()
     story.expect_stack(Ready, Working, ReadingOverview)
     story.agent_looks_at_the_overview()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -51,5 +51,5 @@ def test_a_waiting_agent_that_is_compacted_goes_back_to_its_wait_after_the_overv
     story.agent_looks_at_the_overview()
     story.agent_stops()
     story.expect_allowed()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, ExternalWait)

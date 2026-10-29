@@ -14,7 +14,7 @@ def test_a_worker_that_awaits_waits_over_its_work_until_its_own_tool_use(story):
     story.expect_command_passed()
     story.expect_stack(Void, WorkingTask, ExternalWait)
     story.agent_reads()
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
 
 
@@ -22,7 +22,7 @@ def test_a_worker_that_awaits_waits_over_its_work_until_its_own_tool_use(story):
 def test_a_journal_command_leaves_the_workers_wait(story):
     story.agent_runs("await 'the build of the parser' --until false")
     story.agent_runs("todo add 'read the grammar'")
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask, ExternalWait)
 
 
@@ -31,7 +31,7 @@ def test_a_worker_clearing_its_wait_is_back_at_its_work(story):
     story.agent_runs("await 'the build of the parser' --until false")
     story.agent_runs("await clear")
     story.expect_command_passed()
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
 
 
@@ -40,5 +40,5 @@ def test_a_worker_that_says_it_is_stuck_waits_until_its_next_tool_use(story):
     story.agent_runs("stuck 'the grammar file is missing'")
     story.expect_stack(Void, WorkingTask, Impasse)
     story.agent_reads()
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)

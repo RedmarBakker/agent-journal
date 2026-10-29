@@ -32,7 +32,7 @@ def test_a_wait_with_only_the_task_in_hand_counts_nothing(story):
     story.agent_runs("await 'the build' --until false")
     story.time_travel(minutes=WAIT_MINUTES)
     story.agent_reads()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_seconds_waited_with_work_open(0)
     story.expect_stack(Ready, Working)
 
@@ -45,7 +45,7 @@ def test_a_long_wait_with_another_task_open_names_the_next_work_at_the_next_tool
     story.agent_reads()
     story.agent_is_quiet_for(minutes=MEASURE_MINUTES)
     story.agent_reads()
-    story.expect_agent_told(WorkersNudges.OPEN_WORK_WAIT_LINE, n=story.start.next_open)
+    story.expect_agent_told(WorkersNudges.OPEN_WORK_WAIT_LINE, n=story.fixture.next_open)
     story.expect_stack(ModeFloor, Working)
 
 

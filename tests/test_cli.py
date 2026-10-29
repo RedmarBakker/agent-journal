@@ -539,7 +539,7 @@ def test_a_deleted_copy_of_a_library_item_is_no_longer_counted_as_held_and_updat
             sequences.delete(copy, Actor.user(1))
         app.runtime().deferred.drain()
         assert "you have" not in console.run(["library", "list"], user).text, "a copy that is gone is not counted"
-        assert "its copy was deleted" in console.run(["library", "update", "sequence", "lunch-break"], user).error
+        assert "journal library import sequence lunch-break" in console.run(["library", "update", "sequence", "lunch-break"], user).error, "update names the import of a copy that is gone"
         assert console.run(["library", "import", "sequence", "lunch-break"], user).code == 0, "and it can be imported again"
     finally:
         team.close(server)

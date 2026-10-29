@@ -15,7 +15,7 @@ def test_the_stop_after_the_loop_is_named_goes_through(story):
     story.agent_stops()
     story.expect_allowed()
     story.expect_agent_told_nothing()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, Panicking)
 
 
@@ -29,7 +29,7 @@ def test_a_tool_use_after_the_loop_brings_the_work_back(story):
 @story(LoopedStops, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_the_users_prompt_after_the_loop_brings_the_work_back(story):
     story.agent_is_prompted("go on with the footer")
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -45,5 +45,5 @@ def test_a_tool_use_between_held_stops_starts_the_count_again(story):
     story.repeat(PANIC_REFUSAL_COUNT - 1, story.agent_stops)
     story.agent_reads()
     story.repeat(PANIC_REFUSAL_COUNT - 1, story.agent_stops)
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)

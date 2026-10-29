@@ -4,4 +4,4 @@ def test_the_main_agent_writes(story):
     # @righteous StoryStepOutsideScopeDetector
     story.agent_writes("parser.py")
     # @righteous StoryStepOutsideScopeDetector
-    story.worker_clocks_in(story.start.worker)
+    story.worker_clocks_in(story.fixture.worker)

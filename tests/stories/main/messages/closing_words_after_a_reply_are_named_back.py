@@ -9,9 +9,9 @@ from tests.stories.fixtures.main.read_message import ReadMessage
 @story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_closing_words_after_a_reply_in_the_same_turn_are_named_back_once_at_the_stop(story):
     story.agent_is_prompted("is the footer done?")
-    reply = story.agent_replies_with_number(story.start.message, "the footer is done")
-    story.expect_agent_told(MessagesNudges.REPLY_REPEAT_WARNING, n=story.start.message, reply=reply)
-    story.expect_message(reply, author="agent", reply_target=story.start.message)
+    reply = story.agent_replies_with_number(story.fixture.message, "the footer is done")
+    story.expect_agent_told(MessagesNudges.REPLY_REPEAT_WARNING, n=story.fixture.message, reply=reply)
+    story.expect_message(reply, author="agent", reply_target=story.fixture.message)
     story.agent_closes_its_turn("next I start the header")
     story.agent_closes_its_turn("and then the logo")
     story.agent_stops()
@@ -24,7 +24,7 @@ def test_closing_words_after_a_reply_in_the_same_turn_are_named_back_once_at_the
 
 @story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_closing_words_of_a_later_turn_than_the_reply_reach_the_chat_and_are_not_named_back(story):
-    reply = story.agent_replies_with_number(story.start.message, "the footer is done")
+    reply = story.agent_replies_with_number(story.fixture.message, "the footer is done")
     story.agent_is_prompted_in_a_new_turn("go on")
     story.agent_closes_its_turn("next I start the header")
     story.expect_newest_agent_message("next I start the header")

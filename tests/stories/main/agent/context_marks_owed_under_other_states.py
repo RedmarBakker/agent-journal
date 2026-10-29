@@ -36,7 +36,7 @@ def test_a_mark_reached_while_the_overview_is_owed_is_asked_once_the_overview_is
 def test_a_mark_reached_while_the_agent_waits_is_asked_when_it_works_again(story):
     story.agent_consumes_context(FIRST)
     story.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=FIRST)
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, WeighingMemories)
 
 
@@ -45,7 +45,7 @@ def test_a_mark_reached_in_a_followed_plan_is_weighed_on_top_of_the_plan(story):
     story.agent_consumes_context(FIRST)
     story.expect_stack(Ready, FollowingPlan, WeighingMemories)
     story.agent_runs("memory skip 'nothing new to keep'")
-    story.expect_task(story.start.first_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
     story.expect_stack(Ready, FollowingPlan)
 
 
@@ -54,7 +54,7 @@ def test_a_mark_reached_in_a_running_sequence_holds_writes_for_the_memories_then
     story.agent_writes("footer.py")
     story.expect_refused(MemoryNudges.DECISION_EDIT_BLOCK)
     story.agent_runs("memory skip 'nothing new to keep'")
-    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.start.sequence, step=1)
+    story.expect_agent_told(SequencesNudges.PENDING_STEP, n=story.fixture.sequence, step=1)
     story.expect_stack(Ready, FollowingSequence)
 
 
@@ -63,5 +63,5 @@ def test_a_stop_at_the_mark_inside_a_sequence_is_held_by_the_memories_first(stor
     story.agent_stops()
     story.expect_refused(MemoryNudges.UNDECIDED_STOP, percent=FIRST)
     story.expect_agent_not_told(SequencesNudges.PENDING_STEP)
-    story.expect_row("sequences", story.start.sequence, {})
+    story.expect_row("sequences", story.fixture.sequence, {})
     story.expect_stack(Ready, FollowingSequence, WeighingMemories)

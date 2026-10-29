@@ -116,8 +116,6 @@ class LibraryLink:
     def reached(self, address: str, path: str, body: bytes | None, seconds: float, method: str | None = None) -> bytes:
         try:
             return self.sent(address, path, body, seconds, method)
-        except TeamRefusal as refused:
-            raise Rejection(str(refused)) from refused
         except urllib.error.URLError as unreached:
             raise Rejection(f"the library at {address} did not answer ({unreached.reason}): journal library connect") from unreached
 

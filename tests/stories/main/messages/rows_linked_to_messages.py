@@ -35,7 +35,7 @@ def test_a_task_created_right_after_a_reply_is_linked_to_the_message_it_answers(
 @story(ReadMessage, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_priority_change_right_after_a_reply_is_never_put_down_to_the_message(story):
     menu = story.agent_creates_task("the menu")
-    story.agent_replies(story.start.message, "on it")
+    story.agent_replies(story.fixture.message, "on it")
     story.agent_runs(f"task edit {menu} --priority high")
     story.expect_chat_marks("filed")
     story.expect_stack(Ready)
@@ -43,7 +43,7 @@ def test_a_priority_change_right_after_a_reply_is_never_put_down_to_the_message(
 
 @story(TwoUnreadMessages, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_made_from_one_message_and_edited_from_another_has_a_mark_under_each_and_one_mark_per_move(story):
-    notes, tags = story.start.first_message, story.start.second_message
+    notes, tags = story.fixture.first_message, story.fixture.second_message
     story.agent_runs(f"task create 'write the notes' --from {notes}")
     task = story.task_number()
     story.agent_runs(f"task edit {task} --title 'write the notes and tags' --from {tags}")
@@ -54,7 +54,7 @@ def test_a_task_made_from_one_message_and_edited_from_another_has_a_mark_under_e
 
 @story(TwoUnreadMessages, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_task_created_with_from_right_after_a_reply_to_another_message_is_linked_to_the_one_it_names(story):
-    footer, width = story.start.first_message, story.start.second_message
+    footer, width = story.fixture.first_message, story.fixture.second_message
     story.agent_replies(footer, "noted")
     story.agent_runs(f"task create 'the width' --from {width}")
     story.expect_command_passed()

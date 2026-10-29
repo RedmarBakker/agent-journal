@@ -22,13 +22,13 @@ def test_an_orchestrator_stop_with_work_waiting_to_be_checked_is_refused(story):
 def test_a_builder_stop_with_work_waiting_to_be_checked_is_not_held_for_it(story):
     story.agent_stops()
     story.expect_agent_not_told(WorkersNudges.DELIVERED_WAITING)
-    story.expect_worker(story.start.worker, state=WorkerState.DELIVERED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED)
     story.expect_stack(Ready)
 
 
 @story(OrchestratorWorker, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
 def test_an_orchestrator_that_waits_on_its_worker_may_stop(story):
-    story.agent_runs(f"worker wait {story.start.worker}")
+    story.agent_runs(f"worker wait {story.fixture.worker}")
     story.agent_stops()
     story.expect_agent_not_told(WorkersNudges.ACTIVE_WORKERS)
     story.expect_stack(Orchestrating, ExternalWait)
@@ -37,7 +37,7 @@ def test_an_orchestrator_that_waits_on_its_worker_may_stop(story):
 @story(OrchestratorWorker, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
 def test_an_orchestrator_stop_with_a_worker_out_is_held_once(story):
     story.agent_stops()
-    story.expect_refused(WorkersNudges.ACTIVE_WORKERS, numbers=str(story.start.worker))
+    story.expect_refused(WorkersNudges.ACTIVE_WORKERS, numbers=str(story.fixture.worker))
     story.agent_stops_again()
     story.expect_allowed()
     story.expect_stack(Orchestrating)

@@ -3,7 +3,7 @@ from journal.engine.clock import Clock
 from journal.models.browser_session import BrowserSession
 from journal.http.support.session_cookie import SessionCookie
 from journal.repositories.browser_sessions import BrowserSessions
-from journal.sync.team_refusal import TeamRefusal
+from journal.support.rejection import Rejection
 from journal.sync.team_server_link import TeamServerLink
 
 CHECK_SECONDS = 30.0
@@ -34,6 +34,6 @@ class MemberSessions:
             self.read_at = self.clock.time()
             try:
                 self.members = {person.id for person in self.link.people().people}
-            except (OSError, TeamRefusal):
+            except (OSError, Rejection):
                 pass
         return self.members

@@ -36,7 +36,7 @@ def test_a_question_asked_with_a_task_in_hand_waits_over_the_task_and_returns_to
     story.expect_stack(Ready, Working, Waiting)
     story.user_answers(question, "The agent writes the short one")
     story.agent_reads()
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
 
 
@@ -46,8 +46,8 @@ def test_a_question_asked_while_a_plan_is_followed_returns_to_the_plan(story):
     story.expect_stack(Ready, FollowingPlan, Waiting)
     story.user_answers(question, "The agent writes the short one")
     story.agent_reads()
-    story.expect_task(story.start.first_task, state=TaskState.STARTED)
-    story.expect_plan(story.start.plan, state=PlanState.STARTED)
+    story.expect_task(story.fixture.first_task, state=TaskState.STARTED)
+    story.expect_plan(story.fixture.plan, state=PlanState.STARTED)
     story.expect_stack(Ready, FollowingPlan)
 
 

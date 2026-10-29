@@ -13,7 +13,7 @@ from tests.stories.fixtures.worker.worker_delivered import WorkerDelivered
 def test_a_worker_before_it_clocks_in_is_refused_a_read_and_told_it_has_no_job(story):
     story.agent_reads()
     story.expect_refused(EngineNudges.JOBLESS_HELPER)
-    story.expect_worker(story.start.worker, state=WorkerState.DISPATCHED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DISPATCHED)
     story.expect_stack(Void)
 
 
@@ -21,7 +21,7 @@ def test_a_worker_before_it_clocks_in_is_refused_a_read_and_told_it_has_no_job(s
 def test_a_journal_command_before_clock_in_goes_through(story):
     story.agent_runs("todo list")
     story.expect_command_passed()
-    story.expect_worker(story.start.worker, state=WorkerState.DISPATCHED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DISPATCHED)
     story.expect_stack(Void)
 
 
@@ -31,7 +31,7 @@ def test_a_worker_before_clock_in_is_never_told_the_main_agents_lines(story):
     story.main_agent_runs(f"message read {message}")
     story.expect_main_told(MessagesNudges.MESSAGE_READ)
     story.expect_agent_not_told(MessagesNudges.MESSAGE_READ)
-    story.expect_worker(story.start.worker, state=WorkerState.DISPATCHED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DISPATCHED)
     story.expect_stack(Void)
 
 
@@ -39,7 +39,7 @@ def test_a_worker_before_clock_in_is_never_told_the_main_agents_lines(story):
 def test_a_worker_before_clock_in_cannot_ask_the_user_a_question(story):
     story.agent_runs("question ask 'go on?' --options 'the worker goes on' 'the worker stops'")
     story.expect_command_refused()
-    story.expect_worker(story.start.worker, state=WorkerState.DISPATCHED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DISPATCHED)
     story.expect_stack(Void)
 
 
@@ -47,5 +47,5 @@ def test_a_worker_before_clock_in_cannot_ask_the_user_a_question(story):
 def test_a_worker_that_clocked_out_is_back_on_its_floor_and_refused_again(story):
     story.agent_reads()
     story.expect_refused(EngineNudges.JOBLESS_HELPER)
-    story.expect_worker(story.start.worker, state=WorkerState.DELIVERED)
+    story.expect_worker(story.fixture.worker, state=WorkerState.DELIVERED)
     story.expect_stack(Void)

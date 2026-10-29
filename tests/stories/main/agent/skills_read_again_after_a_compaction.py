@@ -19,7 +19,7 @@ JOURNAL_SKILL, ETIQUETTE_SKILL = "journal", "journal-etiquette"
 def test_a_write_after_a_compaction_is_told_every_skill_owed_and_the_overview(story):
     story.agent_writes("footer.py")
     story.expect_refused(BriefingNudges.SKILLS_AND_OVERVIEW_REQUEST)
-    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_task(story.fixture.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, ReadingOverview)
 
 

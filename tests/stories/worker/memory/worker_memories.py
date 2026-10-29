@@ -23,7 +23,7 @@ def test_a_worker_at_its_first_mark_weighs_its_memories_before_it_writes_again(s
     story.expect_refused(MemoryNudges.DECISION_EDIT_BLOCK)
     story.agent_runs("memory skip 'nothing of this job needs keeping'")
     story.expect_command_passed()
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask)
 
 

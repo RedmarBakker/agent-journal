@@ -18,7 +18,7 @@ def test_a_test_run_on_a_long_task_suggests_putting_it_in_testing(story):
     story.expect_agent_not_told(TasksNudges.TESTING_SUGGESTION)
     story.agent_reads()
     story.agent_runs_in_the_shell("pytest -q")
-    story.expect_agent_told(TasksNudges.TESTING_SUGGESTION, n=story.start.started_task)
+    story.expect_agent_told(TasksNudges.TESTING_SUGGESTION, n=story.fixture.started_task)
     story.expect_stack(Ready, Working)
 
 
@@ -26,7 +26,7 @@ def test_a_test_run_on_a_long_task_suggests_putting_it_in_testing(story):
 def test_a_task_in_testing_is_completed_when_its_run_passes(story):
     run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 0'")
     story.agent_runs(f"output test {run}")
-    story.expect_task(story.start.started_task, state=TaskState.COMPLETED)
+    story.expect_task(story.fixture.started_task, state=TaskState.COMPLETED)
     story.expect_stack(Ready)
 
 
@@ -34,6 +34,6 @@ def test_a_task_in_testing_is_completed_when_its_run_passes(story):
 def test_a_task_in_testing_is_paused_when_its_run_fails(story):
     run = story.agent_runs_a_command("sh -c 'seq 1 300; exit 3'")
     story.agent_runs(f"output test {run}")
-    story.expect_task(story.start.started_task, state=TaskState.PAUSED)
-    story.expect_agent_told(TasksNudges.TEST_FAILURE, n=story.start.started_task)
+    story.expect_task(story.fixture.started_task, state=TaskState.PAUSED)
+    story.expect_agent_told(TasksNudges.TEST_FAILURE, n=story.fixture.started_task)
     story.expect_stack(Ready)

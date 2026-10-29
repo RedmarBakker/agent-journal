@@ -13,7 +13,7 @@ from tests.stories.fixtures.worker.working_worker import WorkingWorker
 def test_a_worker_whose_journal_came_back_is_held_with_the_wait_line(story):
     story.agent_reads_after_the_journal_was_down(story.setting(LOCKOUT_OPTION) / 2)
     story.expect_refused(EngineNudges.LOCKOUT_WAIT)
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask, LockedOut)
 
 
@@ -24,5 +24,5 @@ def test_a_worker_whose_journal_was_down_past_the_grace_is_told_to_end(story):
     story.agent_is_quiet_past(STEADY.amount)
     story.agent_reads()
     story.expect_refused(EngineNudges.LOCKOUT_END, grace=story.setting(LOCKOUT_OPTION))
-    story.expect_task(story.start.briefed, delegated=True)
+    story.expect_task(story.fixture.briefed, delegated=True)
     story.expect_stack(Void, WorkingTask, LockedOut)

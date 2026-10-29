@@ -8,16 +8,16 @@ from tests.stories.fixtures.main.briefed_task import BriefedTask
 
 @story(BriefedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_dispatch_that_names_no_change_is_refused(story):
-    story.agent_runs(f"worker dispatch 'Lady Lovelace' --task {story.start.briefed} --profile journal-medior --model sonnet")
+    story.agent_runs(f"worker dispatch 'Lady Lovelace' --task {story.fixture.briefed} --profile journal-medior --model sonnet")
     story.expect_command_refused()
-    story.expect_task(story.start.briefed, state=TaskState.OPEN, delegated=False)
+    story.expect_task(story.fixture.briefed, state=TaskState.OPEN, delegated=False)
     story.expect_stack(Ready)
 
 
 @story(BriefedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_dispatch_on_a_completed_task_is_refused(story):
-    story.agent_runs(f"task complete {story.start.briefed} --how done")
-    story.agent_runs(f"worker dispatch 'Lady Lovelace' --task {story.start.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
+    story.agent_runs(f"task complete {story.fixture.briefed} --how done")
+    story.agent_runs(f"worker dispatch 'Lady Lovelace' --task {story.fixture.briefed} --changes 'the parser' --profile journal-medior --model sonnet")
     story.expect_command_refused()
-    story.expect_task(story.start.briefed, state=TaskState.COMPLETED)
+    story.expect_task(story.fixture.briefed, state=TaskState.COMPLETED)
     story.expect_stack(Ready)

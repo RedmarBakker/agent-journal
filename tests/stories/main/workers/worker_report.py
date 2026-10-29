@@ -11,10 +11,10 @@ WORKER_NAME = "Lady Lovelace"
 
 @story(DispatchedWorker, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_worker_report_reaches_the_agent_that_waited_on_it_ends_the_wait_and_leaves_the_workers_to_act_on(story):
-    story.agent_runs(f"worker report {story.start.worker} 'the parser reads the grammar'")
+    story.agent_runs(f"worker report {story.fixture.worker} 'the parser reads the grammar'")
     story.expect_command_passed()
-    story.expect_agent_told(WorkersNudges.WORKER_REPORTED, n=story.start.worker)
-    story.expect_worker(story.start.worker, state=WorkerState.REPORTED)
+    story.expect_agent_told(WorkersNudges.WORKER_REPORTED, n=story.fixture.worker)
+    story.expect_worker(story.fixture.worker, state=WorkerState.REPORTED)
     story.agent_runs("worker open")
     story.expect_command_text_without(WORKER_NAME)
     story.agent_runs("worker list")
