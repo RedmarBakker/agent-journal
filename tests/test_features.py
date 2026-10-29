@@ -12929,6 +12929,62 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
     assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
 
 
+def test_a_timed_out_judge_ends_the_suite_card_after_its_await_was_cleared(app: App, tmp_path: Path, monkeypatch):
+    import sys
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from tests.test_suite_shards import suite_script
+
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+    folder = tmp_path / "suite-run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest -q tests/")
+    (folder / "0.out").write_text("")
+    output = app.container.get(OutputLog).start("suite-run", "pytest -q tests/", folder, AGENT)
+    outputs.save(output.backgrounded(), AGENT.actor)
+    assert console.run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+    assert console.run(["await", "the suite run", "--output", str(output.id)], AGENT).code == 0
+    assert console.run(["await", "clear"], AGENT).code == 0
+    assert app.container.get(SessionAgents).top("s1").name != "awaiting", "clearing the await leaves no open wait"
+
+    with app.container.get(Scope).environment(MAIN):
+        [running] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert running.data["active"] and running.data["docked"], "the suite output stays docked as running while its judge is still going"
+
+    suite = suite_script("suite_for_output_card")
+    monkeypatch.setattr(suite, "JUDGE", Path(__file__))
+    monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(2)"])
+    monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
+    judging = suite.commandments_started(tmp_path)
+    assert judging is not None, "the test judge started"
+    process, _ = judging
+    monkeypatch.setattr(suite, "commandments_started", lambda _: judging)
+    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
+    monkeypatch.setattr(suite, "core_shards", lambda: 1)
+    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
+    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
+    try:
+        assert suite.whole_suite() == 1, "the suite exits after reporting its judge timed out"
+        assert process.poll() is not None, "the stuck judge is stopped before the suite output can end"
+    finally:
+        if process.poll() is None:
+            suite.stop_judge(process)
+
+    app.container.get(ShellRecord).ended("suite-run", 1, folder, "", AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        [ended] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert not ended.data["active"], "the shell records the suite output as ended when the judge wait returns"
+    assert console.run(["output", "undock", str(output.id)], AGENT).code == 0, "an ended suite card can be taken down"
+    with app.container.get(Scope).environment(MAIN):
+        [undocked] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert not undocked.data.get("docked"), "the run card comes down"
+
+
 def test_a_reader_report_is_told_once_and_never_holds_a_write_and_none_is_raised_on_a_locked_reader(app: App):
     from journal.models.reader_report import ReaderReport
     from journal.repositories.reader_reports import ReaderReports
