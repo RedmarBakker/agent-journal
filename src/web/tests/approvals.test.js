@@ -2,7 +2,6 @@ import {createApp, h} from "vue";
 import {expect, test, vi} from "vitest";
 import Approvals from "../src/organization/Approvals.vue";
 import TurnQuestion from "../src/chat/TurnQuestion.vue";
-import RailWaiting from "../src/rail/RailWaiting.vue";
 import {useNavigation} from "../src/composables/navigation.js";
 import {store} from "../src/state/store.js";
 import {settle} from "./settle.js";
@@ -64,6 +63,8 @@ test("the plan driver's chat replaces the linked question with the shared approv
 });
 
 test("the Waiting for you rail shows the same approval card and can refuse it", async () => {
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+    const {default:RailWaiting} = await import("../src/rail/RailWaiting.vue");
     const priorRows = store.rows;
     const priorBooted = store.booted;
     store.rows = {...store.rows, approvals: [approval], questions: [questionRow]};
