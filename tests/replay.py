@@ -1,5 +1,7 @@
 import json
 import os
+
+import journal
 import re
 import time as timing
 from dataclasses import dataclass
@@ -20,6 +22,8 @@ from tests.observation import Observer
 
 RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
+# where the journal's package lies on this machine, written in a record as a placeholder so no record names a machine's folders
+PACKAGE_FOLDER, PACKAGE_PLACEHOLDER = Path(journal.__file__).resolve().parents[1], "<package>"
 
 
 
@@ -102,7 +106,11 @@ class Replay:
     def step(self, name: str, answer=None) -> None:
         """Closes a step: the hook's answer when the step was a hook, the lines typed since the last step, the nudges said since and the stack, read by the observer the simulator shares."""
         seen = self.observer.observe(answer)
-        self.steps.append({"name": name, "answer": answer, "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
+        self.steps.append({"name": name, "answer": self.placed(answer), "typed": list(seen.typed), "nudges": list(seen.nudges), "stack": list(seen.stack)})
+
+    @staticmethod
+    def placed(answer):
+        return json.loads(json.dumps(answer).replace(str(PACKAGE_FOLDER), PACKAGE_PLACEHOLDER))
 
     def record(self) -> list[dict]:
         return list(self.steps)

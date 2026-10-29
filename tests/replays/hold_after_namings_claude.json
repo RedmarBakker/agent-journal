@@ -6,7 +6,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 0. your next write waits for it"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 1 more"
         }
       },
       "typed": [
@@ -19,7 +19,7 @@
         "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user",
         "messages.new_message_to_answer",
-        "messages.next_write_held_until_read"
+        "messages.writes_held_soon_until_read"
       ],
       "stack": [
         "idle",
@@ -29,23 +29,18 @@
     {
       "name": "write 2 with the message unread",
       "answer": {
-        "answer": {
-          "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": "you have 1 unread messages. `journal message unread` before any other write"
-          }
-        },
-        "error": "you have 1 unread messages. `journal message unread` before any other write"
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "read message 3 now with `journal message unread`; your next write waits for it"
+        }
       },
       "typed": [],
       "nudges": [
-        "messages.write_held_until_read"
+        "messages.next_write_held_until_read"
       ],
       "stack": [
         "idle",
-        "working",
-        "demand_block"
+        "working"
       ]
     },
     {
@@ -55,10 +50,10 @@
           "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": "you have 1 unread messages. `journal message unread` before any other write"
+            "permissionDecisionReason": "1 unread messages. run `journal message unread` before any other write"
           }
         },
-        "error": "you have 1 unread messages. `journal message unread` before any other write"
+        "error": "1 unread messages. run `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [
@@ -77,10 +72,10 @@
           "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": "you have 1 unread messages. `journal message unread` before any other write"
+            "permissionDecisionReason": "1 unread messages. run `journal message unread` before any other write"
           }
         },
-        "error": "you have 1 unread messages. `journal message unread` before any other write"
+        "error": "1 unread messages. run `journal message unread` before any other write"
       },
       "typed": [],
       "nudges": [

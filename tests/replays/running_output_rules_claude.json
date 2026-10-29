@@ -20,7 +20,7 @@
       "name": "a stop with it running",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand: carry on\noutput 1 still running. stop only by waiting on it: `journal await \"<what>\" --output <n>`, or keep working"
+        "reason": "task 1 is in hand: carry on\noutput 1 still running. await it: `journal await \"<what>\" --output <n>`"
       },
       "typed": [],
       "nudges": [

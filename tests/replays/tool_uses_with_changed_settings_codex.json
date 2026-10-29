@@ -6,7 +6,8 @@
       "answer": null,
       "typed": [
         "[journal] new message 3",
-        "[journal] reply with [!reply:3] in your turn. follow it if it steers; create a task, or update one, if it asks for work"
+        "[journal] answer message 3: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory",
+        "[journal] reply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn"
       ],
       "nudges": [
         "briefing.journal_ready",
@@ -15,7 +16,8 @@
         "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user",
         "messages.new_message_to_answer",
-        "messages.answer_the_message_read"
+        "messages.answer_the_message_read",
+        "messages.reply_by_command"
       ],
       "stack": [
         "idle",
@@ -37,7 +39,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "reply due, message 3: 1"
+          "additionalContext": "reply to message 3; tool calls wait after 2 more"
         }
       },
       "typed": [],
@@ -54,7 +56,24 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "reply due, message 3: 0. your next tool call waits for it"
+          "additionalContext": "reply to message 3; tool calls wait after 1 more"
+        }
+      },
+      "typed": [],
+      "nudges": [
+        "messages.tools_held_soon_until_answered"
+      ],
+      "stack": [
+        "idle",
+        "working"
+      ]
+    },
+    {
+      "name": "read 4 while owed",
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "reply to message 3 now; your next tool call waits for it"
         }
       },
       "typed": [],
@@ -67,24 +86,9 @@
       ]
     },
     {
-      "name": "read 4 while owed",
-      "answer": {
-        "error": "answer or react to message 3 first. your tool calls wait until you do"
-      },
-      "typed": [],
-      "nudges": [
-        "messages.tools_held_until_answered"
-      ],
-      "stack": [
-        "idle",
-        "working",
-        "demand_block"
-      ]
-    },
-    {
       "name": "read 5 while owed",
       "answer": {
-        "error": "answer or react to message 3 first. your tool calls wait until you do"
+        "error": "answer or react to message 3; tool calls wait until you do"
       },
       "typed": [],
       "nudges": [
@@ -100,7 +104,9 @@
       "name": "the reply",
       "answer": null,
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "messages.reply_in_the_chat"
+      ],
       "stack": [
         "idle",
         "working",
@@ -109,7 +115,12 @@
     },
     {
       "name": "write 1",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "additionalContext": "message 3 answered: reply 4. go on; closing text is not sent"
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [
@@ -149,7 +160,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "3 edits since you logged task 1: say where it stands. journal task log 1 \"<where it stands>\""
+          "additionalContext": "3 edits since you logged task 1. log where it stands: journal task log 1 \"<where it stands>\""
         }
       },
       "typed": [],
@@ -191,7 +202,7 @@
     {
       "name": "write 7",
       "answer": {
-        "error": "6 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
+        "error": "6 edits since you logged task 1. writes wait for journal task log 1 \"<what was done>\""
       },
       "typed": [],
       "nudges": [

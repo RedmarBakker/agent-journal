@@ -43,12 +43,10 @@
       "name": "the worker reports",
       "answer": null,
       "typed": [
-        "[journal] wait over: worker 1, Lady Lovelace, reported",
-        "[journal] worker 1 reported"
+        "[journal] wait over: worker 1, Lady Lovelace, reported"
       ],
       "nudges": [
-        "tasks.wait_over",
-        "workers.worker_reported"
+        "tasks.wait_over"
       ],
       "stack": [
         "idle",

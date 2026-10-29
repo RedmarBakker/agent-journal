@@ -35,7 +35,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "read due, message 3: 3"
+          "additionalContext": "read message 3 with `journal message unread`; writes wait after 4 more"
         }
       },
       "typed": [],

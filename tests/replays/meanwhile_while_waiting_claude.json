@@ -32,12 +32,8 @@
     {
       "name": "a minute and a half",
       "answer": null,
-      "typed": [
-        "[journal] while you wait for the build, task 2 is next. work on it meanwhile; you are informed when the wait ends"
-      ],
-      "nudges": [
-        "tasks.next_task_while_waiting"
-      ],
+      "typed": [],
+      "nudges": [],
       "stack": [
         "idle",
         "working",

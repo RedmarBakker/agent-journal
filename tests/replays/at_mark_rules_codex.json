@@ -22,7 +22,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "context 50% full: weigh your 1 memories (journal memory list shows them). `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
+          "additionalContext": "writes wait at 50%: weigh 1 memories, `journal memory weigh <numbers> <weights>`, or `journal memory skip \"<why>\"`"
         }
       },
       "typed": [],
@@ -38,7 +38,7 @@
     {
       "name": "a write at the mark",
       "answer": {
-        "error": "writes wait until you weigh your memories at the context mark. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`"
+        "error": "writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -84,7 +84,7 @@
       "name": "a stop past the second mark",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand: carry on\ncontext 80% full: weigh your 1 memories (journal memory list shows them). `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`; writes wait until you do"
+        "reason": "task 1 is in hand: carry on\nwrites wait at 80%: weigh 1 memories, `journal memory weigh <numbers> <weights>`, or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -100,7 +100,7 @@
     {
       "name": "a write at the second mark",
       "answer": {
-        "error": "writes wait until you weigh your memories at the context mark. `journal memory weigh <numbers> <weights>`, `journal memory add \"<what to keep in mind>\" --weight <1 to 10>` or `journal memory skip \"<why>\"`"
+        "error": "writes wait until you weigh your memories: `journal memory weigh <numbers> <weights>` or `journal memory skip \"<why>\"`"
       },
       "typed": [],
       "nudges": [

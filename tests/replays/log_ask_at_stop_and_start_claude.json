@@ -25,7 +25,7 @@
       "name": "a stop eleven minutes on",
       "answer": {
         "decision": "block",
-        "reason": "task 1, last logged 11 min ago: log where it stands first. journal task log 1 \"<where it stands>\""
+        "reason": "task 1, last logged 11 min ago. log it first: journal task log 1 \"<status>\""
       },
       "typed": [],
       "nudges": [

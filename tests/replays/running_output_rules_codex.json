@@ -20,7 +20,7 @@
       "name": "a stop with it running",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand: carry on\noutput 1 still running. stop only by waiting on it: `journal await \"<what>\" --output <n>`, or keep working"
+        "reason": "task 1 is in hand: carry on\noutput 1 still running. await it: `journal await \"<what>\" --output <n>`"
       },
       "typed": [],
       "nudges": [
@@ -34,7 +34,15 @@
     },
     {
       "name": "the agent awaits it",
-      "answer": {},
+      "answer": {
+        "hookSpecificOutput": {
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "allow",
+          "updatedInput": {
+            "command": "sh <package>/journal/hooks/run.sh --command 'journal await \"the tests\" --output 1'"
+          }
+        }
+      },
       "typed": [],
       "nudges": [],
       "stack": [
