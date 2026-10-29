@@ -420,7 +420,7 @@ def test_mcp_observe_and_apply_require_current_fence(tmp_path):
 
 
 def test_apply_reads_back_canonical_receipt_before_reporting_completion(tmp_path):
-    journal = StubJournal()
+    journal = StubJournal([admitted()])
     state = StateStore(tmp_path)
     hook = StubHook()
     bridge = SupervisorBridge(journal, state, VerifiedBudget(), hook)
