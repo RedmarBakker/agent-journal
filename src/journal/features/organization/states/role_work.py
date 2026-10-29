@@ -34,6 +34,8 @@ class RoleWork(BaseState):
         role = event.data.part(OrganizationPart).contracts_at(self.version).role(self.role)
         if role is None or event.call.is_journal:
             return self.none()
+        if not role.allows_call(event.call.tool):
+            return self.refuse(OrganizationNudges.ROLE_TOOL_REFUSED.create(role=role.title, tool=event.call.tool, tools=ToolIds().words(role.tools) or "none"))
         if refusal := RolePolicy().refusal(role, event.call):
             if refusal.key == OrganizationNudges.ACTION_WAITS_FOR_USER.key:
                 organization = event.data.part(OrganizationPart)
@@ -44,8 +46,6 @@ class RoleWork(BaseState):
                     if approvals.authorizes(context, role, event.call):
                         return self.none()
             return self.refuse(refusal)
-        if not role.allows_call(event.call.tool):
-            return self.refuse(OrganizationNudges.ROLE_TOOL_REFUSED.create(role=role.title, tool=event.call.tool, tools=ToolIds().words(role.tools) or "none"))
         return self.none()
 
     def on_role_taken(self, event: RoleTaken, settings: Settings) -> Transition:

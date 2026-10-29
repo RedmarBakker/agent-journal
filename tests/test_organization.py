@@ -284,7 +284,7 @@ def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, 
     assert app.container.get(Approvals).find(security.row_id).decision == security.REFUSED, "the non-user answer is recorded as refused"
 
 
-def test_an_approval_is_bound_to_the_exact_tool_arguments_and_target(app, tmp_path):
+def test_an_approval_is_bound_to_the_exact_tool_arguments_target_and_full_command(app, tmp_path):
     fixture, organization = loaded(app, tmp_path)
     fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
     fixture.domain("alpha", roles=["scout", "builder", "deployer"])
@@ -328,15 +328,29 @@ def test_an_approval_is_bound_to_the_exact_tool_arguments_and_target(app, tmp_pa
     assert approval_for(altered_target).row_id != approved.row_id and approval_for(altered_tool).row_id != approved.row_id, "each altered request has its own pending grant"
     assert attempt(original).refusal is None and attempt(original).refusal == waits, "the exact approved call passes once and then is refused"
 
+    command = Claude().call("Bash", {"command": "make deploy"}, frozenset(), CLASSIFIER)
+    appended = Claude().call("Bash", {"command": "make deploy && make deploy"}, frozenset(), CLASSIFIER)
+    command_hash, _ = ApprovalActions.identity(command)
+    appended_hash, appended_details = ApprovalActions.identity(appended)
+    assert ApprovalActions.of(appended) == (ApprovalAction.PRODUCTION_DEPLOYMENT,), "both operations belong to one approval category"
+    assert appended.command == "make deploy && make deploy" and appended_hash != command_hash and "make deploy && make deploy" in appended_details, "normalization retains the full appended operation in the identity and user details"
+    assert attempt(command).refusal == waits, "the single deployment command asks for its own approval"
+    approved_command = approval_for(command)
+    approvals.approve(approved_command, actor)
+    assert attempt(appended).refusal == waits, "a second same-category operation cannot use the single-command grant"
+    assert approval_for(appended).request_hash == appended_hash and approval_for(appended).row_id != approved_command.row_id, "the appended command has a distinct pending request"
+    assert attempt(command).refusal is None and attempt(command).refusal == waits, "the old grant remains available for one exact single-command run"
 
-def test_a_solo_role_spends_the_same_exact_approval_once(app, tmp_path):
+
+def test_a_solo_role_rejects_an_excluded_mcp_tool_without_spending_approval_and_allows_its_tool_once(app, tmp_path):
     from journal.features.organization.states.role_work import RoleWork
     from journal.features.plans.plans_part import PlansPart
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.plans.support.started_plan import StartedPlan
+    from journal.features.organization.support.role_approvals import RoleApprovalContext
 
     fixture, organization = loaded(app, tmp_path)
-    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
+    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files", "run_tests"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
     fixture.domain("alpha", roles=["scout", "builder", "deployer"])
     contracts = organization.reload()
     scope = app.container.get(Scope)
@@ -345,21 +359,34 @@ def test_a_solo_role_spends_the_same_exact_approval_once(app, tmp_path):
     started = StartedPlan(plan_id=41, next_task=task.row_id, started_task=task.row_id, started_task_briefing="", recent_tasks=(task.row_id,), remaining_tasks=1,
                           checkpoint_pause=False, checkpoint_phase=0, testing="")
     data = FeatureData({"organization": app.container.get(OrganizationDataReader).read(Agent(environment_id=1, session="solo-plan")), PlansPart.name: PlansData(approved=(41,), started=started)})
-    call = Claude().call("Bash", {"command": "make deploy"}, frozenset(), CLASSIFIER)
     state = RoleWork(role="deployer", version=contracts.version)
 
-    def attempt():
+    def attempt(call):
         event = ToolStarting(session="solo-plan", environment_id=1, call=call).with_data(data)
         with scope.environment(1):
             return state.on_tool_starting(event, Settings({}))
 
-    waits = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
-    assert attempt().refusal == waits, "a solo Role asks before running a production deployment"
-    request_hash, _ = ApprovalActions.identity(call)
+    role = contracts.role("deployer")
+    context = RoleApprovalContext("solo-plan", "deployer", 41, task.row_id, 1)
+    approvals = app.container.get(RoleApprovals)
     repository = app.container.get(Approvals)
+    waits = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+
+    excluded = Claude().call("mcp__release__production_deployment", {"target": "production"}, frozenset(), CLASSIFIER)
+    excluded_approval = approvals.request(context, ApprovalAction.PRODUCTION_DEPLOYMENT, excluded)
+    assert excluded_approval and approvals.approve(excluded_approval, Actor.user(1)).decision == excluded_approval.APPROVED
+    tool_refusal = OrganizationNudges.ROLE_TOOL_REFUSED.create(role=role.title, tool=excluded.tool, tools=ToolIds().words(role.tools))
+    assert attempt(excluded).refusal == tool_refusal, "a user grant does not add an excluded MCP tool to a solo Role"
+    excluded_hash, _ = ApprovalActions.identity(excluded)
+    still_approved = repository.for_action(Actor.agent("solo-plan").stamp, "deployer", 41, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value, excluded_hash)
+    assert still_approved.decision == still_approved.APPROVED and still_approved.used_at is None, "tool refusal does not spend the grant"
+
+    call = Claude().call("Bash", {"command": "make deploy"}, frozenset(), CLASSIFIER)
+    assert attempt(call).refusal == waits, "a permitted tool still asks before running an approval-required action"
+    request_hash, _ = ApprovalActions.identity(call)
     approved = repository.for_action(Actor.agent("solo-plan").stamp, "deployer", 41, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value, request_hash)
-    assert approved and app.container.get(RoleApprovals).approve(approved, Actor.user(1)).decision == approved.APPROVED
-    assert attempt().refusal is None and attempt().refusal == waits, "the solo Role consumes the approval on exactly one tool start"
+    assert approved and approvals.approve(approved, Actor.user(1)).decision == approved.APPROVED
+    assert attempt(call).refusal is None and attempt(call).refusal == waits, "the permitted tool consumes the approval on exactly one tool start"
 
 
 def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_another_key_is_refused(app, tmp_path):
