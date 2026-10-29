@@ -279,7 +279,7 @@ class WorkerCommand(Command):
             raise Rejection("name the worker's --profile or its --role, one of them")
         role_dispatch = self.role_dispatch_enabled()
         if args.role and not role_dispatch:
-            raise Rejection("Role dispatch needs an organization folder and plans.plan_agents on: use --profile journal-medior or --profile journal-senior while they are off")
+            raise Rejection("Set organization folder + plans.plan_agents for --role; off: use --profile journal-medior or --profile journal-senior")
         if args.profile and role_dispatch:
             raise Rejection("writing work uses the organization's Role while plans.plan_agents is on: dispatch it with --role")
         if args.role and args.pool:

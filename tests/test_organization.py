@@ -503,7 +503,11 @@ def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are
     console.run(["environment", "overview"], agent)
     workers = app.container.get(Workers)
     no_role = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
-    assert "Role dispatch needs an organization folder and plans.plan_agents on" in no_role.error, "with no organization, journal asks for its generic writing profile"
+    assert (
+        "Set organization folder + plans.plan_agents for --role; off:" in no_role.error
+        and "--profile journal-medior" in no_role.error
+        and "--profile journal-senior" in no_role.error
+    ), "with no organization, journal asks for its generic writing profile"
     without_folder = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--profile", "journal-medior"], agent)
     with app.container.get(Scope).environment(1):
         medior = workers.scoped()[-1]
@@ -512,7 +516,11 @@ def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are
     loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", False)
     role_while_off = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
-    assert "Role dispatch needs an organization folder and plans.plan_agents on" in role_while_off.error, "an organization folder by itself does not switch journal to Role dispatch"
+    assert (
+        "Set organization folder + plans.plan_agents for --role; off:" in role_while_off.error
+        and "--profile journal-medior" in role_while_off.error
+        and "--profile journal-senior" in role_while_off.error
+    ), "an organization folder by itself does not switch journal to Role dispatch"
     without_roles = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--profile", "journal-senior"], agent)
     with app.container.get(Scope).environment(1):
         worker = workers.scoped()[-1]
