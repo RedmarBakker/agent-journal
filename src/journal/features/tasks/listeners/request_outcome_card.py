@@ -1,6 +1,6 @@
 from journal.events.listener import Listener
 from journal.events.models.synced_update import SyncedUpdate
-from journal.features.tasks.support.request_cards import RequestCards
+from journal.features.tasks.listeners.request_cards import RequestCards
 from journal.models.task import Task
 from journal.support.actor import Actor
 from journal.support.row_labels import RowLabels

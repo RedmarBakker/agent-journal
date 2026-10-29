@@ -1864,7 +1864,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     from journal.chat.moment_cards import MomentCards
     from journal.events.models.created import Created
     from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
-    from journal.features.tasks.support.request_cards import RequestCards
+    from journal.features.tasks.listeners.request_cards import RequestCards
     from journal.http.controllers.requests import RequestController
     from journal.models.environment import Environment
     from journal.models.link import Link
