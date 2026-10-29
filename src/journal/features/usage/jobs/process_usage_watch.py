@@ -14,7 +14,7 @@ from journal.support.process_usage import ProcessUsage
 
 
 class ProcessUsageWatch(Job):
-    """Every few seconds the process groups of each environment's main agent (its program in front and the shell commands of its session) and of each running worker (its run and the shell commands of its session) are read in one ps through one supervisor, ps seeing every process of the machine, and kept for the agents' and the workers' cells."""
+    """Every few seconds the process groups of each environment's main agent (its program in front and the shell commands of its session) and of each running worker (its run and the shell commands of its session) are read in one ps through one supervisor, ps seeing every process of the machine, and kept for the agents' and the workers' cells; an agent none of whose groups the answer names, as from a supervisor older than the usage verb, is kept as unsampled, never as nought."""
 
     interval_seconds = 5.0
 
@@ -27,7 +27,7 @@ class ProcessUsageWatch(Job):
             return
         agent_groups, worker_groups = self.agent_groups(supervised_environments), self.worker_groups(supervised_environments)
         usage = self.supervisor.usage(supervised_environments[0].row_id, {group for groups in [*agent_groups.values(), *worker_groups.values()] for group in groups})
-        self.store.replaced({key: self.summed(groups, usage) for key, groups in agent_groups.items()}, {key: self.summed(groups, usage) for key, groups in worker_groups.items()})
+        self.store.replaced({key: self.summed(groups, usage) for key, groups in agent_groups.items() if groups & usage.keys()}, {key: self.summed(groups, usage) for key, groups in worker_groups.items() if groups & usage.keys()})
 
     def agent_groups(self, environments: list[Environment]) -> dict[tuple[int, str], set[int]]:
         groups: dict[tuple[int, str], set[int]] = {}
