@@ -34,19 +34,21 @@ class RoleWork(BaseState):
         role = event.data.part(OrganizationPart).contracts_at(self.version).role(self.role)
         if role is None or event.call.is_journal:
             return self.none()
+        refusal = RolePolicy().refusal(role, event.call)
+        if refusal is not None and refusal.key != OrganizationNudges.ACTION_WAITS_FOR_USER.key:
+            return self.refuse(refusal)
         if not role.allows_call(event.call.tool):
             return self.refuse(OrganizationNudges.ROLE_TOOL_REFUSED.create(role=role.title, tool=event.call.tool, tools=ToolIds().words(role.tools) or "none"))
-        if refusal := RolePolicy().refusal(role, event.call):
-            if refusal.key == OrganizationNudges.ACTION_WAITS_FOR_USER.key:
-                organization = event.data.part(OrganizationPart)
-                started = event.data.part(PlansPart).started
-                approvals = organization.approvals
-                if started and started.plan_id and started.started_task and event.environment_id and approvals:
-                    context = RoleApprovalContext(event.session, role.id, started.plan_id, started.started_task, event.environment_id)
-                    if approvals.authorizes(context, role, event.call):
-                        return self.none()
-            return self.refuse(refusal)
-        return self.none()
+        if refusal is None:
+            return self.none()
+        organization = event.data.part(OrganizationPart)
+        started = event.data.part(PlansPart).started
+        approvals = organization.approvals
+        if started and started.plan_id and started.started_task and event.environment_id and approvals:
+            context = RoleApprovalContext(event.session, role.id, started.plan_id, started.started_task, event.environment_id)
+            if approvals.authorizes(context, role, event.call):
+                return self.none()
+        return self.refuse(refusal)
 
     def on_role_taken(self, event: RoleTaken, settings: Settings) -> Transition:
         return self.none(OrganizationNudges.ONE_ROLE_AT_A_TIME.create(role=self.role))

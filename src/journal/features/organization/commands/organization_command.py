@@ -1,9 +1,11 @@
 from argparse import Namespace
+import json
 
 from journal.console.command import Command
 from journal.features.organization.support.board_phases import BoardPhases
 from journal.features.organization.support.domain_plan import DomainPlan
 from journal.features.organization.support.domain_plans import DomainPlans
+from journal.features.organization.support.hub_traffic_audit import HubTrafficAudit
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.contracts import Contracts
 from journal.support.caller import Caller
@@ -12,18 +14,19 @@ NO_ORGANIZATION = "no organization: set the agentic organization folder on the S
 
 
 class OrganizationCommand(Command):
-    """journal organization: the domains the organization folder holds with their Roles, each Role's cardinality, whether it writes and its models, then the files that broke the schema and the version read; reload reads the folder again; plans lists per domain the plans with tasks handed to its Roles."""
+    """journal organization: list the organization's domains and Roles; reload their contracts; list domain plans; audit OpenRig queue traffic against each seat's hub routes."""
 
     noun = "organization"
     default_verb = "list"
 
-    def __init__(self, organization: Organization, domain_plans: DomainPlans) -> None:
-        self.organization, self.domain_plans = organization, domain_plans
+    def __init__(self, organization: Organization, domain_plans: DomainPlans, traffic: HubTrafficAudit) -> None:
+        self.organization, self.domain_plans, self.traffic = organization, domain_plans, traffic
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "list the domains with their Roles, the problems found in the files and the version read")
         self.verb(verbs, "reload", "read the organization folder again, then list it")
         self.verb(verbs, "plans", "list each domain's board: the plans with tasks handed to its Roles, each with only that domain's tasks, the phase it stands in there, and whether it is active: a Role of the domain works or holds one of them")
+        self.verb(verbs, "audit", "list OpenRig queue items that route around their organization's hub, with the recorded actor and identity provenance")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         self.print_contracts(self.organization.contracts())
@@ -40,6 +43,17 @@ class OrganizationCommand(Command):
         for domain in contracts.domains:
             print(f"domain {domain.id}: {domain.title}")
             print("\n".join(f"  {self.plan_line(domain_plan, domain.board)}" for domain_plan in self.domain_plans.of(domain.id)) or "  no plans")
+        return 0
+
+    def audit(self, args: Namespace, caller: Caller) -> int:
+        findings = self.traffic.findings()
+        if not findings:
+            print("no hub-skipping queue traffic")
+        for finding in findings:
+            provenance = finding.identity_provenance
+            if isinstance(provenance, (dict, list)):
+                provenance = json.dumps(provenance, sort_keys=True)
+            print(f"hub-skipping queue item {finding.item_id}: {finding.source} -> {finding.destination}; actor session {finding.actor_session or 'not reported'}; identity provenance {provenance or 'not reported'}")
         return 0
 
     @staticmethod

@@ -47,6 +47,8 @@ from journal.features.organization.support.usage_ledger import UsageEstimate, Us
 from journal.support.inner_repositories import InnerRepositories
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.features.workers.support.worker_actions import WorkerActions
+from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
@@ -78,9 +80,9 @@ from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.support.agent_token import AgentToken
 from tests.test_features import booted, hook
 from tests.in_process import posted
+from tests.worker_dispatch import dispatched
 from tests.test_engine import CLASSIFIER
 from tests.user_settings import user_set
-from tests.worker_dispatch import dispatched
 
 
 @pytest.fixture(scope="module")
@@ -212,7 +214,7 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "Edit" not in planner["claude_permissions"]["deny"] and "Write" not in planner["claude_permissions"]["deny"]
     assert "Bash(journal *)" in planner["claude_permissions"]["allow"]
     assert {"Edit", "Write", "Bash"}.issubset(planner["claude_permissions"]["allow"])
-    assert "Bash(rig queue *)" in planner["claude_permissions"]["deny"]
+    assert all({"Bash(rig send *)", "Bash(rig queue *)"}.issubset(member["claude_permissions"]["deny"]) for member in members.values()), "every seat denies direct sends and all queue mutation verbs, including create, handoff and inbox-drop"
     domain = members["domain-agent"]
     assert {"Edit", "Write"}.issubset(domain["claude_permissions"]["deny"])
     assert path.stat().st_mode & 0o777 == 0o600, "the rig file holds worker tokens"
@@ -229,6 +231,36 @@ def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models
     assert "SessionStart" in hooks and "UserPromptSubmit" in hooks
 
 
+def test_journal_organization_audit_finds_a_planted_cross_pod_queue_transition(app, tmp_path, monkeypatch):
+    from journal.support.caller import Caller
+
+    use_provider(app, monkeypatch, "claude")
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "builder", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    contracts = organization.reload()
+    rig = f"plan-audit-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+    app.container.get(RigSpecs).write(rig, contracts, ("alpha", "beta"), app.config.root, worker_for)
+
+    item = {"id": "88", "source": f"alpha-builder@{rig}", "destination": f"beta-keeper@{rig}", "state": "pending"}
+    transition = {"qitemId": "88", "state": "created", "actorSession": f"alpha-builder@{rig}", "identityProvenance": {"kind": "seat"}}
+
+    def run(_runtime, *arguments, check=True):
+        if arguments == ("queue", "list", "--all", "--all-rigs", "--full", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [item]}), "")
+        if arguments == ("telemetry", "transitions", "--start", "retained", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [], "page": {"hasMore": True, "nextCursor": "next"}}), "")
+        if arguments == ("telemetry", "transitions", "--cursor", "next", "--json"):
+            return subprocess.CompletedProcess(["rig", *arguments], 0, json.dumps({"rows": [transition], "page": {"hasMore": False}}), "")
+        raise AssertionError(f"unexpected OpenRig command: {arguments}")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    shown = app.console().run(["organization", "audit"], Caller.agent("main", "s1", "claude")).text
+
+    assert "hub-skipping queue item 88" in shown and "role:alpha/builder" in shown and "role:beta/keeper" in shown
+    assert "alpha-builder@" in shown and "identity provenance" in shown and "seat" in shown
+
+
 def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(app, tmp_path, monkeypatch):
     use_provider(app, monkeypatch, "codex")
     contracts = plan_contracts(app, tmp_path)
@@ -242,6 +274,16 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     assert planner["runtime"] == "codex" and planner["model"] == "gpt-6-luna" and planner["effort"] == "max"
     assert planner["codex_permissions"] == {"sandbox": "workspace-write", "approval": "never", "network_access": True}
     assert "claude_permissions" not in planner
+    for member in members.values():
+        rules = Path(member["cwd"]) / ".codex" / "rules" / "journal-organization-route.rules"
+        policy = rules.read_text()
+        assert 'pattern = ["rig", "send"]' in policy
+        assert 'pattern = ["rig", "queue", ["create", "handoff", "inbox-drop"]]' in policy
+        assert policy.count('decision = "forbidden"') == 2
+        assert '["rig", "queue", "create", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "handoff", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "inbox-drop", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "list", "--rig", "plan-1"]' in policy
     assert members["plan-agent"]["runtime"] == "codex" and members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
     assert members["plan-agent"]["codex_permissions"] == {"sandbox": "read-only", "approval": "never"}
     assert members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
@@ -279,6 +321,110 @@ def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_a
     plan = members["plan-agent"]
     assert plan["runtime"] == "codex" and plan["model"] == "gpt-6-luna" and plan["effort"] == "xhigh"
     assert plan["codex_permissions"]["sandbox"] == "read-only"
+
+
+def test_an_organization_plan_rig_starts_with_only_its_plan_seat_and_adds_the_first_used_domain_and_role(app, tmp_path, monkeypatch):
+    contracts = plan_contracts(app, tmp_path)
+    user_set(app, "plans.plan_agents", True)
+    user_set(app, "workers.openrig_version", "0.7.5")
+    calls = []
+
+    def run(_runtime, *arguments, check=True):
+        calls.append(arguments)
+        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    agent, user = Caller.agent("main", "s1", "claude"), Caller.user("main")
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    plan_id = int(console.run(["plan", "create", "the floors", "--brief", "the floors are laid"], user).text.split()[1].rstrip(":"))
+    console.run(["plan", "add", str(plan_id), "lay the first boards", "--brief", "write the floor"], user)
+    console.run(["plan", "mode", str(plan_id), "organization"], user)
+    assert console.run(["plan", "approve", str(plan_id)], user).code == 0
+    assert console.run(["plan", "start", str(plan_id)], user).code == 0
+    app.runtime().deferred.drain()
+
+    path = app.config.home / "runtime" / "rigs" / f"plan-{plan_id}" / "rig.yaml"
+    initial = json.loads(path.read_text())
+    assert [(pod["id"], [member["id"] for member in pod["members"]]) for pod in initial["pods"]] == [("plan", ["plan-agent"])], "starting an organization plan launches no unused Domain or Role seats"
+    assert any(call[0] == "up" for call in calls), "the Plan-only spec starts the plan's rig"
+    before_first_job = len(calls)
+
+    environment = app.container.get(Environments).existing(f"plan-{plan_id}")
+    with app.container.get(Scope).environment(environment.row_id):
+        worker = app.container.get(Workers).save(Worker(
+            environment_id=environment.row_id, name="Ada Lovelace", brief="write the floor",
+            role="planner", contract=contracts.version, plan_id=plan_id, provider="claude", model="sonnet",
+        ), Actor.system())
+        seat = app.container.get(SeatRunner).member(worker)
+
+    grown = json.loads(path.read_text())
+    pods = {pod["id"]: pod for pod in grown["pods"]}
+    assert seat.logical_id == "alpha.planner" and any(call[0] == "expand" for call in calls[before_first_job:]), "the first Role job adds its Domain pod through OpenRig"
+    assert {pod: [member["id"] for member in value["members"]] for pod, value in pods.items()} == {
+        "plan": ["plan-agent"], "alpha": ["domain-agent", "planner"],
+    }, "the used Domain and Role appear, while the other Domain and unassigned Roles stay out"
+    assert grown["edges"] == [{"kind": "delegates_to", "from": "plan.plan-agent", "to": "alpha.domain-agent"}]
+
+
+def test_a_many_role_in_an_organization_plan_gets_its_own_rig_seat_and_worktree_then_drops_both_after_merge(app, tmp_path, monkeypatch):
+    _fixture, organization = loaded(app, tmp_path)
+    organization.reload()
+    user_set(app, "plans.plan_agents", True)
+    user_set(app, "workers.openrig_version", "0.7.5")
+    root = app.config.root
+    calls = []
+
+    def run(_runtime, *arguments, check=True):
+        calls.append(arguments)
+        output = "rig version 0.7.5\n" if arguments == ("--version",) else "{}"
+        return subprocess.CompletedProcess(["rig", *arguments], 0, output, "")
+
+    monkeypatch.setattr(SeatRuntime, "run", run)
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, _actor: self.seats.member(worker))
+
+    def git(*arguments):
+        return subprocess.run(["git", *arguments], cwd=root, capture_output=True, text=True, timeout=30)
+
+    for arguments in (("init", "-q", "-b", "main"), ("config", "user.email", "test@example.com"), ("config", "user.name", "Test"),
+                      ("commit", "-q", "--allow-empty", "-m", "start")):
+        result = git(*arguments)
+        assert result.returncode == 0, result.stderr
+
+    agent, user = Caller.agent("main", "s1", "claude"), Caller.user("main")
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], agent)
+    plan_id = int(console.run(["plan", "create", "the parser", "--brief", "the parser works"], user).text.split()[1].rstrip(":"))
+    console.run(["plan", "add", str(plan_id), "prepare the parser", "--brief", "inspect the parser"], user)
+    console.run(["plan", "add", str(plan_id), "build the parser", "--brief", "write the parser"], user)
+    console.run(["plan", "mode", str(plan_id), "organization"], user)
+    assert console.run(["plan", "approve", str(plan_id)], user).code == 0
+    assert console.run(["plan", "start", str(plan_id)], user).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        task = app.container.get(Plans).plan_tasks(app.container.get(Plans).find(plan_id))[1]
+    dispatched = console.run(["worker", "dispatch", "Grace Hopper", "--task", str(task.id), "--changes", "the parser", "--tests", "Scoped tests", "--role", "builder"], agent)
+    assert dispatched.code == 0, dispatched.error
+
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).find(1)
+        branch = app.container.get(WorkerBranch)
+        folder = branch.folder(worker)
+        seat_id = f"builder-{worker.id}"
+        spec_path = app.config.home / "runtime" / "rigs" / f"plan-{plan_id}" / "rig.yaml"
+        placed = json.loads(spec_path.read_text())
+        members = {member["id"]: member for pod in placed["pods"] for member in pod["members"]}
+        assert worker.plan_id == plan_id and worker.worktree and folder.is_dir() and members[seat_id]["cwd"] == str(folder), "each planned many-cardinality Role gets a unique rig seat rooted in its own worktree without an extra flag"
+        worker = app.container.get(Workers).save(worker.reported(1.0, 0), Actor.system())
+        line = app.container.get(WorkerActions).merged_worktree_line(worker)
+        after = json.loads(spec_path.read_text())
+        remaining = {member["id"] for pod in after["pods"] for member in pod["members"]}
+        assert "its worktree and branch are removed" in line and not folder.exists() and seat_id not in remaining, "the many Role's seat and clean worktree are retired on its merge path"
+        assert any(call[0] == "remove" and call[2] == f"alpha.{seat_id}" for call in calls), "OpenRig removes the one-use seat after its job is merged"
+    app.runtime().deferred.drain()
 
 
 def test_a_codex_plan_rig_trusts_only_the_generated_journal_hooks(app, tmp_path, monkeypatch):
@@ -397,7 +543,11 @@ def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are
     console.run(["environment", "overview"], agent)
     workers = app.container.get(Workers)
     no_role = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
-    assert "Role dispatch needs an organization folder and plans.plan_agents on" in no_role.error, "with no organization, journal asks for its generic writing profile"
+    assert (
+        "Set organization folder + plans.plan_agents for --role; off:" in no_role.error
+        and "--profile journal-medior" in no_role.error
+        and "--profile journal-senior" in no_role.error
+    ), "with no organization, journal asks for its generic writing profile"
     without_folder = dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", "--profile", "journal-medior"], agent)
     with app.container.get(Scope).environment(1):
         medior = workers.scoped()[-1]
@@ -406,7 +556,11 @@ def test_writing_profiles_work_without_an_organization_and_while_plan_agents_are
     loaded(app, tmp_path)
     user_set(app, "plans.plan_agents", False)
     role_while_off = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--role", "builder"], agent)
-    assert "Role dispatch needs an organization folder and plans.plan_agents on" in role_while_off.error, "an organization folder by itself does not switch journal to Role dispatch"
+    assert (
+        "Set organization folder + plans.plan_agents for --role; off:" in role_while_off.error
+        and "--profile journal-medior" in role_while_off.error
+        and "--profile journal-senior" in role_while_off.error
+    ), "an organization folder by itself does not switch journal to Role dispatch"
     without_roles = dispatched(console, ["Grace Hopper", "the job", "--changes", "the files of its task", "--profile", "journal-senior"], agent)
     with app.container.get(Scope).environment(1):
         worker = workers.scoped()[-1]
@@ -437,7 +591,6 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     from journal.supervisor_link import SupervisorLink
     from journal.support.caller import Caller
     from tests.test_features import hook
-    from tests.worker_dispatch import dispatched
     started = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
@@ -1489,7 +1642,6 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
     from journal.support.actor import Actor
     from journal.support.caller import Caller
     from tests.test_features import hook
-    from tests.worker_dispatch import dispatched
     started = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
@@ -1532,7 +1684,6 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
 
 def test_a_send_goes_only_along_the_hubs_and_a_send_from_one_role_to_another_is_refused_with_the_hub_to_use(app, tmp_path):
     from journal.features.organization.support.hub_routes import HubRoutes
-    from journal.features.workers.support.worker_actions import WorkerActions
     from journal.models.worker import Worker
     from journal.repositories.scope import Scope
     from journal.repositories.workers import Workers
@@ -1755,7 +1906,6 @@ def test_a_codex_role_job_starts_with_the_reasoning_effort_its_contract_names_an
     from journal.supervisor_link import SupervisorLink
     from journal.support.caller import Caller
     from tests.test_features import hook
-    from tests.worker_dispatch import dispatched
     started = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
@@ -1794,7 +1944,6 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
     from tests.organization_fixture import OrganizationFixture
     from tests.test_features import hook
     from tests.user_settings import user_set
-    from tests.worker_dispatch import dispatched
     started = []
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)

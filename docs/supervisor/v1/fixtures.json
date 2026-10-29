@@ -1,0 +1,762 @@
+{
+  "contract_version": 1,
+  "status": "INERT DOCUMENTATION FIXTURES; reviewed against source by inspection only, not executed or schema-validator tested.",
+  "warning": "Synthetic IDs/times/revisions/hashes and monetary values confer no authority. Command/job/MCP/hook enable flags are false. Config has no provider key or real hook token. Input/request ceilings and example 1-dollar daily cap are illustrative proposed grant inputs, not established runtime enforcement or an approved customer budget.",
+  "openclaw_pin": {
+    "version": "2026.10.8",
+    "commit": "dc2523e5a5c7a309517fd7fa834add938231d526"
+  },
+  "openclaw_config": {
+    "auth": {
+      "profiles": {
+        "openai:supervisor-api": {
+          "provider": "openai",
+          "mode": "api_key"
+        }
+      },
+      "order": {
+        "openai": [
+          "openai:supervisor-api"
+        ]
+      }
+    },
+    "models": {
+      "providers": {
+        "openai": {
+          "baseUrl": "https://api.openai.com/v1",
+          "auth": "api-key",
+          "api": "openai-responses",
+          "agentRuntime": {
+            "id": "openclaw"
+          },
+          "maxTokens": 8000,
+          "timeoutSeconds": 180
+        }
+      }
+    },
+    "agents": {
+      "entries": {
+        "supervisor": {
+          "default": true,
+          "name": "Journal plan maintenance",
+          "runtime": {
+            "type": "embedded"
+          },
+          "model": {
+            "primary": "openai/gpt-6.1-sol",
+            "fallbacks": []
+          },
+          "modelPolicy": {
+            "allow": [
+              "openai/gpt-6.1-sol"
+            ]
+          },
+          "thinkingDefault": "xhigh",
+          "models": {
+            "openai/gpt-6.1-sol": {
+              "agentRuntime": {
+                "id": "openclaw"
+              },
+              "codeMode": false
+            }
+          },
+          "tools": {
+            "allow": [
+              "journal__journal_supervisor-observe",
+              "journal__journal_supervisor-apply_maintenance",
+              "journal__journal_supervisor-receipt"
+            ]
+          }
+        }
+      },
+      "defaults": {
+        "timeoutSeconds": 180,
+        "maxConcurrent": 1,
+        "skills": [],
+        "embeddedAgent": {
+          "projectSettingsPolicy": "ignore",
+          "cyberFailover": {
+            "mode": "off"
+          }
+        },
+        "decisionModel": "",
+        "utilityModel": "openai/gpt-6.1-sol"
+      }
+    },
+    "hooks": {
+      "enabled": false,
+      "token": "INERT-FIXTURE-NOT-A-CREDENTIAL-REPLACE-OFFLINE",
+      "path": "/hooks",
+      "allowedAgentIds": [
+        "supervisor"
+      ],
+      "allowRequestSessionKey": false
+    },
+    "mcp": {
+      "servers": {
+        "journal": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "/opt/journal-supervisor/bin/journal-supervisor-bridge",
+          "args": [
+            "mcp"
+          ],
+          "connectionTimeoutMs": 5000,
+          "requestTimeoutMs": 20000,
+          "supportsParallelToolCalls": false,
+          "toolFilter": {
+            "include": [
+              "journal_supervisor.observe",
+              "journal_supervisor.apply_maintenance",
+              "journal_supervisor.receipt"
+            ]
+          }
+        }
+      }
+    },
+    "tools": {
+      "allow": [
+        "journal__journal_supervisor-observe",
+        "journal__journal_supervisor-apply_maintenance",
+        "journal__journal_supervisor-receipt"
+      ]
+    }
+  },
+  "cron_add_params": {
+    "name": "journal-supervisor-reconcile-v1",
+    "agentId": "supervisor",
+    "enabled": false,
+    "schedule": {
+      "kind": "every",
+      "everyMs": 300000
+    },
+    "sessionTarget": "isolated",
+    "wakeMode": "now",
+    "payload": {
+      "kind": "command",
+      "argv": [
+        "/opt/journal-supervisor/bin/journal-supervisor-bridge",
+        "reconcile"
+      ],
+      "timeoutSeconds": 45,
+      "noOutputTimeoutSeconds": 30,
+      "outputMaxBytes": 16384
+    },
+    "delivery": {
+      "mode": "none"
+    },
+    "failureAlert": false
+  },
+  "hook_agent_request": {
+    "message": "Resolve only the journal-issued run reference example-run using journal_supervisor.observe; evidence and authority come from journal.",
+    "name": "Journal supervision admission",
+    "agentId": "supervisor",
+    "sessionMode": "isolated",
+    "deliver": false,
+    "thinking": "xhigh",
+    "model": "openai/gpt-6.1-sol",
+    "timeoutSeconds": 180
+  },
+  "hook_headers_without_secrets": {
+    "Content-Type": "application/json",
+    "Idempotency-Key": "example-run"
+  },
+  "instances": {
+    "EnrollmentRequest": {
+      "protocol_version": 1,
+      "plan_id": 1,
+      "current_phase": {
+        "phase_id": 2,
+        "number": 1,
+        "revision": "example-phase-revision"
+      },
+      "expected_plan_revision": "example-plan-revision",
+      "expected_binding_revision": "example-binding-revision",
+      "checks": [
+        {
+          "check_id": 3,
+          "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "baseline_interval_minutes": 15,
+          "minimum_interval_minutes": 5,
+          "expected_revision": "example-check-revision"
+        }
+      ],
+      "diagnostic_template_id": "read-only-check-diagnosis-v1",
+      "diagnostic_template_revision": "example-template-revision",
+      "capabilities": {
+        "diagnostic_task": true,
+        "plan_priorities": true,
+        "check_interval": true,
+        "sequence": false,
+        "phrase_nudge": false,
+        "project_reminder": false
+      },
+      "limits": {
+        "max_turns_per_day": 12,
+        "max_input_tokens_per_turn": 24000,
+        "max_output_tokens_per_turn": 8000,
+        "max_provider_requests_per_turn": 8,
+        "max_turn_seconds": 180,
+        "max_cost_microusd_per_day": 1000000,
+        "max_bundles_per_project_day": 10,
+        "max_bundles_per_episode_day": 2,
+        "max_new_diagnostics_per_episode": 1
+      },
+      "mode": "shadow",
+      "valid_until_ms": 1794009600000
+    },
+    "Grant": {
+      "protocol_version": 1,
+      "grant_id": "example-grant",
+      "grant_version": 1,
+      "owner_user_id": 1,
+      "scope": {
+        "tenant_id": "example-tenant",
+        "project_id": "example-project",
+        "environment_id": 1,
+        "manager_id": "example-manager",
+        "writer_node_id": "example-node",
+        "installation_epoch": 1
+      },
+      "plan_id": 1,
+      "driver_agent_id": 4,
+      "driver_environment_id": 5,
+      "driver_provider": "codex",
+      "current_phase": {
+        "phase_id": 2,
+        "number": 1,
+        "revision": "example-phase-revision"
+      },
+      "checks": [
+        {
+          "check_id": 3,
+          "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "baseline_interval_minutes": 15,
+          "minimum_interval_minutes": 5,
+          "expected_revision": "example-check-revision"
+        }
+      ],
+      "diagnostic_template_id": "read-only-check-diagnosis-v1",
+      "diagnostic_template_revision": "example-template-revision",
+      "capabilities": {
+        "diagnostic_task": true,
+        "plan_priorities": true,
+        "check_interval": true,
+        "sequence": false,
+        "phrase_nudge": false,
+        "project_reminder": false
+      },
+      "limits": {
+        "max_turns_per_day": 12,
+        "max_input_tokens_per_turn": 24000,
+        "max_output_tokens_per_turn": 8000,
+        "max_provider_requests_per_turn": 8,
+        "max_turn_seconds": 180,
+        "max_cost_microusd_per_day": 1000000,
+        "max_bundles_per_project_day": 10,
+        "max_bundles_per_episode_day": 2,
+        "max_new_diagnostics_per_episode": 1
+      },
+      "mode": "shadow",
+      "valid_until_ms": 1794009600000,
+      "revoked": false
+    },
+    "AdmissionRequest": {
+      "protocol_version": 1,
+      "source": "timer",
+      "observation_cursor": null
+    },
+    "AdmissionResult": {
+      "status": "admitted",
+      "run": {
+        "run_id": "example-run",
+        "episode_id": "example-episode",
+        "pending_action_id": "example-action",
+        "grant_id": "example-grant",
+        "grant_version": 1,
+        "installation_epoch": 1,
+        "fence": 1,
+        "lease_expires_at_ms": 1793404800000,
+        "budget_reservation_id": "example-reservation",
+        "reserved_cost_microusd": 128000
+      }
+    },
+    "Observation": {
+      "protocol_version": 1,
+      "observation_id": "example-observation-2",
+      "scope": {
+        "tenant_id": "example-tenant",
+        "project_id": "example-project",
+        "environment_id": 1,
+        "manager_id": "example-manager",
+        "writer_node_id": "example-node",
+        "installation_epoch": 1
+      },
+      "plan_id": 1,
+      "source_ref": {
+        "table": "checks",
+        "id": 3
+      },
+      "source_revision": "example-check-revision",
+      "committed_at_ms": 1793404500000,
+      "captured_at_ms": 1793404500000,
+      "evidence_generation": 1,
+      "kind": "check_completed",
+      "facts": {
+        "check_id": 3,
+        "run_id": "example-check-run-2",
+        "started_at_ms": 1793404400000,
+        "completed_at_ms": 1793404500000,
+        "verdict": "failed",
+        "exit_status": 1,
+        "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "output_excerpt": "Synthetic check failed: expected fixture result was absent.",
+        "output_sha256": "5c320bb18ed9f9a59efe5eee3c9fdf56ea7f6fe0e468e40ffdc88c818b685b37"
+      }
+    },
+    "ObserveRequest": {
+      "protocol_version": 1,
+      "run_id": "example-run",
+      "installation_epoch": 1,
+      "fence": 1,
+      "cursor": null
+    },
+    "ActionRequest": {
+      "protocol_version": 1,
+      "run_id": "example-run",
+      "installation_epoch": 1,
+      "fence": 1,
+      "grant_version": 1,
+      "episode_id": "example-episode",
+      "action_id": "example-action",
+      "observation_ids": [
+        "example-observation-1",
+        "example-observation-2"
+      ],
+      "expected_revisions": [
+        {
+          "ref": {
+            "table": "plans",
+            "id": 1
+          },
+          "revision": "example-plan-revision"
+        },
+        {
+          "ref": {
+            "table": "phases",
+            "id": 2
+          },
+          "revision": "example-phase-revision"
+        },
+        {
+          "ref": {
+            "table": "checks",
+            "id": 3
+          },
+          "revision": "example-check-revision"
+        }
+      ],
+      "operations": [
+        {
+          "kind": "diagnostic_task",
+          "plan_id": 1,
+          "phase_id": 2,
+          "template_id": "read-only-check-diagnosis-v1",
+          "template_revision": "example-template-revision",
+          "evidence_ids": [
+            "example-observation-1",
+            "example-observation-2"
+          ]
+        },
+        {
+          "kind": "plan_priorities",
+          "plan_id": 1,
+          "text": "Inspect the existing check failure through the eligible read-only diagnostic."
+        },
+        {
+          "kind": "check_interval",
+          "check_id": 3,
+          "interval_minutes": 5
+        }
+      ],
+      "rationale": "Repeated genuine failure with no existing diagnosing task; synthetic contract example."
+    },
+    "Receipt": {
+      "protocol_version": 1,
+      "action_id": "example-action",
+      "episode_id": "example-episode",
+      "run_id": "example-run",
+      "grant_id": "example-grant",
+      "grant_version": 1,
+      "scope": {
+        "tenant_id": "example-tenant",
+        "project_id": "example-project",
+        "environment_id": 1,
+        "manager_id": "example-manager",
+        "writer_node_id": "example-node",
+        "installation_epoch": 1
+      },
+      "fence": 1,
+      "intent_sha256": "0bfc534e26de4bd0658b53e2a5cc5486a5794617ecd688a7e8bb798b926b7ca9",
+      "actor_kind": "plugin",
+      "actor_id": "journal-supervisor",
+      "status": "proposed",
+      "reason": "shadow_only",
+      "recorded_at_ms": 1793404510000,
+      "observation_ids": [
+        "example-observation-1",
+        "example-observation-2"
+      ],
+      "affected_refs": [],
+      "changes": [],
+      "verification": "not_applied",
+      "outcome": "unmeasured",
+      "proposed_operations": [
+        {
+          "kind": "diagnostic_task",
+          "plan_id": 1,
+          "phase_id": 2,
+          "template_id": "read-only-check-diagnosis-v1",
+          "template_revision": "example-template-revision",
+          "evidence_ids": [
+            "example-observation-1",
+            "example-observation-2"
+          ]
+        },
+        {
+          "kind": "plan_priorities",
+          "plan_id": 1,
+          "text": "Inspect the existing check failure through the eligible read-only diagnostic."
+        },
+        {
+          "kind": "check_interval",
+          "check_id": 3,
+          "interval_minutes": 5
+        }
+      ]
+    },
+    "ReceiptRequest": {
+      "protocol_version": 1,
+      "action_id": "example-action"
+    },
+    "ObserveResult": {
+      "protocol_version": 1,
+      "run": {
+        "run_id": "example-run",
+        "episode_id": "example-episode",
+        "pending_action_id": "example-action",
+        "grant_id": "example-grant",
+        "grant_version": 1,
+        "installation_epoch": 1,
+        "fence": 1,
+        "lease_expires_at_ms": 1793404800000,
+        "budget_reservation_id": "example-reservation",
+        "reserved_cost_microusd": 128000
+      },
+      "snapshot": {
+        "grant": {
+          "protocol_version": 1,
+          "grant_id": "example-grant",
+          "grant_version": 1,
+          "owner_user_id": 1,
+          "scope": {
+            "tenant_id": "example-tenant",
+            "project_id": "example-project",
+            "environment_id": 1,
+            "manager_id": "example-manager",
+            "writer_node_id": "example-node",
+            "installation_epoch": 1
+          },
+          "plan_id": 1,
+          "driver_agent_id": 4,
+          "driver_environment_id": 5,
+          "driver_provider": "codex",
+          "current_phase": {
+            "phase_id": 2,
+            "number": 1,
+            "revision": "example-phase-revision"
+          },
+          "checks": [
+            {
+              "check_id": 3,
+              "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "baseline_interval_minutes": 15,
+              "minimum_interval_minutes": 5,
+              "expected_revision": "example-check-revision"
+            }
+          ],
+          "diagnostic_template_id": "read-only-check-diagnosis-v1",
+          "diagnostic_template_revision": "example-template-revision",
+          "capabilities": {
+            "diagnostic_task": true,
+            "plan_priorities": true,
+            "check_interval": true,
+            "sequence": false,
+            "phrase_nudge": false,
+            "project_reminder": false
+          },
+          "limits": {
+            "max_turns_per_day": 12,
+            "max_input_tokens_per_turn": 24000,
+            "max_output_tokens_per_turn": 8000,
+            "max_provider_requests_per_turn": 8,
+            "max_turn_seconds": 180,
+            "max_cost_microusd_per_day": 1000000,
+            "max_bundles_per_project_day": 10,
+            "max_bundles_per_episode_day": 2,
+            "max_new_diagnostics_per_episode": 1
+          },
+          "mode": "shadow",
+          "valid_until_ms": 1794009600000,
+          "revoked": false
+        },
+        "plan_id": 1,
+        "plan_revision": "example-plan-revision",
+        "plan_state": "started",
+        "approved": true,
+        "current_phase": {
+          "phase_id": 2,
+          "number": 1,
+          "revision": "example-phase-revision"
+        },
+        "binding_revision": "example-binding-revision",
+        "driver": {
+          "agent_id": 4,
+          "environment_id": 5,
+          "provider": "codex",
+          "role": "main",
+          "live": true,
+          "session_present": true,
+          "started_task_id": null
+        },
+        "gates": {
+          "explicit_owner_pause": false,
+          "reserved_checkpoint": false,
+          "ended_drive": false,
+          "pending_owner_decision": false,
+          "unpassed_phase_commands": [],
+          "can_advance_assignment": true
+        },
+        "existing_diagnostic_task_id": null,
+        "eligible_current_phase_task_ids": [],
+        "checks": [
+          {
+            "check_id": 3,
+            "revision": "example-check-revision",
+            "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "interval_minutes": 15
+          }
+        ],
+        "writable": false,
+        "ineligibility_reasons": []
+      },
+      "page": {
+        "protocol_version": 1,
+        "cursor": null,
+        "next_cursor": null,
+        "node_heartbeat_at_ms": 1793404500000,
+        "observation_watermark_ms": 1793404500000,
+        "observations": [
+          {
+            "protocol_version": 1,
+            "observation_id": "example-observation-1",
+            "scope": {
+              "tenant_id": "example-tenant",
+              "project_id": "example-project",
+              "environment_id": 1,
+              "manager_id": "example-manager",
+              "writer_node_id": "example-node",
+              "installation_epoch": 1
+            },
+            "plan_id": 1,
+            "source_ref": {
+              "table": "checks",
+              "id": 3
+            },
+            "source_revision": "example-check-revision",
+            "committed_at_ms": 1793403300000,
+            "captured_at_ms": 1793403300000,
+            "evidence_generation": 1,
+            "kind": "check_completed",
+            "facts": {
+              "check_id": 3,
+              "run_id": "example-check-run-1",
+              "started_at_ms": 1793403200000,
+              "completed_at_ms": 1793403300000,
+              "verdict": "failed",
+              "exit_status": 1,
+              "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "output_excerpt": "Synthetic check failed: expected fixture result was absent.",
+              "output_sha256": "5c320bb18ed9f9a59efe5eee3c9fdf56ea7f6fe0e468e40ffdc88c818b685b37"
+            }
+          },
+          {
+            "protocol_version": 1,
+            "observation_id": "example-observation-2",
+            "scope": {
+              "tenant_id": "example-tenant",
+              "project_id": "example-project",
+              "environment_id": 1,
+              "manager_id": "example-manager",
+              "writer_node_id": "example-node",
+              "installation_epoch": 1
+            },
+            "plan_id": 1,
+            "source_ref": {
+              "table": "checks",
+              "id": 3
+            },
+            "source_revision": "example-check-revision",
+            "committed_at_ms": 1793404500000,
+            "captured_at_ms": 1793404500000,
+            "evidence_generation": 1,
+            "kind": "check_completed",
+            "facts": {
+              "check_id": 3,
+              "run_id": "example-check-run-2",
+              "started_at_ms": 1793404400000,
+              "completed_at_ms": 1793404500000,
+              "verdict": "failed",
+              "exit_status": 1,
+              "command_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "output_excerpt": "Synthetic check failed: expected fixture result was absent.",
+              "output_sha256": "5c320bb18ed9f9a59efe5eee3c9fdf56ea7f6fe0e468e40ffdc88c818b685b37"
+            }
+          }
+        ]
+      },
+      "server_now_ms": 1793404510000
+    },
+    "GrantChangeRequest": {
+      "protocol_version": 1,
+      "grant_id": "example-grant",
+      "expected_grant_version": 1,
+      "change": {
+        "kind": "revoke"
+      }
+    }
+  },
+  "semantic_negative_cases": [
+    {
+      "case": "future_phase",
+      "difference": "Action diagnostic phase differs from the enrolled and actual current phase",
+      "expected": "conflicted; no domain writes or notification"
+    },
+    {
+      "case": "owner_checkpoint_in_auto_mode",
+      "difference": "Reserved checkpoint exists even though tasks.auto is true",
+      "expected": "needs_owner/ineligible; never cross checkpoint"
+    },
+    {
+      "case": "busy_driver",
+      "difference": "Bound ordinary driver has a started task",
+      "expected": "Do not interrupt/reassign; observe and deliver only at a legitimate safe free moment"
+    },
+    {
+      "case": "wrong_tenant_or_fallback",
+      "difference": "Bad service token or credential-A references row-B/environment-B",
+      "expected": "401/403 before Identity fallback; no row/evidence disclosure"
+    },
+    {
+      "case": "optional_category",
+      "difference": "Sequence, phrase nudge or reminder-setting operation is supplied",
+      "expected": "rejected unsupported capability; no partial writes"
+    },
+    {
+      "case": "duplicate_committed_reply",
+      "difference": "100 identical deliveries after successful commit but lost response",
+      "expected": "One canonical receipt and existing row IDs; no second domain mutation"
+    },
+    {
+      "case": "changed_action_intent",
+      "difference": "Same action ID with different normalized operations or preconditions",
+      "expected": "rejected intent mismatch; new action requires journal admission"
+    },
+    {
+      "case": "restore_old_epoch",
+      "difference": "Callback carries old installation epoch after backup restore",
+      "expected": "rejected even when old receipt is retained; owner may inspect receipt separately"
+    },
+    {
+      "case": "unknown_runtime_bound",
+      "difference": "Provider requests/token/retry ceiling or usage cannot be attested",
+      "expected": "admission skip unknown_cost; no model call or domain write"
+    },
+    {
+      "case": "mcp_unavailable",
+      "difference": "Declared MCP server is offline or missing its tools",
+      "expected": "No built-in exec/browser/file/message/admin tools become available; reconcile observes transport fault without expanding policy"
+    },
+    {
+      "case": "diagnostic_close_at_reserved_checkpoint",
+      "difference": "The normal driver finishes the diagnostic as the current phase ends while tasks.auto is true",
+      "expected": "Existing normal assignment honors the enrolled owner reservation and cannot cross the checkpoint; no manual intervention was needed to take diagnosis, but crossing still awaits owner decision"
+    }
+  ],
+  "canonical_intent_example": {
+    "protocol_version": 1,
+    "scope": {
+      "tenant_id": "example-tenant",
+      "project_id": "example-project",
+      "environment_id": 1,
+      "manager_id": "example-manager",
+      "writer_node_id": "example-node",
+      "installation_epoch": 1
+    },
+    "grant_id": "example-grant",
+    "grant_version": 1,
+    "plan_id": 1,
+    "episode_id": "example-episode",
+    "evidence_generation": 1,
+    "observation_ids": [
+      "example-observation-1",
+      "example-observation-2"
+    ],
+    "expected_revisions": [
+      {
+        "ref": {
+          "table": "checks",
+          "id": 3
+        },
+        "revision": "example-check-revision"
+      },
+      {
+        "ref": {
+          "table": "phases",
+          "id": 2
+        },
+        "revision": "example-phase-revision"
+      },
+      {
+        "ref": {
+          "table": "plans",
+          "id": 1
+        },
+        "revision": "example-plan-revision"
+      }
+    ],
+    "operations": [
+      {
+        "kind": "check_interval",
+        "check_id": 3,
+        "interval_minutes": 5
+      },
+      {
+        "kind": "diagnostic_task",
+        "plan_id": 1,
+        "phase_id": 2,
+        "template_id": "read-only-check-diagnosis-v1",
+        "template_revision": "example-template-revision",
+        "evidence_ids": [
+          "example-observation-1",
+          "example-observation-2"
+        ]
+      },
+      {
+        "kind": "plan_priorities",
+        "plan_id": 1,
+        "text": "Inspect the existing check failure through the eligible read-only diagnostic."
+      }
+    ]
+  }
+}

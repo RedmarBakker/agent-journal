@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 from tests.shard_deal import ShardDeal
@@ -44,6 +45,42 @@ def test_the_suite_waiting_on_the_commandments_judge_prints_the_judges_own_progr
     assert line == "judging tests/: reading 40/120 [ 33%]", "the judge's latest stage is said with its count and its share"
     assert suite.PERCENT.search(line).group(1) == "33", "in the form the suite's card reads its bar from"
     assert suite.judge_progress("") == "", "a judge that has printed nothing yet adds no line"
+
+
+def test_a_missing_commandments_plugin_does_not_hold_the_tests_or_change_their_result(tmp_path, monkeypatch, capsys):
+    suite = suite_script()
+    monkeypatch.setattr(suite, "JUDGE", tmp_path / "missing-commandments-plugin")
+    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
+    monkeypatch.setattr(suite, "core_shards", lambda: 1)
+    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
+    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
+
+    assert suite.whole_suite() == 0
+    output = capsys.readouterr().out
+    assert "the test commandments were not run" in output, "the missing judge is stated plainly"
+    assert "waiting for the test commandments" not in output, "the suite does not claim to wait on a judge that never started"
+
+
+def test_the_whole_suite_stops_an_unresponsive_judge_and_finishes_with_a_clear_failure(tmp_path, monkeypatch, capsys):
+    suite = suite_script()
+    monkeypatch.setattr(suite, "JUDGE", Path(__file__))
+    monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(60)"])
+    monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
+    judging = suite.commandments_started(tmp_path)
+    assert judging is not None, "the test judge started"
+    process, _ = judging
+    monkeypatch.setattr(suite, "commandments_started", lambda _: judging)
+    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
+    monkeypatch.setattr(suite, "core_shards", lambda: 1)
+    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
+    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
+    try:
+        assert suite.whole_suite() == 1, "the suite reports that its judge did not complete"
+        assert process.poll() is not None, "the stuck judge process was stopped and reaped"
+        assert "the test commandments were not judged" in capsys.readouterr().out
+    finally:
+        if process.poll() is None:
+            suite.stop_judge(process)
 
 
 def test_the_suite_takes_fewer_shards_when_little_memory_is_free_and_reads_free_memory_on_macos_and_linux():

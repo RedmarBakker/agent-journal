@@ -28,6 +28,26 @@ GUIDANCE = "guidance/role.md"
 HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
 DENIED = ("Bash(rig send *)", "Bash(rig queue *)")
+CODEX_ROUTE_RULES = '''prefix_rule(
+    pattern = ["rig", "send"],
+    decision = "forbidden",
+    justification = "Organization seats route messages through their pod hub.",
+    match = [["rig", "send", "role:alpha/builder@plan-1", "message"]],
+    not_match = [["rig", "sendx", "role:alpha/builder@plan-1", "message"]],
+)
+
+prefix_rule(
+    pattern = ["rig", "queue", ["create", "handoff", "inbox-drop"]],
+    decision = "forbidden",
+    justification = "Organization seats route queue changes through their pod hub.",
+    match = [
+        ["rig", "queue", "create", "--rig", "plan-1"],
+        ["rig", "queue", "handoff", "--rig", "plan-1"],
+        ["rig", "queue", "inbox-drop", "--rig", "plan-1"],
+    ],
+    not_match = [["rig", "queue", "list", "--rig", "plan-1"]],
+)
+'''
 EDIT_TOOLS = ("Edit", "Write")
 OWNER_ONLY = 0o600
 
@@ -39,11 +59,11 @@ class RigSpecs:
         self.config, self.providers, self.setup, self.seats = config, providers, setup, seats
         self.skills, self.files, self.folder, self.settings = skills, files, folder, settings
 
-    def write(self, rig: str, contracts: Contracts, domains: tuple[str, ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> Path:
-        folder = self.config.home / "runtime" / "rigs" / rig
+    def write(self, rig: str, contracts: Contracts, domains: tuple[str, ...], cwd: Path, workers: Callable[[Seat], SeatWorker], provider: Provider | None = None) -> Path:
+        folder = self.spec_folder(rig)
         if folder.exists():
             shutil.rmtree(folder)
-        provider = self.providers.shell_provider(os.environ)
+        provider = provider or self.providers.shell_provider(os.environ)
         seats = self.seats.seats(rig, contracts, domains, provider)
         for seat in seats:
             self.agent(folder / "agents" / seat.agent(), seat)
@@ -51,14 +71,41 @@ class RigSpecs:
         path.chmod(OWNER_ONLY)
         return path
 
+    def member_fragment(self, rig: str, seat: Seat, cwd: Path, worker: SeatWorker) -> tuple[Path, dict]:
+        folder = self.spec_folder(rig)
+        agent = folder / "agents" / seat.agent()
+        if not agent.exists():
+            self.agent(agent, seat)
+        member = self.member(seat, cwd, worker)
+        path = folder / "members" / f"{seat.pod}-{seat.member}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.written(path, member).chmod(OWNER_ONLY)
+        return path, member
+
+    def pod_fragment(self, rig: str, pod: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path | Callable[[Seat], Path], workers: Callable[[Seat], SeatWorker]) -> tuple[Path, dict]:
+        folder = self.spec_folder(rig)
+        for seat in seats:
+            agent = folder / "agents" / seat.agent()
+            if not agent.exists():
+                self.agent(agent, seat)
+        value = self.pod(pod, seats, links, cwd, workers)
+        path = folder / "pods" / f"{pod}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.written(path, value).chmod(OWNER_ONLY)
+        return path, value
+
+    def spec_folder(self, rig: str) -> Path:
+        return self.config.home / "runtime" / "rigs" / rig
+
     def spec(self, rig: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> dict:
         cwd = cwd.resolve()
         pods = [self.pod(pod, tuple(seat for seat in seats if seat.pod == pod), links, cwd, workers) for pod in dict.fromkeys(seat.pod for seat in seats)]
         return {"version": RIG_SPEC_VERSION, "name": rig, "summary": f"The journal's organization plan {rig}.", "pods": pods,
                 "edges": [self.edge(source.logical_id(), target.logical_id()) for source, target in links if source.pod != target.pod]}
 
-    def pod(self, pod: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path, workers: Callable[[Seat], SeatWorker]) -> dict:
-        return {"id": pod, "label": pod, "members": [self.member(seat, cwd, workers(seat)) for seat in seats],
+    def pod(self, pod: str, seats: tuple[Seat, ...], links: tuple[tuple[Seat, Seat], ...], cwd: Path | Callable[[Seat], Path], workers: Callable[[Seat], SeatWorker]) -> dict:
+        folder = lambda seat: cwd(seat) if callable(cwd) else cwd
+        return {"id": pod, "label": pod, "members": [self.member(seat, folder(seat), workers(seat)) for seat in seats],
                 "edges": [self.edge(source.member, target.member) for source, target in links if source.pod == target.pod == pod]}
 
     @staticmethod
@@ -67,11 +114,21 @@ class RigSpecs:
 
     def member(self, seat: Seat, cwd: Path, worker: SeatWorker) -> dict:
         provider = self.providers.lookup(seat.provider)
+        if provider.openrig_permissions_field == "codex_permissions":
+            self.codex_route_rules(cwd)
         member = {"id": seat.member, "agent_ref": f"local:agents/{seat.agent()}", "runtime": provider.openrig_runtime, "profile": PROFILE, "cwd": str(cwd), "model": seat.model,
                   "env": self.variables(worker), provider.openrig_permissions_field: self.permissions(provider, seat, cwd)}
         if seat.effort:
             member["effort"] = seat.effort
         return member
+
+    @staticmethod
+    def codex_route_rules(cwd: Path) -> Path:
+        """Write the route deny rules into the trusted project's active Codex rules layer."""
+        path = cwd.resolve() / ".codex" / "rules" / "journal-organization-route.rules"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(CODEX_ROUTE_RULES)
+        return path
 
     def variables(self, worker: SeatWorker) -> dict[str, str]:
         launched = self.setup.variables(worker.environment, worker.actor, worker.token)

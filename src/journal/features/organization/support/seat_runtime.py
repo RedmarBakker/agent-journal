@@ -155,7 +155,7 @@ class SeatRuntime:
         if (member.provider != provider or member.model != model or member.actor != actor
                 or member.environment != environment or not member.token or member.root != str(self.config.root)
                 or first_path != str(self.config.home / "bin") or member.active != "1" or member.agent_shell != "1"):
-            raise Rejection(f"OpenRig seat {member.logical_id} does not match the selected {provider} model {model}, worker {actor}, and journal environment")
+            raise Rejection(f"OpenRig seat {member.logical_id} mismatch: {provider}/{model}, worker {actor}, journal environment")
         return AgentToken(member.token)
 
     def version(self) -> str:
@@ -234,6 +234,50 @@ class SeatRuntime:
 
     def send(self, seat: SeatMember, text: str) -> None:
         self.run("send", seat.target, text, "--json")
+
+    def start_rig(self, spec: Path) -> None:
+        self.run("up", str(spec), "--json")
+
+    def rig_exists(self, rig: str) -> bool:
+        return self.run("ps", "--nodes", "--json", "--rig", rig, check=False).returncode == 0
+
+    def launch_node(self, rig: str, logical_id: str) -> None:
+        self.run("launch", rig, logical_id, "--json")
+
+    def expand(self, rig: str, pod: Path, root: Path) -> None:
+        self.run("expand", rig, str(pod), "--json", "--rig-root", str(root))
+
+    def add(self, rig: str, pod: str, member: Path, root: Path) -> None:
+        self.run("add", rig, pod, str(member), "--json", "--rig-root", str(root))
+
+    def remove_node(self, rig: str, logical_id: str) -> None:
+        self.run("remove", rig, logical_id, "--json")
+
+    def edge(self, rig: str, source: str, target: str) -> None:
+        self.run("edge", "add", rig, source, target, "--kind", "delegates_to", "--json")
+
+    def queue_items(self) -> tuple[dict, ...]:
+        result = self.run("queue", "list", "--all", "--all-rigs", "--full", "--json")
+        return tuple(value for value in self.objects(self.object(result.stdout))
+                     if (value.get("qitemId") or value.get("id"))
+                     and isinstance(value.get("source"), str) and isinstance(value.get("destination"), str))
+
+    def queue_transitions(self) -> tuple[dict, ...]:
+        rows = []
+        cursor = ""
+        seen = set()
+        while True:
+            arguments = ("telemetry", "transitions", "--start", "retained", "--json") if not cursor else ("telemetry", "transitions", "--cursor", cursor, "--json")
+            payload = self.object(self.run(*arguments).stdout)
+            rows.extend(value for value in self.objects(payload) if value.get("qitemId"))
+            page = payload.get("page")
+            if not isinstance(page, dict) or page.get("hasMore") is not True:
+                return tuple(rows)
+            next_cursor = page.get("nextCursor")
+            if not isinstance(next_cursor, str) or not next_cursor or next_cursor in seen:
+                raise Rejection("OpenRig queue transitions have another page but no usable next cursor")
+            seen.add(next_cursor)
+            cursor = next_cursor
 
     def launch(self, seat: SeatMember, reason: str) -> None:
         self.run("seat", "launch", "--fresh", seat.target, "--reason", reason, "--operator", "journal", "--json")

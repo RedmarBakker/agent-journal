@@ -7,12 +7,15 @@ from dataclasses import dataclass, field
 
 from journal.config import Config
 from journal.features.organization.support.caps import Caps
+from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_escalation import RoleEscalation
+from journal.features.organization.support.rig_staffing import RigStaffing
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.worker import JOB_STARTS, Worker
@@ -20,11 +23,11 @@ from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
-from journal.repositories.rigs import Rigs
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
+from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.actor import Actor
 from journal.support.process_check import ProcessCheck
 from journal.support.rejection import Rejection
@@ -55,18 +58,20 @@ class SeatJobIdentity:
 
 
 class SeatRunner:
-    """Use RigSpecs' selected-provider member and OpenRig delivery; never spawn a second agent."""
+    """Run each plan Role in its persistent seat, and each many Role in its one-job seat."""
 
-    def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, workers: Workers,
+    def __init__(self, config: Config, organization: Organization, plans: Plans, workers: Workers,
                  environments: Environments, settings: SettingRows, scope: Scope,
                  runtime: SeatRuntime, ledger: UsageLedger, caps: Caps, tasks: Tasks, providers: Providers,
-                 time_source: TimeSource, escalation: RoleEscalation) -> None:
-        self.config, self.organization, self.plans, self.rigs = config, organization, plans, rigs
+                 time_source: TimeSource, escalation: RoleEscalation, staffing: RigStaffing, branch: WorkerBranch) -> None:
+        self.config, self.organization, self.plans = config, organization, plans
         self.workers, self.environments, self.settings, self.scope = workers, environments, settings, scope
         self.runtime, self.ledger, self.caps, self.time_source = runtime, ledger, caps, time_source
         self.tasks = tasks
         self.providers = providers
         self.escalation = escalation
+        self.staffing = staffing
+        self.branch = branch
         self._active: set[int] = set()
         self._active_jobs: dict[int, SeatJobIdentity] = {}
         self._finishing: set[SeatJobIdentity] = set()
@@ -76,14 +81,15 @@ class SeatRunner:
         if not worker.role or not worker.plan_id or not worker.contract:
             return False
         role = self.organization.at(worker.contract).role(worker.role)
-        return bool(role and role.cardinality.value == "plan")
+        plan = self.plans.find(worker.plan_id)
+        return bool(role and plan.mode is PlanMode.ORGANIZATION and role.cardinality in (Cardinality.PLAN, Cardinality.MANY))
 
     def member(self, worker: Worker) -> SeatMember:
         plan = self.plans.find(worker.plan_id)
         rig_id = self.plans.rig_id(plan)
         if not rig_id:
             raise Rejection(f"plan {plan.id} has no OpenRig linked for Role {worker.role}")
-        rig = self.rigs.find(rig_id)
+        rig = self.staffing.find_rig(rig_id)
         role = self.organization.at(worker.contract).role(worker.role)
         if role is None:
             raise Rejection(f"the contract for plan {plan.id} no longer has Role {worker.role}")
@@ -91,13 +97,24 @@ class SeatRunner:
         if not model:
             raise Rejection(f"Role {worker.role} has no model selected for provider {worker.provider}")
         provider = self.providers.lookup(worker.provider)
-        member = self.runtime.member(rig.name, role.domain, role.id, worker.provider)
+        seat = self.staffing.role(plan, self.organization.at(worker.contract), role, worker.id, worker.provider,
+                                  self.environments.find(worker.environment_id).name, self.branch.place(worker))
+        member = self.runtime.member(rig.name, role.domain, seat.member, worker.provider)
         runtime = getattr(provider, "openrig_runtime", "")
         if runtime and member.runtime != runtime:
             raise Rejection(f"OpenRig seat {member.logical_id} does not use provider {worker.provider}'s runtime {runtime}")
         if member.provider != worker.provider or member.model != model or worker.model != model:
             raise Rejection(f"OpenRig seat {member.logical_id} does not use Role {worker.role}'s selected {worker.provider} model {model}")
         return member
+
+    def retire(self, worker: Worker) -> None:
+        if not worker.plan_id or not worker.contract:
+            return
+        contracts = self.organization.at(worker.contract)
+        role = contracts.role(worker.role)
+        if role is None or role.cardinality is not Cardinality.MANY:
+            return
+        self.staffing.remove_role(self.plans.find(worker.plan_id), contracts, role, worker.id, worker.provider)
 
     def start(self, worker: Worker, actor: Actor, prompt: str,
               ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
@@ -183,7 +200,7 @@ class SeatRunner:
         session = self.runtime.session(member, worker.resume)
         if session is None:
             if worker.resume:
-                raise Rejection(f"OpenRig seat {member.target} stopped; this OpenRig version cannot resume its native session, so it was not replaced with a blank one")
+                raise Rejection(f"OpenRig seat {member.target} stopped; this version cannot resume the session, so it was left unchanged")
             self.runtime.launch(member, f"journal worker {worker.id} starts task {identity.started_at or self.time_source.seconds()}")
             deadline = time.monotonic() + STARTUP_SECONDS
             while session is None and time.monotonic() < deadline:

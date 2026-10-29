@@ -29,12 +29,30 @@ PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "las
 # the events of an agent's turn that end a run of held stops, the stop among them
 TURN_EVENTS = (events.STOP, events.TOOL_STARTING, events.PROMPT_SUBMITTED)
 
+SUPERVISOR_ENTRY_TYPES = (
+    "SupervisorAction",
+    "SupervisorActionReceipt",
+    "SupervisorActionState",
+    "SupervisorCredential",
+    "SupervisorEpisode",
+    "SupervisorEnrollment",
+    "SupervisorGrant",
+    "SupervisorInstallation",
+    "SupervisorRevocation",
+    "SupervisorRun",
+    "SupervisorRunState",
+    "SupervisorUsage",
+)
+
 
 class Entries(ScopedRepository[Entry]):
     model = Entry
 
     def trim(self, newest: int, stored: int) -> None:
-        self._purged(self.query().filter_less_equal("id", newest - stored).filter_unequal("entry_type", NUDGE))
+        query = self.query().filter_less_equal("id", newest - stored).filter_unequal("entry_type", NUDGE)
+        for entry_type in SUPERVISOR_ENTRY_TYPES:
+            query = query.filter_unequal("entry_type", entry_type)
+        self._purged(query)
 
     def trim_lines(self, stored: int) -> None:
         for boundary in self.selected_globally(self.query().filter(entry_type=NUDGE).order_descending("id").limit(1).offset(stored)):
@@ -58,6 +76,14 @@ class Entries(ScopedRepository[Entry]):
         with self.writing():
             prior = self.keyed(entry.idempotency)
             return prior[0] if prior else self.save(entry, actor)
+
+    def supervisor_records(self, entry_type: str, last: int = 100, **data) -> list[Entry]:
+        if entry_type not in SUPERVISOR_ENTRY_TYPES or not 1 <= last <= 100:
+            raise ValueError("supervisor record reads are typed and limited to 100 rows")
+        query = self.query().filter(entry_type=entry_type)
+        for key, value in data.items():
+            query = query.filter_json(f"data->{key}", value)
+        return self.selected(query.order_descending("id").limit(last))
 
     def last_prompt(self, session: str) -> datetime | None:
         rows = self.selected(self.query().filter(entry_type=events.PROMPT_SUBMITTED, actor=Actor.agent(session)).order_descending("id").limit(1))

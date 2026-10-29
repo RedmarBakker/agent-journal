@@ -6928,6 +6928,218 @@ def test_a_fact_rule_or_reminder_is_handed_over_once_per_context_window_by_the_s
 
 
 
+def test_a_scripts_file_edits_are_found_from_the_files_whose_time_moved(app: App):
+    from journal.repositories.edits import Edits
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    (app.config.root / "kept.txt").write_text("same\n")
+    command = "python3 -c \"import pathlib; pathlib.Path('built' + '.txt').write_text('made\\n')\""
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command})
+    (app.config.root / "built.txt").write_text("made\n")
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": command}, tool_response="")
+    with app.container.get(Scope).environment(MAIN):
+        assert [e.path for e in app.container.get(Edits).rows()] == ["built.txt"], "the file the script wrote under a built name is an edit; the file it left alone is not"
+
+
+def test_a_watched_output_shows_its_progress_once_it_moved_ten_percent_and_its_end_once(app: App):
+    from journal.features.shell.jobs.watch_refresh import WatchRefresh
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from journal.support.listener_queue import ListenerQueue
+    hook(app, "SessionStart")
+    console, outputs, deferred = app.console(), app.container.get(CommandOutputs), app.container.get(ListenerQueue)
+    folder = app.config.root / "w"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest -q")
+    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n")
+    app.container.get(OutputLog).start("w", "pytest", folder, Caller.agent("main", "s1", "claude"))
+    outputs.save(outputs.find(1).backgrounded(), Actor.system())
+    assert "that says what the run is doing" in console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--label", "Tests"], AGENT).error, "a bare name is refused as a label"
+    console.run(["reader", "add", "failures", "--pattern", "FAILED", "--about", "the failed tests", "--progress", r"\[ *(\d+)%\]", "--label", "Running the tests"], AGENT)
+    assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
+    seen = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
+    assert '"output 1: 40%"' in seen and "FAILED test_b" not in seen and "pytest -q" not in seen, "while it runs the agent sees its progress alone, never its lines or its command"
+    deferred.drain()
+    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 45%] test_e\n")
+    app.container.get(WatchRefresh).tick(timing.time())
+    deferred.drain()
+    assert "output 1:" not in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a run that moved less than 10% since the agent last saw it is not named again"
+    (folder / "0.out").write_text("collecting\n[ 12%] test_a\nFAILED test_b\n[ 40%] test_c\n[ 55%] test_f\n")
+    app.container.get(WatchRefresh).tick(timing.time())
+    deferred.drain()
+    assert '"output 1: 55%"' in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "a move of 10% or more is named again"
+    deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        card = app.container.get(Messages).with_key("watch:1")[0]
+    assert card.data["figure"] == "Running the tests 55%" and card.data["fraction"] == 0.55, "the chat card carries the bar"
+    assert (card.text, card.data["line"]) == ("Running the tests", "pytest -q"), "the card is titled by its reader's label, the command kept beside it for the opened card"
+    assert console.run(["output", "watch", "1", "--title", "Running the tests"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Messages).with_key("watch:1")[0].text == "Running the tests", "a title given to the watch comes first"
+    assert console.run(["output", "watch", "1"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Messages).with_key("watch:1")[0].text == "Testing", "with neither, the card says what the command does"
+    assert console.run(["output", "watch", "1", "--reader", "failures"], AGENT).code == 0
+    (folder / "0.out").write_text("collecting\nFAILED test_b\n[100%] test_d\n")
+    app.container.get(ShellRecord).ended("w", 0, folder, "", Caller.agent("main", "s1", "claude"))
+    deferred.drain()
+    said = []
+    for _ in range(3):
+        said.append(json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]))
+        deferred.drain()
+    ended = [line for line in said if "output 1: completed" in line]
+    assert len(ended) == 1 and "FAILED" not in ended[0], "the end is said once, as completed, nothing more"
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Messages).with_key("watch:1")[0].data["outcome"] == "passed", "its card turns green once the run finished"
+    deferred.drain()
+    after = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
+    assert "output 1" not in after and not outputs.find(1).is_watched, "the watch ends with its command"
+
+
+def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_user_docked_it(app: App):
+    """With Dock live outputs on, a watched run's card is docked as it goes live and taken down once it ends; a card docked by hand stays; off, nothing docks."""
+    from journal.chat.docking import Docking
+    from journal.chat.process_cards import ProcessCards
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+
+    def run(name):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("pytest -q")
+        output = app.container.get(OutputLog).start(name, "pytest -q", folder, Caller.agent("main", "s1", "claude"))
+        outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
+        assert console.run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+        return output.id
+
+    def card(n):
+        with app.container.get(Scope).environment(MAIN):
+            return app.container.get(Messages).with_key(f"watch:{n}")[0]
+
+    def end(n):
+        with app.container.get(Scope).environment(MAIN):
+            app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(n)))
+        outputs.save(outputs.find(n).ended_with(0, 0.0), Actor.system())
+        app.runtime().deferred.drain()
+        hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
+        app.runtime().deferred.drain()
+
+    quick = run("quick")
+    assert 4 <= card(quick).data["dock_at"] - timing.time() <= 5, "a live card docks itself once its run has gone on five seconds"
+    end(quick)
+    assert card(quick).data["undock_at"] == card(quick).data["dock_at"], "a run that ended sooner never docks"
+    auto = run("auto")
+    assert card(auto).data["docked"] is True, "a live card docks itself"
+    with app.container.get(Scope).environment(MAIN):
+        message = card(auto)
+        app.container.get(Messages).save(message.with_(data={**message.data, "dock_at": timing.time() - 1}), Actor.system())
+    end(auto)
+    ended = card(auto).data
+    assert ended["docked"] is True and ended["auto_docked"] is True and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Docking).pin_message(card(auto), Actor.user(1))
+    end(auto)
+    opened = card(auto).data
+    assert opened["docked"] is True and not opened["auto_docked"] and opened.get("undock_at") is None, "a card the user opened in those five seconds stays until the user closes it"
+    kept = run("kept")
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Docking).pin_message(card(kept), Actor.user(1))
+    end(kept)
+    assert card(kept).data["docked"] is True, "a card the user docked stays after the end"
+    user_set(app, "shell.dock_live_outputs", False)
+    plain = run("plain")
+    assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
+
+
+def test_a_timed_out_judge_ends_the_suite_card_after_its_await_was_cleared(app: App, tmp_path: Path, monkeypatch):
+    import sys
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from tests.test_suite_shards import suite_script
+
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+    folder = tmp_path / "suite-run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest -q tests/")
+    (folder / "0.out").write_text("")
+    output = app.container.get(OutputLog).start("suite-run", "pytest -q tests/", folder, AGENT)
+    outputs.save(output.backgrounded(), AGENT.actor)
+    assert console.run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+    assert console.run(["await", "the suite run", "--output", str(output.id)], AGENT).code == 0
+    assert console.run(["await", "clear"], AGENT).code == 0
+    assert app.container.get(SessionAgents).top("s1").name != "awaiting", "clearing the await leaves no open wait"
+
+    with app.container.get(Scope).environment(MAIN):
+        [running] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert running.data["active"] and running.data["docked"], "the suite output stays docked as running while its judge is still going"
+
+    suite = suite_script()
+    monkeypatch.setattr(suite, "JUDGE", Path(__file__))
+    monkeypatch.setattr(suite, "TEST_COMMANDMENTS", [sys.executable, "-c", "import time; time.sleep(2)"])
+    monkeypatch.setattr(suite, "JUDGE_TIMEOUT_SECONDS", 0.1)
+    judging = suite.commandments_started(tmp_path)
+    assert judging is not None, "the test judge started"
+    process, _ = judging
+    monkeypatch.setattr(suite, "commandments_started", lambda _: judging)
+    monkeypatch.setattr(suite, "available_bytes", lambda: suite.SHARD_BYTES)
+    monkeypatch.setattr(suite, "core_shards", lambda: 1)
+    monkeypatch.setattr(suite, "shard_count", lambda _: 1)
+    monkeypatch.setattr(suite, "sharded_run", lambda *args: False)
+    try:
+        assert suite.whole_suite() == 1, "the suite exits after reporting its judge timed out"
+        assert process.poll() is not None, "the stuck judge is stopped before the suite output can end"
+    finally:
+        if process.poll() is None:
+            suite.stop_judge(process)
+
+    app.container.get(ShellRecord).ended("suite-run", 1, folder, "", AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        [ended] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert not ended.data["active"], "the shell records the suite output as ended when the judge wait returns"
+    assert console.run(["output", "undock", str(output.id)], AGENT).code == 0, "an ended suite card can be taken down"
+    with app.container.get(Scope).environment(MAIN):
+        [undocked] = app.container.get(Messages).with_key(f"watch:{output.id}")
+        assert not undocked.data.get("docked"), "the run card comes down"
+
+
+def test_a_reader_report_is_told_once_and_never_holds_a_write_and_none_is_raised_on_a_locked_reader(app: App):
+    from journal.models.reader_report import ReaderReport
+    from journal.repositories.reader_reports import ReaderReports
+    console, reports = app.console(), app.container.get(ReaderReports)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
+    app.container.get(SupervisorLink).working(MAIN)
+    with app.container.get(Scope).environment(1):
+        report = reports.save(ReaderReport(environment_id=1, reader="naps", output=7, command="sleep 40", session="s1", findings=("the run took 40 seconds and its card showed no progress",), fixes=("make it print its steps",)), Actor.system())
+        locked = reports.save(ReaderReport(environment_id=1, reader="pytest", output=9, command="pytest", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    lines = [read() for _ in range(12)]
+    assert sum(nudge_reached(app, line, ShellNudges.REPORT_RAISED, n=report.id) for line in lines) == 1, "the report is told once"
+    assert not any(f"reader report {locked.id}" in line for line in lines), "a report on a reader the journal or a plugin ships is never told"
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "and no report ever holds a write"
+    shown = console.run(["reader", "report", str(report.id)], AGENT).text
+    assert "showed no progress" in shown and "make it print its steps" in shown and "journal reader dismiss" in shown, "the report says what fell short and how to fix it"
+    with app.container.get(Scope).environment(1):
+        other = reports.save(ReaderReport(environment_id=1, reader="naps", output=8, command="sleep 50", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints nothing to count"], AGENT).code == 0
+    with app.container.get(Scope).environment(1):
+        assert reports.find(other.id).dismissal == "the run prints nothing to count"
+
 def test_the_shipped_pytest_and_vitest_readers_pick_each_failed_test_its_assertion_line_and_the_summary():
     from journal.features.shell.seeds.default_readers import SHIPPED
     reader = lambda name: next(r for r in SHIPPED if r.name == name)

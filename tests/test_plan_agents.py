@@ -6,10 +6,11 @@ import pytest
 
 from journal.app import App
 from journal.engine.agent_launcher import AgentLauncher
-from journal.http.agents.agent_activity import AgentActivity
-from journal.http.plans.plan_outline import PlanOutline
+from journal.features.organization.organization_nudges import OrganizationNudges
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.workers.workers_nudges import WorkersNudges
+from journal.http.agents.agent_activity import AgentActivity
+from journal.http.plans.plan_outline import PlanOutline
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.models.plan_state import PlanState
@@ -254,7 +255,7 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     top = lambda: agents.find(agent_id).stack[-1]
     assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
     status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "findings.txt", "content": "a finding"})
-    assert status == 409 and "has no write tool" in body["error"], "acting as a Role that writes nothing, a write is refused"
+    assert status == 409 and nudge_reached(app, body["error"], OrganizationNudges.ROLE_WRITES_NOTHING, role="keeper"), "acting as a Role that writes nothing, a write is refused"
     status, body = planned("PreToolUse", tool_name="Read", tool_input={"file_path": "findings.txt"})
     assert status == 200, f"a tool the Role names goes through: {body}"
     assert planned("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "and a journal command always does"

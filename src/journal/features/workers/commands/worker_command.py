@@ -3,6 +3,7 @@ from journal.features.team.support.start_rule import StartRule
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 from journal.features.workers.support.report_argument import ReportArgument
+from journal.features.organization.support.cardinality import Cardinality
 
 from journal.repositories.setting_rows import SettingRows
 from journal.features.tasks.active_task import ActiveTask
@@ -34,6 +35,8 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
+from journal.models.worker_state import WorkerState
+from journal.models.plan_mode import PlanMode
 from journal.models.template import Template
 from journal.repositories.tasks import Tasks
 from journal.repositories.plans import Plans
@@ -210,7 +213,10 @@ class WorkerCommand(Command):
         testing = self.testing_brief(args, planned)
         brief = "\n\n".join(part for part in (task.brief, args.brief, args.job_text, self.plan_line(args, planned), f"You change: {args.changes}", f"How you test: {testing}") if part)
         profile, model = (None, args.model or self.roles.model(role, provider)) if role else (args.profile, self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)))
-        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=self.instances.plan_of(task) if role else 0, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        plan_id = self.instances.plan_of(task) if role else 0
+        organization_plan = plan_id and self.plans.find(plan_id).mode is PlanMode.ORGANIZATION
+        worktree = args.worktree or bool(organization_plan and role and role.cardinality is Cardinality.MANY and role.has_worktree())
+        worker = Worker(name=args.name, brief=brief, provider=provider, model=model, profile=profile, role=args.role or "", contract=self.roles.version() if role else "", plan_id=plan_id, worktree=worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         for queued_task in planned[1:]:
             self.tasks.queued(queued_task, Ref.build(worker), caller.actor)
@@ -291,7 +297,7 @@ class WorkerCommand(Command):
             raise Rejection("name the worker's --profile or its --role, one of them")
         role_dispatch = self.role_dispatch_enabled()
         if args.role and not role_dispatch:
-            raise Rejection("Role dispatch needs an organization folder and plans.plan_agents on: use --profile journal-medior or --profile journal-senior while they are off")
+            raise Rejection("Set organization folder + plans.plan_agents for --role; off: use --profile journal-medior or --profile journal-senior")
         if args.profile and role_dispatch:
             raise Rejection("writing work uses the organization's Role while plans.plan_agents is on: dispatch it with --role")
         if args.role and args.pool:

@@ -1,0 +1,1556 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:journal:proactive-supervisor:contract:1",
+  "title": "Proactive Supervisor contract v1 (proposed adapter boundary)",
+  "description": "Normative data contract, not implemented endpoints or runtime validation. All objects are closed. JSON Schema structural checks alone do not enforce the semantic rules in contract.md.",
+  "$defs": {
+    "RowRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "enum": [
+            "plans",
+            "phases",
+            "tasks",
+            "checks",
+            "review_rounds"
+          ]
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "table",
+        "id"
+      ]
+    },
+    "Scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "environment_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manager_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "writer_node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "installation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "tenant_id",
+        "project_id",
+        "environment_id",
+        "manager_id",
+        "writer_node_id",
+        "installation_epoch"
+      ]
+    },
+    "CurrentPhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "phase_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        }
+      },
+      "required": [
+        "phase_id",
+        "number",
+        "revision"
+      ]
+    },
+    "ExpectedRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/RowRef"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        }
+      },
+      "required": [
+        "ref",
+        "revision"
+      ]
+    },
+    "Capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "diagnostic_task": {
+          "const": true
+        },
+        "plan_priorities": {
+          "const": true
+        },
+        "check_interval": {
+          "const": true
+        },
+        "sequence": {
+          "const": false
+        },
+        "phrase_nudge": {
+          "const": false
+        },
+        "project_reminder": {
+          "const": false
+        }
+      },
+      "required": [
+        "diagnostic_task",
+        "plan_priorities",
+        "check_interval",
+        "sequence",
+        "phrase_nudge",
+        "project_reminder"
+      ]
+    },
+    "CheckEnrollment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "command_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "baseline_interval_minutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 30
+        },
+        "minimum_interval_minutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 30
+        },
+        "expected_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        }
+      },
+      "required": [
+        "check_id",
+        "command_sha256",
+        "baseline_interval_minutes",
+        "minimum_interval_minutes",
+        "expected_revision"
+      ]
+    },
+    "BudgetLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_turns_per_day": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_input_tokens_per_turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_output_tokens_per_turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_provider_requests_per_turn": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_turn_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost_microusd_per_day": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_bundles_per_project_day": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_bundles_per_episode_day": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_new_diagnostics_per_episode": {
+          "const": 1
+        }
+      },
+      "required": [
+        "max_turns_per_day",
+        "max_input_tokens_per_turn",
+        "max_output_tokens_per_turn",
+        "max_provider_requests_per_turn",
+        "max_turn_seconds",
+        "max_cost_microusd_per_day",
+        "max_bundles_per_project_day",
+        "max_bundles_per_episode_day",
+        "max_new_diagnostics_per_episode"
+      ]
+    },
+    "EnrollmentRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "current_phase": {
+          "$ref": "#/$defs/CurrentPhase"
+        },
+        "expected_plan_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "expected_binding_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckEnrollment"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "diagnostic_template_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "diagnostic_template_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "limits": {
+          "$ref": "#/$defs/BudgetLimits"
+        },
+        "mode": {
+          "enum": [
+            "shadow",
+            "bounded_write"
+          ]
+        },
+        "valid_until_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "protocol_version",
+        "plan_id",
+        "current_phase",
+        "expected_plan_revision",
+        "expected_binding_revision",
+        "checks",
+        "diagnostic_template_id",
+        "diagnostic_template_revision",
+        "capabilities",
+        "limits",
+        "mode",
+        "valid_until_ms"
+      ]
+    },
+    "Grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "grant_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "owner_user_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "driver_agent_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "driver_environment_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "driver_provider": {
+          "const": "codex"
+        },
+        "current_phase": {
+          "$ref": "#/$defs/CurrentPhase"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckEnrollment"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "diagnostic_template_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "diagnostic_template_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "limits": {
+          "$ref": "#/$defs/BudgetLimits"
+        },
+        "mode": {
+          "enum": [
+            "disabled",
+            "shadow",
+            "bounded_write"
+          ]
+        },
+        "valid_until_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "grant_id",
+        "grant_version",
+        "owner_user_id",
+        "scope",
+        "plan_id",
+        "driver_agent_id",
+        "driver_environment_id",
+        "driver_provider",
+        "current_phase",
+        "checks",
+        "diagnostic_template_id",
+        "diagnostic_template_revision",
+        "capabilities",
+        "limits",
+        "mode",
+        "valid_until_ms",
+        "revoked"
+      ]
+    },
+    "AdmissionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "source": {
+          "enum": [
+            "timer",
+            "hint"
+          ]
+        },
+        "observation_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "protocol_version",
+        "source",
+        "observation_cursor"
+      ]
+    },
+    "Run": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "episode_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "pending_action_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "grant_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "installation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lease_expires_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "budget_reservation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "reserved_cost_microusd": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "run_id",
+        "episode_id",
+        "pending_action_id",
+        "grant_id",
+        "grant_version",
+        "installation_epoch",
+        "fence",
+        "lease_expires_at_ms",
+        "budget_reservation_id",
+        "reserved_cost_microusd"
+      ]
+    },
+    "AdmissionResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "admitted"
+            },
+            "run": {
+              "$ref": "#/$defs/Run"
+            }
+          },
+          "required": [
+            "status",
+            "run"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "skipped"
+            },
+            "reason": {
+              "enum": [
+                "empty",
+                "busy",
+                "ineligible",
+                "stale_evidence",
+                "budget_exhausted",
+                "unknown_cost",
+                "revoked",
+                "needs_owner"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "reason"
+          ]
+        }
+      ]
+    },
+    "CheckResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "started_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verdict": {
+          "enum": [
+            "passed",
+            "failed",
+            "faulted",
+            "stopped"
+          ]
+        },
+        "exit_status": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "command_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "output_excerpt": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "output_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "check_id",
+        "run_id",
+        "started_at_ms",
+        "completed_at_ms",
+        "verdict",
+        "exit_status",
+        "command_sha256",
+        "output_excerpt",
+        "output_sha256"
+      ]
+    },
+    "WorkChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "related_task_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "state",
+        "related_task_id",
+        "summary"
+      ]
+    },
+    "Observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "observation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_ref": {
+          "$ref": "#/$defs/RowRef"
+        },
+        "source_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "committed_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "captured_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidence_generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "enum": [
+            "check_completed",
+            "plan_changed",
+            "task_changed",
+            "review_changed"
+          ]
+        },
+        "facts": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CheckResult"
+            },
+            {
+              "$ref": "#/$defs/WorkChange"
+            }
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "observation_id",
+        "scope",
+        "plan_id",
+        "source_ref",
+        "source_revision",
+        "committed_at_ms",
+        "captured_at_ms",
+        "evidence_generation",
+        "kind",
+        "facts"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "check_completed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "facts": {
+                "$ref": "#/$defs/CheckResult"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "facts": {
+                "$ref": "#/$defs/WorkChange"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ObservationPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "node_heartbeat_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observation_watermark_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "protocol_version",
+        "cursor",
+        "next_cursor",
+        "node_heartbeat_at_ms",
+        "observation_watermark_ms",
+        "observations"
+      ]
+    },
+    "ObserveRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "installation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "protocol_version",
+        "run_id",
+        "installation_epoch",
+        "fence",
+        "cursor"
+      ]
+    },
+    "PrioritiesOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "plan_priorities"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "kind",
+        "plan_id",
+        "text"
+      ]
+    },
+    "DiagnosticOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "diagnostic_task"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "template_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "template_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "kind",
+        "plan_id",
+        "phase_id",
+        "template_id",
+        "template_revision",
+        "evidence_ids"
+      ]
+    },
+    "CheckIntervalOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "check_interval"
+        },
+        "check_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "interval_minutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 30
+        }
+      },
+      "required": [
+        "kind",
+        "check_id",
+        "interval_minutes"
+      ]
+    },
+    "Operation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PrioritiesOperation"
+        },
+        {
+          "$ref": "#/$defs/DiagnosticOperation"
+        },
+        {
+          "$ref": "#/$defs/CheckIntervalOperation"
+        }
+      ]
+    },
+    "ActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "installation_epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "grant_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "episode_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "action_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "observation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "minItems": 1,
+          "maxItems": 20
+        },
+        "expected_revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExpectedRevision"
+          },
+          "minItems": 2,
+          "maxItems": 12
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "minItems": 1,
+          "maxItems": 5
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "protocol_version",
+        "run_id",
+        "installation_epoch",
+        "fence",
+        "grant_version",
+        "episode_id",
+        "action_id",
+        "observation_ids",
+        "expected_revisions",
+        "operations",
+        "rationale"
+      ]
+    },
+    "FieldChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/RowRef"
+        },
+        "field": {
+          "enum": [
+            "priorities",
+            "diagnostic_template",
+            "plan_link",
+            "phase_link",
+            "interval"
+          ]
+        },
+        "before_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "after_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Opaque authoritative server revision over relevant fields and relationships; no existing journal version column is implied."
+        },
+        "before_value": {
+          "type": [
+            "string",
+            "integer",
+            "null"
+          ],
+          "maxLength": 2048
+        },
+        "after_value": {
+          "type": [
+            "string",
+            "integer",
+            "null"
+          ],
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "ref",
+        "field",
+        "before_revision",
+        "after_revision",
+        "before_value",
+        "after_value"
+      ]
+    },
+    "Receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "action_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "episode_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "grant_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "fence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "intent_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actor_kind": {
+          "const": "plugin"
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "applied",
+            "conflicted",
+            "rejected"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "recorded_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "minItems": 1,
+          "maxItems": 20
+        },
+        "affected_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RowRef"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FieldChange"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "verification": {
+          "enum": [
+            "pending",
+            "verified",
+            "superseded",
+            "not_applied"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "unmeasured",
+            "useful_evidence",
+            "no_progress",
+            "needs_owner"
+          ]
+        },
+        "proposed_operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "protocol_version",
+        "action_id",
+        "episode_id",
+        "run_id",
+        "grant_id",
+        "grant_version",
+        "scope",
+        "fence",
+        "intent_sha256",
+        "actor_kind",
+        "actor_id",
+        "status",
+        "reason",
+        "recorded_at_ms",
+        "observation_ids",
+        "affected_refs",
+        "changes",
+        "verification",
+        "outcome",
+        "proposed_operations"
+      ]
+    },
+    "ReceiptRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "action_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "protocol_version",
+        "action_id"
+      ]
+    },
+    "DriverSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "environment_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider": {
+          "const": "codex"
+        },
+        "role": {
+          "const": "main"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "session_present": {
+          "type": "boolean"
+        },
+        "started_task_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      },
+      "required": [
+        "agent_id",
+        "environment_id",
+        "provider",
+        "role",
+        "live",
+        "session_present",
+        "started_task_id"
+      ]
+    },
+    "GateSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "explicit_owner_pause": {
+          "type": "boolean"
+        },
+        "reserved_checkpoint": {
+          "type": "boolean"
+        },
+        "ended_drive": {
+          "type": "boolean"
+        },
+        "pending_owner_decision": {
+          "type": "boolean"
+        },
+        "unpassed_phase_commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "maxItems": 20
+        },
+        "can_advance_assignment": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "explicit_owner_pause",
+        "reserved_checkpoint",
+        "ended_drive",
+        "pending_owner_decision",
+        "unpassed_phase_commands",
+        "can_advance_assignment"
+      ]
+    },
+    "CheckSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "command_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "interval_minutes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "check_id",
+        "revision",
+        "command_sha256",
+        "interval_minutes"
+      ]
+    },
+    "Snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/Grant"
+        },
+        "plan_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "plan_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "plan_state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "approved": {
+          "type": "boolean"
+        },
+        "current_phase": {
+          "$ref": "#/$defs/CurrentPhase"
+        },
+        "binding_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "driver": {
+          "$ref": "#/$defs/DriverSnapshot"
+        },
+        "gates": {
+          "$ref": "#/$defs/GateSnapshot"
+        },
+        "existing_diagnostic_task_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "eligible_current_phase_task_ids": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckSnapshot"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "writable": {
+          "type": "boolean"
+        },
+        "ineligibility_reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "owner_wait",
+              "paused",
+              "checkpoint",
+              "phase_test_gate",
+              "ended_drive",
+              "driver_unavailable",
+              "wrong_phase",
+              "stale_evidence",
+              "revoked",
+              "expired",
+              "budget_exhausted",
+              "unknown_cost"
+            ]
+          },
+          "uniqueItems": true,
+          "maxItems": 12
+        }
+      },
+      "required": [
+        "grant",
+        "plan_id",
+        "plan_revision",
+        "plan_state",
+        "approved",
+        "current_phase",
+        "binding_revision",
+        "driver",
+        "gates",
+        "existing_diagnostic_task_id",
+        "eligible_current_phase_task_ids",
+        "checks",
+        "writable",
+        "ineligibility_reasons"
+      ]
+    },
+    "ObserveResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "run": {
+          "$ref": "#/$defs/Run"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/Snapshot"
+        },
+        "page": {
+          "$ref": "#/$defs/ObservationPage"
+        },
+        "server_now_ms": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "protocol_version",
+        "run",
+        "snapshot",
+        "page",
+        "server_now_ms"
+      ]
+    },
+    "GrantChangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "grant_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expected_grant_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "change": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "revoke"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "replace"
+                },
+                "enrollment": {
+                  "$ref": "#/$defs/EnrollmentRequest"
+                }
+              },
+              "required": [
+                "kind",
+                "enrollment"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "grant_id",
+        "expected_grant_version",
+        "change"
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/EnrollmentRequest"
+    },
+    {
+      "$ref": "#/$defs/Grant"
+    },
+    {
+      "$ref": "#/$defs/AdmissionRequest"
+    },
+    {
+      "$ref": "#/$defs/AdmissionResult"
+    },
+    {
+      "$ref": "#/$defs/Observation"
+    },
+    {
+      "$ref": "#/$defs/ObservationPage"
+    },
+    {
+      "$ref": "#/$defs/ObserveRequest"
+    },
+    {
+      "$ref": "#/$defs/ActionRequest"
+    },
+    {
+      "$ref": "#/$defs/Receipt"
+    },
+    {
+      "$ref": "#/$defs/ReceiptRequest"
+    },
+    {
+      "$ref": "#/$defs/ObserveResult"
+    },
+    {
+      "$ref": "#/$defs/GrantChangeRequest"
+    }
+  ]
+}
