@@ -4,6 +4,7 @@ from journal.support.agent_role import AgentRole
 from journal.engine.states.compacting import Compacting
 from journal.engine.support.typist import Typist
 from journal.engine.delivery import Delivery
+from journal.engine.support.decision_returns import DecisionReturns
 from journal.engine.nudger import Nudger
 from journal.engine.support.settings import Settings
 from journal.repositories.setting_rows import SettingRows
@@ -47,19 +48,11 @@ JOURNAL_START = "the journal started, so no compaction is still running"
 class StateMachine:
     """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks the task assigner in force before the stack answers a hook event, so a stop meets the task it starts, and, through RowAssignment, after every listener of a row event has heard it, so a closed task is let go and marked first, asks the state the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, a tool use's answer taking at most three lines and queuing the rest for the next hook, which the delivery carries out; it reaches no terminal itself."""
 
-    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery, changes: StackChanges) -> None:
+    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker, assigners: AssignerResolution, delivery: Delivery, changes: StackChanges, returns: DecisionReturns) -> None:
         self.agents, self.states, self.nudger, self.bus, self.tracker, self.assigners, self.delivery, self.changes = agents, states, nudger, bus, tracker, assigners, delivery, changes
         self.listener_index = ListenerIndex({})
+        self.returns = returns
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
-
-    def worker_decision(self, agent_id: int, decision: Decision, event: AgentEvent) -> Decision:
-        agent = self.agents.find(agent_id)
-        if event.has_hook_lines():
-            self.agents.save(agent.with_(queued_lines=()), Actor.system())
-            return Decision.allowed_with("\n".join(agent.queued_lines)).merged(decision)
-        if decision.context:
-            self.agents.save(agent.queued(decision.context), Actor.system())
-        return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
         conduct_sets = [self.agent_conducts(role, lowest_state) for role in self.features.roles() for lowest_state in (BaseState, *self.features.mode_states())]
@@ -72,9 +65,8 @@ class StateMachine:
     def event_kinds(cls, type_name: type) -> list[type]:
         return [type_name, *(descendant for subclass in type_name.__subclasses__() for descendant in cls.event_kinds(subclass))]
 
-    @staticmethod
-    def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
-        return nudge.is_remark and not event.has_hook_lines() and not agent.role.is_helper()
+    def is_queued_remark(self, bottom_state: BaseState, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
+        return nudge.is_remark and not event.has_hook_lines() and self.returns.chosen(bottom_state).has_remark_queue()
 
     @staticmethod
     def answer_lines(lines: list[str], event: AgentEvent) -> list[str]:
@@ -94,9 +86,6 @@ class StateMachine:
     def audience(self, event: RowEvent) -> list[Agent]:
         unended = [agent for environment_id in event.environment_ids() for agent in self.agents.unended_scoped(environment_id)] if event.environment_id else self.agents.unended()
         return [agent for agent in unended if self.features.receives_row_event(type(event).feature_name, agent.role)]
-
-    def queue_lines(self, agent: Agent, lines: str) -> None:
-        self.agents.save(self.agents.find(agent.row_id).queued(lines), Actor.system())
 
     def mode_change(self, stored_stack: Stack, stack: Stack) -> tuple[Nudge, ...]:
         bottom, previous_bottom = stack.states[0], stored_stack.states[0]
@@ -129,16 +118,16 @@ class StateMachine:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
         agent = self._store(agent, machine_answer, event.key, Actor.system())
         nudge_lines = [(nudge, line) for nudge in (*mode_change, *transition.nudges, *machine_answer.nudges) if (line := self.nudger.deliver(agent, nudge))]
-        queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(agent, nudge, event))
+        queued = tuple(line for nudge, line in nudge_lines if self.is_queued_remark(machine_answer.stack.states[0], nudge, event))
         lines = [line for _, line in nudge_lines if line not in queued]
         lines, remarks = self.answer_lines(lines, event), (*queued, *self.overflow_lines(lines, event))
         keystrokes = tuple(line for nudge in transition.terminal_lines if (line := self.nudger.deliver(agent, nudge)))
         reasons = [line for refusal in (transition.refusal, *transition.extra_refusals) if refusal and (line := self.nudger.refuse_with(agent, refusal))]
         if reasons:
-            return MachineReply(agent, Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks)
+            return MachineReply(agent, machine_answer.stack.states[0], Decision.refuse("\n".join([*reasons, *lines])), keystrokes, remarks)
         if machine_answer.refusal and (line := self.nudger.refuse_with(agent, machine_answer.refusal.nudge)):
-            return MachineReply(agent, Decision.refuse(line), keystrokes, remarks)
-        answered = MachineReply(agent, Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
+            return MachineReply(agent, machine_answer.stack.states[0], Decision.refuse(line), keystrokes, remarks)
+        answered = MachineReply(agent, machine_answer.stack.states[0], Decision.allowed_with("\n".join(lines)), keystrokes, remarks)
         if transition.next_event is not None:
             return self.joined_answers(answered, self.stack_reply(agent, transition.next_event))
         return answered.merged(self.stack_reply(agent, event)) if transition.handed_down and machine_answer.stack == stack.popped() else answered
@@ -146,7 +135,7 @@ class StateMachine:
     @staticmethod
     def joined_answers(answered: MachineReply, next_answer: MachineReply) -> MachineReply:
         lines = "\n".join(line for line in (answered.decision.context, next_answer.decision.reason, next_answer.decision.context) if line)
-        return MachineReply(next_answer.agent, Decision.allowed_with(lines), (*answered.keystrokes, *next_answer.keystrokes), (*answered.remarks, *next_answer.remarks))
+        return MachineReply(next_answer.agent, next_answer.bottom_state, Decision.allowed_with(lines), (*answered.keystrokes, *next_answer.keystrokes), (*answered.remarks, *next_answer.remarks))
 
     def push(self, session: str, environment_id: int, destination: BaseState, actor: Actor, text: str) -> MachineReply:
         agent = self.sessions.agent(session, environment_id)
@@ -169,7 +158,7 @@ class StateMachine:
         if machine_answer.refusal:
             raise Rejection(machine_answer.refusal.nudge.rendered())
         keystrokes = tuple(line for nudge in machine_answer.nudges if (line := self.nudger.deliver(resolved, nudge)))
-        return MachineReply(resolved, Decision(), keystrokes)
+        return MachineReply(resolved, machine_answer.stack.states[0], Decision(), keystrokes)
 
     def top_state(self) -> Settings:
         return Settings.applied(self.settings, self.features.options())

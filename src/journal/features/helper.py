@@ -12,7 +12,7 @@ from journal.features.feature import Feature
 from journal.features.role import ENGINE, Role
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
-
+from journal.models.alias import Alias
 
 class Helper(Role):
     """What one helper is and may do, said in its own file alone: its role, the state its stack starts with over Void, the features turned on whole for it (the conduct, listeners and data each gives its role), the listeners turned on alone, and the command verbs it runs, each a command and one of its verbs; nothing else of the journal reaches it."""
@@ -66,3 +66,7 @@ class Helper(Role):
     @classmethod
     def takes_plugin_lines(cls) -> bool:
         return False
+
+    @classmethod
+    def runs_alias(cls, alias: Alias) -> bool:
+        return True

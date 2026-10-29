@@ -9,7 +9,7 @@ from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
 
 ENGINE = "engine"
-
+from journal.models.alias import Alias
 
 class Role:
     """What reaches the agents of one role and what they may run, said in that role's own file: the main agent's or a helper's."""
@@ -50,4 +50,8 @@ class Role:
 
     @classmethod
     def takes_plugin_lines(cls) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def runs_alias(cls, alias: Alias) -> bool:
         raise NotImplementedError

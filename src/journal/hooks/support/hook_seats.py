@@ -10,6 +10,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.hook import Hook
+from journal.support.researcher_session import ResearcherSession
 
 
 class HookSeats:
@@ -35,10 +36,18 @@ class HookSeats:
         attributed = self.attributed(caller)
         if not attributed.session:
             return attributed
+        researchers = self.researcher_rows(attributed) if attributed.subagent else []
+        if researchers:
+            return replace(attributed, agent_row=researchers[-1])
         rows = self.agents.session_rows(attributed.session)
         if rows:
             return replace(attributed, agent_row=rows[0])
         return self.helper_seated(attributed) if attributed.session_role.is_helper() else attributed
+
+    def researcher_rows(self, caller: Caller) -> list[Agent]:
+        if caller.subagent_session:
+            return self.agents.session_rows(ResearcherSession.joined(caller.session, caller.subagent_session))
+        return self.agents.researchers(caller.session)
 
     def helper_seated(self, caller: Caller) -> Caller:
         return replace(caller, agent_row=self.sessions.helper_agent(caller.session, self.scope.id, caller.provider, caller.session_role))

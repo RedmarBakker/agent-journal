@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from journal.engine.no_task_assigner import NoTaskAssigner
 from journal.engine.base_state import BaseState
+from journal.engine.support.return_kinds import QUEUED
 from journal.engine.engine_nudges import EngineNudges
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -17,6 +18,7 @@ class Void(BaseState):
     assigner = NoTaskAssigner
     title = "Not at work"
     conduct_free = True
+    decision_return = QUEUED
 
     def floored(self, mode: type[BaseState]) -> BaseState:
         return self

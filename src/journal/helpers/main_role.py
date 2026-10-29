@@ -10,7 +10,7 @@ from journal.features.feature import Feature
 from journal.features.role import Role
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.agent_role import AgentRole
-
+from journal.models.alias import Alias
 
 class MainRole(Role):
     """The main agent's role: every feature's conduct, mode conduct and demands reach it, every listener hears it, no part is refused it and it runs every verb."""
@@ -51,4 +51,8 @@ class MainRole(Role):
 
     @classmethod
     def takes_plugin_lines(cls) -> bool:
+        return True
+
+    @classmethod
+    def runs_alias(cls, alias: Alias) -> bool:
         return True

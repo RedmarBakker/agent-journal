@@ -21,7 +21,7 @@ from journal.features.workers.commands.worker_command import WorkerCommand
 from journal.features.helper import Helper
 from journal.features.memory.commands.memory_command import MemoryCommand
 from journal.support.agent_role import AgentRole
-
+from journal.models.alias import Alias
 
 class WorkerHelper(Helper):
     """A worker: writes on one task in a worktree of its own, put to work in WorkingTask when it clocks in; the workers, tasks, edits and memory features are on for it whole, so it keeps memories of its own, and the plugins hear it."""
@@ -64,3 +64,7 @@ class WorkerHelper(Helper):
         (WorkerCommand, "report"),
         (WorkerCommand, "send"),
     )
+
+    @classmethod
+    def runs_alias(cls, alias: Alias) -> bool:
+        return alias.worker_access
