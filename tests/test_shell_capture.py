@@ -71,3 +71,10 @@ def test_a_new_file_a_shell_line_wrote_counts_its_lines_in_the_folder_the_shell_
     (tmp_path / "made.txt").write_text("a\nb\n")
     changed = ChainWorker.changed("", f"#folder\t{tmp_path}\n?\t0\tmade.txt\n")
     assert [(file.added, file.path) for file in changed] == [(2, "made.txt")]
+
+
+def test_a_worker_send_moves_to_the_background_at_once_as_a_merge_does(app: App):
+    from journal.features.shell.support.background_commands import BackgroundCommands
+    background = app.container.get(BackgroundCommands)
+    assert background.is_background("journal worker send 3 'the next job'"), "a send rebases the worktree before the worker starts, so it never holds the agent's tool call"
+    assert background.is_background("journal worker merge 3") and not background.is_background("journal worker list"), "only the verbs that take long move at once"

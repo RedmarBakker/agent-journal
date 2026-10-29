@@ -71,7 +71,7 @@ class WorkerCommand(Command):
 
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
-    background_verbs = frozenset({"merge"})
+    background_verbs = frozenset({"merge", "send"})
 
     def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase, work_mode: WorkMode, time_source: TimeSource, delegation: PlanDelegation) -> None:
         self.time_source, self.delegation = time_source, delegation
