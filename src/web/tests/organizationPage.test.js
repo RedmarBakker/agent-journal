@@ -138,8 +138,8 @@ test("a domain route opens its own four phase plan board", async () => {
     location.hash = "#/organization?domain=sales";
     await until(() => route.value.domain === "sales");
 
-    host = document.body.appendChild(document.createElement("div"));
-    app = createApp({render: () => h(OrganizationPage)});
+    const host = document.body.appendChild(document.createElement("div"));
+    const app = createApp({render: () => h(OrganizationPage)});
     app.mount(host);
     await until(() => host.querySelector('[data-domain="sales"] .organization-plan-card'));
 
