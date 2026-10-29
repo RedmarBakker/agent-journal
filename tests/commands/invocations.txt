@@ -340,3 +340,5 @@ agent tests load
 agent tests budget --help
 agent tests command --help
 agent supervision health
+agent organization list
+agent organization reload

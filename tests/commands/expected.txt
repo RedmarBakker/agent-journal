@@ -1404,6 +1404,7 @@ workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
 workers.pool_profiles = journal-medior  (the user sets it)
 workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-6-luna, gpt-6.1-sol | codex journal-senior: gpt-6-luna, gpt-6.1-sol | codex reviewer: gpt-6.1-sol | codex verifier: gpt-6.1-sol
+workers.organization_folder = ''  (the user sets it)
 workers.default_plan_mode = 'organization'  (the user sets it)
 workers.openrig_version = ''  (the user sets it)
 workers.cost_cap_dollars = 0  (the user sets it)
@@ -2764,3 +2765,11 @@ options:
 $ agent: journal supervision health
 exit 0
 {"interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3, "grace_seconds": 60.0}
+
+$ agent: journal organization list
+exit 0
+no organization: set the agentic organization folder on the Settings page
+
+$ agent: journal organization reload
+exit 0
+no organization: set the agentic organization folder on the Settings page

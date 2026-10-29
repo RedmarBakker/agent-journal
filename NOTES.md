@@ -1952,3 +1952,10 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   from its structure. Its .md files are the source of truth and its .toml files are made complete from them; nothing
   the .md files say is dropped. Concepts journal does not support yet are listed for later (task 62), such as graph
   communication and responsibility managed by Domain agents (the user, message 486).
+- The agentic organization is read by the organization feature (`features/organization/`), never listed in code: the setting
+  `workers.organization_folder` (machine scope, the user's) names the folder, `domains/<domain>/domain.toml` is a domain and
+  `domains/<domain>/roles/<role>/role.toml` a Role, with their AGENTS.md as guidance; an empty Role folder is ignored and a
+  file that breaks the schema is left out whole and reported (`journal organization`). The Role is one frozen value
+  (`Role.profile` renders the existing `Profile` for seats). Skill ids resolve against skill folders under the organization
+  folder, the workspace `skills/` beside it and journal's own; tool ids are a small table, any other well-formed id being an
+  external system. Not yet built: the `RoleWork` solo state, the data part, the version option (task 47).
