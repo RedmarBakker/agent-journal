@@ -7346,14 +7346,16 @@ def test_plan_role_worker_runner_hands_the_job_to_the_seat_adapter(app: App):
     class Seats:
         @staticmethod
         def applies(worker):
-            return worker.role == "builder" and worker.plan_id == 8
+            return True
 
         @staticmethod
         def start(worker, actor, prompt, ended):
             started.append((worker, actor, prompt, ended))
 
     runner.seats = Seats()
+    runner.instructed = lambda current: current.brief
     worker = Worker(name="Ada Lovelace", brief="write the patch", role="builder", plan_id=8)
+    assert worker.role == "builder" and worker.plan_id == 8
     runner.start(worker, Actor.system())
     assert len(started) == 1 and started[0][0] == worker and started[0][1] == Actor.system()
     assert "write the patch" in started[0][2] and started[0][3] == runner.finish_seat

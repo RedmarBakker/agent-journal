@@ -100,7 +100,7 @@ class UsageLedger:
             expected_seats,
         )
 
-    def record_subscription_limits(self, limits: dict[str, dict[str, float]] | None, source: str, window: str, observed_at: float, coverage: str = "account-wide") -> None:
+    def record_subscription_limits(self, limits: dict[str, dict[str, float]] | None, source: str, window: str, observed_at: float, coverage: str = "account-wide subscription windows") -> None:
         with self._lock:
             data = self._read()
             data["subscription_limits"] = {

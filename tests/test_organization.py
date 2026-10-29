@@ -627,8 +627,8 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     }]}]}))
     agent = spec.parent / "agents" / "alpha-builder"
     agent.mkdir(parents=True)
-    (agent / "agent.yaml").write_text(json.dumps({"resources": {"runtime_resources": [{"id": "journal-hooks", "path": "runtime/journal-hooks.json", "runtime": "codex"}]},
-        "skills": [{"id": "journal", "path": "skills/journal"}],
+    (agent / "agent.yaml").write_text(json.dumps({"resources": {"runtime_resources": [{"id": "journal-hooks", "path": "runtime/journal-hooks.json", "runtime": "codex"}],
+        "skills": [{"id": "journal", "path": "skills/journal"}]},
         "profiles": {"default": {"uses": {"skills": ["journal"]}}}}))
     (agent / "runtime").mkdir()
     (agent / "runtime" / "journal-hooks.json").write_text("{}")
