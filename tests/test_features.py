@@ -12727,7 +12727,7 @@ def test_a_line_that_only_reads_or_runs_git_or_github_shows_no_card_unless_it_fa
         assert policy.forbids_mark(run("grep -rn needle src | head")) and policy.forbids_mark(run("cd src && ls -la")), "a quick search or listing shows no card"
         assert policy.forbids_mark(run("git add -A && git status")) and policy.forbids_mark(run("git switch topic")), "nor does everyday git, chained or not"
         assert policy.forbids_mark(run("git push -q origin development")) and policy.forbids_mark(run("git add -A && git commit -m x && git push")) and policy.forbids_mark(run("gh run watch 12")), "nor does a push, a commit or a GitHub command"
-        assert card.card_contents(run("git status")) is None, "so no card is written for everyday git"
+        assert not card.is_carded(run("git status")), "so no card is written for everyday git"
         assert not policy.forbids_mark(run("git push origin topic", status=1)), "a git line that failed shows its card"
         assert not policy.forbids_mark(run("python3 -m pytest -q")) and not policy.forbids_mark(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
         assert policy.forbids_mark(run("git rebase main")), "nor a rebase"
@@ -13943,9 +13943,9 @@ def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says
     from journal.models.alias import Alias
     judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}), None, None, SHAPES)
     output = lambda command: SimpleNamespace(id=9, command=command, environment_id=1, session="s1", watch_reader="")
-    assert judge.one_word_title_report(output("journal push-development"), "Pushing") is None, "a git push, by its alias, may have no reader of its own, so its title is never reported"
-    assert judge.one_word_title_report(output("git commit -m x"), "Committing") is None
-    assert judge.one_word_title_report(output("make"), "Building") is not None, "any other run with a one word title is still reported"
+    assert not judge.is_one_word_title_due(output("journal push-development"), "Pushing"), "a git push, by its alias, may have no reader of its own, so its title is never reported"
+    assert not judge.is_one_word_title_due(output("git commit -m x"), "Committing")
+    assert judge.is_one_word_title_due(output("make"), "Building"), "any other run with a one word title is still reported"
     assert labels.build("git push origin development") == "pushing to origin" and len(labels.build("git push").split()) > 1, "and the journal's own label for a push says what runs"
 
 
