@@ -37,20 +37,20 @@ class TaskMoveCards(Listener[RowEvent]):
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskOpened):
-            self.show_move(event, event.row_id, "created", "")
+            self.show_move(event, "created", "")
         if isinstance(event, TaskEdited):
-            self.show_move(event, event.task_id, "edited", "")
+            self.show_move(event, "edited", "")
         if isinstance(event, TaskStarted):
-            self.show_move(event, event.task_id, "resumed" if event.prior_state == TaskState.PAUSED else "started", "")
+            self.show_move(event, "resumed" if event.prior_state == TaskState.PAUSED else "started", "")
         if isinstance(event, TaskClosed) and event.outcome in MOVES and not event.worker_id:
-            self.show_move(event, event.task_id, event.outcome, "")
+            self.show_move(event, event.outcome, "")
         if isinstance(event, TaskReopened) and not isinstance(event, TaskReleased):
-            self.show_move(event, event.task_id, "unblocked", event.reason)
+            self.show_move(event, "unblocked", event.reason)
 
-    def show_move(self, event: RowEvent, task_id: int, move: str, reason: str) -> None:
+    def show_move(self, event: RowEvent, move: str, reason: str) -> None:
         heading, shows, reason_field = MOVES[move]
         with self.scope.environment(event.environment_id):
-            task = self.tasks.find(task_id)
+            task = self.tasks.find(event.row_id)
         label = CardDetail.shortened(f"{heading} {self.labels.name('task', task)}: {task.title}")
         detail = reason or (getattr(task, reason_field) if reason_field else "")
         for environment_id in event.environment_ids():
