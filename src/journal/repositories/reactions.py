@@ -26,8 +26,8 @@ class Reactions(ScopedRepository[Reaction]):
         return [self.find(ref.id) for ref in self.links.sources(message, REACTS)]
 
     def agent_reacted_ids(self, window_start: datetime) -> set[int]:
-        reactions = [Ref(Reaction.table(), int(id)) for id in self.grouped_counts(self.query().filter(author=Author.AGENT).filter_greater_equal("created_at", window_start), "id")]
-        return {Ref.parse(target).id for target in self.links.grouped_counts(self.links.query().filter(link_type=REACTS).filter_listed("source", reactions), "target")} if reactions else set()
+        reactions = [Ref(Reaction.table(), id) for id in self.column_values(self.query().filter(author=Author.AGENT).filter_greater_equal("created_at", window_start), "id")]
+        return {Ref.parse(target).id for target in self.links.column_values(self.links.query().filter(link_type=REACTS).filter_listed("source", reactions), "target")} if reactions else set()
 
     def agent_message_reactions(self, start_at: datetime) -> dict[int, float]:
         message_reactions: dict[int, float] = {}

@@ -1,4 +1,4 @@
-"""A long run, not in the default suite: plays every scenario of last week's history with its known policy at follow rates 0, 0.5, 0.8 and 1.0, prints one row per run, and judges the measures on settling, quiet and score."""
+# A long run, not in the default suite: plays every scenario of last week's history with its known policy at follow rates 0, 0.5, 0.8 and 1.0, prints one row per run, and judges the measures on settling, quiet and score; the follow checks, the score rising with following and a policy that ignores the lines scoring low, apply only to a scenario in which a measure line was said, since one whose measures stay in range gives nothing to follow.
 
 import os
 from dataclasses import replace
@@ -39,17 +39,24 @@ def settled(folder: Path, monkeypatch, scenario, follow_rate: float) -> Settling
 def test_the_measures_settle_score_by_following_and_stay_quiet_over_last_weeks_history(tmp_path, monkeypatch):
     failing: list[str] = []
     print(f"\n{'scenario':60} {'follow':>6} {'score':>6} {'lines/h':>8} {'measure/h':>9} {'band/h':>6}  failing")
-    for scenario in (scenario for scenario in HISTORY if not MODES or scenario.mode in MODES):
-        scores = []
+    played = [scenario for scenario in HISTORY if not MODES or scenario.mode in MODES]
+    run_total, runs_played = len(played) * len(FOLLOW_RATES), 0
+    for scenario in played:
+        scores, measure_lines = [], []
         for rate in FOLLOW_RATES:
             run = settled(tmp_path / f"{len(failing)}-{scenario.name}-{rate}".replace(" ", "_"), monkeypatch, scenario, rate)
             scores.append(run.mean_score())
-            print(f"{scenario.name:60} {rate:6.1f} {run.mean_score():6.1f} {run.lines_hourly():8.1f} {run.measure_lines_hourly():9.1f} {run.band_changes_hourly():6.1f}  {'; '.join(run.failures())}")
+            measure_lines.append(run.measure_lines_hourly())
+            runs_played += 1
+            print(f"{runs_played}/{run_total} {scenario.name:60} {rate:6.1f} {run.mean_score():6.1f} {run.lines_hourly():8.1f} {run.measure_lines_hourly():9.1f} {run.band_changes_hourly():6.1f}  {'; '.join(run.failures())}")
             failing.extend(f"{scenario.name} at {rate}: {failure}" for failure in run.failures())
-        if scores != sorted(scores):
-            failing.append(f"{scenario.name}: the score does not rise with the follow rate: {[round(score, 1) for score in scores]}")
         if scores[2] < 80:
             failing.append(f"{scenario.name}: a follower at 0.8 scores {scores[2]:.1f}, under 80")
+        if not any(measure_lines):
+            print(f"{scenario.name}: no measure line was said, so its measures stayed in range and there was nothing to follow")
+            continue
+        if scores != sorted(scores):
+            failing.append(f"{scenario.name}: the score does not rise with the follow rate: {[round(score, 1) for score in scores]}")
         if scores[0] > 60:
             failing.append(f"{scenario.name}: a policy that ignores the lines scores {scores[0]:.1f}, over 60")
     for good, bad in (pair for pair in KNOWN_PAIRS if not MODES or pair[0].mode in MODES):

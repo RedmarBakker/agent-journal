@@ -84,6 +84,10 @@ class Repository(Generic[M]):
         with self.connection.unlisted():
             return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped(column))}
 
+    def column_values(self, query: Query, column: str) -> list:
+        with self.connection.unlisted():
+            return [row["value"] for row in self.connection.all(*self._scoped(query).select_values(column))]
+
     def grouped_sums(self, query: Query, column: str, *summed: str) -> dict[str, int]:
         with self.connection.unlisted():
             return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped_sum(column, *summed))}

@@ -105,21 +105,21 @@ class Messages(ScopedRepository[Message]):
         return [message for type_name in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", type_name).order("id"))]
 
     def unanswered(self) -> list[Message]:
-        return self.selected(self.unanswered_query().without("text").order("id"))
+        return sorted(self.selected(self.unanswered_query().without("text")), key=lambda message: message.row_id)
 
     def unanswered_ids(self) -> list[int]:
-        return sorted(int(id) for id in self.grouped_counts(self.unanswered_query(), "id"))
+        return sorted(self.column_values(self.unanswered_query(), "id"))
 
     def unanswered_query(self) -> Query:
         window_start = self.time_source.moment() - timedelta(hours=WAITING_HOURS)
         read = self.main_chat().filter(author=Author.USER).filter_greater_equal("read_at", window_start).filter_unequal("data->kind", TERMINAL_LINE)
         answered = sorted(self.answered_ids(window_start))
-        answered_reads = sorted(self.grouped_counts(read.filter_listed("id", answered), "read_position"))
+        answered_reads = sorted(set(self.column_values(read.filter_listed("id", answered), "read_position")))
         return read.filter_unlisted("id", answered).filter_unlisted("read_position", answered_reads)
 
     def answered_ids(self, window_start: datetime) -> set[int]:
-        replied = {int(target) for target in self.grouped_counts(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", window_start), "reply_target")}
-        linked = {Ref.parse(target).id for target in self.links.grouped_counts(self.links.query().filter(link_type=self.ANSWERS).filter_greater_equal("created_at", window_start), "target")}
+        replied = set(self.column_values(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", window_start), "reply_target"))
+        linked = {Ref.parse(target).id for target in self.links.column_values(self.links.query().filter(link_type=self.ANSWERS).filter_greater_equal("created_at", window_start), "target")}
         return replied | linked | self.reactions.agent_reacted_ids(window_start)
 
     def latest_voice(self) -> Message | None:

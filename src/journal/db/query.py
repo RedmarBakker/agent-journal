@@ -172,6 +172,9 @@ class Query:
     def select_ids(self) -> tuple[str, tuple]:
         return self._read("id")
 
+    def select_values(self, column: str) -> tuple[str, tuple]:
+        return self._read(f"{self.expression(column)} AS value")
+
     def count(self) -> tuple[str, tuple]:
         return self._read("count(*) AS value")
 

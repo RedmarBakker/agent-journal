@@ -9,7 +9,7 @@ from journal.repositories.workers import Workers
 
 @dataclass(frozen=True)
 class Observation:
-    """What one step of a replay or a simulation showed the agent and left behind: the hook's answer, the lines typed to it since the last step, the nudges said since by key and by line, its stack, its load, each worker's state, and how many pieces of deferred work were skipped so far."""
+    """What one step of a replay or a simulation showed the agent and left behind: the hook's answer, refused when it is a 409 or a held stop, the lines typed to it since the last step, the nudges said since by key and by line, its stack, its load, each worker's state, and how many pieces of deferred work were skipped so far."""
 
     answer: object
     typed: tuple[str, ...]
@@ -21,7 +21,10 @@ class Observation:
     skipped: int
 
     def is_refused(self) -> bool:
-        return isinstance(self.answer, tuple) and bool(self.answer) and self.answer[0] == 409
+        return isinstance(self.answer, tuple) and bool(self.answer) and (self.answer[0] == 409 or self.is_blocked_stop())
+
+    def is_blocked_stop(self) -> bool:
+        return len(self.answer) > 1 and isinstance(self.answer[1], dict) and self.answer[1].get("decision") == "block"
 
 
 class Observer:
