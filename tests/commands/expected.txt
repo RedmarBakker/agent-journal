@@ -1749,6 +1749,8 @@ messages.unread_messages_to_read  [messages]  {{count}} messages unread: `journa
 messages.write_held_until_read  [messages]  {{count}} unread messages. run `journal message unread` before any other write
 messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
+organization.action_waits_for_the_user  [organization]  {{action}} always waits for the user: ask with `journal question ask`, and do it only once the answer allows it
+organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you mentioned a pinned link but made none. pin it: `journal notice create "<what>" --link "<url>" --label "<Open ...>"`
@@ -1953,7 +1955,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-288 nudges
+290 nudges
 
 $ agent: journal worker list
 exit 0

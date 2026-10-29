@@ -65,6 +65,7 @@ class Worker(Helper):
     unshown_fields: ClassVar[tuple[str, ...]] = ("transcript_bytes",)
     helper_type: str = "worker"
     profile: str | None = None
+    role: str = ""
     worktree: bool = False
     repositories: tuple[str, ...] = ()
     library_links: tuple[str, ...] = ()

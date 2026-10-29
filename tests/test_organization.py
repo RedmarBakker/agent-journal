@@ -134,3 +134,33 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     assert worker.model == "sonnet" and worker.profile is None, "the Role's model for the provider, and no profile"
     instructions = app.container.get(WorkerRunner).instructed(worker)
     assert "Guidance of alpha." in instructions and "Guidance of builder." in instructions and "Read these skills before you work: ids." in instructions and "the job" in instructions, "the domain's and the Role's guidance, its skills and the job"
+
+
+def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_and_an_approval_required_action_waits_for_the_user(app, tmp_path):
+    from pathlib import Path
+    from journal.engine.support.settings import Settings
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.events.feature_data import FeatureData
+    from journal.features.organization.organization_nudges import OrganizationNudges
+    from journal.features.organization.role_conduct import RoleConduct
+    from journal.features.organization.support.organization_data import OrganizationData
+    from journal.features.tasks.states.ready import Ready
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.models.worker import Worker
+    from tests.test_engine import CLASSIFIER
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "deployer"])
+    contracts = organization.reload()
+
+    def asked(role: str, tool: str, arguments: dict):
+        worker = Worker(environment_id=1, name="Ada Lovelace", brief="b", role=role)
+        call = Claude().call(tool, arguments, frozenset(), CLASSIFIER)
+        data = FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,) if role else ()), "organization": OrganizationData(contracts)})
+        return RoleConduct.on_tool_starting(Ready(), ToolStarting(call=call).with_data(data), Settings({}))
+
+    assert asked("scout", "Write", {"file_path": "a.py", "content": "x"}).refusal == OrganizationNudges.ROLE_WRITES_NOTHING.create(role="scout"), "a Role without a write tool is refused a write"
+    assert asked("builder", "Write", {"file_path": "a.py", "content": "x"}).refusal is None and asked("scout", "Read", {"file_path": "a.py"}).refusal is None, "a Role with one writes, and reading is not writing"
+    assert asked("deployer", "Bash", {"command": "gh workflow run deploy.yml"}).refusal == OrganizationNudges.ACTION_WAITS_FOR_USER.create(action="production_deployment"), "an approval-required action waits for the user"
+    assert asked("builder", "Bash", {"command": "gh workflow run deploy.yml"}).refusal is None, "an action the Role does not list is not held"
+    assert asked("", "Write", {"file_path": "a.py", "content": "x"}).refusal is None and asked("ghost", "Write", {"file_path": "a.py", "content": "x"}).refusal is None, "a worker with no Role, or one the folder no longer holds, is let through"

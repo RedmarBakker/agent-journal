@@ -1,6 +1,7 @@
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.edits.feature import EditsFeature
 from journal.features.memory.feature import Memory
+from journal.features.organization.feature import OrganizationFeature
 from journal.features.tasks.feature import Tasks
 from journal.features.workers.feature import Workers
 from journal.features.memory.commands.rule_command import RuleCommand
@@ -27,7 +28,7 @@ class WorkerHelper(Helper):
     """A worker: writes on one task in a worktree of its own, put to work in WorkingTask when it clocks in; the workers, tasks, edits and memory features are on for it whole, so it keeps memories of its own, and the plugins hear it."""
 
     role = AgentRole.WORKER
-    features = (Workers, Tasks, EditsFeature, Memory, PluginsFeature)
+    features = (Workers, Tasks, EditsFeature, Memory, PluginsFeature, OrganizationFeature)
     commands = (
         (WaitCommand, "begin"),
         (WaitCommand, "clear"),
