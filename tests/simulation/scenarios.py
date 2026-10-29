@@ -19,6 +19,7 @@ CLASH_CASCADE = Scenario("a clash cascade", "orchestrator", HISTORY_MINUTES, 15,
 LONG_JOBS = Scenario("last week's job lengths three times over", "orchestrator", HISTORY_MINUTES, 15, 2, 180, "orchestrator", job_minutes=tuple(minutes * 3 for minutes in JOB_DECILES))
 HEREDOC_BUILDER = Scenario("a builder writing all its code through the shell", "builder", HISTORY_MINUTES, 15, 2, 180, "heredoc", job_minutes=JOB_DECILES)
 MODE_SWITCH = Scenario("a builder switched to orchestrator at minute 60", "builder", HISTORY_MINUTES, 20, 2, 180, "builder", job_minutes=JOB_DECILES, switch_minute=60, switch_mode="orchestrator")
+HANDING_BUILDER = Scenario("a builder handing last week's work to one worker at a time", "builder", HISTORY_MINUTES, 15, 2, 180, "handing builder", job_minutes=JOB_DECILES)
 HISTORY = (*TASK_SPREE, *MESSAGES_WHILE_WORKING, SEND_BACK_LOOP, CLASH_CASCADE, LONG_JOBS, HEREDOC_BUILDER, MODE_SWITCH)
 
 ALL = (QUIET_BUILDER, FLOODED_BUILDER, ORCHESTRATOR, SOLO, CARELESS, ENGINE_MOMENTS, *HISTORY)

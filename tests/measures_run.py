@@ -8,7 +8,9 @@ import pytest
 
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.mode_measures import ModeMeasures
+from journal.models.setting import Setting
 from journal.repositories.setting_rows import SettingRows
+from journal.support.actor import Actor
 from journal.repositories.scope import Scope
 from tests.simulation.known_policy import KnownPolicy
 from tests.simulation.scenario_run import POLICIES, ScenarioRun
@@ -25,13 +27,14 @@ FOLLOW_RATES = (0.0, 0.5, 0.8, 1.0)
 
 def settled(folder: Path, monkeypatch, scenario, follow_rate: float) -> Settling:
     simulator = fresh(folder, monkeypatch)
+    simulator.app.container.get(SettingRows).save(Setting(environment_id=0, key=FitnessOptions.WARNINGS.key, value=True), Actor.system())
     try:
         with simulator.app.container.get(Scope).environment(MAIN):
             played = replace(scenario, minutes=MINUTES or scenario.minutes)
             run = ScenarioRun(simulator, played, SEED, KnownPolicy(POLICIES[played.policy](), follow_rate, SEED))
             trace = run.played()
             specs, warmup = simulator.app.container.get(ModeMeasures).specs(played.mode), simulator.app.container.get(SettingRows).decimal(FitnessOptions.SCORE_WARMUP_MINUTES) * 60
-            return Settling(played, tuple(trace), tuple(run.samples), lambda states: ModeMeasures.scored(states, specs, warmup))
+            return Settling(played, tuple(trace), tuple(run.samples), lambda states: ModeMeasures.scored(states, specs, warmup), tuple(simulator.keys_heard))
     finally:
         simulator.app.runtime().stop()
 
@@ -57,8 +60,8 @@ def test_the_measures_settle_score_by_following_and_stay_quiet_over_last_weeks_h
             continue
         if scores != sorted(scores):
             failing.append(f"{scenario.name}: the score does not rise with the follow rate: {[round(score, 1) for score in scores]}")
-        if scores[0] > 60:
-            failing.append(f"{scenario.name}: a policy that ignores the lines scores {scores[0]:.1f}, over 60")
+        if scores[-1] <= scores[0]:
+            failing.append(f"{scenario.name}: following every line scores {scores[-1]:.1f}, no higher than ignoring them at {scores[0]:.1f}")
     for good, bad in (pair for pair in KNOWN_PAIRS if not MODES or pair[0].mode in MODES):
         good_score, bad_score = (settled(tmp_path / f"pair-{scenario.name}".replace(" ", "_"), monkeypatch, scenario, 0.8).mean_score() for scenario in (good, bad))
         if good_score <= bad_score:

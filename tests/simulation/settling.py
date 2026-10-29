@@ -22,12 +22,13 @@ NOTICE_KEYS = ("messages.", "workers.work_ready")
 
 @dataclass(frozen=True)
 class Settling:
-    """How a run's measures settle, worked out from its trace and samples: for each burst of arrivals, those closer together than the measure's limit being one burst, since a measure cannot settle before the next arrival lands, and no burst for the load in a scenario with no arrivals, whose load is the agent's own work, the minutes from its last arrival until each measure is on and stays on, against that measure's limit (its window plus three half-lives, nought when unsmoothed, plus twenty minutes); the band changes an hour, its first measuring out of no band not counted; the measure lines an hour and every line but a refusal or a notice of work arriving an hour; and the mean score."""
+    """How a run's measures settle, worked out from its trace and samples: for each burst of arrivals, those closer together than the measure's limit being one burst, since a measure cannot settle before the next arrival lands, and no burst for the load in a scenario with no arrivals, whose load is the agent's own work, the minutes from its last arrival until each measure is on and stays on, against that measure's limit (its window plus three half-lives, nought when unsmoothed, plus twenty minutes); the band changes an hour, its first measuring out of no band not counted; the measure lines an hour, of every line the agent heard in any hook of an action, and every line but a refusal or a notice of work arriving an hour; and the mean score."""
 
     scenario: Scenario
     trace: tuple[TraceEntry, ...]
     samples: tuple[Sample, ...]
     scoring: Callable[[MeasureStates], FitnessScore]
+    keys_heard: tuple[str, ...]
 
     def limits(self) -> dict[str, float]:
         return {"score": SETTLE_MARGIN_MINUTES, "load": LOAD_WINDOW_MINUTES + 3 * LOAD_HALF_LIFE_MINUTES + SETTLE_MARGIN_MINUTES}
@@ -79,7 +80,7 @@ class Settling:
         return sum(1 for previous_band, band in zip(bands, bands[1:]) if previous_band != band) / self.hours()
 
     def measure_lines_hourly(self) -> float:
-        return sum(1 for entry in self.trace for key in entry.nudges if key.startswith(MEASURE_FEATURES)) / self.hours()
+        return sum(1 for key in self.keys_heard if key.startswith(MEASURE_FEATURES)) / self.hours()
 
     def lines_hourly(self) -> float:
         return sum(1 for entry in self.trace if not entry.refused for key in entry.nudges if not key.startswith(NOTICE_KEYS)) / self.hours()

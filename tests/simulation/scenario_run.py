@@ -17,9 +17,10 @@ from tests.simulation.trace_entry import TraceEntry
 from tests.simulation.user_actor import UserActor
 from tests.simulation.worker_actor import WorkerActor
 from tests.simulation.world import World
+from tests.simulation.handing_builder_policy import HandingBuilderPolicy
 
 STEP_SECONDS = 30
-POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo": SoloPolicy, "careless": CarelessPolicy, "heredoc": HeredocPolicy}
+POLICIES = {"builder": BuilderPolicy, "orchestrator": OrchestratorPolicy, "solo": SoloPolicy, "careless": CarelessPolicy, "heredoc": HeredocPolicy, "handing builder": HandingBuilderPolicy}
 
 
 class ScenarioRun:

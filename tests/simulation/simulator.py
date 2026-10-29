@@ -33,6 +33,7 @@ class Simulator:
         self.app.container.get(Clock).held_at = START_SECONDS
         self.observer = Observer(app, self.typed)
         self.said: list[tuple[str, str]] = []
+        self.keys_heard: list[str] = []
         self.refusals: list[str] = []
 
     def hook(self, kind: str, session: str = "s1", **body) -> Observation:
@@ -44,6 +45,7 @@ class Simulator:
 
     def heard(self, seen: Observation) -> Observation:
         self.said.extend(zip(seen.nudges, seen.lines))
+        self.keys_heard.extend(seen.nudges)
         if seen.is_refused():
             self.refusals.extend(seen.lines[-1:])
         return seen
