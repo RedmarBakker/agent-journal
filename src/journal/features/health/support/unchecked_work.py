@@ -10,14 +10,15 @@ COMMAND_CHARACTERS = 100
 
 @dataclass(frozen=True)
 class UncheckedWork:
-    """What went through unchecked while the journal did not answer and the agent has not been told: how many hooks let the tool go on, and the shell commands that ran in the shell itself, unrecorded."""
+    """What went through unchecked while the journal did not answer and the agent has not been told: how many hooks let the tool go on, and the shell commands that ran in the shell itself, unrecorded; and whether this is the journal's own repository, where the agent keeps a panic watch."""
 
     hooks: int = 0
     commands: tuple[str, ...] = ()
+    journal_repository: bool = False
 
     @classmethod
-    def read(cls, bypasses: list[Bypass]) -> "UncheckedWork":
-        return cls(sum(1 for bypass in bypasses if bypass.bypass_type == HOOK), tuple(" && ".join(Chain.self_parts(bypass.subject)) for bypass in bypasses if bypass.bypass_type == SHELL))
+    def read(cls, bypasses: list[Bypass], journal_repository: bool) -> "UncheckedWork":
+        return cls(sum(1 for bypass in bypasses if bypass.bypass_type == HOOK), tuple(" && ".join(Chain.self_parts(bypass.subject)) for bypass in bypasses if bypass.bypass_type == SHELL), journal_repository)
 
     def is_empty(self) -> bool:
         return not self.hooks and not self.commands

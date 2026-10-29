@@ -17,6 +17,8 @@ from journal.events.announcer import Announcer
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.sequences import Sequences
 from journal.repositories.templates import Templates
+from journal.support.time_source import TimeSource
+from journal.features.health.support.journal_repository import JOURNAL_HOOK_SCRIPT
 from journal.support.actor import Actor
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
@@ -452,6 +454,18 @@ class AgentSteps:
             (self.app.config.root / ".claude/skills" / name / path).parent.mkdir(parents=True, exist_ok=True)
             (self.app.config.root / ".claude/skills" / name / path).write_text(text)
         self.observed("the project holds a skill of its own", None, None)
+
+    def the_project_is_the_journals_own_repository(self) -> None:
+        hook_script = self.app.config.root / JOURNAL_HOOK_SCRIPT
+        hook_script.parent.mkdir(parents=True, exist_ok=True)
+        hook_script.write_text("#!/bin/sh\n")
+        self.observed("the project is the journal's own repository", None, None)
+
+    def a_hook_went_around_the_journal(self) -> None:
+        (self.app.config.home / "runtime").mkdir(parents=True, exist_ok=True)
+        with (self.app.config.home / "runtime" / "bypass.log").open("a") as log:
+            log.write(f"{int(self.app.container.get(TimeSource).seconds())} hook {self.provider}\n")
+        self.observed("a hook went around the journal", None, None)
 
     def the_project_holds_a_file(self, path: str, data: bytes) -> None:
         (self.app.config.root / path).write_bytes(data)

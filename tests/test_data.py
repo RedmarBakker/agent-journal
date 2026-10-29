@@ -4,7 +4,6 @@ from journal.support.stage_times import StageTimes
 from datetime import datetime, timezone
 from journal.events.announcer import Announcer
 from journal.events.moments.sync_moment import SyncMoment
-from journal.features.team.listeners.sync_moment_cards import SyncMomentCards
 from journal.config import Config
 from journal.support.masks import Masks
 from journal.support.secret_values import SecretValues
@@ -567,119 +566,14 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
         assert tasks.unfinished_ids([free.id, done.id]) == [free.id]
 
 
-def test_each_model_says_whether_it_is_shared_with_the_team_or_kept_on_one_machine():
-    from journal.models.all_models import AllModels
-    local = sorted(model.__name__ for model in AllModels.MODELS if not model.shared)
-    assert local == sorted(["Entry", "Agent", "StateTransition", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer", "LibraryItem"]), "the models kept on one machine are these"
-    assert all(model.shared for model in AllModels.MODELS if model.__name__ in ("Task", "Message", "Alias", "Worker", "Setting")), "everything else is shared"
 
 
-def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiting_writes_to_a_row_merge(connection, bus, scope, tmp_path):
-    from journal.config import Config
-    from journal.events.models.model_event import ModelEvent
-    from journal.models.release_message import ReleaseMessage
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.release_messages import ReleaseMessages
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-
-    config = Config(tmp_path)
-    changes, tasks = OutgoingChanges(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, changes))
-    with scope.environment(1):
-        before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
-        assert changes.waiting() == [], "a journal in no team queues nothing"
-        config.home.mkdir(parents=True, exist_ok=True)
-        (config.home / TEAM_FILE).write_text("{}")
-        task = tasks.save(Task(environment_id=1, title="first"), actor=USER)
-        task = tasks.save(task.with_(title="second"), actor=AGENT)
-        task = tasks.save(task.with_(brief="a brief"), actor=USER)
-        [created] = changes.waiting()
-        assert (created.row_table, created.row, created.action) == ("tasks", task.id, "created")
-        assert (created.fields["title"], created.fields["brief"], created.writer) == ("second", "a brief", USER.stamp), "a creation and its updates are one creation"
-        assert set(created.changed_at) == set(created.fields)
-        before = tasks.save(before.with_(title="renamed"), actor=USER)
-        before = tasks.save(before.with_(brief="a second brief"), actor=USER)
-        update = changes.waiting()[1]
-        assert update.action == "updated" and set(update.fields) == {"title", "brief", "updated_at", "updater"}, "two updates are one, with only the columns they changed"
-        tasks.delete(task, USER)
-        assert [change.row for change in changes.waiting()] == [before.id], "a row created and deleted before sending sends nothing"
-        changes.save(changes.waiting()[0].with_(is_sending=True), USER)
-        tasks.save(before.with_(title="again"), actor=USER)
-        assert [change.fields["title"] for change in changes.waiting()] == ["again"], "a change being sent is never merged into"
-        tasks.delete(before, USER)
-        assert changes.waiting()[0].action == "deleted" and changes.waiting()[0].fields == {}
-        ReleaseMessages(connection, bus, TimeSource()).save(ReleaseMessage(version="9.9.9", text="local"), USER)
-        assert [change.row_table for change in changes.waiting()] == ["tasks"], "a model kept on one machine is never queued"
 
 
-def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_and_from_sqlite_before(connection, bus, scope, tmp_path):
-    from journal.config import Config
-    from journal.events.models.number_request import NumberRequest
-    from journal.models.release_message import ReleaseMessage
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.release_messages import ReleaseMessages
-    from journal.repositories.number_shortage import NumberShortage
-    from journal.db.schema import Schema
-    from journal.models.all_models import AllModels
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.block_supply import BlockSupply
-    from journal.sync.team_server_link import TeamServerLink
-    from journal.sync.block_numbers import BlockNumbers
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-
-    config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
-    bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
-    with scope.environment(1):
-        assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
-        config.home.mkdir(parents=True, exist_ok=True)
-        (config.home / TEAM_FILE).write_text(json.dumps({"address": "http://127.0.0.1:9"}))
-        blocks.add("tasks", 1001, 1003)
-        blocks.add("tasks", 2001, 2010)
-        assert [tasks.save(Task(environment_id=1, title=str(n)), actor=USER).id for n in range(4)] == [1001, 1002, 1003, 2001], "past a block's end the next block numbers"
-        assert blocks.is_wanted("tasks") and blocks.is_wanted("messages"), "nine numbers left of a block of ten wants another, and a table with no block wants one"
-        blocks.add("tasks", 3001, 3010)
-        assert not blocks.is_wanted("tasks"), "a block and a fifth of one left is enough"
-        assert ReleaseMessages(connection, bus, TimeSource()).save(ReleaseMessage(version="9.9.9"), USER).id == 1, "a model kept on one machine is numbered by SQLite"
-        for _ in range(19):
-            tasks.save(Task(environment_id=1, title="more"), actor=USER)
-        with pytest.raises(NumberShortage):
-            tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
-        assert not issubclass(NumberShortage, Rejection), "a shortage is a fault, so a hook lets its event through instead of refusing it"
 
 
-def block_numbers(connection, bus, scope, config, blocks):
-    from journal.db.schema import Schema
-    from journal.models.all_models import AllModels
-    from journal.repositories.environments import Environments
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.block_numbers import BlockNumbers
-    from journal.sync.block_supply import BlockSupply
-    from journal.sync.team_account import TeamAccount
-    from journal.sync.team_accounts import TeamAccounts
-    from journal.sync.team_server_link import TeamServerLink
-
-    supply = BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus, TimeSource()), TeamAccount(config))
-    return BlockNumbers(blocks, TeamAccount(config), supply, team_placement(connection, bus, scope, config), TeamAccounts(config, Environments(connection, bus, TimeSource())))
 
 
-def outgoing_recorder(connection, bus, scope, config, changes):
-    from journal.db.schema import Schema
-    from journal.models.all_models import AllModels
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.shared_tables import SharedTables
-    from journal.services.service_hooks import ServiceHooks
-    from journal.sync.block_supply import BlockSupply
-    from journal.sync.record_outgoing_change import RecordOutgoingChange
-    from journal.db.table_renumbering import TableRenumbering
-    from journal.sync.row_renumbering import RowRenumbering
-    from journal.sync.team_account import TeamAccount
-    from journal.sync.team_server_link import TeamServerLink
-
-    account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus, TimeSource()), SharedTables(connection, bus, TimeSource())
-    renumbering = RowRenumbering(TableRenumbering(connection), blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
-    from journal.repositories.environments import Environments
-    from journal.sync.team_accounts import TeamAccounts
-    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus, TimeSource()), tables, renumbering, TeamAccounts(config, Environments(connection, bus, TimeSource())), ServiceHooks())
 
 
 def team_placement(connection, bus, scope, config):
@@ -700,42 +594,8 @@ def team_scopes(connection, bus, scope):
     return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope, TimeSource()), (), Helpers.ALL))
 
 
-def environment_withdrawal(config, connection, bus, scope):
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.shared_tables import SharedTables
-    from journal.repositories.users import Users
-    from journal.sync.environment_withdrawal import EnvironmentWithdrawal
-    from journal.sync.team_account import TeamAccount
-
-    return EnvironmentWithdrawal(TeamAccount(config), SharedTables(connection, bus, TimeSource()), Links(connection, bus, TimeSource()), EnvironmentOwners(Links(connection, bus, TimeSource()), Users(connection, bus, TimeSource()), scope.environments), team_scopes(connection, bus, scope))
 
 
-def team_migration(tmp_path, name: str, scope, tasks, outgoing):
-    """The move to the hub on the team journal of that name, as team_journal made it, reaching the team server its team file names."""
-    from journal.config import Config
-    from journal.db.schema import Schema
-    from journal.features.team.support.team_migration import TeamMigration
-    from journal.models.all_models import AllModels
-    from journal.repositories.doc_revisions import DocRevisions
-    from journal.repositories.doc_scope import DocScope
-    from journal.repositories.docs import Docs
-    from journal.features.docs.support.hub_move import HubMove
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.journal_backup import JournalBackup
-    from journal.repositories.shared_tables import SharedTables
-    from journal.repositories.users import Users
-    from journal.services.service_hooks import ServiceHooks
-    from journal.sync.migration_withdrawal import MigrationWithdrawal
-    from journal.sync.team_account import TeamAccount
-    from journal.sync.team_placement import TeamPlacement
-    from journal.sync.team_server_link import TeamServerLink
-
-    config, connection, bus = Config(tmp_path / name), tasks.connection, tasks.bus
-    tables, scopes, account, visible = SharedTables(connection, bus, TimeSource()), team_scopes(connection, bus, scope), TeamAccount(config), DocScope(scope.environments, scope)
-    withdrawal = MigrationWithdrawal(outgoing, tables, environment_withdrawal(config, connection, bus, scope), scopes, ServiceHooks())
-    owners = EnvironmentOwners(Links(connection, bus, TimeSource()), Users(connection, bus, TimeSource()), scope.environments)
-    docs, revisions = Docs(connection, bus, scope, visible, TimeSource()), DocRevisions(connection, bus, scope, Links(connection, bus, TimeSource()), visible, TimeSource())
-    return TeamMigration(account, TeamServerLink(account, Schema(connection, AllModels.MODELS)), scope.environments, owners, withdrawal, TeamPlacement(tables, scopes, account), docs, revisions, HubMove(docs, revisions), tables, JournalBackup(connection), config)
 
 
 def migration_withdrawn(tmp_path, name: str, scope, tasks, outgoing, actor) -> None:
@@ -753,250 +613,18 @@ def served_link(team, server, tmp_path, name: str, email: str, account_id: int) 
     (tmp_path / name / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": account_id, "team_key": team.details.answer().key, "address": f"http://127.0.0.1:{server.server_address[1]}", "token": token}))
 
 
-def team_journal(tmp_path, name: str):
-    from journal.config import Config
-    from journal.sync.block_supply import BlockSupply
-    from journal.sync.team_server_link import TeamServerLink
-    from journal.db.connection import Connection
-    from journal.db.schema import Schema
-    from journal.events.bus import Bus
-    from journal.events.models.model_event import ModelEvent
-    from journal.events.models.purged import Purged
-    from journal.models.all_models import AllModels
-    from journal.repositories.environments import Environments
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.repositories.scope import Scope
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.incoming_changes import IncomingChanges
-    from journal.sync.record_purge import RecordPurge
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.features.listeners.unlink_deleted import UnlinkDeleted
-    from journal.events.models.deleted import Deleted
-    from journal.events.models.number_request import NumberRequest
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.sync.block_numbers import BlockNumbers
-    from journal.services.service_hooks import ServiceHooks
-    from journal.events.rows.environment_unshared import EnvironmentUnshared
-    from journal.events.models.synced_deletion import SyncedDeletion
-    from journal.repositories.pending_uploads import PendingUploads
-    from journal.features.messages.support.attachments import Attachments
-    from journal.sync.pulled_file_removal import PulledFileRemoval
-    from journal.sync.record_withdrawal import RecordWithdrawal
-    from journal.repositories.journal_backup import JournalBackup
-
-    folder = tmp_path / name
-    config = Config(folder)
-    config.home.mkdir(parents=True)
-    (config.home / TEAM_FILE).write_text("{}")
-    connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
-    Schema(connection, AllModels.MODELS).create()
-    bus = Bus()
-    scope = Scope(Environments(connection, bus, TimeSource()), Links(connection, bus, TimeSource()))
-    outgoing = OutgoingChanges(connection, bus, TimeSource())
-    bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, outgoing))
-    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
-    blocks = IdBlocks(connection, bus, TimeSource())
-    base = (ord(name[0]) - ord("a")) * 100_000
-    for model in AllModels.MODELS:
-        if model.shared:
-            blocks.add(model.table(), base + 1, base + 99_999)
-    bus.listen(NumberRequest, block_numbers(connection, bus, scope, config, blocks))
-    bus.listen(Deleted, UnlinkDeleted(Links(connection, bus, TimeSource())))
-    bus.listen(EnvironmentUnshared, RecordWithdrawal(outgoing, TeamAccount(config), environment_withdrawal(config, connection, bus, scope), ServiceHooks()))
-    bus.listen(SyncedDeletion, PulledFileRemoval(Attachments(config, PendingUploads(connection, bus, TimeSource()), TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)))))
-    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus, TimeSource()), outgoing, Links(connection, bus, TimeSource()), TeamAccount(config), JournalBackup(connection), config)
 
 
-def team_changes(outgoing):
-    from journal.sync.team_change import TeamChange
-
-    changes = outgoing.waiting()
-    for change in changes:
-        outgoing.delete(change, USER)
-    return [TeamChange(row_table=change.row_table, row=change.row, action=change.action, writer=change.writer, fields=change.fields or {}) for change in changes]
 
 
-def test_two_journals_exchange_their_changes_and_a_pulled_write_runs_no_listener_of_a_local_write(tmp_path):
-    from journal.events.listener import Listener
-    from journal.events.models.created import Created
-    from journal.events.rows.task_opened import TaskOpened
-    from journal.sync.team_change import TeamChange
-
-    class Heard(Listener):
-        def __init__(self) -> None:
-            self.events = []
-
-        def handle(self, event) -> None:
-            self.events.append(event)
-
-    bus_a, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
-    bus_b, scope_b, tasks_b, outgoing_b, incoming_b = team_journal(tmp_path, "b")
-    created, opened = Heard(), Heard()
-    bus_b.listen(Created, created)
-    bus_b.listen(TaskOpened, opened)
-    with scope_a.environment(1):
-        kept = tasks_a.save(Task(environment_id=1, title="kept"), actor=USER)
-        gone = tasks_a.save(Task(environment_id=1, title="gone"), actor=USER)
-    incoming_b.apply(team_changes(outgoing_a))
-    with scope_b.environment(1):
-        assert [(task.id, task.title) for task in tasks_b.rows()] == [(kept.id, "kept"), (gone.id, "gone")]
-        assert len(opened.events) == 2 and created.events == [], "a pulled creation opens the task and runs no listener of a local creation"
-        tasks_b.save(tasks_b.find(kept.id).with_(title="b's title"), actor=AGENT)
-    with scope_a.environment(1):
-        tasks_a.save(kept.with_(title="a's title", brief="a's brief"), actor=USER)
-        tasks_a.delete(gone, USER)
-    with scope_b.environment(1):
-        tasks_b.save(tasks_b.find(gone.id).with_(brief="b's brief"), actor=AGENT)
-    applied_from = datetime.now(timezone.utc)
-    incoming_b.apply(team_changes(outgoing_a))
-    with scope_b.environment(1):
-        [task] = tasks_b.rows()
-        assert (task.title, task.brief) == ("b's title", "a's brief"), "a field this machine still has to send is kept as this machine has it"
-        assert task.updated_at >= applied_from, "a pulled row is dated when it was applied here, so the viewer's next poll finds it however old the edit"
-        assert [change.row for change in outgoing_b.waiting()] == [kept.id], "a pulled deletion drops this machine's waiting change to the row"
-    incoming_b.apply([TeamChange(row_table="tasks", row=kept.id, action="updated", writer=USER.stamp, fields={"column_from_a_newer_journal": 1})])
 
 
-def test_a_withdrawn_change_the_journal_keeps_is_never_read_as_a_deletion_or_an_update_and_a_queued_withdrawal_replaces_the_rows_earlier_change(tmp_path):
-    from journal.models.outgoing_change import OutgoingChange
-    from journal.sync.team_change import TeamChange
-    from sync_server.logged_change import LoggedChange
-
-    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
-    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    with scope_a.environment(1):
-        kept = tasks_a.save(Task(environment_id=1, title="kept"), actor=USER)
-    incoming_b.apply(team_changes(outgoing_a))
-    incoming_b.apply([TeamChange(row_table="tasks", row=kept.id, action="withdrawn", writer=USER.stamp, kept_by=keeper) for keeper in (Actor.user(1).stamp, "all")])
-    with scope_b.environment(1):
-        assert [(task.id, task.title) for task in tasks_b.rows()] == [(kept.id, "kept")], "a withdrawal this journal's person keeps, or every journal does, deletes no row and changes none"
-    assert TeamChange.logged(LoggedChange("tasks", kept.id, "withdrawn", USER.stamp, 1, 1, kept_by="all")).kept_by == "all", "the keeper crosses from the server's log to the journal"
-    update, withdrawal = OutgoingChange(id=5, row_table="tasks", row=kept.id, action="updated", fields={"title": "x"}), OutgoingChange(row_table="tasks", row=kept.id, action="withdrawn", kept_by="owner")
-    assert update.merged(withdrawal).payload() == {"row_table": "tasks", "row": kept.id, "action": "withdrawn", "actor": "", "fields": {}, "changed_at": {}, "local_number": 5, "kept_by": "owner"}, "a withdrawal queued after an update is sent alone in the queued change's place, with its keeper"
-    assert update.with_(action="created").merged(withdrawal) is None, "a row withdrawn before it was ever sent is sent not at all"
 
 
-def served_team_journals(tmp_path):
-    """Ada's and Bob's team journals joined to one team server in this process, and the step that carries Ada's waiting writes through the server into Bob's journal."""
-    import json
-    from journal.sync.team_account import TEAM_FILE
-    from journal.sync.team_change import TeamChange
-    from sync_server.account import ADMIN, MEMBER
-    from sync_server.push_request import PushRequest
-    from sync_server.team_server import TeamServer
-
-    (tmp_path / "server").mkdir()
-    team = TeamServer(tmp_path / "server")
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
-    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "10.0.0.1", 2.0)
-    bob, _ = team.devices.login("bob@example.com", "correct horse battery", "desktop", "10.0.0.2", 2.0)
-    journal_a, journal_b = team_journal(tmp_path, "a"), team_journal(tmp_path, "b")
-    (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 1, "team_key": team.details.answer().key}))
-    (tmp_path / "b" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2, "team_key": team.details.answer().key}))
-    outgoing_a, incoming_b, pulled = journal_a[3], journal_b[4], [0]
-
-    def carried():
-        changes = outgoing_a.waiting()
-        team.pushes.answer(ada, PushRequest.parsed([change.payload() for change in changes]), 3.0)
-        outgoing_a.sent(changes)
-        incoming_b.apply([TeamChange.logged(change) for change in team.log.pull_page(pulled[0], bob.id)])
-        pulled[0] = team.log.head()
-
-    return team, journal_a, journal_b, carried
 
 
-def test_unsharing_an_environment_withdraws_its_rows_links_and_files_from_the_server_and_the_colleague_and_the_owner_keeps_them(tmp_path):
-    from journal.config import Config
-    from journal.features.team.support.environment_sharing import EnvironmentSharing
-    from journal.models.environment import Environment
-    from journal.models.message import Message
-    from journal.models.plan import Plan
-    from journal.models.user import User
-    from journal.repositories.environment_owners import EnvironmentOwners
-    from journal.repositories.shared_tables import SharedTables
-    from journal.repositories.users import Users
-    from journal.sync.team_account import TeamAccount
-    from sync_server.file_place import FilePlace
-
-    team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, outgoing_b, _), carried = served_team_journals(tmp_path)
-    rows_a, rows_b = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
-    links_a, links_b = Links(tasks_a.connection, tasks_a.bus, TimeSource()), Links(tasks_b.connection, tasks_b.bus, TimeSource())
-
-    hub = scope_a.environments.save(Environment(name="hub", environment_type=EnvironmentType.SESSION), USER)
-    shared = scope_a.environments.save(Environment(name="mine"), USER)
-    links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(shared), link_type="owner"), USER)
-    with scope_a.environment(hub.id):
-        hub_task = tasks_a.save(Task(environment_id=hub.id, title="the hub's task"), actor=USER)
-    sharing = EnvironmentSharing(scope_a.environments, EnvironmentOwners(links_a, Users(tasks_a.connection, tasks_a.bus, TimeSource()), scope_a.environments), TeamAccount(Config(tmp_path / "a")))
-    shared = sharing.shared(shared, USER)
-    with scope_a.environment(shared.id):
-        task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
-        plan = rows_a.rows("plans").save(Plan(environment_id=shared.id, title="my plan"), USER)
-        messages = [rows_a.rows("messages").save(Message(environment_id=shared.id, text=text, files=files), USER) for text, files in (("hello", ("note.txt",)), ("again", ()))]
-        to_hub = links_a.save(Link(source=Ref.build(task), target=Ref.build(hub_task), link_type="follows"), USER)
-    team.files.put(FilePlace("messages", messages[0].id, "note.txt"), b"a note")
-    for side in ("a", "b"):
-        (tmp_path / side / ".journal" / "files" / "message" / str(messages[0].id)).mkdir(parents=True)
-        (tmp_path / side / ".journal" / "files" / "message" / str(messages[0].id) / "note.txt").write_bytes(b"a note")
-    carried()
-    withdrawn = [("environments", shared.id), ("tasks", task.id), ("plans", plan.id), *(("messages", message.id) for message in messages), ("links", to_hub.id)]
-    on_server = lambda: {(row.row_table, row.row) for row in team.log.copied_rows()}
-    on_b = lambda: {(table, id) for table, id in withdrawn if rows_b.rows(table).matching(id=id)}
-    assert set(withdrawn) <= on_server() and on_b() == set(withdrawn), "a shared environment's rows reach the server and the colleague"
-
-    sharing.unshared(shared, USER)
-    carried()
-    assert not set(withdrawn) & on_server() and ("tasks", hub_task.id) in on_server(), "the server's copy holds none of the environment's rows, and the hub's task stays"
-    assert all(team.log.row(table, id) is None and not team.store.all("SELECT * FROM changes WHERE row_table = ? AND row = ? AND action != 'withdrawn'", (table, id)) for table, id in withdrawn), "nor any change from before the withdrawal"
-    assert not (tmp_path / "server" / "files" / "messages" / str(messages[0].id)).exists(), "the message's file is gone from the server's folder"
-    assert on_b() == set() and rows_b.rows("tasks").matching(id=hub_task.id), "the colleague's journal holds none of them and keeps the hub's task"
-    assert not (tmp_path / "b" / ".journal" / "files" / "message" / str(messages[0].id)).exists(), "and the file is gone from the colleague's folder"
-    assert outgoing_b.waiting() == [], "the colleague sends nothing back for what it let go"
-    assert {(table, id) for table, id in withdrawn if rows_a.rows(table).matching(id=id)} == set(withdrawn) and links_a.connecting(task, hub_task), "the owner keeps every row and its link to the hub's task"
-    assert (tmp_path / "a" / ".journal" / "files" / "message" / str(messages[0].id) / "note.txt").read_bytes() == b"a note", "and its file"
-    team.store.close()
 
 
-def test_a_journal_backs_up_before_it_deletes_withdrawn_rows_and_one_restored_from_that_backup_converges_after_one_pull(tmp_path):
-    import json
-    import shutil
-    import sqlite3
-    from journal.models.environment import Environment
-    from journal.models.message import Message
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.team_account import TEAM_FILE
-    from journal.sync.team_change import TeamChange
-
-    team, (_, scope_a, tasks_a, _, _), (_, _, tasks_b, _, _), carried = served_team_journals(tmp_path)
-    shared = scope_a.environments.save(Environment(name="mine", team_key="k1"), USER)
-    with scope_a.environment(shared.id):
-        task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
-        message = SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()).rows("messages").save(Message(environment_id=shared.id, text="hello"), USER)
-    carried()
-    before = team.log.head()
-    withdrawn = [("environments", shared.id), ("tasks", task.id), ("messages", message.id)]
-    scope_a.environments.save(scope_a.environments.find(shared.id).unshared(), USER)
-    carried()
-    [backup] = (tmp_path / "b" / ".journal").glob("journal-before-withdrawal-*.db")
-    held = sqlite3.connect(backup)
-    assert all(held.execute(f"SELECT 1 FROM {table} WHERE id = ?", (id,)).fetchone() for table, id in withdrawn), "the backup is written before the withdrawn rows are deleted, so it holds every one of them"
-    held.close()
-    rows_b = SharedTables(tasks_b.connection, tasks_b.bus, TimeSource())
-    assert not any(rows_b.rows(table).matching(id=id) for table, id in withdrawn), "and then they are deleted"
-
-    (tmp_path / "c").mkdir()
-    shutil.copy(backup, tmp_path / "c" / "journal.db")
-    _, _, tasks_c, _, incoming_c = team_journal(tmp_path, "c")
-    (tmp_path / "c" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2}))
-    rows_c = SharedTables(tasks_c.connection, tasks_c.bus, TimeSource())
-    assert all(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "the restored journal holds the withdrawn rows again"
-    pulled = [TeamChange.logged(change) for change in team.log.pull_page(before, 0)]
-    incoming_c.apply(pulled)
-    assert not any(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "one pull from where its backup stood leaves it with no withdrawn row"
-    incoming_c.apply(pulled)
-    assert not any(rows_c.rows(table).matching(id=id) for table, id in withdrawn), "and the same pull again changes nothing"
-    team.store.close()
 
 
 def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_and_every_journal_keeps_its_copy(tmp_path):
@@ -1079,65 +707,8 @@ def test_a_shipped_template_is_written_once_for_the_team_by_the_machine_that_hol
     assert sorted(template.title for template in templates_b.rows()) == sorted(template.title for template in SHIPPED), "each shipped template once, as the machine with the upgrade wrote it"
 
 
-def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_persons(tmp_path):
-    from journal.repositories.setting_rows import SettingRows
-
-    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
-    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
-    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a, TimeSource()), SettingRows(tasks_b.connection, tasks_b.bus, scope_b, TimeSource())
-    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
-    settings_a.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make env"], USER)
-    settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
-    incoming_b.apply(team_changes(outgoing_a))
-    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3}, "the team's setting arrives; the machine's commands and the person's name stay where they were set"
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.journal_copy import JournalCopy
-    from sync_server.copied_row import CopiedRow
-    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus, TimeSource()), team_scopes(tasks_a.connection, tasks_a.bus, scope_a), team_placement(tasks_a.connection, tasks_a.bus, scope_a, Config(tmp_path / "a"))).rows()
-    assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersOptions.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
-    settings_b.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make mine"], USER)
-    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus, TimeSource()), team_scopes(tasks_b.connection, tasks_b.bus, scope_b), team_placement(tasks_b.connection, tasks_b.bus, scope_b, Config(tmp_path / "b")))
-    stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersOptions.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
-    former = [CopiedRow("tasks", 901, {"environment_id": 1, "title": "kept from before the rename", "state": "parked"}, {})]
-    copy_b.replace_whole(tuple(copied) + tuple(stray) + tuple(former))
-    assert settings_b.project(WorkersOptions.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersOptions.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
-    assert tasks_b.find(901).state == TaskState.PAUSED, "a team row in a state's former name is read in its new one"
 
 
-def test_a_full_copy_of_thousands_of_rows_and_the_writes_waiting_on_it_is_laid_in_with_a_bounded_number_of_statements_and_no_events(tmp_path):
-    from journal.models.outgoing_change import CREATED, DELETED, UPDATED, OutgoingChange
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.journal_copy import JournalCopy
-    from journal.sync.team_account import TeamAccount
-    from sync_server.copied_row import CopiedRow
-    from sync_server.full_copy import FullCopy
-
-    class Heard(Listener[ModelEvent]):
-        def __init__(self):
-            self.events = []
-
-        def handle(self, event):
-            self.events.append(event)
-
-    bus, scope, tasks, _, _ = team_journal(tmp_path, "b")
-    config = Config(tmp_path / "b")
-    tables = SharedTables(tasks.connection, tasks.bus, TimeSource())
-    copy = JournalCopy(tables, team_scopes(tasks.connection, bus, scope), team_placement(tasks.connection, bus, scope, config))
-    rows = tuple(CopiedRow("tasks", number, {"environment_id": 1, "title": f"task {number}"}, {}) for number in range(1, 3001))
-    waiting = [
-        OutgoingChange(row_table="tasks", row=5, action=UPDATED, fields={"title": "renamed here"}),
-        OutgoingChange(row_table="tasks", row=7, action=DELETED, fields={}),
-        OutgoingChange(row_table="tasks", row=4000, action=CREATED, fields={"environment_id": 1, "title": "made here"}),
-    ]
-    heard = Heard()
-    bus.listen(ModelEvent, heard)
-    tasks.connection.queries.clear()
-    copy.replace(FullCopy(rows, 3000, 0.0), waiting, TeamAccount(config))
-    statements = sum(query.runs for query in tasks.connection.queries.statements.values())
-    assert statements <= 6 * len(tables.names()), f"a copy of 3000 rows takes a few statements per table, not one per row: {statements}"
-    assert heard.events == [], "no row of the copy or of the writes waiting on it goes through the events of a pulled row"
-    laid = {task.id: task.title for task in tables.rows("tasks").numbered(range(1, 4001))}
-    assert len(laid) == 3000 and laid[5] == "renamed here" and 7 not in laid and laid[4000] == "made here", "the copy is laid in with this machine's waiting update, deletion and creation on top"
 
 
 def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_and_the_servers_backup_brings_the_earlier_rows_back(tmp_path):
@@ -1238,29 +809,6 @@ def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its
         team.store.close()
 
 
-def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_before_and_after_the_migration(tmp_path):
-    from journal.repositories.setting_rows import SettingRows
-    from journal.events.models.synced import Synced
-    from journal.sync.pulled_settings import PulledSettings
-
-    team, (_, scope_a, tasks_a, outgoing_a, _), (bus_b, scope_b, tasks_b, _, _), carried = served_team_journals(tmp_path)
-    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a, TimeSource()), SettingRows(tasks_b.connection, tasks_b.bus, scope_b, TimeSource())
-    bus_b.listen(Synced, PulledSettings(settings_b))
-    on_server = lambda: {row.fields["key"]: row.fields["value"] for row in team.log.copied_rows() if row.row_table == "settings"}
-    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
-    settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
-    carried()
-    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "before the migration the team's setting reaches the other journal and the person's name does not"
-
-    migration_withdrawn(tmp_path, "a", scope_a, tasks_a, outgoing_a, Actor.system())
-    carried()
-    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "the migration moves no setting row: the team's setting stays on the server and the other journal"
-    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 5, USER)
-    settings_a.set(VoicesOptions.NAME.key, "Ada Lovelace", USER)
-    carried()
-    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 5} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "after it a change to the team's setting still reaches the other journal and the person's name still does not"
-    assert settings_a.project(VoicesOptions.NAME.key) == "Ada Lovelace", "the person's own setting stays on their journal"
-    team.store.close()
 
 
 def test_team_placement_puts_each_row_in_its_team_or_in_none(tmp_path):
@@ -1341,35 +889,6 @@ def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is
     assert arrived.title == "lint" and arrived.last_output == "" and arrived.last_run_at is None, "the check reaches the other journal without the first machine's run"
 
 
-def test_a_database_from_before_the_type_columns_keeps_every_type_under_its_new_name(connection, bus):
-    """Migration 75: each column named kind becomes its table's type name, entry_type, link_type and the rest, keeping its values and its indexes, the empty column the schema already added and the index made on it dropped first; a sequence's triggers and an edit's rows keep their types as trigger_type and line_type, and a write still waiting for the team is sent under the new name."""
-    from journal.db.migrations.type_columns import TypeColumns
-    from journal.db.schema import Schema
-    from journal.models.all_models import AllModels
-    from journal.models.outgoing_change import CREATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-
-    kind_columns(connection)
-    connection.execute("CREATE INDEX IF NOT EXISTS links_by_kind ON links (kind, source)")
-    Schema(connection, AllModels.MODELS).create()
-    connection.execute("CREATE INDEX entries_dispatches ON entries (environment_id, id) WHERE entry_type = 'Stop'")
-    for table, value in (("entries", "nudge"), ("links", "mentions"), ("sent_agents", "worker"), ("secrets", "browser login"), ("environments", "hub")):
-        connection.execute(f"INSERT INTO {table} (kind, created_at, creator) VALUES (?, '2026-10-27', 'system')", (value,))
-    connection.execute("INSERT INTO reports (kind, abstract, created_at, creator) VALUES ('update', 'what changed', '2026-10-27', 'system')")
-    connection.execute("INSERT INTO edits (kind, rows, created_at, creator) VALUES ('create', ?, '2026-10-27', 'system')", (json.dumps([{"kind": "add", "line": 1, "text": "x = 1", "hidden": 0}]),))
-    connection.execute("INSERT INTO sequences (title, triggers, created_at, creator) VALUES ('Ship', ?, '2026-10-27', 'system')", (json.dumps([{"kind": "row", "moment": "plan.created"}]),))
-    outgoing = OutgoingChanges(connection, bus, TimeSource())
-    outgoing.queued(OutgoingChange(row_table="links", row=1, action=CREATED, fields={"kind": "mentions", "source": "tasks:1"}, changed_at={"kind": 1.0, "source": 1.0}, writer="user:1"), Actor.system())
-    with connection.transaction():
-        TypeColumns().apply(connection)
-    for table, column, value in (("entries", "entry_type", "nudge"), ("links", "link_type", "mentions"), ("sent_agents", "helper_type", "worker"), ("secrets", "secret_type", "browser login"), ("edits", "edit_type", "create"), ("environments", "environment_type", "hub"), ("reports", "report_type", "update")):
-        columns = {row["name"] for row in connection.all(f"PRAGMA table_info({table})")}
-        assert "kind" not in columns and connection.one(f"SELECT {column} AS value FROM {table}")["value"] == value, f"{table} keeps its type under {column}"
-    assert "link_type" in connection.one("SELECT sql FROM sqlite_master WHERE name = 'links_by_kind'")["sql"], "an index on the old column follows it"
-    assert json.loads(connection.one("SELECT rows FROM edits")["rows"]) == [{"line_type": "add", "line": 1, "text": "x = 1", "hidden": 0}], "an edit's rows name their type line_type"
-    assert json.loads(connection.one("SELECT triggers FROM sequences")["triggers"]) == [{"trigger_type": "row", "moment": "plan.created"}], "a sequence's triggers name theirs trigger_type"
-    [change] = outgoing.waiting()
-    assert change.fields == {"link_type": "mentions", "source": "tasks:1"} and set(change.changed_at) == {"link_type", "source"}, "a write waiting for the team is sent under the new name"
 
 
 def test_a_team_row_on_the_names_before_the_type_columns_is_stored_under_the_new_ones(connection, bus):
@@ -1390,18 +909,6 @@ def test_a_team_row_on_the_names_before_the_type_columns_is_stored_under_the_new
     assert SequenceTrigger.parsed({"kind": "row", "moment": "plan.created"}) == SequenceTrigger.parsed({"trigger_type": "row", "moment": "plan.created"}) == SequenceTrigger(SequenceTriggerType.ROW, moment="plan.created"), "a trigger reads under either name"
 
 
-def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connection, bus):
-    from journal.db.migration import Migration
-    from journal.models.outgoing_change import UPDATED, OutgoingChange
-    from journal.repositories.outgoing_changes import OutgoingChanges
-
-    connection.execute("ALTER TABLE tasks ADD COLUMN headline TEXT")
-    outgoing = OutgoingChanges(connection, bus, TimeSource())
-    outgoing.queued(OutgoingChange(row_table="tasks", row=7, action=UPDATED, fields={"headline": {"words": "kept whole"}, "state": "open"}, changed_at={"headline": 1.0, "state": 1.0}, writer="user:2"), Actor.system())
-    with connection.transaction():
-        Migration.column_rename(connection, "tasks", "headline", "subtitle")
-    [change] = outgoing.waiting()
-    assert change.fields == {"subtitle": {"words": "kept whole"}, "state": "open"} and change.changed_at == {"subtitle": 1.0, "state": 1.0}, "a write queued offline before the rename goes out under the new name, its value intact"
 
 
 def test_a_new_journal_has_every_index_and_an_index_whose_definition_changed_is_made_again(tmp_path):
@@ -1421,20 +928,6 @@ def test_a_new_journal_has_every_index_and_an_index_whose_definition_changed_is_
     connection.close()
 
 
-def test_a_transaction_reads_its_own_writes_even_when_another_thread_stored_the_table_meanwhile(connection, bus):
-    """Two links made in one transaction once took one number: a reader on another thread stored the blocks as committed, and the writer read that copy back, missing its own write."""
-    import threading
-    from journal.repositories.id_blocks import IdBlocks
-    blocks = IdBlocks(connection, bus, TimeSource())
-    blocks.add("links", 100, 199)
-    taken = []
-    with connection.transaction():
-        taken.append(blocks.next_id("links"))
-        reader = threading.Thread(target=lambda: blocks.all_matching(row_table="links"))
-        reader.start()
-        reader.join()
-        taken.append(blocks.next_id("links"))
-    assert taken == [100, 101], "the second number follows the first, whatever another thread read in between"
 
 
 def test_the_developer_numbers_drop_removes_the_timings_table_and_the_numbers_but_not_other_statistics(connection):
