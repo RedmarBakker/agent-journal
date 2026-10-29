@@ -1,5 +1,9 @@
 
 
+// The options the Organization section holds, by key; the group of their feature leaves them out.
+export const ORGANIZATION_KEYS = ["workers.organization_folder", "workers.default_plan_mode", "workers.openrig_version", "workers.seat_cap", "workers.cost_cap_dollars", "plans.plan_agents"];
+const inOrganization = (f, s) => ORGANIZATION_KEYS.includes(`${f.name}.${s.name}`);
+
 export const COUNTED = ["percent", "uses", "minutes"];
 export const EVENTS = ["idle", "worked", "start"];
 
@@ -176,7 +180,7 @@ function isBehindOffSwitch(f, setting, settings) {
 }
 
 function featureRows(f, settings, extras) {
-    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models" && !isBehindOffSwitch(f, s, settings));
+    const declared = f.settings.filter((s) => s.option_type !== "map" && !s.hidden && s.name !== "allowed_models" && !inOrganization(f, s) && !isBehindOffSwitch(f, s, settings));
     const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings));
     const own =
         hasTiming(f.trigger) && f.trigger_label
@@ -258,10 +262,17 @@ function group(g, members, settings, loose) {
     };
 }
 
-function looseRows(settings) {
+function organizationRows(features, settings) {
+    return ORGANIZATION_KEYS.flatMap((key) =>
+        features.flatMap((f) => f.settings.filter((s) => `${f.name}.${s.name}` === key).map((s) => settingRow(f, s, settings)))
+    );
+}
+
+function looseRows(settings, features) {
     const viewer = settings.viewer || {};
     return {
         rows: {
+            organization: organizationRows(features, settings),
             project: [
                 row({
                     key: "away",
@@ -291,7 +302,7 @@ function looseRows(settings) {
 // The settings page's sections from the manifest's features and groups and the saved settings.
 export function catalog(spec, settings) {
     const features = (spec.features || []).map(normalised);
-    const loose = looseRows(settings || {});
+    const loose = looseRows(settings || {}, features);
     const groups = (spec.groups || []).map((g) =>
         group(
             g,
