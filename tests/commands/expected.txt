@@ -2815,7 +2815,7 @@ the step as a Role has ended
 
 $ agent: journal organization plans
 exit 0
-domain work:
+domain work: Work
   no plans
 
 $ agent: journal plan tell 1 'begin with the cart'
