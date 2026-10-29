@@ -62,11 +62,16 @@ const worker = (id, environment, extra = {}) => ({
 let app;
 let host;
 
+async function settleRoute() {
+    await new Promise((done) => setTimeout(done));
+    await settle();
+}
+
 async function mount() {
     host = document.body.appendChild(document.createElement("div"));
     app = createApp({render: () => h(RolePage)});
     app.mount(host);
-    await settle();
+    await settleRoute();
 }
 
 beforeEach(async () => {
@@ -74,7 +79,7 @@ beforeEach(async () => {
     apiMock.in.mockClear();
     store.settings = {plans: {plan_agents: true}};
     location.hash = href.rolePage(role.domain, role.id);
-    await settle();
+    await settleRoute();
 });
 
 afterEach(() => {
@@ -129,7 +134,7 @@ test("an organization-plan Role seat shows its read-only transcript and queue be
     expect(host.querySelector(".mock-agent-inspector")).toBeFalsy();
     expect(host.querySelector(".role-instance-queue").textContent).toContain("Task 51: Run final review");
     host.querySelector(".queued-task").click();
-    await settle();
+    await settleRoute();
     expect(route.value.open).toMatchObject({table: "tasks", id: 51, env: "plan-4"});
 });
 
@@ -154,7 +159,7 @@ test("a worker Role gets writable chat and keeps a legacy worker under its old t
     const picker = host.querySelector(".role-instance-picker select");
     picker.value = "worker:main:7";
     picker.dispatchEvent(new Event("change"));
-    await settle();
+    await settleRoute();
     expect(host.querySelector(".mock-agent-inspector").getAttribute("data-instance-name")).toBe("Old planning title");
 });
 
