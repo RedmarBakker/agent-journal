@@ -158,6 +158,7 @@ export const TABLES = {
         labels: {brief: "What you dumped", outcome: "Filed"},
     }),
     shares: kind("Share", "share", "A link that lets someone outside the journal view one document, report or plan, and nothing else", {scope: "project"}),
+    domain_counts: kind("Domain count", "flag", "The live figures of one domain of the organization: plans active, and each Role's running instances and queue", {scope: "project"}),
     secrets: kind("Secret", "key", "A key or login the agent may use without ever seeing it", {scope: "project"}),
 };
 

@@ -541,3 +541,61 @@ def test_the_queue_of_a_journal_role_keeps_its_order_across_a_restart_and_hands_
             assert queued() == [2, 3, 4] and len(set(queued())) == len(queued()), "at the end of the queue, and no job twice"
     finally:
         second.runtime().stop()
+
+
+def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_row_that_follows_its_instances_queues_and_active_plans(app, tmp_path):
+    from datetime import datetime, timezone
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.domain_counts import DomainCounts
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    from tests.in_process import answered, got
+    loaded(app, tmp_path)[1].reload()
+    tasks, workers, plans, links, counts = (app.container.get(kind) for kind in (Tasks, Workers, Plans, Links, DomainCounts))
+    actor, now = Actor.system(), datetime.now(timezone.utc)
+    env = {"X-Journal-Env": "main"}
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="the floors"), actor)
+        built, looked, kept = (tasks.save(Task(environment_id=1, title=title, brief=f"{title} reads"), actor) for title in ("the build", "the lookup", "the contract"))
+        for task in (built, looked, kept):
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        assert counts.all_matching() == [], "no count until a task is handed to a Role"
+        builder = workers.save(Worker(environment_id=1, name="Mr. Brunel", brief="b", profile="journal-senior", role="builder", plan_id=plan.id), actor)
+        keeper = workers.save(Worker(environment_id=1, name="Ms. Hopper", brief="b", profile="journal-senior", role="keeper", plan_id=plan.id), actor)
+        tasks.handover(built, Ref.build(builder), actor)
+        tasks.queued(looked, Ref.build(builder), actor)
+        tasks.queued(kept, Ref.build(keeper), actor)
+        rows = {row.name: row for row in counts.all_matching()}
+        assert (rows["alpha"].plans_active, rows["alpha"].roles) == (1, {"scout": {"instances": 0, "queued": 0}, "builder": {"instances": 1, "queued": 1}}), "alpha: one plan active, the builder running with one task queued for it"
+        assert (rows["beta"].plans_active, rows["beta"].roles) == (1, {"keeper": {"instances": 1, "queued": 1}})
+        tasks.save(tasks.find(kept.id).completed(now, "kept"), actor)
+        workers.save(workers.find(keeper.id).with_(adopted=True, state="released"), actor)
+        assert {row.name: row.roles for row in counts.all_matching()}["beta"] == {"keeper": {"instances": 0, "queued": 0}}, "an instance that is released stops being counted, and so does its queue"
+        assert {row.name: row.plans_active for row in counts.all_matching()}["beta"] == 0, "and beta's plan is no longer active once its task is done"
+    status, shown = got(app, "/journal/organization", env)
+    alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
+    builder_role = next(role for role in alpha["roles"] if role["id"] == "builder")
+    assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
+    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "active": True, "tasks": [built.id, looked.id], "done": 0}], "with the counts and the board of plans"
+    listed = got(app, "/journal/domain_counts", env)[1]["rows"]
+    assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"
+    status, reloaded = answered(app, "POST", "/journal/organization/reload", b"{}", env)
+    assert status == 200 and reloaded["version"] == shown["version"]
+    with app.container.get(Scope).environment(1):
+        domains = app.container.get(DomainRows)
+        domains.task_tied(tasks.find(built.id), "beta", actor)
+        assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 1, "beta": 1}, "alpha still holds the queued task"
+        domains.task_tied(tasks.find(looked.id), "beta", actor)
+        assert {row.name: row.plans_active for row in counts.all_matching()} == {"alpha": 0, "beta": 1}, "a task handed on to another domain's Role leaves the domain it came from at once"
+        queued = {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"]
+        tasks.unqueued(Ref.build(builder), actor)
+        assert queued == 1 and {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["queued"] == 0, "a queue emptied is counted again"

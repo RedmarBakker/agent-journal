@@ -2029,3 +2029,12 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   journal starts with `tests/organization_fixture.py`'s `workers()` folder (Roles `medior` and `senior`, one instance for each
   job), named by the template journal's `workers.organization_folder`. A `many` Role is no longer refused without `--worktree`:
   whether a Role gets a worktree follows from whether it writes (doc 1), not from its cardinality.
+- The organization for the viewer (task 85): `OrganizationController` answers GET /organization in one answer (domains with
+  their Roles without the long guidance, problems, version, each domain's board of plans with phase names, and the counts)
+  and POST /organization/reload. The counts are `DomainCount` rows, one per domain, kept on this machine: plans active and,
+  per Role, running instances and queued tasks. `DomainCountRecord` refreshes the domains a saved worker, task, plan or
+  handing link touches, and `DomainCounts.kept` writes only a count that moved. They are listed at /domain_counts, a table
+  of the viewer (tables.js), so its sync carries a change without a reload. Queue length comes from one place,
+  `RoleQueueLength`, the tasks queued for a Role's running instances. A link removed (a task leaving a domain, a
+  queue emptied) refreshes the domains it joined too, so the one a task left is counted again at once. The viewer reads them
+  through `domainCounts` (web/src/domain/organizationCounts.js), tested against the sync in tests/organizationCounts.test.js.

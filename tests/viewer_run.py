@@ -108,6 +108,7 @@ SETS = {
     "flowchart": (
         "tests/flowchart.test.js",
     ),
+    "organization_counts": ("tests/organizationCounts.test.js",),
     "worker_cell": (
         "tests/agentCell.test.js",
     ),

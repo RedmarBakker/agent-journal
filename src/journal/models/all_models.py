@@ -57,6 +57,7 @@ from journal.models.worker import Worker
 from journal.models.verifier import Verifier
 from journal.models.reviewer import Reviewer
 from journal.models.rig import Rig
+from journal.models.domain_count import DomainCount
 from journal.models.domain_row import DomainRow
 from journal.models.subagent import Subagent
 
@@ -64,5 +65,5 @@ from journal.models.subagent import Subagent
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Memory, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, TestTurn, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport, ReaderSuggestion, Verifier, Reviewer, Rig, DomainRow, DomainCount)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))
