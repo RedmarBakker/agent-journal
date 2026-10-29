@@ -21596,6 +21596,7 @@ def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_
         raise AssertionError("a missing row was mistaken for missing sync doors")
     except OSError as refusal:
         assert "journal sync door answered 404: the requested sync row is gone" in str(refusal), "an application 404 keeps its cause instead of being misreported as missing doors"
+        assert str(missing.server_address[1]) in str(refusal), "the local sync door path identifies which request failed"
     finally:
         missing.shutdown()
 
