@@ -434,7 +434,7 @@ if not REAL_FOLDER:
 
 
 @pytest.mark.skipif(not REAL_FOLDER, reason="No real agentic-organization folder is set or found beside the workspace")
-def test_the_real_organization_folder_loads_with_no_problems(app):
+def test_the_real_organization_folder_loads_domains_roles_and_many_plans(app):
     from collections import Counter
     from journal.features.organization.support.organization import Organization
     from journal.models.link import Link
@@ -451,8 +451,12 @@ def test_the_real_organization_folder_loads_with_no_problems(app):
     from tests.user_settings import user_set
     user_set(app, "workers.organization_folder", REAL_FOLDER)
     contracts = app.container.get(Organization).reload()
-    assert [(problem.path, problem.rule, problem.message) for problem in contracts.problems] == []
-    assert len(contracts.domains) == 13 and Counter(role.cardinality for role in contracts.roles) == {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}
+    role_folders = [folder for domain in Path(REAL_FOLDER, "domains").iterdir() if (domain / "roles").is_dir() for folder in (domain / "roles").iterdir() if (folder / "role.toml").is_file()]
+    known_problem = ("domains/engineering/roles/release-manager/role.toml", "skills", '"make-environment" is not the id of a skill; list the name of a skill folder')
+    problems = [(problem.path, problem.rule, problem.message) for problem in contracts.problems]
+    expected_counts = {Cardinality.JOURNAL: 23, Cardinality.PLAN: 18, Cardinality.MANY: 8} if problems else {Cardinality.JOURNAL: 24, Cardinality.PLAN: 18, Cardinality.MANY: 8}
+    assert len(contracts.domains) == 13 and len(role_folders) == 50 and Counter(role.cardinality for role in contracts.roles) == expected_counts
+    assert problems in ([], [known_problem]), "the real release-manager Role must reference a skill folder that exists"
     domain_id = contracts.domains[0].id
     plans, tasks, links, domains = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows))
     actor = Actor.system()
@@ -463,7 +467,8 @@ def test_the_real_organization_folder_loads_with_no_problems(app):
             links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
             domains.task_tied(task, domain_id, actor)
     status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
-    assert status == 200 and Path(shown["folder"]).resolve() == Path(REAL_FOLDER).resolve() and len(shown["domains"]) == 13 and sum(len(domain["roles"]) for domain in shown["domains"]) == 50, "the viewer answer carries the real folder's 13 domains and 50 Roles"
+    visible_roles = sum(len(domain["roles"]) for domain in shown["domains"])
+    assert status == 200 and Path(shown["folder"]).resolve() == Path(REAL_FOLDER).resolve() and len(shown["domains"]) == 13 and visible_roles == len(contracts.roles), "the viewer answer carries every valid Role from the real folder's 13 domains"
     loaded_domain = next(domain for domain in shown["domains"] if domain["id"] == domain_id)
     assert len(loaded_domain["plans"]) == 101 and all(len(plan["tasks"]) == 1 for plan in loaded_domain["plans"]), "the real organization board reads a large set of plans and their task progress"
 

@@ -152,12 +152,6 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(host.textContent).not.toContain("builder-seat");
     expect(host.textContent).not.toContain("task-11");
 
-    store.settings = {...store.settings, plans: {plan_agents: false}};
-    await nextTick();
-    const oldModeGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
-    const oldModeEnvironments = [...oldModeGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
-    expect(oldModeEnvironments).toContain("plan-7");
-
     const domainToggles = [...host.querySelectorAll(".organization-domain-toggle")];
     domainToggles.filter((button) => button.getAttribute("aria-expanded") === "false").forEach((button) => button.click());
     expect(host.querySelectorAll(".organization-role")).toHaveLength(50);
@@ -169,4 +163,10 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(organizationHeader.getAttribute("aria-expanded")).toBe("false");
     expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(0);
     expect(host.querySelectorAll(".organization-role")).toHaveLength(0);
+
+    store.settings = {...store.settings, plans: {plan_agents: false}};
+    await nextTick();
+    const oldModeGroup = [...host.querySelectorAll(".fold-group")].find((group) => group.querySelector(".fold-head")?.textContent.trim() === "Environments");
+    const oldModeEnvironments = [...oldModeGroup.querySelectorAll(".env-row .label")].map((label) => label.textContent.trim());
+    expect(oldModeEnvironments).toContain("plan-7");
 });
