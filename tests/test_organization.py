@@ -227,8 +227,11 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     provider_command = app.container.get(RigSeats).providers.lookup("codex").hook_command(app.config.root)
     assert hooks["PreToolUse"][0]["hooks"][0]["command"] == provider_command
     assert hooks["UserPromptSubmit"][0]["hooks"][0]["command"] == provider_command
-    assert "journal hook codex" in provider_command or "hook.sh codex" in provider_command
+    assert "hook.sh codex" in provider_command
     assert str(app.config.root) in provider_command
+    assert "hook.sh codex" in hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert str(app.config.root) in hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert "hook.sh codex" in hooks["UserPromptSubmit"][0]["hooks"][0]["command"]
 
 
 def test_a_plan_rig_selects_its_plan_model_from_the_configured_allowed_profile_and_effort(app, tmp_path, monkeypatch):
