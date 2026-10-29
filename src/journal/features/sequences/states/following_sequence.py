@@ -18,7 +18,6 @@ from journal.events.rows.sequence_step_adopted import SequenceStepAdopted
 from journal.events.rows.sequence_step_skipped import SequenceStepSkipped
 from journal.events.rows.plan_readied import PlanReadied
 from journal.events.rows.plan_reviewed import PlanReviewed
-from journal.events.rows.row_event import RowEvent
 from journal.features.sequences.sequences_nudges import SequencesNudges
 from journal.features.sequences.sequences_options import SequencesOptions
 from journal.features.sequences.sequences_part import SequencesPart
@@ -55,21 +54,18 @@ class FollowingSequence(BaseState):
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         return (self.reminder(),)
 
-    def is_mine(self, event: RowEvent) -> bool:
-        return event.agent_session == event.session
-
     def on_sequence_step_adopted(self, event: SequenceStepAdopted, settings: Settings) -> Transition:
-        return self.swap(replace(self, run=self.run.adopted(event.time_text()).announced(event.time_text()).paused(""))) if self.is_mine(event) else self.none()
+        return self.swap(replace(self, run=self.run.adopted(event.time_text()).announced(event.time_text()).paused(""))) if event.is_agents_own() else self.none()
 
     def on_sequence_step_finished(self, event: SequenceStepFinished, settings: Settings) -> Transition:
-        if not self.is_mine(event):
+        if not event.is_agents_own():
             return self.none()
         if self.run.last:
             return self.pop()
         return self.swap(replace(self, run=self.run.advanced().announced(event.time_text())))
 
     def on_sequence_step_skipped(self, event: SequenceStepSkipped, settings: Settings) -> Transition:
-        if not self.is_mine(event):
+        if not event.is_agents_own():
             return self.none()
         skipped = SequencesNudges.STEP_OMISSION.create(n=self.run.sequence_id, step=self.run.step + 1)
         if self.run.last:
@@ -92,16 +88,16 @@ class FollowingSequence(BaseState):
         return self.swap(moved, moved.step_line())
 
     def on_sequence_run_paused(self, event: SequenceRunPaused, settings: Settings) -> Transition:
-        return self.swap(replace(self, run=self.run.paused(event.reason))) if self.is_mine(event) else self.none()
+        return self.swap(replace(self, run=self.run.paused(event.reason))) if event.is_agents_own() else self.none()
 
     def on_sequence_run_abandoned(self, event: SequenceRunAbandoned, settings: Settings) -> Transition:
-        return self.pop() if self.is_mine(event) else self.none()
+        return self.pop() if event.is_agents_own() else self.none()
 
     def on_sequence_run_cancelled(self, event: SequenceRunCancelled, settings: Settings) -> Transition:
-        return self.pop().typing(SequencesNudges.SEQUENCE_CANCELLED.create(n=self.run.sequence_id)) if self.is_mine(event) else self.none()
+        return self.pop().typing(SequencesNudges.SEQUENCE_CANCELLED.create(n=self.run.sequence_id)) if event.is_agents_own() else self.none()
 
     def on_sequence_run_cannot_finish(self, event: SequenceRunCannotFinish, settings: Settings) -> Transition:
-        if not self.is_mine(event) or event.sequence_id != self.run.sequence_id:
+        if not event.is_agents_own() or event.sequence_id != self.run.sequence_id:
             return self.none()
         return self.pop(SequencesNudges.SEQUENCE_CANNOT_FINISH.create(n=self.run.sequence_id, why=event.reason))
 
