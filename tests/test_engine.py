@@ -1987,7 +1987,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(time=2.0).with_data(of(None)), settings("orchestrator"))
     assert delegating.refusal is not None and "give it to a worker" in delegating.refusal.rendered(), "the delegating task says hand it over where working says carry on"
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(), PlansWorking(task_id=1))), settings("solo")).states[0], Soloing), "a mode changed while work is in hand changes the bottom beneath it"
-    assert Soloing().respond(ToolStarting(call=shell("journal worker dispatch 'Mr. Smith' 'the job' --profile journal-medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
+    assert Soloing().respond(ToolStarting(call=shell("journal worker dispatch 'Mr. Smith' 'the job' --role medior")).with_data(of(None)), settings("solo")).refusal == WorkersNudges.SOLO_DISPATCH.create(), "solo keeps workers out"
     assert Soloing().respond(ToolStarting(call=shell("ls")).with_data(of(None)), settings("solo")).refusal is None
 
 
@@ -2032,7 +2032,7 @@ def orchestrated(app: App) -> None:
     first = stop()
     assert first.get("decision") == "block" and "20 tasks open" in first["reason"] and "dispatch a worker on each you can" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"
     for n, name in ((1, "Ada"), (2, "Florence"), (3, "Babbage")):
-        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
+        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--role", "medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
     waiting = stop()
     assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
@@ -2868,7 +2868,7 @@ def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_al
     assert allowed.clamped("claude", "reviewer", "opus")[0] == "sonnet", "over the maximum it comes down to it"
     assert allowed.clamped("claude", "verifier", "sonnet")[0] == "opus", "between two as near, the stronger"
     assert allowed.clamped("claude", "journal-medior", "claude-haiku-5-5")[0] == "claude-sonnet-5-5", "a full model name keeps all but its tier"
-    assert allowed.clamped("claude", "some-worker-profile", "haiku")[0] == "sonnet", "a role with no line takes journal-medior's"
+    assert allowed.clamped("claude", "some-worker-profile", "haiku")[0] == "haiku", "a role with no line may run on any model of the provider"
     assert allowed.clamped("codex", "journal-medior", "gpt-6-luna")[0] == "gpt-6.1-sol" and allowed.clamped("codex", "journal-medior", "gpt-6.1-sol")[0] == "gpt-6.1-sol", "Codex is held to the same from its own list"
     assert Providers().lookup("codex").model_ranking == ("gpt-6-luna", "gpt-6.1-sol"), "Codex knows only its two allowed models"
     assert AllowedModels(SimpleNamespace(texts=lambda option: ()), Providers()).strongest("codex", "reviewer") == "gpt-6.1-sol", "with no line a role may run on any ranked model"

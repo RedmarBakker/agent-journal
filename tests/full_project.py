@@ -153,7 +153,7 @@ def workers(app: App, words: random.Random) -> None:
         settings.set(limit.key, 0, Actor.user(1))
     for n in range(WORKERS):
         task = number(console.run(["task", "create", f"the job of worker {n + 1}", "--brief", sentence(words)], AGENT).text, "task")
-        dispatch = console.run(["worker", "dispatch", f"Worker {n + 1}", "--task", str(task), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+        dispatch = console.run(["worker", "dispatch", f"Worker {n + 1}", "--task", str(task), "--changes", "the files of its task", "--tests", "Scoped tests", "--role", "medior", "--model", "sonnet"], AGENT)
         assert dispatch.code == 0, dispatch.error
     for limit in limits:
         settings.set(limit.key, limit.default, Actor.user(1))

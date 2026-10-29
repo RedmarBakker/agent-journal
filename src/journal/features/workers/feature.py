@@ -124,14 +124,13 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   `journal worker queue <n> <task> [<task>...]`. `--report queue` is the default, so a queue interrupts you once, when it is
   empty. A dispatch or a send of a single task while other tasks of its plan wait to be handed out is told once to
   queue them, naming them and the line that does it. This holds whether the fitness measures are on or off.
-- `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --profile journal-senior|journal-medior ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
+- `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --role <role> ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
   name it after a distinguished figure with a twist on their trade. A worker writes: `--changes` names what it changes,
   and a job that only reads, searches, researches or reviews is always a subagent's, never a worker's. How it tests is the setting How workers test: with The journal runs them, the default, it runs none and names its tests when it clocks out, `journal clock-out "<report>" --tests "<arguments>"`; the journal runs the project's test command with them in its worktree, a card in your chat shows the run, and only a passing run lets the clock-out stand, a failing one going straight back to the worker; no worker is sent until you set the command with `journal tests command "<command>" --proof "<the arguments of one test that passes>"`. With Hand the tests over it runs none and its proofs name them for you to run; with Run the tests it wrote, `--tests` names the
   test template that says how, Scoped tests when not named and Full suite seldom, since the full suite is yours to run once its work is back; the project's own
   test templates are listed with `journal template list`. A worker is started only on a task: an open one with a
   brief, which is its job, or the one you own, which it then takes over. The task is the worker's from then on, never
-  offered to you as next, until its work is merged or released. The profile sets its model and its instructions:
-  medior, on Sonnet, for a job whose shape is defined; senior, on Opus, only for one that needs judgement. `--model` overrides it.
+  offered to you as next, until its work is merged or released. The Role, one of `journal organization list`, sets its model, its instructions and its skills; `--model` overrides the model.
   In a project that contains repositories of its own, a worktree contains a worktree of each one the task's brief names
   (all of them when it names none), so name the repositories the job touches in the brief; each merges into its own.
   A worktree has no installed libraries of its own, so a worktree dispatch names them: `--libraries node_modules,.venv`
@@ -194,7 +193,7 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Related work goes back to the worker that knows it: `journal worker send <n> "<next job>"` gives a worker that
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
   Never dispatch a new worker for work one already out has done part of.
-  `--model <model>` or `--profile <profile>` sends it the job on another model, in the same session and worktree: a stronger
+  `--model <model>` sends it the job on another model, in the same session and worktree: a stronger
   one for a worker sent back three times on one task, a cheaper one for one spending much on work of a settled shape.
   `journal worker list` names each worker's model, its spend so far and its send-backs on its task.
 - Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.

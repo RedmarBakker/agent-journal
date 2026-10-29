@@ -2,11 +2,9 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 
-FALLBACK_ROLE = "journal-medior"
-
 
 class AllowedModels:
-    """The models each role may run on for each provider, from the user's setting, one line each; a model asked for outside them is moved to the nearest allowed, the stronger when two are as near, and a role with no line of its own takes the line of journal-medior."""
+    """The models each role may run on for each provider, from the user's setting, one line each; a model asked for outside them is moved to the nearest allowed, the stronger when two are as near, and a role with no line of its own may run on any model of the provider."""
 
     def __init__(self, settings: SettingRows, providers: Providers) -> None:
         self.settings, self.providers = settings, providers
@@ -22,7 +20,7 @@ class AllowedModels:
 
     def allowed(self, provider: str, role: str) -> tuple[str, ...]:
         lines = self.lines()
-        return lines.get((provider, role)) or lines.get((provider, FALLBACK_ROLE)) or self.providers.lookup(provider).model_ranking
+        return lines.get((provider, role)) or self.providers.lookup(provider).model_ranking
 
     def strongest(self, provider: str, role: str) -> str:
         ranking = self.providers.lookup(provider).model_ranking

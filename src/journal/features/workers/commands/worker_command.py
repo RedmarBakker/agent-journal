@@ -1,6 +1,5 @@
 from journal.features.workers.support.allowed_models import AllowedModels
 from journal.features.team.support.start_rule import StartRule
-from journal.providers.support.profile_type import ProfileType
 from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 from journal.features.workers.support.report_argument import ReportArgument
@@ -12,6 +11,7 @@ from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.worktree_failure import WorktreeFailure
 from journal.console.command import Command
 from journal.support.caller import Caller
+from journal.providers.support.profile_type import ProfileType
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.organization.support.role_boot import RoleBoot
 from journal.features.organization.support.role_instances import RoleInstances
@@ -94,8 +94,8 @@ class WorkerCommand(Command):
         dispatch.add_argument("--changes", required=True, help="the files, folders or document the worker changes; a job that only reads, searches or reviews goes to a subagent, never a worker")
         dispatch.add_argument("--tests", default="", help="the test template that says how the worker tests when the setting is Run the tests it wrote: Scoped tests by default, Full suite, or one of the project's own; with Hand the tests over the worker runs none, and with Test budget it tests only through journal tests turn")
         dispatch.add_argument("--role", help="a Role of the organization instead of a profile: the job starts with the Role's and its domain's guidance, its skills and its model; see journal organization list")
-        dispatch.add_argument("--profile", help="the worker profile it works by: senior, on Opus, for a job that needs judgement; medior, on Sonnet, for one whose shape is settled")
-        dispatch.add_argument("--model", help="a model other than the profile's")
+        dispatch.add_argument("--profile", help="a worker profile of your own that the project keeps, instead of a Role; the journal ships none")
+        dispatch.add_argument("--model", help="a model other than the Role's or the profile's")
         dispatch.add_argument("--worktree", action="store_true", help="in a worktree of its own, for code; then name its library folders with --libraries or --copies, or say --no-libraries")
         dispatch.add_argument("--libraries", default="", help="library folders the worktree links to the main checkout's, comma separated, such as node_modules,.venv")
         dispatch.add_argument("--copies", default="", help="library folders the worktree gets copies of its own of, comma separated, such as vendor for composer, whose autoloader would load the main checkout's classes through a link")
@@ -124,8 +124,8 @@ class WorkerCommand(Command):
         line.add_argument("n", type=int)
         line.add_argument("brief")
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
-        line.add_argument("--model", help="the model it runs the job on from now, in the same session and worktree")
         line.add_argument("--profile", help="the worker profile it works by from now, and its model unless --model names one")
+        line.add_argument("--model", help="the model it runs the job on from now, in the same session and worktree")
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order, a started or paused one in your own hands let go to it: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
@@ -274,14 +274,11 @@ class WorkerCommand(Command):
             raise Rejection("a Role runs on this machine: dispatch it without --pool")
         if args.profile:
             self.worker_profile(args.profile)
-        role = self.roles.role(args.role) if args.role else None
-        if role and self.roles.needs_worktree(role) and not args.worktree:
-            raise Rejection(f"{role.id} runs each job in a worktree of its own: add --worktree, with its library folders")
-        return role
+        return self.roles.role(args.role) if args.role else None
 
     def worker_profile(self, profile: str) -> None:
         if self.profiles.profile_type(profile) != ProfileType.WORKER:
-            raise Rejection(f"{profile} is no worker profile: use --profile journal-senior or journal-medior")
+            raise Rejection(f"{profile} is no worker profile: use --role, or a worker profile of your own")
 
     def allowed_model(self, provider: str, profile: str, model: str) -> str:
         moved, note = self.allowed.clamped(provider, profile, model)
@@ -292,12 +289,13 @@ class WorkerCommand(Command):
     def staffing(self, args: Namespace) -> tuple[str, str | None]:
         worker = self.workers.find(args.n)
         if args.profile is None:
-            return (self.allowed_model(worker.provider, worker.profile, args.model) if args.model else worker.model), worker.profile
+            return (self.allowed_model(worker.provider, worker.profile, args.model) if args.model and worker.profile else args.model or worker.model), worker.profile
         self.worker_profile(args.profile)
         return self.allowed_model(worker.provider, args.profile, args.model or self.model(args.profile, worker.provider)), args.profile
 
     def model(self, profile: str, provider: str) -> str:
         return self.providers.lookup(provider).profile_model(self.profiles.read(profile))
+
 
     def report(self, args: Namespace, caller: Caller) -> int:
         if caller.worker_number is not None and caller.worker_number != args.n:

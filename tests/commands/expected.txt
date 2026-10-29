@@ -1413,9 +1413,9 @@ workers.built_paths =
 workers.build_command = ''
 workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
-workers.pool_profiles = journal-medior  (the user sets it)
-workers.allowed_models = claude journal-medior: sonnet, opus | claude journal-senior: sonnet, opus | claude reviewer: sonnet | claude verifier: sonnet | codex journal-medior: gpt-6-luna, gpt-6.1-sol | codex journal-senior: gpt-6-luna, gpt-6.1-sol | codex reviewer: gpt-6.1-sol | codex verifier: gpt-6.1-sol
-workers.organization_folder = ''  (the user sets it)
+workers.pool_profiles =   (the user sets it)
+workers.allowed_models = claude reviewer: sonnet | claude verifier: sonnet | codex reviewer: gpt-6.1-sol | codex verifier: gpt-6.1-sol
+workers.organization_folder = 'test-organization'  (the user sets it)
 workers.organization_version = ''  (the user sets it)
 workers.default_plan_mode = 'organization'  (the user sets it)
 workers.openrig_version = ''  (the user sets it)
@@ -2011,10 +2011,9 @@ options:
                         job starts with the Role's and its domain's guidance,
                         its skills and its model; see journal organization
                         list
-  --profile PROFILE     the worker profile it works by: senior, on Opus, for a
-                        job that needs judgement; medior, on Sonnet, for one
-                        whose shape is settled
-  --model MODEL         a model other than the profile's
+  --profile PROFILE     a worker profile of your own that the project keeps,
+                        instead of a Role; the journal ships none
+  --model MODEL         a model other than the Role's or the profile's
   --worktree            in a worktree of its own, for code; then name its
                         library folders with --libraries or --copies, or say
                         --no-libraries
@@ -2791,11 +2790,17 @@ exit 0
 
 $ agent: journal organization list
 exit 0
-no organization: set the agentic organization folder on the Settings page
+domain work: Work
+  role medior: many, writes, claude sonnet, codex gpt-6-luna on max
+  role senior: many, writes, claude opus, codex gpt-6-luna on max
+version 65fb375511ab
 
 $ agent: journal organization reload
 exit 0
-no organization: set the agentic organization folder on the Settings page
+domain work: Work
+  role medior: many, writes, claude sonnet, codex gpt-6-luna on max
+  role senior: many, writes, claude opus, codex gpt-6-luna on max
+version 65fb375511ab
 
 $ agent: journal role take keeper
 exit 1

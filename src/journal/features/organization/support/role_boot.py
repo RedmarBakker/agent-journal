@@ -1,4 +1,3 @@
-from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.tool_ids import ToolIds
@@ -28,10 +27,6 @@ class RoleBoot:
 
     def version(self) -> str:
         return self.organization.contracts().version
-
-    @staticmethod
-    def needs_worktree(role: Role) -> bool:
-        return role.cardinality is Cardinality.MANY
 
     @staticmethod
     def model(role: Role, provider: str) -> str:

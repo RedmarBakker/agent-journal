@@ -44,7 +44,7 @@ class WorkerLine:
 
     @property
     def profile(self) -> str:
-        return self.options.get("--profile", "")
+        return self.options.get("--role") or self.options.get("--profile", "")
 
     @property
     def is_new_worker(self) -> bool:

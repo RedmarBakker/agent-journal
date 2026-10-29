@@ -2012,3 +2012,11 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   so phase 7 is built on OpenRig 0.7.5. Queue order is arrival order, so journal feeds a shared seat itself; OpenRig
   enforces no edges, so seats get deny rules and journal's route check stays the gate; pausing by snapshot is deferred;
   organization plans stay on the main agent's machine; merging a seat's work through journal moves to phase 7.
+- Task 25: the journal ships no writing profile. `journal-senior` and `journal-medior` are gone from `ProfileFiles.PROFILES`;
+  a worker is dispatched with `--role <id>`, and `--profile` stays only for a worker profile the project saved itself. The
+  default Models-each-role-may-run-on lines and the pool's default profile no longer name them, a role with no line there may
+  run on any model of the provider, and a Role worker's model tier (for the cost-on-settled-work line) comes from its Role.
+  The read-only profiles (researcher, planner, debugger, plan-reviewer) stay as subagents for every kind of agent. A test
+  journal starts with `tests/organization_fixture.py`'s `workers()` folder (Roles `medior` and `senior`, one instance for each
+  job), named by the template journal's `workers.organization_folder`. A `many` Role is no longer refused without `--worktree`:
+  whether a Role gets a worktree follows from whether it writes (doc 1), not from its cardinality.

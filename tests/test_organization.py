@@ -97,6 +97,7 @@ def test_a_domain_edge_to_an_unknown_domain_a_role_file_that_does_not_parse_and_
 def test_no_folder_set_is_no_organization_and_a_folder_that_is_missing_is_one_problem(app, tmp_path):
     from journal.features.organization.support.organization import Organization
     from tests.user_settings import user_set
+    user_set(app, "workers.organization_folder", "")
     organization = app.container.get(Organization)
     assert organization.reload().is_empty() and organization.contracts().problems == (), "an empty setting is no organization and no problem"
     user_set(app, "workers.organization_folder", str(tmp_path / "missing"))
@@ -129,7 +130,7 @@ def test_a_job_dispatched_to_a_role_starts_with_that_roles_and_its_domains_guida
     console = app.console()
     console.run(["environment", "overview"], agent)
     refused = lambda *argv: dispatched(console, ["Ada Lovelace", "the job", "--changes", "the files of its task", *argv], agent)
-    assert "one of them" in refused().error and "one of them" in refused("--role", "porter", "--profile", "journal-medior").error, "a job names a profile or a Role, one of them"
+    assert "--role" in refused().error, "a job names the Role it works as"
     assert "no Role" in refused("--role", "nobody").error and "does not write" in refused("--role", "scout").error, "an unknown Role and a Role that does not write are refused"
     sent = refused("--role", "porter", "--provider", "claude")
     assert sent.code == 0, sent.error
@@ -232,7 +233,7 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
         assert second.code == 0 and len(started) == 1 and len(workers.role_instances("steward")) == 1, "a second job for a journal Role starts no second instance"
         assert [task.id for task in app.container.get(Tasks).queue(Ref.build(workers.role_instances("steward")[0]))] == [2], "the second job waits in the one instance's queue"
 
-        assert "worktree of its own" in send("Ida Rhodes", "--role", "builder").error and len(started) == 1, "a many Role asks for a worktree of its own and starts nothing without it"
+        assert send("Ida Rhodes", "--role", "builder").code == 0 and send("Rosalind Franklin", "--role", "builder").code == 0 and len(started) == 3, "a many Role starts an instance for each job"
 
         instances = app.container.get(RoleInstances)
         porter = contracts.role("porter")
@@ -453,3 +454,13 @@ def test_a_role_that_is_stuck_refused_or_ends_without_clocking_out_is_reported_t
         cards = [message for message in app.container.get(Messages).all() if message.text == "Role reported to you"]
     assert len(escalated) == 2 and len(cards) == 1 and cards[0].data["lines"] == ["the Role keeper of beta ended without clocking out", "stopped after 30 minutes without ending: (nothing printed)", f"worker {franklin.id}, Ms. Franklin"] and cards[0].session == "s1", "step three: with no Domain agent running and no plan, a Role that timed out is reported to the user in its dispatcher's chat"
     assert ([ref.id for ref in links.targets(builder, ESCALATED_LINK)], [ref.id for ref in links.targets(keeper, ESCALATED_LINK)]) == ([domain_agent.id], [plan_agent.id]), "each report to an agent is a link from the worker to it"
+
+
+def test_a_seat_on_a_model_other_than_its_roles_contract_names_is_caught_and_one_on_it_is_not():
+    from journal.features.organization.support.seat_model_guard import SeatModelGuard
+    role = a_role(models=RoleModels("sonnet", "gpt-6-luna", "max"))
+    assert SeatModelGuard.mismatch(role, "claude", "sonnet") == "" and SeatModelGuard.mismatch(role, "claude", "claude-sonnet-5-5") == "", "the contract's model, whole or in a full name, is right"
+    assert SeatModelGuard.mismatch(role, "codex", "gpt-6-luna") == "", "and so on Codex"
+    wrong = SeatModelGuard.mismatch(role, "claude", "opus")
+    assert "runs on opus" in wrong and "names sonnet" in wrong and wrong.endswith("restart it on sonnet"), "a seat on another model is named with the model to restart it on"
+    assert "no model" in SeatModelGuard.mismatch(role, "codex", ""), "a seat with no observed model is not trusted"

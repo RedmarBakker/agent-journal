@@ -18,6 +18,13 @@ class OrganizationFixture:
         (self.root / "domains" / "alpha" / "roles" / "ghost").mkdir(parents=True, exist_ok=True)
         return self
 
+    def workers(self) -> "OrganizationFixture":
+        """The two Roles every test journal can dispatch a worker to: medior on Sonnet and senior on Opus, each writing, with one instance for each job."""
+        self.domain("work", roles=["medior", "senior"])
+        for role, claude in (("medior", "sonnet"), ("senior", "opus")):
+            self.role("work", role, cardinality="many", writes=True, tools=["read_files", "edit_files", "run_tests"], model=self.model(claude, True))
+        return self
+
     @staticmethod
     def model(claude: str, writes: bool) -> dict:
         return {"claude": claude, "codex": {"model": "gpt-6-luna", "effort": "max"} if writes else {"model": "gpt-6.1-sol", "effort": "xhigh"}}

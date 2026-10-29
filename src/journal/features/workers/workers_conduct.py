@@ -199,12 +199,12 @@ def idle_list(workers: tuple[Worker, ...]) -> str:
 
 
 def profile_workers(workers: WorkersData, profile: str) -> list[Worker]:
-    return [w for w in (*workers.dispatched_workers, *workers.idle_workers) if w.profile == profile]
+    return [w for w in (*workers.dispatched_workers, *workers.idle_workers) if (w.role or w.profile) == profile]
 
 
 def idle_offers(workers: WorkersData, line: WorkerLine) -> tuple[Worker, ...]:
     paths = PathMentions.build(line.brief)
-    return tuple(sorted((w for w in workers.idle_workers if w.profile == line.profile), key=lambda w: not w.overlaps(paths)))
+    return tuple(sorted((w for w in workers.idle_workers if (w.role or w.profile) == line.profile), key=lambda w: not w.overlaps(paths)))
 
 
 def idle_subagent_list(subagents: list[Subagent]) -> str:

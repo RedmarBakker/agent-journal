@@ -10,7 +10,7 @@ from journal.features.profiles.profiles_options import ProfilesOptions
 from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 
 PREFIX = "journal-"
-UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
+UNPREFIXED = ("researcher", "planner", "debugger")
 REPORTS = ("You only read: change no file, run no tests and write nothing to the journal; the agent that started you does the writing. "
            "Read narrowly: search for the line, read the range you need, never a whole large file. Answer in a short report written to "
            "the agent that started you, with the files and lines that show each point and what you could not check.")
@@ -19,8 +19,6 @@ TURN = ("You work the one task the agent that sent you assigned to you, whose br
          "journal proof <point> \"<file:line, and the test that shows it>\", or say why it is not done with journal proof <point> --not-done \"<why>\". "
          "Commit your work, then clock out with journal clock-out \"<what you changed, file by file, and what you could not do>\": that is your one report, "
          "to the agent that sent you, never to the user.")
-WRITES = ("You write: change what the job needs and nothing beyond it. Find what in the code already does part of the job and extend it rather than "
-          "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
 TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
 TESTS_TURN = "Run tests only with journal tests turn, which gives your run its turn within the test budget; any other test run is refused where you have hooks, and where you have none you keep to this yourself; name each test you ran in its proof."
 JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\", naming the tests that cover the files you changed and the tests you wrote, never the whole suite. The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
@@ -43,10 +41,6 @@ class ProfileFiles:
                 f"You debug one fault. Start from what was observed, then walk back through the code to where the bad value, missing check or wrong shape originates, and name the fix there, never where the fault only shows. Say how to reproduce it and which test would prove the fix. {REPORTS}"),
         Profile("journal-plan-reviewer", "Reviews a plan before it is approved: whether its phases and tasks reach its goal and nothing more, and what must change. Read-only.", "Read, Grep, Glob, Bash",
                 f"You review one plan. Read its goal, its phases and its tasks with `journal plan show <n>`, and the code they would change. Say whether the plan reaches its goal and does nothing more, what is missing or wrong, and which task should change and how. {REPORTS}"),
-        Profile("journal-senior", "A worker for a job that needs judgement: a design inside the code, a hard fault, a change across many files. Writes, on Opus.", "Read, Grep, Glob, Edit, Write, Bash",
-                f"You are a senior worker on one bounded job that needs judgement. Weigh the ways to do it against the code as it is, choose the one that fits it, and say in your report why. {WRITES}", "worker", "opus"),
-        Profile("journal-medior", "A worker for a job whose shape is defined: a change the brief spells out, tests to write, a rename. Writes, on Sonnet.", "Read, Grep, Glob, Edit, Write, Bash",
-                f"You are a medium worker on one bounded job whose shape the brief defines. Do what it says and no more; where it leaves a choice undecided, take the plainest one and name it in your report. {WRITES}", "worker", "sonnet"),
     )
 
     def __init__(self, config: Config, providers: Providers, settings: SettingRows) -> None:
