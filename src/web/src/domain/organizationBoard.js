@@ -11,6 +11,8 @@ function matches(plan, words) {
     return [plan.id, plan.title, plan.mode, plan.waits_on].some((value) => String(value || "").toLowerCase().includes(query));
 }
 
+export const phaseName = (phase) => PHASES.find(([key]) => key === phase)?.[1] || phase || "";
+
 // Each domain's four phases, named by its contract, with one card per plan in the phase it reached for that domain.
 export function organizationLanes(domain, {words = "", hideDone = false} = {}) {
     return PHASES.map(([key, fallback]) => ({

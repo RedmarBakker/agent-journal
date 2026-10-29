@@ -21,10 +21,12 @@ import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
 import RequestsPage from "./pages/RequestsPage.vue";
 import HubPage from "./pages/HubPage.vue";
+import HomePlanBoard from "./pages/HomePlanBoard.vue";
 import {computed} from "vue";
 import {peek, route} from "./route.js";
 import {store} from "./state/store.js";
 import {rows} from "./sync/rows.js";
+import {planAgents} from "./domain/planAgents.js";
 
 defineProps({page: {type: String, required: true}});
 const hosted = computed(() => Boolean(store.people && store.people.hosted));
@@ -34,7 +36,13 @@ const open = (row) => peek(row.table, row.id);
 <template>
     <SwitchCase :value="page">
         <template #home>
-            <template v-if="hosted">
+            <template v-if="planAgents">
+                <div class="home-plan-board-screen">
+                    <div class="home-plan-board-screen-board"><HomePlanBoard /></div>
+                    <div class="home-plan-board-screen-chat"><Home /></div>
+                </div>
+            </template>
+            <template v-else-if="hosted">
                 <HubPage :environments="rows('environments')" :docs="rows('docs')" :plans="rows('plans')" :tasks="rows('tasks')" :messages="rows('messages')" @open="open" />
             </template>
             <template v-else><Home /></template>
@@ -60,3 +68,25 @@ const open = (row) => peek(row.table, row.id);
         <template #default><Index :table="route.page" /></template>
     </SwitchCase>
 </template>
+
+<style scoped>
+.home-plan-board-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.home-plan-board-screen-board {
+    flex: 0 1 45%;
+    min-height: 180px;
+    overflow: auto;
+    border-bottom: 1px solid var(--line);
+}
+
+.home-plan-board-screen-chat {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+}
+</style>

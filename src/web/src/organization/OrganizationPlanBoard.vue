@@ -9,13 +9,15 @@ import {pageOf} from "../sync/paging.js";
 
 const PHASES = ["planned", "in_progress", "in_review", "done"];
 const PLAN_PAGE = pageOf("plans");
-const props = defineProps({domains: {type: Array, default: () => []}, loading: Boolean});
-const boards = computed(() => props.domains.map((domain) => ({domain, lanes: organizationLanes(domain, organizationBoard)})));
+const props = defineProps({domains: {type: Array, default: () => []}, plans: {type: Array, default: null}, loading: Boolean});
+const boards = computed(() => props.plans
+    ? [{domain: {id: "all-plans", title: "All", board: {}}, allPlans: true, lanes: organizationLanes({plans: props.plans})}]
+    : props.domains.map((domain) => ({domain, lanes: organizationLanes(domain, organizationBoard)})));
 </script>
 
 <template>
-    <section class="organization-plan-board" aria-label="Domain boards">
-        <div v-if="!loading" class="organization-board-tools">
+    <section class="organization-plan-board" :aria-label="plans ? 'All plans' : 'Domain boards'">
+        <div v-if="!loading && !plans" class="organization-board-tools">
             <label class="organization-board-filter">
                 Filter plans
                 <input v-model="organizationBoard.words" type="search" placeholder="Plan title, mode, or waiting reason" />
@@ -29,8 +31,8 @@ const boards = computed(() => props.domains.map((domain) => ({domain, lanes: org
             </section>
         </div>
         <div v-else class="organization-boards">
-            <section v-for="board in boards" :key="board.domain.id" class="organization-domain-board" :data-domain="board.domain.id">
-                <header class="organization-domain-board-head">
+            <section v-for="board in boards" :key="board.domain.id" class="organization-domain-board" :data-domain="board.allPlans ? null : board.domain.id">
+                <header v-if="!board.allPlans" class="organization-domain-board-head">
                     <span v-if="board.domain.icon" aria-hidden="true">{{ board.domain.icon }}</span>
                     <h2>{{ board.domain.title }}</h2>
                 </header>

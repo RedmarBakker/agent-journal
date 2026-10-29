@@ -5,6 +5,7 @@ observation into a delta, including a reset when the cumulative value goes
 backwards, and keeps account subscription limits in a separate record.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 import json
 import math
@@ -159,6 +160,11 @@ class UsageLedger:
     def estimate(self, plan_id: int, now: float, expected_seats: int | None = None) -> UsageEstimate:
         with self._lock:
             return self.estimate_data(self._read(), plan_id, now, expected_seats)
+
+    def estimates(self, plan_ids: Iterable[int], now: float) -> dict[int, UsageEstimate]:
+        with self._lock:
+            data = self._read()
+            return {plan_id: self.estimate_data(data, plan_id, now, None) for plan_id in sorted(set(plan_ids))}
 
     def estimate_data(self, data: dict, plan_id: int, now: float, expected_seats: int | None) -> UsageEstimate:
         records = [row for row in data["seats"].values() if int(row["plan_id"]) == plan_id]

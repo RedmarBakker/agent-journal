@@ -1615,8 +1615,8 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
     status, builder_contract = got(app, "/journal/organization/roles/alpha/builder", env)
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
-    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "active": True, "tasks": [built.id, looked.id], "done": 0, "waits_on": "Role work"}], "with the counts and the board of plans"
-    assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "active": False, "tasks": [kept.id], "done": 1, "waits_on": ""}], "the same plan has a separate card in beta's phase with only beta's progress"
+    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "state": "draft", "active": True, "tasks": [built.id, looked.id], "done": 0, "waits_on": "Role work", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "with the counts and the board of plans"
+    assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "state": "draft", "active": False, "tasks": [kept.id], "done": 1, "waits_on": "", "waiting_on_you": False, "plan_agent_state": "not started", "chat": "", "estimated_api_cost_usd": None, "estimated_api_cost_status": "missing", "cost_cap_usd": 0}], "the same plan has a separate card in beta's phase with only beta's progress"
     listed = got(app, "/journal/domain_counts", env)[1]["rows"]
     assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"
     status, reloaded = answered(app, "POST", "/journal/organization/reload", b"{}", env)
@@ -1633,3 +1633,100 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 1, "the active builder instance is still counted before deletion"
         workers.delete(workers.find(builder.id), actor)
         assert {row.name: row.roles for row in counts.all_matching()}["alpha"]["builder"]["instances"] == 0, "deleting an active instance immediately changes its domain's figure"
+
+
+def test_organization_plan_cards_report_the_recorded_estimated_api_cost_or_none(app, tmp_path):
+    from journal.features.organization.support.usage_ledger import UsageLedger
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.support.time_source import TimeSource
+    from tests.in_process import got
+
+    loaded(app, tmp_path)
+    plans, tasks, links, domains = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        reported = plans.save(Plan(environment_id=1, title="reported cost"), actor)
+        missing = plans.save(Plan(environment_id=1, title="missing cost"), actor)
+        for plan in (reported, missing):
+            task = tasks.save(Task(environment_id=1, title=f"task for {plan.title}"), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+            domains.task_tied(task, "alpha", actor)
+        now = app.container.get(TimeSource).seconds()
+        app.container.get(UsageLedger).observe(reported.id, "builder@release", "native-session", 2.375, now)
+
+    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
+    cards = {plan["title"]: plan for plan in alpha["plans"]}
+    assert status == 200 and cards["reported cost"]["estimated_api_cost_usd"] == 2.375, "the card carries the recorded estimated API cost"
+    assert cards["missing cost"]["estimated_api_cost_usd"] is None, "a card without a recorded estimate says it is not reported"
+
+
+@pytest.mark.parametrize(
+    ("schedule", "expected"),
+    [
+        ("daily", (2026, 10, 30)),
+        ("weekly", (2026, 11, 2)),
+        ("monthly", (2026, 11, 1)),
+        ("quarterly", (2027, 1, 1)),
+    ],
+)
+def test_plan_template_next_start_is_the_next_local_period(schedule, expected):
+    from datetime import datetime
+    from journal.models.template_schedule import TemplateSchedule
+
+    last = datetime(2026, 10, 29, 15).astimezone()
+    next_start = TemplateSchedule(schedule).next_start(last, last)
+    assert (next_start.year, next_start.month, next_start.day) == expected and (next_start.hour, next_start.minute) == (0, 0)
+
+
+def test_home_plan_board_lists_every_plan_with_its_recorded_cost_cap_and_scheduled_next_start(app, tmp_path):
+    from journal.features.organization.support.usage_ledger import UsageLedger
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.template import PLAN_TARGET, Template
+    from journal.models.template_schedule import TemplateSchedule
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.repositories.templates import Templates
+    from journal.support.actor import Actor
+    from journal.support.time_source import TimeSource
+    from tests.in_process import got
+    from tests.user_settings import user_set
+
+    loaded(app, tmp_path)
+    user_set(app, "workers.cost_cap_dollars", 5)
+    plans, tasks, links, domains, templates = (app.container.get(kind) for kind in (Plans, Tasks, Links, DomainRows, Templates))
+    actor = Actor.system()
+    with app.container.get(Scope).environment(1):
+        domain_plan = plans.save(Plan(environment_id=1, title="Domain plan"), actor)
+        solo_plan = plans.save(Plan(environment_id=1, title="Solo plan without a domain"), actor)
+        for plan in (domain_plan, solo_plan):
+            task = tasks.save(Task(environment_id=1, title=f"Task for {plan.title}"), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+            if plan == domain_plan:
+                domains.task_tied(task, "alpha", actor)
+        now = app.container.get(TimeSource).seconds()
+        app.container.get(UsageLedger).observe(domain_plan.id, "builder@release", "native-session", 2.375, now)
+        waiting_plan = plans.save(Plan(environment_id=1, title="Waiting for approval").ready(now), actor)
+        scheduled = templates.save(Template(title="Nightly report", targets=(PLAN_TARGET,)).scheduled(TemplateSchedule.DAILY), actor)
+        next_start = scheduled.schedule.next_start(scheduled.update_time, app.container.get(TimeSource).moment()).isoformat()
+
+    status, shown = got(app, "/journal/organization", {"X-Journal-Env": "main"})
+    cards = {plan["title"]: plan for plan in shown["plans"]}
+    assert status == 200 and set(cards) == {"Domain plan", "Solo plan without a domain", "Waiting for approval"}, "Home includes each plan once, including plans with no domain Role work"
+    assert cards["Domain plan"]["estimated_api_cost_usd"] == 2.375 and cards["Domain plan"]["cost_cap_usd"] == 5.0
+    assert cards["Domain plan"]["estimated_api_cost_status"] == "estimated" and cards["Domain plan"]["plan_agent_state"] == "not started"
+    assert cards["Solo plan without a domain"]["estimated_api_cost_usd"] is None and cards["Solo plan without a domain"]["phase"] == "planned"
+    assert cards["Waiting for approval"]["waiting_on_you"] and cards["Waiting for approval"]["waits_on"] == "your approval"
+    assert shown["scheduled_plans"] == [{"id": scheduled.id, "title": "Nightly report", "schedule": "daily", "next_start": next_start}], "scheduled plan templates include their next start"
