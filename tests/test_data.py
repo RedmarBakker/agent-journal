@@ -44,6 +44,10 @@ from journal.support.missing_row import MissingRow
 from journal.repositories.checks import Checks
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
+from journal.repositories.phases import Phases
+from journal.repositories.plans import Plans
+from journal.repositories.rows import Rows
+from journal.repositories.workers import Workers
 from journal.support.scope_missing import ScopeMissing
 from journal.features.voices.voices_options import VoicesOptions
 from journal.features.workers.workers_options import WorkersOptions
@@ -570,7 +574,7 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_un
 def test_each_model_says_whether_it_is_shared_with_the_team_or_kept_on_one_machine():
     from journal.models.all_models import AllModels
     local = sorted(model.__name__ for model in AllModels.MODELS if not model.shared)
-    assert local == sorted(["Entry", "Agent", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer"]), "the models kept on one machine are the ones NOTES.md names"
+    assert local == sorted(["Entry", "Agent", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "ReaderReport", "ReaderSuggestion", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession", "PoolJob", "ScheduledJob", "TestTurn", "Verifier", "Reviewer", "Rig"]), "the models kept on one machine are the ones NOTES.md names"
     assert all(model.shared for model in AllModels.MODELS if model.__name__ in ("Task", "Message", "Alias", "Worker", "Setting")), "everything else is shared"
 
 
@@ -1804,3 +1808,50 @@ def test_a_line_an_older_version_recorded_without_its_values_is_left_out_of_the_
         entries.save(Entry(environment_id=1, entry_type=NUDGE, actor=Actor.system(), data={"key": "shell.add_a_reader", "values": {"command": "pytest"}, "session": "s1", "line": "a line", "time": 2.0}), Actor.system())
         assert entries.environment_values("shell.add_a_reader", "command") == ["pytest"], "a line recorded before lines kept their values is no fault at every tool use"
         assert entries.project_values("shell.add_a_reader", "command") == {"pytest": 2.0}
+
+
+def plans_of(connection, bus, scope) -> Plans:
+    links, tasks = Links(connection, bus, TimeSource()), tasks_of(connection, bus, scope)
+    return Plans(connection, bus, scope, links, tasks, Phases(connection, bus, scope, TimeSource()), Workers(connection, bus, scope, links, Rows(connection), tasks, TimeSource()), TimeSource())
+
+
+def test_the_plan_modes_migration_makes_every_plan_from_before_a_solo_one(connection, bus, scope):
+    """Migration 76 on a plans table from before plans had a mode: the schema adds the column empty, every plan there reads as solo, and a plan given a mode since keeps it."""
+    from journal.db.migrations.plan_modes import PlanModes
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.models.plan_mode import PlanMode
+    connection.execute("ALTER TABLE plans DROP COLUMN mode")
+    for title, state in (("the floors", "draft"), ("the roof", "started")):
+        connection.execute("INSERT INTO plans (environment_id, title, state, created_at, creator) VALUES (1, ?, ?, '2026-10-28', 'system')", (title, state))
+    Schema(connection, AllModels.MODELS).create()
+    connection.execute("INSERT INTO plans (environment_id, title, state, mode, created_at, creator) VALUES (1, 'the walls', 'draft', 'organization', '2026-10-29', 'system')")
+    PlanModes().apply(connection)
+    with scope.environment(1):
+        modes = {plan.title: plan.mode for plan in plans_of(connection, bus, scope).scoped()}
+    assert modes == {"the floors": PlanMode.SOLO, "the roof": PlanMode.SOLO, "the walls": PlanMode.ORGANIZATION}, "a plan from before is solo and a plan with a mode keeps it"
+
+
+def test_a_plans_agent_and_rig_are_links_from_the_plan_never_columns_on_it(connection, bus, scope):
+    """A plan's Plan agent and its rig are each a link of its own kind from the plan, read back by id, and a plan with neither reads 0; the plans table holds no column for either."""
+    from journal.models.agent import Agent
+    from journal.models.plan import Plan
+    from journal.models.plan_mode import PlanMode
+    from journal.models.rig import Rig
+    from journal.repositories.plans import PLAN_AGENT_LINK, RIG_LINK
+    from journal.repositories.rigs import Rigs
+    plans = plans_of(connection, bus, scope)
+    with scope.environment(1):
+        plan = plans.save(Plan(environment_id=1, title="the floors", mode=PlanMode.ORGANIZATION), USER)
+        solo = plans.save(Plan(environment_id=1, title="the roof"), USER)
+        agent = Agents(connection, bus, scope, TimeSource()).save(Agent(environment_id=1, session="s1", provider="claude"), USER)
+        rig = Rigs(connection, bus, scope, TimeSource()).save(Rig(environment_id=1, name="plan-1"), USER)
+        plans.agent_linked(plan, agent, AGENT)
+        plans.agent_linked(plan, agent, AGENT)
+        plans.rig_linked(plan, rig, AGENT)
+        assert (plans.find(plan.id).mode, plans.agent_id(plan), plans.rig_id(plan)) == (PlanMode.ORGANIZATION, agent.id, rig.id)
+        assert (plans.find(solo.id).mode, plans.agent_id(solo), plans.rig_id(solo)) == (PlanMode.SOLO, 0, 0), "a plan is solo unless made otherwise and has neither link until one is made"
+    kinds = [link.link_type for link in Links(connection, bus, TimeSource()).link_rows(plan)]
+    assert kinds == [PLAN_AGENT_LINK, RIG_LINK], "linking the same agent twice leaves one link"
+    columns = {row["name"] for row in connection.all("PRAGMA table_info(plans)")}
+    assert "mode" in columns and not columns & {"agent_id", "plan_agent", "rig", "rig_id"}, "the relations are rows, not foreign keys"

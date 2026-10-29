@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.events.rows.plan_abandoned import PlanAbandoned
 from journal.events.rows.plan_approved import PlanApproved
@@ -24,13 +25,14 @@ from journal.support.rejection import Rejection
 
 @dataclass(frozen=True)
 class Plan(Scoped):
-    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase."""
+    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started). It is worked in a mode, organization or solo; its Plan agent and an organization plan's rig are linked to it. A hub plan names the person and the agent driving it. It keeps the order of work its orchestrator last gave it, with why, when and in which phase."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
 
     title: str = ""
     brief: str = ""
     state: PlanState = PlanState.DRAFT
+    mode: PlanMode = PlanMode.SOLO
     block_reason: str = ""
     reviewers: int = 0
     driver: str = ""

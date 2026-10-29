@@ -3,10 +3,12 @@ from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
 from journal.support.actor import Actor
+from journal.models.agent import Agent
 from journal.models.link import Link
 from journal.models.phase import Phase
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
+from journal.models.rig import Rig
 from journal.support.rejection import Rejection
 from journal.models.task import Task
 from journal.models.task_state import TaskState
@@ -22,6 +24,8 @@ from journal.support.time_source import TimeSource
 
 
 PHASE_LINK = "in_phase"
+PLAN_AGENT_LINK = "plan_agent"
+RIG_LINK = "runs_on_rig"
 # the most tasks of one plan on offer at once
 QUEUED_TASKS = 10
 
@@ -278,6 +282,21 @@ class Plans(ScopedRepository[Plan]):
 
     def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
+
+    def agent_linked(self, plan: Plan, agent: Agent, actor: Actor) -> Link:
+        return self.links.linked(Ref.build(plan), Ref.build(agent), PLAN_AGENT_LINK, actor)
+
+    def agent_id(self, plan: Plan) -> int:
+        return self.target_id(plan, PLAN_AGENT_LINK)
+
+    def rig_linked(self, plan: Plan, rig: Rig, actor: Actor) -> Link:
+        return self.links.linked(Ref.build(plan), Ref.build(rig), RIG_LINK, actor)
+
+    def rig_id(self, plan: Plan) -> int:
+        return self.target_id(plan, RIG_LINK)
+
+    def target_id(self, plan: Plan, type_name: str) -> int:
+        return next((ref.id for ref in self.links.targets(plan, type_name)), 0)
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
         time = self.time_source.moment()
