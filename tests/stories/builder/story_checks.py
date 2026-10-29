@@ -243,6 +243,18 @@ class StoryChecks:
     def expect_no_hook_duration(self) -> None:
         assert not HOOK_DURATION.search(self.user_line()), f"the hook's answer shows a duration though the setting is off: {self.user_line()}"
 
+    def expect_last_answer_carries(self, nudge: Nudge, **values) -> None:
+        line = nudge.cut(nudge.create(**values).rendered())
+        assert line in self.agent_text(), f"the last hook's answer does not carry {nudge.key}: {self.agent_text()!r}"
+
+    def expect_last_answer_lines_in_order(self, *nudges: Nudge) -> None:
+        places = [self.agent_text().find(nudge.cut(nudge.rendered())) for nudge in nudges]
+        assert -1 not in places and places == sorted(places), f"the last hook's answer does not carry {[nudge.key for nudge in nudges]} in that order: {self.agent_text()!r}"
+
+    def expect_last_answer_without(self, nudge: Nudge, **values) -> None:
+        line = nudge.cut(nudge.create(**values).rendered())
+        assert line not in self.agent_text(), f"the last hook's answer carries {nudge.key}: {self.agent_text()!r}"
+
     def user_line(self) -> str:
         body = self.verdict.body if self.verdict else {}
         answer = body.get("answer", body) if isinstance(body, dict) else {}

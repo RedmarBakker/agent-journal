@@ -7,4 +7,6 @@ from journal.events.agent.agent_event import AgentEvent
 class SubagentStarted(AgentEvent):
     """The agent dispatched a subagent."""
 
+    takes_remarks = False
+
     subagent: str

@@ -33,6 +33,9 @@ HEARTBEAT_SECONDS = 10.0
 DURATIONS_FILE = ROOT / ".journal" / "runtime" / "suite-durations.json"
 DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
 DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
+# every test of the last sharded run with its seconds, slowest first, and how many of them the run's end names
+SLOWEST_FILE = ROOT / ".journal" / "runtime" / "suite-slowest.txt"
+SLOWEST_SHOWN = 20
 JUDGE = ROOT / ".journal" / "plugins" / "code-commandments" / "bin" / "commandments-release"
 LOW_PRIORITY = ["nice", "-n", "10"]
 TEST_COMMANDMENTS = [*LOW_PRIORITY, str(JUDGE), "judge", "tests", "--skill=tests-drive-the-real-path", "--no-checklist"]
@@ -145,6 +148,18 @@ def durations_kept(folder: Path) -> None:
     DURATIONS_FILE.write_text(json.dumps(seconds))
 
 
+def slowest_shown(folder: Path) -> None:
+    seconds: dict[str, float] = {}
+    for path in folder.glob("shard-*.seconds.json"):
+        seconds.update(json.loads(path.read_text()))
+    ranked = sorted(seconds.items(), key=lambda pair: pair[1], reverse=True)
+    lines = [f"{taken:8.2f} s  {test}" for test, taken in ranked]
+    SLOWEST_FILE.write_text("\n".join(lines) + "\n")
+    print(f"the {min(SLOWEST_SHOWN, len(lines))} slowest tests, every one in {SLOWEST_FILE.relative_to(ROOT)}:", flush=True)
+    for line in lines[:SLOWEST_SHOWN]:
+        print(line, flush=True)
+
+
 def whole_suite() -> int:
     with tempfile.TemporaryDirectory() as folder:
         judging = commandments_started(Path(folder))
@@ -222,6 +237,7 @@ def sharded_run(folder: Path, count: int, arguments: tuple[str, ...], name: str,
         took = next((line.rsplit(" in ", 1)[-1] for line in reversed(text.splitlines()) if COUNTS.search(line) and " in " in line), "")
         print(f"shards finished {done}/{count} [{round(100 * done / count):3d}%], shard {done - 1} in {took}", flush=True)
     durations_kept(folder)
+    slowest_shown(folder)
     for line in failures:
         print(line)
     summary = ", ".join(f"{totals[key]} {key}" for key in ("failed", "errors", "passed", "skipped") if totals.get(key))

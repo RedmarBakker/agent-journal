@@ -10,14 +10,13 @@ from journal.features.messages.support.tags import Tags
 from journal.features.registry import Registry
 from journal.support.actor import Actor
 from journal.models.author import Author
-from journal.models.entry import Entry
 from journal.models.message import Message
 from journal.support.voice_key import VoiceKey
 from journal.repositories.entries import Entries
 from journal.repositories.messages import Messages
 from journal.supervisor_link import SupervisorLink
 from journal.features.messages.messages_nudges import MessagesNudges
-from journal.references import events
+from journal.features.messages.support.turn_replies import TurnReplies
 
 JOURNAL_LINE = "[journal] "
 SHORT_CHARACTERS = 240
@@ -27,9 +26,9 @@ SHORT_CHARACTERS = 240
 class RecordTurn(AgentListener[TurnDisplayed]):
     """Every whole turn the agent writes for the user becomes a message in the chat, any old command tag stripped from it and run by nothing. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat, but never while the user has paused the agent, when every word it writes is for the user. The same block arrives at once from the transcript and from the display hook, so one is recorded at a time."""
 
-    def __init__(self, messages: Messages, entries: Entries, registry: Registry, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents) -> None:
+    def __init__(self, messages: Messages, entries: Entries, registry: Registry, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents, turn_replies: TurnReplies) -> None:
         self.messages, self.entries, self.registry, self.supervisor = messages, entries, registry, supervisor
-        self.nudger, self.sessions = nudger, sessions
+        self.nudger, self.sessions, self.turn_replies = nudger, sessions, turn_replies
         self.recording = threading.Lock()
 
     def handle(self, event: TurnDisplayed) -> None:
@@ -51,21 +50,16 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         if text != event.text.strip():
             self.typed(event, MessagesNudges.RETIRED_TAGS.create())
         key = VoiceKey.create("turn", event.session, text)
-        if not text or self.messages.sent_with(key) or self.has_turn_reply(event):
+        if self.is_chat_exclusion(text, key, event.session):
             return
         acknowledgement = len(text) <= SHORT_CHARACTERS and "?" not in text and self._journal_answer(event)
         self.messages.save(Message(author=Author.AGENT, text=text, acknowledgement=acknowledgement, idempotency=key), actor)
 
-    def has_turn_reply(self, event: TurnDisplayed) -> bool:
-        prompt = self.turn_prompt(event)
-        return bool(prompt and self.messages.recent_replies(prompt.creation_time))
-
-    def turn_prompt(self, event: TurnDisplayed) -> Entry | None:
-        prompts = self.entries.session_kind_entries(events.PROMPT_SUBMITTED, event.session)
-        return prompts[0] if prompts else None
+    def is_chat_exclusion(self, text: str, key: str, session: str) -> bool:
+        return not text or self.messages.sent_with(key) or self.turn_replies.has_reply(session)
 
     def _journal_answer(self, event: TurnDisplayed) -> bool:
-        entry = self.turn_prompt(event)
+        entry = self.turn_replies.turn_prompt(event.session)
         if entry is None or self.sessions.blocks_tools(event.session):
             return False
         prompt = entry.data.get("prompt", "")

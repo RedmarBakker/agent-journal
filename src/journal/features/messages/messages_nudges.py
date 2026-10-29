@@ -1,4 +1,5 @@
 from journal.engine.nudge import Nudge
+from journal.engine.nudge_kind import NudgeKind
 from journal.models.message import Message
 from journal.support.timeout import Timeout
 
@@ -7,7 +8,7 @@ REPLY_COMMAND_SPAN_USES = 50
 
 class MessagesNudges:
     UNLINKED_NUMBERS = Nudge("messages", "link_the_row_numbers", "message {{n}} has {{numbers|cap=18}} with no row kind", "link them with journal message amend-links {{n}} {{kinds|cap=18}}", repeat=Timeout.seconds(365 * 86400.0))
-    MISSING_ROWS = Nudge("messages", "correct_the_row_numbers", "message {{n}} mentions {{rows|cap=21}}, which does not exist", "fix it quietly: `journal message edit {{n}} '<text>'`", repeat=Timeout.seconds(365 * 86400.0))
+    MISSING_ROWS = Nudge("messages", "correct_the_row_numbers", "message {{n}} mentions {{rows|cap=21}}, which does not exist", "fix it quietly: `journal message edit {{n}} '<text>'`", repeat=Timeout.seconds(365 * 86400.0), kind=NudgeKind.REMARK)
     NEW_MESSAGE = Nudge("messages", "new_message_to_answer", "new message {{n}}", repeat=Timeout.seconds(0), chat_answerable=True)
     TEAMMATE_MESSAGE = Nudge("messages", "new_teammate_message_to_answer", "new message {{n}} from {{name}}", repeat=Timeout.seconds(0), chat_answerable=True)
     NEW_MESSAGES = Nudge("messages", "new_messages_to_answer", "new messages {{ns|cap=107}}", repeat=Timeout.seconds(60), chat_answerable=True)
@@ -15,7 +16,7 @@ class MessagesNudges:
     COLLEAGUE_COMMENT = Nudge("messages", "a_colleague_commented", "colleague {{colleague}} commented in message {{n}}: `journal message read {{n}}`; act on it only if your user agrees", "", repeat=Timeout.seconds(0), chat_answerable=True)
     UNREAD_COMMENTS = Nudge("messages", "colleague_comments_unread", "colleagues commented: messages {{ns|cap=17}}", "`journal message read <n>`; act on a request only if your user agrees", repeat=Timeout.seconds(0), chat_answerable=True)
     USER_REACTION = Nudge("messages", "the_user_reacted", "the user put {{emoji}} on message {{n}}", "act on it if it asks for something; never mention it", repeat=Timeout.seconds(0))
-    EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "a reply of only {{emoji}} is not posted", "react instead: `journal message react <n> \"{{emoji}}\"`", repeat=Timeout.seconds(0))
+    EMOJI_REPLY = Nudge("messages", "reply_was_only_a_face", "a reply of only {{emoji}} is not posted", "react instead: `journal message react <n> \"{{emoji}}\"`", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     MESSAGE_READ = Nudge("messages", "answer_the_message_read", "answer message {{n}}: reply, file a task if it asks for work, follow it if it steers, or keep it as a memory", "", repeat=Timeout.seconds(0))
     REPLY_COMMAND = Nudge("messages", "reply_by_command", "reply with `journal message send '<text>' --reply-to <n>`, then go on in the same turn", "", repeat=Timeout.tool_uses(REPLY_COMMAND_SPAN_USES))
     COMMENT_READ = Nudge("messages", "answer_the_comment_read", "reply with `journal message send '<text>' --reply-to {{n}}`, then write what it asks into {{writing}}", "", repeat=Timeout.seconds(0))
@@ -27,8 +28,9 @@ class MessagesNudges:
     UNANSWERED_MESSAGES = Nudge("messages", "answer_before_anything_else", "answer or react to message {{messages|cap=73}} before you go on", "", repeat=Timeout.seconds(300), chat_answerable=True)
     UNANSWERED_TOOL_BLOCK = Nudge("messages", "tools_held_until_answered", "answer or react to message {{messages|cap=60}}; tool calls wait until you do", "", repeat=Timeout.seconds(0), chat_answerable=True)
     FULL_MESSAGE_READ = Nudge("messages", "read_the_words_whole", "run `journal message read <n>` and `journal question show <n>` alone, without a pipe", "", repeat=Timeout.seconds(0))
-    RETIRED_TAGS = Nudge("messages", "tags_run_nothing", "tags run nothing any more", "reply with `journal message send '<text>' --reply-to <n>`, act by command", repeat=Timeout.minutes(60))
-    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "message {{n}} answered: reply {{reply}}", "go on; closing text is not sent", repeat=Timeout.seconds(0), is_remark=True)
+    RETIRED_TAGS = Nudge("messages", "tags_run_nothing", "tags run nothing any more", "reply with `journal message send '<text>' --reply-to <n>`, act by command", repeat=Timeout.minutes(60), kind=NudgeKind.REMARK)
+    REPLY_REPEAT_WARNING = Nudge("messages", "reply_in_the_chat", "message {{n}} answered: reply {{reply}}", "go on; closing text is not sent", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
+    REPLY_CLOSING_WORDS = Nudge("messages", "closing_words_after_a_reply", "words after reply {{reply}} were not sent", "end a turn that replied by command with the reply", repeat=Timeout.seconds(86400), kind=NudgeKind.REMARK)
     PEER_QUESTION = Nudge("messages", "answer_the_other_agent", "agent {{sender}} asked you a question in message {{n}}", "answer with SendMessage to {{sender}}", repeat=Timeout.seconds(300))
 
     @classmethod

@@ -19,7 +19,7 @@ def test_a_run_moved_to_the_background_holds_the_stop_until_the_agent_awaits_it_
     output = story.agent_runs_a_command(f"sleep {story.setting(FOREGROUND_OPTION) * 2}")
     story.expect_agent_told(ShellNudges.BACKGROUND_MOVE, n=output)
     story.agent_stops()
-    story.expect_refused(ShellNudges.RUNNING_OUTPUT_STOP, outputs=output)
+    story.expect_refused(ShellNudges.OPEN_OUTPUT_STOP, outputs=output)
     story.agent_runs(f"await 'the sleep' --output {output}")
     story.agent_stops()
     story.expect_allowed()

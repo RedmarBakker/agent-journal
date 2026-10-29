@@ -17,7 +17,7 @@ class Faults(Feature):
     help = "A request that spends more points than its budget is a fault: a row loaded, a write and a started kilobyte loaded are a point each, so a costly answer is found whatever the machine is doing. These are tools for developing the journal itself, so they start switched off in every project. They gather in one mark in the chat, each route with its worst points and how often, and the agent is told in one line how many gathered, once ten have or thirty seconds pass without another, and again only once the set minutes have passed. It stays quiet while the journal starts or updates."
     jobs = (SentrySender,)
     options = (FaultsOptions.SENTRY_DSN, FaultsOptions.DEVELOPER, FaultsOptions.HOOK_LINE_COPY, FaultsOptions.HOOK_TIME_COPY, FaultsOptions.REPORT, FaultsOptions.REQUEST, FaultsOptions.EDIT_BUDGET, FaultsOptions.REPEAT, FaultsOptions.LOADS, FaultsOptions.JOBS, FaultsOptions.STALL_STACKS, FaultsOptions.STAGE_TIMING, FaultsOptions.UNDEFERRED_VIEWER_WRITE_WARNING)
-    nudges = (FaultsNudges.SLOW_REQUESTS, FaultsNudges.SLOW_JOB, FaultsNudges.UNDEFERRED_VIEWER_WRITE)
+    nudges = (FaultsNudges.SLOW_REQUESTS, FaultsNudges.SLOW_JOB, FaultsNudges.EARLY_VIEWER_WRITE)
     listeners = (SlowJobNotice, SlowRequestsCard, TransitionCounts)
     seeds = (StaleTestRunFiles,)
     process_cards = (SlowRequestProcessCard,)

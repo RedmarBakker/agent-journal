@@ -16,6 +16,7 @@
         "TestSettingWriteDetector",
         "TestSettingsVariableWriteDetector",
         "NudgeWordsInTestDetector",
+        "NudgeRemarkFlagDetector",
         "PlainViewerTextDetector",
         "PlainServerTextDetector",
         "PlainJournalTextDetector",

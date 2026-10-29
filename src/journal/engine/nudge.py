@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass, field, replace
 
+from journal.engine.nudge_kind import NudgeKind
 from journal.support.timeout import Timeout
 
 NORMAL_LONGEST_CHARACTERS = 120
@@ -11,7 +12,7 @@ PLACEHOLDER = re.compile(r"\{\{(\w+)(?:\|cap=(\d+))?\}\}")
 
 @dataclass(frozen=True)
 class Nudge:
-    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. A value written {{name|cap=N}} is cut to N characters. A line longer than its longest, 120 unless it declares more with a reason, is cut to it when sent, in its middle, so the instruction at its end stays. It is not said again within its repeat span of the last time it was said, in seconds or tool uses. A remark asks for nothing now, so it is never typed to an idle agent: it waits for the agent's next hook."""
+    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. A value written {{name|cap=N}} is cut to N characters. A line longer than its longest, 120 unless it declares more with a reason, is cut to it when sent, in its middle, so the instruction at its end stays. It is not said again within its repeat span of the last time it was said, in seconds or tool uses. Its kind says whether it is an instruction or a remark, which asks for nothing now, is never typed to an idle agent and waits for the agent's next hook that can carry a line."""
 
     feature: str
     name: str
@@ -20,7 +21,7 @@ class Nudge:
     repeat: Timeout = Timeout.seconds(300)
     chat_answerable: bool = False
     blocks_regardless: bool = False
-    is_remark: bool = False
+    kind: NudgeKind = NudgeKind.INSTRUCTION
     longest_characters: int = NORMAL_LONGEST_CHARACTERS
     longest_reason: str = ""
     values: dict = field(default_factory=dict)

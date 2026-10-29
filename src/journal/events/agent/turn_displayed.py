@@ -21,6 +21,9 @@ class TurnDisplayed(AgentEvent):
     def content(self) -> str:
         return self.text if self.final else ""
 
+    def has_final_words(self) -> bool:
+        return self.final and bool(self.text.strip())
+
     def with_text(self, full: str) -> "TurnDisplayed":
         return replace(self, text=full)
 

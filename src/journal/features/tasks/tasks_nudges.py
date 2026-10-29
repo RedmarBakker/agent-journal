@@ -1,4 +1,5 @@
 from journal.engine.nudge import Nudge
+from journal.engine.nudge_kind import NudgeKind
 from journal.support.timeout import Timeout
 
 YEAR_SECONDS = 365 * 86400.0
@@ -7,8 +8,8 @@ YEAR_SECONDS = 365 * 86400.0
 class TasksNudges:
     """The nudges of the tasks feature."""
 
-    TASK_POINTS_CHANGED = Nudge("tasks", "task_points_changed", "task {{n}}: brief point {{points|cap=15}} rewritten", "reread it with `journal task show {{n}}` and prove it again if you had", repeat=Timeout.seconds(0))
-    TASK_CHANGED = Nudge("tasks", "task_changed", "task {{n}} changed", "read it again with `journal task show {{n}}`", repeat=Timeout.seconds(0))
+    TASK_POINTS_CHANGED = Nudge("tasks", "task_points_changed", "task {{n}}: brief point {{points|cap=15}} rewritten", "reread it with `journal task show {{n}}` and prove it again if you had", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
+    TASK_CHANGED = Nudge("tasks", "task_changed", "task {{n}} changed", "read it again with `journal task show {{n}}`", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
 
     TASK_CONTINUATION = Nudge("tasks", "carry_on", "{{name}} is in hand: carry on", repeat=Timeout.seconds(0))
     STOP_LOG_REQUEST = Nudge("tasks", "log_first_at_stop", "{{name}}, {{logged}}", "log it first: {{log_command}} \"<status>\"", repeat=Timeout.seconds(0))
@@ -18,7 +19,7 @@ class TasksNudges:
     IMPASSE_REFUSAL = Nudge("tasks", "not_stuck_with_work_left", "{{count}} tasks are open: you are not stuck", "work on them, or `journal await \"<what you wait for>\" --output <n>`", repeat=Timeout.seconds(0))
     NEXT_TASK_STARTED = Nudge("tasks", "next_task_started", "task {{n}} started", "carry on with it", repeat=Timeout.seconds(0))
     POSTPONED_WORK = Nudge("tasks", "deferred_work_is_a_task", "you deferred work in words. file it with `journal task create \"<title>\" --brief \"<what and where to start>\"`")
-    COMMIT_CLOSURE = Nudge("tasks", "closed_by_commit", "commit {{sha}} closed {{tasks|cap=89}}")
+    COMMIT_CLOSURE = Nudge("tasks", "closed_by_commit", "commit {{sha}} closed {{tasks|cap=89}}", kind=NudgeKind.REMARK)
     STOP_POLLING = Nudge("tasks", "stop_polling", "you ran {{command|cap=50}} {{times}} times in a row", "stop polling; wait for it")
     LOG_REQUEST = Nudge("tasks", "log_where_it_stands", "{{edits}} edits since you logged {{name|cap=33}}", "log where it stands: {{log}} \"<where it stands>\"", repeat=Timeout.seconds(0))
     LOG_EDIT_BLOCK = Nudge("tasks", "write_held_until_logged", "{{edits}} edits since you logged {{name}}", "writes wait for {{log}} \"<what was done>\"", repeat=Timeout.seconds(0))
@@ -44,7 +45,7 @@ class TasksNudges:
     WAIT_SWITCH_REFUSAL = Nudge("tasks", "await_switches_task", "{{what|cap=24}} runs {{left}}, too long to wait", "work on task {{n}} meanwhile: `journal task start {{n}}`", repeat=Timeout.seconds(0))
     WAIT_REFUSAL = Nudge("tasks", "await_only_what_ends_soon", "{{what|cap=24}} runs {{left}}, too long to wait", "carry on with task {{n}}; you are informed when it ends", repeat=Timeout.seconds(0))
     WAIT_REASON_REQUEST = Nudge("tasks", "await_needs_its_reason", "{{what|cap=24}} runs {{left}}; to wait anyway, say why", "add --why \"<why it must wait now>\" to the await", repeat=Timeout.seconds(0))
-    WAIT_REASON_LINE = Nudge("tasks", "await_with_its_reason", "waiting because {{why|cap=48}}", "do any open work that does not depend on it meanwhile", repeat=Timeout.seconds(0))
+    WAIT_REASON_LINE = Nudge("tasks", "await_with_its_reason", "waiting because {{why|cap=48}}", "do any open work that does not depend on it meanwhile", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     OUTPUT_POLL_REFUSAL = Nudge("tasks", "output_polled", "do not poll output {{n}}", "wait for it: `journal await \"<what>\" --output {{n}}`", repeat=Timeout.seconds(0))
     TASK_ARRIVED = Nudge("tasks", "task_arrived", "task {{n}} came here from environment {{source}}, {{state}}", "read it with `journal task show {{n}}`", repeat=Timeout.seconds(0))
     TASK_OPENED = Nudge("tasks", "task_opened", "task {{n}} is open", "take it up with `journal task start {{n}}`", repeat=Timeout.seconds(0))

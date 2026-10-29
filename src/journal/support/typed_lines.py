@@ -64,8 +64,17 @@ class TypedLines:
         return min((h.line_at for h in self._held if h.environment_id == environment_id), default=None)
 
     def pending_lines(self, environment_id: int) -> list[str]:
-        lines = [h.line.removeprefix(JOURNAL_PREFIX).strip() for h in self._held if h.environment_id == environment_id]
-        self._held = [h for h in self._held if h.environment_id != environment_id]
+        return self.matching_lines(lambda h: h.environment_id == environment_id)
+
+    def pending_remarks(self, environment_id: int) -> list[str]:
+        return self.matching_lines(lambda h: h.environment_id == environment_id and h.is_remark)
+
+    def pending_instructions(self, environment_id: int) -> list[str]:
+        return self.matching_lines(lambda h: h.environment_id == environment_id and not h.is_remark)
+
+    def matching_lines(self, wanted) -> list[str]:
+        lines = [h.line.removeprefix(JOURNAL_PREFIX).strip() for h in self._held if wanted(h)]
+        self._held = [h for h in self._held if not wanted(h)]
         return lines
 
     def clear(self, environment_id: int) -> None:

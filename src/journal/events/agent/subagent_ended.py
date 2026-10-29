@@ -7,5 +7,7 @@ from journal.events.agent.agent_event import AgentEvent
 class SubagentEnded(AgentEvent):
     """A subagent reported back, with its last output."""
 
+    takes_remarks = False
+
     subagent: str
     report: str = ""

@@ -9,6 +9,7 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.rows.message_read import MessageRead
 from journal.events.rows.message_rows_faulty import MessageRowsFaulty
 from journal.events.rows.reply_posted import ReplyPosted
@@ -24,7 +25,7 @@ TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread
 
 
 class MessagesConduct(Conduct):
-    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, after a reply sent by command that it is in the chat and is never said again, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
+    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a read of the user's words piped into a filter blocked, after a tool use that read a message how to answer it by command, after a reply sent by command that it is in the chat and is never said again, closing words written after such a reply that they were not sent, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         comments = event.data.part(MessagesPart).unread_comments
@@ -57,6 +58,11 @@ class MessagesConduct(Conduct):
             return self.none(MessagesNudges.MESSAGE_READ.create(n=event.row_id), MessagesNudges.REPLY_COMMAND.create())
         return self.none(MessagesNudges.COMMENT_READ.create(n=event.row_id, writing=event.commented_writing))
 
+    def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
+        if not event.has_final_words():
+            return self.none()
+        return self.none(*closing_words_nudges(event.data.part(MessagesPart).turn_replies))
+
     def on_reply_posted(self, event: ReplyPosted, settings: Settings) -> Transition:
         return self.none(MessagesNudges.REPLY_REPEAT_WARNING.create(reply=event.row_id, n=event.reply_target)) if event.is_agents(event.session) else self.none()
 
@@ -86,3 +92,7 @@ def unlinked_line(event: MessageRowsFaulty) -> list[Nudge]:
 
 def missing_line(event: MessageRowsFaulty) -> list[Nudge]:
     return [MessagesNudges.MISSING_ROWS.create(n=event.row_id, rows=", ".join(event.missing))] if event.missing else []
+
+
+def closing_words_nudges(turn_replies: tuple[int, ...]) -> list[Nudge]:
+    return [MessagesNudges.REPLY_CLOSING_WORDS.create(reply=turn_replies[-1])] if turn_replies else []

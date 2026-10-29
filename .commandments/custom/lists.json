@@ -584,6 +584,7 @@
         "do that step and log it on the dump",
         "does not apply to the whole project, delete it and record a fact or a reminder instead",
         "edits since you logged",
+        "end a turn that replied by command with the reply",
         "ended without clocking out",
         "every other tool waits until you have read them all",
         "failed in its test run",

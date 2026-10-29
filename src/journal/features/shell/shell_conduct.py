@@ -52,7 +52,7 @@ class ShellConduct(Conduct):
         outputs = event.data.part(ShellPart).background
         if self.is_waiting() or self.blocks_tools() or not outputs:
             return self.none()
-        return self.refuse(ShellNudges.RUNNING_OUTPUT_STOP.create(outputs=", ".join(str(n) for n in outputs)))
+        return self.refuse(ShellNudges.OPEN_OUTPUT_STOP.create(outputs=", ".join(str(n) for n in outputs)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [sleep_line_check(self, event, settings), journal_poll_check(self, event, settings), journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), piped_journal_check(self, event, settings), folder_change_check(self, event, settings), project_path_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings)])

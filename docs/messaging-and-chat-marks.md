@@ -106,6 +106,13 @@ does not.
 36. Every line the journal types begins with `[journal] `, is short, names numbers not words, and is an
     instruction, never a message (law L6): the agent acts on it and writes nothing about it in the chat.
 
+37. Each line the journal says to the agent declares its kind where it is defined. An instruction asks the agent to
+    act, or holds it: it goes with the hook that raised it, or is typed to an agent at rest. A remark asks for nothing
+    now, such as the etiquette lines or the note that words written after a reply were not sent: it is never typed to
+    an agent at rest, and it rides on the agent's next hook that can carry a line, a tool use, a prompt, a session
+    start or a stop. A remark that waits at a stop holds that stop once so the agent reads it; the stop after it goes
+    through.
+
 ## 9. Version 4 today
 
 Stands: 5, 6, 13, 36, the commit card of 26, a status bar from tool entries, replies shown under the message.

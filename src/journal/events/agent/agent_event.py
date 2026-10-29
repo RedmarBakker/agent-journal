@@ -16,6 +16,7 @@ class AgentEvent(Event):
     is_work: ClassVar[bool] = False
     is_turn_end: ClassVar[bool] = False
     reads_transcript: ClassVar[bool] = True
+    takes_remarks: ClassVar[bool] = True
 
     agent: Agent = field(compare=False)
     session: str = ""
@@ -38,6 +39,12 @@ class AgentEvent(Event):
 
     def has_hook_lines(self) -> bool:
         return self.answers_hook and self.has_lines
+
+    def is_remark_carrier(self) -> bool:
+        return self.has_hook_lines() and self.takes_remarks
+
+    def defers_remarks(self) -> bool:
+        return False
 
     def with_data(self, data: FeatureData) -> Self:
         return replace(self, data=data)

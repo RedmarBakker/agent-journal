@@ -66,7 +66,7 @@ class StateMachine:
         return [type_name, *(descendant for subclass in type_name.__subclasses__() for descendant in cls.event_kinds(subclass))]
 
     def is_queued_remark(self, bottom_state: BaseState, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
-        return nudge.is_remark and not event.has_hook_lines() and self.returns.chosen(bottom_state).has_remark_queue()
+        return nudge.kind.is_remark() and not event.has_hook_lines() and self.returns.chosen(bottom_state).has_remark_queue()
 
     @staticmethod
     def answer_lines(lines: list[str], event: AgentEvent) -> list[str]:

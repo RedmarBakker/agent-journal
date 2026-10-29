@@ -85,6 +85,12 @@ class SupervisorLink:
     def pending_lines(self, environment_id: int) -> str:
         return "\n".join(self.typed.pending_lines(environment_id))
 
+    def pending_remarks(self, environment_id: int) -> str:
+        return "\n".join(self.typed.pending_remarks(environment_id))
+
+    def pending_instructions(self, environment_id: int) -> str:
+        return "\n".join(self.typed.pending_instructions(environment_id))
+
     def disable(self, environment_id: int) -> None:
         self.typed.disable(environment_id)
 

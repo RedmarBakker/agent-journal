@@ -1,4 +1,5 @@
 from journal.engine.nudge import Nudge
+from journal.engine.nudge_kind import NudgeKind
 from journal.support.timeout import Timeout
 
 
@@ -16,11 +17,11 @@ class WorkersNudges:
     BRANCH_KEEPS_CLASHING = Nudge("workers", "branch_keeps_clashing", "worker {{n}}'s branch rebased {{clashes}} times in a row, clashing in {{clashing|cap=25}}", "let it merge before the others", repeat=Timeout.seconds(0))
     RUN_UNFINISHED = Nudge("workers", "run_unfinished", "worker {{n}} ended without clocking out{{cause|cap=82}}", repeat=Timeout.seconds(0))
     WORKER_REPORTED = Nudge("workers", "worker_reported", "worker {{n}} reported", repeat=Timeout.seconds(0))
-    STARTED_PLANS = Nudge("workers", "started_plans", "started plans: {{plans|cap=400}}", repeat=Timeout.minutes(10), blocks_regardless=True, longest_characters=425, longest_reason="it lists every started plan with its counts")
+    STARTED_PLANS = Nudge("workers", "started_plans", "started plans: {{plans|cap=400}}", repeat=Timeout.minutes(10), blocks_regardless=True, longest_characters=425, longest_reason="it lists every started plan with its counts", kind=NudgeKind.REMARK)
     PLAN_STALLED = Nudge("workers", "plan_stalled", "plan {{n}} stalled since {{since}}, {{minutes}} min", repeat=Timeout.minutes(525600))
     SUITE_BROKEN = Nudge("workers", "suite_failed_after_merges", "suite output {{run}} failed after merging {{workers|cap=22}}", "send it back: `journal worker send {{n}} \"<what failed>\"`", repeat=Timeout.minutes(525600))
     DELIVERED_WAITING = Nudge("workers", "clocked_out_work_waits", "{{workers|cap=16}} clocked out", "check each point with `journal worker check <n> <point>`, then `journal worker merge <n>`", repeat=Timeout.seconds(0))
-    ACTIVE_WORKERS = Nudge("workers", "wait_for_running_workers", "{{workers|cap=19}} are still out and nothing waits to be checked", "wait with `journal worker wait {{numbers|cap=19}}`", repeat=Timeout.seconds(0))
+    ACTIVE_WORKERS = Nudge("workers", "wait_for_running_workers", "{{workers|cap=19}} are still out and nothing waits to be checked", "wait with `journal worker wait {{numbers|cap=19}}`", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     MEMORY_WARNING = Nudge("workers", "worker_uses_much_memory", "worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning", "check what it runs; it stops at the memory limit", repeat=Timeout.seconds(0))
     WORKER_LIMITED = Nudge("workers", "worker_waits_for_the_usage_limit", "worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}", repeat=Timeout.seconds(0))
     ORCHESTRATE = Nudge("workers", "orchestrate", "{{count}} tasks open; next: {{tasks|cap=26}}", "dispatch a worker on each you can with journal worker dispatch", repeat=Timeout.seconds(0))
@@ -50,8 +51,8 @@ class WorkersNudges:
     UNLINKED_TASKS = Nudge("workers", "plan_order_without_dependencies", "plan {{plan}}: {{open}} open tasks, none blocked", "set what each waits on: `journal task block <n> --on task:<m>`", repeat=Timeout.minutes(240))
     PRIORITIES = Nudge("workers", "reprioritise", "plan {{plan}}, phase {{phase}}: order the queues, most unblocking first: `journal plan priorities '<the order and why>'`", "", repeat=Timeout.minutes(15))
     UNBLOCKER_QUEUED = Nudge("workers", "unblocking_task_waits_in_a_queue", "task {{task}} unblocks you, at place {{place}} in worker {{n}}'s queue: `journal worker queue {{n}} {{task}} --first`", "", repeat=Timeout.seconds(0))
-    MODEL_OVERPOWERED = Nudge("workers", "model_too_strong", "worker {{n}} ran on {{model}}; a cheaper model would do. choose a cheaper one for work like this", repeat=Timeout.seconds(0))
-    MODEL_UNDERPOWERED = Nudge("workers", "model_too_weak", "worker {{n}} ran on {{model}} and was sent back {{send_backs}} times. use a stronger model for work like this", repeat=Timeout.seconds(0))
+    MODEL_OVERPOWERED = Nudge("workers", "model_too_strong", "worker {{n}} ran on {{model}}; a cheaper model would do. choose a cheaper one for work like this", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
+    MODEL_UNDERPOWERED = Nudge("workers", "model_too_weak", "worker {{n}} ran on {{model}} and was sent back {{send_backs}} times. use a stronger model for work like this", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     TEST_RUN_FAILED = Nudge("workers", "worker_test_run_failed", "worker {{n}}: {{failed}} failed in its test run", repeat=Timeout.seconds(0))
     WORKER_KEEPS_FAILING = Nudge("workers", "worker_keeps_failing", "worker {{n}} failed {{runs}} test runs in a row", repeat=Timeout.seconds(0))
     WORKER_STOPPED_UNREPORTED = Nudge("workers", "worker_stopped_unreported", "worker {{n}} stopped before it reported{{cause|cap=82}}", repeat=Timeout.seconds(0))
@@ -68,5 +69,5 @@ class WorkersNudges:
     PROOF_REJECTED = Nudge("workers", "worker_sent_back", "worker {{n}} back on point {{point}}", repeat=Timeout.seconds(0))
     PROOF_REJECTED_REPEAT = Nudge("workers", "worker_sent_back_again", "worker {{n}} back on point {{point}} again; earlier: {{earlier|cap=73}}", repeat=Timeout.seconds(0))
     PROOF_REJECTED_OFTEN = Nudge("workers", "worker_sent_back_repeatedly", "point {{point}} failed {{times}} times on {{model}} ({{earlier|cap=16}})", "`journal worker send {{n}} --model <model> \"<job>\"`", repeat=Timeout.seconds(0))
-    COSTLY_SHAPED_WORK = Nudge("workers", "worker_costly_on_shaped_work", "{{model}} cost ${{dollars}} on routine work", "use a cheaper model: `journal worker send {{n}} --model <model> \"<job>\"`", repeat=Timeout.seconds(0))
+    COSTLY_SHAPED_WORK = Nudge("workers", "worker_costly_on_shaped_work", "{{model}} cost ${{dollars}} on routine work", "use a cheaper model: `journal worker send {{n}} --model <model> \"<job>\"`", repeat=Timeout.seconds(0), kind=NudgeKind.REMARK)
     SUBAGENT_REUSE = Nudge("workers", "send_the_job_to_the_subagent", "{{count}} idle subagents already worked on this job's files: {{subagents|cap=400}}", "send the job to one with SendMessage", repeat=Timeout.seconds(0), longest_characters=504, longest_reason="it lists each idle subagent with the line that sends it the job")
