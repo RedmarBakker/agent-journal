@@ -7,6 +7,7 @@ from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
 from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.worker.dispatched_worker import DispatchedWorker
+from tests.stories.fixtures.worker.two_workers import TwoWorkers
 from tests.stories.fixtures.worker.working_worker import WorkingWorker
 
 
@@ -59,3 +60,21 @@ def test_a_workers_to_do_list_reads_back_in_order_with_its_checked_item(story):
     story.expect_command_refused()
     story.expect_stack(story.agents.subject, Void, WorkingTask)
 
+
+
+@story(TwoWorkers, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_worker_clocking_out_leaves_the_other_workers_stack_as_it_was(story):
+    story.agent_proves(story.agents.subject, 1, "parser.py:12, test_reads passes")
+    story.agent_proves(story.agents.subject, 2, "parser.py:30, test_names passes")
+    story.agent_clocks_out(story.agents.subject, "the parser is done")
+    story.expect_stack(story.agents.workers.second(), Void, WorkingTask)
+    story.expect_task(story.tasks.peer, delegated=True)
+    story.expect_stack(story.agents.subject, Void)
+
+
+@story(WorkingWorker, mode=BUILDER_MODE, subject=AgentRole.WORKER)
+def test_a_worker_clocks_in_once_each_time_it_is_sent(story):
+    story.agent_runs(story.agents.subject, "clock-in")
+    story.expect_command_refused()
+    story.expect_task(story.tasks.briefed, delegated=True)
+    story.expect_stack(story.agents.subject, Void, WorkingTask)
