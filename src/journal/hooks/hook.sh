@@ -85,18 +85,10 @@ fi
 if [ "$status" = 000 ] || [ "$status" = 0 ]; then
     held && { status=$(post) || status=0; }
 fi
-kind=$(sed -n 's/.*"hook_event_name": *"\([A-Za-z]*\)".*/\1/p' "$sent" | head -n 1)
 rm -f "$sent"
-# Claude shows a systemMessage to the user alone: each hook's answer carries how long the hook took, from this script's first line to
-# the moment its answer is printed, added to the line the journal already shows the user or standing alone.
-timed() {
-    [ "$agent" = claude ] && [ -n "$begun" ] || { cat; return; }
-    took="journal $kind hook: $(( $(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)') - begun )) ms"
-    sed -e "s/\"systemMessage\": \"/\"systemMessage\": \"$took. /;t" -e "s/^{}\$/{\"systemMessage\": \"$took\"}/;t" -e "s/^{/{\"systemMessage\": \"$took\", /"
-}
 case "$status" in
-    200) timed < "$body" ;;
-    409) if grep -q '^{"answer": ' "$body"; then sed -e 's/^{"answer": \(.*\), "error": ".*$/\1/' "$body" | timed; rm -f "$body"; exit 0; fi
+    200) cat "$body" ;;
+    409) if grep -q '^{"answer": ' "$body"; then sed -e 's/^{"answer": \(.*\), "error": ".*$/\1/' "$body"; rm -f "$body"; exit 0; fi
          sed -e 's/^{"error": *"//' -e 's/"}$//' -e 's/\\n/\n/g' "$body" >&2; rm -f "$body"; exit 2 ;;
 esac
 rm -f "$body"

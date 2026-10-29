@@ -1,4 +1,5 @@
 import json
+import re
 from enum import Enum
 
 from journal.engine.nudge import Nudge
@@ -11,6 +12,10 @@ from tests.in_process import get_answer
 from tests.stories.builder.worker_steps import worker_session
 from journal.features.workers.feature import Workers
 from tests.stories.builder.mode_floor import ModeFloor
+
+
+# the duration a hook's answer shows the user, such as "PreToolUse: 12 ms"
+HOOK_DURATION = re.compile(r"\b[A-Za-z]+: \d+ ms\b")
 
 
 class StoryChecks:
@@ -229,6 +234,25 @@ class StoryChecks:
 
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
+
+    def expect_hook_duration_shown(self) -> None:
+        line = self.user_line()
+        assert HOOK_DURATION.search(line), f"the hook's answer shows the user no duration: {self.verdict.body if self.verdict else None}"
+        assert not HOOK_DURATION.search(self.agent_text()), f"the hook's duration reached the agent: {self.agent_text()}"
+
+    def expect_no_hook_duration(self) -> None:
+        assert not HOOK_DURATION.search(self.user_line()), f"the hook's answer shows a duration though the setting is off: {self.user_line()}"
+
+    def user_line(self) -> str:
+        body = self.verdict.body if self.verdict else {}
+        answer = body.get("answer", body) if isinstance(body, dict) else {}
+        return str(answer.get("systemMessage", ""))
+
+    def agent_text(self) -> str:
+        body = self.verdict.body if self.verdict else {}
+        answer = body.get("answer", body) if isinstance(body, dict) else {}
+        specific = answer.get("hookSpecificOutput", {})
+        return " ".join(str(part) for part in (specific.get("additionalContext", ""), specific.get("permissionDecisionReason", ""), answer.get("reason", ""), body.get("error", "")))
 
     def expect_plugin_version(self, n: int, version: str) -> None:
         shown = self.api_row("plugins", n)["manifest"]["version"]

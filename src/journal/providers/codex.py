@@ -67,6 +67,7 @@ class Codex(Provider):
     }
     hook_kinds = tuple(hook for hook in HookType if hook not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
     capabilities = frozenset({Capability.CONTEXT_STATUS})
+    user_line_key = "systemMessage"
     profile_suffix = ".toml"
     default = False
     session_inbox = False

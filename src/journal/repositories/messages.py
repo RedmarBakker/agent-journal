@@ -168,8 +168,8 @@ class Messages(ScopedRepository[Message]):
         return query
 
     def docked_cards(self, chat: Query) -> list[Message]:
-        running = chat.filter_json("data->docked", True).filter_json("data->active", True)
-        return self.selected(running.order_descending("id").limit(DOCKED_CARD_COUNT))
+        running_cards = chat.filter_json("data->docked", True).filter_json("data->active", True)
+        return self.selected(running_cards.order_descending("id").limit(DOCKED_CARD_COUNT))
 
     def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))

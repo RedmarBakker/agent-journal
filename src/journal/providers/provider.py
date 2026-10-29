@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 import re
 import shlex
 import shutil
@@ -258,6 +259,17 @@ class Provider(ABC):
 
     def agent_answer(self, hook: Hook, decision: Decision) -> Response:
         return self.reply(hook, decision, "")
+
+    def with_user_line(self, response: Response, line: str) -> Response:
+        if not self.user_line_key or not isinstance(response.body, dict) or (response.status == 409 and "answer" not in response.body):
+            return response
+        if "answer" in response.body:
+            return replace(response, body={**response.body, "answer": self.user_lined(response.body["answer"], line)})
+        return replace(response, body=self.user_lined(response.body, line))
+
+    def user_lined(self, body: dict, line: str) -> dict:
+        shown = body.get(self.user_line_key, "")
+        return {**body, self.user_line_key: f"{shown}\n{line}" if shown else line}
 
     def reply(self, hook: Hook, decision: Decision, copy_key: str) -> Response:
         type_name = hook.hook_type

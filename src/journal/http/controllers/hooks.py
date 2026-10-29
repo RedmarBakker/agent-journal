@@ -45,7 +45,10 @@ class HookController:
             self.announced.withdraw(sender_hook.environment, sender_hook.session, self.shell_parts(sender_hook))
         hook = sender_hook.researcher_hook() if sender_hook.is_researcher() else sender_hook
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
-        return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
+        answer = provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
+        if not self.settings.option(FaultsOptions.HOOK_TIME_COPY):
+            return answer
+        return provider.with_user_line(answer, f"{hook.hook_type.value}: {max(0, round((time.time() - request.request_at) * 1000))} ms")
 
     @staticmethod
     def actor_stamped(hook: Hook, request: Request) -> Hook:
