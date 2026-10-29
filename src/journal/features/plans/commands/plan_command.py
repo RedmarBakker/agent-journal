@@ -16,6 +16,7 @@ from journal.models.phase import Phase
 from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.models.plan import Plan
+from journal.models.plan_mode import PlanMode
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
@@ -103,6 +104,9 @@ class PlanCommand(Command):
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
         testing.add_argument("title")
+        mode = self.verb(verbs, "mode", "how the plan is worked, set while it is a draft or paused: organization, its Plan agent coordinating Domain agents and Roles, or solo, its Plan agent doing the work itself")
+        mode.add_argument("n", type=int)
+        mode.add_argument("mode", choices=[choice.value for choice in PlanMode])
 
     def create(self, args: Namespace, caller: Caller) -> int:
         if self.is_orchestrator(caller) and not self.settings.option(WorkersOptions.ORCHESTRATOR_WRITES_PLANS):
@@ -263,6 +267,11 @@ class PlanCommand(Command):
         print(f"plan {plan.id} tests this way: {followed[0].brief}" if followed else f"plan {plan.id} follows no testing template")
         return 0
 
+    def mode(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.save(self.plans.find(args.n).mode_set(PlanMode.named(args.mode)), caller.actor)
+        print(f"plan {plan.id} is worked in {plan.mode} mode")
+        return 0
+
     def priorities(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.plan) if args.plan else next(iter(self.plans.running_plans()), None)
         if plan is None:
@@ -292,6 +301,7 @@ class PlanCommand(Command):
 
     def shown(self, plan: Plan) -> int:
         print(f"plan {plan.id} {plan.state}: {plan.title}")
+        print(f"mode: {plan.mode}")
         if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]
             print(f"phase in hand: {current.number} of {len(phases)}, {current.phase.title}")

@@ -315,6 +315,11 @@ export class ApiClient {
         return this.post(this.here(`/plans/${id}/testing`), {title});
     }
 
+    // sets how a plan is worked, organization or solo, while it is a draft or paused
+    setPlanMode(id, mode) {
+        return this.post(this.here(`/plans/${id}/mode`), {mode});
+    }
+
     // the plan testing templates a plan may follow
     planTestingTemplates() {
         return this.get(this.here("/plan-testing"));

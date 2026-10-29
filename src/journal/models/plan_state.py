@@ -22,6 +22,9 @@ class PlanState(StrEnum):
     def is_startable(self) -> bool:
         return self in (PlanState.APPROVED, PlanState.PAUSED, PlanState.DELEGATED, PlanState.STARTED)
 
+    def can_change_mode(self) -> bool:
+        return self in (PlanState.DRAFT, PlanState.PAUSED)
+
     def can_become(self, state: "PlanState") -> bool:
         return state == self or state in MOVES[self]
 

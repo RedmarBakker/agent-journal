@@ -200,6 +200,7 @@ class Routes:
         router.get(f"{API}/plans/{{id}}/timeline", plans.timeline)
         router.post(f"{API}/plans/{{id}}/tasks", plans.add_task)
         router.post(f"{API}/plans/{{id}}/testing", plans.testing)
+        router.post(f"{API}/plans/{{id}}/mode", plans.mode)
         router.get(f"{API}/plan-testing", plans.testing_templates)
         self.acts(router, "plans", plans, "review", "approve", "start", "pause", "finish", "abandon", "dismiss")
         self.listed(router, "questions", questions)
