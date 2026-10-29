@@ -246,8 +246,8 @@ class PlanCommand(Command):
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.find(args.n)
-        if refusal := self.phase_testing.refusal(plan):
-            raise Rejection(refusal)
+        if self.phase_testing.is_refused(plan):
+            raise Rejection(self.phase_testing.refusal(plan))
         plan = self.plans.opened(plan, caller.actor) if self.orchestrator.delegates_work() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))

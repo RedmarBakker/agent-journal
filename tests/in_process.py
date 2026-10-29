@@ -20,5 +20,6 @@ def get_answer(app, path: str, headers: dict) -> tuple[int, dict]:
 def answered(app, method: str, path: str, raw: bytes, headers: dict) -> tuple[int, dict]:
     head = RequestReading.head(method, path, {"Content-Type": "application/json", **headers})
     request = RequestReading.read(head, raw, app.container.get(Identity))
-    answer = app.container.get(LoginGate).refusal(request) or app.container.get(Router).route(request)
+    gate = app.container.get(LoginGate)
+    answer = gate.refusal(request) if gate.is_refused(request) else app.container.get(Router).route(request)
     return answer.status, json.loads(JsonOut.encoded(answer.body))

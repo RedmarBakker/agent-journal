@@ -197,8 +197,8 @@ class Repository(Generic[M]):
             yield
 
     def save(self, row: M, actor: Actor) -> M:
-        if refusal := row.refusal():
-            raise Rejection(refusal)
+        if row.is_refused():
+            raise Rejection(row.refusal())
         with self.connection.transaction():
             self.bus.dispatch(Saving(model=row, actor=actor))
             saved = self._insert(row.with_events((*row.events, *row.creation_events())), actor, self._time()) if row.is_new else self._update(row, actor)

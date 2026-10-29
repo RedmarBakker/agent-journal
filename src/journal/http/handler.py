@@ -38,15 +38,15 @@ class Handler(PooledHandler):
         if urlsplit(self.path).path in UNHELD_PATHS:
             return self._answer(self._dispatched(self._unidentified_request()))
         request = self._counted_request()
-        if refusal := self.gate.refusal(request):
-            return self._reply(refusal)
+        if self.gate.is_refused(request):
+            return self._reply(self.gate.refusal(request))
         if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and self.router.matched(request) is None and (rows := self.static.serve(request.path)):
             return self._file(rows)
         self._answer(self._dispatched(request))
 
     def do_POST(self) -> None:
         request = self._counted_request()
-        self._answer(self.gate.refusal(request) or self._dispatched(request))
+        self._answer(self.gate.refusal(request) if self.gate.is_refused(request) else self._dispatched(request))
 
     def _unidentified_request(self) -> Request:
         head = RequestReading.head(self.command, self.path, dict(self.headers.items()))
