@@ -1890,3 +1890,29 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - Open: a major version (5.0) starts a new line, and the window never crosses a major, so no 4.x journal has a path to
   5.0 yet. Whether a 4.x journal reaches 5.0 through a last 4.x step, or 5.0 accepts every 4.x within its own window,
   is decided when 5.0 is planned (doc 1072).
+
+## The agentic organization on OpenRig (plan 1, phase 1, 2026-10-29)
+
+The concept is doc 1 of this environment; the decisions of phase 1 are kept here.
+
+- There are no agent modes after the sweep. The main agent orchestrates every plan and never writes code. Each plan
+  has a Plan agent and a mode, organization or solo, set while the plan is not running; a running plan never switches.
+- A started plan gets its own environment, a worktree on the plan's branch, and its Plan agent is that environment's
+  one agent, so one agent per environment still holds.
+- Organization mode: the Plan agent and the Domain agents never write code; Domain agents reason with a model on every
+  hop; Roles do the work as OpenRig seats. After the sweep, seats replace the worker process; journal keeps the worker
+  records, proofs and merge as the bookkeeping, so one runtime remains.
+- Solo mode: the Plan agent takes on one Role at a time as a pushed state. Journal-cardinality Roles stay real and are
+  queued on.
+- A single task outside any plan is handled the way a one-task solo plan is, without a plan row being made for it.
+- Cardinality: journal (one for all plans), plan (one per plan), many (one per job, own worktree); the split of the
+  52 Roles is in doc 1. Journal-cardinality Roles live in the main agent's environment in one long-lived organization
+  rig; each queued job carries its plan, task and the plan's driver.
+- Permissions: a policy from the tools in a Role's role.toml, plus actions marked as always waiting for the user's
+  approval (the list of ARCHITECTURE.md 12.1). No autonomy levels.
+- Plans start by hand or from a template on a schedule, on the templates and schedules features.
+- Journal replaces the dispatch runtime that agentic-organization's ARCHITECTURE.md plans.
+- While the sweep runs, a setting switches between the old agent modes and the new model, off until phase 8 removes
+  both the old modes and the setting.
+- The refactor is one sweep in plan 1's order; the reviewers' advice to run Roles on today's workers first was not
+  taken (reports 1 and 2).
