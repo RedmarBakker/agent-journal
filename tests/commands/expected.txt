@@ -2803,7 +2803,7 @@ exit 0
 domain work: Work
   role medior: many, writes, claude sonnet, codex gpt-6-luna on max
   role senior: many, writes, claude opus, codex gpt-6-luna on max
-version 65fb375511ab
+version <hex>
 
 $ agent: journal role take keeper
 exit 1
@@ -2815,7 +2815,7 @@ the step as a Role has ended
 
 $ agent: journal organization plans
 exit 0
-no organization: set the agentic organization folder on the Settings page
+no plans
 
 $ agent: journal plan tell 1 'begin with the cart'
 exit 1
