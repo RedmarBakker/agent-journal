@@ -1975,12 +1975,12 @@ options:
 $ agent: journal worker dispatch --help
 exit 0
 usage: journal worker dispatch [-h] [--provider {claude,codex}]
-                               --changes CHANGES [--tests TESTS]
-                               --profile PROFILE [--model MODEL] [--worktree]
-                               [--libraries LIBRARIES] [--copies COPIES]
-                               [--no-libraries] [--pool] [--needs-secrets]
-                               [--fresh] [--report REPORT [REPORT ...]]
-                               --task TASK
+                               --changes CHANGES [--tests TESTS] [--role ROLE]
+                               [--profile PROFILE] [--model MODEL]
+                               [--worktree] [--libraries LIBRARIES]
+                               [--copies COPIES] [--no-libraries] [--pool]
+                               [--needs-secrets] [--fresh]
+                               [--report REPORT [REPORT ...]] --task TASK
                                name [brief]
 
 positional arguments:
@@ -2000,6 +2000,10 @@ options:
                         default, Full suite, or one of the project's own; with
                         Hand the tests over the worker runs none, and with
                         Test budget it tests only through journal tests turn
+  --role ROLE           a Role of the organization instead of a profile: the
+                        job starts with the Role's and its domain's guidance,
+                        its skills and its model; see journal organization
+                        list
   --profile PROFILE     the worker profile it works by: senior, on Opus, for a
                         job that needs judgement; medior, on Sonnet, for one
                         whose shape is settled
