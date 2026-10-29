@@ -29,7 +29,7 @@ class DocRevisions(ScopedRepository[DocRevision], LinkedRows):
         return query.filter_listed("environment_id", self.visible.visible())
 
     def _placed(self, row: DocRevision) -> DocRevision:
-        return row if row.environment_id else row.with_(environment_id=self.visible.own())
+        return self.visible.placed(row)
 
     def document_revisions(self, doc: Doc) -> list[DocRevision]:
         return sorted(self.children(doc), key=lambda revision: revision.number)

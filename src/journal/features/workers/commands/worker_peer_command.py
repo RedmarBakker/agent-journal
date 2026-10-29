@@ -5,7 +5,6 @@ from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.support.ref import Ref
-from journal.models.worker import Worker
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
@@ -48,9 +47,7 @@ class WorkerPeerCommand(Command):
     def send(self, args: Namespace, caller: Caller) -> int:
         if args.model or args.profile:
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
-        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
-        if args.task and holdings and args.task not in holdings:
-            raise Rejection(f"worker {args.n} holds task {holdings[0]} until it is merged or released: send that task's next job")
+        self.actions.task_holdings(args.n, args.task)
         worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)

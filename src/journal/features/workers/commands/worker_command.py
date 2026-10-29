@@ -304,9 +304,7 @@ class WorkerCommand(Command):
         return 0
 
     def send(self, args: Namespace, caller: Caller) -> int:
-        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
-        if args.task and holdings and args.task not in holdings:
-            raise Rejection(f"worker {args.n} holds task {holdings[0]} until it is merged or released: send it that task's next job")
+        holdings = self.actions.task_holdings(args.n, args.task)
         if not args.task and not holdings:
             raise Rejection(f"worker {args.n} has no task: `journal worker send {args.n} --task <task> '<job>'`")
         worker = self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)

@@ -153,11 +153,12 @@ class Chain:
                     current, i = (current + line[i:end], end) if current.strip() else ("", end)
                     start = start if current.strip() else end
                     continue
+                if Chain.is_heredoc(line, i) and Chain.is_compound(current):
+                    end = Chain.heredoc_end(line, i)
+                    current, i = current + line[i:end], end
+                    continue
                 if Chain.is_heredoc(line, i):
                     end = Chain.heredoc_end(line, i)
-                    if Chain.is_compound(current):
-                        current, i = current + line[i:end], end
-                        continue
                     parts.append((separator, (current + line[i:end]).strip(), start, end))
                     current, separator, i, start = "", "", end, end
                     continue

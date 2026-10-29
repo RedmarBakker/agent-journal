@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
@@ -39,7 +39,7 @@ class FollowingSequence(BaseState):
 
     name = FOLLOWING_SEQUENCE
     title = "Following a sequence"
-    run: SequenceRun = field(default_factory=lambda: SequenceRun(0, "", ()))
+    run: SequenceRun
 
     @classmethod
     def restored(cls, data: dict) -> "FollowingSequence":

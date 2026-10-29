@@ -63,6 +63,12 @@ class WorkerActions:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
         self.account, self.moves, self.failures, self.settings, self.merger, self.time_source, self.statuses = account, moves, failures, settings, merger, time_source, statuses
 
+    def task_holdings(self, number: int, task: int | None) -> tuple[int, ...]:
+        holdings = self.tasks.holder_task_ids(Ref(Worker.table(), number))
+        if task and holdings and task not in holdings:
+            raise Rejection(f"worker {number} works on task {holdings[0]} until that task is merged or released: send the worker the next job of task {holdings[0]}")
+        return holdings
+
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
             return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)

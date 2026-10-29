@@ -125,7 +125,7 @@ class SyncDesk:
         return count
 
     def needs_copy(self, answer: PullAnswer) -> bool:
-        return answer.copy_needed and self.account.sequence() < answer.head
+        return answer.needs_copy(self.account.sequence())
 
     def applied(self, answer: PullAnswer) -> int:
         if self.needs_copy(answer):

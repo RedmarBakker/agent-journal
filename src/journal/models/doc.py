@@ -1,14 +1,15 @@
 from dataclasses import dataclass, field
-from typing import ClassVar, Self
+from typing import ClassVar
 
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.scoped import Scoped
-from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS, AbstractText
+from journal.models.support.abstract_text import ABSTRACT_LENGTH_CHARACTERS
+from journal.models.support.abstracted import Abstracted
 from journal.models.support.commentable import Commentable
 
 
 @dataclass(frozen=True)
-class Doc(Scoped, Commentable):
+class Doc(Abstracted, Scoped, Commentable):
     """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, its text, whether it is still being written in parts or ready, and why it needs no action once it is signed off as such."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
@@ -51,19 +52,6 @@ class Doc(Scoped, Commentable):
 
     def is_changed_by(self, member: int, is_admin: bool) -> bool:
         return is_admin or member == self.owner
-
-    def title_words(self) -> str:
-        return self.title
-
-    def refusal(self) -> str:
-        return AbstractText.refusal(self.abstract)
-
-    def pulled_row(self) -> Self:
-        return self.with_(abstract=AbstractText.fitted(self.abstract, self.body, self.title))
-
-    @classmethod
-    def pulled_fields(cls, fields: dict) -> dict:
-        return {name: value for name, value in fields.items() if name != "abstract" or not AbstractText.refusal(value)}
 
     def summary_line(self) -> str:
         return self.abstract

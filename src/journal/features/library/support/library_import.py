@@ -6,6 +6,7 @@ from journal.features.library.support.sequence_body import SequenceBody
 from journal.features.library.support.template_body import TemplateBody
 from journal.features.profiles.support.profile_files import PREFIX, ProfileFiles
 from journal.models.library_item import LibraryItem
+from journal.models.model import Model
 from journal.models.sequence import Sequence
 from journal.repositories.library_items import LibraryItems
 from journal.repositories.sequences import Sequences
@@ -49,17 +50,21 @@ class LibraryImport:
         if not accepted and (sequence.triggers or any(step.allowed_commands for step in sequence.steps)):
             self.items.delete(item, actor)
             raise Rejection(self.powers(sequence))
-        title = sequence.title + LIBRARY_TITLE_SUFFIX if self.sequences.titled(sequence.title) else sequence.title
-        row = self.sequences.save(sequence.with_(title=title), actor)
-        self.items.joined(item, row, actor)
-        return self.items.save(item.with_(body=SequenceBody.text(row)), actor)
+        row = self.sequences.save(sequence.with_(title=self.free_title(sequence.title, self.sequences.titled(sequence.title))), actor)
+        return self.joined_item(item, row, SequenceBody.text(row), actor)
 
     def template_row(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         template = TemplateBody.template(item.body)
-        title = template.title + LIBRARY_TITLE_SUFFIX if self.templates.matching(title=template.title) else template.title
-        row = self.templates.save(template.with_(title=title), actor)
+        row = self.templates.save(template.with_(title=self.free_title(template.title, bool(self.templates.matching(title=template.title)))), actor)
+        return self.joined_item(item, row, TemplateBody.text(row), actor)
+
+    def joined_item(self, item: LibraryItem, row: Model, body: str, actor: Actor) -> LibraryItem:
         self.items.joined(item, row, actor)
-        return self.items.save(item.with_(body=TemplateBody.text(row)), actor)
+        return self.items.save(item.with_(body=body), actor)
+
+    @staticmethod
+    def free_title(title: str, is_duplicate: bool) -> str:
+        return title + LIBRARY_TITLE_SUFFIX if is_duplicate else title
 
     def profile_file(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
         profile = ProfileBody.profile(item.body)
