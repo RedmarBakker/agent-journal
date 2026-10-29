@@ -274,6 +274,16 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     assert planner["runtime"] == "codex" and planner["model"] == "gpt-6-luna" and planner["effort"] == "max"
     assert planner["codex_permissions"] == {"sandbox": "workspace-write", "approval": "never", "network_access": True}
     assert "claude_permissions" not in planner
+    for member in members.values():
+        rules = Path(member["cwd"]) / ".codex" / "rules" / "journal-organization-route.rules"
+        policy = rules.read_text()
+        assert 'pattern = ["rig", "send"]' in policy
+        assert 'pattern = ["rig", "queue", ["create", "handoff", "inbox-drop"]]' in policy
+        assert policy.count('decision = "forbidden"') == 2
+        assert '["rig", "queue", "create", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "handoff", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "inbox-drop", "--rig", "plan-1"]' in policy
+        assert '["rig", "queue", "list", "--rig", "plan-1"]' in policy
     assert members["plan-agent"]["runtime"] == "codex" and members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
     assert members["plan-agent"]["codex_permissions"] == {"sandbox": "read-only", "approval": "never"}
     assert members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"

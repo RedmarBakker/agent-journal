@@ -28,6 +28,26 @@ GUIDANCE = "guidance/role.md"
 HOOKS = "journal-hooks"
 SEAT_VARIABLES = (AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN, "JOURNAL_ENV", "JOURNAL_ROOT")
 DENIED = ("Bash(rig send *)", "Bash(rig queue *)")
+CODEX_ROUTE_RULES = '''prefix_rule(
+    pattern = ["rig", "send"],
+    decision = "forbidden",
+    justification = "Organization seats route messages through their pod hub.",
+    match = [["rig", "send", "role:alpha/builder@plan-1", "message"]],
+    not_match = [["rig", "sendx", "role:alpha/builder@plan-1", "message"]],
+)
+
+prefix_rule(
+    pattern = ["rig", "queue", ["create", "handoff", "inbox-drop"]],
+    decision = "forbidden",
+    justification = "Organization seats route queue changes through their pod hub.",
+    match = [
+        ["rig", "queue", "create", "--rig", "plan-1"],
+        ["rig", "queue", "handoff", "--rig", "plan-1"],
+        ["rig", "queue", "inbox-drop", "--rig", "plan-1"],
+    ],
+    not_match = [["rig", "queue", "list", "--rig", "plan-1"]],
+)
+'''
 EDIT_TOOLS = ("Edit", "Write")
 OWNER_ONLY = 0o600
 
@@ -94,11 +114,21 @@ class RigSpecs:
 
     def member(self, seat: Seat, cwd: Path, worker: SeatWorker) -> dict:
         provider = self.providers.lookup(seat.provider)
+        if provider.openrig_permissions_field == "codex_permissions":
+            self.codex_route_rules(cwd)
         member = {"id": seat.member, "agent_ref": f"local:agents/{seat.agent()}", "runtime": provider.openrig_runtime, "profile": PROFILE, "cwd": str(cwd), "model": seat.model,
                   "env": self.variables(worker), provider.openrig_permissions_field: self.permissions(provider, seat, cwd)}
         if seat.effort:
             member["effort"] = seat.effort
         return member
+
+    @staticmethod
+    def codex_route_rules(cwd: Path) -> Path:
+        """Write the route deny rules into the trusted project's active Codex rules layer."""
+        path = cwd.resolve() / ".codex" / "rules" / "journal-organization-route.rules"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(CODEX_ROUTE_RULES)
+        return path
 
     def variables(self, worker: SeatWorker) -> dict[str, str]:
         launched = self.setup.variables(worker.environment, worker.actor, worker.token)
