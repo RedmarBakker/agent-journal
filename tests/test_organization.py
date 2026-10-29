@@ -564,7 +564,7 @@ def test_openrig_ledger_retains_session_reset_and_unavailable_metadata(tmp_path)
 
     assert [first.amount_usd, continued.amount_usd, reset.amount_usd, new_session.amount_usd] == [2.5, 3.0, 7.0, 7.4]
     assert stale.amount_usd == pytest.approx(7.6) and stale.status == "stale"
-    assert unavailable.amount_usd == 7.6 and unavailable.status == "unavailable" and unavailable.freshness == "unavailable"
+    assert unavailable.amount_usd == pytest.approx(7.6) and unavailable.status == "unavailable" and unavailable.freshness == "unavailable"
     assert persisted["native_session_id"] == "native-b" and persisted["worker_native_session"] == "worker-session-b"
     assert persisted["latest"]["label"] == "Estimated API cost"
     assert persisted["last_estimate"]["source"] == "Claude statusline"
