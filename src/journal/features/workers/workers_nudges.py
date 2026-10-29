@@ -34,6 +34,7 @@ class WorkersNudges:
     BUILDER_CODE_SHARE_LINE = Nudge("workers", "builder_write_next", "you wrote {{share}} of the code this hour", "write task {{n}} yourself", repeat=Timeout.minutes(30))
     BUILDER_QUEUE_LINE = Nudge("workers", "builder_clear_oldest", "the worker queue has been high for {{minutes}} minutes", "check and merge worker {{n}} first", repeat=Timeout.seconds(300))
     BUILDER_WORKER_LINE = Nudge("workers", "builder_take_in_first", "on average {{count}} workers were active at once this hour", "merge worker {{n}} next, then hand out the next task", repeat=Timeout.seconds(0))
+    OPEN_WORK_WAIT_LINE = Nudge("workers", "take_up_next_work", "you spent {{share}} of the last hour waiting while other work was open", "take up task {{n}} while the run goes on", repeat=Timeout.minutes(30))
     ORCHESTRATOR_QUEUE_LINE = Nudge("workers", "orchestrator_clear_oldest", "the worker queue has been high for {{minutes}} minutes", "clear worker {{n}}, the oldest, first", repeat=Timeout.seconds(300))
     ORCHESTRATOR_WAIT_LINE = Nudge("workers", "orchestrator_check_worker", "worker {{n}} has waited {{minutes}} minutes, too long", "check it now", repeat=Timeout.minutes(10))
     ORCHESTRATOR_HANDOUT_LINE = Nudge("workers", "orchestrator_hand_out", "hand out more of the work", "{{handout}}", repeat=Timeout.minutes(10))

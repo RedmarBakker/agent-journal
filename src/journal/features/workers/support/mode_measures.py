@@ -22,9 +22,7 @@ SHOWN = MeasureRange(float("inf"), float("inf"))
 BUILDER_SPECS = (MeasureSpec("own_code_share", MeasureRange(0.5, 0.6), MeasureSource.code_share, Closeness.share, 4, label="Your own share of the code"), HIGH_QUEUE)
 COMPLETION_RATE = MeasureSpec("completion_rate", SHOWN, MeasureSource.completion_rate, Closeness.count, 0, label="Tasks completed an hour")
 MESSAGE_WAIT = MeasureSpec("message_wait", MeasureRange(5.0, 5.0), MeasureSource.message_wait_minutes, Closeness.minutes, 3, label="Minutes the oldest message waited")
-MODE_SPECS = {
-    SOLO_MODE: (MESSAGE_WAIT, COMPLETION_RATE),
-}
+OPEN_WORK_WAIT = MeasureSpec("open_work_wait_share", SHOWN, MeasureSource.open_work_wait_share, Closeness.share, 3, label="Share of the hour spent waiting with work open")
 ORCHESTRATOR_SPECS = (MeasureSpec("clearing_wait", MeasureRange(6.0, 6.0), MeasureSource.clearing_wait, Closeness.mean, 3, label="Minutes the oldest worker waited"), MeasureSpec("delegation", MeasureRange(0.3, 0.2), MeasureSource.delegation, Closeness.share, 3, label="Your own share of the landed code"),
                       MeasureSpec("idle_places", MeasureRange(5.0, 4.0), MeasureSource.idle_place_minutes, Closeness.minutes, 3, smoothing_minutes=15.0, label="Minutes a place stood free"),
                       MeasureSpec("report_share", MeasureRange(0.5, 0.34), MeasureSource.report_share, Closeness.mean, 2, label="First reports per merged task"),
@@ -42,8 +40,9 @@ class ModeMeasures:
         line_minutes = self.settings.decimal(WorkersOptions.PLACE_OPENING_MINUTES) + LINE_DELAY_MINUTES
         orchestrator = (replace(HIGH_QUEUE, range=MeasureRange(line_minutes, line_minutes), weight=6), *ORCHESTRATOR_SPECS, MESSAGE_WAIT, COMPLETION_RATE)
         worker_limit = self.settings.decimal(FitnessOptions.BUILDER_ACTIVE_WORKERS)
-        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), MESSAGE_WAIT, COMPLETION_RATE)
-        return {**MODE_SPECS, BUILDER_MODE: builder, ORCHESTRATOR_MODE: orchestrator}.get(mode, ())
+        open_work_wait = replace(OPEN_WORK_WAIT, range=MeasureRange(self.settings.decimal(FitnessOptions.OPEN_WORK_WAIT_FAIL), self.settings.decimal(FitnessOptions.OPEN_WORK_WAIT_PASS)))
+        builder = (*BUILDER_SPECS, replace(ACTIVE_WORKERS, range=MeasureRange(worker_limit, worker_limit)), open_work_wait, MESSAGE_WAIT, COMPLETION_RATE)
+        return {SOLO_MODE: (open_work_wait, MESSAGE_WAIT, COMPLETION_RATE), BUILDER_MODE: builder, ORCHESTRATOR_MODE: orchestrator}.get(mode, ())
 
     def worked(self, agent: Agent, mode: str, time: float) -> MeasureStates:
         previous = agent.measures if agent.measures.mode == mode else MeasureStates(mode, time)

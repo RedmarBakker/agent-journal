@@ -2075,11 +2075,11 @@ def test_each_work_mode_keeps_its_own_load_so_a_switch_neither_resets_nor_mixes_
     from journal.models.agent import Agent
     from journal.models.support.agent_load import AgentLoad
     agent = Agent(environment_id=1, session="s1", mode="builder", work_queue=AgentLoad(rho=0.4, measured_at=1.0))
-    orchestrating = agent.in_mode("orchestrator")
+    orchestrating = agent.mode_changed("orchestrator")
     assert orchestrating.work_queue == AgentLoad(), "a mode not yet measured starts with no figure"
     measured = orchestrating.with_(work_queue=AgentLoad(rho=0.9, measured_at=2.0))
-    assert measured.in_mode("builder").work_queue.rho == 0.4, "back in the builder's mode its own figure is there"
-    assert measured.in_mode("builder").in_mode("orchestrator").work_queue.rho == 0.9 and measured.in_mode("solo").work_queue == AgentLoad()
+    assert measured.mode_changed("builder").work_queue.rho == 0.4, "back in the builder's mode its own figure is there"
+    assert measured.mode_changed("builder").mode_changed("orchestrator").work_queue.rho == 0.9 and measured.mode_changed("solo").work_queue == AgentLoad()
 
 
 def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
@@ -2498,7 +2498,7 @@ def test_a_failing_measure_says_its_line_and_says_it_again_only_after_its_nudge_
     failing = MeasureStates("orchestrator", 0.0, (MeasureState("high_queue_minutes", 14.0, is_measured=True, is_failing=True, changed_at=400.0, measured_at=1000.0),))
     workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=("workers:12",), waiting_items=1, measured_at=1000.0), measures=failing, band=PressureBand.HIGH)
     event = ToolStarting(agent=EVENT_AGENT, call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": workers}))
-    lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})).nudges
+    lines = measure_check(Ready(), event, SettingsValue({FitnessOptions.EDIT_WAIT_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})).nudges
     assert [line.rendered() for line in lines] == [WorkersNudges.ORCHESTRATOR_QUEUE_LINE.create(minutes=14, n=12).rendered()], [line.rendered() for line in lines]
     assert measure_check(Ready(), event, SettingsValue({FitnessOptions.WARNINGS.key: False})).nudges == (), "with the warnings off no measure line is said"
     hook(app, "SessionStart")
@@ -2584,7 +2584,7 @@ def test_each_builder_measure_line_speaks_where_its_measure_fails_in_its_bands_a
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     from journal.models.worker import Worker
-    settings = SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})
+    settings = SettingsValue({FitnessOptions.EDIT_WAIT_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True})
     def said(failing: str, value: float, band: PressureBand, current_task: int = 7, refs=("messages:4", "workers:12"), delivered=(Worker(environment_id=1, id=5),), command: str = "ls") -> list[str]:
         measures = MeasureStates("builder", 0.0, (MeasureState(failing, value, is_measured=True, is_failing=True, measured_at=1000.0),))
         workers = WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=0.9, waiting_refs=refs, waiting_items=len(refs), measured_at=1000.0), measures=measures, band=band, delivered_workers=delivered)
@@ -2644,7 +2644,7 @@ def test_each_orchestrator_measure_line_speaks_where_its_measure_fails_in_its_ba
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
     from journal.models.worker import Worker
-    settings = SettingsValue({FitnessOptions.WRITE_BLOCK_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True, WorkersOptions.WORKER_LIMIT.key: 3})
+    settings = SettingsValue({FitnessOptions.EDIT_WAIT_MINUTES.key: 15, FitnessOptions.WARNINGS.key: True, WorkersOptions.WORKER_LIMIT.key: 3})
     task = OpenTask(id=9, title="Fix the cart", brief="", plan_id=0)
     def said(failing: tuple[str, ...], value: float, band: PressureBand, refs=("messages:4", "workers:12"), idle=(), out=(Worker(environment_id=1, id=6),), next_open=task, open_count: int = 3, command: str = "ls") -> list[str]:
         measures = MeasureStates("orchestrator", 0.0, tuple(MeasureState(key, value, is_measured=True, is_failing=True, measured_at=1000.0) for key in failing))
@@ -2753,7 +2753,7 @@ def test_a_worker_queue_failing_past_its_block_minutes_blocks_writes_until_the_o
     from journal.models.support.measure_state import MeasureState
     from journal.models.support.measure_states import MeasureStates
     from journal.models.support.pressure_band import PressureBand
-    on = SettingsValue({FitnessOptions.WARNINGS.key: True, FitnessOptions.WRITE_BLOCK_MINUTES.key: 15})
+    on = SettingsValue({FitnessOptions.WARNINGS.key: True, FitnessOptions.EDIT_WAIT_MINUTES.key: 15})
     edit = Claude().call("Edit", {"file_path": "/w/a.py", "old_string": "x", "new_string": "y"}, frozenset(), CLASSIFIER)
     def answer(call, failing: bool = True, time: float = 1000.0, settings=on):
         state = MeasureState("high_queue_minutes", 20.0, is_measured=True, is_failing=failing, changed_at=0.0, measured_at=time)

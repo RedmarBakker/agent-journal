@@ -1,7 +1,7 @@
 from functools import partial
 
 from journal.events.listener import Listener
-from journal.events.stack_moved import StackMoved
+from journal.engine.stack_moved import StackMoved
 from journal.repositories.state_transitions import StateTransitions
 from journal.support.actor import Actor
 from journal.support.listener_queue import ListenerQueue
@@ -17,4 +17,4 @@ class TransitionCounts(Listener[StackMoved]):
         self.deferred.add(partial(self.counted, event))
 
     def counted(self, event: StackMoved) -> None:
-        self.transitions.counted(event.before_state, event.after_state, event.cause, event.at, Actor.system())
+        self.transitions.counted(event.old_top, event.new_top, event.cause, event.moved_at, Actor.system())

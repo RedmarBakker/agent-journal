@@ -44,7 +44,7 @@ class ToolUses:
 
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
-        agent = agent.in_mode(mode).tool_used()
+        agent = agent.mode_changed(mode).tool_used()
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
         agent = agent.lines_edited(call.operation.changed_lines()[0], time, time - self.settings.decimal(WorkersOptions.SERIES_HOURS) * 3600) if CodeFiles.has_code(call.edited_paths) else agent
         return agent

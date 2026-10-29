@@ -283,6 +283,11 @@ class StoryChecks:
     def floor(self) -> type:
         return Workers.modes.states[self.mode]
 
+    def expect_seconds_waited_with_work_open(self, seconds: int) -> None:
+        agents = [row["id"] for row in get_answer(self.app, "/journal/agents", MAIN)[1]["rows"] if row.get("session") == self.scoped_session()]
+        counted = sum(round(waited) for _, waited in self.api_row("agents", max(agents))["open_work_waits"])
+        assert counted == seconds, f"the agent waited {counted} seconds with work open, not {seconds}"
+
     def stack(self) -> list[str]:
         return self.session_stack(self.scoped_session())
 

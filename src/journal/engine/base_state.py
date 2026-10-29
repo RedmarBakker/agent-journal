@@ -96,6 +96,9 @@ class BaseState:
     def is_waiting(self) -> bool:
         return False
 
+    def counted_wait_seconds(self, ended_at: float, uncounted_seconds: int) -> int:
+        return 0
+
     def is_mode_bound(self) -> bool:
         return False
 

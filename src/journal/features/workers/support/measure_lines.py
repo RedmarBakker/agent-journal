@@ -7,7 +7,7 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.support.line_bands import LineBands
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, WorkersOptions
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.models.support.measure_state import MeasureState
 
@@ -30,7 +30,7 @@ class MeasureLines:
     def block_lines(data: FeatureData, settings: Settings, time: float) -> tuple[Nudge, ...]:
         workers = data.part(WorkersPart)
         state = workers.measures.state("high_queue_minutes")
-        if not state.is_failing or time - state.changed_at < settings.decimal(FitnessOptions.WRITE_BLOCK_MINUTES) * 60:
+        if not state.is_failing or time - state.changed_at < settings.decimal(FitnessOptions.EDIT_WAIT_MINUTES) * 60:
             return ()
         maker = MeasureLines.makers().get((workers.measures.mode, state.key))
         return maker(state, data, settings) if maker else ()
@@ -57,14 +57,14 @@ class MeasureLines:
     def measure_key(nudge_key: str) -> str:
         keys = {WorkersNudges.ORCHESTRATOR_QUEUE_LINE.key: "high_queue_minutes", WorkersNudges.BUILDER_QUEUE_LINE.key: "high_queue_minutes", WorkersNudges.BUILDER_CODE_SHARE_LINE.key: "own_code_share",
                 WorkersNudges.BUILDER_WORKER_LINE.key: "active_workers", WorkersNudges.ORCHESTRATOR_WAIT_LINE.key: "clearing_wait", WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key: "delegation",
-                WorkersNudges.ORCHESTRATOR_REPORT_LINE.key: "report_share"}
+                WorkersNudges.ORCHESTRATOR_REPORT_LINE.key: "report_share", WorkersNudges.OPEN_WORK_WAIT_LINE.key: "open_work_wait_share"}
         return keys.get(nudge_key, "")
 
     @staticmethod
     def makers() -> dict[tuple[str, str], Callable[[MeasureState, FeatureData, Settings], tuple[Nudge, ...]]]:
         return {(BUILDER_MODE, "own_code_share"): MeasureLines.code_share_line, (BUILDER_MODE, "high_queue_minutes"): MeasureLines.oldest_worker_line, (ORCHESTRATOR_MODE, "high_queue_minutes"): MeasureLines.queue_line,
                 (ORCHESTRATOR_MODE, "clearing_wait"): MeasureLines.wait_line, (ORCHESTRATOR_MODE, "delegation"): MeasureLines.handout_line, (ORCHESTRATOR_MODE, "idle_places"): MeasureLines.handout_line,
-                (ORCHESTRATOR_MODE, "report_share"): MeasureLines.report_line}
+                (ORCHESTRATOR_MODE, "report_share"): MeasureLines.report_line, (BUILDER_MODE, "open_work_wait_share"): MeasureLines.open_work_wait_line, (SOLO_MODE, "open_work_wait_share"): MeasureLines.open_work_wait_line}
 
     @staticmethod
     def worker_refs(workers) -> list[str]:
@@ -75,6 +75,11 @@ class MeasureLines:
         work = data.next_work()
         task = data.part(TasksPart).current_task or (work.id if work else 0)
         return (WorkersNudges.BUILDER_CODE_SHARE_LINE.create(share=round(state.value, 2), n=task),) if task else ()
+
+    @staticmethod
+    def open_work_wait_line(state: MeasureState, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
+        work = data.next_work()
+        return (WorkersNudges.OPEN_WORK_WAIT_LINE.create(share=f"{round(state.value * 100)}%", n=work.id),) if work else ()
 
     @staticmethod
     def oldest_worker_line(state: MeasureState, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:

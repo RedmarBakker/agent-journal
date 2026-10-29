@@ -32,7 +32,7 @@ PRINTING_REMINDER = Timeout.minutes(15)
 
 @dataclass(frozen=True)
 class ExternalWait(Wait):
-    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. With no task in hand, a stop while other work is open, in auto mode or not, is refused once per wait, unless the wait is estimated short or is a run with no estimate yet; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, the next work is named once after a minute while no task is in hand, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five."""
+    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. With no task in hand, a stop while other work is open, in auto mode or not, is refused once per wait, unless the wait is estimated short or is a run with no estimate yet; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, the next work is named once after a minute while no task is in hand, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five. A wait opened beside other work counts against the agent, once it ends, the seconds it lasted past the uncounted ones."""
 
     name = "awaiting"
     assigner = None
@@ -59,6 +59,9 @@ class ExternalWait(Wait):
     def opened_beside(cls, data: FeatureData, focus: str, end_refs: str, started_at: float) -> "ExternalWait":
         work = data.next_work()
         return cls.opened(focus, end_refs, started_at, work.id if work else 0)
+
+    def counted_wait_seconds(self, ended_at: float, uncounted_seconds: int) -> int:
+        return max(0, round(ended_at - self.started_at) - uncounted_seconds) if self.open_work_task else 0
 
     def wait_description(self) -> tuple[str, str]:
         return self.focus, self.end_refs

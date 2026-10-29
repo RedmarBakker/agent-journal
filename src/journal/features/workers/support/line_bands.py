@@ -2,9 +2,9 @@ from journal.features.workers.support.handout_direction import HandoutDirection
 from journal.features.workers.support.line_band import LineBand
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.models.support.pressure_band import PressureBand
-from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE
+from journal.features.workers.workers_options import BUILDER_MODE, ORCHESTRATOR_MODE, SOLO_MODE
 
-LOW, NORMAL, HIGH = PressureBand.LOW, PressureBand.NORMAL, PressureBand.HIGH
+LOW, NORMAL, HIGH, UNBANDED = PressureBand.LOW, PressureBand.NORMAL, PressureBand.HIGH, PressureBand.NONE
 INCREASE, DECREASE, NEUTRAL = HandoutDirection.INCREASE, HandoutDirection.DECREASE, HandoutDirection.NEUTRAL
 
 
@@ -15,6 +15,8 @@ class LineBands:
         LineBand(BUILDER_MODE, WorkersNudges.BUILDER_CODE_SHARE_LINE.key, (LOW, NORMAL), DECREASE),
         LineBand(BUILDER_MODE, WorkersNudges.BUILDER_QUEUE_LINE.key, (HIGH,), DECREASE),
         LineBand(BUILDER_MODE, WorkersNudges.BUILDER_WORKER_LINE.key, (LOW, NORMAL, HIGH), DECREASE),
+        LineBand(BUILDER_MODE, WorkersNudges.OPEN_WORK_WAIT_LINE.key, (UNBANDED, LOW, NORMAL, HIGH), NEUTRAL),
+        LineBand(SOLO_MODE, WorkersNudges.OPEN_WORK_WAIT_LINE.key, (UNBANDED,), NEUTRAL),
         LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_QUEUE_LINE.key, (HIGH,), DECREASE),
         LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_WAIT_LINE.key, (NORMAL, HIGH), NEUTRAL),
         LineBand(ORCHESTRATOR_MODE, WorkersNudges.ORCHESTRATOR_HANDOUT_LINE.key, (LOW, NORMAL), INCREASE),

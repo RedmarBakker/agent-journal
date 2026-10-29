@@ -211,12 +211,12 @@ class StateMachine:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), cause, actor, refused=machine_answer.refused, line=machine_answer.refusal.nudge.rendered()), actor)
         if self.is_unchanged(agent, destination, stack):
             return agent
-        typist = Typist()
-        stack.replace(self.states.stack(agent), typist)
+        typist, previous = Typist(), self.states.stack(agent)
+        stack.replace(previous, typist)
         resolved = self.agents.save(agent.with_(state=destination.name, data=destination.serialized(), stack=tuple(stack.serialized())), actor)
         self.delivery.moved(agent.environment_id, typist.moves)
         if self.is_moved(agent, stack):
-            self.changes.moved(agent, stack.serialized(), cause, actor)
+            self.changes.moved(agent, stack.serialized(), cause, actor, previous.removed_states(stack))
         return resolved
 
     @staticmethod

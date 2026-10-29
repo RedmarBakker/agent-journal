@@ -6,7 +6,7 @@ from journal.engine.support.typist import Typist
 
 @dataclass(frozen=True)
 class Stack:
-    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack whose top was another state, the top leaving is informed it exits and the new top that it enters, with the typist they may switch off or on: only the state on top decides whether lines are typed."""
+    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack whose top was another state, the top leaving is informed it exits and the new top that it enters, with the typist they may switch off or on: only the state on top decides whether lines are typed. The states a following stack removes are those from the first depth whose state differs."""
 
     states: tuple[BaseState, ...]
 
@@ -21,6 +21,10 @@ class Stack:
 
     def popped(self) -> "Stack":
         return self if len(self.states) == 1 else Stack(self.states[:-1])
+
+    def removed_states(self, following: "Stack") -> tuple[BaseState, ...]:
+        shared_depth = next((depth for depth, (old, new) in enumerate(zip(self.states, following.states)) if type(old) is not type(new)), min(len(self.states), len(following.states)))
+        return self.states[shared_depth:]
 
     def serialized(self) -> list[dict]:
         return [{"state": state.name, "data": state.serialized()} for state in self.states]

@@ -67,6 +67,10 @@ class MeasureSource:
     def idle_place_minutes(self) -> float | None:
         return self.free_places.minutes(self.time - self.window(HOUR_SECONDS), self.time)
 
+    def open_work_wait_share(self) -> float | None:
+        seconds = self.window(HOUR_SECONDS)
+        return self.agent.open_work_wait_total(self.time, seconds) / seconds if seconds > 0 else None
+
     def message_wait_minutes(self) -> float | None:
         return self.agent.message_queue.oldest_wait_minutes if self.agent.message_queue.is_measured() else None
 

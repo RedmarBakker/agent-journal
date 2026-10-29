@@ -60,6 +60,7 @@ class Agent(Scoped):
     merged_lines: tuple[tuple[float, int], ...] = ()
     committed_lines: tuple[tuple[float, int], ...] = ()
     first_reports: tuple[tuple[float, int], ...] = ()
+    open_work_waits: tuple[tuple[float, int], ...] = ()
     counted_shas: tuple[str, ...] = ()
     mode: str = ""
     inbox_position: int = 0
@@ -175,6 +176,9 @@ class Agent(Scoped):
     def first_reported(self, task: int, time: float, cutoff: float) -> "Agent":
         return self.with_(first_reports=TimeSeries.add(self.first_reports, (time, task), cutoff))
 
+    def open_work_waited(self, seconds: int, time: float, cutoff: float) -> "Agent":
+        return self.with_(open_work_waits=TimeSeries.add(self.open_work_waits, (time, seconds), cutoff)) if seconds else self
+
     def shas_counted(self, shas: tuple[str, ...]) -> "Agent":
         return self.with_(counted_shas=(*self.counted_shas, *shas)[-SHA_COUNT:]) if shas else self
 
@@ -201,7 +205,10 @@ class Agent(Scoped):
     def first_report_count(self, moment: float, seconds: float) -> int:
         return TimeSeries.count(self.first_reports, moment, seconds)
 
-    def in_mode(self, mode: str) -> "Agent":
+    def open_work_wait_total(self, moment: float, seconds: float) -> int:
+        return TimeSeries.total(self.open_work_waits, moment, seconds)
+
+    def mode_changed(self, mode: str) -> "Agent":
         if self.mode == mode:
             return self
         loads = dict(self.mode_loads)
