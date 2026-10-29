@@ -29,10 +29,13 @@ from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.plans.states.coordinating_plans import CoordinatingPlans
 from journal.engine.support.modes import Modes
 from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.features.plans.states.leading_task import LeadingTask, LeadingTaskWorking
 from journal.features.plans.listeners.plan_agent_start import PlanAgentStart
 from journal.features.plans.listeners.plan_agent_pause import PlanAgentPause
 from journal.features.plans.listeners.plan_agent_finish import PlanAgentFinish
 from journal.features.plans.listeners.plan_agent_abandon import PlanAgentAbandon
+from journal.features.plans.listeners.task_agent_start import TaskAgentStart
+from journal.features.plans.listeners.task_agent_finish import TaskAgentFinish
 from journal.features.plans.states.plans_working import PlansWorking
 from journal.features.plans.listeners.release_plan_waits import ReleasePlanWaits
 from journal.features.plans.listeners.plan_testing_default import PlanTestingDefault
@@ -47,10 +50,10 @@ class Plans(Feature[PlansData]):
     name = PlansPart.name
     title = "Plans"
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
-    states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, CoordinatingPlans, LeadingPlan)
+    states = (PlansReady, PlansWorking, FollowingPlan, NamingTestCommands, CoordinatingPlans, LeadingPlan, LeadingTask, LeadingTaskWorking)
     modes = Modes(PlansOptions.PLAN_AGENTS, {True: CoordinatingPlans})
     commands = (PlanCommand,)
-    listeners = (BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon)
+    listeners = (BuilderPlanFocus, StartedPlanFocus, PlanTestingDefault, PlanBlockade, PlanDelegation, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard, SessionStartPlanStart, PlanFinishedPlanStart, PlanAgentStart, PlanAgentPause, PlanAgentFinish, PlanAgentAbandon, TaskAgentStart, TaskAgentFinish)
     assigners = (PlanStartTaskAssigner, PlanTaskAssigner)
     conduct = (PlansConduct,)
     mode_conduct = ((CoordinatingPlans, CoordinatorConduct),)
@@ -59,7 +62,7 @@ class Plans(Feature[PlansData]):
     jobs = (TemplatePlanStart,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS, PlansOptions.PLAN_AGENTS)
-    nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.LEADING_PLAN, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
+    nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.LEADING_PLAN, PlansNudges.COORDINATOR_MODE, PlansNudges.COORDINATOR_WRITES_NO_CODE, PlansNudges.WORKING_TASK_ALONE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans
@@ -86,6 +89,8 @@ by you, approved by them, and then followed: finishing one task starts the next 
 - `journal plan show <n>` lists its phases and tasks; `journal plan list` every plan; `journal plan pause <n>` puts it aside.
 - With Plan agents on, a started plan runs in its own environment plan-<n> with its own agent and chat; pausing or
   ending it stops that agent, and `journal plan show <n>` names the environment and whether its agent runs.
+- Work outside every plan can stay a standalone task: `journal task start <n>` gives it an agent of its own in task-<n>,
+  worked alone as a one-task plan with no plan row; its close stops that agent.
 - A blocked task never blocks its plan: go on with the tasks that can be done. When every task left is blocked, the plan
   blocks itself and opens again when one opens. When one thing stops all of the plan's work, block the plan on it:
   `journal plan block <n> "<why>"`, with `--on question:N`, `--on task:N` or `--until "<command>"` as for a task, so it

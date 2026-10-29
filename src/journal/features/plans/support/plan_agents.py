@@ -1,27 +1,24 @@
-from journal.engine.agent_launcher import AgentLauncher
 from journal.events.rows.plan_started import PlanStarted
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.states.leading_plan import LeadingPlan
+from journal.features.plans.support.agent_environments import AgentEnvironments
 from journal.features.plans.support.plan_bindings import PlanBindings
 from journal.models.agent import Agent
 from journal.models.environment import Environment
 from journal.models.plan import Plan
-from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
-from journal.support.agent_role import AgentRole
-from journal.supervisor_link import SupervisorLink
 
 
 class PlanAgents:
     """The one place that knows a plan's agent and its environment, plan-<n>, while Plan agents are on: a started plan is bound to that environment, which holds the agent its plan_agent link names, an agent row prepared on a LeadingPlan floor and launched in a worktree of the environment's name, on the provider of the main agent that started the plan, carrying on its last conversation, the environment made by whoever started the plan and seen as the plan's own environment is, shared with its team or private, set again at each start; a pause or an end stops it, and while they are off no plan is read, and environment, binding, row and link stay for its next start."""
 
-    def __init__(self, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, launcher: AgentLauncher, supervisor: SupervisorLink, settings: SettingRows, providers: Providers) -> None:
+    def __init__(self, plans: Plans, agents: Agents, environments: Environments, bindings: PlanBindings, places: AgentEnvironments, settings: SettingRows) -> None:
         self.plans, self.agents, self.environments, self.bindings = plans, agents, environments, bindings
-        self.launcher, self.supervisor, self.settings, self.providers = launcher, supervisor, settings, providers
+        self.places, self.settings = places, settings
 
     def agent(self, plan: Plan) -> Agent | None:
         agent_id = self.plans.agent_id(plan)
@@ -35,7 +32,7 @@ class PlanAgents:
         return next((plan for plan in self.plans.running_plans() if (environment := self.environment(plan)) and environment.row_id == environment_id), None)
 
     def is_running(self, environment: Environment) -> bool:
-        return self.supervisor.runs(environment.row_id)
+        return self.places.is_running(environment)
 
     def is_on(self) -> bool:
         return bool(self.settings.option(PlansOptions.PLAN_AGENTS))
@@ -44,34 +41,22 @@ class PlanAgents:
         if not self.is_on():
             return
         plan, actor = self.plans.find(event.plan_id), Actor.parse(event.actor)
-        environment = self.visible(self.environment(plan) or self.environments.made(f"plan-{plan.id}", actor), plan, actor)
+        environment = self.environment(plan)
+        environment = self.places.visible(environment, plan.environment_id, actor) if environment else self.places.made(f"plan-{plan.id}", plan.environment_id, actor)
         if self.is_running(environment):
             return
         self.bindings.bind(plan, environment.row_id, actor)
-        agent = self.agent(plan) or self.prepared(plan, environment, self.provider(event.environment_id), actor)
-        resume = self.providers.lookup(agent.provider).resume(agent.session) if agent.session else ()
-        self.launcher.start_in_worktree(environment.name, agent.provider, resume)
+        agent = self.agent(plan) or self.prepared(plan, environment, event.environment_id, actor)
+        self.places.launched(environment, agent)
 
-    def visible(self, environment: Environment, plan: Plan, actor: Actor) -> Environment:
-        source = self.environments.find(plan.environment_id)
-        team_key = "" if source.is_private() else source.team_key
-        if environment.team_key == team_key:
-            return environment
-        return self.environments.save(environment.shared_with_team(team_key) if team_key else environment.unshared(), actor)
-
-    def prepared(self, plan: Plan, environment: Environment, provider: str, actor: Actor) -> Agent:
-        floor = LeadingPlan(plan_id=plan.row_id)
-        agent = self.agents.save(Agent(environment_id=environment.row_id, role=AgentRole.MAIN, provider=provider, state=floor.name, data=floor.serialized(), stack=({"state": floor.name, "data": floor.serialized()},)), actor)
+    def prepared(self, plan: Plan, environment: Environment, starter_environment_id: int, actor: Actor) -> Agent:
+        agent = self.places.prepared(environment, LeadingPlan(plan_id=plan.row_id), starter_environment_id, actor)
         self.plans.agent_linked(plan, agent, actor)
         return agent
-
-    def provider(self, environment_id: int) -> str:
-        starter = self.agents.environment_main_agent(environment_id)
-        return starter.provider if starter and starter.provider else self.providers.default().name
 
     def stopped(self, plan_id: int) -> None:
         if not self.is_on():
             return
         environment = self.environment(self.plans.find(plan_id))
-        if environment and self.is_running(environment):
-            self.supervisor.stop(environment.row_id)
+        if environment:
+            self.places.stopped(environment)

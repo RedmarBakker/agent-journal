@@ -535,6 +535,7 @@
         "after the compaction, read",
         "after the compaction, run `journal environment overview` first",
         "all reviewers are back",
+        "alone in this worktree, as a one-task plan; no plan row is made for it",
         "already runs this line",
         "already: `journal role done` first",
         "always waits for the user: ask with `journal question ask`, and do it only once the answer allows it",

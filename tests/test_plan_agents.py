@@ -242,3 +242,53 @@ def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, sup
     assert queued.code == 0 and f"task {step} waits in the queue" in queued.text, queued.error
     assert [task.id for task in tasks.queue(Ref.build(instance))] == [step], "the step waits in the queue of the shared Role's one instance, made in the main environment"
     assert app.container.get(Agents).find(plans.agent_id(plans.find(plan))).stack[-1]["state"] != "role_work", "a shared Role is never taken on as a state"
+
+
+def test_a_task_outside_every_plan_is_worked_by_an_agent_of_its_own_and_the_main_agent_writes_no_code(app: App, supervisors: Supervisors):
+    from journal.features.plans.plans_nudges import PlansNudges
+    from journal.features.plans.support.task_agents import TASK_AGENT_LINK
+    from journal.features.workers.workers_nudges import WorkersNudges
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.tasks import Tasks
+    from tests.nudge_lines import nudge_reached
+
+    user_set(app, SWITCH, True)
+    console, tasks, plans, agents = app.console(), app.container.get(Tasks), app.container.get(Plans), app.container.get(Agents)
+    planned = len(plans.global_matching())
+    console.run(["task", "create", "fix the footer", "--brief", "the footer names the shop"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        task = tasks.scoped()[-1]
+    started = console.run(["task", "start", str(task.id)], AGENT)
+    assert started.code == 0, started.error
+    app.runtime().deferred.drain()
+    assert supervisors.launches[-1][0] == f"task-{task.id}", "the task gets an agent of its own in an environment of its own"
+    environment = app.container.get(Environments).existing(f"task-{task.id}")
+    agent = agents.find(app.container.get(Links).target_id(task, TASK_AGENT_LINK))
+    assert agent.environment_id == environment.row_id and agent.state == "leading_task" and tasks.holder(tasks.find(task.id)) == Ref.build(agent), "its agent holds it there"
+    assert len(plans.global_matching()) == planned, "no plan row is made for it"
+    assert agents.session_agent("s1").stack[-1]["state"] == "coordinating_plans", "the main agent takes nothing in hand"
+
+    status, session = posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "task-session"}, {"X-Journal-Env": f"task-{task.id}"})
+    assert status == 200 and nudge_reached(app, session["hookSpecificOutput"]["additionalContext"], PlansNudges.WORKING_TASK_ALONE, task=task.id), "its first session works the task alone"
+    stack = agents.find(agent.id).stack
+    assert (stack[0]["state"], stack[-1]["data"].get("task_id")) == ("leading_task", task.id) and len(stack) == 2, "the task agent keeps its standalone floor and works the task"
+
+    def task_hook(tool_name: str, tool_input: dict):
+        return posted(app, "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "task-session", "tool_name": tool_name, "tool_input": tool_input}, {"X-Journal-Env": f"task-{task.id}"})
+
+    for command in (
+        "journal worker dispatch 'Ada Lovelace' 'the floors' --changes src",
+        "journal worker send 1 'finish the floor'",
+    ):
+        status, body = task_hook("Bash", {"command": command})
+        assert status == 409 and nudge_reached(app, body["error"], WorkersNudges.SOLO_DISPATCH), f"the task agent refuses {command.split()[2]}"
+    status, body = task_hook("Write", {"file_path": "src/footer.py", "content": "x"})
+    assert status == 200, body.get("error", "the task agent may write its own task")
+
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "src/footer.py", "content": "x"})
+    assert status == 409, "the main agent writes no code"
+    completed = console.run(["task", "complete", str(task.id), "--how", "the footer names the shop"], Caller.agent(f"task-{task.id}", "task-session", "claude"))
+    assert completed.code == 0, completed.error
+    app.runtime().deferred.drain()
+    assert environment.row_id in supervisors.stops, "its close stops its agent"
