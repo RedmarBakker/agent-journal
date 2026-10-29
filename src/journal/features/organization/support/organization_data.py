@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from journal.features.organization.support.contracts import Contracts
+from journal.features.organization.support.role_approvals import RoleApprovals
 
 
 @dataclass(frozen=True)
@@ -9,6 +10,7 @@ class OrganizationData:
 
     contracts: Contracts
     history: dict[str, Contracts] = field(default_factory=dict)
+    approvals: RoleApprovals | None = None
 
     def contracts_at(self, version: str) -> Contracts:
         return self.history.get(version, self.contracts)

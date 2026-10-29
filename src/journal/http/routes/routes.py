@@ -1,5 +1,6 @@
 from journal.container import Container
 from journal.http.controllers.agents import AgentController
+from journal.http.controllers.approvals import ApprovalController
 from journal.http.controllers.attachments import AttachmentController
 from journal.http.controllers.checks import CheckController
 from journal.http.controllers.cli import CliController
@@ -213,6 +214,9 @@ class Routes:
         self.listed(router, "questions", questions)
         router.post(f"{API}/questions", questions.store)
         self.acts(router, "questions", questions, "answer", "close")
+        approvals = get(ApprovalController)
+        self.listed(router, "approvals", approvals)
+        self.acts(router, "approvals", approvals, "approve", "refuse")
         checks, sequences, triggers = get(CheckController), get(SequenceController), get(TriggerController)
         self.resource(router, "checks", checks)
         self.acts(router, "checks", checks, "run", "stop")

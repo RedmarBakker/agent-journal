@@ -11,5 +11,5 @@ class RolePolicy:
     def refusal(self, role: Role, call: ToolCall) -> Nudge | None:
         if call.edited_paths and not role.allows_edits():
             return OrganizationNudges.ROLE_WRITES_NOTHING.create(role=role.id)
-        waiting = [action for part in call.parts for action in ApprovalActions.of(part.text) if role.needs_approval(action)]
+        waiting = [action for action in ApprovalActions.of(call) if role.needs_approval(action)]
         return OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=waiting[0]) if waiting else None

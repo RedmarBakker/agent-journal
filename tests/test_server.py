@@ -14,11 +14,19 @@ from shell_verbs import ShellVerbs
 from journal.app import App
 from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
+from journal.features.organization.support.approval_action import ApprovalAction
+from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.support.actor import Actor
+from journal.models.support.ref import Ref
+from journal.models.task import Task
+from journal.models.task_state import TaskState
+from journal.models.worker import Worker
 from journal.repositories.entries import Entries
 from journal.repositories.query_plans import QueryPlans
-from journal.support.query_times import QueryTimes
 from journal.repositories.scope import Scope
+from journal.repositories.tasks import Tasks
+from journal.repositories.workers import Workers
+from journal.support.query_times import QueryTimes
 from journal.support.caller import Caller
 from tests.main_journal import main_journal
 from tests.user_settings import user_set
@@ -74,6 +82,40 @@ def whole_rows(server, table: str) -> list[dict]:
     """A list's rows read again by id, as the viewer reads a row whole with its relationships."""
     ids = ",".join(str(row["id"]) for row in call(server, "GET", f"/journal/{table}")[1]["rows"])
     return call(server, "GET", f"/journal/{table}?ids={ids}")[1]["rows"] if ids else []
+
+
+def requested_role_approval(app: App, action: ApprovalAction):
+    actor = Actor.user(1)
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        worker = app.container.get(Workers).save(Worker(name="Approval requester", brief="release", session="approval-worker", role="publisher"), actor)
+        tasks = app.container.get(Tasks)
+        task = tasks.save(Task(title="release", state=TaskState.STARTED), actor)
+        tasks.handover(task, Ref.build(worker), actor)
+    return worker, app.container.get(RoleApprovals).request(worker, action)
+
+
+def test_approval_http_actions_store_the_user_decision_and_serve_the_card_fields(server, app):
+    _, approval = requested_role_approval(app, ApprovalAction.PRODUCTION_DEPLOYMENT)
+    status, listed = call(server, "GET", "/journal/approvals")
+    assert status == 200
+    row = next(row for row in listed["rows"] if row["id"] == approval.row_id)
+    assert (row["actor"], row["role"], row["task_id"], row["action"]) == ("agent:approval-worker", "publisher", approval.task_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    assert row["question_id"] == approval.question_id and row["expires_at"] and row["decision"] == approval.PENDING
+
+    status, decided = call(server, "POST", f"/journal/approvals/{approval.row_id}/approve", {})
+    assert status == 200 and decided["decision"] == approval.APPROVED and decided["updater"] == "user:1"
+    question_rows = call(server, "GET", f"/journal/questions?ids={approval.question_id}")[1]["rows"]
+    assert question_rows[0]["answer"] == "the user approves this action", "the approval endpoint answers its existing question"
+
+
+def test_a_refused_approval_stays_refused_over_http(server, app):
+    worker, approval = requested_role_approval(app, ApprovalAction.DESTRUCTIVE_DATA_CHANGE)
+    status, refused = call(server, "POST", f"/journal/approvals/{approval.row_id}/refuse", {})
+    assert status == 200 and refused["decision"] == approval.REFUSED
+    assert call(server, "POST", f"/journal/approvals/{approval.row_id}/approve", {})[0] == 409, "a refusal cannot be changed into approval"
+    again = app.container.get(RoleApprovals).request(worker, ApprovalAction.DESTRUCTIVE_DATA_CHANGE)
+    assert again.row_id == approval.row_id and again.decision == approval.REFUSED, "a refused action cannot be re-requested into a new approval"
 
 
 def test_the_viewer_closes_a_task_undone_as_journal_task_cancel_does(server):

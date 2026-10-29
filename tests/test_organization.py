@@ -1,17 +1,44 @@
+from pathlib import Path
+from datetime import timedelta
+
+from journal.engine.support.settings import Settings
+from journal.events.agent.line_delivered import LineDelivered
+from journal.events.agent.tool_starting import ToolStarting
+from journal.events.feature_data import FeatureData
+from journal.features.organization.organization_nudges import OrganizationNudges
+from journal.features.organization.role_conduct import RoleConduct
+from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
 from journal.features.organization.support.approval_action import ApprovalAction
+from journal.features.organization.support.approval_actions import ApprovalActions
 from journal.features.organization.support.cardinality import Cardinality
 from journal.features.organization.support.edge import Edge
 from journal.features.organization.support.edge_kind import EdgeKind
+from journal.features.organization.support.organization_data_reader import OrganizationDataReader
+from journal.features.organization.support.role_approvals import RoleApprovals
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support.tool_ids import ToolIds
 from journal.support.inner_repositories import InnerRepositories
+from journal.features.tasks.states.ready import Ready
+from journal.features.workers.support.workers_data import WorkersData
+from journal.models.support.ref import Ref
+from journal.models.agent import Agent
+from journal.models.task import Task
+from journal.models.task_state import TaskState
+from journal.models.worker import Worker
+from journal.repositories.scope import Scope
+from journal.repositories.approvals import Approvals
+from journal.repositories.questions import Questions
+from journal.repositories.tasks import Tasks
+from journal.repositories.workers import Workers
+from journal.support.actor import Actor
 import pytest
 
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.providers.support.profile_type import ProfileType
 from tests.test_features import booted
+from tests.test_engine import CLASSIFIER
 
 
 @pytest.fixture(scope="module")
@@ -170,6 +197,78 @@ def test_a_worker_dispatched_to_a_role_is_refused_a_write_without_a_write_tool_a
     assert asked("deployer", "Bash", {"command": "gh workflow run deploy.yml"}).refusal == OrganizationNudges.ACTION_WAITS_FOR_USER.create(action="production_deployment"), "an approval-required action waits for the user"
     assert asked("builder", "Bash", {"command": "gh workflow run deploy.yml"}).refusal is None, "an action the Role does not list is not held"
     assert asked("", "Write", {"file_path": "a.py", "content": "x"}).refusal is None and asked("ghost", "Write", {"file_path": "a.py", "content": "x"}).refusal is None, "a worker with no Role, or one the folder no longer holds, is let through"
+
+
+def test_each_contract_approval_id_is_recognized_from_a_command_and_a_tool():
+    for action in ApprovalAction:
+        tool = Claude().call(f"mcp__organization__{action.value}", {"action_id": action.value}, frozenset(), CLASSIFIER)
+        assert ApprovalActions.of(f"journal role action --approval {action.value}") == (action,)
+        assert ApprovalActions.of(tool) == (action,), action.value
+
+
+def test_an_approved_role_deployment_runs_once_and_a_refusal_stays_refused(app, tmp_path, monkeypatch):
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "deployer", writes=True, tools=["read_files", "edit_files"], approval_required=["production_deployment", "financial_transaction", "contract_change", "security_decision"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "deployer"])
+    contracts = organization.reload()
+    actor = Actor.user(1)
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        worker = app.container.get(Workers).save(Worker(name="Ada Lovelace", brief="deploy", session="worker-session", role="deployer", contract=contracts.version), actor)
+        tasks = app.container.get(Tasks)
+        task = tasks.save(Task(title="release", state=TaskState.STARTED), actor)
+        tasks.handover(task, Ref.build(worker), actor)
+    approvals = app.container.get(RoleApprovals)
+    organization_data = app.container.get(OrganizationDataReader).read(Agent(environment_id=worker.environment_id, session=worker.session))
+
+    def attempt(command: str):
+        data = FeatureData({
+            "workers": WorkersData((), (), 0, (), Path("/w"), (), session_workers=(worker,)),
+            "organization": organization_data,
+        })
+        call = Claude().call("Bash", {"command": command}, frozenset(), CLASSIFIER)
+        event = ToolStarting(session=worker.session, call=call).with_data(data)
+        return RoleConduct.on_tool_starting(Ready(), event, Settings({}))
+
+    deployment = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    assert attempt("make deploy").refusal == deployment, "the deployment waits before any approval"
+    listener = app.container.get(RoleRefusalReport)
+    monkeypatch.setattr(listener.escalation, "report", lambda *args: None)
+    refusal = LineDelivered(session=worker.session, nudge=OrganizationNudges.ACTION_WAITS_FOR_USER.key, values={"action": ApprovalAction.PRODUCTION_DEPLOYMENT.value})
+    with scope.environment(1):
+        listener.handle(refusal)
+    approved = app.container.get(Approvals).for_action(Actor.agent(worker.session).stamp, worker.role, task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT.value)
+    assert approved and (approved.actor, approved.role, approved.task_id, approved.action) == (Actor.agent(worker.session).stamp, "deployer", task.row_id, ApprovalAction.PRODUCTION_DEPLOYMENT)
+    assert approved.expires_at is not None and approved.question_id > 0, "the saved request names its answer question and expiry"
+    approved = approvals.approve(approved, actor)
+    assert approved.updater == actor and approved.decision == approved.APPROVED, "the user's decision is durable"
+    assert attempt("make deploy && wire transfer").refusal == deployment, "one approval cannot release a call that carries a second required action"
+    assert attempt("make deploy").refusal is None, "the approved deployment passes once"
+    assert attempt("make deploy").refusal == deployment, "the same approval is spent after one pass"
+
+    transfer = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.FINANCIAL_TRANSACTION.value)
+    assert attempt("wire transfer").refusal == transfer, "a separate approval action waits"
+    refused = approvals.request(worker, ApprovalAction.FINANCIAL_TRANSACTION)
+    refused = approvals.refuse(refused, actor)
+    asked_again = approvals.request(worker, ApprovalAction.FINANCIAL_TRANSACTION)
+    assert asked_again.row_id == refused.row_id and asked_again.decision == refused.REFUSED, "a refused request stays refused instead of opening another question"
+    assert attempt("wire transfer").refusal == transfer, "a refusal never lets the action through"
+
+    contract_change = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.CONTRACT_CHANGE.value)
+    expired = approvals.request(worker, ApprovalAction.CONTRACT_CHANGE)
+    expired = app.container.get(Approvals).save(expired.with_(expires_at=expired.expires_at - timedelta(hours=2)), actor)
+    assert attempt("amend contract").refusal == contract_change, "an expired approval cannot authorize a call"
+    with scope.environment(expired.question_environment_id):
+        question = app.container.get(Questions).find(expired.question_id)
+    assert app.container.get(Approvals).find(expired.row_id).decision == expired.EXPIRED and question.is_closed(), "expiry settles the approval and closes its question"
+
+    security = approvals.request(worker, ApprovalAction.SECURITY_DECISION)
+    with scope.environment(security.question_environment_id):
+        question = app.container.get(Questions).find(security.question_id)
+        approvals.answering.answer(question, "yes", Actor.agent(worker.session))
+    security_wait = OrganizationNudges.ACTION_WAITS_FOR_USER.create(action=ApprovalAction.SECURITY_DECISION.value)
+    assert attempt("grant access").refusal == security_wait, "an agent's positive question answer cannot approve its own action"
+    assert app.container.get(Approvals).find(security.row_id).decision == security.REFUSED, "the non-user answer is recorded as refused"
 
 
 def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_another_key_is_refused(app, tmp_path):
