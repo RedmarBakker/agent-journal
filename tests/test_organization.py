@@ -72,6 +72,8 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 from journal.support.rejection import Rejection
+from journal.features.workers.organization_options import OrganizationOptions
+from journal.features.workers.workers_options import WorkersOptions
 
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
@@ -214,6 +216,7 @@ def test_a_plan_rig_uses_the_active_codex_contract_models_hooks_and_permissions(
     assert "claude_permissions" not in planner
     assert members["plan-agent"]["runtime"] == "codex" and members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
     assert members["plan-agent"]["codex_permissions"] == {"sandbox": "read-only", "approval": "never"}
+    assert members["plan-agent"]["model"] == "gpt-6.1-sol" and members["plan-agent"]["effort"] == "xhigh"
     assert planner["env"][ACTOR_TOKEN] == "token-alpha-planner"
     assert planner["env"]["PATH"].split(os.pathsep)[0] == str(app.config.home / "bin")
 

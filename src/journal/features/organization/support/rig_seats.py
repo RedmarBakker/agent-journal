@@ -20,7 +20,7 @@ PLAN_GUIDANCE = "You are the Plan agent of {rig}: you hand the plan's work to th
 
 
 class RigSeats:
-    """Who sits in an organization plan's rig and how they are linked: the Plan agent on the strongest model allowed for its configured profile, and for each domain its Domain agent and plan Roles linked by containment; journal Roles sit in the organization's own rig and many Roles are added per job."""
+    """Who sits in an organization plan's rig: the Plan agent on its configured strongest allowed model, with each staffed Domain agent and plan Role linked by containment; journal Roles stay in the organization's rig and many Roles are added per job."""
 
     def __init__(self, providers: Providers, tools: ToolIds, allowed: AllowedModels, settings: SettingRows) -> None:
         self.providers, self.tools, self.allowed, self.settings = providers, tools, allowed, settings
@@ -34,9 +34,9 @@ class RigSeats:
         return tuple((placed[edge.source], placed[edge.target]) for edge in contracts.containment() if edge.kind is EdgeKind.DELEGATES_TO and edge.source in placed and edge.target in placed)
 
     def plan_agent(self, rig: str, provider: Provider) -> Seat:
-        profile = str(self.settings.option(OrganizationOptions.PLAN_PROFILE))
+        profile = str(self.settings.option(OrganizationOptions.PLAN_PROFILE)).strip()
         model = self.allowed.strongest(provider.name, profile)
-        effort = str(self.settings.option(OrganizationOptions.PLAN_EFFORT)) if provider.supports_reasoning_effort else ""
+        effort = str(self.settings.option(OrganizationOptions.PLAN_EFFORT)).strip() if provider.supports_reasoning_effort else ""
         return Seat(PLAN, PLAN_POD, PLAN_AGENT, "", provider.name, model, effort, PLAN_GUIDANCE.format(rig=rig), (), self.tools.provider_tools(LEADER_TOOLS), False)
 
     def domain_agent(self, domain: Domain, provider: Provider) -> Seat:

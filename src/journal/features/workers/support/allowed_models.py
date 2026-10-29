@@ -4,7 +4,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class AllowedModels:
-    """The models each role may run on for each provider, from the user's setting, one line each; a model asked for outside them is moved to the nearest allowed, the stronger when two are as near, and a role with no line of its own may run on any model of the provider."""
+    """The models each role or named agent profile may run on for each provider, from the user's setting, one line each; a model asked for outside them is moved to the nearest allowed, the stronger when two are as near, and a role or profile with no line of its own may run on any model of the provider."""
 
     def __init__(self, settings: SettingRows, providers: Providers) -> None:
         self.settings, self.providers = settings, providers

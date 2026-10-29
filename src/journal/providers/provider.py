@@ -62,6 +62,7 @@ class Provider(ABC):
     openrig_permissions_field: ClassVar[str]
     openrig_hook_resource_type: ClassVar[str]
     openrig_hook_resource_path: ClassVar[str]
+    supports_reasoning_effort: ClassVar[bool] = False
     title: ClassVar[str]
     program: ClassVar[str]
     home: ClassVar[str]
