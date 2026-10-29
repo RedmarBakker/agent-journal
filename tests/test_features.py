@@ -23857,3 +23857,38 @@ def test_the_organization_settings_default_and_only_the_user_sets_them(app: App)
     assert (settings.option(OrganizationOptions.PLAN_MODE), settings.option(OrganizationOptions.OPENRIG_VERSION), settings.option(OrganizationOptions.COST_CAP), settings.option(OrganizationOptions.SEAT_CAP)) == ("organization", "", 0, 0)
     assert console.run(["settings", "set", "workers.default_plan_mode", "solo"], USER).code == 0 and settings.option(OrganizationOptions.PLAN_MODE) == "solo"
     assert console.run(["settings", "set", "workers.seat_cap", "4"], AGENT).code != 0, "the agent may not set a cap"
+
+
+def test_a_teammate_may_not_approve_or_pause_a_plan_in_a_colleagues_environment_but_may_comment(app: App):
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.message import Message
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.user import User
+    from journal.repositories.environment_owners import OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.users import Users
+    from journal.models.author import Author
+    from journal.support.rejection import Rejection
+    environments, links, users = app.container.get(Environments), app.container.get(Links), app.container.get(Users)
+    ada, bob = (users.save(User(name=name, email=f"{name.lower()}@example.com"), Actor.system()) for name in ("Ada", "Bob"))
+    home = environments.save(Environment(name="ada-plans"), Actor.system())
+    links.save(Link(source=Ref.build(ada), target=Ref.build(home), link_type=OWNER), Actor.system())
+    plans = app.container.get(Plans)
+    with app.container.get(Scope).environment(home.row_id):
+        plan = plans.save(Plan(title="ship the organization"), Actor.user(ada.row_id))
+        for refused in (lambda: plans.approve(plan, Actor.user(bob.row_id)), lambda: plans.postpone(plan, Actor.user(bob.row_id)), lambda: plans.cancel(plan, Actor.user(bob.row_id))):
+            with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
+                refused()
+        assert plans.find(plan.row_id).state.value == "draft", "none of Bob's moves changed the plan"
+        approved = plans.approve(plan, Actor.user(ada.row_id))
+        assert approved.state.value == "approved" and approved.updater == Actor.user(ada.row_id), "the owner's approval is written, naming Ada"
+        postponed = plans.postpone(approved, Actor.user(ada.row_id))
+        assert postponed.state.value == "paused", "and the owner's pause"
+        comment = app.container.get(Messages).save(Message(environment_id=home.row_id, author=Author.USER, text="looks right to me"), Actor.user(bob.row_id))
+        assert comment.author == Author.COLLEAGUE, "Bob's word in Ada's environment is a comment, not a command"
