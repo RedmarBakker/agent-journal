@@ -23,6 +23,8 @@ CHAT_PAGE_ROWS = 400
 
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
+# how many of the user's latest messages can still wait for an answer; an older one never holds the agent
+LATEST_USER_MESSAGES = 25
 
 
 class Messages(ScopedRepository[Message]):
@@ -103,16 +105,13 @@ class Messages(ScopedRepository[Message]):
         return [message for type_name in (TERMINAL_LINE, Message.SCHEDULED_PROMPT) for message in self.selected(self.main_chat().filter(text=text).filter_json("data->kind", type_name).order("id"))]
 
     def unanswered(self) -> list[Message]:
-        voiced_at = self.last_message()
-        query = self.main_chat().filter(author=Author.USER).filter_present("read_at")
-        read = self.selected((query if voiced_at is None else query.filter_greater("read_at", voiced_at)).without("text").order("id"))
-        return [m for m in read if not m.is_terminal_line and not self.answered(m) and not self.agent_reaction(m)]
+        recent = self.selected(self.main_chat().filter(author=Author.USER).without("text").order_descending("id").limit(LATEST_USER_MESSAGES))
+        read = [m for m in reversed(recent) if m.read_at and not m.is_terminal_line]
+        answered_reads = {m.read_position for m in read if self.answered(m) or self.agent_reaction(m)}
+        return [m for m in read if m.read_position not in answered_reads]
 
     def latest_voice(self) -> Message | None:
         return next(iter(self.selected(self.main_voice().order_descending("id").limit(1))), None)
-
-    def last_message(self) -> str | None:
-        return self.maximum(self.main_voice().filter(acknowledgement=False).filter_unequal("data->kind", Message.THOUGHT), "created_at", None)
 
     def answered(self, message: Message) -> bool:
         return self.first_reply(message) is not None

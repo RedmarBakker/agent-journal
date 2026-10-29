@@ -54,11 +54,10 @@ def test_a_reaction_instead_of_a_reply_lifts_the_hold(story):
 
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 @setting(MessagesOptions.TOOL_BLOCK_LIMIT, 0)
-def test_one_reply_to_a_group_of_read_messages_lifts_the_hold(story):
+def test_one_reply_to_a_group_of_messages_read_together_lifts_the_hold(story):
     first = story.user_sends_message("is the footer done?")
     second = story.user_sends_message("and the header?")
-    story.agent_reads_message(first)
-    story.agent_reads_message(second)
+    story.agent_runs("message unread")
     story.agent_reads()
     story.expect_refused(MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=f"{first}, {second}")
     story.agent_replies(second, "both are done")
@@ -123,3 +122,17 @@ def test_a_worker_is_never_held_for_the_agents_messages(story):
     story.worker_tries(worker, "todo list")
     story.expect_command_passed()
     story.expect_stack(Ready, ExternalWait)
+
+
+@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@setting(MessagesOptions.TOOL_BLOCK_LIMIT, 1)
+def test_a_reply_to_a_later_message_leaves_the_first_one_owed(story):
+    first = story.user_sends_message("is the footer done?")
+    story.agent_reads_message(first)
+    story.agent_consumes(MessagesOptions.TOOL_BLOCK_LIMIT)
+    later = story.user_sends_message("and the header?")
+    story.agent_reads_message(later)
+    story.agent_replies(later, "the header is next")
+    story.agent_reads()
+    story.expect_refused(MessagesNudges.UNANSWERED_TOOL_BLOCK, messages=first)
+    story.expect_stack(Ready, DemandBlock)
