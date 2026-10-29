@@ -16,7 +16,7 @@ class HubChoice:
         return self.scope.environment(self.hub(team).row_id) if team else nullcontext()
 
     def hub(self, team: str) -> Environment:
-        hubs = [hub for hub in self.environments.hubs() if not team or hub.team_name == team]
+        hubs = self.environments.team_hubs(team) if team else self.environments.hubs()
         if not hubs:
             raise Rejection(f"no joined team is named {team}" if team else "there is no hub to file in: no team is joined, or the team is not on the hub yet, which journal team migrate moves it to")
         if len(hubs) > 1:

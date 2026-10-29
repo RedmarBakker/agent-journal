@@ -47,5 +47,9 @@ class Plugins(Repository[Plugin]):
             self.live = [p for p in self.all() if p.enabled]
         return list(self.live)
 
+
+    def enabled_plugins(self, name: str) -> list[Plugin]:
+        return [plugin for plugin in self.enabled() if plugin.name == name]
+
     def has_hold(self, key: str) -> bool:
         return any(plugin.manifest.has_window(key) for plugin in self.enabled())

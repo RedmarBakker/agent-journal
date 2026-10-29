@@ -11,6 +11,6 @@ class SilentWorkerRecord(AgentListener[Ticked]):
         self.workers = workers
 
     def handle(self, event: Ticked) -> None:
-        for worker in self.workers.running_workers():
-            if worker.dispatcher == event.session and worker.is_silent(event.time):
+        for worker in self.workers.dispatcher_workers(event.session):
+            if worker.is_silent(event.time):
                 self.workers.mark_silence(worker, event.time, Actor.system())

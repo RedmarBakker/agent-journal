@@ -254,6 +254,10 @@ class Messages(ScopedRepository[Message]):
         writings = [f"{self.WRITINGS[ref.type]} {ref.id}" for ref in self.links.targets(message, self.COMMENT_LINK) if ref.type in self.WRITINGS]
         return writings[0] if writings else None
 
+    def newest_session_moment(self, kind: str, session: str, key: str) -> Message | None:
+        moments = self.selected(self.query().filter_json("data->shows", kind).filter(session=session).filter_present(f"data->{key}").order_descending("id").limit(1))
+        return moments[0] if moments else None
+
     def newest_moments(self, kinds: tuple[str, ...], last: int) -> list[Message]:
         moments = [message for type_name in kinds for message in self.selected(self.query().filter_json("data->shows", type_name).order_descending("id").limit(last))]
         return sorted(moments, key=lambda message: message.id, reverse=True)[:last]

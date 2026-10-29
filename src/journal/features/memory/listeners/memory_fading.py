@@ -12,7 +12,6 @@ from journal.repositories.scope import Scope
 from journal.support.actor import Actor
 
 ROUND = "round"
-ROUNDS_LOOKED_BACK = 50
 
 
 class MemoryFading(AgentListener[Compacting]):
@@ -33,7 +32,8 @@ class MemoryFading(AgentListener[Compacting]):
             self.cards.show_fields(event.environment_id, event.session, f"Memories faded by one: {visible_count} of {len(lowered_memories)} still shown", {"kind": "card", "outcome": "", "row": "", "command": "", ROUND: memory_round(lowered_memories, removed)}, Actor.system(), CardType.MEMORIES)
 
     def last_round_at(self, session: str) -> datetime | None:
-        return next((message.created_at for message in self.messages.newest_moments((str(CardType.MEMORIES),), ROUNDS_LOOKED_BACK) if ROUND in message.data and message.session == session), None)
+        latest = self.messages.newest_session_moment(str(CardType.MEMORIES), session, ROUND)
+        return latest.created_at if latest else None
 
 
 def memory_round(lowered: list[Memory], removed: list[Memory]) -> dict:

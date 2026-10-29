@@ -670,12 +670,13 @@ def outgoing_recorder(connection, bus, scope, config, changes):
     from journal.services.service_hooks import ServiceHooks
     from journal.sync.block_supply import BlockSupply
     from journal.sync.record_outgoing_change import RecordOutgoingChange
+    from journal.db.table_renumbering import TableRenumbering
     from journal.sync.row_renumbering import RowRenumbering
     from journal.sync.team_account import TeamAccount
     from journal.sync.team_server_link import TeamServerLink
 
     account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus, TimeSource()), SharedTables(connection, bus, TimeSource())
-    renumbering = RowRenumbering(connection, blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
+    renumbering = RowRenumbering(TableRenumbering(connection), blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
     from journal.repositories.environments import Environments
     from journal.sync.team_accounts import TeamAccounts
     return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus, TimeSource()), tables, renumbering, TeamAccounts(config, Environments(connection, bus, TimeSource())), ServiceHooks())
