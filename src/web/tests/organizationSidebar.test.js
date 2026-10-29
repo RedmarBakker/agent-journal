@@ -46,7 +46,7 @@ const organization = {
         title: `Domain ${index + 1}`,
         icon: "🧭",
         plans_active: 0,
-        roles: Array.from({length: index < 10 ? 4 : 3}, (__, roleIndex) => ({
+        roles: Array.from({length: 4}, (__, roleIndex) => ({
             id: `role-${index + 1}-${roleIndex + 1}`,
             title: `Role ${index + 1}-${roleIndex + 1}`,
             cardinality: "plan",

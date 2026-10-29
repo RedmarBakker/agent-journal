@@ -429,8 +429,8 @@ def test_a_domain_carries_its_icon_and_its_boards_phase_names_and_a_board_with_a
 
 REAL_FOLDER = __import__("os").environ.get("JOURNAL_ORGANIZATION_FOLDER", "")
 if not REAL_FOLDER:
-    candidate = Path(__file__).resolve().parents[2] / "agentic-organization-journal"
-    REAL_FOLDER = str(candidate) if candidate.is_dir() else ""
+    candidate = next((parent / "agentic-organization-journal" for parent in Path(__file__).resolve().parents if (parent / "agentic-organization-journal").is_dir()), None)
+    REAL_FOLDER = str(candidate) if candidate else ""
 
 
 @pytest.mark.skipif(not REAL_FOLDER, reason="No real agentic-organization folder is set or found beside the workspace")

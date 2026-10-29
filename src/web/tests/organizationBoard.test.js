@@ -134,6 +134,10 @@ test("a 13-domain organization with 50 Roles and many plans renders one page of 
 
     board.querySelector('button[aria-label="Next Domain 13 Working plans page"]').click();
     await nextTick();
-    expect(board.querySelectorAll(".organization-plan-card")).toHaveLength(51);
-    expect(board.querySelector(".paged-cards-controls span").textContent).toContain("51–101 of 101 plans");
+    expect(board.querySelectorAll(".organization-plan-card")).toHaveLength(pageOf("plans"));
+    expect(board.querySelector(".paged-cards-controls span").textContent).toContain("51–100 of 101 plans");
+    board.querySelector('button[aria-label="Next Domain 13 Working plans page"]').click();
+    await nextTick();
+    expect(board.querySelectorAll(".organization-plan-card")).toHaveLength(1);
+    expect(board.querySelector(".paged-cards-controls span").textContent).toContain("101–101 of 101 plans");
 });
