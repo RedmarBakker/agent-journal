@@ -265,7 +265,6 @@ message 14 from the user: Please look at the footer
 $ agent: journal message read 1
 exit 0
 message 1 from the system: Created task 1: Write the footer
-  mentions tasks:1
 
 $ agent: journal message recent
 exit 0
