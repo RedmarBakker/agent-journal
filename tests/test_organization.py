@@ -439,21 +439,17 @@ def test_a_role_that_is_stuck_refused_or_ends_without_clocking_out_is_reported_t
     actor = Actor.system()
     with scope.environment(1):
         plan = plans.save(Plan(environment_id=1, title="the floors"), actor)
-        domain_agent, plan_agent = (agents.save(Agent(environment_id=1, session=session, provider="claude"), actor) for session in ("domain-alpha", "plan-1"))
+        domain_agent, plan_agent, gone = (agents.save(Agent(environment_id=1, session=session, provider="claude", state=state), actor) for session, state in (("domain-alpha", "idle"), ("plan-1", "idle"), ("domain-beta", "ended")))
         domains.agent_linked("alpha", domain_agent, actor)
+        domains.agent_linked("beta", gone, actor)
         plans.agent_linked(plan, plan_agent, actor)
-        builder = workers.save(Worker(environment_id=1, name="Mr. Brunel", brief="b", profile="journal-senior", role="builder", plan_id=plan.id, session="w-brunel", dispatcher="s1"), actor)
-    who = f"worker {builder.id}, Mr. Brunel, working as the Role builder of alpha"
-    with scope.environment(1):
+        builder, keeper, franklin = (workers.save(Worker(environment_id=1, name=name, brief="b", profile="journal-senior", role=role, plan_id=plan_id, session=session, dispatcher="s1"), actor)
+                                     for name, role, plan_id, session in (("Mr. Brunel", "builder", plan.id, "w-brunel"), ("Ms. Hopper", "keeper", plan.id, "w-hopper"), ("Ms. Franklin", "keeper", 0, "w-franklin")))
         app.container.get(RoleStuckReport).handle(ImpasseReport(reason="the schema is missing").placed("w-brunel", 1, "claude", None, 1.0))
-    assert escalated == [("domain-alpha", f"{who}, is stuck: the schema is missing")], "step one: a stuck Role is reported to its Domain agent"
-    with scope.environment(1):
-        agents.save(agents.find(domain_agent.id).with_(state="ended"), actor)
-        app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "builder"}).placed("w-brunel", 1, "claude", None, 2.0))
-    assert escalated[-1] == ("plan-1", f"{who}, was refused: your Role builder has no write tool: change no file"), "step two: with no Domain agent running, a refused Role is reported to the Plan agent"
-    with scope.environment(1):
-        agents.save(agents.find(plan_agent.id).with_(state="ended"), actor)
-        workers.save(workers.find(builder.id).unfinished(3.0, "stopped after 30 minutes without ending: (nothing printed)"), actor)
+        assert escalated == [("domain-alpha", f"worker {builder.id}, Mr. Brunel, working as the Role builder of alpha, is stuck: the schema is missing")], "step one: a stuck Role is reported to its Domain agent"
+        app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "keeper"}).placed("w-hopper", 1, "claude", None, 2.0))
+        assert escalated[-1] == ("plan-1", f"worker {keeper.id}, Ms. Hopper, working as the Role keeper of beta, was refused: your Role keeper has no write tool: change no file"), "step two: its Domain agent ended, a refused Role is reported to the Plan agent"
+        workers.save(workers.find(franklin.id).unfinished(3.0, "stopped after 30 minutes without ending: (nothing printed)"), actor)
         cards = [message for message in app.container.get(Messages).all() if message.text == "Role reported to you"]
-    assert len(escalated) == 2 and len(cards) == 1 and "ended without clocking out: stopped after 30 minutes" in str(cards[0].data) and cards[0].session == "s1", "step three: with neither running, a Role that timed out is reported to the user in its dispatcher's chat"
-    assert [ref.id for ref in links.targets(builder, ESCALATED_LINK)] == [domain_agent.id, plan_agent.id], "each report to an agent is a link from the worker to it"
+    assert len(escalated) == 2 and len(cards) == 1 and "ended without clocking out: stopped after 30 minutes" in str(cards[0].data) and cards[0].session == "s1", "step three: with no Domain agent running and no plan, a Role that timed out is reported to the user in its dispatcher's chat"
+    assert ([ref.id for ref in links.targets(builder, ESCALATED_LINK)], [ref.id for ref in links.targets(keeper, ESCALATED_LINK)]) == ([domain_agent.id], [plan_agent.id]), "each report to an agent is a link from the worker to it"
