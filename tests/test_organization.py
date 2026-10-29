@@ -1612,6 +1612,8 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
     beta = next(domain for domain in shown["domains"] if domain["id"] == "beta")
     builder_role = next(role for role in alpha["roles"] if role["id"] == "builder")
+    assert alpha["edges"] == [{"kind": "escalates_to", "to": "beta", "about": "a blocker"}]
+    assert builder_role["edges"] == [{"kind": "delegates_to", "to": "scout", "about": "what to look up"}], "the organization response carries the domain and Role declarations used by the edge table"
     assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
     status, builder_contract = got(app, "/journal/organization/roles/alpha/builder", env)
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"

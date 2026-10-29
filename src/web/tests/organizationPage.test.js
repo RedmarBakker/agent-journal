@@ -33,6 +33,7 @@ const organization = (sha = commit) => ({
         icon: "📊",
         description: "Help customers choose the right service.",
         board: {planned: "Ready", in_progress: "Working", in_review: "Review", done: "Complete"},
+        edges: [{kind: "escalates_to", to: "support", about: "A blocker outside sales"}],
         plans: [{id: 42, title: "Recommend a service", phase: "in_progress", phase_name: "Working", mode: "organization", tasks: [1, 2], done: 1, waits_on: "Role work"}],
         models: {claude: "opus", codex: "gpt-6.1-sol", effort: "xhigh"},
         roles: [{
@@ -40,8 +41,17 @@ const organization = (sha = commit) => ({
             title: "Account manager",
             cardinality: "plan",
             writes: false,
+            edges: [{kind: "delegates_to", to: "sales-lead", about: "A decision needs approval"}],
             models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
             instances: 1,
+            queued: 0,
+        }, {
+            id: "sales-lead",
+            title: "Sales lead",
+            cardinality: "journal",
+            writes: false,
+            models: {claude: "sonnet", codex: "gpt-6.1-sol", effort: "xhigh"},
+            instances: 0,
             queued: 0,
         }],
     }],
@@ -99,7 +109,16 @@ test("the Organization page reads its real folder, shows contract problems, and 
     expect(api.organization).toHaveBeenCalledOnce();
     expect(host.textContent).toContain(folder);
     expect(host.textContent).toContain(commit);
-    expect(host.querySelector(".contract-problems").nextElementSibling.classList.contains("domain-grid")).toBe(true);
+    expect(host.querySelector(".contract-problems").nextElementSibling.classList.contains("communication-edges")).toBe(true);
+    const edgeRows = [...host.querySelectorAll("[data-communication-edge]")];
+    expect(edgeRows).toHaveLength(2);
+    expect(edgeRows[0].textContent).toContain("Domain Sales");
+    expect(edgeRows[0].textContent).toContain("escalates_to");
+    expect(edgeRows[0].textContent).toContain("domain:support");
+    expect(edgeRows[0].textContent).toContain("A blocker outside sales");
+    expect(edgeRows[1].textContent).toContain("Role Sales / Account manager");
+    expect(edgeRows[1].textContent).toContain("delegates_to");
+    expect(edgeRows[1].textContent).toContain("role:sales/sales-lead");
     expect(host.textContent).toContain("Cardinality: One per plan");
     expect(host.textContent).toContain("Writes files: No");
     expect(host.textContent).toContain("Model: Claude: sonnet · Codex: gpt-6.1-sol · Effort: xhigh");

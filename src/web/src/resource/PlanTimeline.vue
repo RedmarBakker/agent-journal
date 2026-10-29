@@ -16,7 +16,7 @@ const days = computed(() => momentDays(props.items));
             <Skeleton :count="3" label="Loading the timeline" />
         </template>
         <template v-else-if="!items.length">
-            <p class="empty">Nothing has happened on this plan's tasks yet.</p>
+            <p class="empty">Nothing has happened on this plan yet.</p>
         </template>
         <template v-for="group in days" :key="group.day">
             <h3 class="day">{{ group.day }}</h3>
@@ -27,14 +27,17 @@ const days = computed(() => momentDays(props.items));
                         <div class="what">
                             <div class="head">
                                 <span class="word">{{ MOMENTS[item.moment_type].word }}</span>
-                                <button type="button" class="todo" :title="`Open task ${item.task}`" @click="emit('open', item.task)">
+                                <button v-if="item.task" type="button" class="todo" :title="`Open task ${item.task}`" @click="emit('open', item.task)">
                                     #{{ item.task }} {{ item.title }}
                                 </button>
+                                <span v-else class="todo-target">{{ item.title }}</span>
                                 <span class="at">{{ timeOf(item.time) }}</span>
                             </div>
+                            <p v-if="item.address" class="text route">Destination address: {{ item.address }}</p>
                             <template v-if="item.text && item.moment_type !== 'started'">
                                 <TextDisplay class="text" :text="item.text" />
                             </template>
+                            <p v-if="item.failure" class="text route">Refused; hub to use: {{ item.failure }}</p>
                         </div>
                     </li>
                 </template>
@@ -148,6 +151,15 @@ const days = computed(() => momentDays(props.items));
     color: var(--accent-text);
 }
 
+.todo-target {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .time {
     flex: none;
     color: var(--text-3);
@@ -159,5 +171,9 @@ const days = computed(() => momentDays(props.items));
     color: var(--text-2);
     font-size: 12.5px;
     line-height: 1.5;
+}
+
+.route {
+    overflow-wrap: anywhere;
 }
 </style>

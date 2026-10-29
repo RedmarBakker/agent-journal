@@ -3,10 +3,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class TimelineMoment:
-    """One event on a plan's task: when, in seconds, what (started, log, ended or done), the task and what was written."""
+    """One task or communication event on a plan's timeline, oldest first."""
 
     time: float
     moment_type: str
     task: int
     title: str
     text: str = ""
+    address: str = ""
+    failure: str = ""

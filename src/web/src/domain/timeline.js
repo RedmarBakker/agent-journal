@@ -3,6 +3,8 @@ export const MOMENTS = {
     log: {icon: "pencil", word: "Logged"},
     ended: {icon: "flag", word: "Work ended"},
     done: {icon: "tick", word: "Done"},
+    handoff: {icon: "send", word: "Hand-off"},
+    refused_send: {icon: "warn", word: "Refused send"},
 };
 
 const dayOf = (at) => new Date(at * 1000).toLocaleDateString(undefined, {weekday: "short", day: "numeric", month: "short"});

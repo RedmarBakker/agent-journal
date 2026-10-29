@@ -21,6 +21,10 @@ const roleProblem = ref("");
 const folder = computed(() => organization.value?.folder ?? store.settings?.workers?.organization_folder ?? "");
 const commit = computed(() => organization.value?.commit || "");
 const domains = computed(() => organization.value?.domains || []);
+const communicationEdges = computed(() => domains.value.flatMap((domain) => [
+    ...(domain.edges || []).map((edge) => ({source: `Domain ${domain.title}`, kind: edge.kind, target: `domain:${edge.to}`, about: edge.about})),
+    ...(domain.roles || []).flatMap((role) => (role.edges || []).map((edge) => ({source: `Role ${domain.title} / ${role.title}`, kind: edge.kind, target: `role:${domain.id}/${edge.to}`, about: edge.about}))),
+]));
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === route.value.domain) || null);
 const problems = computed(() => organization.value?.problems || []);
 const counts = computed(domainCounts);
@@ -113,6 +117,20 @@ onMounted(() => readFolder());
                         <p>{{ item.message }}</p>
                     </li>
                 </ul>
+            </section>
+
+            <section v-if="!route.domain && communicationEdges.length" class="communication-edges" aria-label="Declared communication edges">
+                <h2>Declared communication edges</h2>
+                <div class="communication-edges-table">
+                    <table>
+                        <thead><tr><th scope="col">From</th><th scope="col">Kind</th><th scope="col">To</th><th scope="col">About</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(edge, index) in communicationEdges" :key="`${edge.source}:${edge.kind}:${edge.target}:${index}`" data-communication-edge>
+                                <td>{{ edge.source }}</td><td class="communication-edge-kind">{{ edge.kind }}</td><td>{{ edge.target }}</td><td>{{ edge.about }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <EmptyState v-if="!folder && !domains.length && !problems.length" class="organization-empty" title="No organization folder is set">
@@ -231,6 +249,50 @@ onMounted(() => readFolder());
     border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border));
     border-radius: 10px;
     background: color-mix(in srgb, var(--danger) 8%, var(--raised));
+}
+
+.communication-edges {
+    margin: 18px 22px 0;
+}
+
+.communication-edges h2 {
+    margin: 0 0 9px;
+    font-size: 15px;
+}
+
+.communication-edges-table {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.communication-edges table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+}
+
+.communication-edges th,
+.communication-edges td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+
+.communication-edges tr:last-child td {
+    border-bottom: 0;
+}
+
+.communication-edges th {
+    color: var(--text-2);
+    font-weight: 600;
+}
+
+.communication-edge-kind {
+    color: var(--accent-text);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: nowrap;
 }
 
 .contract-problems h2 {

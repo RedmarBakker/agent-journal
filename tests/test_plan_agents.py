@@ -115,6 +115,31 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
     assert status == 200 and rows[f"plan-{first}"]["generated_for"] == "plan" and rows[f"plan-{first}"]["parent_key"] == main_key, "the environment list exposes authoritative generated and parent metadata"
 
 
+def test_a_plans_timeline_includes_handoffs_and_refusals_from_its_plan_agents_chat(app: App, supervisors: Supervisors):
+    from journal.models.message import Message
+
+    user_set(app, SWITCH, True)
+    plan = started_plan(app, "the floors")
+    environment = plan_environment(app, plan)
+    agents = app.container.get(Agents)
+    route = "worker 12 works as the Role builder and worker 13 as scout: Roles do not send to each other. Send it to your Domain agent, domain:alpha, which passes it on"
+    with app.container.get(Scope).environment(environment.row_id):
+        agent = agents.find(app.container.get(Plans).agent_id(app.container.get(Plans).find(plan)))
+        agents.save(agent.with_session("plan-session", "claude"), Actor.system())
+        messages = app.container.get(Messages)
+        messages.recorded(Message.outgoing("domain:alpha", "please check the file", "plan-session", "domain:alpha"), Actor.agent("plan-session"))
+        messages.recorded(Message.send_failed("worker 13, Scout", "send this directly", "plan-session", "workers:13", route), Actor.agent("plan-session"))
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Messages).recorded(Message.outgoing("unrelated", "not this plan", "main-session", "main"), Actor.agent("main-session"))
+
+    status, moments = got(app, f"/journal/plans/{plan}/timeline", {"X-Journal-Env": "main"})
+    communication = [moment for moment in moments if moment["moment_type"] in ("handoff", "refused_send")]
+    assert status == 200 and [(moment["moment_type"], moment["title"], moment["address"]) for moment in communication] == [
+        ("handoff", "domain:alpha", "domain:alpha"), ("refused_send", "worker 13, Scout", "workers:13")
+    ], "the timeline reads this plan's outgoing messages across its dedicated environment, not the main chat"
+    assert communication[1]["failure"] == route, "a refused send carries the reason and the domain hub to use"
+
+
 def test_a_plan_agents_first_session_takes_the_prepared_row_and_follows_its_plan(app: App, supervisors: Supervisors):
     user_set(app, SWITCH, True)
     plan = started_plan(app, "the floors")
