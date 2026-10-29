@@ -145,6 +145,7 @@ SETS = {
     ),
     "phone_navigation": (
         "tests/phone.test.js",
+        "tests/phoneHomeBoard.test.js",
     ),
     "figure_home_return": (
         "tests/figureHomeReturn.test.js",

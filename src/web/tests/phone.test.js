@@ -13,6 +13,7 @@ test("on the phone the viewer speaks through /p, finds its files beside the page
     const navigationScope = effectScope();
     const keys = navigationScope.run(() => useNavigation()).everywhere.value.map((link) => link.key);
     expect(keys).toContain("files");
+    expect(keys).toContain("approvals");
     for (const desk of ["settings", "plugins", "mcp", "profiles", "secrets"]) expect(keys).not.toContain(desk);
     navigationScope.stop();
     document.documentElement.classList.remove("phone");

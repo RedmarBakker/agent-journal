@@ -4,25 +4,32 @@ import {useScope} from "../composables/scope.js";
 import {usePoll} from "../composables/poll.js";
 import {peek} from "../route.js";
 import PlanTimeline from "./PlanTimeline.vue";
+import {onPhone} from "../platform/phone.js";
+import PhoneDesktopNotice from "../phone/PhoneDesktopNotice.vue";
 
 const props = defineProps({plan: {type: Object, required: true}});
 const items = ref([]);
 const loaded = ref(false);
 const scope = useScope();
 
-usePoll("plan.timeline", {
-    params: () => ({scope, plan: props.plan.id}),
-    take: (got) => {
-        items.value = got;
-        loaded.value = true;
-    },
-});
+if (!onPhone) {
+    usePoll("plan.timeline", {
+        params: () => ({scope, plan: props.plan.id}),
+        take: (got) => {
+            items.value = got;
+            loaded.value = true;
+        },
+    });
+}
 </script>
 
 <template>
     <section class="timeline-panel">
-        <h3 class="heading">Timeline</h3>
-        <PlanTimeline :items="items" :loading="!loaded" @open="(n) => peek('tasks', n)" />
+        <PhoneDesktopNotice v-if="onPhone" message="The plan timeline opens on the desktop." />
+        <template v-else>
+            <h3 class="heading">Timeline</h3>
+            <PlanTimeline :items="items" :loading="!loaded" @open="(n) => peek('tasks', n)" />
+        </template>
     </section>
 </template>
 

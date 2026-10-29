@@ -1358,6 +1358,15 @@ def test_a_phone_pairs_through_the_tunnel_and_is_known_by_its_cookie_alone(shari
     status, transmitted, _ = phone_call(share_server, "POST", "/p/journal/messages", {"text": "from the train"}, origin=origin, cookie=stored)
     assert status == 201 and transmitted["creator"] == f"phone:{data['id']}" and transmitted["author"] == "user", "the phone writes as itself, its words the user's"
     assert any(m["text"] == "from the train" for m in phone_call(share_server, "GET", "/p/journal/messages", cookie=stored)[1]["rows"]), "the phone reads the journal through version 4's own controllers"
+    plan = call(server, "POST", "/journal/plans", {"title": "Phone board plan"})[1]
+    board_status, board, _ = phone_call(share_server, "GET", "/p/journal/organization", cookie=stored)
+    assert board_status == 200 and any(row["id"] == plan["id"] for row in board["plans"]), "the phone reaches the Home board's all-plans data"
+    approval_status, approvals, _ = phone_call(share_server, "GET", "/p/journal/approvals", cookie=stored)
+    assert approval_status == 200 and "rows" in approvals, "the phone reaches the approvals already shown in the viewer"
+    approve_status, _, _ = phone_call(share_server, "POST", "/p/journal/approvals/999999/approve", {}, origin=origin, cookie=stored)
+    assert approve_status == 404, "the phone can reach the existing approval action route"
+    refuse_status, _, _ = phone_call(share_server, "POST", "/p/journal/approvals/999999/refuse", {}, origin=origin, cookie=stored)
+    assert refuse_status == 404, "the phone can reach the existing approval refusal route"
     assert phone_call(share_server, "GET", "/p/journal/secrets", cookie=stored)[0] == 403, "no secret is ever read from a phone"
     assert [phone_call(share_server, "GET", f"/p/journal/{path}", cookie=stored)[0] for path in ("mcp", "chart", "plugins", "profiles", "tunnel", "updates")] == [403] * 6, "a phone reads only what its pages show: nothing that starts a program or sets how the journal runs"
     for hidden in (".env", ".journal/settings.json", "../elsewhere/.env"):

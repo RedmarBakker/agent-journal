@@ -23,6 +23,8 @@ import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
 import RequestsPage from "./pages/RequestsPage.vue";
 import HubPage from "./pages/HubPage.vue";
 import HomePlanBoard from "./pages/HomePlanBoard.vue";
+import PhoneDesktopNotice from "./phone/PhoneDesktopNotice.vue";
+import {onPhone} from "./platform/phone.js";
 import {computed} from "vue";
 import {peek, route} from "./route.js";
 import {store} from "./state/store.js";
@@ -63,10 +65,14 @@ const open = (row) => peek(row.table, row.id);
         <template #worker><WorkerHome /></template>
         <template #mcp><IntegrationsPage /></template>
         <template #organization>
-            <SharedRoles v-if="route.shared" />
+            <PhoneDesktopNotice v-if="onPhone" message="The organization screen opens on the desktop." />
+            <SharedRoles v-else-if="route.shared" />
             <OrganizationPage v-else />
         </template>
-        <template #role><RolePage /></template>
+        <template #role>
+            <PhoneDesktopNotice v-if="onPhone" message="The Role screen opens on the desktop." />
+            <RolePage v-else />
+        </template>
         <template #resources><ResourcesPage /></template>
         <template #file><FilePage /></template>
         <template #default><Index :table="route.page" /></template>
