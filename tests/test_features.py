@@ -190,127 +190,6 @@ def context(app, percent: int):
 
 
 
-def test_a_waits_own_checks_are_listed_apart_counted_out_and_kept_when_the_wait_is_lifted_and_deleted_once_what_it_waited_on_ends(app: App, monkeypatch):
-    from journal.features.tasks.seeds.unused_wait_checks import UnusedWaitChecks
-    from journal.http.controllers.checks import CheckController
-    from journal.http.listing import Listing
-    from journal.models.check import Check
-    from journal.repositories.checks import Checks
-    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
-    hook(app, "SessionStart")
-    console = app.console()
-    console.run(["environment", "overview"], AGENT)
-    console.run(["check", "create", "lint", "--command", "true"], USER)
-    console.run(["task", "create", "deploy"], AGENT)
-    console.run(["task", "block", "1", "--until", "false"], AGENT)
-    console.run(["await", "the deploy to finish", "--until", "false"], AGENT)
-    checks, controller = app.container.get(Checks), app.container.get(CheckController)
-    listed, waits = controller.listed(Listing.query_listing({})), controller.listed(Listing.query_listing({"closed": "1"}))
-    assert sorted(check.id for check in listed["rows"]) == [1, 2, 3] and listed["counts"]["open"] == 1, "the page counts the project's own check alone; the block's and the wait's are listed too"
-    assert sorted(check.id for check in waits["rows"]) == [2, 3], "the Waits tab lists the checks the block and the wait made for themselves"
-    assert [line.split()[-1] for line in console.run(["check", "list"], AGENT).text.splitlines()] == ["lint"], "journal check list names the project's own check alone"
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
-    app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 2, 3], "the wait lifted, its own check keeps running, and the blocked task's stays"
-    console.run(["task", "unblock", "1"], AGENT)
-    app.runtime().deferred.drain()
-    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 3], "the task open again, its block's check is deleted"
-    checks.delete(checks.numbered([3])[0], Actor.system())
-    console.run(["task", "block", "1", "--until", "false"], AGENT)
-    blocking = [check.id for check in checks.wait_rows()]
-    checks.save(Check(title="the wait for an earlier deploy ends when this passes", command="false", wait_target=True), Actor.system())
-    app.container.get(UnusedWaitChecks).run()
-    assert len(blocking) == 1 and [check.id for check in checks.wait_rows()] == blocking, "at boot a wait's check nothing waits on is deleted, and the one a blocked task waits on stays"
-
-
-
-
-
-
-
-
-
-
-
-def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app: App, monkeypatch):
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.models.command_output import CommandOutput
-    from journal.repositories.command_outputs import CommandOutputs
-    keystrokes = []
-    woken_capture(app, monkeypatch, keystrokes)
-    hook(app, "SessionStart")
-    app.console().run(["environment", "overview"], AGENT)
-    folder = app.config.root / "run"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest -q")
-    (folder / "0.out").write_text("..F.\nFAILED tests/a.py::test_b\n1 failed, 3 passed in 1.20s\n")
-    assert app.console().run(["reader", "add", "summary-lines", "--pattern", "[0-9]+ (passed|failed)", "--about", "a test run's summary"], USER).code == 0
-    outputs = app.container.get(CommandOutputs)
-    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("summary-lines", "the tests"), Actor.system())
-    app.console().run(["await", "the tests", "--output", str(output.id)], AGENT)
-    app.container.get(ShellRecord).ended("run", 1, folder, "", Caller.agent("main", "s1", "claude"))
-    app.runtime().deferred.drain()
-    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
-    assert f"wait over: output {output.id} failed with code 1: " in told and "1 failed, 3 passed" in told, "the wait's end says how it ended and what the reader picked"
-    assert outputs.find(output.id).summary is not None
-
-
-def test_a_worker_waits_on_its_own_command_until_it_ends_and_a_reviewer_cannot_say_it_is_stuck(app: App):
-    from journal.features.shell.support.shell_record import ShellRecord
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.models.command_output import CommandOutput
-    from journal.models.support.ref import Ref
-    from journal.models.task import Task
-    from journal.models.worker import Worker
-    from journal.repositories.agents import Agents
-    from journal.repositories.command_outputs import CommandOutputs
-    from journal.repositories.tasks import Tasks
-    from journal.repositories.workers import Workers
-    hook(app, "SessionStart")
-    agents, workers, tasks = app.container.get(Agents), app.container.get(Workers), app.container.get(Tasks)
-    states = lambda: [layer["state"] for layer in agents.session_agent("ww").stack]
-    with app.container.get(Scope).environment(MAIN):
-        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        worker = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
-        tasks.handover(tasks.save(Task(environment_id=MAIN, title="the boiler", brief="b"), Actor.system()), Ref.build(worker), Actor.system())
-        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
-    watt = Caller.worker("main", worker.id, "ww", "claude")
-    folder = app.config.root / "build"
-    folder.mkdir()
-    (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("make")
-    (folder / "0.out").write_text("built\n")
-    output = app.container.get(CommandOutputs).save(CommandOutput(chain="build", command="make", session="ww", folder=str(folder)).backgrounded(), Actor.system())
-    assert app.console().run(["await", "the boiler's build", "--output", str(output.id)], watt).code == 0
-    assert states() == ["void", "working_task", "awaiting"], "a worker's wait is pushed over its work"
-    app.container.get(ShellRecord).ended("build", 0, folder, "", watt)
-    app.runtime().deferred.drain()
-    assert states() == ["void", "working_task"], "and ends when its command does"
-    assert app.console().run(["stuck", "the boiler leaks"], watt).code == 0
-    assert states()[-1] == "stuck", "a worker that says it is stuck is put in the stuck state"
-    assert app.console().run(["stuck", "lost"], Caller.reviewer("main", 1, "rv", "claude")).code != 0, "a reviewer has no stuck"
-
-
-def test_a_worker_read_by_id_carries_the_context_its_session_reported_and_none_it_did_not(app: App):
-    from journal.models.agent import Agent
-    from journal.support.agent_role import AgentRole
-    from journal.models.worker import Worker
-    from journal.repositories.agents import Agents
-    from journal.repositories.workers import Workers
-    agents, workers = app.container.get(Agents), app.container.get(Workers)
-    with app.container.get(Scope).environment(MAIN):
-        agents.save(Agent(environment_id=MAIN, session="ww", provider="claude", state="void", role=AgentRole.WORKER), Actor.system())
-        watt = workers.save(Worker(environment_id=MAIN, name="Mr. Watt", brief="w", session="ww"), Actor.system())
-        silent = workers.save(Worker(environment_id=MAIN, name="Mr. Boulton", brief="w", session="wb"), Actor.system())
-    app.config.status_home.mkdir(parents=True, exist_ok=True)
-    (app.config.status_home / "ww.json").write_text(json.dumps({"context_window": {"used_percentage": 35}}))
-    rows = get_answer(app, f"/journal/workers?ids={watt.id},{silent.id}", {"X-Journal-Env": "main"})[1]["rows"]
-    context = {row["name"]: row["context"] for row in rows}
-    assert context == {"Mr. Watt": 35, "Mr. Boulton": None}, "a worker carries the context its session reported, and none when it reported nothing"
-
-
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
@@ -382,36 +261,9 @@ def test_a_worker_runs_the_dispatching_agents_own_program(app: App, monkeypatch)
     assert "`journal worker wait 1 2` waits for a report" in console.run(["worker", "list"], Caller.agent("main", "c1", "codex")).text, "a list of workers out points at the wait"
 
 
-def test_a_worker_that_reported_takes_its_next_job_by_say_with_its_memory(app: App, monkeypatch):
+def test_a_providers_worker_command_session_and_outcome_are_read_from_what_it_was_given_and_printed():
     from journal.providers.claude import Claude
     from journal.providers.codex import Codex
-    from journal.repositories.workers import Workers
-    started = []
-    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
-    conversation = app.config.root / "conversation.jsonl"
-    conversation.write_text("{}\n")
-    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: conversation)
-    console = app.console()
-    hook(app, "SessionStart")
-    import subprocess
-    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
-        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
-    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast", "--worktree", "--no-libraries"], AGENT)
-    assert console.run(["worker", "send", "1", "now the lexer"], AGENT).code != 0, "still out: its report comes first"
-    console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
-    assert console.run(["worker", "send", "1", "now the lexer"], AGENT).code != 0, "no session was captured, so there is nothing to resume"
-    workers = app.container.get(Workers)
-    workers.save(workers.find(1).with_(resume="sess-1"), USER.actor)
-    console.run(["task", "create", "the lexer"], AGENT)
-    released = console.run(["worker", "release", "1"], AGENT)
-    assert released.code == 0, released.error
-    bare = console.run(["worker", "send", "1", "now the lexer"], AGENT)
-    assert bare.code != 0 and "has no task" in bare.error and "journal worker send 1 --task <task>" in bare.error, "a worker holding no task is never sent a job it cannot clock in on: " + bare.error
-    assert console.run(["worker", "send", "1", "now the lexer", "--task", "1"], AGENT).code == 0
-    from journal.repositories.workers import Workers as WorkerRows
-    assert 1 in app.container.get(WorkerRows).containing({1}), "a job said with --task holds that task, so a plan leaves it to the worker"
-    notified = workers.find(1)
-    assert notified.state == WorkerState.DISPATCHED and notified.brief == "now the lexer" and notified.resume == "sess-1" and notified.worktree and started[-1].id == 1
     assert Claude().worker_command("now the lexer", "fast", "sess-1", "sess-1")[-2:] == ["--resume", "sess-1"]
     assert Claude().worker_command("a new job", "fast", "", "sess-new")[-2:] == ["--session-id", "sess-new"], "a new run is started in the session its row already names"
     assert Claude().worker_session("") != Claude().worker_session("") and Claude().worker_session("sess-1") == "sess-1" and Codex().worker_session("") == "", "Claude's session is chosen at dispatch, Codex's comes with its first hook"

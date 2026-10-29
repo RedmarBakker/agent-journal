@@ -20,6 +20,10 @@ class StoryRows:
         return self.fixture.messages
 
     @property
+    def checks(self) -> FixtureRows:
+        return self.fixture.checks
+
+    @property
     def sequences(self) -> FixtureRows:
         return self.fixture.sequences
 

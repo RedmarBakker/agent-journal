@@ -21,3 +21,10 @@ def test_a_reviewer_stopping_before_its_report_is_refused(story):
     story.agent_stops(story.agents.subject)
     story.expect_refused(story.agents.subject, ReviewingNudges.REPORT_REQUEST)
     story.expect_stack(story.agents.subject, Void, Reviewing)
+
+
+@story(ReviewerAtWork, mode=ORCHESTRATOR_MODE, subject=AgentRole.REVIEWER)
+def test_a_reviewer_may_not_say_it_is_stuck(story):
+    story.agent_runs(story.agents.subject, "stuck 'lost'")
+    story.expect_command_refused()
+    story.expect_stack(story.agents.subject, Void, Reviewing)

@@ -1,6 +1,12 @@
 from tests.stories.builder.story_agent import StoryAgent
+import json
 import re
 import shlex
+
+from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.repositories.scope import Scope
+from journal.repositories.workers import Workers
+from journal.support.actor import Actor
 
 from journal.repositories.reviewers import Reviewers
 from journal.repositories.verifiers import Verifiers
@@ -32,6 +38,20 @@ class WorkerSteps:
 
     def agent_clocks_out(self, agent: StoryAgent, report: str) -> None:
         self.agent_runs_cleanly(agent, f"clock-out '{report}'")
+
+    def worker_run_ends_with_its_session(self, agent: StoryAgent, report: str) -> None:
+        self.agent_has_written(agent, report)
+        self.worker_run_ends_printing(agent, json.dumps({"result": report, "session_id": self.session_of(agent)}))
+
+    def worker_run_ends_printing(self, agent: StoryAgent, printed: str) -> None:
+        runner = self.app.container.get(WorkerRunner)
+        with self.app.container.get(Scope).environment(1):
+            worker = self.app.container.get(Workers).find(agent.number)
+            output, _ = runner.outputs(worker)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(printed)
+            runner.finish(worker, 0, Actor.system())
+        self.observed(f"the {agent.role}'s run ends", None, None)
 
     def agent_runs_cleanly(self, agent: StoryAgent, line: str) -> None:
         self.agent_runs(agent, line)
