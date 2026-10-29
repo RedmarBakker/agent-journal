@@ -59,7 +59,7 @@ def test_the_loader_reads_the_domains_and_roles_the_folder_holds_and_ignores_wha
     assert builder.cardinality is Cardinality.MANY and builder.writes and builder.models.codex == "gpt-6-luna" and builder.skills == ("ids",) and builder.guidance == "Guidance of builder.\n" and builder.edges == (Edge(EdgeKind.DELEGATES_TO, "scout", "what to look up"),)
     assert contracts.cardinality_of("scout") is Cardinality.JOURNAL and contracts.role("keeper").needs_approval(ApprovalAction.CONTRACT_CHANGE) and contracts.domain("alpha").guidance == "Guidance of alpha.\n"
     graph = contracts.graph()
-    assert [edge.declared for edge in graph].count(True) == 3 and any(edge.source == "plan" and edge.target == "domain:alpha" and not edge.declared for edge in graph), "containment edges and the three declared ones"
+    assert [edge.declared for edge in graph].count(True) == 2 and any(edge.source == "plan" and edge.target == "domain:alpha" and not edge.declared for edge in graph), "containment edges and the two declared ones"
     fixture.domain("gamma", roles=["pilot"])
     fixture.role("gamma", "pilot")
     assert organization.contracts().role("pilot") is None and organization.reload().role("pilot").domain == "gamma", "a new domain and Role are seen after a reload with no code change"
