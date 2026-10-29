@@ -5,21 +5,19 @@ from journal.engine.support.modes import Modes
 from journal.support.agent_role import AgentRole
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
-from journal.engine.safety_conduct import SafetyConduct
-from journal.engine.demand_conduct import DemandConduct
 from journal.engine.demand import Demand
 from journal.console.command import Command
 from journal.features.double_registration import DoubleRegistration
 from journal.features.feature import Feature
 from journal.features.helper_files_invalid import HelperFilesInvalid
 from journal.features.helper import Helper
+from journal.features.role import ENGINE, Role
+from journal.helpers.main_role import MainRole
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
 from journal.support.skill import Skill
 from journal.repositories.setting_rows import SettingRows
 
-
-ENGINE = "engine"
 
 
 class Registry:
@@ -31,6 +29,7 @@ class Registry:
         self._by_state = {state.name: feature for feature in features for state in feature.states}
         self._feature_names = self.feature_names(features)
         self._helpers = self.helper_files(helpers)
+        self._roles: dict[AgentRole, type[Role]] = {AgentRole.MAIN: MainRole, **self._helpers}
 
     @staticmethod
     def feature_names(features: tuple[type[Feature], ...]) -> dict[type, str]:
@@ -61,7 +60,7 @@ class Registry:
             if len(files) != 1:
                 raise HelperFilesInvalid(f"the helper role {role.value} has {len(files)} files ({', '.join(files) or 'none'}): each helper role has exactly one")
         for helper in helpers:
-            redundant = [listed.__name__ for listed in helper.listeners if self.gives_helper(listed, self.owning_feature(listed), helper)]
+            redundant = [listed.__name__ for listed in helper.listeners if helper.gives(listed, self.owning_feature(listed), self._by_name)]
             if redundant:
                 raise HelperFilesInvalid(f"{helper.__name__} names {', '.join(redundant)} alone, but a feature in its features already gives it to the {helper.role.value}")
         return {helper.role: helper for helper in helpers}
@@ -69,27 +68,23 @@ class Registry:
     def helper(self, role: AgentRole) -> type[Helper]:
         return self._helpers[role]
 
-    def reaches_helper(self, registered: type, role: AgentRole) -> bool:
-        feature_name, helper = self.owning_feature(registered), self.helper(role)
-        return feature_name == ENGINE or registered in helper.listeners or self.gives_helper(registered, feature_name, helper)
+    def role_file(self, role: AgentRole) -> type[Role]:
+        return self._roles[role]
 
-    def gives_helper(self, registered: type, feature_name: str, helper: type[Helper]) -> bool:
-        return feature_name in helper.feature_names() and registered in self._by_name[feature_name].helper_listeners.get(helper.role, ())
+    def reaches_helper(self, registered: type, role: AgentRole) -> bool:
+        return self.role_file(role).reaches(registered, self.owning_feature(registered), self._by_name)
 
     def refused_parts(self, role: AgentRole) -> frozenset[str]:
-        if not role.is_helper():
-            return frozenset()
-        allowed = self.helper(role).feature_names()
-        return frozenset(name for feature in self.features if feature.name not in allowed for name in feature.part_names())
+        return self.role_file(role).refused_parts(self.features)
 
     def receives_row_event(self, feature_name: str, role: AgentRole) -> bool:
-        return not role.is_helper() or feature_name == ENGINE or feature_name in self.helper(role).feature_names()
+        return self.role_file(role).receives_row_event(feature_name)
 
     def helper_features(self, role: AgentRole) -> frozenset[str]:
         return self.helper(role).feature_names()
 
     def runs_verb(self, command: type[Command], verb: str, role: AgentRole) -> bool:
-        return not role.is_helper() or self.helper(role).runs(command, verb)
+        return self.role_file(role).runs(command, verb)
 
     def helper_file(self, role: AgentRole) -> str:
         return self.helper(role).__name__
@@ -116,22 +111,16 @@ class Registry:
         return [option for feature in self.features for option in feature.options]
 
     def conducts(self, role: AgentRole) -> tuple[type[Conduct], ...]:
-        if role.is_helper():
-            return (SafetyConduct, DemandConduct, *(conduct for feature in self.helper(role).features for conduct in feature.helper_conduct.get(role, ())))
-        return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in feature.conduct))
+        return self.role_file(role).conducts(self.features)
 
     def mode_conducts(self, role: AgentRole, lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
-        if role.is_helper():
-            return ()
-        return tuple(conduct for feature in self.features for mode_state, conduct in feature.mode_conduct if lowest_state is mode_state)
+        return self.role_file(role).mode_conducts(self.features, lowest_state)
 
     def mode_states(self) -> tuple[type[BaseState], ...]:
         return tuple(dict.fromkeys(mode_state for feature in self.features for mode_state, conduct in feature.mode_conduct))
 
     def demands(self, role: AgentRole) -> tuple[Demand, ...]:
-        if role.is_helper():
-            return ()
-        return tuple(demand for feature in self.features for demand in feature.demands)
+        return self.role_file(role).demands(self.features)
 
     def states(self) -> list[type[BaseState]]:
         return [state for feature in self.features for state in feature.states]

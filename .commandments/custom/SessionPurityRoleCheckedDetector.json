@@ -38,6 +38,15 @@
                 "file": "src/journal/support/agent_role.py"
             },
             {
+                "file": "src/journal/features/role.py"
+            },
+            {
+                "file": "src/journal/features/helper.py"
+            },
+            {
+                "file": "src/journal/helpers/**"
+            },
+            {
                 "file": "src/journal/http/controllers/hooks.py"
             },
             {

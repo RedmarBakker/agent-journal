@@ -2,13 +2,18 @@ from typing import ClassVar
 
 from journal.console.command import Command
 from journal.engine.base_state import BaseState
+from journal.engine.conduct import Conduct
+from journal.engine.demand import Demand
+from journal.engine.demand_conduct import DemandConduct
+from journal.engine.safety_conduct import SafetyConduct
 from journal.engine.states.void import Void
 from journal.events.listener import Listener
 from journal.features.feature import Feature
+from journal.features.role import ENGINE, Role
 from journal.support.agent_role import AgentRole
 
 
-class Helper:
+class Helper(Role):
     """What one helper is and may do, said in its own file alone: its role, the state its stack starts with over Void, the features turned on whole for it (the conduct, listeners and data each gives its role), the listeners turned on alone, and the command verbs it runs, each a command and one of its verbs; nothing else of the journal reaches it."""
 
     role: ClassVar[AgentRole]
@@ -24,3 +29,31 @@ class Helper:
     @classmethod
     def runs(cls, command: type[Command], verb: str) -> bool:
         return (command, verb) in cls.commands
+
+    @classmethod
+    def conducts(cls, features: tuple[type[Feature], ...]) -> tuple[type[Conduct], ...]:
+        return (SafetyConduct, DemandConduct, *(conduct for feature in cls.features for conduct in feature.helper_conduct.get(cls.role, ())))
+
+    @classmethod
+    def mode_conducts(cls, features: tuple[type[Feature], ...], lowest_state: type[BaseState]) -> tuple[type[Conduct], ...]:
+        return ()
+
+    @classmethod
+    def demands(cls, features: tuple[type[Feature], ...]) -> tuple[Demand, ...]:
+        return ()
+
+    @classmethod
+    def reaches(cls, registered: type, owner_name: str, feature_catalogue: dict[str, type[Feature]]) -> bool:
+        return owner_name == ENGINE or registered in cls.listeners or cls.gives(registered, owner_name, feature_catalogue)
+
+    @classmethod
+    def gives(cls, registered: type, owner_name: str, feature_catalogue: dict[str, type[Feature]]) -> bool:
+        return owner_name in cls.feature_names() and registered in feature_catalogue[owner_name].helper_listeners.get(cls.role, ())
+
+    @classmethod
+    def refused_parts(cls, features: tuple[type[Feature], ...]) -> frozenset[str]:
+        return frozenset(name for feature in features if feature.name not in cls.feature_names() for name in feature.part_names())
+
+    @classmethod
+    def receives_row_event(cls, feature_name: str) -> bool:
+        return feature_name == ENGINE or feature_name in cls.feature_names()
