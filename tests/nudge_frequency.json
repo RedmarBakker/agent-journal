@@ -411,7 +411,7 @@
         "actions": 4374,
         "most_in_a_run": 56,
         "runs": 11,
-        "sent": 166
+        "sent": 167
     },
     "messages.new_messages_to_answer": {
         "actions": 4374,
@@ -451,9 +451,9 @@
     },
     "messages.reply_in_the_chat": {
         "actions": 4374,
-        "most_in_a_run": 59,
+        "most_in_a_run": 58,
         "runs": 11,
-        "sent": 188
+        "sent": 187
     },
     "messages.reply_was_only_a_face": {
         "actions": 4374,
@@ -1613,6 +1613,12 @@
         "runs": 0,
         "sent": 0
     },
+    "workers.take_up_next_work": {
+        "actions": 4374,
+        "most_in_a_run": 0,
+        "runs": 0,
+        "sent": 0
+    },
     "workers.task_closed_by_user": {
         "actions": 4374,
         "most_in_a_run": 0,
@@ -1669,9 +1675,9 @@
     },
     "workers.work_ready": {
         "actions": 4374,
-        "most_in_a_run": 35,
+        "most_in_a_run": 33,
         "runs": 9,
-        "sent": 101
+        "sent": 100
     },
     "workers.worker_costly_on_shaped_work": {
         "actions": 4374,
