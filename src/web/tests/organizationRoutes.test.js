@@ -44,7 +44,7 @@ describe("the organization addresses with the plan agents setting off", () => {
         expect(planAgents.value).toBe(false);
         expect(route.value.page).toBe("");
         store.settings = {plans: {plan_agents: true}};
-        expect(route.value.page).toBe("organization");
+        expect(route.value.page).toBe(hash.startsWith("#/role") ? "role" : "organization");
     });
 
     test("another page is the same with the setting off", async () => {

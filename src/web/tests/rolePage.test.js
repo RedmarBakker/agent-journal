@@ -27,6 +27,7 @@ vi.mock("../src/composables/scope.js", () => ({
     scopeIn: () => ({holding: vi.fn(async () => {})}),
     scopeOfChat: (session, send, client) => ({env: client.env(), api: client, chat: {session, send}}),
 }));
+vi.mock("../src/sync/rows.js", () => ({holding: vi.fn(async () => {})}));
 vi.mock("../src/composables/transcript.js", () => ({useTranscript: () => ({turns: [], error: "", loading: false, refresh: vi.fn()})}));
 vi.mock("../src/agents/AgentInspector.vue", () => ({
     default: {
@@ -137,7 +138,7 @@ test("a worker Role gets writable chat and keeps a legacy worker under its old t
         key: "product/architect",
         workers: [
             worker(6, "main", {name: "Current architect", plan_id: 0, updated_at: "2026-10-29T12:00:00Z", agent: 106}),
-            worker(7, "main", {role: "", profile: role.id, name: "Old planning title", plan_id: 0, updated_at: "2025-10-29T12:00:00Z", agent: 107}),
+            worker(7, "main", {role: "", profile: role.id, name: "Old planning title", plan_id: 0, updated_at: "2025-10-29T12:00:00Z", closed_at: "2025-10-29T13:00:00Z", agent: 107}),
         ],
         agents: [agent(106, "main"), agent(107, "main")],
         plans: [],
