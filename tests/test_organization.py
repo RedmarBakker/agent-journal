@@ -1718,7 +1718,8 @@ def test_home_plan_board_lists_every_plan_with_its_recorded_cost_cap_and_schedul
                 domains.task_tied(task, "alpha", actor)
         now = app.container.get(TimeSource).seconds()
         app.container.get(UsageLedger).observe(domain_plan.id, "builder@release", "native-session", 2.375, now)
-        waiting_plan = plans.save(Plan(environment_id=1, title="Waiting for approval").ready(now), actor)
+        waiting_plan = plans.save(Plan(environment_id=1, title="Waiting for approval"), actor)
+        plans.save(waiting_plan.ready(now), actor)
         scheduled = templates.save(Template(title="Nightly report", targets=(PLAN_TARGET,)).scheduled(TemplateSchedule.DAILY), actor)
         next_start = scheduled.schedule.next_start(scheduled.update_time, app.container.get(TimeSource).moment()).isoformat()
 
