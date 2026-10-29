@@ -12,7 +12,7 @@ from journal.support.lockout_option import LOCKOUT_OPTION
 from journal.config import Config
 from journal.features.organization.support.organization import Organization
 from journal.features.organization.support.role_boot import RoleBoot
-from journal.features.organization.support.seat_runner import SeatRunner
+from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.support.agent_token import AgentToken
@@ -161,12 +161,13 @@ class WorkerRunner:
 
     def recorded_end(self, worker: Worker, actor: Actor) -> Worker:
         if self.seats.applies(worker):
-            self.finish_seat(worker, END_UNWATCHED, actor)
+            self.finish_seat(worker, SeatJobIdentity.from_worker(worker), END_UNWATCHED, actor)
         else:
             self.finish(worker, END_UNWATCHED, actor)
         return self.workers.find(worker.row_id)
 
-    def finish(self, worker: Worker, code: int, actor: Actor, persistent_seat: bool = False) -> None:
+    def finish(self, worker: Worker, code: int, actor: Actor, persistent_seat: bool = False,
+               seat_identity: SeatJobIdentity | None = None) -> None:
         if not persistent_seat:
             self.session_ended(worker)
         self.chat.read(self.workers.find(worker.row_id))
@@ -183,40 +184,42 @@ class WorkerRunner:
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             self.moves.ended(current)
             if persistent_seat:
-                self.seats.preserve(worker, actor)
+                self.seats.preserve(worker, actor, seat_identity)
             return
         resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", self.time_source.seconds())
         if resumes_at and current.is_running():
             self.workers.save(current.limited(self.time_source.seconds(), resumes_at, outcome), actor)
             if persistent_seat:
-                self.seats.preserve(worker, actor)
+                self.seats.preserve(worker, actor, seat_identity)
             return
         moved_task = self.reports.moved_task(current)
         if current.is_mid_turn() and moved_task:
             self.workers.save(current.queue_turn_ended(self.time_source.seconds(), moved_task), actor)
             if persistent_seat:
-                self.seats.preserve(worker, actor)
+                self.seats.preserve(worker, actor, seat_identity)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)
             if persistent_seat:
-                self.seats.preserve(worker, actor)
+                self.seats.preserve(worker, actor, seat_identity)
             return
         current = current.with_(touched_paths=self.branch.touched(current))
         self.reported(current, outcome, ". ".join(part for part in (self.branch.summary(current), self.reports.queue_line(current)) if part), actor)
         if persistent_seat:
-            self.seats.preserve(worker, actor)
+            self.seats.preserve(worker, actor, seat_identity)
 
-    def finish_seat(self, worker: Worker, code: int, actor: Actor) -> None:
+    def finish_seat(self, worker: Worker, identity: SeatJobIdentity, code: int, actor: Actor) -> None:
         current = self.workers.find(worker.row_id)
+        if SeatJobIdentity.from_worker(current) != identity:
+            return
         if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
-            self.seats.preserve(worker, actor)
+            self.seats.preserve(worker, actor, identity)
             return
         if code == END_UNWATCHED:
             self.workers.save(current.unfinished(self.time_source.seconds(), "ended without clocking out"), actor)
-            self.seats.preserve(worker, actor)
+            self.seats.preserve(worker, actor, identity)
             return
-        self.finish(current, code, actor, persistent_seat=True)
+        self.finish(current, code, actor, persistent_seat=True, seat_identity=identity)
 
     def recover_seat(self, worker: Worker, actor: Actor) -> None:
         self.seats.recover(worker, actor, self.instructed(worker), self.finish_seat)

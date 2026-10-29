@@ -3,6 +3,7 @@
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from journal.config import Config
 from journal.features.organization.support.caps import Caps
@@ -13,7 +14,7 @@ from journal.features.workers.organization_options import OrganizationOptions
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
-from journal.models.worker import Worker
+from journal.models.worker import JOB_STARTS, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.repositories.environments import Environments
@@ -38,6 +39,20 @@ END_UNWATCHED = -2
 ERROR_STATUS = -3
 
 
+@dataclass(frozen=True)
+class SeatJobIdentity:
+    row_id: int
+    worker_id: int
+    generation: tuple[int, str, float] | None
+    started_at: float = field(compare=False)
+
+    @classmethod
+    def from_worker(cls, worker: Worker) -> "SeatJobIdentity":
+        generation = next(((index, move, time) for index, (move, time) in reversed(tuple(enumerate(worker.moves.steps)))
+                           if move in JOB_STARTS), None)
+        return cls(worker.row_id, worker.id, generation, worker.job_start_time() or worker.began)
+
+
 class SeatRunner:
     """Use RigSpecs' selected-provider member and OpenRig delivery; never spawn a second agent."""
 
@@ -50,8 +65,8 @@ class SeatRunner:
         self.tasks = tasks
         self.providers = providers
         self._active: set[int] = set()
-        self._active_jobs: dict[int, float] = {}
-        self._finishing: set[int] = set()
+        self._active_jobs: dict[int, SeatJobIdentity] = {}
+        self._finishing: set[SeatJobIdentity] = set()
         self._guard = threading.Lock()
 
     def applies(self, worker: Worker) -> bool:
@@ -81,35 +96,39 @@ class SeatRunner:
             raise Rejection(f"OpenRig seat {member.logical_id} does not use Role {worker.role}'s selected {worker.provider} model {model}")
         return member
 
-    def start(self, worker: Worker, actor: Actor, prompt: str, ended: Callable[[Worker, int, Actor], None]) -> None:
-        job_started = worker.job_start_time() or worker.began
+    def start(self, worker: Worker, actor: Actor, prompt: str,
+              ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
+        identity = SeatJobIdentity.from_worker(worker)
         send_existing = False
         with self._guard:
             if worker.id in self._active:
-                if self._active_jobs.get(worker.id) == job_started:
+                if self._active_jobs.get(worker.id) == identity:
                     return
-                self._active_jobs[worker.id] = job_started
+                self._active_jobs[worker.id] = identity
                 send_existing = True
             else:
                 self._active.add(worker.id)
-                self._active_jobs[worker.id] = job_started
+                self._active_jobs[worker.id] = identity
         target = self.send_existing if send_existing else self.scoped
-        threading.Thread(target=target, args=(worker, actor, prompt, ended), name=f"seat-worker-{worker.id}", daemon=True).start()
+        threading.Thread(target=target, args=(worker, identity, actor, prompt, ended), name=f"seat-worker-{worker.id}", daemon=True).start()
 
-    def scoped(self, worker: Worker, actor: Actor, prompt: str, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def scoped(self, worker: Worker, identity: SeatJobIdentity, actor: Actor, prompt: str,
+               ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
         try:
             with self.scope.environment(worker.environment_id):
-                self.run(worker, actor, prompt, ended)
+                self.run(worker, identity, actor, prompt, ended)
         except Rejection as failure:
-            self.fail(worker, actor, ended, failure)
+            self.fail(worker, identity, actor, ended, failure)
         finally:
-            with self._guard:
-                self._active.discard(worker.id)
-                self._active_jobs.pop(worker.id, None)
+            self.release(identity)
 
-    def send_existing(self, worker: Worker, actor: Actor, prompt: str, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def send_existing(self, worker: Worker, identity: SeatJobIdentity, actor: Actor, prompt: str,
+                      ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
         try:
             with self.scope.environment(worker.environment_id):
+                current = self.current_job(identity)
+                if current is None or current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+                    return
                 member = self.member(worker)
                 self.runtime.check_version(member.openrig_version)
                 environment = self.environments.find(worker.environment_id).name
@@ -117,51 +136,67 @@ class SeatRunner:
                 session = self.runtime.session(member, worker.resume)
                 if session is None or not ProcessCheck.is_running(session.pid):
                     raise Rejection(f"OpenRig seat {member.target} stopped before worker {worker.id}'s next job was sent")
-                current = self.workers.find(worker.row_id)
-                if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+                current = self.current_job(identity)
+                if current is None or current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
                     return
                 current = self.workers.save(current.with_(session=session.session, resume=session.session, token_hash=token.digest(), pid=session.pid, began=self.time_source.seconds()), actor)
                 deadline = time.monotonic() + STARTUP_SECONDS
                 while True:
+                    if self.current_job(identity) is None:
+                        return
                     try:
                         self.runtime.send(member, prompt)
-                        return
+                        break
                     except Rejection:
                         if time.monotonic() >= deadline:
                             raise
                         time.sleep(POLL_SECONDS)
+                self.monitor(current, identity, member, session.session, actor, ended, identity.started_at or current.began)
         except Rejection as failure:
-            self.fail(worker, actor, ended, failure)
+            self.fail(worker, identity, actor, ended, failure)
+        finally:
+            self.release(identity)
 
-    def run(self, worker: Worker, actor: Actor, prompt: str, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def run(self, worker: Worker, identity: SeatJobIdentity, actor: Actor, prompt: str,
+            ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
         member = self.member(worker)
         self.runtime.check_version(member.openrig_version)
         environment = self.environments.find(worker.environment_id).name
         token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
         while not self.capacity_available(worker):
             time.sleep(POLL_SECONDS)
-            current = self.workers.find(worker.row_id)
-            if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
-                self.preserve(current, actor)
+            current = self.current_job(identity)
+            if current is None:
                 return
+            if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+                self.preserve(current, actor, identity)
+                return
+        if self.current_job(identity) is None:
+            return
         session = self.runtime.session(member, worker.resume)
         if session is None:
             if worker.resume:
                 raise Rejection(f"OpenRig seat {member.target} stopped; this OpenRig version cannot resume its native session, so it was not replaced with a blank one")
-            self.runtime.launch(member, f"journal worker {worker.id} starts task {worker.job_start_time() or self.time_source.seconds()}")
+            self.runtime.launch(member, f"journal worker {worker.id} starts task {identity.started_at or self.time_source.seconds()}")
             deadline = time.monotonic() + STARTUP_SECONDS
             while session is None and time.monotonic() < deadline:
                 time.sleep(POLL_SECONDS)
+                if self.current_job(identity) is None:
+                    return
                 session = self.runtime.session(member)
             if session is None:
                 raise Rejection(f"OpenRig seat {member.target} did not report a live native session after launch")
         if not ProcessCheck.is_running(session.pid):
             raise Rejection(f"OpenRig seat {member.target} has no live {member.provider} process")
-        current = self.workers.find(worker.row_id)
+        current = self.current_job(identity)
+        if current is None:
+            return
         started_at = self.time_source.seconds()
         current = self.workers.save(current.with_(session=session.session, resume=session.session, token_hash=token.digest(), pid=session.pid, began=started_at), actor)
         deadline = time.monotonic() + STARTUP_SECONDS
         while True:
+            if self.current_job(identity) is None:
+                return
             try:
                 self.runtime.send(member, prompt)
                 break
@@ -169,48 +204,50 @@ class SeatRunner:
                 if time.monotonic() >= deadline:
                     raise
                 time.sleep(POLL_SECONDS)
-        self.monitor(current, member, session.session, actor, ended, started_at)
+        self.monitor(current, identity, member, session.session, actor, ended, identity.started_at or started_at)
 
-    def monitor(self, worker: Worker, member: SeatMember, native_session: str, actor: Actor,
-                ended: Callable[[Worker, int, Actor], None], started_at: float) -> None:
+    def monitor(self, worker: Worker, identity: SeatJobIdentity, member: SeatMember, native_session: str,
+                actor: Actor, ended: Callable[[Worker, SeatJobIdentity, int, Actor], None], started_at: float) -> None:
         usage_at = 0.0
         while True:
             time.sleep(POLL_SECONDS)
-            current = self.workers.find(worker.row_id)
+            current = self.current_job(identity)
+            if current is None:
+                return
             if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
-                self.record_usage(current, member, native_session, self.time_source.seconds(), actor)
-                self.finish_once(worker, 0, actor, ended)
+                if current.state != WorkerState.STOPPED:
+                    self.record_usage(current, member, native_session, self.time_source.seconds(), actor)
+                self.finish_once(worker, identity, 0, actor, ended)
                 return
             if not self.tasks.holder_task_ids(Ref.build(current)) and self.tasks.finished_task_ids(Ref.build(current)):
-                self.finish_once(current, 0, actor, ended)
+                self.finish_once(current, identity, 0, actor, ended)
                 return
             now = self.time_source.seconds()
-            job_started = current.job_start_time() or started_at
+            job_started = identity.started_at or started_at
             timeout = self.settings.decimal(WorkersOptions.TIMEOUT) * 60
             if timeout and now - job_started >= timeout:
                 self.runtime.stop(member.target, f"journal worker {worker.id} reached its job time limit")
-                self.finish_once(current, TIMEOUT_STATUS, actor, ended)
+                self.finish_once(current, identity, TIMEOUT_STATUS, actor, ended)
                 return
             session = self.runtime.session(member, native_session)
             if current.pid <= 0 and session is not None and ProcessCheck.is_running(session.pid):
+                current = self.current_job(identity)
+                if current is None:
+                    return
                 current = self.workers.save(current.with_(pid=session.pid, session=session.session, resume=session.session,
                                                            token_hash=current.token_hash or worker.token_hash,
                                                            began=current.began or started_at), actor)
             if current.pid <= 0:
                 if now - job_started <= STARTUP_SECONDS:
                     continue
-                self.finish_once(current, END_UNWATCHED, actor, ended)
+                self.finish_once(current, identity, END_UNWATCHED, actor, ended)
                 return
             if not ProcessCheck.is_running(current.pid) or session is None:
-                self.finish_once(current, END_UNWATCHED, actor, ended)
+                self.finish_once(current, identity, END_UNWATCHED, actor, ended)
                 return
-            try:
-                status = self.runtime.status(member.target)
-            except Rejection:
-                status = {}
-            session_status = self.runtime.session_status(status)
-            if session_status in {"idle", "stopped", "ended"} and now - job_started > IDLE_GRACE_SECONDS:
-                self.finish_once(current, END_UNWATCHED, actor, ended)
+            activity_status, updated_at = session.activity_status, session.status_updated_at
+            if activity_status in {"idle", "stopped", "ended"} and updated_at > job_started and now - job_started > IDLE_GRACE_SECONDS:
+                self.finish_once(current, identity, END_UNWATCHED, actor, ended)
                 return
             if now - usage_at >= USAGE_POLL_SECONDS:
                 self.record_usage(current, member, native_session, now, actor)
@@ -241,36 +278,36 @@ class SeatRunner:
         else:
             self.ledger.record_subscription_limits(None, source, "account-wide subscription windows", now, "account-wide subscription windows")
 
-    def is_finished(self, worker: Worker, actor: Actor, ended: Callable[[Worker, int, Actor], None]) -> bool:
-        if worker.state not in (WorkerState.DISPATCHED, WorkerState.READY):
-            self.preserve(worker, actor)
+    def is_finished(self, worker: Worker, actor: Actor, ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> bool:
+        identity = SeatJobIdentity.from_worker(worker)
+        current = self.current_job(identity)
+        if current is None:
             return True
-        if worker.pid <= 0:
+        if current.state not in (WorkerState.DISPATCHED, WorkerState.READY):
+            self.preserve(worker, actor, identity)
+            return True
+        if current.pid <= 0:
             return False
-        if not ProcessCheck.is_running(worker.pid):
-            self.finish_once(worker, END_UNWATCHED, actor, ended)
+        if not ProcessCheck.is_running(current.pid):
+            self.finish_once(current, identity, END_UNWATCHED, actor, ended)
             return True
         limit = self.settings.decimal(WorkersOptions.TIMEOUT) * 60
-        job_started = worker.job_start_time() or worker.began
+        job_started = identity.started_at or current.began
         if limit and job_started and self.time_source.seconds() - job_started >= limit:
             try:
-                self.runtime.stop(self.member(worker).target, f"journal worker {worker.id} reached its job time limit")
+                self.runtime.stop(self.member(current).target, f"journal worker {worker.id} reached its job time limit")
             except Rejection:
                 pass
-            self.finish_once(worker, TIMEOUT_STATUS, actor, ended)
+            self.finish_once(current, identity, TIMEOUT_STATUS, actor, ended)
             return True
-        member = self.member(worker)
-        session = self.runtime.session(member, worker.resume)
+        member = self.member(current)
+        session = self.runtime.session(member, current.resume)
         if session is None:
-            self.finish_once(worker, END_UNWATCHED, actor, ended)
+            self.finish_once(current, identity, END_UNWATCHED, actor, ended)
             return True
-        try:
-            status = self.runtime.status(member.target)
-        except Rejection:
-            return False
-        session_status = self.runtime.session_status(status)
-        if session_status in {"idle", "stopped", "ended"} and job_started and self.time_source.seconds() - job_started > IDLE_GRACE_SECONDS:
-            self.finish_once(worker, END_UNWATCHED, actor, ended)
+        activity_status, updated_at = session.activity_status, session.status_updated_at
+        if activity_status in {"idle", "stopped", "ended"} and updated_at > job_started and job_started and self.time_source.seconds() - job_started > IDLE_GRACE_SECONDS:
+            self.finish_once(current, identity, END_UNWATCHED, actor, ended)
             return True
         return False
 
@@ -287,62 +324,81 @@ class SeatRunner:
     def is_seat_pid(self, pid: int) -> bool:
         return pid > 0 and any(row.pid == pid and self.applies(row) for row in self.workers.scoped())
 
-    def recover(self, worker: Worker, actor: Actor, prompt: str, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def recover(self, worker: Worker, actor: Actor, prompt: str,
+                ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
         if worker.state not in (WorkerState.DISPATCHED, WorkerState.READY):
             return
         if worker.pid <= 0:
             self.start(worker, actor, prompt, ended)
             return
-        job_started = worker.job_start_time() or worker.began
+        identity = SeatJobIdentity.from_worker(worker)
         with self._guard:
             if worker.id in self._active:
                 return
             self._active.add(worker.id)
-            self._active_jobs[worker.id] = job_started
-        threading.Thread(target=self.monitor_existing, args=(worker, actor, ended), name=f"seat-recovery-{worker.id}", daemon=True).start()
+            self._active_jobs[worker.id] = identity
+        threading.Thread(target=self.monitor_existing, args=(worker, identity, actor, ended), name=f"seat-recovery-{worker.id}", daemon=True).start()
 
-    def monitor_existing(self, worker: Worker, actor: Actor, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def monitor_existing(self, worker: Worker, identity: SeatJobIdentity, actor: Actor,
+                         ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
         try:
             with self.scope.environment(worker.environment_id):
+                if self.current_job(identity) is None:
+                    return
                 member = self.member(worker)
                 self.runtime.check_version(member.openrig_version)
                 session = self.runtime.session(member, worker.resume)
                 if session is None or session.pid != worker.pid:
-                    self.finish_once(worker, END_UNWATCHED, actor, ended)
+                    self.finish_once(worker, identity, END_UNWATCHED, actor, ended)
                     return
-                self.monitor(worker, member, session.session, actor, ended, worker.job_start_time() or worker.began)
+                self.monitor(worker, identity, member, session.session, actor, ended, identity.started_at or worker.began)
         except Rejection as failure:
-            self.fail(worker, actor, ended, failure)
+            self.fail(worker, identity, actor, ended, failure)
         finally:
-            with self._guard:
-                self._active.discard(worker.id)
-                self._active_jobs.pop(worker.id, None)
+            self.release(identity)
 
     def stop(self, worker: Worker, reason: str) -> None:
         if worker.role and worker.plan_id:
             self.runtime.stop(self.member(worker).target, reason)
 
-    def preserve(self, worker: Worker, actor: Actor) -> None:
+    def preserve(self, worker: Worker, actor: Actor, identity: SeatJobIdentity | None = None) -> None:
         if worker.pid > 0 and worker.token_hash:
             current = self.workers.find(worker.row_id)
+            if current.state == WorkerState.STOPPED or identity and SeatJobIdentity.from_worker(current) != identity:
+                return
             if (current.pid, current.token_hash, current.session, current.resume) != (worker.pid, worker.token_hash, worker.session, worker.resume):
                 self.workers.save(current.with_(pid=worker.pid, token_hash=worker.token_hash, session=worker.session, resume=worker.resume), actor)
 
-    def finish_once(self, worker: Worker, code: int, actor: Actor, ended: Callable[[Worker, int, Actor], None]) -> None:
+    def current_job(self, identity: SeatJobIdentity) -> Worker | None:
+        current = self.workers.find(identity.row_id)
+        return current if SeatJobIdentity.from_worker(current) == identity else None
+
+    def release(self, identity: SeatJobIdentity) -> None:
         with self._guard:
-            if worker.id in self._finishing:
+            if self._active_jobs.get(identity.worker_id) == identity:
+                self._active.discard(identity.worker_id)
+                self._active_jobs.pop(identity.worker_id, None)
+
+    def finish_once(self, worker: Worker, identity: SeatJobIdentity, code: int, actor: Actor,
+                    ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> None:
+        with self._guard:
+            if identity in self._finishing or self.current_job(identity) is None:
                 return
-            self._finishing.add(worker.id)
+            self._finishing.add(identity)
         try:
-            ended(worker, code, actor)
+            ended(worker, identity, code, actor)
         finally:
             with self._guard:
-                self._finishing.discard(worker.id)
+                self._finishing.discard(identity)
 
-    def fail(self, worker: Worker, actor: Actor, ended: Callable[[Worker, int, Actor], None], failure: Exception) -> None:
+    def fail(self, worker: Worker, identity: SeatJobIdentity, actor: Actor,
+             ended: Callable[[Worker, SeatJobIdentity, int, Actor], None], failure: Exception) -> None:
+        if self.current_job(identity) is None:
+            return
         error = self.config.home / "runtime" / "workers" / f"{worker.id}.err"
         error.parent.mkdir(parents=True, exist_ok=True)
         error.write_text(str(failure))
-        current = self.workers.find(worker.row_id)
-        self.finish_once(current, ERROR_STATUS, actor, ended)
+        current = self.current_job(identity)
+        if current is not None:
+            self.finish_once(current, identity, ERROR_STATUS, actor, ended)
 

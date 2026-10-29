@@ -1,6 +1,7 @@
 """The small, provider-neutral OpenRig boundary used by organization workers."""
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -53,6 +54,7 @@ class SeatSession:
     session: str
     status: str
     status_updated_at: float
+    activity_status: str = "unknown"
 
 
 class SeatRuntime:
@@ -171,7 +173,22 @@ class SeatRuntime:
     def status(self, seat: SeatMember | str) -> dict:
         target = seat.target if isinstance(seat, SeatMember) else seat
         result = self.run("seat", "status", target, "--json")
-        return self.object(result.stdout)
+        status = self.object(result.stdout)
+        if isinstance(seat, SeatMember):
+            # OpenRig 0.7.5 puts freshness on the node's agentActivity.sampledAt,
+            # exposed by the full node listing rather than seat status.
+            node = self.node(seat)
+            if node:
+                return {**status, **node}
+        return status
+
+    def node(self, seat: SeatMember) -> dict:
+        result = self.run("ps", "--nodes", "--full", "--json", "--rig", seat.rig, check=False)
+        if result.returncode:
+            return {}
+        rows = self.objects(self.object(result.stdout))
+        identifiers = {seat.target, seat.logical_id, f"{seat.pod}.{seat.member}", seat.member, f"{seat.pod}-{seat.member}"}
+        return next((value for value in rows if any(str(value.get(key, "")) in identifiers for key in ("name", "id", "logicalId", "logical_id", "seat", "sessionName"))), {})
 
     def expected_seats(self, rig: str) -> int | None:
         path = self.config.home / "runtime" / "rigs" / rig / "rig.yaml"
@@ -196,29 +213,25 @@ class SeatRuntime:
         found_session = next((str(value[key]) for value in objects for key in field_order if value.get(key)), "")
         pid = next((int(value[key]) for value in objects for key in PID_FIELDS if str(value.get(key, "")).isdigit() and int(value[key]) > 0), 0)
         if not found_session or not pid:
-            result = self.run("ps", "--nodes", "--full", "--json", "--rig", seat.rig, check=False)
-            if not result.returncode:
-                rows = self.objects(self.object(result.stdout))
-                identifiers = {seat.target, seat.logical_id, f"{seat.pod}.{seat.member}", seat.member, f"{seat.pod}-{seat.member}"}
-                node = next((value for value in rows if any(str(value.get(key, "")) in identifiers for key in ("name", "id", "logicalId", "logical_id", "seat", "sessionName"))), {})
-                node_rows = list(self.objects(node))
-                if not found_session:
-                    found_session = next((str(value[key]) for value in node_rows for key in field_order if value.get(key)), "")
-                if not pid:
-                    pid = next((int(value[key]) for value in node_rows for key in PID_FIELDS if str(value.get(key, "")).isdigit() and int(value[key]) > 0), 0)
-                status = {**status, **node}
-                objects = self.objects(status)
+            node = self.node(seat)
+            node_rows = list(self.objects(node))
+            if not found_session:
+                found_session = next((str(value[key]) for value in node_rows for key in field_order if value.get(key)), "")
+            if not pid:
+                pid = next((int(value[key]) for value in node_rows for key in PID_FIELDS if str(value.get(key, "")).isdigit() and int(value[key]) > 0), 0)
+            status = {**status, **node}
+            objects = self.objects(status)
         if native_session and found_session and native_session != found_session:
             return None
         session = native_session or found_session
         if not session or not pid:
             return None
         status_name = self.session_status(status)
-        updated = next((float(value[key]) for value in objects for key in ("statusUpdatedAt", "status_updated_at", "updatedAt", "updated_at") if value.get(key)), 0.0)
-        return SeatSession(pid, session, status_name, updated)
+        activity, updated = self.activity_status(status)
+        return SeatSession(pid, session, status_name, updated, activity)
 
     def send(self, seat: SeatMember, text: str) -> None:
-        self.run("send", seat.target, text, "--rig", seat.rig, "--json")
+        self.run("send", seat.target, text, "--json")
 
     def launch(self, seat: SeatMember, reason: str) -> None:
         self.run("seat", "launch", "--fresh", seat.target, "--reason", reason, "--operator", "journal", "--json")
@@ -244,6 +257,38 @@ class SeatRuntime:
     def session_status(status: dict) -> str:
         return next((found.lower() for value in SeatRuntime.objects(status) for key in STATUS_FIELDS
                      if isinstance((found := value.get(key)), str)), "unknown")
+
+    @staticmethod
+    def activity_status(status: dict) -> tuple[str, float]:
+        sampled = next((activity for value in SeatRuntime.objects(status)
+                        if isinstance((activity := value.get("agentActivity")), dict)
+                        and isinstance(activity.get("state"), str)), None)
+        state = str(sampled["state"]).lower() if sampled else SeatRuntime.session_status(status)
+        return state, SeatRuntime.status_updated_at(status)
+
+    @staticmethod
+    def status_updated_at(status: dict) -> float:
+        values = list(SeatRuntime.objects(status))
+        timestamps = [activity.get("sampledAt") for value in values
+                      if isinstance((activity := value.get("agentActivity")), dict) and not activity.get("stale")]
+        timestamps.extend(value.get(key) for value in values
+                          for key in ("statusUpdatedAt", "status_updated_at", "updatedAt", "updated_at"))
+        for value in timestamps:
+            if isinstance(value, (int, float)):
+                return float(value)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            try:
+                return float(value)
+            except ValueError:
+                try:
+                    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed.timestamp()
+                except ValueError:
+                    continue
+        return 0.0
 
     @staticmethod
     def objects(value):

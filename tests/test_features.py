@@ -7414,16 +7414,42 @@ def test_worker_clockout_keeps_the_persistent_seat_process_and_token():
     from journal.models.worker_state import WorkerState
     from journal.support.actor import Actor
 
-    worker = Worker(id=14, name="Ada Lovelace", role="builder", plan_id=8, pid=91, token_hash="seat-token-hash", session="thread-9", resume="thread-9")
-    current = Worker(id=14, name="Ada Lovelace", role="builder", plan_id=8, state=WorkerState.REPORTED)
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+
+    worker = Worker(id=14, name="Ada Lovelace", role="builder", plan_id=8, pid=91, token_hash="seat-token-hash", session="thread-9", resume="thread-9").moved("dispatched", 10)
+    current = worker.reported(20, 1)
     preserved = []
     runner = object.__new__(WorkerRunner)
     runner.workers = SimpleNamespace(find=lambda _row: current)
-    runner.seats = SimpleNamespace(preserve=lambda seat, _actor: preserved.append(seat))
+    runner.seats = SimpleNamespace(preserve=lambda seat, _actor, _identity: preserved.append(seat))
 
-    runner.finish_seat(worker, 0, Actor.system())
+    runner.finish_seat(worker, SeatJobIdentity.from_worker(worker), 0, Actor.system())
 
     assert preserved == [worker] and preserved[0].pid == 91 and preserved[0].token_hash == "seat-token-hash"
+
+
+def test_pending_seat_monitor_callback_does_not_restore_ownership_after_worker_stop():
+    from types import SimpleNamespace
+    from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.support.actor import Actor
+
+    worker = Worker(id=15, name="Ada Lovelace", role="builder", plan_id=8, pid=91, token_hash="revoked-token", session="thread-9", resume="thread-9").moved("dispatched", 10)
+    identity = SeatJobIdentity.from_worker(worker)
+    stopped = worker.stopped(20, "operator stop").with_(pid=0, session="", resume="")
+    saved = []
+    seats = object.__new__(SeatRunner)
+    seats.workers = SimpleNamespace(find=lambda _row: stopped, save=lambda current, _actor: saved.append(current) or current)
+    runner = object.__new__(WorkerRunner)
+    runner.workers = seats.workers
+    runner.seats = seats
+
+    runner.finish_seat(worker, identity, 0, Actor.system())
+
+    assert stopped.state == WorkerState.STOPPED and stopped.token_hash == ""
+    assert (stopped.pid, stopped.session, stopped.resume) == (0, "", "") and not saved
 
 
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):

@@ -483,14 +483,18 @@ def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monito
 
     threads = []
     monkeypatch.setattr(seat_runner_module.threading, "Thread", CapturedThread)
-    worker = Worker(id=8, name="Ada Lovelace", role="builder", plan_id=8, contract="contract", provider="codex", model="gpt-6-luna", resume="thread-9", pid=0).moved("dispatched", 10).moved("sent a job", 20)
+    prior_job = Worker(id=8, name="Ada Lovelace", role="builder", plan_id=8, contract="contract", provider="codex", model="gpt-6-luna", resume="thread-9", pid=0).moved("dispatched", 10)
+    worker = prior_job.moved("sent a job", 20)
     runner = object.__new__(SeatRunner)
     runner._guard = threading.Lock()
     runner._active = {worker.id}
-    runner._active_jobs = {worker.id: 10}
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+    prior_identity = SeatJobIdentity.from_worker(prior_job)
+    identity = SeatJobIdentity.from_worker(worker)
+    runner._active_jobs = {worker.id: prior_identity}
     runner.start(worker, Actor.system(), "next job", lambda *args: None)
 
-    assert len(threads) == 1 and threads[0].target == runner.send_existing and threads[0].args[2] == "next job"
+    assert len(threads) == 1 and threads[0].target == runner.send_existing and threads[0].args[1] == identity and threads[0].args[3] == "next job"
 
     member = SimpleNamespace(provider="codex", model="gpt-6-luna", openrig_version="0.7.5", target="alpha-builder@release")
     sent, saved = [], []
@@ -507,8 +511,9 @@ def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monito
     runner.organization = SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role))
     runner.workers = SimpleNamespace(find=lambda _row: worker, save=lambda current, _actor: saved.append(current) or current)
     runner.time_source = SimpleNamespace(seconds=lambda: 30)
+    runner.monitor = lambda *args: None
     monkeypatch.setattr("journal.features.organization.support.seat_runner.ProcessCheck.is_running", lambda _pid: True)
-    runner.send_existing(worker, Actor.system(), "next job", lambda *args: None)
+    runner.send_existing(worker, identity, Actor.system(), "next job", lambda *args: None)
 
     assert sent == ["next job"] and saved[-1].pid == 91 and saved[-1].resume == "thread-9" and saved[-1].token_hash == AgentToken("seat-token").digest()
 
@@ -541,10 +546,12 @@ def test_a_codex_job_runs_on_its_selected_role_seat_and_saves_the_native_session
     runner.monitor = lambda *args: monitored.append(args)
     monkeypatch.setattr("journal.features.organization.support.seat_runner.ProcessCheck.is_running", lambda _pid: True)
 
-    runner.run(worker, Actor.system(), "write the patch", lambda *args: None)
+    from journal.features.organization.support.seat_runner import SeatJobIdentity
+    identity = SeatJobIdentity.from_worker(worker)
+    runner.run(worker, identity, Actor.system(), "write the patch", lambda *args: None)
 
     assert sent == ["write the patch"] and saved[-1].pid == 91 and saved[-1].session == "thread-9" and saved[-1].resume == "thread-9"
-    assert saved[-1].token_hash == AgentToken("seat-token").digest() and monitored[0][2] == "thread-9"
+    assert saved[-1].token_hash == AgentToken("seat-token").digest() and monitored[0][1] == identity and monitored[0][3] == "thread-9"
 
 
 def test_seat_recovery_attaches_to_an_existing_process_without_launching_a_new_agent(monkeypatch):
@@ -596,14 +603,114 @@ def test_seat_monitor_finishes_on_clockout_or_when_its_queue_item_is_done(monkey
         runner.record_usage = lambda *args: usage.append(args)
         ended = []
         worker = Worker(id=11, name="Ada Lovelace", role="builder", plan_id=8, state=WorkerState.DISPATCHED, pid=91).moved("dispatched", 10)
-        runner.monitor(worker, None, "thread-9", Actor.system(), lambda *args: ended.append(args), 10)
+        from journal.features.organization.support.seat_runner import SeatJobIdentity
+        identity = SeatJobIdentity.from_worker(worker)
+        runner.monitor(worker, identity, None, "thread-9", Actor.system(), lambda *args: ended.append(args), 10)
         return ended, usage
 
-    clocked_out, clockout_usage = monitored(Worker(id=11, name="Ada Lovelace", state=WorkerState.REPORTED), (), ())
-    queue_done, queue_usage = monitored(Worker(id=11, name="Ada Lovelace", state=WorkerState.DISPATCHED), (), (42,))
+    dispatched = Worker(id=11, name="Ada Lovelace", state=WorkerState.DISPATCHED, pid=91).moved("dispatched", 10)
+    clocked_out, clockout_usage = monitored(dispatched.reported(20, 1), (), ())
+    queue_done, queue_usage = monitored(dispatched, (), (42,))
 
     assert len(clocked_out) == 1 and clockout_usage, "clockout ends the active job after recording usage"
     assert len(queue_done) == 1 and not queue_usage, "a finished queue item ends its seat job"
+
+
+def test_old_seat_completion_cannot_finish_or_unmonitor_a_followup_generation(monkeypatch):
+    from threading import Event, Lock, Thread
+    from types import SimpleNamespace
+    from journal.events.rows.worker_reused import WorkerReused
+    from journal.features.organization.support import seat_runner as seat_runner_module
+    from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+    old = Worker(id=16, name="Ada Lovelace", pid=91).moved("dispatched", 10)
+    old_identity = SeatJobIdentity.from_worker(old)
+    followup = old.resumed("write the follow-up", 20, WorkerReused, "sent a job")
+    followup_identity = SeatJobIdentity.from_worker(followup)
+    current = old
+    runner = object.__new__(SeatRunner)
+    runner._guard = Lock()
+    runner._active = {old.id}
+    runner._active_jobs = {old.id: old_identity}
+    runner._finishing = set()
+    runner.workers = SimpleNamespace(find=lambda _row: current)
+    runner.tasks = SimpleNamespace(holder_task_ids=lambda _ref: (), finished_task_ids=lambda _ref: (42,))
+    runner.time_source = SimpleNamespace(seconds=lambda: 30)
+    entered, resume, failures = Event(), Event(), []
+    worker_runner = object.__new__(WorkerRunner)
+    worker_runner.workers = runner.workers
+    worker_runner.seats = SimpleNamespace(preserve=lambda *_args: failures.append("stale preserve"))
+
+    def old_completion(worker, identity, code, actor):
+        entered.set()
+        if not resume.wait(2):
+            failures.append("completion was not resumed")
+            return
+        worker_runner.finish_seat(worker, identity, code, actor)
+
+    def monitor_old_job():
+        try:
+            runner.monitor(old, old_identity, None, "thread-9", Actor.system(), old_completion, 10)
+        except BaseException as failure:
+            failures.append(str(failure))
+        finally:
+            runner.release(old_identity)
+
+    monitor = Thread(target=monitor_old_job)
+    monitor.start()
+    assert entered.wait(2), "the old monitor reached its pending completion callback"
+    current = followup
+    with runner._guard:
+        runner._active_jobs[old.id] = followup_identity
+    resume.set()
+    monitor.join(2)
+
+    assert not monitor.is_alive() and not failures
+    assert current == followup and current.brief == "write the follow-up"
+    assert runner._active == {old.id} and runner._active_jobs[old.id] == followup_identity
+
+
+def test_seat_monitor_requires_fresh_openrig_idle_evidence_after_job_start(monkeypatch):
+    import threading
+    from types import SimpleNamespace
+    from journal.features.organization.support.seat_runner import SeatRunner
+    from journal.features.organization.support.seat_runtime import SeatRuntime, SeatSession
+    from journal.models.worker import Worker
+    from journal.support.actor import Actor
+
+    monkeypatch.setattr("journal.features.organization.support.seat_runner.ProcessCheck.is_running", lambda _pid: True)
+    member = SimpleNamespace(provider="codex", model="gpt-6-luna", openrig_version="0.7.5", target="alpha-builder@release")
+
+    def check(sampled_at):
+        worker = Worker(id=17, name="Ada Lovelace", pid=91).moved("dispatched", 100)
+        runner = object.__new__(SeatRunner)
+        runner._guard = threading.Lock()
+        runner._finishing = set()
+        runner.workers = SimpleNamespace(find=lambda _row: worker)
+        runner.settings = SimpleNamespace(decimal=lambda _option: 0)
+        runner.time_source = SimpleNamespace(seconds=lambda: 120)
+        runner.member = lambda _worker: member
+        node_status = {"nodes": [{"name": member.target, "agentActivity": {
+            "state": "idle", "reason": "no recent agent event", "evidenceSource": "native_hook",
+            "sampledAt": sampled_at, "evidence": None,
+        }}]}
+        activity, updated = SeatRuntime.activity_status(node_status)
+        runner.runtime = SimpleNamespace(
+            session=lambda *_args: SeatSession(91, "thread-9", "running", updated, activity),
+        )
+        ended = []
+        finished = runner.is_finished(worker, Actor.system(), lambda *args: ended.append(args))
+        return finished, ended
+
+    stale_finished, stale_callbacks = check("1970-01-01T00:01:39Z")
+    fresh_finished, fresh_callbacks = check("1970-01-01T00:01:41Z")
+
+    assert not stale_finished and not stale_callbacks, "idle evidence sampled before dispatch cannot end a delivered-late job"
+    assert fresh_finished and len(fresh_callbacks) == 1, "a fresh idle sample can end a job after its grace period"
 
 
 def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_path, monkeypatch):
@@ -643,8 +750,19 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     def execute(arguments, **kwargs):
         calls.append(arguments)
         if arguments[1:3] == ["seat", "status"]:
-            return subprocess.CompletedProcess(arguments, 0, json.dumps({"sessionStatus": "running", "threadId": "thread-9", "process": {"pid": 91}, "statusUpdatedAt": 15}), "")
-        return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.5\n", "")
+            return subprocess.CompletedProcess(arguments, 0, json.dumps({"sessionStatus": "running", "threadId": "thread-9", "process": {"pid": 91}}), "")
+        if arguments[1:2] == ["ps"]:
+            return subprocess.CompletedProcess(arguments, 0, json.dumps({"nodes": [{
+                "name": "alpha-builder@release", "threadId": "thread-9", "pid": 91,
+                "agentActivity": {"state": "running", "reason": "agent is working", "evidenceSource": "native_hook",
+                                  "sampledAt": "2026-10-29T15:00:00Z", "evidence": None},
+            }]}), "")
+        if arguments[1:] == ["--version"]:
+            return subprocess.CompletedProcess(arguments, 0, "rig version 0.7.5\n", "")
+        if arguments[1:2] == ["send"]:
+            assert arguments == ["rig", "send", "alpha-builder@release", "write the patch", "--json"], "0.7.5 treats --rig as fan-out; a seat send has only the bare seat and text positionals"
+            return subprocess.CompletedProcess(arguments, 0, "{}", "")
+        return subprocess.CompletedProcess(arguments, 0, "{}", "")
 
     monkeypatch.setattr(shutil, "which", lambda program: "/usr/bin/rig")
     runtime = SeatRuntime(config, Settings(), execute)
@@ -656,7 +774,9 @@ def test_seat_runtime_uses_the_existing_rig_spec_and_pinned_openrig_version(tmp_
     session = runtime.session(member)
     runtime.send(member, "write the patch")
     assert (session.pid, session.session, session.status) == (91, "thread-9", "running")
-    assert ["rig", "send", member.target, "write the patch", "--rig", "release", "--json"] in calls
+    assert session.activity_status == "running" and session.status_updated_at > 1_700_000_000
+    assert ["rig", "ps", "--nodes", "--full", "--json", "--rig", "release"] in calls
+    assert ["rig", "send", member.target, "write the patch", "--json"] in calls
 
 
 def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_for_journal_and_plan_and_a_worktree_of_its_own_for_many(app, tmp_path, monkeypatch):
