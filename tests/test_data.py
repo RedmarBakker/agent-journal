@@ -239,10 +239,10 @@ def test_a_row_answers_its_heading_its_summary_and_its_dock_card():
 
 
 def legacy_workers(connection) -> None:
-    """The workers table as journals kept it before workers and verifiers shared the table of sent agents, for the migrations that ran on it."""
+    """The workers table as journals kept it before workers and verifiers shared the table of sent agents, for the migrations that ran on it, with none of the Role columns a worker has had since."""
     from journal.db.schema import Schema
     from journal.models.worker import Worker
-    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Worker) if column.name not in ("id", "helper_type"))
+    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Worker) if column.name not in ("id", "helper_type", "role"))
     connection.execute(f"CREATE TABLE workers (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})")
 
 
