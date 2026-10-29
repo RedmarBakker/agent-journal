@@ -21572,6 +21572,31 @@ def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_
     finally:
         old.shutdown()
 
+    class MissingRowServer(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"error": "the requested sync row is gone"}).encode()
+            self.send_response(404)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *arguments):
+            return None
+
+    missing = http.server.HTTPServer(("127.0.0.1", 0), MissingRowServer)
+    threading.Thread(target=missing.serve_forever, daemon=True).start()
+    root = tmp_path / "missing"
+    (root / ".journal" / "runtime").mkdir(parents=True)
+    (root / ".journal" / "port").write_text(str(missing.server_address[1]))
+    (root / ".journal" / "runtime" / "sync-secret").write_text("s")
+    try:
+        JournalDoors(root).query(0)
+        raise AssertionError("a missing row was mistaken for missing sync doors")
+    except OSError as refusal:
+        assert "journal sync door answered 404: the requested sync row is gone" in str(refusal), "an application 404 keeps its cause instead of being misreported as missing doors"
+    finally:
+        missing.shutdown()
+
 
 
 
