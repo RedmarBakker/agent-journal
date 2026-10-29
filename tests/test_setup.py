@@ -82,7 +82,7 @@ def test_a_provider_missing_an_answer_cannot_be_built_and_each_lists_what_the_vi
 
     with pytest.raises(TypeError, match="abstract"):
         Halfway()
-    assert {provider.name: provider.capabilities for provider in Providers().all()} == {"claude": frozenset(Capability), "codex": frozenset()}, "a change to what a provider can offer is seen here"
+    assert {provider.name: provider.capabilities for provider in Providers().all()} == {"claude": frozenset(Capability), "codex": frozenset({Capability.CONTEXT_STATUS})}, "a change to what a provider can offer is seen here"
 
 
 def test_mcp_servers_written_into_codexs_config_keep_its_other_tables(app: App):
@@ -123,5 +123,5 @@ def test_an_agents_row_offers_only_what_its_program_reports(app: App, monkeypatc
             agents.save(Agent(environment_id=1, session=session, provider=provider), Actor.system())
         rows = {row["session"]: row for row in app.container.get(AgentActivity).page(agents.scoped())}
     assert rows["claude-1"]["context"] == 42 and rows["claude-1"]["model"] == "Opus 5.5" and rows["claude-1"]["usage"] == [{"key": "five_hour", "label": "5h", "used": 10, "resets_at": 99}]
-    assert "context status" in rows["claude-1"]["capabilities"] and rows["codex-1"]["capabilities"] == []
+    assert "context status" in rows["claude-1"]["capabilities"] and rows["codex-1"]["capabilities"] == ["context status"]
     assert rows["codex-1"]["context"] is None and rows["codex-1"]["model"] == "", "a context Codex never reported is unknown, never zero"

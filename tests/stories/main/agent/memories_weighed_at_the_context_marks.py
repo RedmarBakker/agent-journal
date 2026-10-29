@@ -6,7 +6,8 @@ from journal.features.tasks.states.working import Working
 from journal.models.task_state import TaskState
 from journal.features.workers.workers_options import BUILDER_MODE
 from journal.support.agent_role import AgentRole
-from tests.stories.builder.story_marks import story
+from journal.providers.codex import Codex
+from tests.stories.builder.story_marks import provider, story
 from tests.stories.fixtures.main.context_mark_task import ContextMarkTask
 from tests.stories.fixtures.main.started_task import StartedTask
 
@@ -71,3 +72,14 @@ def test_a_reading_below_the_first_mark_asks_nothing(story):
     story.expect_agent_not_told(MemoryNudges.CONTEXT_DECISION)
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working)
+
+
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+@provider(Codex)
+def test_a_codex_session_whose_rollout_reaches_a_mark_weighs_its_memories_before_it_writes(story):
+    story.agent_consumes_context(FIRST)
+    story.expect_agent_told(MemoryNudges.CONTEXT_DECISION, percent=FIRST)
+    story.agent_writes("footer.py")
+    story.expect_refused(MemoryNudges.DECISION_EDIT_BLOCK)
+    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_stack(Ready, Working, WeighingMemories)

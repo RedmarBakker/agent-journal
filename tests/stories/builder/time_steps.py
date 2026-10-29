@@ -2,7 +2,11 @@ import json
 from datetime import datetime
 
 from journal.engine.clock import Clock
+from journal.providers.codex import Codex
 from tests.replay import pass_time, silent_tick
+
+# the context window a Codex session's rollout reports in a story
+STORY_CONTEXT_TOKENS = 200000
 
 
 class TimeSteps:
@@ -31,9 +35,20 @@ class TimeSteps:
         self.observed(f"the clock moves on {seconds + minutes * 60} seconds", None, None)
 
     def context_reaches(self, percent: int) -> None:
-        self.app.config.status_home.mkdir(parents=True, exist_ok=True)
-        (self.app.config.status_home / f"{self.scoped_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
+        if self.provider == Codex.name:
+            self.rollout_reports_context(self.scoped_session(), percent)
+        else:
+            self.app.config.status_home.mkdir(parents=True, exist_ok=True)
+            (self.app.config.status_home / f"{self.scoped_session()}.json").write_text(json.dumps({"context_window": {"used_percentage": percent}}))
         self.observed(f"context reaches {percent}%", None, None)
+
+    @staticmethod
+    def rollout_reports_context(session: str, percent: int) -> None:
+        rollout = Codex.config_folder() / "sessions" / f"rollout-story-{session}.jsonl"
+        rollout.parent.mkdir(parents=True, exist_ok=True)
+        usage = {"model_context_window": STORY_CONTEXT_TOKENS, "last_token_usage": {"total_tokens": STORY_CONTEXT_TOKENS * percent // 100}}
+        with rollout.open("a") as records:
+            records.write(json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": usage}}) + "\n")
 
     def local_moment(self, minutes: float) -> str:
         return datetime.fromtimestamp(self.app.container.get(Clock).held_at + minutes * 60).strftime("%Y-%m-%d %H:%M")

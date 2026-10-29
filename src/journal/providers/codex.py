@@ -12,6 +12,7 @@ from typing import Iterator
 from journal.support.hook_type import HookType
 from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.codex_row import CodexRow
+from journal.providers.support.codex_status_file import CodexStatusFile
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import RUN_SCRIPT, Provider
 from journal.providers.support.peer_note import PeerNote
@@ -65,7 +66,7 @@ class Codex(Provider):
         "request_user_input": lambda input: UserQuestion(),
     }
     hook_kinds = tuple(hook for hook in HookType if hook not in (HookType.MESSAGE_DISPLAY, HookType.POST_TOOL_USE_FAILURE, HookType.STOP_FAILURE))
-    capabilities = frozenset()
+    capabilities = frozenset({Capability.CONTEXT_STATUS})
     profile_suffix = ".toml"
     default = False
     session_inbox = False
@@ -78,10 +79,14 @@ class Codex(Provider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._rollouts: dict[str, Path] = {}
+        self._rollouts: dict[tuple[Path, str], Path] = {}
+        self._rollout_status: dict[Path, CodexStatusFile] = {}
 
     def status(self, session: str, home: Path) -> AgentStatus:
-        return self.status_file(home).session_reading(session)
+        path = self.transcript(home, session)
+        if path is None:
+            return self.status_file(home).session_reading(session)
+        return self._rollout_status.setdefault(path, CodexStatusFile(path)).reading()
 
     @property
     def sessions(self) -> Path:
@@ -147,12 +152,13 @@ class Codex(Provider):
         return profile["codex_model"]
 
     def transcript(self, project: Path, session: str) -> Path | None:
-        stored = self._rollouts.get(session)
+        key = (self.sessions, session)
+        stored = self._rollouts.get(key)
         if stored and stored.is_file():
             return stored
         rows = next(self.sessions.glob(f"**/rollout-*-{session}.jsonl"), None)
         if rows:
-            self._rollouts[session] = rows
+            self._rollouts[key] = rows
         return rows
 
     def latest_session(self, project: Path, start: float) -> str:
