@@ -351,4 +351,56 @@ def test_a_task_handed_or_queued_to_a_role_is_tied_to_its_domain_and_each_domain
         domains.task_tied(tasks.find(looked.id), "beta", actor)
         assert [task.id for task in domain_plans.of("alpha")[0].tasks] == [built.id] and [task.id for task in domain_plans.of("beta")[0].tasks] == [kept.id, looked.id], "a task handed on to another domain's Role belongs to that domain alone"
     shown = app.console().run(["organization", "plans"], Caller.agent("main", "s1", "claude")).text
-    assert f"domain alpha: Alpha\n  plan {plan.id} the floors, active: task {built.id} open\ndomain beta: Beta\n  plan {plan.id} the floors, active: task {kept.id} completed, task {looked.id} open" in shown
+    assert f"domain alpha: Alpha\n  plan {plan.id} the floors, Planned, active: task {built.id} open\ndomain beta: Beta\n  plan {plan.id} the floors, Planned, active: task {kept.id} completed, task {looked.id} open" in shown
+
+
+def test_a_plan_stands_in_the_phase_each_domains_tasks_reached_on_that_domains_board_by_the_names_the_domain_gives(app, tmp_path):
+    from datetime import datetime, timezone
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.plan_entered_board_phase import PlanEnteredBoardPhase
+    from journal.features.organization.support.domain_plans import DomainPlans
+    from journal.models.board_phase import BoardPhase
+    from journal.models.link import Link
+    from journal.models.plan import Plan
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.links import Links
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import PLAN_LINK, Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    from journal.support.caller import Caller
+    fixture, organization = loaded(app, tmp_path)
+    fixture.domain("alpha", roles=["scout", "builder"], board={"in_progress": "Being built", "done": "Implemented"})
+    organization.reload()
+    entered = []
+
+    class Entered(Listener[PlanEnteredBoardPhase]):
+        def handle(self, event: PlanEnteredBoardPhase) -> None:
+            entered.append((event.plan_id, event.domain, event.phase))
+
+    app.container.get(Bus).listen(PlanEnteredBoardPhase, Entered())
+    tasks, workers, plans, links, domain_plans = (app.container.get(kind) for kind in (Tasks, Workers, Plans, Links, DomainPlans))
+    actor, now = Actor.system(), datetime.now(timezone.utc)
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="the floors"), actor)
+        built, kept, loose = (tasks.save(Task(environment_id=1, title=title, brief=f"{title} reads"), actor) for title in ("the build", "the contract", "the loose end"))
+        for task in (built, kept, loose):
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), link_type=PLAN_LINK), actor)
+        builder, keeper = (workers.save(Worker(environment_id=1, name=name, brief="b", profile="journal-senior", role=role), actor) for name, role in (("Mr. Brunel", "builder"), ("Ms. Hopper", "keeper")))
+        tasks.handover(built, Ref.build(builder), actor)
+        tasks.handover(kept, Ref.build(keeper), actor)
+        assert [line.phase() for line in (*domain_plans.of("alpha"), *domain_plans.of("beta"))] == [BoardPhase.PLANNED, BoardPhase.PLANNED], "a domain task exists in the plan and none is started"
+        tasks.save(tasks.find(built.id).worker_started(now), actor)
+        tasks.save(tasks.find(kept.id).worker_started(now), actor)
+        workers.save(workers.find(keeper.id).with_(state=WorkerState.DELIVERED), actor)
+        assert (domain_plans.of("alpha")[0].phase(), domain_plans.of("beta")[0].phase()) == (BoardPhase.IN_PROGRESS, BoardPhase.IN_REVIEW), "alpha's task is worked; beta's worker clocked out and its proofs wait to be checked"
+        tasks.save(tasks.find(kept.id).completed(now, "kept"), actor)
+        assert (domain_plans.of("alpha")[0].phase(), domain_plans.of("beta")[0].phase()) == (BoardPhase.IN_PROGRESS, BoardPhase.DONE), "beta is done with its task while alpha and a task of no domain are still open"
+    assert [(n, domain, phase) for n, domain, phase in entered if n == plan.id] == [(plan.id, "alpha", BoardPhase.PLANNED), (plan.id, "beta", BoardPhase.PLANNED), (plan.id, "alpha", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_REVIEW), (plan.id, "beta", BoardPhase.DONE)], "each phase a plan enters on a board fires once, in order"
+    shown = app.console().run(["organization", "plans"], Caller.agent("main", "s1", "claude")).text
+    assert f"domain alpha: Alpha\n  plan {plan.id} the floors, Being built, active: task {built.id} started\ndomain beta: Beta\n  plan {plan.id} the floors, Done: task {kept.id} completed" in shown, "each board names the phase by its domain's own name"

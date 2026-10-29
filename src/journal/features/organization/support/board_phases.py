@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from journal.models.board_phase import BoardPhase
+
 
 @dataclass(frozen=True)
 class BoardPhases:
@@ -9,3 +11,6 @@ class BoardPhases:
     in_progress: str = "In progress"
     in_review: str = "In review"
     done: str = "Done"
+
+    def name(self, phase: BoardPhase) -> str:
+        return getattr(self, phase.value)

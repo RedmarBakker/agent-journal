@@ -1995,3 +1995,9 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   as a row by its id, made when its first task is, shared and the same for every environment; one domain per task, the
   last Role's. `journal organization plans` lists per domain the plans of every environment with tasks there, each with
   only that domain's tasks, active while one of them is delegated and open (a Role of the domain works or holds it).
+- Domain boards (task 66): the base phases are `BoardPhase` (models), and `BoardPhase.of` is the one function that places a
+  plan on a domain's board from that domain's tasks in it: done once every one is closed, in review while one waits on a
+  proof check (its worker clocked out, or it is finished and waits for the merge), a check or an approval (a question),
+  in progress while one is started, planned otherwise. A domain's `[board]` names them (`BoardPhases`). `BoardStandingRecord`
+  moves a plan on a save of a task, of a link to a task or of a worker; where it stands is a link from the plan to the
+  domain, of kind `on_board_<phase>`, saved with `PlanEnteredBoardPhase` as it moves.

@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 from journal.console.command import Command
+from journal.features.organization.support.board_phases import BoardPhases
 from journal.features.organization.support.domain_plan import DomainPlan
 from journal.features.organization.support.domain_plans import DomainPlans
 from journal.features.organization.support.organization import Organization
@@ -22,7 +23,7 @@ class OrganizationCommand(Command):
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "list the domains with their Roles, the problems found in the files and the version read")
         self.verb(verbs, "reload", "read the organization folder again, then list it")
-        self.verb(verbs, "plans", "list per domain the plans with tasks handed to its Roles, each with only that domain's tasks, and which are active: a Role of the domain works or holds one of them")
+        self.verb(verbs, "plans", "list each domain's board: the plans with tasks handed to its Roles, each with only that domain's tasks, the phase it stands in there, and whether it is active: a Role of the domain works or holds one of them")
 
     def list(self, args: Namespace, caller: Caller) -> int:
         self.print_contracts(self.organization.contracts())
@@ -38,13 +39,13 @@ class OrganizationCommand(Command):
             print(NO_ORGANIZATION)
         for domain in contracts.domains:
             print(f"domain {domain.id}: {domain.title}")
-            print("\n".join(f"  {self.plan_line(domain_plan)}" for domain_plan in self.domain_plans.of(domain.id)) or "  no plans")
+            print("\n".join(f"  {self.plan_line(domain_plan, domain.board)}" for domain_plan in self.domain_plans.of(domain.id)) or "  no plans")
         return 0
 
     @staticmethod
-    def plan_line(domain_plan: DomainPlan) -> str:
+    def plan_line(domain_plan: DomainPlan, board: BoardPhases) -> str:
         tasks = ", ".join(f"task {task.id} {task.state}" for task in domain_plan.tasks)
-        return f"plan {domain_plan.plan.id} {domain_plan.plan.title}{', active' if domain_plan.is_active() else ''}: {tasks}"
+        return f"plan {domain_plan.plan.id} {domain_plan.plan.title}, {board.name(domain_plan.phase())}{', active' if domain_plan.is_active() else ''}: {tasks}"
 
     def print_contracts(self, contracts: Contracts) -> None:
         if contracts.is_empty() and not contracts.problems:

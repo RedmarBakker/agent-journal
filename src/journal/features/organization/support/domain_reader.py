@@ -8,10 +8,11 @@ from journal.features.organization.support.edge_reader import EdgeReader
 from journal.features.organization.support.model_reader import ModelReader
 from journal.features.organization.support.routing_rule import RoutingRule
 from journal.features.organization.support.toml_fields import TomlFields
+from journal.models.board_phase import BoardPhase
 
 KEYS = ("id", "title", "icon", "description", "outcome", "responsible", "not_responsible", "roles", "skills", "model", "guidance", "edges", "routing", "board")
 GUIDANCE = "AGENTS.md"
-PHASES = ("planned", "in_progress", "in_review", "done")
+PHASES = tuple(phase.value for phase in BoardPhase)
 
 
 class DomainReader:
