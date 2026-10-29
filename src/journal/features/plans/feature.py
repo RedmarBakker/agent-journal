@@ -28,6 +28,7 @@ from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.plans.states.plans_working import PlansWorking
 from journal.features.plans.listeners.release_plan_waits import ReleasePlanWaits
 from journal.features.plans.listeners.plan_testing_default import PlanTestingDefault
+from journal.features.plans.jobs.template_plan_start import TemplatePlanStart
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.plans.plans_options import PlansOptions
 from journal.features.plans.plans_part import PlansPart
@@ -45,6 +46,7 @@ class Plans(Feature[PlansData]):
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)
+    jobs = (TemplatePlanStart,)
 
     options = (PlansOptions.TESTING, PlansOptions.TEST_COMMANDS)
     nudges = (PlansNudges.PLAN_TESTING_CHANGED, PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.UNAPPROVED_PLAN, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PHASE_END_TESTS, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.DRIVE_ENDED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING, PlansNudges.TEST_COMMANDS_NEEDED, PlansNudges.MID_PHASE_TESTS)

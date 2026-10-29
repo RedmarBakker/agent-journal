@@ -414,6 +414,36 @@ def test_a_plan_is_followed_task_by_task_to_its_end(app: App):
     assert app.container.get(Plans).find(1).state == PlanState.FINISHED
 
 
+def test_a_plan_template_on_a_schedule_starts_an_approved_plan_once_its_week_has_turned(app: App):
+    from datetime import datetime, timezone
+    from journal.features.plans.jobs.template_plan_start import TemplatePlanStart
+    from journal.models.plan_state import PlanState
+    from journal.repositories.plans import Plans
+    from journal.support.time_source import TimeSource
+    console = app.console()
+    clock = app.container.get(TimeSource)
+    wednesday, monday = datetime(2026, 10, 28, 12, tzinfo=timezone.utc).timestamp(), datetime(2026, 11, 2, 12, tzinfo=timezone.utc).timestamp()
+    clock.pin(wednesday)
+    hook(app, "SessionStart")
+    weekly = re.search(r"template (\d+)", console.run(["template", "create", "Weekly review", "--applies-to", "plan", "--brief", "look back at the week", "--parts", "read the log: what was done | plan ahead: what comes next"], USER).text).group(1)
+    notes = re.search(r"template (\d+)", console.run(["template", "create", "Notes", "--applies-to", "doc"], USER).text).group(1)
+    assert "only a plan template starts on a schedule" in console.run(["template", "schedule", notes, "daily"], USER).error
+    assert "schedule: weekly" in console.run(["template", "schedule", weekly, "weekly"], USER).text
+    starting, plans = app.container.get(TemplatePlanStart), app.container.get(Plans)
+    starting.tick(wednesday + 3600)
+    with app.container.get(Scope).environment(MAIN):
+        assert plans.all() == [], "the week it was scheduled in has had its turn: the first plan comes when the next week begins"
+    clock.pin(monday)
+    starting.tick(monday)
+    starting.tick(monday + 60)
+    clock.unpin()
+    with app.container.get(Scope).environment(MAIN):
+        made = plans.all()
+        assert [(plan.title, plan.brief, plan.state) for plan in made] == [("Weekly review 2026-11-02", "look back at the week", PlanState.STARTED)], "one plan a week, approved by its schedule and started"
+        assert [(task.title, task.brief) for task in plans.plan_tasks(made[0])] == [("read the log", "what was done"), ("plan ahead", "what comes next")]
+    assert "schedule: none" in console.run(["template", "schedule", weekly, "none"], USER).text
+
+
 def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)

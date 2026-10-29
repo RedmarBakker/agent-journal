@@ -3,6 +3,7 @@ from argparse import Namespace
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.models.template import Template
+from journal.models.template_schedule import TemplateSchedule
 from journal.repositories.templates import Templates
 
 
@@ -21,6 +22,9 @@ class TemplateCommand(Command):
         creation.add_argument("--parts", default="", help="the outline a new item starts with: title: body | title: body")
         creation.add_argument("--commands", default="", help="for a plan's testing template, the commands that must pass at each phase end before the next phase starts: command | command")
         self.verb(verbs, "show", "a template's instructions and outline").add_argument("n", type=int)
+        schedule = self.verb(verbs, "schedule", "how often a plan template starts a plan of its own, approved, with its parts as tasks; none stops it")
+        schedule.add_argument("n", type=int)
+        schedule.add_argument("every", choices=[every.value for every in TemplateSchedule])
         self.verb(verbs, "list", "every template")
 
     def create(self, args: Namespace, caller: Caller) -> int:
@@ -40,6 +44,12 @@ class TemplateCommand(Command):
             print(f"- {part}")
         for command in template.commands:
             print(f"runs at each phase end: {command}")
+        print(f"schedule: {template.schedule}")
+        return 0
+
+    def schedule(self, args: Namespace, caller: Caller) -> int:
+        template = self.templates.save(self.templates.find(args.n).scheduled(TemplateSchedule(args.every)), caller.actor)
+        print(f"template {template.id} schedule: {template.schedule}")
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:

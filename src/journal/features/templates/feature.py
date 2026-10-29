@@ -20,6 +20,9 @@ anything made from it, and its parts are the outline a new item starts with.
 - `journal template list` names them; `journal template show <n>` prints the instructions and the outline.
   Read the template before you start, and follow its instructions exactly.
 - `journal template create "<title>" --brief "<instructions>" --applies-to plan --purpose critique --parts "title: body | title: body"` writes one.
+- `journal template schedule <n> daily|weekly|monthly|quarterly|none` sets how often a plan template starts a
+  plan of its own: at the first minute of each new day, week, month or quarter a plan is made from it, approved,
+  its parts as its tasks, and started once no other plan runs.
 - The plan page asks for a critique naming a template: review the plan with it, and put what you find in a
   report linked to the plan.
 """, keywords=('template', 'templates', 'critique'), commands=('template',))
