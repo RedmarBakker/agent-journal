@@ -161,6 +161,7 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(organizationHeader.tabIndex).toBe(0);
     organizationHeader.focus();
     organizationHeader.click();
+    await nextTick();
     expect(organizationHeader.getAttribute("aria-expanded")).toBe("false");
     expect(host.querySelectorAll(".organization-domain-link")).toHaveLength(0);
     expect(host.querySelectorAll(".organization-role")).toHaveLength(0);
