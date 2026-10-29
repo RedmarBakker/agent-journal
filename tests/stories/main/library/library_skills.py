@@ -10,9 +10,12 @@ EXAMPLE_TEXT = "One line per change.\n"
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_skill_folder_published_to_the_library_imports_with_every_file_intact(story):
+def test_a_skill_folder_published_to_the_library_imports_with_every_file_intact_and_a_journal_skill_is_never_published(story):
     story.the_project_holds_a_skill(SKILL, {"SKILL.md": SKILL_TEXT, "examples/short.md": EXAMPLE_TEXT})
     story.user_connects_to_a_library()
+    story.user_types("library publish skill journal")
+    story.expect_command_refused()
+    story.expect_command_text("the journal's own skills")
     story.user_types(f"library publish skill {SKILL} --note first")
     story.expect_command_passed()
     story.the_skill_folder_is_removed(SKILL)
@@ -20,13 +23,4 @@ def test_a_skill_folder_published_to_the_library_imports_with_every_file_intact(
     story.expect_command_passed()
     story.expect_project_file_is(f".claude/skills/{SKILL}/SKILL.md", SKILL_TEXT)
     story.expect_project_file_is(f".claude/skills/{SKILL}/examples/short.md", EXAMPLE_TEXT)
-    story.expect_stack(story.agents.subject, Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, subject=AgentRole.MAIN)
-def test_a_journal_skill_is_never_published_to_the_library(story):
-    story.user_connects_to_a_library()
-    story.user_types("library publish skill journal")
-    story.expect_command_refused()
-    story.expect_command_text("the journal's own skills")
     story.expect_stack(story.agents.subject, Ready)

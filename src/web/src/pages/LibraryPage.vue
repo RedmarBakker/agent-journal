@@ -14,6 +14,11 @@ const KINDS = [
     {key: "sequence", label: "Sequences"},
     {key: "template", label: "Templates"},
     {key: "profile", label: "Profiles"},
+    {key: "reader", label: "Readers"},
+    {key: "skill", label: "Skills"},
+    {key: "document", label: "Documents"},
+    {key: "file", label: "Files"},
+    {key: "plan", label: "Plans"},
 ];
 const POLL_MS = 30000;
 
@@ -45,7 +50,7 @@ onUnmounted(() => clearInterval(poll));
     <section class="library-page">
         <header class="library-head">
             <h1>Library</h1>
-            <p class="library-lead">The sequences, templates and profiles your team shares. Import one to use it here; an imported one can be updated when a newer version is published.</p>
+            <p class="library-lead">The sequences, templates, profiles, readers, skills, documents, files and plans your team shares. Import one to use it here; an imported one can be updated when a newer version is published.</p>
         </header>
         <template v-if="connection && !connected">
             <EmptyState title="No library connected">

@@ -7,6 +7,7 @@ import Chip from "../kit/Chip.vue";
 import EmptyState from "../kit/EmptyState.vue";
 import Notice from "../kit/Notice.vue";
 import {clock} from "../format/time.js";
+import {readerScript, skillFolder} from "../domain/library.js";
 
 const props = defineProps({type: {type: String, required: true}, name: {type: String, required: true}});
 const emit = defineEmits(["changed"]);
@@ -17,13 +18,14 @@ const versions = computed(() => [...(shown.value?.versions || [])].sort((a, b) =
 const newest = computed(() => versions.value[0]?.number || 0);
 const imported = computed(() => shown.value?.imported_version || 0);
 const edited = computed(() => shown.value?.edited_fields || []);
+const script = computed(() => (props.type === "reader" ? readerScript(versions.value[0]) : ""));
 
 async function load() {
     shown.value = await api.libraryItem(props.type, props.name);
 }
 
 async function importNewest() {
-    const {done} = await attempt(() => api.importLibraryItem(props.type, props.name, newest.value));
+    const {done} = await attempt(() => api.importLibraryItem(props.type, props.name, newest.value, Boolean(script.value)));
     if (done) await changed();
 }
 
@@ -58,12 +60,21 @@ watch(() => [props.type, props.name], load, {immediate: true});
                     Newest: version {{ newest }}<template v-if="imported"> · Imported: version {{ imported }}</template>
                 </span>
                 <template v-if="!imported">
-                    <Btn kind="primary" small @click="importNewest">Import version {{ newest }}</Btn>
+                    <Btn kind="primary" small @click="importNewest">{{ script ? `Import version ${newest}, its script read` : `Import version ${newest}` }}</Btn>
                 </template>
                 <template v-else-if="imported < newest && !edited.length">
                     <Btn kind="primary" small @click="update(false)">Update to version {{ newest }}</Btn>
                 </template>
             </div>
+            <template v-if="script && !imported">
+                <div class="library-item-script">
+                    <span>Runs on your commands' output, as written here; read it before you import it:</span>
+                    <pre>{{ script }}</pre>
+                </div>
+            </template>
+            <template v-if="type === 'skill' && !imported">
+                <p class="library-item-description">Imports into {{ skillFolder(name) }}, beside the project's own skills.</p>
+            </template>
             <template v-if="imported < newest && edited.length">
                 <Notice tone="ask" icon="edit">
                     <b>The copy in this journal was edited: {{ edited.join(", ") }}.</b> Replacing it writes version {{ newest }} over those changes.
@@ -122,6 +133,22 @@ watch(() => [props.type, props.name], load, {immediate: true});
 .library-item-standing {
     flex: 1;
     color: var(--text-2);
+}
+
+.library-item-script {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--text-2);
+}
+
+.library-item-script pre {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-3);
+    border-radius: 6px;
+    overflow-x: auto;
+    white-space: pre-wrap;
 }
 
 .library-item-failure {

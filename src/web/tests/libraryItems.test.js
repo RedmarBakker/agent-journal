@@ -31,7 +31,7 @@ test("an item not imported offers its newest version, and one imported behind it
     expect(root.textContent).toContain("the tag step");
     [...root.querySelectorAll("button")].find((b) => b.textContent.includes("Import version 2")).click();
     await settled();
-    expect(imported).toHaveBeenLastCalledWith("sequence", "release", 2);
+    expect(imported).toHaveBeenLastCalledWith("sequence", "release", 2, false);
     read.mockResolvedValue({item, versions: [version(1), version(2)], imported_version: 1, edited_fields: []});
     root = mounted(LibraryItemPanel, {type: "sequence", name: "release"});
     await settled();
@@ -77,4 +77,26 @@ test("with no library connected a panel shows nothing of the library", async () 
     await settled();
     expect(root.textContent.trim()).toBe("");
     status.mockRestore();
+});
+
+test("a reader not imported shows its script, and its import is the import of a script read", async () => {
+    const body = JSON.stringify({file: "errors.pattern", text: "error:"});
+    const read = vi.spyOn(api, "libraryItem").mockResolvedValue({item: {...item, item_type: "reader", name: "errors"}, versions: [{...version(1), body}], imported_version: 0, edited_fields: []});
+    const imported = vi.spyOn(api, "importLibraryItem").mockResolvedValue({});
+    const root = mounted(LibraryItemPanel, {type: "reader", name: "errors"});
+    await settled();
+    expect(root.querySelector("pre").textContent).toBe("error:");
+    [...root.querySelectorAll("button")].find((b) => b.textContent.includes("its script read")).click();
+    await settled();
+    expect(imported).toHaveBeenLastCalledWith("reader", "errors", 1, true);
+    read.mockRestore();
+    imported.mockRestore();
+});
+
+test("a skill not imported says the folder its import writes", async () => {
+    const read = vi.spyOn(api, "libraryItem").mockResolvedValue({item: {...item, item_type: "skill", name: "release-notes"}, versions: [version(1)], imported_version: 0, edited_fields: []});
+    const root = mounted(LibraryItemPanel, {type: "skill", name: "release-notes"});
+    await settled();
+    expect(root.textContent).toContain(".claude/skills/release-notes");
+    read.mockRestore();
 });

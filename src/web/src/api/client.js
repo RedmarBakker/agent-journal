@@ -480,9 +480,9 @@ export class ApiClient {
         return this.post(`/library/items/${encodeURIComponent(type)}/publish`, {reference, note, description}, LONG_WAIT_MS);
     }
 
-    // imports a library item's version as this journal's own copy
-    importLibraryItem(type, name, version) {
-        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version});
+    // imports a library item's version as this journal's own copy; accept writes a reader or a sequence whose script or powers were read
+    importLibraryItem(type, name, version, accept = false) {
+        return this.post(`/library/items/${encodeURIComponent(type)}/${encodeURIComponent(name)}/import`, {version, accept});
     }
 
     // updates the imported copy to the newest version; replace writes over a copy edited here
