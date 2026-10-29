@@ -16,6 +16,8 @@ import ProgressBar from "../kit/ProgressBar.vue";
 import {PLANNED, PLAN_STATES, reviewersLine, statusOf} from "../domain/plans.js";
 import {peek} from "../route.js";
 import {wholePlans} from "../composables/wholePlans.js";
+import PlanAgentSection from "./PlanAgentSection.vue";
+import {planAgents} from "../domain/planAgents.js";
 
 const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boolean, holding: Boolean, closable: {type: Boolean, default: true}});
 const emit = defineEmits(["close"]);
@@ -107,6 +109,7 @@ async function run(act) {
         <template v-if="!readOnly">
             <PlanPageActions :plan="resource" :error="error" @run="run" />
         </template>
+        <PlanAgentSection v-if="planAgents" :plan="resource" :read-only="readOnly" />
         <template v-if="resource.brief">
             <div class="brief">
                 <Folded :name="`plans:${resource.id}:brief`" :at="220" :keep="160">

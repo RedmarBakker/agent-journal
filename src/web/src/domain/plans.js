@@ -1,5 +1,6 @@
 import {counted} from "../format/number.js";
 import {createdAt, isClosed} from "./row.js";
+import {phaseName} from "./organizationBoard.js";
 
 // A plan's standing: its state, or waiting while a started plan holds at a checkpoint for the user.
 export const statusOf = (p) => (p.state === "started" && p.held ? "waiting" : p.state);
@@ -111,6 +112,27 @@ export const chatPlan = (plans, name) => plans.find((p) => p.chat && p.chat === 
 export function chatPlanLine(plans, name) {
     const p = chatPlan(plans, name);
     return p ? [`Plan ${p.id}`, p.title, modeOf(p)].filter(Boolean).join(" · ") : "";
+}
+
+// The Plan agent chats offered by the agent bar, along with the main chat and each chat's unread mark.
+export function planAgentChats(plans, environments, mainName) {
+    const unread = (name) => Boolean(environments.find((row) => row.environment?.name === name)?.messages);
+    const finished = (plan) => isClosed(plan) || ["done", "cancelled"].includes(plan.state);
+    return [
+        ...(mainName ? [{name: mainName, title: "Main agent", main: true, unread: unread(mainName)}] : []),
+        ...plans.filter((p) => p.chat && !finished(p)).map((plan) => ({name: plan.chat, title: plan.title, plan, main: false, unread: unread(plan.chat)})),
+    ];
+}
+
+export function planAgentChatsMatching(chats, words) {
+    const query = words.trim().toLowerCase();
+    return query ? chats.filter((chat) => [chat.title, chat.plan?.id, chat.plan?.mode].some((value) => String(value || "").toLowerCase().includes(query))) : chats;
+}
+
+export function planChatHeader(plans, name) {
+    const plan = chatPlan(plans, name);
+    if (!plan) return "";
+    return [`Plan ${plan.id} · ${plan.title}`, modeOf(plan), plan.phase && `Phase: ${phaseName(plan.phase)}`].filter(Boolean).join(" · ");
 }
 export const wholePhases = (p) => (isWholePlan(p) ? p.phases || [] : []);
 

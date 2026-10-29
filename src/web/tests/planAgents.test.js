@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {chatPlan, chatPlanLine, modeOf, planAgentOf} from "../src/domain/plans.js";
+import {chatPlan, chatPlanLine, modeOf, planAgentChats, planAgentChatsMatching, planAgentOf, planChatHeader} from "../src/domain/plans.js";
 import {trailOf} from "../src/domain/agentState.js";
 
 const plans = [
@@ -17,6 +17,25 @@ describe("plans and their Plan agents in the viewer", () => {
         expect(chatPlan(plans, "plan-3").id).toBe(3);
         expect(chatPlanLine(plans, "plan-3")).toBe("Plan 3 · Floors · Solo mode");
         expect(chatPlanLine(plans, "main")).toBe("");
+    });
+
+    test("the chat switcher lists the main agent and open Plan agents, searches by title, and marks unread chats", () => {
+        const all = [
+            {id: 3, title: "Floors", mode: "solo", phase: "in_progress", state: "started", chat: "plan-3"},
+            {id: 4, title: "Finished roof", mode: "organization", state: "done", chat: "plan-4"},
+            {id: 5, title: "Waiting roof", state: "ready", chat: "plan-5"},
+        ];
+        const environments = [
+            {environment: {name: "main"}, messages: 1},
+            {environment: {name: "plan-3"}, messages: 0},
+            {environment: {name: "plan-5"}, messages: 2},
+        ];
+        const chats = planAgentChats(all, environments, "main");
+
+        expect(chats.map((chat) => chat.title)).toEqual(["Main agent", "Floors", "Waiting roof"]);
+        expect(chats.map((chat) => chat.unread)).toEqual([true, false, true]);
+        expect(planAgentChatsMatching(chats, "roof").map((chat) => chat.title)).toEqual(["Waiting roof"]);
+        expect(planChatHeader(all, "plan-3")).toBe("Plan 3 · Floors · Solo mode · Phase: In progress");
     });
 
     test("the trail names a pushed Role state with the Role it works as", () => {

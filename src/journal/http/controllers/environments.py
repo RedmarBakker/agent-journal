@@ -71,7 +71,9 @@ class EnvironmentController(Controller[Environment]):
         refusal = self.owners.write_refusal(request.actor, environment)
         if refusal:
             raise Rejection(refusal)
-        self.supervisor.stop(environment.row_id)
+        reply = self.supervisor.stop(environment.row_id)
+        if reply and not reply.success:
+            raise Rejection(reply.error or f"the supervisor refused to stop the agent in {environment.name}")
         return Response.json(environment)
 
     def share(self, request: Request) -> Response:

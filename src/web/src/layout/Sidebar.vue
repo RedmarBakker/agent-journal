@@ -24,8 +24,7 @@ import {planAgents} from "../domain/planAgents.js";
 const envs = computed(() => ownEnvironments(rows("environments"), store.people));
 const teams = computed(() => teamGroups(rows("environments"), store.people));
 const pages = computed(() => pluginPages(rows("plugins")));
-const organization = ref(null);
-const domains = computed(() => organization.value?.domains || []);
+const domains = computed(() => store.organization?.domains || []);
 const liveDomainCounts = computed(domainCounts);
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
@@ -49,14 +48,14 @@ const roleCountTitle = (domain, role) => role.cardinality === "many"
 async function readOrganization() {
     try {
         const snapshot = await api.organization();
-        if (planAgents.value) organization.value = snapshot;
+        if (planAgents.value) store.organization = snapshot;
     } catch {
-        organization.value = null;
+        store.organization = null;
     }
 }
 watch(planAgents, (enabled) => {
     if (enabled) void readOrganization();
-    else organization.value = null;
+    else store.organization = null;
 }, {immediate: true});
 const {sections: groups} = useNavigation();
 

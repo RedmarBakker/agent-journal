@@ -20,6 +20,8 @@ import "./drop.css";
 import {go, peek, route} from "../route.js";
 import {useColleague} from "../composables/colleague.js";
 import TeamChatBar from "./TeamChatBar.vue";
+import PlanAgentChats from "./PlanAgentChats.vue";
+import {planAgents} from "../domain/planAgents.js";
 
 const open = ref("");
 const schemesOpen = ref(false);
@@ -78,9 +80,10 @@ const {colleague, teamChat} = useColleague();
     <template v-else>
         <div class="agent-bar">
             <AgentFacts :data="data" :open="open" @toggle="toggle" />
-            <template v-if="data">
+            <template v-if="data || planAgents">
                 <div class="agent-actions">
-                    <AgentBarViews :open="open" @toggle="toggle" />
+                    <PlanAgentChats v-if="planAgents" />
+                    <AgentBarViews v-if="data" :open="open" @toggle="toggle" />
                 </div>
             </template>
             <template v-if="open && anchor && data">

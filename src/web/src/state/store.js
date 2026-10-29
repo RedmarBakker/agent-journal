@@ -19,6 +19,7 @@ export const store = reactive({
     counts: {},
     entries: [],
     settings: null,
+    organization: null,
     agents: [],
     live: [],
     journals: [],

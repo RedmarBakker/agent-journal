@@ -194,8 +194,8 @@ class SupervisorLink:
         except OSError:
             return False
 
-    def stop(self, environment_id: int) -> None:
-        self._send(environment_id, "stop", {"name": AGENT})
+    def stop(self, environment_id: int) -> SupervisorReply:
+        return self._send(environment_id, "stop", {"name": AGENT})
 
     def hosting(self) -> int | None:
         hosts = self.environments.matching(name=os.environ.get("JOURNAL_ENV", ""))

@@ -24,6 +24,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
+from journal.support.supervisor_reply import SupervisorReply
 from journal.supervisor_link import SupervisorLink
 from tests.in_process import got, posted
 from tests.nudge_lines import nudge_reached
@@ -114,11 +115,25 @@ def test_two_started_plans_each_get_their_own_environment_agent_and_chat(app: Ap
     assert status < 400, answer
     chat = lambda environment_id: [message.text for message in app.container.get(Messages).global_matching(environment_id=environment_id)]
     assert "how are the floors?" in chat(plan_environment(app, first).row_id) and "how are the floors?" not in chat(MAIN), "the user's words in the plan's chat are that environment's alone"
-    assert app.container.get(PlanOutline).build(plans.find(first))["chat"] == f"plan-{first}", "the plan's outline names the chat its card opens"
+    outline = app.container.get(PlanOutline).build(plans.find(first))
+    [first_agent] = agents.global_matching(id=plans.agent_id(plans.find(first)))
+    assert outline["chat"] == f"plan-{first}" and outline["plan_agent_last_action_at"] == first_agent.updated_at, "the plan's outline names its chat and when its agent last acted"
     assert f"Plan agent: environment plan-{first}, running" in app.console().run(["plan", "show", str(first)], AGENT).text, "plan show names the plan's environment and that its agent runs"
     status, answer = got(app, "/journal/environments", {"X-Journal-Env": "main"})
     rows = {row["name"]: row for row in answer["rows"]}
     assert status == 200 and rows[f"plan-{first}"]["generated_for"] == "plan" and rows[f"plan-{first}"]["parent_key"] == main_key, "the environment list exposes authoritative generated and parent metadata"
+
+
+def test_a_plan_agent_stop_shows_the_supervisors_plain_refusal(app: App, supervisors: Supervisors, monkeypatch):
+    user_set(app, SWITCH, True)
+    plan = started_plan(app, "the floors")
+    environment = plan_environment(app, plan)
+    refusal = "Cannot stop while a merge is in progress; finish the merge first."
+    monkeypatch.setattr(SupervisorLink, "stop", lambda self, environment_id: SupervisorReply(False, refusal))
+
+    status, answer = posted(app, f"/journal/environments/{environment.row_id}/stop", {}, {"X-Journal-Env": "main"})
+
+    assert status == 409 and refusal in str(answer), "a refusal from the supervisor reaches the Plan agent's confirmation as plain text"
 
 
 def test_a_plans_timeline_includes_handoffs_and_refusals_from_its_plan_agents_chat(app: App, supervisors: Supervisors):

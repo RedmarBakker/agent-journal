@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from journal.features.plans.support.plan_agents import PlanAgents
 from journal.features.plans.support.plan_owners import PlanOwners
 from journal.features.plans.support.plan_testing import PlanTesting
@@ -11,7 +13,7 @@ from journal.repositories.tasks import Tasks
 
 
 class PlanOutline:
-    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, its review rounds, newest first, each with the reports it filed, how many comments are under it and the environment whose chat is its Plan agent's, or none, and the name of the person it is of; read from its links and, for an open plan's phase in hand and checkpoint, its tasks' state counts, never its tasks' rows."""
+    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, its review rounds, newest first, each with the reports it filed, how many comments are under it, the environment whose chat is its Plan agent's, when that agent last acted, or none, and the name of the person it is of; read from its links and, for an open plan's phase in hand and checkpoint, its tasks' state counts, never its tasks' rows."""
 
     def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting, agents: PlanAgents, owners: PlanOwners) -> None:
         self.plans, self.tasks, self.reviews, self.rounds, self.testing, self.agents, self.owners = plans, tasks, reviews, rounds, testing, agents, owners
@@ -41,8 +43,13 @@ class PlanOutline:
         return {**ModelFields.build(plan), "task_ids": task_ids, "phases": phases, "unphased_task_ids": [n for n in task_ids if n not in members],
                 "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "testing": [template.title for template in self.testing.chosen(plan)],
                 "reviews": [{**ModelFields.build(review), "report_ids": self.rounds.report_ids(review)} for review in self.reviews.reviews(plan)],
-                "comment_count": self.plans.linking_counts(Messages.COMMENT_LINK, [plan.id]).get(plan.id, 0), "chat": self.chat(plan), "owner": self.owners.name(plan)}
+                "comment_count": self.plans.linking_counts(Messages.COMMENT_LINK, [plan.id]).get(plan.id, 0), "chat": self.chat(plan),
+                "plan_agent_last_action_at": self.agent_last_action_at(plan), "owner": self.owners.name(plan)}
 
     def chat(self, plan: Plan) -> str:
         environment = self.agents.environment(plan)
         return environment.name if environment else ""
+
+    def agent_last_action_at(self, plan: Plan) -> datetime | None:
+        agent = self.agents.agent(plan)
+        return agent.updated_at if agent else None
