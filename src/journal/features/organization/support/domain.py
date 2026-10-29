@@ -31,4 +31,19 @@ class Domain:
 
     def body(self) -> str:
         duties = "\n".join([Role.listed("You are responsible for", self.responsible), Role.listed("You do not", self.not_responsible), Role.listed("You lead the Roles", self.roles)])
-        return "\n\n".join(part for part in (self.guidance.strip(), duties) if part)
+        leadership = (f"You are the Domain agent for {self.title}. Lead your pod's Roles and never write code. "
+                      "After a Role responds, return its report to the Plan agent through the same delegation.")
+        routing = self.routing_guidance()
+        return "\n\n".join(part for part in (self.guidance.strip(), leadership, duties, routing) if part)
+
+    def routing_guidance(self) -> str:
+        if not self.routing:
+            return ""
+        rules = []
+        for rule in self.routing:
+            follow = ""
+            if rule.then:
+                roles = " then ".join(f"Role {role}" for role in rule.then)
+                follow = f"; for a real handoff, review, or approval, continue to {roles}"
+            rules.append(f"- For {rule.when}, start with Role {rule.role}{follow}.")
+        return "Routing from domain.toml:\n" + "\n".join(rules)

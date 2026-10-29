@@ -161,6 +161,36 @@ def test_a_plan_rig_places_its_plan_agent_domain_agent_and_plan_roles_by_contrac
     ], "Codex seats use contract model and effort, with the configured plan selection"
 
 
+def test_a_domain_pod_lead_routes_by_domain_rules_and_returns_role_reports_over_the_same_handoff(app, tmp_path, monkeypatch):
+    use_provider(app, monkeypatch, "claude")
+    fixture, organization = loaded(app, tmp_path)
+    fixture.role("alpha", "primary", cardinality="plan", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.role("alpha", "reviewer", cardinality="plan", writes=False, tools=["read_files"], model=fixture.model("opus", False))
+    fixture.domain("alpha", roles=["scout", "builder", "primary", "reviewer"], routing=[
+        {"when": "a feature task", "role": "primary", "then": ["reviewer"]},
+    ])
+    contracts = organization.reload()
+    writer = app.container.get(RigSpecs)
+    rig = f"plan-routing-{tmp_path.name}"
+    worker_for = lambda seat: SeatWorker(Actor.worker(29), AgentToken(f"token-{seat.agent()}"), "main")
+
+    path = writer.write(rig, contracts, ("alpha",), app.config.root, worker_for)
+    spec = json.loads(path.read_text())
+    members = {member["id"]: member for pod in spec["pods"] for member in pod["members"]}
+    guidance = (path.parent / "agents" / "alpha-domain-agent" / "guidance" / "role.md").read_text()
+
+    assert "You are the Domain agent for Alpha. Lead your pod's Roles and never write code." in guidance
+    assert "After a Role responds, return its report to the Plan agent through the same delegation." in guidance
+    assert "For a feature task, start with Role primary; for a real handoff, review, or approval, continue to Role reviewer." in guidance
+    assert spec["edges"] == [{"kind": "delegates_to", "from": "plan.plan-agent", "to": "alpha.domain-agent"}]
+    assert spec["pods"][1]["edges"] == [
+        {"kind": "delegates_to", "from": "domain-agent", "to": "primary"},
+        {"kind": "delegates_to", "from": "domain-agent", "to": "reviewer"},
+    ], "a Role result follows the same Plan -> Domain -> Role delegation path back to the Plan agent"
+    assert {"Edit", "Write"}.issubset(members["domain-agent"]["claude_permissions"]["deny"])
+    assert {"Edit", "Write"}.issubset(members["primary"]["claude_permissions"]["allow"])
+
+
 def test_a_plan_rig_writes_openrig_specs_with_journal_hooks_skills_tokens_models_and_permissions(app, tmp_path, monkeypatch):
     use_provider(app, monkeypatch, "claude")
     contracts = plan_contracts(app, tmp_path)
