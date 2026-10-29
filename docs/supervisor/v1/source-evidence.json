@@ -1,0 +1,182 @@
+{
+  "contract_version": 1,
+  "reviewed_at": "2026-10-29",
+  "verification_method": "Read source and docs only; no validator, test, provider call or runtime launch.",
+  "openclaw_commit": "dc2523e5a5c7a309517fd7fa834add938231d526",
+  "openclaw_sources": [
+    {
+      "path": "packages/gateway-protocol/src/schema/cron.ts",
+      "sha256": "841cb2b499e6b24b34ce115e3d9e13c56013c2a9390de6f97d2350ef7153c147",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/packages/gateway-protocol/src/schema/cron.ts"
+    },
+    {
+      "path": "packages/gateway-protocol/src/schema/cron-shared.ts",
+      "sha256": "7ff2d4fdbcac23acf5fa1bd2ff012a78a331917b0af0c38fc75ae8373b0231bb",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/packages/gateway-protocol/src/schema/cron-shared.ts"
+    },
+    {
+      "path": "src/config/zod-schema.root-shape.ts",
+      "sha256": "89f6a66a201531cdf0f71affc6597f0ac541a04738a5b19ffca2c271df4afd95",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.root-shape.ts"
+    },
+    {
+      "path": "src/config/zod-schema.agents.ts",
+      "sha256": "c946b628bd5c8a2dbacd9635ac5ca18991bd9e17d3d23b247deab7f41c83407d",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.agents.ts"
+    },
+    {
+      "path": "src/config/zod-schema.agent-defaults-base.ts",
+      "sha256": "41028daa868b4f0a8650f4833d775177a3e8b4129430567c2c5b0d888c27c17f",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.agent-defaults-base.ts"
+    },
+    {
+      "path": "src/config/zod-schema.agent-entry-base.ts",
+      "sha256": "4786cf657e1ee63b082ad089bf5a09fddf7daf8aade011020de4c512bd6f88a3",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.agent-entry-base.ts"
+    },
+    {
+      "path": "src/config/zod-schema.agent-model.ts",
+      "sha256": "2fab56c6fa9ba7e527c76b5a98f2b9664f258bab1a5093495dcaea71339712e5",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.agent-model.ts"
+    },
+    {
+      "path": "src/config/zod-schema.agent-runtime.ts",
+      "sha256": "730ea779545a3e8049779d4890edce87d2a17700fe179b7ba156db4aca623209",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.agent-runtime.ts"
+    },
+    {
+      "path": "src/config/zod-schema.mcp-server.ts",
+      "sha256": "66aefe9d3d60ec678039f478a7a1c2f2bcc4e96b59e8669075dc8a5ba33331c6",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.mcp-server.ts"
+    },
+    {
+      "path": "src/config/zod-schema.core.ts",
+      "sha256": "79dbed4c9edfef95c1aa5eb71949f4091486d4d17a57a6fdc154f4fd11dab10f",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/config/zod-schema.core.ts"
+    },
+    {
+      "path": "src/agents/agent-bundle-mcp-names.ts",
+      "sha256": "12751ff27dd881febcae4a26ff5184b5e4e4c0c03508c90768bca3410476920f",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/agents/agent-bundle-mcp-names.ts"
+    },
+    {
+      "path": "docs/automation/cron-jobs/payloads.md",
+      "sha256": "e1a622d65a542fe6725b01a11679e10481cef496078815c0747a0c16e3f4acc3",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/automation/cron-jobs/payloads.md"
+    },
+    {
+      "path": "docs/automation/cron-jobs/webhooks.md",
+      "sha256": "999a8ed48ddeb69a815e4252a229d79ba34f252c9bc3cacb0c6ecb64b62cf72f",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/automation/cron-jobs/webhooks.md"
+    },
+    {
+      "path": "docs/providers/openai/authentication.md",
+      "sha256": "9960d1d2f066ac5c30e3a7b018f2e5f3e658e358805ad72da0723c25f8cc2375",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/authentication.md"
+    },
+    {
+      "path": "docs/providers/openai/models.md",
+      "sha256": "e0417cf76c22437948d9279893baa72eebf4a3f9e2d73a4fcc5e02a67ac31fdd",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/models.md"
+    },
+    {
+      "path": "docs/providers/openai/runtimes.md",
+      "sha256": "b65fca2ff75ada35f45d375d4511acd63f9f7c1dd6c934c2423878677e463121",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/docs/providers/openai/runtimes.md"
+    },
+    {
+      "path": "src/agents/tool-policy.ts",
+      "sha256": "415c0059244d038cd88e48334c5bcac5d7a14c9b80336bbd9a0eac54f5da8587",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/agents/tool-policy.ts"
+    },
+    {
+      "path": "src/agents/tool-policy-shared.ts",
+      "sha256": "620a711988f6287834bc876f4f0bdb1669645b3cd8eee3938176492bd2840574",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/agents/tool-policy-shared.ts"
+    },
+    {
+      "path": "src/agents/tool-policy-pipeline.ts",
+      "sha256": "3c98dd601dd00f0726577e56f8b0eaaf3f8cffc3f83b0e7ec0eadc51b2befebf",
+      "url": "https://github.com/openclaw/openclaw/blob/dc2523e5a5c7a309517fd7fa834add938231d526/src/agents/tool-policy-pipeline.ts"
+    }
+  ],
+  "journal_source_snapshot": [
+    {
+      "path": "src/journal/features/plans/support/plan_owners.py",
+      "sha256": "a0bca7ddf4f4174afceecd68521033085c87a45438b048dc7db1061e818d9925"
+    },
+    {
+      "path": "src/journal/features/plans/support/plan_bindings.py",
+      "sha256": "b39aff4aa5df4141fd2fb40190d4fe909e76b450cc00cb01f6f90a45e7985149"
+    },
+    {
+      "path": "src/journal/features/plans/support/plan_agents.py",
+      "sha256": "2ebbbedac17c7eca578de7bec1db6d2eb19999d25a7fe2e6128d9101714c8319"
+    },
+    {
+      "path": "src/journal/features/plans/support/agent_environments.py",
+      "sha256": "99dc411f52c7781954b2544acd0ed52ff95e752b9560861ce67f08a10d9991b3"
+    },
+    {
+      "path": "src/journal/features/plans/support/plan_task_assigner.py",
+      "sha256": "7ff3bc407d22b0d523750ed22999b89c9df1f1ff95fb434041bfc9806bc3b724"
+    },
+    {
+      "path": "src/journal/features/plans/support/phase_testing.py",
+      "sha256": "f5f0eff45fb89557a7e4fca38201afdaa57a2b35605c90cfac092d6c4040a91c"
+    },
+    {
+      "path": "src/journal/features/tasks/support/default_task_assigner.py",
+      "sha256": "ecb901fa90b9e20a60f1113d45fe691ecef69358e10342e7958da9336a8883b8"
+    },
+    {
+      "path": "src/journal/features/plans/states/following_plan.py",
+      "sha256": "7bebdf8810ad2891b89897831cc5be28b47c4e0ca9683de6589bdec21be60333"
+    },
+    {
+      "path": "src/journal/repositories/plans.py",
+      "sha256": "44366879f06670254a7a70848a221bd47ba3674a1214ae15d692451f3a080280"
+    },
+    {
+      "path": "src/journal/models/plan.py",
+      "sha256": "7f53d041a4359b6edc9d6ca8d91bd126b6912ee27394cf4e5f644b088751bfa0"
+    },
+    {
+      "path": "src/journal/engine/agent_launcher.py",
+      "sha256": "0c749b0392288fb645be12491bda2a43e8abf3975a1992a005a36a9aec7e9281"
+    },
+    {
+      "path": "src/journal/engine/row_event_delivery.py",
+      "sha256": "122bfebbe021d9b388cbef47a1f9d80ecdbd42da43b6058ad8a8f7c883295578"
+    },
+    {
+      "path": "src/journal/engine/delivery.py",
+      "sha256": "4e1a705c9eaf500e50a891f5f769197bfb4ff42cbee5c09edbecb3d348fa4722"
+    },
+    {
+      "path": "src/journal/providers/codex.py",
+      "sha256": "048972d6b3fb5fa976a3a1aa53fec1beed30c3faa367b88f81f366eb30bd0fdb"
+    },
+    {
+      "path": "src/journal/models/entry.py",
+      "sha256": "0a85de931f7bedc3c5fe7e7898f531e057b34bb90fa4023315188c09667693cb"
+    },
+    {
+      "path": "src/journal/repositories/entries.py",
+      "sha256": "dcd7255257789c35befe00631231b40722174d2bad1365b51ba05c0ecbda60a3"
+    },
+    {
+      "path": "src/journal/db/connection.py",
+      "sha256": "454596b8c91b77f92437a3d69b4ae41cd3ad30020f47a0f0965e0a68d67a3e0c"
+    },
+    {
+      "path": "src/journal/http/support/identity.py",
+      "sha256": "a5789694816850f26ab9ae3036edf13a8edeeff3bff4afb872078974a9ac18f6"
+    },
+    {
+      "path": "src/journal/http/controllers/cli.py",
+      "sha256": "62de23723df9a4cbc2d2cc07c841c52c0d7035c7870ac25c8aab1c741a814ce3"
+    }
+  ],
+  "main_config_sha256": "c46f6a1efd067dffeb02bd66bdd97a0159e0a12d3773fd3fa75b42efc69eea4b"
+}
