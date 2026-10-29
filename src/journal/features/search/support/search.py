@@ -1,7 +1,8 @@
 from journal.config import Config
-from journal.features.search.support.search_hit import SearchHit
+from journal.support.search_hit import SearchHit
 from journal.models.message import Message
 from journal.models.model import Model
+from journal.models.support.ref import Ref
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
@@ -64,7 +65,7 @@ class Search:
             return SearchHit.build(row, terms)
         workers = self.workers.session_worker(row.session)
         chat = f"worker {workers[0].id}, {workers[0].name}" if workers else f"subagent {row.session[:8]}"
-        return SearchHit(f"message {row.id} in the chat of {chat}", SearchHit.excerpt(row.mentioning_text(), terms))
+        return SearchHit(f"message {row.id} in the chat of {chat}", SearchHit.excerpt(row.mentioning_text(), terms), str(Ref.build(row)))
 
     @staticmethod
     def lookup(type_name: Repository) -> str:

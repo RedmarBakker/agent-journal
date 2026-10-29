@@ -28,5 +28,5 @@ class SearchCommand(Command):
         lines = [row.line() for row in rows]
         answer = "\n".join(lines) if lines else f"nothing here holds all of: {' '.join(terms)}"
         print(answer)
-        self.announcer.announce(SearchCompleted(environment_id=self.scope.id, session=caller.session, terms=" ".join(terms), answer=answer))
+        self.announcer.announce(SearchCompleted(environment_id=self.scope.id, session=caller.session, terms=" ".join(terms), hits=tuple(rows)))
         return 0

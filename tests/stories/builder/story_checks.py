@@ -263,6 +263,10 @@ class StoryChecks:
         texts = [row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"]]
         assert title in texts, f"no card offers the update: {texts[-5:]}"
 
+    def expect_search_result_rows(self, n: int, *rows: str) -> None:
+        results = (self.api_row("messages", n).get("data") or {}).get("results", [])
+        assert [result["row"] for result in results] == list(rows), f"the search mark {n} opens {results}, not {list(rows)}"
+
     def expect_card_data(self, n: int, **fields) -> None:
         data = self.api_row("messages", n).get("data") or {}
         card_fields = {name: data.get(name) for name in fields}

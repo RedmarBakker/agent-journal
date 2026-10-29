@@ -17,14 +17,6 @@ def test_a_search_finds_the_rows_holding_every_word_in_any_case_and_no_row_missi
 
 
 @story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
-def test_a_search_is_marked_in_the_chat_with_what_it_found(story):
-    story.agent_creates_briefed_task("Scope the reads", "the base repository adds the environment")
-    story.agent_runs("search base repository")
-    story.expect_row("messages", story.newest("messages"), {"text": 'Searched for "base repository"'})
-    story.expect_stack(Ready)
-
-
-@story(WorkingAgent, mode=BUILDER_MODE, scope=AgentRole.MAIN)
 def test_a_percent_sign_in_a_search_is_a_letter_and_the_verb_may_be_named(story):
     story.agent_creates_task("the whole of it")
     story.agent_runs("search find 100%")

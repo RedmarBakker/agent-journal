@@ -114,6 +114,7 @@ const SYSTEM_TURNS = {
             round: card.round || null,
         },
     }),
+    search: (card, label, m) => ((card.results || []).length ? searchGroup(card, label, m) : SYSTEM_TURNS.card(card, label)),
     peer: (card) => ({kind: "message", data: {peer: card.peer, sent_to: card.sent_to, failure: card.failure || ""}}),
     suggestion: (card, label) => ({
         kind: "suggestion",
@@ -140,6 +141,25 @@ const SYSTEM_TURNS = {
         },
     }),
 };
+
+// the most results a search's mark lists as its children; past it the last child opens the search page with them all
+const SHOWN_RESULTS = 10;
+
+// a search's mark, headed with its words and how many it found, opening to one child mark per result that opens its row
+function searchGroup(card, label, m) {
+    const look = cardLook(card, label);
+    const child = (i, data) => ({key: `${refOf(m)}:result:${i}`, kind: "card", who: "agent", time: seconds(m.created_at), data: {...look, lines: [], ...data}});
+    const result = (r, i) => child(i, {label: r.label, detail: r.passage, title: r.passage, row: r.row});
+    const more = card.results.length - SHOWN_RESULTS;
+    const rest = more > 0 ? [child(SHOWN_RESULTS, {label: `+ ${more} more`, go: "search", query: card.terms || ""})] : [];
+    return {
+        kind: "group",
+        title: label,
+        icon: look.icon,
+        turns: [...card.results.slice(0, SHOWN_RESULTS).map(result), ...rest],
+        data: {tone: look.tone || "", color: look.color || "", group: look.group || "", markIcon: look.markIcon || "", news: 0, continues: ""},
+    };
+}
 
 const pluginOf = (m) => ((m.creator || "").startsWith("plugin:") ? m.creator.slice("plugin:".length) : "");
 
