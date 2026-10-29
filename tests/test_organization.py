@@ -404,3 +404,55 @@ def test_a_plan_stands_in_the_phase_each_domains_tasks_reached_on_that_domains_b
     assert [(n, domain, phase) for n, domain, phase in entered if n == plan.id] == [(plan.id, "alpha", BoardPhase.PLANNED), (plan.id, "beta", BoardPhase.PLANNED), (plan.id, "alpha", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_PROGRESS), (plan.id, "beta", BoardPhase.IN_REVIEW), (plan.id, "beta", BoardPhase.DONE)], "each phase a plan enters on a board fires once, in order"
     shown = app.console().run(["organization", "plans"], Caller.agent("main", "s1", "claude")).text
     assert f"domain alpha: Alpha\n  plan {plan.id} the floors, Being built, active: task {built.id} started\ndomain beta: Beta\n  plan {plan.id} the floors, Done: task {kept.id} completed" in shown, "each board names the phase by its domain's own name"
+
+
+def test_a_role_that_is_stuck_refused_or_ends_without_clocking_out_is_reported_to_its_domain_agent_then_the_plan_agent_then_the_user(app, tmp_path):
+    from journal.events.agent.impasse_report import ImpasseReport
+    from journal.events.agent.line_delivered import LineDelivered
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.role_escalated import RoleEscalated
+    from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
+    from journal.features.organization.listeners.role_stuck_report import RoleStuckReport
+    from journal.features.organization.organization_nudges import OrganizationNudges
+    from journal.features.organization.support.role_escalation import ESCALATED_LINK
+    from journal.models.agent import Agent
+    from journal.models.plan import Plan
+    from journal.models.worker import Worker
+    from journal.repositories.agents import Agents
+    from journal.repositories.domain_rows import DomainRows
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.workers import Workers
+    from journal.support.actor import Actor
+    loaded(app, tmp_path)[1].reload()
+    escalated = []
+
+    class Escalated(Listener[RoleEscalated]):
+        def handle(self, event: RoleEscalated) -> None:
+            escalated.append((event.recipient, event.report))
+
+    app.container.get(Bus).listen(RoleEscalated, Escalated())
+    agents, workers, plans, domains, links, scope = (app.container.get(kind) for kind in (Agents, Workers, Plans, DomainRows, Links, Scope))
+    actor = Actor.system()
+    with scope.environment(1):
+        plan = plans.save(Plan(environment_id=1, title="the floors"), actor)
+        domain_agent, plan_agent = (agents.save(Agent(environment_id=1, session=session, provider="claude"), actor) for session in ("domain-alpha", "plan-1"))
+        domains.agent_linked("alpha", domain_agent, actor)
+        plans.agent_linked(plan, plan_agent, actor)
+        builder = workers.save(Worker(environment_id=1, name="Mr. Brunel", brief="b", profile="journal-senior", role="builder", plan_id=plan.id, session="w-brunel", dispatcher="s1"), actor)
+    who = f"worker {builder.id}, Mr. Brunel, working as the Role builder of alpha"
+    app.container.get(RoleStuckReport).handle(ImpasseReport(reason="the schema is missing").placed("w-brunel", 1, "claude", None, 1.0))
+    assert escalated == [("domain-alpha", f"{who}, is stuck: the schema is missing")], "step one: a stuck Role is reported to its Domain agent"
+    with scope.environment(1):
+        agents.save(agents.find(domain_agent.id).with_(state="ended"), actor)
+    app.container.get(RoleRefusalReport).handle(LineDelivered(nudge=OrganizationNudges.ROLE_WRITES_NOTHING.key, values={"role": "builder"}).placed("w-brunel", 1, "claude", None, 2.0))
+    assert escalated[-1] == ("plan-1", f"{who}, was refused: your Role builder has no write tool: change no file"), "step two: with no Domain agent running, a refused Role is reported to the Plan agent"
+    with scope.environment(1):
+        agents.save(agents.find(plan_agent.id).with_(state="ended"), actor)
+        workers.save(workers.find(builder.id).unfinished(3.0, "stopped after 30 minutes without ending: (nothing printed)"), actor)
+        cards = [message for message in app.container.get(Messages).all() if message.text == "Role reported to you"]
+    assert len(escalated) == 2 and len(cards) == 1 and "ended without clocking out: stopped after 30 minutes" in str(cards[0].data) and cards[0].session == "s1", "step three: with neither running, a Role that timed out is reported to the user in its dispatcher's chat"
+    assert [ref.id for ref in links.targets(builder, ESCALATED_LINK)] == [domain_agent.id, plan_agent.id], "each report to an agent is a link from the worker to it"

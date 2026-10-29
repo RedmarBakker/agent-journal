@@ -73,6 +73,10 @@ class Agents(ScopedRepository[Agent]):
     def unended_scoped(self, environment_id: int) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id).order("id"))
 
+    def unended_agent(self, agent_id: int) -> Agent | None:
+        rows = self.selected_globally(self.unended_query().filter(id=agent_id))
+        return rows[0] if rows else None
+
     def unended_query(self) -> Query:
         return self.query().filter_unequal("state", "ended")
 

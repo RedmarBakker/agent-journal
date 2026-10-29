@@ -1754,6 +1754,7 @@ migration.version_3_not_brought_across  [migration]  a version 3 journal is in .
 organization.action_waits_for_the_user  [organization]  {{action}} always waits for the user: ask with `journal question ask`, and do it only once the answer allows it
 organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
+organization.role_reported_up_the_hub  [organization]  {{report|cap=200}}: help it on, or pass it up the hub
 organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
 organization.you_act_as_the_role  [organization]  you act as {{role}} for this step; `journal role done` when it ends. {{guidance|cap=3000}}
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual

@@ -2001,3 +2001,9 @@ Phase 3 proves each unverified point on a hand-built rig. What happens when a po
   in progress while one is started, planned otherwise. A domain's `[board]` names them (`BoardPhases`). `BoardStandingRecord`
   moves a plan on a save of a task, of a link to a task or of a worker; where it stands is a link from the plan to the
   domain, of kind `on_board_<phase>`, saved with `PlanEnteredBoardPhase` as it moves.
+- Up the hub (task 50): a Role's worker that says it is stuck (`RoleStuckReport`), is refused by its Role (`RoleRefusalReport`,
+  on the refusal line delivered) or ends without clocking out, a time-out among them (`RoleEndingReport`), is reported by
+  `RoleEscalation` to the first running agent of its Domain agent (a `domain_agent` link from the domain's row) and its
+  plan's Plan agent (`plan_agent`), as a `reported_to` link carrying `RoleEscalated`, said to it by `HubConduct`; with
+  neither running, it is a card to the user in the dispatcher's chat. Nothing makes Domain or Plan agents yet, so today
+  every report reaches the user.

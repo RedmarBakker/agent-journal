@@ -1,7 +1,11 @@
 from journal.features.feature import Feature
 from journal.features.organization.commands.organization_command import OrganizationCommand
 from journal.features.organization.commands.role_command import RoleCommand
+from journal.features.organization.hub_conduct import HubConduct
 from journal.features.organization.listeners.board_standing_record import BoardStandingRecord
+from journal.features.organization.listeners.role_ending_report import RoleEndingReport
+from journal.features.organization.listeners.role_refusal_report import RoleRefusalReport
+from journal.features.organization.listeners.role_stuck_report import RoleStuckReport
 from journal.features.organization.listeners.role_task_domain import RoleTaskDomain
 from journal.features.organization.organization_conduct import OrganizationConduct
 from journal.features.organization.organization_nudges import OrganizationNudges
@@ -16,11 +20,12 @@ from journal.support.agent_role import AgentRole
 class OrganizationFeature(Feature[OrganizationData]):
     name = OrganizationPart.name
     title = "Agentic organization"
-    help = "The domains and Roles of an agentic organization are read from the folder the Settings page names; journal holds no list of them. Each Role is one value that solo and seats both use: a worker dispatched to a Role works inside its tools and approvals, and a solo Plan agent takes on one Role at a time as a pushed state. A task handed or queued to a Role is linked to its domain, so each domain has a board of the plans with tasks there, each standing in the phase that domain's tasks reached."
+    help = "The domains and Roles of an agentic organization are read from the folder the Settings page names; journal holds no list of them. Each Role is one value that solo and seats both use: a worker dispatched to a Role works inside its tools and approvals, and a solo Plan agent takes on one Role at a time as a pushed state. A task handed or queued to a Role is linked to its domain, so each domain has a board of the plans with tasks there, each standing in the phase that domain's tasks reached. A Role that is stuck, refused or ends without clocking out is reported up the hub: to its Domain agent, else the Plan agent, else the user."
     commands = (OrganizationCommand, RoleCommand)
     states = (RoleWork,)
-    conduct = (OrganizationConduct,)
-    listeners = (RoleTaskDomain, BoardStandingRecord)
+    conduct = (OrganizationConduct, HubConduct)
+    listeners = (RoleTaskDomain, BoardStandingRecord, RoleEndingReport)
     data = (OrganizationDataReader,)
     helper_conduct = {AgentRole.WORKER: (RoleConduct,)}
-    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME)
+    helper_listeners = {AgentRole.WORKER: (RoleStuckReport, RoleRefusalReport)}
+    nudges = (OrganizationNudges.ROLE_WRITES_NOTHING, OrganizationNudges.ACTION_WAITS_FOR_USER, OrganizationNudges.ACTING_AS_ROLE, OrganizationNudges.ROLE_TOOL_REFUSED, OrganizationNudges.ONE_ROLE_AT_A_TIME, OrganizationNudges.ROLE_REPORTED)

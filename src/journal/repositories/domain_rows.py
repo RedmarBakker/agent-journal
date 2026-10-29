@@ -1,6 +1,7 @@
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
+from journal.models.agent import Agent
 from journal.models.board_phase import BoardPhase
 from journal.models.check import Check
 from journal.models.domain_row import DomainRow
@@ -19,6 +20,7 @@ from journal.support.actor import Actor
 from journal.support.time_source import TimeSource
 
 DOMAIN_LINK = "belongs_to_domain"
+DOMAIN_AGENT_LINK = "domain_agent"
 BOARD_LINKS = {phase: f"on_board_{phase.value}" for phase in BoardPhase}
 REVIEWS = (Check.table(), Question.table())
 
@@ -77,3 +79,10 @@ class DomainRows(Repository[DomainRow]):
     def standing(self, plan: Plan, row: DomainRow) -> BoardPhase | None:
         kinds = {link.link_type for link in self.standing_links(plan, row)}
         return next((phase for phase, kind in BOARD_LINKS.items() if kind in kinds), None)
+
+    def agent_linked(self, name: str, agent: Agent, actor: Actor) -> Link:
+        return self.links.linked(Ref.build(self.named(name, actor)), Ref.build(agent), DOMAIN_AGENT_LINK, actor)
+
+    def agent_id(self, name: str) -> int:
+        rows = self.all_matching(name=name)
+        return next((ref.id for ref in self.links.targets(rows[0], DOMAIN_AGENT_LINK)), 0) if rows else 0
