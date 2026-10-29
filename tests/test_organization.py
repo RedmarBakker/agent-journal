@@ -220,25 +220,27 @@ def test_dispatch_to_a_role_honours_its_cardinality_one_instance_with_a_queue_fo
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], agent)
-    workers = app.container.get(Workers)
-    send = lambda name, *argv: dispatched(console, [name, f"the job of {name}", "--changes", "the files of its task", *argv], agent)
+    from journal.repositories.scope import Scope
+    with app.container.get(Scope).environment(1):
+        workers = app.container.get(Workers)
+        send = lambda name, *argv: dispatched(console, [name, f"the job of {name}", "--changes", "the files of its task", *argv], agent)
 
-    first = send("Ada Lovelace", "--role", "steward")
-    assert first.code == 0 and len(started) == 1, first.error
-    second = send("Grace Hopper", "--role", "steward")
-    assert second.code == 0 and len(started) == 1 and len(workers.role_instances("steward")) == 1, "a second job for a journal Role starts no second instance"
-    assert [task.id for task in app.container.get(Tasks).queue(Ref.build(workers.role_instances("steward")[0]))] == [2], "the second job waits in the one instance's queue"
+        first = send("Ada Lovelace", "--role", "steward")
+        assert first.code == 0 and len(started) == 1, first.error
+        second = send("Grace Hopper", "--role", "steward")
+        assert second.code == 0 and len(started) == 1 and len(workers.role_instances("steward")) == 1, "a second job for a journal Role starts no second instance"
+        assert [task.id for task in app.container.get(Tasks).queue(Ref.build(workers.role_instances("steward")[0]))] == [2], "the second job waits in the one instance's queue"
 
-    assert "worktree of its own" in send("Ida Rhodes", "--role", "builder").error and len(started) == 1, "a many Role asks for a worktree of its own and starts nothing without it"
+        assert "worktree of its own" in send("Ida Rhodes", "--role", "builder").error and len(started) == 1, "a many Role asks for a worktree of its own and starts nothing without it"
 
-    instances = app.container.get(RoleInstances)
-    porter = contracts.role("porter")
-    task = app.container.get(Tasks).find(1)
-    workers.save(Worker(environment_id=1, name="Edith Clarke", brief="b", role="porter", plan_id=7, state=WorkerState.REPORTED), Actor.system())
-    workers.save(Worker(environment_id=1, name="Mary Kenneth", brief="b", role="porter", plan_id=8, state=WorkerState.DISPATCHED), Actor.system())
-    assert instances.existing(contracts.role("builder"), task) is None, "many has no instance to join"
-    assert instances.existing(porter, task) is None, "a task in no plan is a plan of its own, so a plan Role starts an instance for it"
-    monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 8)
-    assert instances.existing(porter, task).name == "Mary Kenneth", "a plan Role has one instance for each plan"
-    monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 9)
-    assert instances.existing(porter, task) is None, "and another plan gets its own"
+        instances = app.container.get(RoleInstances)
+        porter = contracts.role("porter")
+        task = app.container.get(Tasks).find(1)
+        workers.save(Worker(environment_id=1, name="Edith Clarke", brief="b", role="porter", plan_id=7, state=WorkerState.REPORTED), Actor.system())
+        workers.save(Worker(environment_id=1, name="Mary Kenneth", brief="b", role="porter", plan_id=8, state=WorkerState.DISPATCHED), Actor.system())
+        assert instances.existing(contracts.role("builder"), task) is None, "many has no instance to join"
+        assert instances.existing(porter, task) is None, "a task in no plan is a plan of its own, so a plan Role starts an instance for it"
+        monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 8)
+        assert instances.existing(porter, task).name == "Mary Kenneth", "a plan Role has one instance for each plan"
+        monkeypatch.setattr(RoleInstances, "plan_of", lambda self, task: 9)
+        assert instances.existing(porter, task) is None, "and another plan gets its own"
