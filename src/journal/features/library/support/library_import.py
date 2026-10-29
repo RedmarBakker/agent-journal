@@ -4,6 +4,8 @@ from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.profile_body import ProfileBody
 from journal.features.library.support.reader_body import ReaderBody
+from journal.features.library.support.skill_body import SkillBody
+from journal.features.skills.support.skill_files import HOMES
 from journal.features.library.support.sequence_body import SequenceBody
 from journal.features.library.support.template_body import TemplateBody
 from journal.features.profiles.support.profile_files import PREFIX, ProfileFiles
@@ -42,7 +44,7 @@ class LibraryImport:
             raise Rejection(f"{item_type} {name} is imported already: journal library update {item_type} {name}")
         version = self.version(item_type, name, number)
         item = self.items.save(LibraryItem(library_key=key, item_type=item_type, name=name, version=version.number, body=version.body), actor)
-        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file, "reader": self.reader_file}
+        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file, "reader": self.reader_file, "skill": self.skill_folder}
         if item_type not in writers:
             raise Rejection(f"the library imports {', '.join(writers)} here; {item_type} is not one of them")
         return writers[item_type](item, actor, accepted)
@@ -87,6 +89,14 @@ class LibraryImport:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(ReaderBody.file_text(item.body))
         return self.items.save(item.with_(file_path=str(path.relative_to(self.config.root))), actor)
+
+    def skill_folder(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
+        folder = self.config.root / HOMES[0] / item.name
+        if folder.exists():
+            self.items.delete(item, actor)
+            raise Rejection(f"a skill named {item.name} exists here already: the library's copy is not written over it")
+        skill_file = SkillBody.save(folder, item.body)
+        return self.items.save(item.with_(file_path=str(skill_file.relative_to(self.config.root))), actor)
 
     @staticmethod
     def powers(sequence: Sequence) -> str:

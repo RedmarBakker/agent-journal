@@ -447,6 +447,16 @@ class AgentSteps:
         sequences.save(shipped.with_(steps=steps), Actor.system())
         self.observed("an older journal wrote a shipped sequence", None, None)
 
+    def the_project_holds_a_skill(self, name: str, files: dict[str, str]) -> None:
+        for path, text in files.items():
+            (self.app.config.root / ".claude/skills" / name / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.app.config.root / ".claude/skills" / name / path).write_text(text)
+        self.observed("the project holds a skill of its own", None, None)
+
+    def the_skill_folder_is_removed(self, name: str) -> None:
+        shutil.rmtree(self.app.config.root / ".claude/skills" / name)
+        self.observed("the skill's folder is removed", None, None)
+
     def a_shipped_profiles_file_was_changed(self, name: str, body: str) -> None:
         (self.app.container.get(ProfileFiles).folder() / f"{name}.md").write_text(f"---\nname: {name}\n---\n{body}\n")
         self.observed("a shipped profile's file was changed", None, None)
