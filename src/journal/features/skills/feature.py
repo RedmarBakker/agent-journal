@@ -6,6 +6,7 @@ from journal.support.card_type import CardType
 from journal.features.skills.listeners.skill_triggers import SkillTriggers
 from journal.features.feature import Feature
 from journal.features.skills.listeners.skill_obligation import SkillObligation
+from journal.features.skills.listeners.message_skill_obligation import MessageSkillObligation
 from journal.features.skills.skills_conduct import SkillsConduct
 from journal.features.skills.support.skills_data_reader import SkillsDataReader
 from journal.features.skills.support.skills_data import SkillsData
@@ -29,7 +30,7 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.NEXT_DECISION), (CompactionReset, Blocking.NEXT_DECISION))
+    answer_listeners = ((SkillObligation, Blocking.NEXT_DECISION), (MessageSkillObligation, Blocking.NEXT_DECISION), (SkillReadRecord, Blocking.NEXT_DECISION), (CompactionReset, Blocking.NEXT_DECISION))
     listeners = (SkillLoadedCard, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
