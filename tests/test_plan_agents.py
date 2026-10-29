@@ -191,6 +191,7 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     lead = Caller.agent(f"plan-{plan}", "plan-session", "claude")
     planned = lambda name, **body: posted(app, "/hooks/claude", {"hook_event_name": name, "session_id": "plan-session", **body}, {"X-Journal-Env": f"plan-{plan}"})
     planned("SessionStart")
+    console.run(["environment", "overview"], lead)
     assert console.run(["role", "take", "keeper"], AGENT).code != 0, "only the Plan agent of a solo plan takes on a Role"
     taken = console.run(["role", "take", "keeper"], lead)
     assert taken.code == 0, taken.error
@@ -198,7 +199,8 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     assert (top()["state"], top()["data"]["role"]) == ("role_work", "keeper"), "the Role is pushed as the state of working as it"
     status, body = planned("PreToolUse", tool_name="Write", tool_input={"file_path": "notes.md", "content": "a finding"})
     assert status == 409 and "has no write tool" in body["error"], "acting as a Role that writes nothing, a write is refused"
-    assert planned("PreToolUse", tool_name="Read", tool_input={"file_path": "notes.md"})[0] == 200, "a tool the Role names goes through"
+    status, body = planned("PreToolUse", tool_name="Read", tool_input={"file_path": "notes.md"})
+    assert status == 200, f"a tool the Role names goes through: {body}"
     assert planned("PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "and a journal command always does"
     guided = lambda: [entry.data["line"] for entry in app.container.get(Entries).global_matching(entry_type=NUDGE) if entry.data.get("key") == "organization.you_act_as_the_role"]
     assert len(guided()) == 1 and keeper.guidance in guided()[0], "its push brings the Role's guidance"

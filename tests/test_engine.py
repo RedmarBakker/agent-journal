@@ -2904,7 +2904,7 @@ def test_the_nudge_words_the_rule_judges_tests_by_are_the_registrys_own(app: App
     assert json.loads(LISTS.read_text())["nudge_words"] == words(app.container.get(NudgeRegistry).all()), "the list holds the fixed words of every registered nudge, and no others"
 
 HELPER_CONDUCTS = {
-    "worker": ["DemandConduct", "SafetyConduct", "TaskEditConduct", "WorkerMemoryConduct"],
+    "worker": ["DemandConduct", "RoleConduct", "SafetyConduct", "TaskEditConduct", "WorkerMemoryConduct"],
     "reviewer": ["DemandConduct", "SafetyConduct"],
     "verifier": ["DemandConduct", "SafetyConduct"],
     "subagent": ["DemandConduct", "SafetyConduct"],

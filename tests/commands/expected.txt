@@ -385,7 +385,7 @@ $ agent: journal plan show 1
 exit 0
 plan 1 draft: The shop's checkout
 mode: solo
-owner: Jesse
+owner: user 1
 phase 1: The cart (complete when the cart adds up)
    3  open     The cart sums its lines
 phase 2: Paying by card (complete when a card pays) [checkpoint]
@@ -1752,7 +1752,10 @@ messages.write_held_until_read  [messages]  {{count}} unread messages. run `jour
 messages.writes_held_soon_until_read  [messages]  read message {{messages|cap=48}} with `journal message unread`; writes wait after {{count}} more
 migration.version_3_not_brought_across  [migration]  a version 3 journal is in .journal/version-3. only the user brings it across; never start it
 organization.action_waits_for_the_user  [organization]  {{action}} always waits for the user: ask with `journal question ask`, and do it only once the answer allows it
+organization.one_role_at_a_time  [organization]  you act as {{role}} already: `journal role done` first
 organization.role_has_no_write_tool  [organization]  your Role {{role}} has no write tool: change no file
+organization.the_role_has_no_such_tool  [organization]  as {{role}} you do not use {{tool}}: your tools are {{tools}}
+organization.you_act_as_the_role  [organization]  you act as {{role}} for this step; `journal role done` when it ends. {{guidance|cap=3000}}
 pausing.paused  [pausing]  the user paused you. stop and wait; only journal commands run until resumed. answer the user in the chat as usual
 pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you mentioned a pinned link but made none. pin it: `journal notice create "<what>" --link "<url>" --label "<Open ...>"`
@@ -1778,6 +1781,7 @@ plans.the_plan_tests_another_way  [plans]  plan {{n}} now tests this way ({{temp
 plans.the_user_abandoned_the_plan  [plans]  the user abandoned plan {{n}}
 plans.the_user_approved_the_plan  [plans]  plan {{n}} approved
 plans.the_user_postponed_the_plan  [plans]  the user postponed plan {{n}}
+plans.you_lead_the_plan  [plans]  you lead plan {{n}} in this worktree; work its tasks here
 plugins.plugin_files_are_the_users  [plugins]  an installed plugin's files are the user's to change. propose the change, or work in the plugin's own folder
 plugins.plugin_not_working  [plugins]  plugin {{plugin}} stopped working: {{fault|cap=300}}. fix it, or `journal plugin disable {{plugin}}`
 profiles.worker_profile_is_not_a_subagent  [profiles]  {{name}} is a worker: `journal worker dispatch "<Name>" --task <n> --changes <files> --profile {{name}}`
@@ -1957,7 +1961,7 @@ workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in it
 workers.worker_uses_much_memory  [workers]  worker {{n}} uses {{megabytes}} MB, over the {{budget}} MB warning. check what it runs; it stops at the memory limit
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit; it resumes by itself at {{at}}
 workers.worktree_being_rebased  [workers]  the journal is rebasing your worktree; writes wait until it is done. wait a moment, then write again
-290 nudges
+294 nudges
 
 $ agent: journal worker list
 exit 0
