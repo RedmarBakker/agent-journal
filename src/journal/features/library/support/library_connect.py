@@ -1,12 +1,11 @@
-import hashlib
 import socket
-import ssl
 
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_connection import LibraryConnection
 from journal.features.library.support.library_link import LibraryLink
 from journal.support.rejection import Rejection
+from journal.sync.certificate_fingerprint import CertificateFingerprint
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_url import TeamUrl
 from sync_server.library_answer import LibraryAnswer
@@ -54,7 +53,7 @@ class LibraryConnect:
         if not url.fingerprint and not url.has_self_signed_certificate():
             return
         certificate = self.link.root_certificate(url.address)
-        if url.fingerprint and hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest() != url.fingerprint.lower():
+        if url.fingerprint and not CertificateFingerprint.matches(certificate, url.fingerprint):
             raise Rejection(f"the certificate of {url.address} does not match the fingerprint in the invitation URL: check the URL or the address")
         self.account.folder().mkdir(parents=True, exist_ok=True)
         self.account.root_path().write_text(certificate)

@@ -1,6 +1,6 @@
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent_listener import AgentListener
-from journal.features.tasks.states.choosing_paused_work import CHOOSING_PAUSED_WORK
+from journal.features.tasks.support.task_state_names import CHOOSING_PAUSED_WORK
 from journal.repositories.agents import Agents
 from journal.support.actor import Actor
 

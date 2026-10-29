@@ -5,13 +5,12 @@ from journal.models.alias import Alias
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
-from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader import Reader, PLUGIN_OWNER_PREFIX
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, JOURNAL, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
-from journal.features.plugins.support.plugin_skills import STAMP
 
 # the readers chosen as their commands' defaults, one name a line, beside the readers
 DEFAULTS_FILE = "defaults"
@@ -150,7 +149,7 @@ class Readers:
         return cleared
 
     def owner(self, name: str) -> str:
-        return next((line.removeprefix(STAMP) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
+        return next((line.removeprefix(PLUGIN_OWNER_PREFIX) for path in self.files(name) for line in path.read_text().splitlines() if line.startswith(PLUGIN_OWNER_PREFIX)), "")
 
     def journal_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if reader.reads_journal_output(self.aliases.names()) and not self.owner(reader.name)]

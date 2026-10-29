@@ -3,9 +3,8 @@ from pathlib import Path
 from journal.config import Config
 from journal.features.aliases.support.alias_names import AliasNames
 from journal.features.plugins.support.plugin_folders import PluginFolders
-from journal.features.plugins.support.plugin_skills import STAMP
 from journal.features.shell.support.progress_pattern import ProgressPattern
-from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader import PLUGIN_OWNER_PREFIX, Reader
 from journal.models.plugin import Plugin
 from journal.repositories.aliases import Aliases
 from journal.support.actor import Actor
@@ -28,7 +27,7 @@ class PluginAliases:
         for reader in sorted((folder / READERS).glob("*.pattern")):
             copy = self.config.readers / reader.name
             if not copy.exists() or self.is_stamped(copy, plugin):
-                copy.write_text(reader.read_text().rstrip("\n") + f"\n{STAMP}{plugin.name}\n")
+                copy.write_text(reader.read_text().rstrip("\n") + f"\n{PLUGIN_OWNER_PREFIX}{plugin.name}\n")
 
     @staticmethod
     def readers_checked(plugin: Plugin, folder: Path) -> None:
@@ -52,4 +51,4 @@ class PluginAliases:
 
     @staticmethod
     def is_stamped(copy: Path, plugin: Plugin) -> bool:
-        return f"\n{STAMP}{plugin.name}\n" in copy.read_text()
+        return f"\n{PLUGIN_OWNER_PREFIX}{plugin.name}\n" in copy.read_text()

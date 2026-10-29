@@ -1,18 +1,16 @@
-import hashlib
 import json
-import ssl
 import os
 from pathlib import Path
 
 from journal.config import Config
 from journal.features.library.support.library_connection import LibraryConnection
 from journal.support.rejection import Rejection
-from journal.sync.team_url import TeamUrl
+from journal.sync.hub_account import HubAccount
 
 LIBRARIES_FOLDER = "libraries"
 
 
-class LibraryAccount:
+class LibraryAccount(HubAccount):
     """This journal's account on its team's library, one library at a time: the file connect writes in the libraries folder beside the database, named by the library's key, holding its address, this device's token and number, the person's account number, name and role, with the library's certificate authority beside it when its server signs its own."""
 
     def __init__(self, config: Config) -> None:
@@ -41,13 +39,6 @@ class LibraryAccount:
 
     def root_path(self) -> Path:
         return self.folder() / "root.crt"
-
-    def fingerprint(self) -> str:
-        root = self.root_path()
-        return hashlib.sha256(ssl.PEM_cert_to_DER_cert(root.read_text())).hexdigest() if root.is_file() else ""
-
-    def invitation_url(self, code: str) -> str:
-        return TeamUrl(self.address()).invitation(code, self.fingerprint())
 
     def write(self, connection: LibraryConnection) -> Path:
         self.folder().mkdir(parents=True, exist_ok=True)

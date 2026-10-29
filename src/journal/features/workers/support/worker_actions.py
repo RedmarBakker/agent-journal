@@ -66,7 +66,7 @@ class WorkerActions:
     def task_holdings(self, number: int, task: int | None) -> tuple[int, ...]:
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), number))
         if task and holdings and task not in holdings:
-            raise Rejection(f"worker {number} works on task {holdings[0]} until that task is merged or released: send the worker the next job of task {holdings[0]}")
+            raise Rejection(f"worker {number} works on task {holdings[0]} until it is merged or released: send it that task's next job")
         return holdings
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:

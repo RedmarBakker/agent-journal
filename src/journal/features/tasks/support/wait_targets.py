@@ -1,5 +1,5 @@
 from journal.events.models.updated import Updated
-from journal.features.tasks.states.external_wait import ExternalWait
+from journal.features.tasks.support.task_state_names import EXTERNAL_WAIT
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
 from journal.models.question import Question
@@ -31,7 +31,7 @@ class WaitTargets:
     @staticmethod
     def awaited_checks(stack: tuple) -> set[int]:
         prefix = f"{Check.table()}:"
-        return {int(ref.removeprefix(prefix)) for frame in stack if frame.get("state") == ExternalWait.name for ref in frame.get("data", {}).get("end_refs", "").split(",") if ref.startswith(prefix)}
+        return {int(ref.removeprefix(prefix)) for frame in stack if frame.get("state") == EXTERNAL_WAIT for ref in frame.get("data", {}).get("end_refs", "").split(",") if ref.startswith(prefix)}
 
     @staticmethod
     def title(name: str) -> str:

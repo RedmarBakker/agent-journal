@@ -23,3 +23,13 @@ class WorkerMoves:
     def counted_since(self, word: str, boundary: str) -> int:
         last = max((i for i, (each, _) in enumerate(self.steps) if each == boundary), default=-1)
         return sum(1 for each, _ in self.steps[last + 1:] if each == word)
+
+    def spans(self, openings: tuple[str, ...], closings: tuple[str, ...], end: float) -> list[tuple[float, float]]:
+        spans, began = [], None
+        for word, time in self.steps:
+            if word in openings and began is None:
+                began = time
+            elif word in closings and began is not None:
+                spans.append((began, time))
+                began = None
+        return [*spans, (began, end)] if began is not None else spans

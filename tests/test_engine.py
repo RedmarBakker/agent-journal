@@ -2555,8 +2555,9 @@ def test_each_builder_measure_reads_its_series_and_the_builder_that_writes_score
     from journal.models.agent import Agent
     from journal.models.support.measure_state import MeasureState
     from journal.models.support.measure_states import MeasureStates
+    from journal.features.workers.support.active_worker_measure import RETURN_MOVES
     from journal.models.support.worker_moves import WorkerMoves
-    from journal.models.worker import Worker
+    from journal.models.worker import JOB_STARTS, Worker
     from journal.repositories.tasks import Tasks
     source = lambda agent: MeasureSource(agent, 10000.0, app.container.get(FreePlaceMeasure), app.container.get(ActiveWorkerMeasure), app.container.get(Tasks))
     writer = Agent(environment_id=1, session="s1", committed_lines=((9000.0, 30),), edited_lines=((9500.0, 30),), merged_lines=((8000.0, 20),))
@@ -2564,7 +2565,7 @@ def test_each_builder_measure_reads_its_series_and_the_builder_that_writes_score
     assert source(Agent(environment_id=1, session="s1", committed_lines=((9000.0, 20),), merged_lines=((9000.0, 10),))).code_share() is None, "under forty lines there is nothing to measure"
     assert source(Agent(environment_id=1, session="s1", committed_lines=((5000.0, 300),), merged_lines=((9000.0, 40),))).code_share() == 0.0, "lines older than the hour leave the share"
     moves = WorkerMoves((("dispatched", 100.0), ("clocked out", 400.0), ("sent back", 500.0), ("clocked out", 700.0), ("merged", 900.0), ("sent a job", 1000.0)))
-    assert ActiveWorkerMeasure.active_spans(Worker(environment_id=1, moves=moves), 1200.0) == [(100.0, 900.0), (1000.0, 1200.0)], "a worker is active from its dispatch through its send-back until its merge, and again from its next job"
+    assert moves.spans(JOB_STARTS, RETURN_MOVES, 1200.0) == [(100.0, 900.0), (1000.0, 1200.0)], "a worker is active from its dispatch through its send-back until its merge, and again from its next job"
     with app.container.get(Scope).environment(1):
         specs = app.container.get(ModeMeasures).specs("builder")
     state = lambda key, value: MeasureState(key, value, is_measured=True, measured_at=3600.0)

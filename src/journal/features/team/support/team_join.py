@@ -1,7 +1,5 @@
 from pathlib import Path
-import hashlib
 import socket
-import ssl
 import time
 from datetime import datetime, timezone
 
@@ -26,6 +24,7 @@ from journal.repositories.shared_tables import SharedTables
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.block_supply import BlockSupply
+from journal.sync.certificate_fingerprint import CertificateFingerprint
 from journal.sync.record_outgoing_change import RecordOutgoingChange
 from journal.sync.row_renumbering import RowRenumbering
 from journal.events.models.created import Created
@@ -195,7 +194,7 @@ class TeamJoin:
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)
-        if hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest() != fingerprint.lower():
+        if not CertificateFingerprint.matches(certificate, fingerprint):
             raise Rejection(f"the server at {address} does not hold the certificate the fingerprint names: check the join line, or the address")
         self.account.root_path().write_text(certificate)
 

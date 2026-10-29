@@ -7,7 +7,7 @@ from journal.events.rows.row_event import RowEvent
 from journal.events.rows.task_closed import TaskClosed
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.tasks_options import TasksOptions
-from journal.features.tasks.states.choosing_paused_work import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
+from journal.features.tasks.support.task_state_names import CHOICE_REFUSALS, CHOOSING_PAUSED_WORK
 from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.support.ref import Ref

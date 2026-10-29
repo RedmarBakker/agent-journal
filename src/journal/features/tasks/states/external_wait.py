@@ -18,6 +18,7 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.support.task_state_names import EXTERNAL_WAIT
 from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.events.feature_data import FeatureData
@@ -34,7 +35,7 @@ PRINTING_REMINDER = Timeout.minutes(15)
 class ExternalWait(Wait):
     """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. With no task in hand, a stop while other work is open, in auto mode or not, is refused once per wait, unless the wait is estimated short or is a run with no estimate yet; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, the next work is named once after a minute while no task is in hand, and every five idle minutes the agent is asked to check, every fifteen while a run it waits on printed within the last five. A wait opened beside other work counts against the agent, once it ends, the seconds it lasted past the uncounted ones."""
 
-    name = "awaiting"
+    name = EXTERNAL_WAIT
     assigner = None
     title = "Waiting"
     allows = frozenset({Permission.FILE_EDITS, Permission.RUN_COMMANDS, Permission.DISPATCH_SUBAGENTS})
