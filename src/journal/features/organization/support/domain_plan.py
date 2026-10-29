@@ -2,7 +2,9 @@ from dataclasses import dataclass
 
 from journal.models.board_phase import BoardPhase
 from journal.models.plan import Plan
+from journal.models.plan_state import PlanState
 from journal.models.task import Task
+from journal.models.task_state import TaskState
 
 
 @dataclass(frozen=True)
@@ -21,3 +23,24 @@ class DomainPlan:
 
     def phase(self) -> BoardPhase:
         return BoardPhase.of(self.tasks, self.reviewed)
+
+    def waits_on(self) -> str:
+        if self.plan.state == PlanState.READY:
+            return "your approval"
+        if self.plan.state == PlanState.REVIEWING:
+            return "plan review"
+        if self.plan.is_blocked():
+            return self.plan.waiting_reason() or "the plan to be unblocked"
+        reason = next((task.waiting_reason() for task in self.tasks if task.waiting_reason()), "")
+        if reason:
+            return reason
+        if self.phase() == BoardPhase.IN_REVIEW:
+            return "a proof check or approval"
+        if self.is_active():
+            return "Role work"
+        if self.phase() != BoardPhase.DONE:
+            return "a Role to start the next task"
+        return ""
+
+    def done_count(self) -> int:
+        return sum(1 for task in self.tasks if task.state == TaskState.COMPLETED)

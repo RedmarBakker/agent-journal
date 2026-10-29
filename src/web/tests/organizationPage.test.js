@@ -16,6 +16,8 @@ vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
 
 const {default: OrganizationPage} = await import("../src/pages/OrganizationPage.vue");
 const {store} = await import("../src/state/store.js");
+const {organizationBoard} = await import("../src/state/organizationBoard.js");
+const {route} = await import("../src/route.js");
 const {takeEntries} = await import("../src/sync/rows.js");
 
 const folder = "/workspace/agentic-organization";
@@ -30,6 +32,8 @@ const organization = (sha = commit) => ({
         title: "Sales",
         icon: "📊",
         description: "Help customers choose the right service.",
+        board: {planned: "Ready", in_progress: "Working", in_review: "Review", done: "Complete"},
+        plans: [{id: 42, title: "Recommend a service", phase: "in_progress", phase_name: "Working", mode: "organization", tasks: [1, 2], done: 1, waits_on: "Role work"}],
         models: {claude: "opus", codex: "gpt-6.1-sol", effort: "xhigh"},
         roles: [{
             id: "account-manager",
@@ -74,6 +78,8 @@ beforeEach(() => {
     store.settings = {plans: {plan_agents: true}, workers: {organization_folder: folder}};
     store.rows.domain_counts = [countRow(3)];
     store.entries = [];
+    organizationBoard.words = "";
+    organizationBoard.hideDone = false;
     heldCounts = [countRow(3)];
     api.list.mockReset().mockImplementation(async () => ({rows: heldCounts, counts: {all: heldCounts.length, open: heldCounts.length, unread: 0}, is_last_page: true}));
     api.entries.mockReset().mockResolvedValue([]);
@@ -126,4 +132,22 @@ test("the Organization page reads its real folder, shows contract problems, and 
 
     app.unmount();
     host.remove();
+});
+
+test("a domain route opens its own four phase plan board", async () => {
+    location.hash = "#/organization?domain=sales";
+    await until(() => route.value.domain === "sales");
+
+    host = document.body.appendChild(document.createElement("div"));
+    app = createApp({render: () => h(OrganizationPage)});
+    app.mount(host);
+    await until(() => host.querySelector('[data-domain="sales"] .organization-plan-card'));
+
+    const board = host.querySelector('[data-domain="sales"]');
+    expect(host.querySelector(".organization-domain-page")).not.toBeNull();
+    expect(board.querySelectorAll(".organization-board-lane")).toHaveLength(4);
+    expect(board.querySelector('[data-phase="in_progress"] h3').textContent).toContain("Working");
+    expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("1 of 2 done");
+    expect(board.querySelector('[data-plan-id="42"]').textContent).toContain("Waits on: Role work");
+    expect(host.querySelector('button.organization-all-domains').textContent).toContain("All domains");
 });

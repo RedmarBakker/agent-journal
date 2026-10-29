@@ -7,6 +7,7 @@ import {href, route} from "../route.js";
 import {store} from "../state/store.js";
 import Btn from "../kit/Btn.vue";
 import EmptyState from "../kit/EmptyState.vue";
+import OrganizationPlanBoard from "../organization/OrganizationPlanBoard.vue";
 import OrganizationRolePanel from "./OrganizationRolePanel.vue";
 
 const organization = ref(null);
@@ -20,6 +21,7 @@ const roleProblem = ref("");
 const folder = computed(() => organization.value?.folder ?? store.settings?.workers?.organization_folder ?? "");
 const commit = computed(() => organization.value?.commit || "");
 const domains = computed(() => organization.value?.domains || []);
+const selectedDomain = computed(() => domains.value.find((domain) => domain.id === route.value.domain) || null);
 const problems = computed(() => organization.value?.problems || []);
 const counts = computed(domainCounts);
 
@@ -67,6 +69,14 @@ function openRole(domain, role) {
     location.hash = href.role(domain, role);
 }
 
+function openDomain(domain) {
+    location.hash = href.domain(domain.id);
+}
+
+function openOrganization() {
+    location.hash = href.organization();
+}
+
 function closeRole() {
     location.hash = route.value.domain ? href.domain(route.value.domain) : href.organization();
 }
@@ -91,7 +101,8 @@ onMounted(() => readFolder());
         </header>
 
         <p v-if="problem" class="organization-error" role="alert">{{ problem }}</p>
-        <EmptyState v-if="loading" class="organization-empty" :loading="true" title="Reading the organization" />
+        <OrganizationPlanBoard v-if="loading && route.domain" :loading="true" />
+        <EmptyState v-else-if="loading" class="organization-empty" :loading="true" title="Reading the organization" />
         <template v-else-if="organization">
             <section v-if="problems.length" class="contract-problems" aria-label="Contract problems">
                 <h2>Contract problems <span>{{ problems.length }}</span></h2>
@@ -108,12 +119,21 @@ onMounted(() => readFolder());
                 Set the organization folder in Settings to show its domains and Roles here.
             </EmptyState>
 
+            <section v-else-if="selectedDomain" class="organization-domain-page">
+                <button type="button" class="organization-all-domains" @click="openOrganization">All domains</button>
+                <OrganizationPlanBoard :domains="[selectedDomain]" />
+            </section>
+
+            <EmptyState v-else-if="route.domain" class="organization-empty" title="Domain not found">
+                This domain is not in the organization folder.
+            </EmptyState>
+
             <div v-else class="domain-grid">
                 <article v-for="domain in domains" :key="domain.id" class="domain-card">
                     <header class="domain-head">
                         <span class="domain-icon" aria-hidden="true">{{ domain.icon }}</span>
                         <div>
-                            <h2>{{ domain.title }}</h2>
+                            <h2><button type="button" class="domain-board-link" :aria-label="`Open ${domain.title} board`" @click="openDomain(domain)">{{ domain.title }}</button></h2>
                             <p>{{ domain.description }}</p>
                         </div>
                     </header>
@@ -290,6 +310,35 @@ onMounted(() => readFolder());
     font-weight: 650;
 }
 
+.domain-board-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.domain-board-link:hover {
+    color: var(--accent-text);
+}
+
+.organization-domain-page {
+    padding: 18px 22px 0;
+}
+
+.organization-all-domains {
+    margin: 0 0 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
 .domain-head p {
     margin: 4px 0 0;
     color: var(--text-3);
@@ -365,6 +414,10 @@ onMounted(() => readFolder());
     }
 
     .domain-grid {
+        padding: 14px 12px 0;
+    }
+
+    .organization-domain-page {
         padding: 14px 12px 0;
     }
 

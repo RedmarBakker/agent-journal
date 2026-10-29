@@ -49,5 +49,5 @@ class OrganizationController:
     def plan(domain_plan: DomainPlan, domain: Domain) -> dict:
         phase = domain_plan.phase()
         return {"id": domain_plan.plan.id, "title": domain_plan.plan.title, "phase": phase.value, "phase_name": domain.board.name(phase),
-                "active": domain_plan.is_active(), "tasks": [task.id for task in domain_plan.tasks],
-                "done": sum(1 for task in domain_plan.tasks if task.is_closed())}
+                "mode": domain_plan.plan.mode.value, "active": domain_plan.is_active(), "tasks": [task.id for task in domain_plan.tasks],
+                "done": domain_plan.done_count(), "waits_on": domain_plan.waits_on()}

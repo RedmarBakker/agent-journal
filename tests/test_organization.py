@@ -1175,11 +1175,13 @@ def test_the_organization_is_served_in_one_answer_and_each_domains_counts_are_a_
     status, shown = got(app, "/journal/organization", env)
     assert shown["folder"] == str(fixture.root) and shown["commit"] == commit, "the page answer names the actual folder and the commit it reads"
     alpha = next(domain for domain in shown["domains"] if domain["id"] == "alpha")
+    beta = next(domain for domain in shown["domains"] if domain["id"] == "beta")
     builder_role = next(role for role in alpha["roles"] if role["id"] == "builder")
     assert status == 200 and shown["version"] and shown["problems"] == [] and "guidance" not in builder_role, "the answer holds the version, the problems and the Roles without their long guidance"
     status, builder_contract = got(app, "/journal/organization/roles/alpha/builder", env)
     assert status == 200 and builder_contract["guidance"] == "Guidance of builder.\n" and builder_contract["outputs"] == ["a report"], "a Role detail includes its AGENTS.md and whole contract"
-    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "active": True, "tasks": [built.id, looked.id], "done": 0}], "with the counts and the board of plans"
+    assert (alpha["plans_active"], builder_role["instances"], builder_role["queued"]) == (1, 1, 1) and alpha["plans"] == [{"id": plan.id, "title": "the floors", "phase": "planned", "phase_name": "Planned", "mode": "solo", "active": True, "tasks": [built.id, looked.id], "done": 0, "waits_on": "Role work"}], "with the counts and the board of plans"
+    assert beta["plans"] == [{"id": plan.id, "title": "the floors", "phase": "done", "phase_name": "Done", "mode": "solo", "active": False, "tasks": [kept.id], "done": 1, "waits_on": ""}], "the same plan has a separate card in beta's phase with only beta's progress"
     listed = got(app, "/journal/domain_counts", env)[1]["rows"]
     assert {row["name"] for row in listed} == {"alpha", "beta"}, "the counts are rows of a table the viewer's sync carries"
     status, reloaded = answered(app, "POST", "/journal/organization/reload", b"{}", env)
