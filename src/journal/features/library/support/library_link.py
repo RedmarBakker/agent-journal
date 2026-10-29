@@ -26,7 +26,6 @@ from sync_server.password_answer import PasswordAnswer
 from sync_server.people_answer import PeopleAnswer
 from sync_server.login_request import LoginRequest
 from journal.features.library.support.library_account import LibraryAccount
-from sync_service.team_link import TeamLink
 
 REQUEST_SECONDS = 10
 FILE_SECONDS = 120
@@ -126,7 +125,7 @@ class LibraryLink:
                 self.checked(answer.headers)
                 return answer.read()
         except urllib.error.HTTPError as refused:
-            raise TeamRefusal(TeamLink.refusal_line(refused)) from refused
+            raise TeamRefusal(self.refusal_line(refused)) from refused
 
 
     def headers(self) -> dict[str, str]:
@@ -140,6 +139,13 @@ class LibraryLink:
         server_protocol = int(headers.get(PROTOCOL_HEADER, UNVERSIONED))
         if server_protocol < PROTOCOL:
             raise TeamRefusal(f"the team server speaks protocol {server_protocol}, older than this journal's {PROTOCOL}: upgrade the team server's image")
+
+    @staticmethod
+    def refusal_line(refused: urllib.error.HTTPError) -> str:
+        body = refused.read()
+        if refused.headers.get_content_type() != "application/json":
+            return f"the team server answered {refused.code}: {body.decode(errors='replace').strip()}"
+        return json.loads(body or b"{}").get("error", f"the team server answered {refused.code}")
 
     def trust(self) -> ssl.SSLContext:
         root = self.account.root_path()

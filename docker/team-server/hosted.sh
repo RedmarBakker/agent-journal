@@ -26,5 +26,4 @@ if [ ! -f .journal/team.json ]; then
     fi
     journal team join "http://127.0.0.1:8470/join?code=$(field code)" --email "$(field email)" --name "$(field name)" --password "$(field password)"
 fi
-PYTHONPATH=.journal/src python -m sync_service /data/journal &
 exec python .journal/src/journal.py serve

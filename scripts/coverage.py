@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = "src/journal,src/supervisor,src/sync_service"
+PACKAGES = "src/journal,src/supervisor"
 FLOOR_PERCENT = 95
 # coverage and the test tools come from uv for this run alone, so nothing is installed into the project's Python
 TOOLS = ("--with", "coverage", "--with", "pytest", "--with", "pytest-timeout")
