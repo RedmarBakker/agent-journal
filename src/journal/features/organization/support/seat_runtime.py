@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -11,6 +12,7 @@ import subprocess
 from typing import Callable
 
 from journal.config import Config
+from journal.features.organization.support.usage_ledger import UsageReading
 from journal.features.workers.organization_options import OrganizationOptions
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE
 from journal.repositories.setting_rows import SettingRows
@@ -240,18 +242,76 @@ class SeatRuntime:
         target = seat.target if isinstance(seat, SeatMember) else seat
         self.run("seat", "stop", target, "--reason", reason, "--operator", "journal", "--json")
 
-    def cumulative_cost(self, seat: SeatMember | str) -> float | None:
+    def usage_cost(self, seat: SeatMember | str) -> UsageReading:
         target = seat.target if isinstance(seat, SeatMember) else seat
-        result = self.run("usage", "cost", "--seat", target, "--json", check=False)
+        try:
+            result = self.run("usage", "cost", "--seat", target, "--json", check=False)
+        except Rejection as failed:
+            return self.unavailable_cost(str(failed))
         if result.returncode:
+            return self.unavailable_cost((result.stderr or result.stdout or "OpenRig did not report usage cost").strip())
+        try:
+            payload = self.object(result.stdout)
+        except Rejection as failed:
+            return self.unavailable_cost(str(failed))
+        seats = payload.get("seats")
+        if not isinstance(seats, list):
+            return self.unavailable_cost("the response has no per-seat cost list")
+        record = next((row for row in seats if isinstance(row, dict) and row.get("seatSession") == target), None)
+        if record is None:
+            return self.unavailable_cost(f"OpenRig did not report seat {target}")
+        kind = record.get("kind") if isinstance(record.get("kind"), str) else "unknown"
+        source = record.get("source") if isinstance(record.get("source"), str) and record["source"] else "not reported"
+        source_status = record.get("status") if isinstance(record.get("status"), str) and record["status"] else "unknown"
+        raw_window = record.get("window")
+        window = raw_window if isinstance(raw_window, dict) else {}
+        native_session_id = window.get("nativeSessionId", record.get("nativeSessionId", ""))
+        freshness = "stale" if record.get("stale") is True else "fresh" if record.get("stale") is False else "unknown"
+        amount = record.get("costUsd")
+        unavailable_statuses = {"unknown", "unavailable", "not_reported", "not reported", "no_cost", "missing"}
+        usable_amount = (float(amount) if isinstance(amount, (int, float)) and not isinstance(amount, bool)
+                         and math.isfinite(float(amount)) and float(amount) >= 0
+                         and source_status.strip().lower() not in unavailable_statuses else None)
+        status = ("stale" if usable_amount is not None and freshness == "stale"
+                  else "estimated" if usable_amount is not None and freshness == "fresh" else "unavailable")
+        coverage_value = record.get("coverage")
+        coverage = (coverage_value if isinstance(coverage_value, str) and coverage_value else
+                    json.dumps(coverage_value, sort_keys=True) if coverage_value is not None else "not reported")
+        return UsageReading(
+            usable_amount,
+            source,
+            kind,
+            str(native_session_id or ""),
+            dict(window),
+            coverage,
+            freshness if freshness != "unknown" else "unavailable",
+            status,
+            source_status,
+            str(record.get("reason", "")),
+            self.timestamp(window.get("asOf")),
+        )
+
+    @staticmethod
+    def unavailable_cost(reason: str) -> UsageReading:
+        return UsageReading(None, "OpenRig rig usage cost --json", "unknown", "", {}, "not reported",
+                            "unavailable", "unavailable", "unavailable", reason)
+
+    @staticmethod
+    def timestamp(value: object) -> float | None:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+        if not isinstance(value, str) or not value.strip():
             return None
         try:
-            value = self.object(result.stdout)
-            cost = value.get("cost", value)
-            total = cost.get("total_cost_usd") if isinstance(cost, dict) else None
-            return float(total) if total is not None else None
-        except (Rejection, TypeError, ValueError):
-            return None
+            return float(value)
+        except ValueError:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
 
     @staticmethod
     def session_status(status: dict) -> str:

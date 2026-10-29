@@ -7,6 +7,7 @@ backwards, and keeps account subscription limits in a separate record.
 
 from dataclasses import dataclass
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -15,6 +16,22 @@ import threading
 from journal.config import Config
 
 ESTIMATE_SOURCE = "OpenRig native-session estimate"
+ESTIMATE_LABEL = "Estimated API cost"
+
+
+@dataclass(frozen=True)
+class UsageReading:
+    amount_usd: float | None
+    source: str
+    estimate_kind: str
+    native_session_id: str
+    window: dict[str, object]
+    coverage: str
+    freshness: str
+    status: str
+    source_status: str = ""
+    reason: str = ""
+    sampled_at: float | None = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +46,8 @@ class UsageEstimate:
     status: str
     observed_seats: int = 0
     expected_seats: int | None = None
+    estimate_kind: str = ""
+    label: str = ESTIMATE_LABEL
 
 
 @dataclass(frozen=True)
@@ -51,28 +70,91 @@ class UsageLedger:
         self._lock = threading.RLock()
 
     def observe(self, plan_id: int, seat: str, native_session: str, cumulative_usd: float, observed_at: float, expected_seats: int | None = None) -> UsageEstimate:
+        reading = UsageReading(
+            cumulative_usd,
+            ESTIMATE_SOURCE,
+            "OpenRig native-session estimate",
+            native_session,
+            {},
+            "one native session",
+            "fresh",
+            "estimated",
+        )
+        return self.record(plan_id, seat, native_session, reading, observed_at, expected_seats)
+
+    def record(self, plan_id: int, seat: str, native_session: str, reading: UsageReading, observed_at: float,
+               expected_seats: int | None = None) -> UsageEstimate:
         with self._lock:
             data = self._read()
             key = f"{plan_id}:{seat}"
             previous = data["seats"].get(key, {})
-            same_session = previous.get("native_session") == native_session
-            previous_total = float(previous.get("native_total_usd", 0.0)) if same_session else 0.0
-            current_total = max(0.0, float(cumulative_usd))
-            reset = same_session and current_total < previous_total
-            delta = current_total if not same_session or reset else current_total - previous_total
-            previous["estimated_usd"] = float(previous.get("estimated_usd", 0.0)) + delta
+            native_session_id = reading.native_session_id or native_session
+            reset_window_key = self.reset_window_key(reading.window)
+            amount = reading.amount_usd
+            if (isinstance(amount, (int, float)) and not isinstance(amount, bool)
+                    and math.isfinite(float(amount)) and amount >= 0):
+                previous_session = previous.get("native_session_id", previous.get("native_session"))
+                same_session = previous_session == native_session_id
+                legacy_window = same_session and "reset_window_key" not in previous and "native_total_usd" in previous
+                same_window = previous.get("reset_window_key") == reset_window_key or legacy_window
+                previous_total = float(previous.get("native_total_usd", 0.0)) if same_session and same_window else 0.0
+                current_total = float(amount)
+                older_sample = (same_session and same_window and reading.sampled_at is not None
+                                and previous.get("sampled_at") is not None
+                                and reading.sampled_at <= float(previous["sampled_at"]))
+                if not older_sample:
+                    reset = same_session and same_window and current_total < previous_total
+                    delta = current_total if not same_session or not same_window or reset else current_total - previous_total
+                    previous["estimated_usd"] = float(previous.get("estimated_usd", 0.0)) + delta
+                    previous["last_estimate"] = {
+                        "label": ESTIMATE_LABEL,
+                        "source": reading.source or "not reported",
+                        "estimate_kind": reading.estimate_kind or "unknown",
+                        "native_session_id": native_session_id,
+                        "worker_native_session": native_session,
+                        "reset_window": reading.window,
+                        "coverage": reading.coverage or "not reported",
+                        "freshness": reading.freshness,
+                        "status": reading.status,
+                        "sampled_at": reading.sampled_at,
+                    }
+                    previous.update({
+                        "native_session_id": native_session_id,
+                        "worker_native_session": native_session,
+                        "reset_window": reading.window,
+                        "reset_window_key": reset_window_key,
+                        "native_total_usd": current_total,
+                        "sampled_at": reading.sampled_at if reading.sampled_at is not None else observed_at,
+                        "first_seen": previous.get("first_seen", observed_at),
+                        "last_seen": reading.sampled_at if reading.sampled_at is not None else observed_at,
+                    })
+            latest = {
+                "label": ESTIMATE_LABEL,
+                "source": reading.source or "not reported",
+                "estimate_kind": reading.estimate_kind or "unknown",
+                "native_session_id": native_session_id,
+                "worker_native_session": native_session,
+                "reset_window": reading.window,
+                "coverage": reading.coverage or "not reported",
+                "freshness": reading.freshness,
+                "status": reading.status,
+                "source_status": reading.source_status,
+                "reason": reading.reason,
+                "sampled_at": reading.sampled_at,
+                "checked_at": observed_at,
+            }
             previous.update({
                 "plan_id": plan_id,
                 "seat": seat,
-                "native_session": native_session,
-                "native_total_usd": current_total,
-                "first_seen": previous.get("first_seen", observed_at),
-                "last_seen": observed_at,
-                "source": ESTIMATE_SOURCE,
+                "latest": latest,
             })
             data["seats"][key] = previous
             self._write(data)
             return self.estimate_data(data, plan_id, observed_at, expected_seats)
+
+    @staticmethod
+    def reset_window_key(window: dict[str, object]) -> str:
+        return json.dumps({key: window.get(key) for key in ("since", "resets")}, sort_keys=True)
 
     def estimate(self, plan_id: int, now: float, expected_seats: int | None = None) -> UsageEstimate:
         with self._lock:
@@ -83,21 +165,34 @@ class UsageLedger:
         if not records:
             coverage = f"0 of {expected_seats} seats observed" if expected_seats is not None else "0 of unknown seats observed"
             return UsageEstimate(plan_id, None, ESTIMATE_SOURCE, None, None, coverage, "missing", "missing", 0, expected_seats)
-        newest = max(float(row["last_seen"]) for row in records)
-        stale = any(now - float(row["last_seen"]) > self.stale_after_seconds for row in records)
-        partial = expected_seats is not None and len(records) < expected_seats
-        coverage = f"{len(records)} of {expected_seats} seats observed" if expected_seats is not None else f"{len(records)} seats observed; expected count unknown"
+        estimated = [row for row in records if isinstance(row.get("estimated_usd"), (int, float))]
+        newest = max((float(row["last_seen"]) for row in estimated), default=None)
+        stale = any((row.get("latest", {}).get("freshness") == "stale"
+                     or now - float(row.get("last_seen", 0)) > self.stale_after_seconds) for row in estimated)
+        unavailable = any(row.get("latest", {}).get("status") == "unavailable" for row in records)
+        partial = expected_seats is not None and len(estimated) < expected_seats
+        coverage = (f"{len(estimated)} of {expected_seats} seats reported Estimated API cost" if expected_seats is not None
+                    else f"{len(estimated)} seats reported Estimated API cost; expected count unknown")
+        sources = sorted({str((row.get("last_estimate") or row.get("latest") or {}).get("source", row.get("source", "not reported"))) for row in records})
+        kinds = sorted({str((row.get("last_estimate") or row.get("latest") or {}).get("estimate_kind", "OpenRig native-session estimate")) for row in records})
+        source = sources[0] if len(sources) == 1 else "mixed harness sources" if sources else ESTIMATE_SOURCE
+        estimate_kind = kinds[0] if len(kinds) == 1 else "mixed estimate kinds" if kinds else ""
+        freshness = "stale" if stale else "unavailable" if unavailable else "fresh"
+        status = ("stale" if stale else "unavailable" if unavailable else "partial" if partial
+                  else "estimated" if estimated else "missing")
         return UsageEstimate(
             plan_id,
-            sum(float(row["estimated_usd"]) for row in records),
-            ESTIMATE_SOURCE,
-            min(float(row["first_seen"]) for row in records),
+            sum(float(row["estimated_usd"]) for row in estimated) if estimated else None,
+            source,
+            min(float(row["first_seen"]) for row in estimated) if estimated else None,
             newest,
             coverage,
-            "stale" if stale else "fresh",
-            "stale" if stale else "partial" if partial else "estimated",
-            len(records),
+            freshness,
+            status,
+            len(estimated),
             expected_seats,
+            estimate_kind,
+            ESTIMATE_LABEL,
         )
 
     def record_subscription_limits(self, limits: dict[str, dict[str, float]] | None, source: str, window: str, observed_at: float, coverage: str = "account-wide subscription windows") -> None:

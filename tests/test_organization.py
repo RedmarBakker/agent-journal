@@ -23,10 +23,12 @@ from journal.features.organization.listeners.role_refusal_report import RoleRefu
 from journal.features.organization.support.approval_action import ApprovalAction
 from journal.features.organization.support.approval_actions import ApprovalActions
 from journal.features.organization.support.cardinality import Cardinality
+from journal.features.organization.support.caps import Caps
 from journal.features.organization.support.edge import Edge
 from journal.features.organization.support.edge_kind import EdgeKind
 from journal.features.organization.support.organization_data_reader import OrganizationDataReader
 from journal.features.organization.support.role_approvals import RoleApprovals
+from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.role import Role
 from journal.features.organization.support.role_models import RoleModels
 from journal.features.organization.support import seat_runner as seat_runner_module
@@ -34,6 +36,7 @@ from journal.features.organization.support import seat_runtime as seat_runtime_m
 from journal.features.organization.support.seat_runner import SeatJobIdentity, SeatRunner
 from journal.features.organization.support.seat_runtime import SeatRuntime
 from journal.features.organization.support.tool_ids import ToolIds
+from journal.features.organization.support.usage_ledger import UsageEstimate, UsageLedger, UsageReading
 from journal.support.inner_repositories import InnerRepositories
 from journal.features.tasks.states.ready import Ready
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -43,6 +46,7 @@ from journal.models.support.ref import Ref
 from journal.models.agent import Agent
 from journal.models.plan import Plan
 from journal.models.plan_mode import PlanMode
+from journal.models.plan_state import PlanState
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
@@ -474,9 +478,6 @@ def test_the_real_organization_folder_loads_domains_roles_and_many_plans(app):
 
 
 def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_windows_stay_separate(tmp_path):
-    from journal.config import Config
-    from journal.features.organization.support.usage_ledger import UsageLedger
-
     ledger = UsageLedger(Config.rooted(tmp_path), stale_after_seconds=60)
     assert ledger.estimate(3, 100).status == "missing" and ledger.estimate(3, 100).amount_usd is None
     assert ledger.estimate(4, 100, 2).coverage == "0 of 2 seats observed"
@@ -498,10 +499,189 @@ def test_openrig_usage_estimates_are_native_session_deltas_and_subscription_wind
     assert ledger.estimate(3, 1000).status == "stale" and ledger.subscription_limits(1000).status == "stale"
 
 
-def test_worker_caps_keep_account_seat_capacity_and_plan_estimates_distinct():
-    from journal.features.organization.support.caps import Caps
-    from journal.features.organization.support.usage_ledger import UsageEstimate
+def test_openrig_075_cost_json_preserves_per_seat_estimate_metadata():
+    payload = {"seats": [{
+        "seatSession": "alpha-builder@release", "status": "reported", "kind": "claude",
+        "source": "Claude statusline", "costUsd": 2.5,
+        "window": {"nativeSessionId": "native-a", "since": "2026-10-29T10:00:00Z",
+                   "asOf": "2026-10-29T10:01:00Z", "resets": 1},
+        "coverage": "current native session", "stale": False, "ageSeconds": 3,
+    }], "note": "current daemon only"}
+    calls = []
+    runtime = SeatRuntime(SimpleNamespace(), SimpleNamespace())
+    runtime.run = lambda *args, **kwargs: calls.append((args, kwargs)) or subprocess.CompletedProcess(
+        ["rig", *args], 0, json.dumps(payload), "")
 
+    reading = runtime.usage_cost("alpha-builder@release")
+
+    assert calls == [(('usage', 'cost', '--seat', 'alpha-builder@release', '--json'), {"check": False})]
+    assert (reading.amount_usd, reading.source, reading.estimate_kind, reading.native_session_id) == (
+        2.5, "Claude statusline", "claude", "native-a")
+    assert reading.window == payload["seats"][0]["window"] and reading.coverage == "current native session"
+    assert reading.freshness == "fresh" and reading.status == "estimated" and reading.sampled_at is not None
+
+
+def test_openrig_cost_json_keeps_unreported_cost_explicit():
+    payload = {"seats": [{"seatSession": "alpha-builder@release", "status": "not_reported",
+                          "kind": "codex", "reason": "Codex reports no cost", "tokens": {"input": 10}}],
+               "note": "current daemon only"}
+    runtime = SeatRuntime(SimpleNamespace(), SimpleNamespace())
+    runtime.run = lambda *_args, **_kwargs: subprocess.CompletedProcess(
+        ["rig", "usage", "cost"], 0, json.dumps(payload), "")
+
+    reading = runtime.usage_cost("alpha-builder@release")
+
+    assert reading.amount_usd is None and reading.status == "unavailable"
+    assert reading.source_status == "not_reported" and reading.reason == "Codex reports no cost"
+
+
+def test_openrig_ledger_retains_session_reset_and_unavailable_metadata(tmp_path):
+    ledger = UsageLedger(Config.rooted(tmp_path), stale_after_seconds=60)
+
+    def reading(amount, native_id, since, resets, as_of, freshness="fresh", status="estimated"):
+        return UsageReading(amount, "Claude statusline", "claude", native_id,
+                            {"since": since, "resets": resets, "asOf": as_of},
+                            "current native session", freshness, status, "reported", "",
+                            float(as_of))
+
+    first = ledger.record(3, "alpha-builder@release", "worker-session-a",
+                          reading(2.5, "native-a", "window-a", 0, 100), 100, 1)
+    continued = ledger.record(3, "alpha-builder@release", "worker-session-a",
+                              reading(3.0, "native-a", "window-a", 0, 110), 110, 1)
+    reset = ledger.record(3, "alpha-builder@release", "worker-session-a",
+                          reading(4.0, "native-a", "window-b", 1, 120), 120, 1)
+    new_session = ledger.record(3, "alpha-builder@release", "worker-session-b",
+                                reading(0.4, "native-b", "window-c", 0, 130), 130, 1)
+    stale = ledger.record(3, "alpha-builder@release", "worker-session-b",
+                          reading(0.6, "native-b", "window-c", 0, 140, "stale", "stale"), 140, 1)
+    unavailable = ledger.record(3, "alpha-builder@release", "worker-session-b",
+                                UsageReading(None, "OpenRig rig usage cost --json", "claude", "native-b", {},
+                                             "not reported", "unavailable", "unavailable", "not_reported", "no sample"),
+                                150, 1)
+    persisted = json.loads(ledger.path.read_text())["seats"]["3:alpha-builder@release"]
+
+    assert [first.amount_usd, continued.amount_usd, reset.amount_usd, new_session.amount_usd] == [2.5, 3.0, 7.0, 7.4]
+    assert stale.amount_usd == 7.6 and stale.status == "stale"
+    assert unavailable.amount_usd == 7.6 and unavailable.status == "unavailable" and unavailable.freshness == "unavailable"
+    assert persisted["native_session_id"] == "native-b" and persisted["worker_native_session"] == "worker-session-b"
+    assert persisted["latest"]["label"] == "Estimated API cost"
+    assert persisted["last_estimate"]["source"] == "Claude statusline"
+    assert persisted["reset_window"] == {"since": "window-c", "resets": 0, "asOf": 140.0}
+    assert persisted["latest"]["source"] == "OpenRig rig usage cost --json"
+    assert persisted["latest"]["estimate_kind"] == "claude" and persisted["latest"]["source_status"] == "not_reported"
+    assert persisted["latest"]["coverage"] == "not reported" and persisted["latest"]["status"] == "unavailable"
+
+
+def test_openrig_ledger_migrates_legacy_session_snapshot_without_double_counting(tmp_path):
+    config = Config.rooted(tmp_path)
+    ledger = UsageLedger(config)
+    ledger.path.parent.mkdir(parents=True)
+    ledger.path.write_text(json.dumps({"seats": {"3:seat": {
+        "plan_id": 3, "seat": "seat", "native_session": "native-a", "native_total_usd": 3.0,
+        "estimated_usd": 3.0, "first_seen": 100.0, "last_seen": 110.0, "source": "legacy harness",
+    }}, "subscription_limits": None}))
+
+    estimate = ledger.record(3, "seat", "worker-session", UsageReading(
+        3.2, "Claude statusline", "claude", "native-a", {"since": "current", "resets": 0},
+        "current native session", "fresh", "estimated", "reported", "", 120.0), 120.0, 1)
+
+    assert estimate.amount_usd == 3.2, "the first structured snapshot continues the legacy cumulative baseline"
+
+
+def test_over_budget_plan_pauses_after_recording_separate_subscription_limits(tmp_path):
+    reading = UsageReading(5.0, "Claude statusline", "claude", "native-a",
+                           {"since": "window-a", "resets": 0, "asOf": 10.0},
+                           "current native session", "fresh", "estimated", "reported", "", 10.0)
+    ledger = UsageLedger(Config.rooted(tmp_path))
+
+    class Settings:
+        @staticmethod
+        def integer(_option):
+            return 2
+
+        @staticmethod
+        def decimal(_option):
+            return 5.0
+
+    order, paused, stopped, notified = [], [], [], []
+    plan = SimpleNamespace(state=PlanState.STARTED)
+    windows = [SimpleNamespace(key="five_hour", used=40.0, resets_at=500.0, label="five hours")]
+    runner = object.__new__(SeatRunner)
+    runner.runtime = SimpleNamespace(usage_cost=lambda _target: reading, expected_seats=lambda _rig: 1,
+                                     stop=lambda target, reason: (order.append("stop"), stopped.append((target, reason))))
+    runner.ledger = ledger
+    runner.caps = Caps(Settings())
+    runner.plans = SimpleNamespace(find=lambda _plan_id: plan,
+                                   postpone=lambda current, _actor: (order.append("pause"), paused.append(current)))
+    runner.escalation = SimpleNamespace(cap_reached=lambda *_args: (order.append("notify"), notified.append(_args)))
+    runner.providers = SimpleNamespace(lookup=lambda _provider: SimpleNamespace(
+        status=lambda _session, _home: SimpleNamespace(windows=windows)))
+    runner.config = SimpleNamespace(status_home=tmp_path)
+    worker = SimpleNamespace(plan_id=3, provider="claude")
+    member = SimpleNamespace(target="alpha-builder@release", rig="release")
+
+    with pytest.raises(Rejection, match="Estimated API cost"):
+        runner.record_usage(worker, member, "worker-session", 20.0, Actor.system())
+
+    assert paused == [plan] and len(stopped) == 1 and stopped[0][0] == member.target
+    assert order == ["notify", "pause", "stop"] and notified[0][1].startswith("the plan's Estimated API cost")
+    assert "not money billed" in stopped[0][1]
+    assert ledger.estimate(3, 20.0, 1).status == "estimated"
+    limits = ledger.subscription_limits(20.0)
+    assert limits.status == "available" and limits.limits["five_hour"]["used_percentage"] == 40.0
+
+
+def test_plan_cost_cap_notifies_plan_agent_and_user():
+    worker = Worker(id=17, name="Ada", role="builder", plan_id=3, contract="contract-1",
+                    environment_id=1, dispatcher="plan-session")
+    role = SimpleNamespace(id="builder", domain="release")
+    plan = SimpleNamespace(id=3)
+    plan_agent = Agent(id=9, environment_id=2, session="plan-agent-session", provider="claude")
+    links, cards = [], []
+    escalation = RoleEscalation(
+        SimpleNamespace(at=lambda _contract: SimpleNamespace(role=lambda _role: role)),
+        SimpleNamespace(),
+        SimpleNamespace(find=lambda _plan_id: plan, agent_id=lambda _plan: 9),
+        SimpleNamespace(unended_agent=lambda _agent_id: plan_agent),
+        SimpleNamespace(save=lambda link, actor: links.append((link, actor))),
+        SimpleNamespace(show=lambda *args, **kwargs: cards.append((args, kwargs))),
+    )
+
+    escalation.cap_reached(worker, "the plan's Estimated API cost reached $5.00; this is an estimate, not money billed", Actor.system())
+
+    assert len(links) == 1 and links[0][0].target.id == 9
+    assert links[0][0].events[0].recipient == "plan-agent-session"
+    assert "Estimated API cost reached $5.00" in links[0][0].events[0].report
+    assert len(cards) == 1 and cards[0][0][2] == "Estimated API cost cap reached"
+    assert "not money billed" in cards[0][0][3] and cards[0][0][1] == "plan-session"
+
+    escalation.seat_cap_waiting(worker, "it will resume when a seat is free", Actor.system())
+
+    assert len(links) == 2 and "paused at the shared OpenRig seat cap" in links[1][0].events[0].report
+    assert len(cards) == 2 and cards[1][0][2] == "Shared OpenRig seat cap reached"
+
+
+def test_seat_runner_notifies_when_a_shared_rig_seat_cap_pauses_staffing(monkeypatch):
+    worker = Worker(id=17, name="Ada", provider="claude", model="sonnet", plan_id=3,
+                    role="builder", contract="contract-1", environment_id=1)
+    member = SimpleNamespace(openrig_version="0.7.5", provider="claude", model="sonnet")
+    notifications = []
+    runner = object.__new__(SeatRunner)
+    runner.member = lambda _worker: member
+    runner.runtime = SimpleNamespace(check_version=lambda _version: None, worker_token=lambda *_args: object())
+    runner.environments = SimpleNamespace(find=lambda _environment_id: SimpleNamespace(name="plan-3"))
+    runner.capacity_available = lambda _worker: False
+    runner.current_job = lambda _identity: None
+    runner.escalation = SimpleNamespace(seat_cap_waiting=lambda *args: notifications.append(args))
+    monkeypatch.setattr(seat_runner_module.time, "sleep", lambda _seconds: None)
+
+    runner.run(worker, SeatJobIdentity.from_worker(worker), Actor.system(), "do the work", lambda *_args: None)
+
+    assert len(notifications) == 1
+    assert notifications[0][0] == worker and "resume when a seat is free" in notifications[0][1]
+
+
+def test_worker_caps_keep_account_seat_capacity_and_plan_estimates_distinct():
     class Settings:
         @staticmethod
         def integer(option):
@@ -513,12 +693,24 @@ def test_worker_caps_keep_account_seat_capacity_and_plan_estimates_distinct():
 
     caps = Caps(Settings())
     assert caps.seats(1).allowed and caps.seats(2).status == "full"
+    assert "shared OpenRig seat cap" in caps.seats(2).reason
     missing = UsageEstimate(3, None, "OpenRig native-session estimate", None, None, "0 of unknown seats observed", "missing", "missing")
     over = UsageEstimate(3, 5.0, "OpenRig native-session estimate", 10, 20, "1 of 1 seats observed", "fresh", "estimated")
-    partial = UsageEstimate(3, 6.0, "OpenRig native-session estimate", 10, 20, "1 of 2 seats observed", "fresh", "estimated", 1, 2)
+    partial = UsageEstimate(3, 4.0, "OpenRig native-session estimate", 10, 20, "1 of 2 seats observed", "fresh", "partial", 1, 2)
+    partial_over = UsageEstimate(3, 6.0, "OpenRig native-session estimate", 10, 20, "1 of 2 seats observed", "fresh", "partial", 1, 2)
+    stale_over = UsageEstimate(3, 6.0, "OpenRig native-session estimate", 10, 20, "1 of 1 seats observed", "stale", "stale", 1, 1)
     assert caps.plan_cost(missing).status == "unknown" and not caps.plan_cost(missing).allowed
-    assert caps.plan_cost(over).status == "exceeded" and "estimated OpenRig usage" in caps.plan_cost(over).reason
+    assert caps.plan_cost(over).status == "exceeded" and "Estimated API cost" in caps.plan_cost(over).reason and "not money billed" in caps.plan_cost(over).reason
     assert caps.plan_cost(partial).status == "unknown" and "1 of 2 seats" in caps.plan_cost(partial).reason
+    assert caps.plan_cost(partial_over).status == "exceeded" and caps.plan_cost(stale_over).status == "exceeded"
+
+
+def test_plan_cost_setting_names_estimated_api_cost_and_separates_subscription_billing():
+    option = OrganizationOptions.COST_CAP
+
+    assert option.title == "Estimated API cost cap per plan"
+    assert "estimated API cost" in option.abstract
+    assert "not money billed" in option.abstract and "share of your subscription" in option.abstract
 
 
 def test_a_followup_codex_job_uses_the_existing_openrig_session_while_its_monitor_is_winding_down(monkeypatch):

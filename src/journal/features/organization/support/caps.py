@@ -20,7 +20,7 @@ class CapDecision:
 
 
 class Caps:
-    """Keep plan spend estimates and account subscription limits distinct."""
+    """Keep plan Estimated API cost budgets and shared-rig seats separate from subscription limits."""
 
     def __init__(self, settings: SettingRows) -> None:
         self.settings = settings
@@ -29,16 +29,19 @@ class Caps:
         limit = self.settings.integer(OrganizationOptions.SEAT_CAP)
         if not limit or active_seats < limit:
             return CapDecision("within", float(limit), float(active_seats), "")
-        return CapDecision("full", float(limit), float(active_seats), f"the account-wide seat cap is {limit}")
+        return CapDecision("full", float(limit), float(active_seats), f"the shared OpenRig seat cap is {limit}")
 
     def plan_cost(self, estimate: UsageEstimate) -> CapDecision:
         limit = self.settings.decimal(OrganizationOptions.COST_CAP)
         if limit <= 0:
             return CapDecision("within", limit, estimate.amount_usd, "")
-        if estimate.status in ("missing", "stale") or estimate.amount_usd is None:
-            return CapDecision("unknown", limit, estimate.amount_usd, f"the OpenRig estimate is {estimate.status}")
-        if estimate.expected_seats is not None and estimate.observed_seats < estimate.expected_seats:
-            return CapDecision("unknown", limit, estimate.amount_usd, f"the OpenRig estimate covers {estimate.observed_seats} of {estimate.expected_seats} seats")
-        if estimate.amount_usd >= limit:
-            return CapDecision("exceeded", limit, estimate.amount_usd, f"the plan's estimated OpenRig usage reached ${limit:.2f}")
+        if estimate.amount_usd is not None and estimate.amount_usd >= limit:
+            return CapDecision("exceeded", limit, estimate.amount_usd,
+                               f"the plan's Estimated API cost reached ${limit:.2f}; this is an estimate, not money billed or a share of a subscription")
+        if estimate.status in ("missing", "stale", "unavailable") or estimate.amount_usd is None:
+            return CapDecision("unknown", limit, estimate.amount_usd, f"the plan's Estimated API cost is {estimate.status}")
+        if (estimate.status == "partial" or estimate.expected_seats is not None
+                and estimate.observed_seats < estimate.expected_seats):
+            return CapDecision("unknown", limit, estimate.amount_usd,
+                               f"the plan's Estimated API cost has incomplete seat coverage ({estimate.coverage})")
         return CapDecision("within", limit, estimate.amount_usd, "")

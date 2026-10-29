@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from journal.config import Config
 from journal.features.organization.support.caps import Caps
 from journal.features.organization.support.organization import Organization
+from journal.features.organization.support.role_escalation import RoleEscalation
 from journal.features.organization.support.seat_runtime import SeatMember, SeatRuntime
 from journal.features.organization.support.usage_ledger import UsageLedger
 from journal.features.workers.organization_options import OrganizationOptions
@@ -58,12 +59,14 @@ class SeatRunner:
 
     def __init__(self, config: Config, organization: Organization, plans: Plans, rigs: Rigs, workers: Workers,
                  environments: Environments, settings: SettingRows, scope: Scope,
-                 runtime: SeatRuntime, ledger: UsageLedger, caps: Caps, tasks: Tasks, providers: Providers, time_source: TimeSource) -> None:
+                 runtime: SeatRuntime, ledger: UsageLedger, caps: Caps, tasks: Tasks, providers: Providers,
+                 time_source: TimeSource, escalation: RoleEscalation) -> None:
         self.config, self.organization, self.plans, self.rigs = config, organization, plans, rigs
         self.workers, self.environments, self.settings, self.scope = workers, environments, settings, scope
         self.runtime, self.ledger, self.caps, self.time_source = runtime, ledger, caps, time_source
         self.tasks = tasks
         self.providers = providers
+        self.escalation = escalation
         self._active: set[int] = set()
         self._active_jobs: dict[int, SeatJobIdentity] = {}
         self._finishing: set[SeatJobIdentity] = set()
@@ -163,7 +166,11 @@ class SeatRunner:
         self.runtime.check_version(member.openrig_version)
         environment = self.environments.find(worker.environment_id).name
         token = self.runtime.worker_token(member, worker.provider, member.model, Actor.worker(worker.id).stamp, environment)
+        capacity_notified = False
         while not self.capacity_available(worker):
+            if not capacity_notified:
+                self.escalation.seat_cap_waiting(worker, "it will resume when a seat is free", Actor.system())
+                capacity_notified = True
             time.sleep(POLL_SECONDS)
             current = self.current_job(identity)
             if current is None:
@@ -255,18 +262,16 @@ class SeatRunner:
 
     def record_usage(self, worker: Worker, member: SeatMember, native_session: str, now: float, actor: Actor) -> None:
         plan_id = worker.plan_id
-        amount = self.runtime.cumulative_cost(member.target)
-        if plan_id and amount is not None:
-            estimate = self.ledger.observe(plan_id, member.target, native_session, amount, now, self.runtime.expected_seats(member.rig))
-            decision = self.caps.plan_cost(estimate)
-            if decision.status == "exceeded":
-                plan = self.plans.find(plan_id)
-                if plan.state in (PlanState.STARTED, PlanState.DELEGATED):
-                    self.plans.postpone(plan, Actor.system())
-                self.runtime.stop(member.target, "the plan's estimated OpenRig usage reached its configured cap")
-                raise Rejection(decision.reason)
+        estimate = None
+        if plan_id:
+            reading = self.runtime.usage_cost(member.target)
+            estimate = self.ledger.record(plan_id, member.target, native_session, reading, now,
+                                          self.runtime.expected_seats(member.rig))
         source = f"{worker.provider} journal status files"
-        windows = self.providers.lookup(worker.provider).status(native_session, self.config.status_home).windows
+        try:
+            windows = self.providers.lookup(worker.provider).status(native_session, self.config.status_home).windows
+        except Rejection:
+            windows = None
         if windows:
             self.ledger.record_subscription_limits(
                 {window.key: {"used_percentage": window.used, "resets_at": window.resets_at} for window in windows},
@@ -277,6 +282,15 @@ class SeatRunner:
             )
         else:
             self.ledger.record_subscription_limits(None, source, "account-wide subscription windows", now, "account-wide subscription windows")
+        if estimate is not None:
+            decision = self.caps.plan_cost(estimate)
+            if decision.status == "exceeded":
+                self.escalation.cap_reached(worker, decision.reason, Actor.system())
+                plan = self.plans.find(plan_id)
+                if plan.state in (PlanState.STARTED, PlanState.DELEGATED):
+                    self.plans.postpone(plan, Actor.system())
+                self.runtime.stop(member.target, decision.reason)
+                raise Rejection(decision.reason)
 
     def is_finished(self, worker: Worker, actor: Actor, ended: Callable[[Worker, SeatJobIdentity, int, Actor], None]) -> bool:
         identity = SeatJobIdentity.from_worker(worker)
