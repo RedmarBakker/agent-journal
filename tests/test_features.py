@@ -5339,6 +5339,7 @@ def test_a_worker_without_a_worktree_has_its_tests_run_in_the_checkout_it_works_
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.environments import Environments
     from journal.repositories.test_turns import TestTurns as TurnRows
+    from journal.repositories.workers import Workers
     settings, scope, folders = app.container.get(SettingRows), app.container.get(Scope), []
 
     class Crew:
@@ -5356,8 +5357,8 @@ def test_a_worker_without_a_worktree_has_its_tests_run_in_the_checkout_it_works_
     branch = app.container.get(WorkerBranch)
     turns = TestTurns(app.container.get(TurnRows), Runner(), branch, app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments), app.container.get(TimeSource))
     user_set(app, WorkersOptions.TEST_COMMAND.key, "pytest -q")
-    faraday = Worker(id=7, environment_id=1, name="Mr. Faraday", worktree=False)
     with scope.environment(1):
+        faraday = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Faraday", brief="b", worktree=False), Actor.system())
         turn, result = turns.checked(faraday, "tests/a.py", SimpleNamespace())
     assert folders == [str(branch.place(faraday))] and folders[0] != str(branch.folder(faraday)), "the run is in the checkout it works in, never a worktree it does not have"
     assert turn.folder == folders[0] and "1 passed" in result, "and its clock-out run passes"
