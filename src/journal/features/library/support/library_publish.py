@@ -4,9 +4,11 @@ from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.library_name import LibraryName
 from journal.features.library.support.profile_body import ProfileBody
+from journal.features.library.support.reader_body import ReaderBody
 from journal.features.library.support.sequence_body import SequenceBody
 from journal.features.library.support.template_body import TemplateBody
 from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.features.shell.support.readers import Readers
 from journal.providers.support.profile import Profile
 from journal.providers.support.profile_type import ProfileType
 from journal.repositories.sequences import Sequences
@@ -17,14 +19,14 @@ from sync_server.publish_request import PublishRequest
 
 
 class LibraryPublish:
-    """Publishing a sequence or template by its number, or a profile by its name, to the team's library: its portable body posted as the next version, named from its title, with this journal's version as the lowest that reads it; a shipped, locked sequence may be published too."""
+    """Publishing a sequence or template by its number, or a profile or a reader by its name, to the team's library: its portable body posted as the next version, named from its title, with this journal's version as the lowest that reads it; a shipped, locked sequence may be published too."""
 
-    def __init__(self, account: LibraryAccount, schema: Schema, sequences: Sequences, templates: Templates, profiles: ProfileFiles) -> None:
+    def __init__(self, account: LibraryAccount, schema: Schema, sequences: Sequences, templates: Templates, profiles: ProfileFiles, readers: Readers) -> None:
         self.link = LibraryLink(account, schema)
-        self.sequences, self.templates, self.profiles = sequences, templates, profiles
+        self.sequences, self.templates, self.profiles, self.readers = sequences, templates, profiles, readers
 
     def published(self, item_type: str, reference: str, note: str, description: str | None) -> ItemVersion:
-        bodies = {"sequence": self.sequence_body, "template": self.template_body, "profile": self.profile_body}
+        bodies = {"sequence": self.sequence_body, "template": self.template_body, "profile": self.profile_body, "reader": self.reader_body}
         if item_type not in bodies:
             raise Rejection(f"the library publishes {', '.join(bodies)} here; {item_type} is not one of them")
         entry = bodies[item_type](reference)
@@ -42,6 +44,12 @@ class LibraryPublish:
         view = self.profiles.read(reference)
         profile = Profile(view["name"], view["description"], view["tools"], view["body"], ProfileType(view["profile_type"]))
         return LibraryEntry(view["name"], view["description"], ProfileBody.text(profile))
+
+    def reader_body(self, reference: str) -> LibraryEntry:
+        files = self.readers.files(reference)
+        if not files:
+            raise Rejection(f"no reader named {reference}: `journal reader list` shows them")
+        return LibraryEntry(reference, reference, ReaderBody.text(files[0]))
 
     @staticmethod
     def number(reference: str) -> int:

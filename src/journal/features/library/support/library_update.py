@@ -5,6 +5,7 @@ from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.portable_body import PortableBody
 from journal.features.library.support.profile_body import ProfileBody
+from journal.features.library.support.reader_body import ReaderBody
 from journal.features.library.support.sequence_body import SequenceBody
 from journal.features.library.support.template_body import TemplateBody
 from journal.features.profiles.support.profile_files import ProfileFiles
@@ -47,6 +48,8 @@ class LibraryUpdate:
         return sorted(name for name in set(imported_fields) | set(current) if imported_fields.get(name) != current.get(name))
 
     def local_body(self, item: LibraryItem) -> str:
+        if item.item_type == "reader":
+            return ReaderBody.text(self.profiles.config.root / str(item.file_path))
         if item.item_type == "profile":
             imported = ProfileBody.profile(item.body)
             view = self.profiles.read(imported.name)
@@ -55,6 +58,10 @@ class LibraryUpdate:
         return SequenceBody.text(self.sequences.find(ref.id)) if item.item_type == "sequence" else TemplateBody.text(self.templates.find(ref.id))
 
     def local_copy_replaced(self, item: LibraryItem, body: str, actor: Actor) -> str:
+        if item.item_type == "reader":
+            path = self.profiles.config.root / str(item.file_path)
+            path.write_text(ReaderBody.file_text(body))
+            return ReaderBody.text(path)
         if item.item_type == "profile":
             self.profiles.saved(ProfileBody.profile(body))
             return body

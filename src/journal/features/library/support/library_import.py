@@ -1,7 +1,9 @@
+from journal.config import Config
 from journal.db.schema import Schema
 from journal.features.library.support.library_account import LibraryAccount
 from journal.features.library.support.library_link import LibraryLink
 from journal.features.library.support.profile_body import ProfileBody
+from journal.features.library.support.reader_body import ReaderBody
 from journal.features.library.support.sequence_body import SequenceBody
 from journal.features.library.support.template_body import TemplateBody
 from journal.features.profiles.support.profile_files import PREFIX, ProfileFiles
@@ -21,10 +23,10 @@ LIBRARY_TITLE_SUFFIX = " (from the library)"
 
 
 class LibraryImport:
-    """Importing an item of the team's library as a row of this journal, written by the importer: a sequence or template through its repository, a profile as its file, each joined to a LibraryItem that keeps the local copy's body as written, so a later edit shows against it. An item that needs a newer journal is refused with the update line; one already imported is pointed to update; a title a local row already has gets the words from the library after it; a profile never takes a name the journal ships; and a sequence's triggers and allowed commands are shown, and written only once accepted."""
+    """Importing an item of the team's library as a row of this journal, written by the importer: a sequence or template through its repository, a profile as its file, each joined to a LibraryItem that keeps the local copy's body as written, so a later edit shows against it. An item that needs a newer journal is refused with the update line; one already imported is pointed to update; a title a local row already has gets the words from the library after it; a profile never takes a name the journal ships; and a sequence's triggers and allowed commands, like a reader's pattern or script, are shown, and written only once accepted."""
 
-    def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, sequences: Sequences, templates: Templates, profiles: ProfileFiles) -> None:
-        self.account, self.link = account, LibraryLink(account, schema)
+    def __init__(self, account: LibraryAccount, schema: Schema, items: LibraryItems, sequences: Sequences, templates: Templates, profiles: ProfileFiles, config: Config) -> None:
+        self.account, self.link, self.config = account, LibraryLink(account, schema), config
         self.items, self.sequences, self.templates, self.profiles = items, sequences, templates, profiles
 
     def version(self, item_type: str, name: str, number: int | None) -> ItemVersion:
@@ -40,7 +42,7 @@ class LibraryImport:
             raise Rejection(f"{item_type} {name} is imported already: journal library update {item_type} {name}")
         version = self.version(item_type, name, number)
         item = self.items.save(LibraryItem(library_key=key, item_type=item_type, name=name, version=version.number, body=version.body), actor)
-        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file}
+        writers = {"sequence": self.sequence_row, "template": self.template_row, "profile": self.profile_file, "reader": self.reader_file}
         if item_type not in writers:
             raise Rejection(f"the library imports {', '.join(writers)} here; {item_type} is not one of them")
         return writers[item_type](item, actor, accepted)
@@ -73,6 +75,18 @@ class LibraryImport:
             raise Rejection(f"a profile named {profile.name} is the journal's own or exists here already: the library's copy is not written over it")
         path = self.profiles.saved(profile)
         return self.items.save(item.with_(file_path=path), actor)
+
+    def reader_file(self, item: LibraryItem, actor: Actor, accepted: bool) -> LibraryItem:
+        path = self.config.readers / ReaderBody.file_name(item.body)
+        if not accepted or path.exists():
+            self.items.delete(item, actor)
+        if path.exists():
+            raise Rejection(f"a reader file named {path.name} exists here already: the library's copy is not written over it")
+        if not accepted:
+            raise Rejection(f"reader {item.name} runs on your commands' output as written below. Read it, then import again with --accept to write it\n{ReaderBody.file_text(item.body)}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(ReaderBody.file_text(item.body))
+        return self.items.save(item.with_(file_path=str(path.relative_to(self.config.root))), actor)
 
     @staticmethod
     def powers(sequence: Sequence) -> str:
