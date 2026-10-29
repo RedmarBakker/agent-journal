@@ -2,6 +2,7 @@ import json
 from enum import Enum
 
 from journal.engine.nudge import Nudge
+from journal.events.moments.plugin_update_available import PluginUpdateAvailable
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from tests.full_project import MAIN
@@ -228,6 +229,15 @@ class StoryChecks:
 
     def expect_message(self, n: int, **fields) -> None:
         self.expect_row("messages", n, fields)
+
+    def expect_plugin_version(self, n: int, version: str) -> None:
+        shown = self.api_row("plugins", n)["manifest"]["version"]
+        assert shown == version, f"plugin {n} is at version {shown}, not {version}"
+
+    def expect_plugin_update_offered(self, plugin: str, previous: str, version: str) -> None:
+        title = PluginUpdateAvailable(environment_id=0, plugin=plugin, previous=f"v{previous}", tag=f"v{version}").card_parts()[0]
+        texts = [row["text"] for row in get_answer(self.app, "/journal/messages", MAIN)[1]["rows"]]
+        assert title in texts, f"no card offers the update: {texts[-5:]}"
 
     def expect_card_data(self, n: int, **fields) -> None:
         data = self.api_row("messages", n).get("data") or {}

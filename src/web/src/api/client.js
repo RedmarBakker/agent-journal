@@ -777,8 +777,8 @@ export class ApiClient {
         return this.act("plugins", id, "upgrade-preview", {}, LONG_WAIT_MS);
     }
 
-    upgradePlugin(id) {
-        return this.act("plugins", id, "upgrade", {}, LONG_WAIT_MS);
+    upgradePlugin(id, ref) {
+        return this.act("plugins", id, "upgrade", {ref}, LONG_WAIT_MS);
     }
 
     pluginLog(id, lines = 200) {

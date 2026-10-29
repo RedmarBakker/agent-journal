@@ -6,7 +6,12 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from journal.engine.nudge import Nudge
+from journal.version import VERSION
+from journal.support.listener_queue import ListenerQueue
+from journal.events.journal_updated import JournalUpdated
+from journal.events.announcer import Announcer
 from journal.providers.claude import Claude
 from journal.providers.codex import Codex
 from journal.repositories.command_outputs import CommandOutputs
@@ -35,6 +40,10 @@ GIT_TIMEOUT_SECONDS = 30
 RUNNER_THREAD = "shell-chain"
 
 SUBAGENT_MODEL = "haiku"
+# the plugin a story's publisher releases from a git folder of the project, and the journal it updated from
+PLUGIN_SOURCE_FOLDER = "plugin-source"
+RELEASED_PLUGIN = {"name": "tagged", "program": "run.py", "hears": []}
+EARLIER_JOURNAL = "0.0.1"
 # the status a session's status line reports in a story: its model, how full its context is and how much of its five hours it used
 REPORTED_MODEL = "Opus"
 REPORTED_CONTEXT_PERCENT = 20
@@ -411,6 +420,31 @@ class AgentSteps:
         path = self.app.config.root / name
         path.write_text("".join(f"line {number}\n" for number in range(line_count)))
         return str(path)
+
+    def plugin_release_published(self, version: str) -> None:
+        folder = self.app.config.root / PLUGIN_SOURCE_FOLDER
+        first = not folder.is_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "run.py").write_text("print()")
+        (folder / "journal-plugin.json").write_text(json.dumps({**RELEASED_PLUGIN, "version": version}))
+        if first:
+            self.git_in(folder, "init", "-q", "-b", "main")
+        self.git_in(folder, "add", "-A")
+        self.git_in(folder, "-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "-m", f"release {version}")
+        self.git_in(folder, "tag", f"v{version}")
+        self.observed(f"the plugin's publisher releases version {version}", None, None)
+
+    def plugin_source(self) -> str:
+        return f"file://{self.app.config.root / PLUGIN_SOURCE_FOLDER}"
+
+    def journal_starts_after_an_update(self) -> None:
+        self.app.container.get(Announcer).announce(JournalUpdated(previous=EARLIER_JOURNAL, current=VERSION))
+        self.app.container.get(ListenerQueue).drain()
+        self.observed("the journal starts after an update", None, None)
+
+    @staticmethod
+    def git_in(folder: Path, *arguments: str) -> None:
+        subprocess.run(["git", *arguments], cwd=folder, capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=True)
 
     def project_is_a_git_repository(self) -> None:
         for arguments in (["init", "-q", "-b", "main"], ["-c", "user.email=story@example.com", "-c", "user.name=Story", "commit", "-q", "--allow-empty", "-m", "start"]):

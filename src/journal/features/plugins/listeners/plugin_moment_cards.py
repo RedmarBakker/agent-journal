@@ -5,7 +5,7 @@ from journal.support.card_type import CardType
 
 
 class PluginMomentCards(Listener[PluginStanding]):
-    """Each moment of a plugin that is not its own card is one mark in the chat of the environment it happened in: failing, answering again, switched off, a manifest waiting, upgraded, not upgraded."""
+    """Each moment of a plugin that is not its own card is one mark in the chat of the environment it happened in: failing, answering again, switched off, a manifest waiting, an update offered, an update that could not be read."""
 
     def __init__(self, cards: MomentCards) -> None:
         self.cards = cards
