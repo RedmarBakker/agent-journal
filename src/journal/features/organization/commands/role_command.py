@@ -50,7 +50,7 @@ class RoleCommand(Command):
             raise Rejection(f"no Role {args.role} in the organization; its Roles are {', '.join(known.id for known in contracts.roles) or 'none'}")
         if role.waits_in_queue():
             return self.queued(role, args, caller)
-        task = self.plans.started_task(plan)
+        task = self.plans.started_task(plan) or self.plans.following_task(plan)
         self.events.role_taken(role.id, task.row_id if task else 0, caller)
         print(f"you act as {role.title} for this step")
         return 0
