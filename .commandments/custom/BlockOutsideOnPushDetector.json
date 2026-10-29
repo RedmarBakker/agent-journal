@@ -5,7 +5,7 @@
         "select": "call",
         "where": [
             {
-                "name": "Held"
+                "name": "Block"
             }
         ],
         "reject": [
@@ -27,9 +27,9 @@
         ]
     },
     "sin": {
-        "name": "held-outside-on-push",
-        "description": "A Held is built outside on_push, the one hook that may refuse a push.",
-        "rule": "Refuse a push in on_push with Held(nudge); everywhere else answer hold(nudge) on the state.",
+        "name": "block-outside-on-push",
+        "description": "A Block is built outside on_push, the one hook that may refuse a push.",
+        "rule": "Refuse a push in on_push with Block(nudge); everywhere else answer refuse(nudge) on the state.",
         "skill": "stack-machine"
     }
 }

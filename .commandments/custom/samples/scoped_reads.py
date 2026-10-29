@@ -6,9 +6,12 @@ class Parcels(ScopedRepository):
     """A sample for scoped-read-around-scope and unscoped-read-outside-base: the first two reads skip the environment scope, the third goes through it."""
 
     def parcel_rows(self, query):
+        # @sin ScopedReadAroundScopeDetector
+        # @sin QueryOutsideRepositoryDetector
         return self.connection.all(*query.select())
 
     def unscoped(self, query):
+        # @sin UnscopedReadOutsideBaseDetector
         return self._selected(query)
 
     def scoped(self, query):

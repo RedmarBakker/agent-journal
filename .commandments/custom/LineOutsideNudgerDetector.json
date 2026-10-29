@@ -18,9 +18,6 @@
                 "testCode": true
             },
             {
-                "file": ".commandments/custom/samples/**"
-            },
-            {
                 "fileMatches": "(^|/)journal/engine/(nudger|nudge|state_machine)\\.py$"
             },
             {

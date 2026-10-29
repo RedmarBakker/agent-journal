@@ -2,13 +2,13 @@ class ImpasseCommand:
     def __init__(self, cards) -> None:
         self.cards = cards
 
-    def stuck(self, why: str) -> None:
+    def impasse(self, reason: str) -> None:
         # @sin MarkWrittenOutsideListenerDetector
-        self.cards.show(1, "s1", "Agent stuck", "warn", "bad", why)
+        self.cards.show(1, "s1", "Agent stuck", "warn", "bad", reason)
 
-    def moved(self, why: str) -> None:
+    def move(self, reason: str) -> None:
         # @sin MarkWrittenOutsideListenerDetector
-        self.cards.show_fields(1, "s1", "Moved", {}, why)
+        self.cards.show_fields(1, "s1", "Moved", {}, reason)
 
     def other(self, rows) -> None:
         # @righteous MarkWrittenOutsideListenerDetector

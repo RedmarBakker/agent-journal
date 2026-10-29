@@ -4,8 +4,10 @@ class Shelf:
     def __init__(self, rows: list[str]) -> None:
         self.rows = rows
 
+    # @sin UnusedPageSizeDetector
     def newest(self, limit: int) -> list[str]:
         return list(reversed(self.rows))
 
+    # @righteous UnusedPageSizeDetector
     def newest_page(self, limit: int) -> list[str]:
         return list(reversed(self.rows))[:limit]
