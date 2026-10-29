@@ -10,6 +10,7 @@ const api = {
 };
 vi.mock("../src/api/client.js", () => ({api, onWrite: vi.fn()}));
 vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
+vi.mock("../src/platform/view.js", () => ({narrow: {value: false}}));
 vi.mock("../src/layout/EnvStart.vue", () => ({default: {template: "<span />"}}));
 vi.mock("../src/layout/NewEnvironment.vue", () => ({default: {template: "<span />"}}));
 
