@@ -2,6 +2,7 @@
 import {computed, onMounted, ref, watch} from "vue";
 import {api} from "../api/client.js";
 import {domainCounts} from "../domain/organizationCounts.js";
+import {cardinalityLine, modelLine} from "../domain/organizationFormat.js";
 import {href, route} from "../route.js";
 import {store} from "../state/store.js";
 import Btn from "../kit/Btn.vue";
@@ -22,13 +23,6 @@ const domains = computed(() => organization.value?.domains || []);
 const problems = computed(() => organization.value?.problems || []);
 const counts = computed(domainCounts);
 
-const modelLine = (models = {}) => [
-    models.claude && `Claude: ${models.claude}`,
-    models.codex && `Codex: ${models.codex}`,
-    models.effort && `Effort: ${models.effort}`,
-].filter(Boolean).join(" · ") || "No model set";
-
-const cardinalityLine = (cardinality) => ({journal: "One for all plans", plan: "One per plan", many: "One per job"})[cardinality] || cardinality;
 const roleInstances = (domain, role) => counts.value[domain]?.roles?.[role.id]?.instances ?? role.instances ?? 0;
 const running = (domain) => domain.roles.reduce((total, role) => total + roleInstances(domain.id, role), 0);
 

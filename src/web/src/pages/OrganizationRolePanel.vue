@@ -1,5 +1,6 @@
 <script setup>
 import {computed} from "vue";
+import {cardinalityLine, modelLine} from "../domain/organizationFormat.js";
 import SidePanel from "../kit/SidePanel.vue";
 import TextDisplay from "../kit/TextDisplay.vue";
 
@@ -20,12 +21,6 @@ const sections = computed(() => [
     {title: "Actions that need approval", items: props.role?.approval_required || []},
 ]);
 
-const cardinalityLine = (cardinality) => ({journal: "One for all plans", plan: "One per plan", many: "One per job"})[cardinality] || cardinality;
-const modelLine = (models = {}) => [
-    models.claude && `Claude: ${models.claude}`,
-    models.codex && `Codex: ${models.codex}`,
-    models.effort && `Effort: ${models.effort}`,
-].filter(Boolean).join(" · ") || "No model set";
 </script>
 
 <template>
