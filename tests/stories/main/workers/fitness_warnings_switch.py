@@ -9,10 +9,13 @@ from tests.stories.fixtures.main.unchecked_work_orchestrator import UncheckedWor
 
 @story(UncheckedWorkOrchestrator, mode=ORCHESTRATOR_MODE, scope=AgentRole.MAIN)
 @setting(FitnessOptions.WARNINGS, True)
-def test_with_fitness_warnings_on_unchecked_work_is_named_at_the_next_tool_use(story):
+def test_with_fitness_warnings_on_unchecked_work_is_named_at_the_next_tool_use_and_not_again_within_its_repeat(story):
     story.agent_reads()
     story.expect_allowed()
     story.expect_agent_told(WorkersNudges.ORCHESTRATOR_WAIT_LINE)
+    story.agent_is_quiet_for(minutes=2)
+    story.agent_reads()
+    story.expect_agent_not_told(WorkersNudges.ORCHESTRATOR_WAIT_LINE)
     story.expect_stack(Orchestrating)
 
 
