@@ -1,7 +1,7 @@
 <script setup>
 import {onPhone} from "../platform/phone.js";
 import {agentRunningIn} from "../composables/settings.js";
-import {computed, onMounted, reactive, ref} from "vue";
+import {computed, onMounted, reactive, ref, watch} from "vue";
 import EnvStart from "./EnvStart.vue";
 import NewEnvironment from "./NewEnvironment.vue";
 import {api} from "../api/client.js";
@@ -18,10 +18,15 @@ import {pluginPages} from "../domain/pluginPages.js";
 import {colleagueOwner, environmentLabel} from "../domain/people.js";
 import {ownEnvironments, teamGroups} from "../domain/hub.js";
 import {chatPlanLine} from "../domain/plans.js";
+import {domainCounts} from "../domain/organizationCounts.js";
+import {planAgents} from "../domain/planAgents.js";
 
 const envs = computed(() => ownEnvironments(rows("environments"), store.people));
 const teams = computed(() => teamGroups(rows("environments"), store.people));
 const pages = computed(() => pluginPages(rows("plugins")));
+const organization = ref(null);
+const domains = computed(() => organization.value?.domains || []);
+const liveDomainCounts = computed(domainCounts);
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
 const creating = ref(false);
@@ -30,7 +35,34 @@ const folded = reactive({});
 const fold = (key) => {
     folded[key] = !folded[key];
 };
+const domainFoldKey = (id) => `organization:${id}`;
+const domainOpen = (id) => Boolean(folded[domainFoldKey(id)]);
+const activePlans = (domain) => liveDomainCounts.value[domain.id]?.plansActive ?? domain.plans_active ?? 0;
+const roleFigures = (domain, role) => liveDomainCounts.value[domain.id]?.roles?.[role.id] || {instances: role.instances || 0, queued: role.queued || 0};
+const roleCount = (domain, role) => {
+    const figures = roleFigures(domain, role);
+    return role.cardinality === "many" ? figures.instances : figures.instances + figures.queued;
+};
+const roleCountTitle = (domain, role) => role.cardinality === "many"
+    ? `${roleCount(domain, role)} running instances`
+    : `${roleCount(domain, role)} queued jobs including the current job`;
+async function readOrganization() {
+    try {
+        const snapshot = await api.organization();
+        if (planAgents.value) organization.value = snapshot;
+    } catch {
+        organization.value = null;
+    }
+}
+watch(planAgents, (enabled) => {
+    if (enabled) void readOrganization();
+    else organization.value = null;
+}, {immediate: true});
 const {sections: groups} = useNavigation();
+
+watch(() => `${route.value.domain}/${route.value.role}`, () => {
+    if (route.value.domain && route.value.role) folded[domainFoldKey(route.value.domain)] = true;
+});
 
 const tip = ref(null);
 
@@ -74,6 +106,47 @@ function point(e) {
                                 <span class="label">{{ page.title }}</span>
                                 <span :class="['plugin-dot', page.state]" />
                             </button>
+                        </template>
+                    </template>
+                </FoldGroup>
+                <FoldGroup
+                    v-if="g.key === 'project' && planAgents && domains.length"
+                    class="group organization-group"
+                    label="Organization"
+                    :open="!folded.organization"
+                    @toggle="fold('organization')"
+                >
+                    <template v-for="domain in domains" :key="domain.id">
+                        <div class="organization-domain-row">
+                            <button
+                                type="button"
+                                class="organization-domain-toggle"
+                                :aria-label="`${domainOpen(domain.id) ? 'Hide' : 'Show'} Roles in ${domain.title}`"
+                                :aria-expanded="domainOpen(domain.id)"
+                                @click="fold(domainFoldKey(domain.id))"
+                            >
+                                <span :class="['organization-chevron', {open: domainOpen(domain.id)}]" aria-hidden="true">›</span>
+                            </button>
+                            <a
+                                :class="['item', 'organization-domain-link', {on: route.page === 'organization' && route.domain === domain.id && !route.role}]"
+                                :href="href.domain(domain.id)"
+                            >
+                                <span class="organization-domain-icon" aria-hidden="true">{{ domain.icon }}</span>
+                                <span class="label">{{ domain.title }}</span>
+                                <span class="count" :title="`${activePlans(domain)} active plans`">{{ activePlans(domain) }}</span>
+                            </a>
+                        </div>
+                        <template v-if="domainOpen(domain.id)">
+                            <a
+                                v-for="role in domain.roles"
+                                :key="role.id"
+                                :class="['item', 'organization-role', {on: route.page === 'organization' && route.domain === domain.id && route.role === role.id}]"
+                                :href="href.role(domain.id, role.id)"
+                                :aria-label="`${role.title}: ${roleCountTitle(domain, role)}`"
+                            >
+                                <span class="label">{{ role.title }}</span>
+                                <span class="count" :title="roleCountTitle(domain, role)">{{ roleCount(domain, role) }}</span>
+                            </a>
                         </template>
                     </template>
                 </FoldGroup>
@@ -316,6 +389,60 @@ function point(e) {
 
 .env-row {
     position: relative;
+}
+
+.organization-domain-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.organization-domain-toggle {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-3);
+    cursor: pointer;
+}
+
+.organization-domain-toggle:hover {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.organization-chevron {
+    display: inline-block;
+    font-size: 15px;
+    line-height: 1;
+    transform: rotate(0);
+    transition: transform 0.15s;
+}
+
+.organization-chevron.open {
+    transform: rotate(90deg);
+}
+
+.organization-domain-link {
+    flex: 1;
+    min-width: 0;
+}
+
+.organization-domain-icon {
+    flex: none;
+    width: 15px;
+    font-size: 13px;
+    line-height: 1;
+    text-align: center;
+}
+
+.organization-role {
+    padding-left: 34px;
 }
 
 .env-row:hover :deep(.env-start) {

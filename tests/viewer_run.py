@@ -110,6 +110,7 @@ SETS = {
     ),
     "organization_counts": ("tests/organizationCounts.test.js",),
     "organization_page": ("tests/organizationPage.test.js",),
+    "organization_sidebar": ("tests/organizationSidebar.test.js",),
     "worker_cell": (
         "tests/agentCell.test.js",
     ),
