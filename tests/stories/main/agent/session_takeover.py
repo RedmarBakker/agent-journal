@@ -46,3 +46,14 @@ def test_a_takeover_while_the_agent_waits_keeps_the_wait(story):
     story.second_session_starts()
     story.expect_task(story.start.started_task, state=TaskState.STARTED)
     story.expect_stack(Ready, Working, ExternalWait)
+
+
+@story(StartedTask, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_late_hook_of_the_session_taken_over_leaves_the_environment_with_the_new_one(story):
+    first = story.main_session()
+    story.second_session_starts()
+    story.replaced_session_stops(first)
+    story.expect_allowed()
+    story.expect_agent_session(story.main_session())
+    story.expect_task(story.start.started_task, state=TaskState.STARTED)
+    story.expect_stack(Ready, Working)

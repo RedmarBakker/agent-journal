@@ -14,7 +14,7 @@ from journal.support.researcher_session import ResearcherSession
 
 
 class HookSeats:
-    """The agent row a hook or a command belongs to, found once at the door: a worker's, a verifier's or a reviewer's bound to its row, a researcher's made for it, else the main agent's; a command from an agent's shell that names no session is the present agent's."""
+    """The agent row a hook or a command belongs to, found once at the door: a worker's, a verifier's or a reviewer's bound to its row, a researcher's made for it, else the main agent's, a new session's start taking its row over while a late hook of the session it took over from is turned away; a command from an agent's shell that names no session is the present agent's."""
 
     def __init__(self, sessions: SessionAgents, workers: WorkerHooks, checkers: CheckerHooks, researchers: ResearcherHooks, agents: Agents, scope: Scope) -> None:
         self.sessions, self.workers, self.checkers, self.researchers, self.agents, self.scope = sessions, workers, checkers, researchers, agents, scope
@@ -30,6 +30,9 @@ class HookSeats:
 
     def is_unknown_session_end(self, hook: Hook) -> bool:
         return hook.is_session_end() and not self.agents.matching(session=hook.session)
+
+    def is_replaced_session(self, hook: Hook, environment: Environment) -> bool:
+        return hook.is_main_agent_hook() and not hook.is_session_start() and not self.agents.matching(session=hook.session) and self.agents.environment_main_agent(environment.row_id) is not None
 
     def caller_seated(self, caller: Caller) -> Caller:
         attributed = self.attributed(caller)

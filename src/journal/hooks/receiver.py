@@ -65,7 +65,7 @@ class Receiver:
                 return self.resent_answer(hook)
             if not self.is_accepted(hook, environment):
                 return self.unbound(hook, environment)
-            if self.seats.is_unknown_session_end(hook):
+            if self.seats.is_unknown_session_end(hook) or self.seats.is_replaced_session(hook, environment):
                 return Decision()
             agent = self.seats.agent(hook, environment)
             with self.scope.entered(Origin.agent_origin(agent, hook.actor())):

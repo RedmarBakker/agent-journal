@@ -584,6 +584,9 @@ Each phase ends with something that runs. Phases 1 to 5 are done and proven by `
 
 - Delivery (2026-10-15): every line the journal types is noted in `TypedLines` until the prompt hook brings its words back. One not seen back while the agent has sat between turns for ten seconds is typed again, three times at most, each try a card in the chat; the fourth miss is a card saying the line never arrived. The agent's turn being over is `Turn.over`, shared with the MCP restart.
 
+- An environment has one agent row: a new session's start takes the row over (SessionAgents.agent), and a later
+  hook of the session it took over from, anything but its own new start, is turned away unanswered
+  (HookSeats.is_replaced_session, task 4373), so a stray stop of the old terminal never moves the row back.
 - Every session start, fresh, resumed, after a compaction or a takeover, holds writes until `journal environment
   here` is run: the task in hand, open and parked tasks, messages, questions, workers, background runs, rules,
   facts and reminders in one read.

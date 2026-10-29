@@ -332,6 +332,9 @@ class AgentSteps:
     def second_session_starts(self, session: str = "s2") -> None:
         self.session_starts_with(self.provider, session)
 
+    def replaced_session_stops(self, session: str) -> None:
+        self.hook_observed(f"the replaced session {session} stops", *posted(self.app, f"/hooks/{self.provider}", {"hook_event_name": "Stop", "session_id": session}, MAIN))
+
     def other_provider_session_starts(self, session: str = "s3") -> None:
         self.session_starts_with(next(program.name for program in (Claude, Codex) if program.name != self.provider), session)
 

@@ -168,3 +168,9 @@ class Hook:
 
     def is_session_end(self) -> bool:
         return self.hook_type == HookType.SESSION_END
+
+    def is_session_start(self) -> bool:
+        return self.hook_type == HookType.SESSION_START
+
+    def is_main_agent_hook(self) -> bool:
+        return not self.researcher and self.worker is None and not self.is_sent()
