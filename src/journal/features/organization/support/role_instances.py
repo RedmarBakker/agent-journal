@@ -7,7 +7,7 @@ from journal.repositories.workers import Workers
 
 
 class RoleInstances:
-    """Which worker already is a Role's instance for a task: with cardinality journal the one worker of the Role, with plan the one worker of the Role for the task's plan, and with many none, since each job is its own instance; a task outside every plan is its own plan."""
+    """Which worker already is a Role's instance for a task: with cardinality journal the one worker of the Role in any environment, since every plan shares it, with plan the one worker of the Role for the task's plan, and with many none, since each job is its own instance; a task outside every plan is its own plan."""
 
     def __init__(self, workers: Workers, plans: Plans) -> None:
         self.workers, self.plans = workers, plans
@@ -17,8 +17,8 @@ class RoleInstances:
         return plans[0].row_id if plans else 0
 
     def existing(self, role: Role, task: Task) -> Worker | None:
-        instances = self.workers.role_instances(role.id)
         if role.cardinality is Cardinality.JOURNAL:
-            return next(iter(instances), None)
+            return next(iter(self.workers.role_instances_everywhere(role.id)), None)
+        instances = self.workers.role_instances(role.id)
         plan = self.plan_of(task)
         return next((worker for worker in instances if plan and worker.plan_id == plan), None) if role.cardinality is Cardinality.PLAN else None

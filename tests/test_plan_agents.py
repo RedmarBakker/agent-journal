@@ -213,3 +213,32 @@ def test_a_solo_plan_agent_acting_as_a_review_role_is_refused_a_write(app: App, 
     console.run(["environment", "overview"], lead)
     assert top()["state"] == "role_work" and len(guided()) > 1, "after a compaction it is the Role it was, told its guidance again"
     assert console.run(["role", "done"], lead).code == 0 and top()["state"] != "role_work", "the step's end pops it"
+
+
+def test_a_solo_plans_release_step_waits_in_the_shared_roles_queue(app: App, supervisors: Supervisors, tmp_path):
+    from journal.features.organization.support.organization import Organization
+    from journal.models.support.ref import Ref
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from tests.organization_fixture import OrganizationFixture
+    fixture = OrganizationFixture(tmp_path / "organization").write()
+    fixture.role("alpha", "releaser", cardinality="journal", writes=True, tools=["read_files", "edit_files"], model=fixture.model("sonnet", True))
+    fixture.domain("alpha", roles=["scout", "builder", "releaser"])
+    user_set(app, "workers.organization_folder", str(fixture.root))
+    app.container.get(Organization).reload()
+    with app.container.get(Scope).environment(MAIN):
+        instance = app.container.get(Workers).save(Worker(environment_id=MAIN, name="Ada Lovelace", brief="releases", role="releaser", state=WorkerState.DISPATCHED), Actor.system())
+    user_set(app, SWITCH, True)
+    plan = started_plan(app, "the release")
+    console, tasks, plans = app.console(), app.container.get(Tasks), app.container.get(Plans)
+    console.run(["plan", "add", str(plan), "the release step"], USER)
+    step = max(plans.plan_task_ids(plans.find(plan)))
+    lead = Caller.agent(f"plan-{plan}", "plan-session", "claude")
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "plan-session"}, {"X-Journal-Env": f"plan-{plan}"})
+    console.run(["environment", "overview"], lead)
+    queued = console.run(["role", "take", "releaser", "--task", str(step)], lead)
+    assert queued.code == 0 and f"task {step} waits in the queue" in queued.text, queued.error
+    assert [task.id for task in tasks.queue(Ref.build(instance))] == [step], "the step waits in the queue of the shared Role's one instance, made in the main environment"
+    assert app.container.get(Agents).find(plans.agent_id(plans.find(plan))).stack[-1]["state"] != "role_work", "a shared Role is never taken on as a state"

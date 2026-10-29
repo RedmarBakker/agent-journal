@@ -28,7 +28,13 @@ class Workers(ScopedRepository[Worker]):
         return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).filter(adopted=False).order("id"))
 
     def role_instances(self, role: str) -> list[Worker]:
-        return self.selected(self.query().filter(role=role).filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED, WorkerState.REPORTED]).order("id"))
+        return self.selected(self.role_instance_query(role))
+
+    def role_instances_everywhere(self, role: str) -> list[Worker]:
+        return self.selected_globally(self.role_instance_query(role))
+
+    def role_instance_query(self, role: str) -> Query:
+        return self.query().filter(role=role).filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED, WorkerState.REPORTED]).order("id")
 
     def mark_silence(self, worker: Worker, time: float, actor: Actor) -> None:
         with self.connection.transaction():

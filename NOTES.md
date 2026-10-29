@@ -1959,6 +1959,10 @@ The concept is doc 1 of this environment; the decisions of phase 1 are kept here
   writes, another tool unless one of its tool ids names it (`Role.allows_call`, Claude's tool names only so far). It is
   named `role_work (Role <id>)` in the trail, sends its guidance again on resume (after a compaction), and pops on
   RoleStepEnded. Approval-required actions are still not recognised from a call (doc 3, open).
+- A solo plan queues on shared Roles (task 27): `journal role take <journal-cardinality Role> [--task n]` pushes no
+  state; RoleQueue hands the step's task (named, or the agent's task in hand) to the queue of the Role's one instance,
+  which RoleInstances finds in any environment (`Workers.role_instances_everywhere`), since every plan shares it, and
+  refuses while none runs: the main agent starts it with `journal worker dispatch --role`.
 
 ## The OpenRig trial's stop rule (plan 1, task 41, written before the trial)
 
