@@ -40,3 +40,16 @@ def test_a_plan_started_while_its_first_task_waits_on_another_hands_out_the_next
     story.expect_task(story.start.first_task, state=TaskState.BLOCKED)
     story.expect_task(story.start.second_task, state=TaskState.STARTED)
     story.expect_stack(Ready, FollowingPlan)
+
+
+@story(StartedPlan, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_a_plan_that_blocks_itself_hands_out_the_next_open_task_and_takes_its_own_up_again_once_it_opens(story):
+    outside = story.agent_creates_task("outside work")
+    story.agent_runs(f"task block {story.start.second_task} 'waits on the designer'")
+    story.agent_runs(f"task complete {story.start.first_task} --how done")
+    story.expect_plan(story.start.plan, state=PlanState.BLOCKED)
+    story.expect_task(outside, state=TaskState.STARTED)
+    story.agent_runs(f"task unblock {story.start.second_task}")
+    story.agent_runs(f"task complete {outside} --how done")
+    story.expect_task(story.start.second_task, state=TaskState.STARTED)
+    story.expect_stack(Ready, FollowingPlan)
