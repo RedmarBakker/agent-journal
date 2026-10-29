@@ -18,9 +18,9 @@ test("a search mark is one group headed with its words and count, a child per re
     const [group] = threadTurns([searched(2)], []).turns;
     expect(group.kind).toBe("group");
     expect(group.title).toBe('Searched for "base", 2 results');
-    expect(group.turns.map((t) => [t.data.label, t.data.row])).toEqual([
-        ["task 1", "tasks:1"],
-        ["task 2", "tasks:2"],
+    expect(group.turns.map((t) => [t.data.label, t.data.row, t.data.detail])).toEqual([
+        ["task 1: the base repository", "tasks:1", undefined],
+        ["task 2: the base repository", "tasks:2", undefined],
     ]);
 });
 

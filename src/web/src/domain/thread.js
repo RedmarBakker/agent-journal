@@ -149,7 +149,7 @@ const SHOWN_RESULTS = 10;
 function searchGroup(card, label, m) {
     const look = cardLook(card, label);
     const child = (i, data) => ({key: `${refOf(m)}:result:${i}`, kind: "card", who: "agent", time: seconds(m.created_at), data: {...look, lines: [], ...data}});
-    const result = (r, i) => child(i, {label: r.label, detail: r.passage, title: r.passage, row: r.row});
+    const result = (r, i) => child(i, {label: `${r.label}: ${r.passage}`, title: r.passage, row: r.row});
     const more = card.results.length - SHOWN_RESULTS;
     const rest = more > 0 ? [child(SHOWN_RESULTS, {label: `+ ${more} more`, go: "search", query: card.terms || ""})] : [];
     return {
