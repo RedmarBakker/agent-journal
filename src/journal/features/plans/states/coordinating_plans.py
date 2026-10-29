@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 
 from journal.engine.nudge import Nudge
+from journal.engine.support.settings import Settings
+from journal.engine.support.transition import Transition
+from journal.events.rows.task_started import TaskStarted
 from journal.features.plans.plans_nudges import PlansNudges
 from journal.features.workers.states.orchestrating import Orchestrating
 
@@ -14,3 +17,6 @@ class CoordinatingPlans(Orchestrating):
 
     def mode_lines(self) -> tuple[Nudge, ...]:
         return (PlansNudges.COORDINATOR_MODE.create(),)
+
+    def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
+        return self.none()
