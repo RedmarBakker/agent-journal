@@ -25,6 +25,7 @@ from journal.providers.support.patch_paths import PatchPaths
 from journal.support.file_edit import FileEdit
 from journal.support.file_read import FileRead
 from journal.support.file_write import FileWrite
+from journal.support.part import Part
 from journal.support.shell_line import ShellLine
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
@@ -39,6 +40,9 @@ from journal.support.response import Response
 
 SCRIPT_FLAGS = ("-c", "-lc")
 SHELL_TOOL = "Bash"
+# the flag a shell line rewritten for the journal's runner hands its line to run.sh with, and the four words of that rewrite
+RUNNER_FLAG = "--command"
+RUNNER_TOKEN_COUNT = 4
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
 CONTEXT_LIMIT_NONE = 0
 
@@ -121,11 +125,20 @@ class Codex(Provider):
 
     @staticmethod
     def shell_line(command) -> ShellLine:
-        if not isinstance(command, list):
-            return ShellLine(str(command))
+        if isinstance(command, list):
+            return Codex.argv_line(command)
+        tokens = Part(str(command)).tokens()
+        return Codex.shell_line(tokens[-1]) if Codex.is_runner_tokens(tokens) else ShellLine(str(command))
+
+    @staticmethod
+    def argv_line(command: list) -> ShellLine:
         if len(command) == 3 and command[1] in SCRIPT_FLAGS:
             return ShellLine(str(command[2]), str(command[0]), str(command[1]))
         return ShellLine(shlex.join(str(part) for part in command))
+
+    @staticmethod
+    def is_runner_tokens(tokens: list[str]) -> bool:
+        return len(tokens) == RUNNER_TOKEN_COUNT and tokens[:-1] == ["sh", str(RUN_SCRIPT), RUNNER_FLAG]
 
     def profile_model(self, profile: ProfileView) -> str:
         return profile["codex_model"]
@@ -220,7 +233,7 @@ class Codex(Provider):
 
     @staticmethod
     def runner_command(line: str) -> str:
-        return shlex.join(["sh", str(RUN_SCRIPT), "--command", line])
+        return shlex.join(["sh", str(RUN_SCRIPT), RUNNER_FLAG, line])
 
     def resume(self, session: str) -> tuple[str, ...]:
         return ("resume", session)

@@ -46,7 +46,7 @@ def journal_nouns(event: ToolStarting) -> set[str]:
 
 
 def is_skill_read(event: ToolStarting, cards: list[SkillCard]) -> bool:
-    return any(card.name == event.call.skill_loaded or card.path in event.call.command or any(path.endswith(card.path) for path in event.call.read_paths) for card in cards)
+    return any(card.matches_read(event.call) for card in cards)
 
 
 def read_first(cards: list[SkillCard]) -> list[Nudge]:

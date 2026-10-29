@@ -14,6 +14,7 @@ from journal.features.shell.support.shell_request import OUTPUT_FOLDER_VARIABLE
 from journal.models.command_output import CommandOutput
 from journal.models.environment import Environment
 from journal.features.skills.support.skill_files import SkillFiles
+from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.providers.providers import Providers
 from journal.repositories.environments import Environments
 from journal.supervisor_link import SupervisorLink
@@ -28,8 +29,8 @@ class SetupCommand(Command):
     noun = "setup"
     default_verb = "project"
 
-    def __init__(self, config: Config, providers: Providers, files: SkillFiles, profiles: ProfileFiles, environments: Environments, supervisor: SupervisorLink, queue: RestartQueue) -> None:
-        self.config, self.providers, self.files, self.profiles, self.environments, self.supervisor, self.queue = config, providers, files, profiles, environments, supervisor, queue
+    def __init__(self, config: Config, providers: Providers, files: SkillFiles, plugin_skills: PluginSkills, profiles: ProfileFiles, environments: Environments, supervisor: SupervisorLink, queue: RestartQueue) -> None:
+        self.config, self.providers, self.files, self.plugin_skills, self.profiles, self.environments, self.supervisor, self.queue = config, providers, files, plugin_skills, profiles, environments, supervisor, queue
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "project", "wire the hooks, write the skills and the law, put journal on the path; what journal setup does alone")
@@ -41,6 +42,7 @@ class SetupCommand(Command):
         self.hooks(args, caller)
         for path in self.files.write_all():
             print(f"skill   {path.relative_to(self.config.root)}")
+        self.plugin_skills.refresh_all()
         for path in self.profiles.write_all():
             print(f"profile {path.relative_to(self.config.root)}")
         print(f"law     {self.law().relative_to(self.config.root)}")

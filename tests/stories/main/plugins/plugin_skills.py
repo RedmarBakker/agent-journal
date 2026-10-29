@@ -5,6 +5,7 @@ from tests.stories.builder.story_marks import story
 from tests.stories.fixtures.main.installed_plugin import InstalledPlugin
 
 SKILL = "echo-guide"
+JOURNAL_SKILL = "journal"
 HOMES = (".claude/skills", ".agents/skills")
 
 
@@ -27,4 +28,15 @@ def test_a_plugin_removed_takes_its_skills_away(story):
     story.user_types(f"plugin remove {story.start.plugin}")
     for home in HOMES:
         story.expect_no_project_file(f"{home}/{SKILL}")
+    story.expect_stack(Ready)
+
+
+@story(InstalledPlugin, mode=BUILDER_MODE, scope=AgentRole.MAIN)
+def test_setup_brings_back_a_plugin_skill_and_a_journal_skill_lost_from_their_folders(story):
+    story.project_folder_lost(f"{HOMES[1]}/{SKILL}")
+    story.project_folder_lost(f"{HOMES[0]}/{JOURNAL_SKILL}")
+    story.user_types("setup")
+    for home in HOMES:
+        story.expect_project_file(f"{home}/{SKILL}/SKILL.md", f"plugin: {story.start.plugin}")
+        story.expect_project_file(f"{home}/{JOURNAL_SKILL}/SKILL.md")
     story.expect_stack(Ready)

@@ -1,3 +1,4 @@
+import shutil
 import re
 import shlex
 import subprocess
@@ -105,6 +106,11 @@ class AgentSteps:
         call = dict(tool_name=self.tools.read, tool_input={"file_path": str(self.app.config.root / HOMES[0] / folder / SKILL_FILE)})
         self.hooked("agent reads a skill", "PreToolUse", **call)
         self.hooked("agent has read the skill", "PostToolUse", **call, tool_response={})
+
+    def agent_cats_a_skill_through_the_runner(self, home: str, folder: str) -> None:
+        line = f"cat {home}/{folder}/{SKILL_FILE}"
+        self.agent_runs_in_the_shell(line)
+        self.agent_has_run_printing(Codex.runner_command(line), "")
 
     def agent_writes(self, path: str) -> None:
         self.hooked("agent writes", "PreToolUse", tool_name=self.tools.write, tool_input={"file_path": path, "content": "x"})
@@ -360,6 +366,10 @@ class AgentSteps:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         self.observed(f"the project holds {name}", None, None)
+
+    def project_folder_lost(self, name: str) -> None:
+        shutil.rmtree(self.app.config.root / name)
+        self.observed(f"the project lost {name}", None, None)
 
     def project_file(self, name: str, line_count: int) -> str:
         path = self.app.config.root / name
