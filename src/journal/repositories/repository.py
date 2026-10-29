@@ -41,7 +41,7 @@ MATCH_ROWS = 40
 
 
 class Repository(Generic[M]):
-    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. A change takes the row as it was from a read the cache holds of it alone, before it reads the row by its number. While its rows are listed, it and every other repository read none but them, save a count."""
+    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted; the events a saved row names are dispatched once its write lock is let go, so the agents they reach never hold up another thread's write. A change takes the row as it was from a read the cache holds of it alone, before it reads the row by its number. While its rows are listed, it and every other repository read none but them, save a count."""
 
     model: type[M]
 
@@ -207,7 +207,7 @@ class Repository(Generic[M]):
             self.bus.dispatch(Saving(model=row, actor=actor))
             saved = self._insert(row.with_events((*row.events, *row.creation_events())), actor, self._time()) if row.is_new else self._update(row, actor)
             self.bus.dispatch(Saved(model=saved, actor=actor))
-            return self.dispatched(saved, actor)
+        return self.dispatched(saved, actor)
 
     def imported(self, row: M, time: datetime, actor: Actor) -> M:
         with self.connection.transaction():
@@ -233,7 +233,8 @@ class Repository(Generic[M]):
             time = self.find(row.row_id)
             changed = change(time)
             differing = {f.name: getattr(changed, f.name) for f in fields(changed) if f.metadata.get("column", True) and getattr(changed, f.name) != getattr(time, f.name)}
-            return self.dispatched(self.touch(time, actor, **differing).with_events(changed.events), actor)
+            touched = self.touch(time, actor, **differing).with_events(changed.events)
+        return self.dispatched(touched, actor)
 
     def touched(self, row: M, actor: Actor, field_map: Callable[[M], dict]) -> M:
         with self.connection.transaction():
