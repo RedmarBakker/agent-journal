@@ -106,12 +106,15 @@ test("the Organization sidebar links domains and Roles, follows live counts, and
     expect(domain.querySelector(".organization-domain-icon").textContent).toBe("📊");
     expect(domain.querySelector(".count").textContent).toBe("1");
     expect(domain.querySelector(".count").title).toBe("1 active plans");
-    expect(host.querySelector('a[href="#/organization?domain=sales&role=many"]')).toBeNull();
+    expect(host.querySelector(".organization-role")).toBeNull();
 
     host.querySelector('button[aria-label="Show Roles in Sales"]').click();
-    await nextTick();
-    const many = host.querySelector('a[href="#/organization?domain=sales&role=many"]');
-    const queue = host.querySelector('a[href="#/organization?domain=sales&role=queue"]');
+    await until(() => host.querySelectorAll(".organization-role").length === 2);
+    const roles = [...host.querySelectorAll(".organization-role")];
+    const many = roles.find((link) => link.textContent.includes("Many jobs"));
+    const queue = roles.find((link) => link.textContent.includes("Queue"));
+    expect(many.getAttribute("href")).toBe("#/organization?domain=sales&role=many");
+    expect(queue.getAttribute("href")).toBe("#/organization?domain=sales&role=queue");
     expect(many.querySelector(".count").textContent).toBe("2");
     expect(many.querySelector(".count").title).toBe("2 running instances");
     expect(queue.querySelector(".count").textContent).toBe("4");
